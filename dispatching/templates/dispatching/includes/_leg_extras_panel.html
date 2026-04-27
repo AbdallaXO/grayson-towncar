@@ -1,0 +1,828 @@
+{# Inline editor for a leg's extra stops + multi-flight. #}
+{# Required context: leg #}
+
+<style>
+  /* ── Modern leg-extras editor — scoped under .leg-extras-panel ──── */
+  .leg-extras-panel {
+    --lex-surface: #ffffff;
+    --lex-surface-1: #fafbfc;
+    --lex-surface-2: #f3f4f6;
+    --lex-border: #e5e7eb;
+    --lex-border-strong: #d1d5db;
+    --lex-text: #111827;
+    --lex-text-muted: #6b7280;
+    --lex-text-subtle: #9ca3af;
+
+    --lex-dropoff: #16a34a;
+    --lex-dropoff-soft: #f0fdf4;
+    --lex-dropoff-border: #bbf7d0;
+
+    --lex-stop: #d97706;
+    --lex-stop-soft: #fffbeb;
+    --lex-stop-border: #fde68a;
+
+    --lex-flight: #2563eb;
+    --lex-flight-soft: #eff6ff;
+    --lex-flight-border: #bfdbfe;
+
+    --lex-primary: #0f766e;
+    --lex-primary-soft: #f0fdfa;
+
+    --lex-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.02);
+    --lex-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+    --lex-shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08), 0 4px 8px rgba(15, 23, 42, 0.04);
+
+    --lex-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+    background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+    border: 1px solid var(--lex-border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 8px;
+    box-shadow: var(--lex-shadow-md);
+    color: var(--lex-text);
+  }
+
+  /* When the panel is rendered inside a Bootstrap modal, drop the outer
+     chrome (the modal already provides a card-like surface). */
+  .modal-body .leg-extras-panel {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0;
+    padding: 20px 22px;
+  }
+
+  /* ── Section count badge ────────────────────────────────────── */
+  .leg-extras-panel .lex-section-count {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 0.7rem; font-weight: 700;
+    padding: 2px 9px; border-radius: 999px;
+    margin-left: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .leg-extras-panel .lex-section-title.lex-stops .lex-section-count {
+    background: var(--lex-stop-soft); color: var(--lex-stop);
+    border: 1px solid var(--lex-stop-border);
+  }
+  .leg-extras-panel .lex-section-title.lex-flights .lex-section-count {
+    background: var(--lex-flight-soft); color: var(--lex-flight);
+    border: 1px solid var(--lex-flight-border);
+  }
+
+  /* ── Section structure ─────────────────────────────────────── */
+  .leg-extras-panel .lex-section { margin-bottom: 22px; }
+  .leg-extras-panel .lex-section:last-child { margin-bottom: 0; }
+  .leg-extras-panel .lex-divider {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--lex-border) 20%, var(--lex-border) 80%, transparent 100%);
+    margin: 22px 0;
+  }
+  .leg-extras-panel .lex-section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 14px;
+  }
+  .leg-extras-panel .lex-section-title {
+    font-size: 0.95rem; font-weight: 700; color: var(--lex-text);
+    margin: 0; display: inline-flex; align-items: center; gap: 8px;
+    letter-spacing: -0.01em;
+  }
+  .leg-extras-panel .lex-section-title .lex-section-icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.95rem;
+  }
+  .leg-extras-panel .lex-section-title.lex-stops .lex-section-icon {
+    background: var(--lex-stop-soft); color: var(--lex-stop);
+  }
+  .leg-extras-panel .lex-section-title.lex-flights .lex-section-icon {
+    background: var(--lex-flight-soft); color: var(--lex-flight);
+  }
+  .leg-extras-panel .lex-section-hint {
+    font-size: 0.78rem; color: var(--lex-text-muted);
+    text-align: right;
+  }
+
+  /* ── Primary anchor pill ───────────────────────────────────── */
+  .leg-extras-panel .lex-primary-anchor {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--lex-primary-soft);
+    border: 1px solid #99f6e4;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+  }
+  .leg-extras-panel .lex-primary-anchor-icon {
+    flex-shrink: 0;
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--lex-primary); color: white;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.95rem;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25);
+  }
+  .leg-extras-panel .lex-primary-anchor-body { min-width: 0; flex: 1; }
+  .leg-extras-panel .lex-primary-anchor-label {
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--lex-primary);
+  }
+  .leg-extras-panel .lex-primary-anchor-value {
+    font-weight: 600; color: var(--lex-text); font-size: 0.92rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ── Empty state ───────────────────────────────────────────── */
+  .leg-extras-panel .lex-empty {
+    text-align: center; padding: 22px 12px;
+    color: var(--lex-text-muted); font-size: 0.85rem;
+    background: var(--lex-surface);
+    border: 1px dashed var(--lex-border-strong);
+    border-radius: 10px;
+    margin-bottom: 12px;
+  }
+  .leg-extras-panel .lex-empty-icon {
+    display: block; font-size: 1.6rem; margin-bottom: 6px;
+    color: var(--lex-text-subtle);
+  }
+
+  /* ── Row cards (existing stops / flights) ──────────────────── */
+  .leg-extras-panel .lex-row {
+    background: var(--lex-surface);
+    border: 1px solid var(--lex-border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    box-shadow: var(--lex-shadow-sm);
+    transition: border-color 200ms var(--lex-ease),
+                box-shadow 200ms var(--lex-ease),
+                transform 200ms var(--lex-ease);
+  }
+  .leg-extras-panel .lex-row:hover {
+    border-color: var(--lex-border-strong);
+    box-shadow: var(--lex-shadow-md);
+  }
+  .leg-extras-panel .lex-row.is-dropoff { border-left: 3px solid var(--lex-dropoff); }
+  .leg-extras-panel .lex-row.is-stop    { border-left: 3px solid var(--lex-stop); }
+  .leg-extras-panel .lex-row.is-flight  { border-left: 3px solid var(--lex-flight); }
+  .leg-extras-panel .lex-row.editing {
+    background: var(--lex-surface-1);
+    border-color: var(--lex-border-strong);
+    box-shadow: var(--lex-shadow-md);
+  }
+
+  .leg-extras-panel .lex-row-display {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .leg-extras-panel .lex-row-edit {
+    display: none;
+    margin-top: 4px;
+    animation: lex-fade-in 200ms var(--lex-ease);
+  }
+  @keyframes lex-fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .leg-extras-panel .lex-row.editing .lex-row-display { display: none; }
+  .leg-extras-panel .lex-row.editing .lex-row-edit { display: block; }
+
+  /* ── Type chips ────────────────────────────────────────────── */
+  .leg-extras-panel .lex-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 4px 9px; border-radius: 999px;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+  }
+  .leg-extras-panel .lex-chip.is-dropoff {
+    background: var(--lex-dropoff-soft);
+    color: var(--lex-dropoff);
+    border-color: var(--lex-dropoff-border);
+  }
+  .leg-extras-panel .lex-chip.is-stop {
+    background: var(--lex-stop-soft);
+    color: var(--lex-stop);
+    border-color: var(--lex-stop-border);
+  }
+  .leg-extras-panel .lex-chip.is-controlling {
+    background: var(--lex-dropoff-soft);
+    color: var(--lex-dropoff);
+    border-color: var(--lex-dropoff-border);
+  }
+
+  /* ── Row content ───────────────────────────────────────────── */
+  .leg-extras-panel .lex-row-location {
+    font-weight: 600; color: var(--lex-text); font-size: 0.94rem;
+    flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .leg-extras-panel .lex-row-meta {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 0.78rem; color: var(--lex-text-muted); flex-shrink: 0;
+  }
+  .leg-extras-panel .lex-meta-min {
+    background: var(--lex-stop-soft); color: var(--lex-stop);
+    padding: 2px 8px; border-radius: 6px; font-weight: 600;
+    border: 1px solid var(--lex-stop-border);
+    font-variant-numeric: tabular-nums;
+  }
+  .leg-extras-panel .lex-meta-fee {
+    color: var(--lex-text); font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+  }
+  .leg-extras-panel .lex-row-notes {
+    font-size: 0.8rem; color: var(--lex-text-muted); font-style: italic;
+    margin-top: 6px; padding-left: 4px; flex: 1 1 100%;
+  }
+
+  /* ── Row actions ───────────────────────────────────────────── */
+  .leg-extras-panel .lex-row-actions {
+    display: inline-flex; gap: 4px; margin-left: auto; flex-shrink: 0;
+  }
+  .leg-extras-panel .lex-icon-btn {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 7px; border: 1px solid var(--lex-border);
+    background: var(--lex-surface); color: var(--lex-text-muted);
+    font-size: 0.85rem; cursor: pointer;
+    transition: all 150ms var(--lex-ease);
+  }
+  .leg-extras-panel .lex-icon-btn:hover {
+    border-color: var(--lex-border-strong);
+    background: var(--lex-surface-1);
+    color: var(--lex-text);
+    transform: translateY(-1px);
+    box-shadow: var(--lex-shadow-sm);
+  }
+  .leg-extras-panel .lex-icon-btn.is-danger:hover {
+    border-color: #fca5a5; background: #fef2f2; color: #b91c1c;
+  }
+  .leg-extras-panel .lex-icon-btn:disabled {
+    opacity: 0.5; cursor: not-allowed; transform: none;
+  }
+
+  /* ── Add card ──────────────────────────────────────────────── */
+  .leg-extras-panel details.lex-add-collapse > summary {
+    list-style: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.85rem; font-weight: 600;
+    padding: 8px 14px; border-radius: 8px;
+    border: 1px dashed var(--lex-border-strong);
+    background: var(--lex-surface);
+    color: var(--lex-text);
+    transition: all 200ms var(--lex-ease);
+    margin-top: 8px;
+  }
+  .leg-extras-panel details.lex-add-collapse > summary::-webkit-details-marker { display: none; }
+  .leg-extras-panel details.lex-add-collapse > summary:hover {
+    border-color: var(--lex-stop);
+    background: var(--lex-stop-soft);
+    color: var(--lex-stop);
+  }
+  .leg-extras-panel details.lex-add-flight-collapse > summary:hover {
+    border-color: var(--lex-flight);
+    background: var(--lex-flight-soft);
+    color: var(--lex-flight);
+  }
+  .leg-extras-panel details[open].lex-add-collapse > summary { display: none; }
+
+  .leg-extras-panel .lex-add-card {
+    background: var(--lex-surface);
+    border: 1px solid var(--lex-border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-top: 6px;
+    box-shadow: var(--lex-shadow-md);
+    animation: lex-slide-in 250ms var(--lex-ease);
+  }
+  @keyframes lex-slide-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .leg-extras-panel .lex-add-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--lex-border);
+  }
+  .leg-extras-panel .lex-add-card-title {
+    font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--lex-text-muted);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .leg-extras-panel .lex-add-card-close {
+    background: transparent; border: 0; color: var(--lex-text-subtle);
+    font-size: 1rem; cursor: pointer; padding: 2px 6px;
+    border-radius: 6px; transition: color 150ms var(--lex-ease);
+  }
+  .leg-extras-panel .lex-add-card-close:hover { color: var(--lex-text); background: var(--lex-surface-2); }
+
+  /* ── Form fields ───────────────────────────────────────────── */
+  .leg-extras-panel .lex-field-label {
+    display: block; font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--lex-text-muted); margin-bottom: 5px;
+  }
+  .leg-extras-panel .lex-input,
+  .leg-extras-panel .lex-select {
+    width: 100%;
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    height: auto;
+    background: var(--lex-surface);
+    border: 1px solid var(--lex-border);
+    border-radius: 8px;
+    color: var(--lex-text);
+    transition: border-color 150ms var(--lex-ease),
+                box-shadow 150ms var(--lex-ease),
+                background 150ms var(--lex-ease);
+  }
+  .leg-extras-panel .lex-input::placeholder { color: var(--lex-text-subtle); }
+  .leg-extras-panel .lex-input:hover,
+  .leg-extras-panel .lex-select:hover { border-color: var(--lex-border-strong); }
+  .leg-extras-panel .lex-input:focus,
+  .leg-extras-panel .lex-select:focus {
+    outline: none;
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    background: var(--lex-surface);
+  }
+  .leg-extras-panel .lex-input-currency {
+    position: relative;
+  }
+  .leg-extras-panel .lex-input-currency::before {
+    content: "$";
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--lex-text-subtle); font-size: 0.9rem;
+    font-weight: 600; pointer-events: none; z-index: 1;
+  }
+  .leg-extras-panel .lex-input-currency .lex-input { padding-left: 24px; }
+
+  .leg-extras-panel .lex-field-hint {
+    font-size: 0.75rem; color: var(--lex-text-muted); margin-top: 10px;
+    padding: 8px 12px; background: var(--lex-surface-1);
+    border-radius: 7px; border-left: 2px solid var(--lex-border-strong);
+    line-height: 1.5;
+  }
+  .leg-extras-panel .lex-field-hint i { color: var(--lex-text-subtle); margin-right: 4px; }
+
+  /* Field show/hide based on category — drop-off and charter have no wait time */
+  .leg-extras-panel .lex-add-card[data-category="dropoff"] .lex-field-min,
+  .leg-extras-panel .lex-add-card[data-category="charter"] .lex-field-min,
+  .leg-extras-panel .lex-row-edit[data-current-category="dropoff"] .lex-field-min,
+  .leg-extras-panel .lex-row-edit[data-current-category="charter"] .lex-field-min {
+    display: none;
+  }
+
+  /* ── Responsive Wait/Fee row — fee expands when wait is hidden ── */
+  .leg-extras-panel .lex-meta-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .leg-extras-panel .lex-add-card[data-category="dropoff"] .lex-meta-row,
+  .leg-extras-panel .lex-add-card[data-category="charter"] .lex-meta-row {
+    grid-template-columns: 1fr;
+  }
+  @media (max-width: 540px) {
+    .leg-extras-panel .lex-meta-row { grid-template-columns: 1fr; }
+  }
+
+  /* ── Charter-only row (start time + hours) ─────────────────── */
+  .leg-extras-panel .lex-charter-row { display: none; }
+  .leg-extras-panel .lex-add-card[data-category="charter"] .lex-charter-row,
+  .leg-extras-panel .lex-row-edit[data-current-category="charter"] .lex-charter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 540px) {
+    .leg-extras-panel .lex-add-card[data-category="charter"] .lex-charter-row,
+    .leg-extras-panel .lex-row-edit[data-current-category="charter"] .lex-charter-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* "(optional)" tag on the Location label — only visible for charter. */
+  .leg-extras-panel .lex-charter-only { display: none; font-weight: 500; color: var(--lex-text-subtle); margin-left: 6px; }
+  .leg-extras-panel .lex-add-card[data-category="charter"] .lex-charter-only,
+  .leg-extras-panel .lex-row-edit[data-current-category="charter"] .lex-charter-only {
+    display: inline;
+  }
+
+  /* ── Add-card footer (buttons live at the bottom) ───────────── */
+  .leg-extras-panel .lex-add-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--lex-border);
+  }
+  @media (max-width: 540px) {
+    .leg-extras-panel .lex-add-card-footer { flex-direction: column-reverse; align-items: stretch; }
+    .leg-extras-panel .lex-add-card-footer .lex-btn { width: 100%; }
+  }
+
+  /* ── Submit buttons ────────────────────────────────────────── */
+  .leg-extras-panel .lex-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px;
+    font-size: 0.88rem; font-weight: 600;
+    padding: 9px 16px; border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 150ms var(--lex-ease);
+  }
+  .leg-extras-panel .lex-btn-primary-stop {
+    background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(217, 119, 6, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .leg-extras-panel .lex-btn-primary-stop:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(217, 119, 6, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .leg-extras-panel .lex-btn-primary-flight {
+    background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .leg-extras-panel .lex-btn-primary-flight:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .leg-extras-panel .lex-btn-success {
+    background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(22, 163, 74, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .leg-extras-panel .lex-btn-success:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(22, 163, 74, 0.4);
+  }
+  .leg-extras-panel .lex-btn-ghost {
+    background: var(--lex-surface);
+    color: var(--lex-text);
+    border-color: var(--lex-border);
+  }
+  .leg-extras-panel .lex-btn-ghost:hover {
+    background: var(--lex-surface-1);
+    border-color: var(--lex-border-strong);
+  }
+  .leg-extras-panel .lex-btn-make-controlling {
+    font-size: 0.72rem;
+    padding: 4px 10px;
+    background: var(--lex-surface);
+    color: var(--lex-dropoff);
+    border-color: var(--lex-dropoff-border);
+  }
+  .leg-extras-panel .lex-btn-make-controlling:hover {
+    background: var(--lex-dropoff-soft);
+    border-color: var(--lex-dropoff);
+  }
+  .leg-extras-panel .lex-btn:disabled {
+    opacity: 0.6; cursor: not-allowed; transform: none !important;
+  }
+
+  /* ── Form check (controlling checkbox) ─────────────────────── */
+  .leg-extras-panel .lex-form-check {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    background: var(--lex-flight-soft);
+    border: 1px solid var(--lex-flight-border);
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 150ms var(--lex-ease);
+  }
+  .leg-extras-panel .lex-form-check:hover {
+    border-color: var(--lex-flight);
+    background: #dbeafe;
+  }
+  .leg-extras-panel .lex-form-check input[type="checkbox"] {
+    margin: 0; accent-color: var(--lex-flight);
+  }
+  .leg-extras-panel .lex-form-check label {
+    margin: 0; font-size: 0.85rem; font-weight: 500;
+    color: var(--lex-text); cursor: pointer;
+  }
+
+  /* ── Spinner for loading state ─────────────────────────────── */
+  .leg-extras-panel .lex-spin {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid currentColor; border-top-color: transparent;
+    border-radius: 50%;
+    animation: lex-spin 600ms linear infinite;
+  }
+  @keyframes lex-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="leg-extras-panel" data-leg-id="{{ leg.id }}">
+
+  {# ─────────── Stops & drop-offs ──────────────────────────── #}
+  <section class="lex-section">
+    <header class="lex-section-header">
+      <h6 class="lex-section-title lex-stops">
+        <span class="lex-section-icon"><i class="bi bi-pin-map-fill"></i></span>
+        Stops &amp; drop-offs
+        {% if leg.legstop_set.count %}
+          <span class="lex-section-count">{{ leg.legstop_set.count }}</span>
+        {% endif %}
+      </h6>
+      <span class="lex-section-hint">Drop-off (no time) or stop with wait minutes</span>
+    </header>
+
+    <div class="lex-primary-anchor">
+      <div class="lex-primary-anchor-icon"><i class="bi bi-flag-fill"></i></div>
+      <div class="lex-primary-anchor-body">
+        <div class="lex-primary-anchor-label">Primary drop-off</div>
+        <div class="lex-primary-anchor-value">{{ leg.dropoff_location|default:"—" }}</div>
+      </div>
+    </div>
+
+    {% if leg.legstop_set.all %}
+      <div class="lex-stops-list">
+        {% for stop in leg.legstop_set.all %}
+          <div class="lex-row {% if stop.stop_type == 'dropoff' %}is-dropoff{% else %}is-stop{% endif %}"
+               data-leg-stop-row data-stop-id="{{ stop.id }}">
+
+            {# DISPLAY MODE #}
+            <div class="lex-row-display">
+              {% if stop.stop_type == 'dropoff' %}
+                <span class="lex-chip is-dropoff"><i class="bi bi-pin-map-fill"></i> Drop-off</span>
+              {% else %}
+                <span class="lex-chip is-stop"><i class="bi bi-stopwatch"></i> {{ stop.get_stop_type_display }}</span>
+              {% endif %}
+              <span class="lex-row-location">{{ stop.display_location|default:"—" }}</span>
+              <span class="lex-row-meta">
+                {% if stop.stop_type == 'charter' %}
+                  {% if stop.start_time %}
+                    <span class="lex-meta-min"><i class="bi bi-clock"></i> {{ stop.start_time|time:"g:i A" }}</span>
+                  {% endif %}
+                  {% if stop.charter_hours %}
+                    <span class="lex-meta-min">{{ stop.charter_hours }} hr</span>
+                  {% endif %}
+                {% elif stop.stop_type != 'dropoff' and stop.duration_minutes %}
+                  <span class="lex-meta-min"><i class="bi bi-clock"></i> {{ stop.duration_minutes }} min</span>
+                {% endif %}
+                {% if stop.extra_fee %}
+                  <span class="lex-meta-fee">+${{ stop.extra_fee|floatformat:2 }}</span>
+                {% endif %}
+                {% if stop.requires_manual_review %}
+                  <span class="badge bg-warning text-dark" style="font-size:0.65rem; font-weight:600;">review</span>
+                {% endif %}
+              </span>
+              <div class="lex-row-actions">
+                <button type="button" class="lex-icon-btn" data-leg-extras-action="toggle-edit" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="lex-icon-btn is-danger" data-leg-extras-action="delete-stop" title="Remove">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              {% if stop.notes %}<div class="lex-row-notes"><i class="bi bi-quote"></i> {{ stop.notes }}</div>{% endif %}
+            </div>
+
+            {# EDIT MODE #}
+            <div class="lex-row-edit" data-current-category="{{ stop.stop_type }}">
+              <div class="row g-3">
+                <div class="col-12 col-sm-4">
+                  <label class="lex-field-label">Category</label>
+                  <select class="lex-select" name="stop_type" data-stop-field data-row-category>
+                    {% for value, label in stop.STOP_TYPE_CHOICES %}
+                      <option value="{{ value }}" {% if stop.stop_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12 col-sm-8">
+                  <label class="lex-field-label">Location <span class="lex-charter-only">(optional)</span></label>
+                  <input type="text" class="lex-input" name="location_text" value="{{ stop.location_text }}" data-stop-field>
+                </div>
+                <div class="col-12">
+                  <div class="lex-charter-row">
+                    <div>
+                      <label class="lex-field-label">Charter start time</label>
+                      <input type="time" class="lex-input" name="start_time" value="{{ stop.start_time|time:'H:i' }}" data-stop-field>
+                    </div>
+                    <div>
+                      <label class="lex-field-label">Charter hours</label>
+                      <input type="number" class="lex-input" name="charter_hours" value="{% if stop.stop_type == 'charter' %}{{ stop.charter_hours }}{% endif %}" placeholder="e.g., 4" min="1" step="1" data-stop-field>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-6 lex-field-min">
+                  <label class="lex-field-label">Wait minutes</label>
+                  <input type="number" class="lex-input" name="duration_minutes" value="{{ stop.duration_minutes }}" min="0" data-stop-field>
+                </div>
+                <div class="col-6">
+                  <label class="lex-field-label">Fee</label>
+                  <div class="lex-input-currency">
+                    <input type="number" step="0.01" class="lex-input" name="extra_fee" value="{{ stop.extra_fee|default_if_none:'' }}" placeholder="0.00" data-stop-field>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <label class="lex-field-label">Notes</label>
+                  <input type="text" class="lex-input" name="notes" value="{{ stop.notes }}" placeholder="(optional)" data-stop-field>
+                </div>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                  <button type="button" class="lex-btn lex-btn-ghost" data-leg-extras-action="toggle-edit">Cancel</button>
+                  <button type="button" class="lex-btn lex-btn-success" data-leg-extras-action="save-stop">
+                    <i class="bi bi-check-lg"></i> Save changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="lex-empty">
+        <i class="bi bi-pin-map lex-empty-icon"></i>
+        No additional drop-offs or stops on this leg yet.
+      </div>
+    {% endif %}
+
+    <details class="lex-add-collapse" {% if not leg.legstop_set.all %}open{% endif %}>
+      <summary><i class="bi bi-plus-lg"></i> Add a stop or drop-off</summary>
+      <div class="lex-add-card" data-leg-extras-add-stop-card data-category="dropoff">
+        <div class="lex-add-card-header">
+          <div class="lex-add-card-title"><i class="bi bi-plus-circle-fill"></i> Add new</div>
+          <button type="button" class="lex-add-card-close" data-leg-extras-action="close-add-stop" aria-label="Close">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-md-5">
+            <label class="lex-field-label">Category</label>
+            <select class="lex-select" name="stop_type" data-add-stop-field data-add-stop-category>
+              <option value="dropoff" selected>📍 Additional drop-off</option>
+              <option value="stop">⏱ Additional stop</option>
+              <option value="pickup">👋 Additional pickup</option>
+              <option value="charter">🕒 Charter (hourly)</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-7">
+            <label class="lex-field-label">Location <span class="lex-charter-only">(optional)</span></label>
+            <input type="text" class="lex-input" name="location_text" placeholder="e.g., Disney Contemporary Resort" data-add-stop-field>
+          </div>
+          <div class="col-12">
+            <div class="lex-charter-row">
+              <div>
+                <label class="lex-field-label">Charter start time</label>
+                <input type="time" class="lex-input" name="start_time" data-add-stop-field>
+              </div>
+              <div>
+                <label class="lex-field-label">Charter hours</label>
+                <input type="number" class="lex-input" name="charter_hours" placeholder="e.g., 4" min="1" step="1" data-add-stop-field>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="lex-meta-row">
+              <div class="lex-field-min">
+                <label class="lex-field-label">Wait minutes</label>
+                <input type="number" class="lex-input" name="duration_minutes" value="0" min="0" data-add-stop-field data-add-stop-min>
+              </div>
+              <div>
+                <label class="lex-field-label">Fee (optional)</label>
+                <div class="lex-input-currency">
+                  <input type="number" step="0.01" class="lex-input" name="extra_fee" placeholder="0.00" data-add-stop-field>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="lex-field-label">Notes (optional)</label>
+            <input type="text" class="lex-input" name="notes" placeholder="e.g., wait at the bell desk" data-add-stop-field>
+          </div>
+        </div>
+        <div class="lex-field-hint">
+          <i class="bi bi-info-circle-fill"></i>
+          <strong>Drop-off</strong> = additional destination, no wait time. Other categories pause briefly with minutes. Any fee is added to the reservation total.
+        </div>
+        <div class="lex-add-card-footer">
+          <button type="button" class="lex-btn lex-btn-ghost" data-leg-extras-action="close-add-stop">
+            Cancel
+          </button>
+          <button type="button" class="lex-btn lex-btn-primary-stop" data-leg-extras-action="add-stop">
+            <i class="bi bi-plus-lg"></i> Add stop
+          </button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <hr class="lex-divider">
+
+  {# ─────────── Flights ─────────────────────────────────────── #}
+  <section class="lex-section">
+    <header class="lex-section-header">
+      <h6 class="lex-section-title lex-flights">
+        <span class="lex-section-icon"><i class="bi bi-airplane-fill"></i></span>
+        Flights
+        {% if leg.legflight_set.count %}
+          <span class="lex-section-count">{{ leg.legflight_set.count }}</span>
+        {% endif %}
+      </h6>
+      <span class="lex-section-hint">Mark the controlling flight (drives pickup timing)</span>
+    </header>
+
+    {% with legflights=leg.legflight_set.all %}
+      {% if legflights %}
+        <div class="lex-flights-list">
+          {% for lf in legflights %}
+            <div class="lex-row is-flight" data-legflight-row data-legflight-id="{{ lf.id }}">
+              <div class="lex-row-display">
+                {% if lf.is_controlling %}
+                  <span class="lex-chip is-controlling"><i class="bi bi-bullseye"></i> Controlling</span>
+                {% else %}
+                  <button type="button" class="lex-btn lex-btn-make-controlling" data-leg-extras-action="set-controlling">
+                    Make controlling
+                  </button>
+                {% endif %}
+                <span class="lex-row-location">
+                  {{ lf.flight.airline_display_name|default:lf.flight.airline|default:"—" }}
+                  <span class="text-muted" style="font-weight:500;">#{{ lf.flight.flight_number|default:"—" }}</span>
+                  {% if lf.flight.flight_iata %}<span class="text-muted small">({{ lf.flight.flight_iata }})</span>{% endif %}
+                </span>
+                <span class="lex-row-meta">
+                  {% if lf.flight.scheduled_arrival_local %}
+                    <i class="bi bi-clock"></i> {{ lf.flight.scheduled_arrival_local|date:"M j, g:i A" }}
+                  {% else %}
+                    <span class="text-muted">no arrival time</span>
+                  {% endif %}
+                </span>
+                <div class="lex-row-actions">
+                  <button type="button" class="lex-icon-btn is-danger" data-leg-extras-action="delete-flight" title="Detach this flight">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="lex-empty">
+          <i class="bi bi-airplane lex-empty-icon"></i>
+          No flights attached to this leg yet.
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <details class="lex-add-collapse lex-add-flight-collapse" {% if not leg.legflight_set.all %}open{% endif %}>
+      <summary><i class="bi bi-plus-lg"></i> Add a flight</summary>
+      <div class="lex-add-card" data-leg-extras-add-flight-card>
+        <div class="lex-add-card-header">
+          <div class="lex-add-card-title"><i class="bi bi-airplane"></i> Add flight</div>
+          <button type="button" class="lex-add-card-close" data-leg-extras-action="close-add-flight" aria-label="Close">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-md-5">
+            <label class="lex-field-label">Airline</label>
+            <input type="text" class="lex-input" name="airline" placeholder="e.g., Delta, American" data-add-flight-field>
+          </div>
+          <div class="col-7 col-md-4">
+            <label class="lex-field-label">Flight number</label>
+            <input type="text" class="lex-input" name="flight_number" placeholder="e.g., DL1234" data-add-flight-field>
+          </div>
+          <div class="col-5 col-md-3">
+            <label class="lex-field-label">Direction</label>
+            <select class="lex-select" name="flight_type" data-add-flight-field>
+              <option value="">—</option>
+              <option value="arrival">Arrival</option>
+              <option value="departure">Departure</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="lex-form-check" for="addFlightCtrl_{{ leg.id }}">
+              <input class="form-check-input" type="checkbox" name="is_controlling" id="addFlightCtrl_{{ leg.id }}" data-add-flight-field>
+              <span><i class="bi bi-bullseye"></i> Mark as controlling flight</span>
+            </label>
+          </div>
+        </div>
+        <div class="lex-field-hint">
+          <i class="bi bi-info-circle-fill"></i>
+          If the leg has no controlling flight yet, the new flight automatically becomes controlling.
+        </div>
+        <div class="lex-add-card-footer">
+          <button type="button" class="lex-btn lex-btn-ghost" data-leg-extras-action="close-add-flight">
+            Cancel
+          </button>
+          <button type="button" class="lex-btn lex-btn-primary-flight" data-leg-extras-action="add-flight">
+            <i class="bi bi-plus-lg"></i> Add flight
+          </button>
+        </div>
+      </div>
+    </details>
+  </section>
+</div>

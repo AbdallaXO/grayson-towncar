@@ -1,6 +1,122 @@
 {% extends "dispatching/booking/base_booking.html" %}
 
 {% block step_content %}
+  <style>
+      /* ----- Modern number stepper (passengers, bags, car seats) ----- */
+      .gtc-stepper {
+          display: inline-flex;
+          align-items: stretch;
+          width: 100%;
+          max-width: 200px;
+          border: 1px solid var(--booking-border, #e2e8f0);
+          border-radius: 12px;
+          overflow: hidden;
+          background: #fff;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+          transition: border-color .15s ease, box-shadow .15s ease;
+      }
+      .gtc-stepper:focus-within {
+          border-color: var(--booking-primary, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, .14);
+      }
+      .gtc-stepper-btn {
+          border: 0;
+          background: #f8fafc;
+          width: 44px;
+          flex: 0 0 44px;
+          font-size: 1.25rem;
+          line-height: 1;
+          font-weight: 500;
+          color: #475569;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          user-select: none;
+          transition: background-color .12s ease, color .12s ease;
+      }
+      .gtc-stepper-btn:hover  { background: #eef2f7; color: var(--booking-primary, #2563eb); }
+      .gtc-stepper-btn:active { background: #e2e8f0; }
+      .gtc-stepper-btn:disabled { opacity: .4; cursor: not-allowed; color: #94a3b8; background: #f8fafc; }
+      .gtc-stepper-btn.minus { border-right: 1px solid var(--booking-border, #e2e8f0); }
+      .gtc-stepper-btn.plus  { border-left:  1px solid var(--booking-border, #e2e8f0); }
+      .gtc-stepper > input.form-control,
+      .gtc-stepper > input.form-control-lg {
+          border: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
+          text-align: center;
+          font-weight: 600;
+          font-size: 1.05rem;
+          flex: 1 1 auto;
+          min-width: 0;
+          padding: .5rem .25rem;
+          -moz-appearance: textfield;
+      }
+      .gtc-stepper > input::-webkit-outer-spin-button,
+      .gtc-stepper > input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+      }
+
+      /* ----- Card-style radio group (luggage type) ----- */
+      .gtc-radio-cards {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: .5rem;
+          margin-top: .5rem;
+      }
+      .gtc-radio-cards .form-check {
+          position: relative;
+          margin: 0;
+          padding: 0;
+          min-height: 0;
+      }
+      .gtc-radio-cards input[type="radio"] {
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+          pointer-events: none;
+      }
+      .gtc-radio-cards .form-check-label {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: .4rem;
+          padding: .7rem .5rem;
+          border: 1.5px solid var(--booking-border, #e2e8f0);
+          border-radius: 10px;
+          text-align: center;
+          cursor: pointer;
+          font-weight: 500;
+          font-size: .88rem;
+          color: var(--booking-text, #0f172a);
+          background: #fff;
+          margin: 0;
+          line-height: 1.2;
+          min-height: 50px;
+          transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease, color .15s ease;
+      }
+      .gtc-radio-cards .form-check-label:hover {
+          border-color: var(--booking-primary, #2563eb);
+          background: #f8fafc;
+      }
+      .gtc-radio-cards input[type="radio"]:checked + .form-check-label {
+          border-color: var(--booking-primary, #2563eb);
+          background: rgba(37, 99, 235, .08);
+          color: var(--booking-primary-dark, #1d4ed8);
+          font-weight: 600;
+          box-shadow: 0 0 0 1px var(--booking-primary, #2563eb) inset;
+      }
+      .gtc-radio-cards input[type="radio"]:focus-visible + .form-check-label {
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+      }
+      @media (max-width: 540px) {
+          .gtc-radio-cards { grid-template-columns: 1fr; }
+      }
+  </style>
+
   <form method="post" class="needs-validation" novalidate>
     {% csrf_token %}
 
@@ -45,7 +161,7 @@
               {% if form.luggage_count.errors %}<div class="invalid-feedback">{{ form.luggage_count.errors.0 }}</div>{% endif %}
               <div class="mt-2">
                 <span class="form-label fw-bold">{{ form.luggage_type.label }}</span>
-                <div class="d-flex gap-3 mt-1">
+                <div class="gtc-radio-cards">
                   {% for radio in form.luggage_type %}
                     <div class="form-check">
                       {{ radio.tag }}
@@ -193,7 +309,70 @@
   </form>
 
   <script>
+      // Wrap a <input type="number"> with a modern −/+ stepper. Respects min/max/step.
+      function buildGtcStepper(input) {
+          if (!input || input.dataset.gtcStepper === '1') return;
+          input.dataset.gtcStepper = '1';
+
+          const wrapper = document.createElement('div');
+          wrapper.className = 'gtc-stepper';
+
+          const minus = document.createElement('button');
+          minus.type = 'button';
+          minus.className = 'gtc-stepper-btn minus';
+          minus.setAttribute('aria-label', 'Decrease');
+          minus.textContent = '−'; // −
+
+          const plus = document.createElement('button');
+          plus.type = 'button';
+          plus.className = 'gtc-stepper-btn plus';
+          plus.setAttribute('aria-label', 'Increase');
+          plus.textContent = '+';
+
+          input.parentNode.insertBefore(wrapper, input);
+          wrapper.appendChild(minus);
+          wrapper.appendChild(input);
+          wrapper.appendChild(plus);
+
+          const minAttr = parseFloat(input.getAttribute('min'));
+          const maxAttr = parseFloat(input.getAttribute('max'));
+          const stepAttr = parseFloat(input.getAttribute('step'));
+          const minVal = isFinite(minAttr) ? minAttr : -Infinity;
+          const maxVal = isFinite(maxAttr) ? maxAttr : Infinity;
+          const stepVal = (isFinite(stepAttr) && stepAttr > 0) ? stepAttr : 1;
+
+          function refreshDisabled() {
+              const v = parseFloat(input.value);
+              minus.disabled = isFinite(v) && v <= minVal;
+              plus.disabled  = isFinite(v) && v >= maxVal;
+          }
+          function bump(delta) {
+              let v = parseFloat(input.value);
+              if (!isFinite(v)) v = (minVal === -Infinity) ? 0 : minVal;
+              v = Math.max(minVal, Math.min(maxVal, v + delta * stepVal));
+              input.value = v;
+              input.dispatchEvent(new Event('input',  { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              refreshDisabled();
+          }
+          minus.addEventListener('click', function() { bump(-1); });
+          plus.addEventListener('click',  function() { bump(1); });
+          input.addEventListener('input',  refreshDisabled);
+          input.addEventListener('change', refreshDisabled);
+          refreshDisabled();
+      }
+
       document.addEventListener('DOMContentLoaded', function() {
+          // Wrap all numeric reservation fields with the modern stepper.
+          ['{{ form.passenger_count.id_for_label }}',
+           '{{ form.luggage_count.id_for_label }}',
+           '{{ form.rf_carseats.id_for_label }}',
+           '{{ form.ff_carseats.id_for_label }}',
+           '{{ form.booster_seats.id_for_label }}'].forEach(function(id) {
+              const el = document.getElementById(id);
+              if (el) buildGtcStepper(el);
+          });
+
           const needCarseatsCheckbox = document.getElementById('{{ form.need_carseats.id_for_label }}');
           const carseatDetails = document.getElementById('carseat-details');
 

@@ -6,6 +6,7 @@ urlpatterns = [
     path("sw.js", views.service_worker, name="driver_service_worker"),
     path("", views.index, name="drivers_dashboard"),
     path("extend/", views.extend, name="drivers_extend"),
+    path("<int:driver_id>/profile/", views.driver_profile, name="driver_profile"),
     path(
         "statement/<int:driver_id>/",
         views.driver_statement_list,

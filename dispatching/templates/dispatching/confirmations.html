@@ -114,8 +114,10 @@
                           {% if row.travel_agent_agency %}
                             <span class="text-muted ms-3" style="font-size:0.72rem;">{{ row.travel_agent_agency }}</span>
                           {% endif %}
-                          {% if row.travel_agent_number %}
-                            <span class="text-muted ms-3" style="font-size:0.72rem;">TA #{{ row.travel_agent_number }}</span>
+                          {% if row.travel_agent_phone %}
+                            <span class="text-muted ms-3" style="font-size:0.72rem;">
+                              <i class="bi bi-telephone me-1"></i>{{ row.travel_agent_phone }}
+                            </span>
                           {% endif %}
                         </div>
                       {% endif %}

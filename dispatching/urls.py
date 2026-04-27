@@ -64,6 +64,13 @@ urlpatterns = [
     ),
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
+    # Inline editor for extra stops + multi-flight on the reservation detail page
+    path("leg/<int:leg_id>/stop/add/", views.add_leg_stop, name="add_leg_stop"),
+    path("leg/<int:leg_id>/stop/<int:stop_id>/update/", views.update_leg_stop, name="update_leg_stop"),
+    path("leg/<int:leg_id>/stop/<int:stop_id>/delete/", views.delete_leg_stop, name="delete_leg_stop"),
+    path("leg/<int:leg_id>/flight/add/", views.add_leg_flight, name="add_leg_flight"),
+    path("leg/<int:leg_id>/flight/<int:legflight_id>/set-controlling/", views.set_controlling_legflight, name="set_controlling_legflight"),
+    path("leg/<int:leg_id>/flight/<int:legflight_id>/delete/", views.delete_leg_flight, name="delete_leg_flight"),
     path("refresh-flight-data/", views.refresh_flight_data, name="refresh_flight_data"),
     path("match-leg-time-to-flight/", views.match_leg_time_to_flight, name="match_leg_time_to_flight"),
     path("match-all-leg-times-to-flight/", views.match_all_leg_times_to_flight, name="match_all_leg_times_to_flight"),

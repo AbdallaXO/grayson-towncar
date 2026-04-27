@@ -107,8 +107,26 @@
                             </button>
                           </div>
                         </div>
+                        {% for stop in leg.intermediate_stops %}
+                          <div class="gt-route-point gt-route-stop" style="border-left: 3px solid #d4a017; padding-left: 10px; margin: 4px 0;">
+                            <div class="gt-route-label">
+                              <i class="bi bi-stopwatch"></i> {{ stop.get_stop_type_display }}{% if stop.stop_type == 'charter' %}{% if stop.charter_hours %} · {{ stop.charter_hours }} hr{% endif %}{% if stop.start_time %} · starts {{ stop.start_time|time:"g:i A" }}{% endif %}{% elif stop.duration_minutes %} · {{ stop.duration_minutes }} min{% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-wrap">
+                              <span class="gt-route-address">{{ stop.display_location }}</span>
+                              {% if stop.location_text %}
+                                <button class="gt-nav-btn navigate-btn" data-address="{{ stop.location_text }}">
+                                  <i class="bi bi-cursor-fill"></i> Go
+                                </button>
+                              {% endif %}
+                            </div>
+                            {% if stop.notes %}
+                              <div style="font-size:0.8125rem;color:var(--gt-text-secondary);margin-top:2px;font-style:italic;">{{ stop.notes }}</div>
+                            {% endif %}
+                          </div>
+                        {% endfor %}
                         <div class="gt-route-point gt-route-dropoff">
-                          <div class="gt-route-label">Dropoff</div>
+                          <div class="gt-route-label">Drop-off</div>
                           <div class="d-flex align-items-center gap-1 flex-wrap">
                             <span class="gt-route-address">{{ leg.dropoff_location }}</span>
                             <button class="gt-nav-btn navigate-btn" data-address="{{ leg.dropoff_location }}">
@@ -116,6 +134,24 @@
                             </button>
                           </div>
                         </div>
+                        {% for stop in leg.additional_dropoffs %}
+                          <div class="gt-route-point gt-route-dropoff" style="border-left: 3px solid #1b5e20; padding-left: 10px; margin: 4px 0;">
+                            <div class="gt-route-label">
+                              Additional Drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-wrap">
+                              <span class="gt-route-address">{{ stop.display_location }}</span>
+                              {% if stop.location_text %}
+                                <button class="gt-nav-btn navigate-btn" data-address="{{ stop.location_text }}">
+                                  <i class="bi bi-cursor-fill"></i> Go
+                                </button>
+                              {% endif %}
+                            </div>
+                            {% if stop.notes %}
+                              <div style="font-size:0.8125rem;color:var(--gt-text-secondary);margin-top:2px;font-style:italic;">{{ stop.notes }}</div>
+                            {% endif %}
+                          </div>
+                        {% endfor %}
                       </div>
 
                       {% if leg.flight_information %}
@@ -171,6 +207,20 @@
                           {% if leg.flight_delay %}
                             <div class="gt-flight-delay mt-2" style="background:{% if leg.flight_delay.direction == 'late' %}rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:var(--gt-red){% else %}rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);color:#b45309{% endif %};padding:6px 10px;border-radius:6px;font-size:0.8125rem;font-weight:600;">
                               <i class="bi bi-exclamation-triangle-fill me-1"></i> Warning: {{ leg.flight_delay.label }}
+                            </div>
+                          {% endif %}
+                          {% if leg.legflight_set.count > 1 %}
+                            <div class="mt-2" style="background:rgba(13,110,253,0.08);border:1px solid rgba(13,110,253,0.2);padding:6px 10px;border-radius:6px;font-size:0.8125rem;">
+                              <div style="font-weight:600;color:#0d6efd;margin-bottom:4px;">
+                                <i class="bi bi-airplane-fill me-1"></i> Group has {{ leg.legflight_set.count }} flights — wait for the controlling one
+                              </div>
+                              {% for lf in leg.legflight_set.all %}
+                                {% if not lf.is_controlling %}
+                                  <div style="font-size:0.75rem;color:var(--gt-text-secondary);">
+                                    Also: {{ lf.flight.airline_display_name|default:lf.flight.airline }} #{{ lf.flight.flight_number }}{% if lf.flight.scheduled_arrival_local %} — sched {{ lf.flight.scheduled_arrival_local|date:"g:i A" }}{% endif %}
+                                  </div>
+                                {% endif %}
+                              {% endfor %}
                             </div>
                           {% endif %}
                         </div>
@@ -373,13 +423,42 @@
                       <i class="bi bi-cursor-fill"></i> Navigate
                     </button>
                   </div>
+
+                  {% for stop in leg.intermediate_stops %}
+                    <div class="gt-route-point gt-route-stop" style="border-left:3px solid #d4a017;padding-left:10px;margin:6px 0;">
+                      <div class="gt-route-label">
+                        <i class="bi bi-stopwatch"></i> {{ stop.get_stop_type_display }}{% if stop.stop_type == 'charter' %}{% if stop.charter_hours %} &middot; {{ stop.charter_hours }} hr{% endif %}{% if stop.start_time %} &middot; starts {{ stop.start_time|time:"g:i A" }}{% endif %}{% elif stop.duration_minutes %} &middot; {{ stop.duration_minutes }} min{% endif %}
+                      </div>
+                      <div class="gt-route-address">{{ stop.display_location }}</div>
+                      {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}
+                      {% if stop.location_text %}
+                        <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ stop.location_text }}">
+                          <i class="bi bi-cursor-fill"></i> Navigate
+                        </button>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+
                   <div class="gt-route-point gt-route-dropoff">
-                    <div class="gt-route-label">Dropoff</div>
+                    <div class="gt-route-label">Drop-off</div>
                     <div class="gt-route-address">{{ leg.dropoff_location }}</div>
                     <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ leg.dropoff_location }}">
                       <i class="bi bi-cursor-fill"></i> Navigate
                     </button>
                   </div>
+
+                  {% for stop in leg.additional_dropoffs %}
+                    <div class="gt-route-point gt-route-dropoff" style="border-left:3px solid #1b5e20;padding-left:10px;margin:6px 0;">
+                      <div class="gt-route-label">
+                        Additional Drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+                      </div>
+                      <div class="gt-route-address">{{ stop.display_location }}</div>
+                      {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}
+                      <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ stop.location_text }}">
+                        <i class="bi bi-cursor-fill"></i> Navigate
+                      </button>
+                    </div>
+                  {% endfor %}
                 </div>
 
                 {# Live traffic hidden for drivers — dispatch only #}

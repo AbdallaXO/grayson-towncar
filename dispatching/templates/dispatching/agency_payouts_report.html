@@ -207,7 +207,7 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="page-title mb-0">Affiliate Explorer</h1>
     <a href="{% url 'affiliate_payments' %}" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-wallet2 me-1"></i>Process Payments
+      <i class="bi bi-wallet2 me-1"></i>Affiliate Management
     </a>
   </div>
 
@@ -268,10 +268,18 @@
             <tr class="rank-{{ forloop.counter }}">
               <td class="rank-num">{{ forloop.counter }}</td>
               <td>
-                <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                <a href="{% url 'admin_travel_agent_detail' agent.pk %}" class="text-decoration-none text-dark">
+                  <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                </a>
                 <br><small class="text-muted">{{ agent.user.email }}</small>
               </td>
-              <td><small>{{ agent.agency.name|default:"Independent" }}</small></td>
+              <td>
+                {% if agent.agency %}
+                  <small><a href="{% url 'admin_travel_agency_detail' agent.agency.pk %}" class="text-decoration-none">{{ agent.agency.name }}</a></small>
+                {% else %}
+                  <small class="text-muted">Independent</small>
+                {% endif %}
+              </td>
               <td class="text-center">{{ agent.booking_count }}</td>
               <td class="text-end fw-bold text-success">${{ agent.total_revenue|floatformat:0 }}</td>
               <td class="text-end">
@@ -338,9 +346,17 @@
             {% for agent in overdue_agents %}
             <tr>
               <td>
-                <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                <a href="{% url 'admin_travel_agent_detail' agent.pk %}" class="text-decoration-none text-dark">
+                  <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                </a>
               </td>
-              <td><small>{{ agent.agency.name|default:"Independent" }}</small></td>
+              <td>
+                {% if agent.agency %}
+                  <small><a href="{% url 'admin_travel_agency_detail' agent.agency.pk %}" class="text-decoration-none">{{ agent.agency.name }}</a></small>
+                {% else %}
+                  <small class="text-muted">Independent</small>
+                {% endif %}
+              </td>
               <td class="text-end text-danger fw-bold">${{ agent.unpaid_commissions|floatformat:2 }}</td>
               <td class="text-end">
                 {{ agent.oldest_unpaid|date:"M d, Y" }}
@@ -365,9 +381,21 @@
             <tbody>
             {% for p in recent_payouts %}
             <tr>
-              <td><strong>{{ p.agent.agent_name|default:p.agent.user.username }}</strong></td>
-              <td><small>{{ p.agency.name|default:"Independent" }}</small></td>
-              <td class="text-end text-success fw-bold">${{ p.total_amount|floatformat:2 }}</td>
+              <td>
+                <a href="{% url 'admin_travel_agent_detail' p.agent.pk %}" class="text-decoration-none text-dark">
+                  <strong>{{ p.agent.agent_name|default:p.agent.user.username }}</strong>
+                </a>
+              </td>
+              <td>
+                {% if p.agency %}
+                  <small><a href="{% url 'admin_travel_agency_detail' p.agency.pk %}" class="text-decoration-none">{{ p.agency.name }}</a></small>
+                {% else %}
+                  <small class="text-muted">Independent</small>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a href="{% url 'admin_agent_payout_detail' p.pk %}" class="text-decoration-none text-success fw-bold">${{ p.total_amount|floatformat:2 }}</a>
+              </td>
               <td class="text-end"><small>{{ p.paid_at|date:"M d, g:i A" }}</small></td>
             </tr>
             {% empty %}
@@ -425,7 +453,13 @@
         <div class="card-body py-3">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h4 class="mb-1">{{ selected_agency.name }}</h4>
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <h4 class="mb-0">{{ selected_agency.name }}</h4>
+                <a href="{% url 'admin_travel_agency_detail' selected_agency.id %}"
+                   class="btn btn-outline-primary btn-sm">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Open full profile
+                </a>
+              </div>
               <div>
                 {% if selected_agency.payment_method %}
                   <span class="payment-badge {{ selected_agency.payment_method }}">
@@ -495,7 +529,9 @@
             {% for agent in agents_list %}
             <tr {% if agent.unpaid_commissions > 0 %}class="table-warning"{% endif %}>
               <td>
-                <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                <a href="{% url 'admin_travel_agent_detail' agent.pk %}" class="text-decoration-none text-dark">
+                  <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                </a>
                 <br><small class="text-muted">{{ agent.user.email }}</small>
               </td>
               <td class="text-center">{{ agent.completed_res_count }}</td>
@@ -656,7 +692,9 @@
         <tr {% if agent.unpaid_commissions > 0 %}class="table-warning"{% endif %}>
           <td class="text-muted">{{ forloop.counter0|add:agents_page_obj.start_index }}</td>
           <td>
-            <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+            <a href="{% url 'admin_travel_agent_detail' agent.pk %}" class="text-decoration-none text-dark">
+              <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+            </a>
             <br><small class="text-muted">{{ agent.user.email }}</small>
           </td>
           <td>

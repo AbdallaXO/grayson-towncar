@@ -477,6 +477,29 @@ def get_flightaware_code(iata_code):
     return flightaware_mapping.get(iata_code, iata_code)
 
 
+def adjust_reservation_for_stop_fee_delta(reservation, fee_delta):
+    """Apply a stop-fee delta (positive or negative) to the reservation's
+    additional_charges and total_price. Leaves all OTHER fee components
+    (late-night, carseats, gratuity) untouched — preserves whatever was set
+    at booking time.
+
+    Use from inline LegStop CRUD: capture the old fee before mutating,
+    then call this with (new_fee - old_fee). Adding a $40 stop → delta=+40.
+    Deleting a $15 stop → delta=-15. Editing $40 → $50 → delta=+10.
+    """
+    if fee_delta is None or fee_delta == 0:
+        return reservation.total_price
+    delta = Decimal(str(fee_delta)).quantize(Decimal("0.01"))
+    reservation.additional_charges = (
+        (reservation.additional_charges or Decimal("0.00")) + delta
+    ).quantize(Decimal("0.01"))
+    reservation.total_price = (
+        (reservation.total_price or Decimal("0.00")) + delta
+    ).quantize(Decimal("0.01"))
+    reservation.save(update_fields=["additional_charges", "total_price"])
+    return reservation.total_price
+
+
 def extra_charges(reservation):
     total_extra = Decimal(0)
     for leg in reservation.legs.all():

@@ -53,6 +53,10 @@ class Vehicle(models.Model):
         max_digits=6, decimal_places=2, default=30,
         help_text="Fee per additional booster seat beyond included limit",
     )
+    extra_stop_fee = models.DecimalField(
+        max_digits=6, decimal_places=2, default=0,
+        help_text="Flat fee per intermediate stop (same-area drop-offs, luggage drops, etc.)",
+    )
 
     def __str__(self):
         """
@@ -64,11 +68,44 @@ class Vehicle(models.Model):
         ordering = ["capacity"]
 
 
+class LocationGroup(models.Model):
+    """
+    A geographic / operational grouping of Locations (e.g., 'Disney Area',
+    'Universal Area', 'Cruise Port Area'). Used to gate which extra stops
+    a customer may add to a given route. Empty/null group on Location means
+    the location is not eligible to be offered as an automated extra stop —
+    it can still be used as a primary pickup/dropoff.
+    """
+
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=120, unique=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class Location(models.Model):
     name = models.CharField(max_length=70)
     aliases = models.TextField(
         blank=True,
         help_text="Comma-separated alternate names (e.g., MCO, Orlando Airport, Disney)",
+    )
+    group = models.ForeignKey(
+        "LocationGroup",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="locations",
+        help_text="Optional area grouping. Locations sharing a group can be offered as extra stops on routes that allow that group.",
     )
 
     def __str__(self):
@@ -94,6 +131,12 @@ class Route(models.Model):
         null=True,
         blank=True,
         help_text="Default base pay for inhouse drivers on this route",
+    )
+    allowed_extra_stop_groups = models.ManyToManyField(
+        "LocationGroup",
+        blank=True,
+        related_name="routes_allowing_extra_stops",
+        help_text="LocationGroups whose locations may be offered to customers as add-on stops on this route. Empty = no extra-stop picker shown.",
     )
 
     class Meta:

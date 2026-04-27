@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry
+from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 from simple_history.admin import SimpleHistoryAdmin
@@ -1302,6 +1302,33 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
         )
 
 
+class LegStopInline(admin.TabularInline):
+    """Inline editor for intermediate stops on a leg."""
+    model = LegStop
+    extra = 0
+    fields = (
+        "sequence",
+        "location_text",
+        "location",
+        "stop_type",
+        "duration_minutes",
+        "extra_fee",
+        "requires_manual_review",
+        "notes",
+    )
+    autocomplete_fields = ("location",)
+    ordering = ("sequence",)
+
+
+class LegFlightInline(admin.TabularInline):
+    """Inline editor for flights attached to a leg."""
+    model = LegFlight
+    extra = 0
+    fields = ("sequence", "flight", "is_controlling")
+    autocomplete_fields = ("flight",)
+    ordering = ("sequence", "id")
+
+
 @admin.register(Leg)
 class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
     show_full_result_count = False
@@ -1351,6 +1378,7 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
         "flight_information", "cruise_information",
     )
     autocomplete_fields = ("reservation", "flight_information", "cruise_information")
+    inlines = [LegStopInline, LegFlightInline]
 
     actions = [
         "assign_driver",

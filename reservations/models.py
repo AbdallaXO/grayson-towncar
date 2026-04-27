@@ -311,6 +311,16 @@ class Reservation(models.Model):
         help_text="Admin notes about the refund processing",
     )
 
+    # ── Manual review flag for out-of-area / custom-quote stops ──
+    # Set to True when a customer adds an "Other" extra stop, or when a stop's
+    # location is outside the allowed LocationGroups. Routes the booking to
+    # save_card mode in Stripe instead of immediate pay_now charge.
+    requires_manual_review = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True when this reservation has a stop or detail needing dispatcher pricing review before charging",
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=["customer"]),
@@ -1233,6 +1243,22 @@ class Leg(models.Model):
             self.driver_additional = None
             self.driver_pay_amount = None
 
+        # Reset leg status when driver is unassigned: progressed states like
+        # confirmed/on-the-way/on-location/picked-up don't apply once the
+        # driver is gone. Skip terminal 'completed'/'cancelled' so those stick.
+        _driver_unassigned = (
+            self.pk
+            and hasattr(self, '_original_driver_id')
+            and self._original_driver_id is not None
+            and self.driver_id is None
+            and self.status not in ('in-progress', 'completed', 'cancelled')
+        )
+        if _driver_unassigned:
+            self.status = 'in-progress'
+            self.status_changed_by = getattr(self, '_status_change_user', None)
+            self.status_changed_at = timezone.now()
+            self._reset_status_on_unassign = True
+
         # Auto-fill driver pay when not set (inhouse and affiliate)
         if (
             self.driver_base_pay is None
@@ -1300,8 +1326,23 @@ class Leg(models.Model):
             if not _uf_set.issuperset(_pay_fields):
                 _uf_set |= _pay_fields
                 kwargs['update_fields'] = list(_uf_set)
+            if getattr(self, '_reset_status_on_unassign', False):
+                _uf_set = set(kwargs.get('update_fields') or _uf)
+                _uf_set |= {'status', 'status_changed_by', 'status_changed_at'}
+                kwargs['update_fields'] = list(_uf_set)
 
         super().save(*args, **kwargs)
+
+        # Audit trail: log the auto-reset to LegStatus history.
+        if getattr(self, '_reset_status_on_unassign', False):
+            LegStatus.objects.create(
+                leg=self,
+                status='in-progress',
+                updated_by=getattr(self, '_status_change_user', None),
+                timestamp=timezone.now(),
+                notes='Auto-reset: driver unassigned',
+            )
+            self._reset_status_on_unassign = False
         # Keep _original_driver_id in sync so subsequent saves on the same
         # instance don't re-trigger the driver-change clear.
         self._original_driver_id = self.driver_id
@@ -1506,6 +1547,103 @@ class Leg(models.Model):
                 "description": "Non-Airport Transfer",
             }
 
+    # ── Multi-stop / multi-flight accessors ──
+    # See plan: extra stops are opt-in. If no LegStop rows exist, all_stops
+    # collapses to [pickup, dropoff] so legacy templates render unchanged.
+    # If no LegFlight rows exist, controlling_flight falls back to flight_information.
+
+    @property
+    def has_extra_stops(self):
+        """True if this leg has one or more intermediate stops (any type)."""
+        if self.pk is None:
+            return False
+        return self.legstop_set.exists()
+
+    @property
+    def additional_dropoffs(self):
+        """LegStop rows that represent additional drop-off destinations
+        (stop_type='dropoff'). The leg's `dropoff_location` CharField is the
+        PRIMARY drop-off; these are extras after that one (e.g., second resort)."""
+        if self.pk is None:
+            return self.legstop_set.none()
+        return self.legstop_set.filter(stop_type='dropoff').order_by('sequence')
+
+    @property
+    def intermediate_stops(self):
+        """LegStop rows that represent on-the-way stops with a duration
+        (luggage drop, store stop, wait) — i.e., stops where everyone stays
+        in the vehicle (or briefly disembarks then continues). Anything not
+        flagged as a 'dropoff' falls here."""
+        if self.pk is None:
+            return self.legstop_set.none()
+        return self.legstop_set.exclude(stop_type='dropoff').order_by('sequence')
+
+    @property
+    def has_additional_dropoffs(self):
+        if self.pk is None:
+            return False
+        return self.legstop_set.filter(stop_type='dropoff').exists()
+
+    @property
+    def has_intermediate_stops(self):
+        if self.pk is None:
+            return False
+        return self.legstop_set.exclude(stop_type='dropoff').exists()
+
+    @property
+    def all_stops(self):
+        """
+        Return the ordered itinerary as a list of dicts:
+          [{'kind': 'pickup',       'location': str, ...},
+           {'kind': 'intermediate', 'location': str, 'stop_type': str, 'duration_minutes': int, 'notes': str, ...} *,
+           {'kind': 'dropoff',      'location': str, ...}]
+
+        For legs with no LegStop rows this returns exactly two entries (pickup + dropoff)
+        — preserving legacy display behavior.
+        """
+        items = [{
+            "kind": "pickup",
+            "location": self.pickup_location,
+            "stop_type": "pickup",
+            "duration_minutes": 0,
+            "notes": "",
+        }]
+        if self.pk is not None:
+            for stop in self.legstop_set.all():
+                items.append({
+                    "kind": "intermediate",
+                    "location": stop.display_location,
+                    "stop_type": stop.stop_type,
+                    "duration_minutes": stop.duration_minutes,
+                    "notes": stop.notes,
+                    "requires_manual_review": stop.requires_manual_review,
+                    "stop": stop,
+                })
+        items.append({
+            "kind": "dropoff",
+            "location": self.dropoff_location,
+            "stop_type": "dropoff",
+            "duration_minutes": 0,
+            "notes": "",
+        })
+        return items
+
+    @property
+    def controlling_flight(self):
+        """
+        Return the Flight that drives pickup timing for this leg.
+
+        Resolution order:
+          1. The LegFlight row marked is_controlling=True (post-Phase-2 path).
+          2. The legacy OneToOne flight_information (pre-multi-flight legs).
+          3. None.
+        """
+        if self.pk is not None:
+            lf = self.legflight_set.filter(is_controlling=True).select_related("flight").first()
+            if lf is not None:
+                return lf.flight
+        return self.flight_information
+
     class Meta:
         ordering = ["pickup_date", "pickup_time"]
         indexes = [
@@ -1515,6 +1653,158 @@ class Leg(models.Model):
             models.Index(fields=["driver"]),
             models.Index(fields=["status"]),
         ]
+
+
+class LegStop(models.Model):
+    """
+    An intermediate stop within a Leg, sitting between the leg's pickup_location
+    (anchor: first) and dropoff_location (anchor: last). Existence of LegStop
+    rows is purely opt-in — legs without extra stops have zero rows here and
+    render exactly as they did before this feature.
+
+    Fees on a LegStop are SNAPSHOT at creation time so post-booking vehicle
+    or pricing changes don't retroactively reprice old stops.
+    """
+
+    STOP_TYPE_CHOICES = [
+        ("dropoff", "Additional drop-off"),
+        ("stop", "Additional stop"),
+        ("pickup", "Additional pickup"),
+        ("charter", "Charter (hourly)"),
+    ]
+
+    leg = models.ForeignKey(
+        Leg,
+        on_delete=models.CASCADE,
+        related_name="legstop_set",
+    )
+    sequence = models.PositiveSmallIntegerField(
+        help_text="Order between the leg's pickup and dropoff anchors (0, 1, 2, ...)",
+    )
+    location_text = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Free-text address or venue name for this stop. Optional for charter stops (driver takes them anywhere).",
+    )
+    location = models.ForeignKey(
+        "rates.Location",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="legstops",
+        help_text="Structured Location match — populated when location_text matches a known Location",
+    )
+    stop_type = models.CharField(
+        max_length=10,
+        choices=STOP_TYPE_CHOICES,
+        default="dropoff",
+    )
+    duration_minutes = models.PositiveSmallIntegerField(
+        default=10,
+        help_text="Estimated minutes the chauffeur will be stopped here. For charter, this stores hours × 60.",
+    )
+    start_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="When this stop begins. Required for charter (hourly) stops, optional otherwise.",
+    )
+    notes = models.TextField(blank=True)
+    extra_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Snapshot of the per-stop fee at creation. NULL = manual review pending or fee not yet quoted.",
+    )
+    requires_manual_review = models.BooleanField(
+        default=False,
+        help_text="True for out-of-area or 'Other' stops needing a custom quote before charging",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["leg_id", "sequence"]
+        unique_together = (("leg", "sequence"),)
+        indexes = [
+            models.Index(fields=["leg", "sequence"]),
+            models.Index(fields=["requires_manual_review"]),
+        ]
+
+    @property
+    def display_location(self):
+        """Return the structured Location name when matched, else free text.
+        Charter stops with no destination fall back to a friendly hint."""
+        if self.location_id and self.location:
+            return self.location.name
+        if self.location_text:
+            return self.location_text
+        if self.stop_type == "charter":
+            return "Open destination — guest directs the driver"
+        return ""
+
+    @property
+    def charter_hours(self):
+        """For charter stops, expose duration as whole/half hours for display."""
+        mins = self.duration_minutes or 0
+        hours = mins / 60.0
+        return int(hours) if hours.is_integer() else round(hours, 1)
+
+    def __str__(self):
+        return f"Stop {self.sequence} on Leg #{self.leg_id}: {self.display_location}"
+
+
+class LegFlight(models.Model):
+    """
+    Through-model linking a Leg to one or more Flights. Exactly one LegFlight
+    per leg may have is_controlling=True — that flight drives pickup timing.
+
+    For legacy legs that still use Leg.flight_information (OneToOne), the
+    controlling row is created by the backfill migration. New code reads
+    Leg.controlling_flight which falls back to flight_information when no
+    LegFlight rows exist (e.g., during partial deploys).
+    """
+
+    leg = models.ForeignKey(
+        Leg,
+        on_delete=models.CASCADE,
+        related_name="legflight_set",
+    )
+    flight = models.ForeignKey(
+        "Flight",
+        on_delete=models.CASCADE,
+        related_name="legflights",
+    )
+    is_controlling = models.BooleanField(
+        default=False,
+        help_text="True for the flight that determines pickup timing (the later-arriving flight, by convention)",
+    )
+    sequence = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Display order — lower values shown first",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["leg_id", "sequence", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["leg", "flight"],
+                name="legflight_unique_leg_flight",
+            ),
+            models.UniqueConstraint(
+                fields=["leg"],
+                condition=models.Q(is_controlling=True),
+                name="legflight_one_controlling_per_leg",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["leg", "is_controlling"]),
+        ]
+
+    def __str__(self):
+        marker = " [controlling]" if self.is_controlling else ""
+        return f"LegFlight leg #{self.leg_id} ↔ flight #{self.flight_id}{marker}"
 
 
 class Flight(models.Model):

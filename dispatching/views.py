@@ -31,7 +31,7 @@ from django.db.models import OuterRef, Subquery, Exists
 
 # App imports
 
-from reservations.models import Reservation, Leg, Customer, Flight, LegStatus, RefundRequest
+from reservations.models import Reservation, Leg, Customer, Flight, LegStatus, RefundRequest, LegStop, LegFlight
 from reservations.utils import _run_in_background
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
@@ -142,6 +142,8 @@ def index(request):
         )
         .prefetch_related(
             "reservation__legs",
+            "legstop_set",
+            "legflight_set__flight",
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
             Prefetch(
                 "status_history",
@@ -527,6 +529,14 @@ def index(request):
                 _flight_str = f"{_fi.airline or ''} {_fi.flight_number or ''}".strip()
             _pax = _tleg.effective_passenger_count if _tleg.reservation else ''
             _dropoff = _tleg.dropoff_location or ''
+            try:
+                _stop_count = len(_tleg.legstop_set.all())
+            except Exception:
+                _stop_count = 0
+            try:
+                _legflight_total = len(_tleg.legflight_set.all())
+            except Exception:
+                _legflight_total = 0
             _gap_candidates.append({
                 'leg_id': _tleg.id,
                 'pickup_time': _tleg.pickup_time,
@@ -542,6 +552,8 @@ def index(request):
                 'flight_info': _flight_str,
                 'passengers': str(_pax) if _pax else '',
                 'status': _tleg.status or '',
+                'extra_stop_count': _stop_count,
+                'secondary_flight_count': max(_legflight_total - 1, 0),
             })
 
     # Timeline display range
@@ -692,6 +704,8 @@ def index(request):
             'status_label': _sinfo['status_label'] if _sinfo else '',
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
+            'extra_stop_count': _gc.get('extra_stop_count', 0),
+            'secondary_flight_count': _gc.get('secondary_flight_count', 0),
         })
 
     prev_date = selected_date - timedelta(days=1)
@@ -786,6 +800,8 @@ def schedule_board(request):
             "reservation__vehicle", "vehicle", "flight_information", "cruise_information",
         )
         .prefetch_related(
+            "legstop_set",
+            "legflight_set",
             Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp")),
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
         )
@@ -1116,6 +1132,8 @@ def schedule_board(request):
             'carseats_short': _us_carseats,
             # Only meaningful on arrivals (driver does Publix on the way to dropoff).
             'store_stop': bool(leg.reservation.store_stop) if (leg.reservation and _trip == 'arrival') else False,
+            'extra_stop_count': len(getattr(leg, 'legstop_set').all()) if leg.pk else 0,
+            'secondary_flight_count': max(len(getattr(leg, 'legflight_set').all()) - 1, 0) if leg.pk else 0,
         })
 
     # Sort unassigned slots: bigger vehicles first, then by pickup time
@@ -2036,6 +2054,9 @@ def update_leg_assignment(request):
                 # Track who unassigned the driver
                 leg.driver_assigned_by = request.user
                 leg.driver_assigned_at = timezone.now()
+                # Attribute the auto-reset of leg.status (handled in Leg.save)
+                # to the user performing the unassign.
+                leg._status_change_user = request.user
                 leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                 logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
                 cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
@@ -3314,225 +3335,225 @@ def update_contact_info(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+def _refresh_one_flight(flight, leg, aeroapi):
+    """
+    Fetch fresh AeroAPI data for one Flight and persist it. Returns
+    {success, error, flight_data, not_found}. `flight` is mutated and saved on success
+    OR when the API reports the flight as not_found/not_orlando (we clear stale fields then).
+    """
+    flight_ident = flight.get_flight_ident()
+    if not flight_ident:
+        return {"success": False, "error": "Could not determine flight identifier", "flight_data": None, "not_found": False}
+
+    flight_date = leg.pickup_date.strftime('%Y-%m-%d') if leg.pickup_date else None
+    trip_type = leg.get_trip_type()
+    api_data = aeroapi.get_flight_data(flight_ident, flight_date=flight_date, trip_type=trip_type)
+
+    if api_data.get('status') != 'success':
+        error_msg = api_data.get('error', 'Unknown error')
+        not_found = api_data.get('status') in ('not_found', 'not_orlando')
+        if not_found:
+            flight.flight_iata = ''
+            flight.origin = ''
+            flight.destination = ''
+            flight.status = 'Not Found'
+            flight.scheduled_arrival_local = None
+            flight.estimated_arrival_local = None
+            flight.actual_arrival_local = None
+            flight.scheduled_gate_arrival_local = None
+            flight.estimated_gate_arrival_local = None
+            flight.actual_gate_arrival_local = None
+            flight.terminal = ''
+            flight.gate = ''
+            flight.baggage_claim = ''
+            flight.last_updated = timezone.now()
+            flight.save()
+            logger.info(f"Cleared stale data on flight {flight.id} ({flight_ident} not found)")
+        return {"success": False, "error": error_msg, "flight_data": None, "not_found": not_found}
+
+    if api_data.get('flight_iata'):
+        flight.flight_iata = api_data.get('flight_iata')
+    if api_data.get('origin'):
+        flight.origin = api_data.get('origin')
+    if api_data.get('destination'):
+        flight.destination = api_data.get('destination')
+    flight_status = api_data.get('flight_status') or api_data.get('status', '')
+    if flight_status:
+        flight.status = flight_status
+
+    scheduled_arrival = api_data.get('scheduled_arrival_local')
+    flight.scheduled_arrival_local = scheduled_arrival
+    scheduled_gate_arrival = api_data.get('scheduled_gate_arrival_local')
+    flight.scheduled_gate_arrival_local = scheduled_gate_arrival
+
+    now = timezone.now()
+    is_future_flight = (
+        (scheduled_arrival and scheduled_arrival > now)
+        or (scheduled_gate_arrival and scheduled_gate_arrival > now)
+    )
+
+    estimated_arrival = api_data.get('estimated_arrival_local')
+    if estimated_arrival is not None:
+        flight.estimated_arrival_local = estimated_arrival
+    estimated_gate_arrival = api_data.get('estimated_gate_arrival_local')
+    if estimated_gate_arrival is not None:
+        flight.estimated_gate_arrival_local = estimated_gate_arrival
+
+    if is_future_flight:
+        flight.actual_arrival_local = None
+        flight.actual_gate_arrival_local = None
+    else:
+        actual_arrival = api_data.get('actual_runway_arrival_local')
+        if actual_arrival is not None:
+            flight.actual_arrival_local = actual_arrival
+        actual_gate_arrival = api_data.get('actual_gate_arrival_local')
+        if actual_gate_arrival is not None:
+            flight.actual_gate_arrival_local = actual_gate_arrival
+
+    if api_data.get('terminal'):
+        flight.terminal = api_data.get('terminal')
+    if api_data.get('gate'):
+        flight.gate = api_data.get('gate')
+    if api_data.get('baggage_claim'):
+        flight.baggage_claim = api_data.get('baggage_claim')
+
+    flight.last_updated = api_data.get('last_updated', timezone.now())
+
+    try:
+        flight.save()
+    except Exception as e:
+        logger.error(f"Error saving flight {flight.id}: {e}")
+        return {"success": False, "error": f"Error saving flight data: {str(e)}", "flight_data": None, "not_found": False}
+
+    return {
+        "success": True,
+        "error": None,
+        "not_found": False,
+        "flight_data": {
+            "flight_id": flight.id,
+            "flight_iata": flight.flight_iata or "",
+            "origin": flight.origin or "",
+            "destination": flight.destination or "",
+            "status": flight.status or "",
+            "scheduled_arrival_local": flight.scheduled_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_arrival_local else "",
+            "estimated_arrival_local": flight.estimated_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_arrival_local else "",
+            "actual_arrival_local": flight.actual_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_arrival_local else "",
+            "scheduled_gate_arrival_local": flight.scheduled_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_gate_arrival_local else "",
+            "estimated_gate_arrival_local": flight.estimated_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_gate_arrival_local else "",
+            "actual_gate_arrival_local": flight.actual_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_gate_arrival_local else "",
+            "terminal": flight.terminal or "",
+            "gate": flight.gate or "",
+            "baggage_claim": flight.baggage_claim or "",
+            "last_updated": timezone.localtime(flight.last_updated).strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
+        },
+    }
+
+
 @login_required
 @require_POST
 def refresh_flight_data(request):
     """
-    Refresh flight data from AeroAPI for a specific leg.
+    Refresh AeroAPI data for every flight linked to a leg (the legacy
+    `flight_information` FK plus every LegFlight row). Returns the controlling
+    flight's data under `flight_data` for backward compatibility, plus
+    `all_flight_data` covering every flight refreshed and `multi_flight` so
+    the UI can decide whether to live-update one card or reload to refresh all.
     """
     if not request.user.is_staff:
-        return JsonResponse(
-            {"success": False, "error": "Permission denied"}, status=403
-        )
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     try:
         data = json.loads(request.body)
         leg_id = data.get("leg_id")
-
         if not leg_id:
-            return JsonResponse(
-                {"success": False, "error": "Missing leg ID"}, status=400
-            )
+            return JsonResponse({"success": False, "error": "Missing leg ID"}, status=400)
 
-        # Get the leg
         leg = get_object_or_404(Leg, id=leg_id)
-        
-        # Check if leg has flight information
-        if not leg.flight_information:
-            return JsonResponse(
-                {"success": False, "error": "Leg does not have flight information"}, status=400
-            )
 
-        flight = leg.flight_information
-        
-        # Get flight identifier
-        flight_ident = flight.get_flight_ident()
-        if not flight_ident:
-            return JsonResponse(
-                {"success": False, "error": "Could not determine flight identifier"}, status=400
-            )
+        # Build the de-duped list of flights to refresh: controlling first,
+        # then any other LegFlight rows.
+        flights_to_refresh = []
+        seen = set()
+        if leg.flight_information_id:
+            flights_to_refresh.append(leg.flight_information)
+            seen.add(leg.flight_information_id)
+        for lf in leg.legflight_set.select_related('flight').all():
+            if lf.flight_id and lf.flight_id not in seen:
+                flights_to_refresh.append(lf.flight)
+                seen.add(lf.flight_id)
 
-        # Get the leg's pickup date to fetch flight data for the correct date
-        flight_date = leg.pickup_date.strftime('%Y-%m-%d') if leg.pickup_date else None
-        trip_type = leg.get_trip_type()  # 'arrival', 'return', or 'other'
-        logger.info(f"Fetching flight data for leg pickup date: {flight_date}, trip type: {trip_type}")
+        if not flights_to_refresh:
+            return JsonResponse({"success": False, "error": "Leg does not have flight information"}, status=400)
 
-        # Fetch flight data from AeroAPI
         aeroapi = AeroAPIService()
-        flight_data = aeroapi.get_flight_data(flight_ident, flight_date=flight_date, trip_type=trip_type)
+        all_flight_data = []
+        errors = []
+        any_not_found = False
 
-        logger.info(f"Flight data response: {flight_data}")
+        for idx, f in enumerate(flights_to_refresh):
+            logger.info(f"Refreshing flight {f.get_flight_ident()} for leg {leg.id} ({idx + 1}/{len(flights_to_refresh)})")
+            try:
+                res = _refresh_one_flight(f, leg, aeroapi)
+            except Exception as e:
+                logger.error(f"Exception refreshing flight {f.id} ({f.get_flight_ident()}): {e}", exc_info=True)
+                errors.append({"flight_id": f.id, "error": str(e)})
+                continue
+            if res["success"]:
+                all_flight_data.append(res["flight_data"])
+            else:
+                errors.append({"flight_id": f.id, "error": res["error"]})
+                if res["not_found"]:
+                    any_not_found = True
 
-        if flight_data.get('status') != 'success':
-            error_msg = flight_data.get('error', 'Unknown error')
-            logger.error(f"AeroAPI error: {error_msg}")
-
-            # Clear ALL stale data from the old flight so nothing lingers
-            if flight_data.get('status') in ('not_found', 'not_orlando'):
-                flight.flight_iata = ''
-                flight.origin = ''
-                flight.destination = ''
-                flight.status = 'Not Found'
-                flight.scheduled_arrival_local = None
-                flight.estimated_arrival_local = None
-                flight.actual_arrival_local = None
-                flight.scheduled_gate_arrival_local = None
-                flight.estimated_gate_arrival_local = None
-                flight.actual_gate_arrival_local = None
-                flight.terminal = ''
-                flight.gate = ''
-                flight.baggage_claim = ''
-                flight.last_updated = timezone.now()
-                flight.save()
-                logger.info(f"Cleared stale flight data for leg {leg.id} (flight {flight_ident} not found)")
-
-                # Create a flight verification task if one doesn't already exist
-                from ops.models import OperationalTask
-                existing_task = OperationalTask.objects.filter(
-                    leg=leg,
+        # If the controlling flight came back not_found, surface a flight-verification task.
+        # (Same behavior as before — only fired for the controlling flight, not secondaries.)
+        if any_not_found and not all_flight_data:
+            from ops.models import OperationalTask
+            ctl_ident = (leg.flight_information.get_flight_ident() if leg.flight_information else "") or ""
+            existing_task = OperationalTask.objects.filter(
+                leg=leg,
+                task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                status__in=list(OperationalTask.OPEN_STATUSES),
+            ).first()
+            if not existing_task:
+                pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
+                pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
+                from datetime import timedelta as _td
+                OperationalTask.objects.create(
                     task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                    status__in=list(OperationalTask.OPEN_STATUSES),
-                ).first()
-                if not existing_task:
-                    customer = leg.reservation.customer if leg.reservation else None
-                    pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
-                    pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
-                    from datetime import timedelta as _td
-                    OperationalTask.objects.create(
-                        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                        priority=OperationalTask.Priority.HIGH,
-                        title=f"⚠️ Flight not found: {flight_ident}",
-                        description=(
-                            f"Flight {flight_ident} does not exist. "
-                            f"Please verify and correct the flight number.\n"
-                            f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
-                        ),
-                        leg=leg,
-                        reservation=leg.reservation,
-                        due_at=timezone.now() + _td(hours=4),
-                    )
-                    logger.info(f"Created flight verification task for leg {leg.id}")
+                    priority=OperationalTask.Priority.HIGH,
+                    title=f"⚠️ Flight not found: {ctl_ident}",
+                    description=(
+                        f"Flight {ctl_ident} does not exist. "
+                        f"Please verify and correct the flight number.\n"
+                        f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
+                    ),
+                    leg=leg,
+                    reservation=leg.reservation,
+                    due_at=timezone.now() + _td(hours=4),
+                )
+                logger.info(f"Created flight verification task for leg {leg.id}")
 
+        if not all_flight_data:
             return JsonResponse({
                 "success": False,
-                "error": error_msg
+                "error": errors[0]["error"] if errors else "Refresh failed",
+                "errors": errors,
             }, status=400)
 
-        # Update flight model with AeroAPI data
-        # Only update fields that have values (don't overwrite with empty strings)
-        if flight_data.get('flight_iata'):
-            flight.flight_iata = flight_data.get('flight_iata')
-        if flight_data.get('origin'):
-            flight.origin = flight_data.get('origin')
-        if flight_data.get('destination'):
-            flight.destination = flight_data.get('destination')
-        # Use 'flight_status' for the actual flight status, fallback to 'status' for backwards compatibility
-        flight_status = flight_data.get('flight_status') or flight_data.get('status', '')
-        if flight_status:
-            flight.status = flight_status
-        
-        # Handle datetime fields — always set scheduled times (even to None to clear stale data)
-        scheduled_arrival = flight_data.get('scheduled_arrival_local')
-        flight.scheduled_arrival_local = scheduled_arrival
-
-        scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
-        flight.scheduled_gate_arrival_local = scheduled_gate_arrival
-
-        # Check if flight is scheduled for the future
-        # Compare in Eastern time since flight times are Eastern-local
-        from zoneinfo import ZoneInfo
-        eastern = ZoneInfo('America/New_York')
-        now = timezone.now()
-        now_eastern = now.astimezone(eastern)
-        is_future_flight = False
-        if scheduled_arrival and scheduled_arrival > now:
-            is_future_flight = True
-        elif scheduled_gate_arrival and scheduled_gate_arrival > now:
-            is_future_flight = True
-
-        # Check if scheduled on a different day (truly future, not just later today)
-        # Must compare in Eastern time — UTC date can differ from local date at night
-        ref_dt = scheduled_gate_arrival or scheduled_arrival
-        if ref_dt:
-            ref_date_eastern = ref_dt.astimezone(eastern).date() if ref_dt.tzinfo else ref_dt.date()
-            is_different_day = ref_date_eastern != now_eastern.date()
-        else:
-            is_different_day = False
-
-        if is_future_flight:
-            # Future flight (same-day or different-day): clear actuals, keep estimates
-            # AeroAPI provides predictions up to ~48hrs out
-            estimated_arrival = flight_data.get('estimated_arrival_local')
-            if estimated_arrival is not None:
-                flight.estimated_arrival_local = estimated_arrival
-
-            estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
-            if estimated_gate_arrival is not None:
-                flight.estimated_gate_arrival_local = estimated_gate_arrival
-
-            flight.actual_arrival_local = None
-            flight.actual_gate_arrival_local = None
-        else:
-            # For past/current flights, update estimated and actual times if provided
-            estimated_arrival = flight_data.get('estimated_arrival_local')
-            if estimated_arrival is not None:
-                flight.estimated_arrival_local = estimated_arrival
-
-            estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
-            if estimated_gate_arrival is not None:
-                flight.estimated_gate_arrival_local = estimated_gate_arrival
-
-            actual_arrival = flight_data.get('actual_runway_arrival_local')
-            if actual_arrival is not None:
-                flight.actual_arrival_local = actual_arrival
-            actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
-            if actual_gate_arrival is not None:
-                flight.actual_gate_arrival_local = actual_gate_arrival
-        
-        if flight_data.get('terminal'):
-            flight.terminal = flight_data.get('terminal')
-        if flight_data.get('gate'):
-            flight.gate = flight_data.get('gate')
-        if flight_data.get('baggage_claim'):
-            flight.baggage_claim = flight_data.get('baggage_claim')
-        
-        flight.last_updated = flight_data.get('last_updated', timezone.now())
-        
-        try:
-            flight.save()
-        except Exception as e:
-            logger.error(f"Error saving flight data: {e}")
-            return JsonResponse({
-                "success": False,
-                "error": f"Error saving flight data: {str(e)}"
-            }, status=500)
-
-        # Return updated flight data
         return JsonResponse({
             "success": True,
-            "message": "Flight data refreshed successfully",
-            "flight_data": {
-                "flight_iata": flight.flight_iata or "",
-                "origin": flight.origin or "",
-                "destination": flight.destination or "",
-                "status": flight.status or "",
-                "scheduled_arrival_local": flight.scheduled_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_arrival_local else "",
-                "estimated_arrival_local": flight.estimated_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_arrival_local else "",
-                "actual_arrival_local": flight.actual_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_arrival_local else "",
-                "scheduled_gate_arrival_local": flight.scheduled_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_gate_arrival_local else "",
-                "estimated_gate_arrival_local": flight.estimated_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_gate_arrival_local else "",
-                "actual_gate_arrival_local": flight.actual_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_gate_arrival_local else "",
-                "terminal": flight.terminal or "",
-                "gate": flight.gate or "",
-                "baggage_claim": flight.baggage_claim or "",
-                "last_updated": timezone.localtime(flight.last_updated).strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
-            }
+            "message": "Flight data refreshed",
+            "flight_data": all_flight_data[0],
+            "all_flight_data": all_flight_data,
+            "multi_flight": len(flights_to_refresh) > 1,
+            "errors": errors,
         })
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
-        logger.error(f"Error refreshing flight data: {e}")
+        logger.error(f"Error refreshing flight data: {e}", exc_info=True)
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
@@ -4483,6 +4504,7 @@ def update_leg_info(request):
 
         # Update leg fields (non-override scalars)
         update_fields = []
+        _needs_legflight_sync = False
         for field, value in leg_data.items():
             if field in _LEG_OVERRIDE_FIELDS:
                 continue  # handled by _apply_leg_override_fields below
@@ -4533,6 +4555,9 @@ def update_leg_info(request):
                 )
                 leg.flight_information = flight
                 update_fields.append("flight_information")
+                # Defer the LegFlight sync until after leg.save() runs below so
+                # flight_information_id is committed first.
+                _needs_legflight_sync = True
 
         # Handle cruise information (only if cruise_data is provided in the request)
         cruise_to_delete = None
@@ -4592,6 +4617,10 @@ def update_leg_info(request):
             except Exception as e:
                 logger.warning(f"Could not delete cruise {cruise_to_delete.id}: {e}")
 
+        # Keep LegFlight rows in sync with a freshly-set legacy flight_information.
+        if _needs_legflight_sync:
+            _sync_legacy_flight_information(leg)
+
         # Refresh leg from database to get latest data including driver
         leg.refresh_from_db()
         
@@ -4618,6 +4647,339 @@ def update_leg_info(request):
     except Exception as e:
         logger.error(f"Error updating leg info: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+# ============================================================================
+# LEG EXTRA STOPS & MULTI-FLIGHT — inline CRUD on the reservation detail page
+# ============================================================================
+
+def _render_leg_extras_panel(leg):
+    """Render the editor panel HTML for a single leg's stops + flights."""
+    return render_to_string(
+        "dispatching/includes/_leg_extras_panel.html",
+        {"leg": leg},
+    )
+
+
+def _apply_stop_fee_delta(leg, fee_delta):
+    """Adjust the reservation's total by exactly `fee_delta` (Decimal or 0).
+    Leaves all other charge components untouched."""
+    from reservations.utils import adjust_reservation_for_stop_fee_delta
+    if leg.reservation_id and fee_delta:
+        try:
+            adjust_reservation_for_stop_fee_delta(leg.reservation, fee_delta)
+        except Exception:
+            logger.exception("adjust_reservation_for_stop_fee_delta failed for reservation %s", leg.reservation_id)
+
+
+def _staff_only_or_403(request):
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    return None
+
+
+def _next_legstop_sequence(leg):
+    last = leg.legstop_set.order_by("-sequence").first()
+    return (last.sequence + 1) if last else 0
+
+
+def _parse_time_or_none(raw):
+    """Accept 'HH:MM' / 'HH:MM:SS' / empty / None and return a datetime.time or None."""
+    if raw in (None, ""):
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _next_legflight_sequence(leg):
+    last = leg.legflight_set.order_by("-sequence", "-id").first()
+    return (last.sequence + 1) if last else 0
+
+
+def _sync_legacy_flight_information(leg):
+    """Make sure leg.flight_information has a corresponding controlling LegFlight.
+
+    Legacy edit/booking paths still write directly to Leg.flight_information.
+    Without a matching LegFlight, the new flights panel hides the legacy flight
+    once any other LegFlight is added. Call this after any code path that
+    assigns or replaces leg.flight_information.
+    """
+    if not leg.flight_information_id:
+        return
+    existing = leg.legflight_set.filter(flight_id=leg.flight_information_id).first()
+    if existing:
+        if not existing.is_controlling:
+            leg.legflight_set.filter(is_controlling=True).update(is_controlling=False)
+            existing.is_controlling = True
+            existing.save(update_fields=["is_controlling"])
+        return
+    leg.legflight_set.filter(is_controlling=True).update(is_controlling=False)
+    LegFlight.objects.create(
+        leg=leg,
+        flight_id=leg.flight_information_id,
+        is_controlling=True,
+        sequence=_next_legflight_sequence(leg),
+    )
+
+
+@login_required
+@require_POST
+def add_leg_stop(request, leg_id):
+    """Create a LegStop for a leg. Returns the refreshed editor panel HTML."""
+    deny = _staff_only_or_403(request)
+    if deny:
+        return deny
+    leg = get_object_or_404(Leg, id=leg_id)
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    location_text = (data.get("location_text") or "").strip()
+
+    try:
+        duration = int(data.get("duration_minutes") or 10)
+    except (TypeError, ValueError):
+        duration = 10
+    stop_type = data.get("stop_type") or "dropoff"
+    if stop_type not in dict(LegStop.STOP_TYPE_CHOICES):
+        stop_type = "dropoff"
+
+    # Charter stops can be open-ended ("take them anywhere") — location optional.
+    if not location_text and stop_type != "charter":
+        return JsonResponse({"success": False, "error": "Stop location is required"}, status=400)
+    notes = (data.get("notes") or "").strip()
+
+    extra_fee_raw = data.get("extra_fee")
+    extra_fee = None
+    if extra_fee_raw not in (None, ""):
+        try:
+            extra_fee = Decimal(str(extra_fee_raw))
+        except Exception:
+            return JsonResponse({"success": False, "error": "Invalid extra_fee"}, status=400)
+
+    start_time = _parse_time_or_none(data.get("start_time"))
+
+    LegStop.objects.create(
+        leg=leg,
+        sequence=_next_legstop_sequence(leg),
+        location_text=location_text,
+        stop_type=stop_type,
+        duration_minutes=duration,
+        start_time=start_time,
+        notes=notes,
+        extra_fee=extra_fee,
+        requires_manual_review=bool(data.get("requires_manual_review")),
+    )
+    # Bump the reservation total by the new stop's fee (if any)
+    if extra_fee:
+        _apply_stop_fee_delta(leg, extra_fee)
+    return JsonResponse({"success": True, "html": _render_leg_extras_panel(leg)})
+
+
+@login_required
+@require_POST
+def update_leg_stop(request, leg_id, stop_id):
+    """Update fields of an existing LegStop."""
+    deny = _staff_only_or_403(request)
+    if deny:
+        return deny
+    leg = get_object_or_404(Leg, id=leg_id)
+    stop = get_object_or_404(LegStop, id=stop_id, leg=leg)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    # Snapshot the fee before mutating so we can compute the delta after save
+    old_fee = stop.extra_fee or Decimal("0.00")
+
+    # Apply stop_type first so we know whether location_text is required below.
+    if "stop_type" in data and data["stop_type"] in dict(LegStop.STOP_TYPE_CHOICES):
+        stop.stop_type = data["stop_type"]
+    if "location_text" in data:
+        text = (data.get("location_text") or "").strip()
+        if not text and stop.stop_type != "charter":
+            return JsonResponse({"success": False, "error": "Stop location is required"}, status=400)
+        stop.location_text = text
+    if "duration_minutes" in data:
+        try:
+            stop.duration_minutes = max(int(data["duration_minutes"]), 0)
+        except (TypeError, ValueError):
+            pass
+    if "notes" in data:
+        stop.notes = (data["notes"] or "").strip()
+    if "extra_fee" in data:
+        raw = data["extra_fee"]
+        if raw in (None, ""):
+            stop.extra_fee = None
+        else:
+            try:
+                stop.extra_fee = Decimal(str(raw))
+            except Exception:
+                return JsonResponse({"success": False, "error": "Invalid extra_fee"}, status=400)
+    if "requires_manual_review" in data:
+        stop.requires_manual_review = bool(data["requires_manual_review"])
+    if "start_time" in data:
+        stop.start_time = _parse_time_or_none(data["start_time"])
+    stop.save()
+
+    new_fee = stop.extra_fee or Decimal("0.00")
+    _apply_stop_fee_delta(leg, new_fee - old_fee)
+    return JsonResponse({"success": True, "html": _render_leg_extras_panel(leg)})
+
+
+@login_required
+@require_POST
+def delete_leg_stop(request, leg_id, stop_id):
+    """Delete a LegStop and re-pack sequences so they stay 0-indexed."""
+    deny = _staff_only_or_403(request)
+    if deny:
+        return deny
+    leg = get_object_or_404(Leg, id=leg_id)
+    stop = get_object_or_404(LegStop, id=stop_id, leg=leg)
+
+    fee_to_remove = stop.extra_fee or Decimal("0.00")
+    with transaction.atomic():
+        stop.delete()
+        # Re-pack sequences so subsequent inserts don't collide on unique_together(leg, sequence)
+        for new_seq, remaining in enumerate(leg.legstop_set.order_by("sequence", "id")):
+            if remaining.sequence != new_seq:
+                remaining.sequence = new_seq
+                remaining.save(update_fields=["sequence"])
+    if fee_to_remove:
+        _apply_stop_fee_delta(leg, -fee_to_remove)
+    return JsonResponse({"success": True, "html": _render_leg_extras_panel(leg)})
+
+
+@login_required
+@require_POST
+def add_leg_flight(request, leg_id):
+    """Create a Flight + LegFlight in one call. If the leg has no controlling
+    flight yet, the new flight becomes controlling."""
+    deny = _staff_only_or_403(request)
+    if deny:
+        return deny
+    leg = get_object_or_404(Leg, id=leg_id)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    airline = (data.get("airline") or "").strip()
+    flight_number = (data.get("flight_number") or "").strip()
+    if not (airline or flight_number):
+        return JsonResponse({"success": False, "error": "Airline or flight number is required"}, status=400)
+
+    flight_type = data.get("flight_type") or ""
+    if flight_type not in ("", "arrival", "departure"):
+        flight_type = ""
+
+    with transaction.atomic():
+        # Make sure any pre-existing legacy flight_information is wrapped in a
+        # LegFlight first, otherwise it would be hidden once a second LegFlight
+        # is added (the inline template only falls back to flight_information
+        # when zero LegFlights exist).
+        _sync_legacy_flight_information(leg)
+
+        flight = Flight.objects.create(
+            airline=airline,
+            flight_number=flight_number,
+            flight_type=flight_type,
+        )
+        has_controlling = leg.legflight_set.filter(is_controlling=True).exists() or bool(leg.flight_information_id)
+        is_controlling = bool(data.get("is_controlling")) or not has_controlling
+
+        if is_controlling:
+            # Clear any existing controlling rows so the partial unique constraint holds
+            leg.legflight_set.filter(is_controlling=True).update(is_controlling=False)
+
+        LegFlight.objects.create(
+            leg=leg,
+            flight=flight,
+            is_controlling=is_controlling,
+            sequence=_next_legflight_sequence(leg),
+        )
+        # Mirror onto the legacy OneToOne if it's empty so existing readers see it.
+        if is_controlling and not leg.flight_information_id:
+            leg.flight_information = flight
+            leg.save(update_fields=["flight_information"])
+
+    return JsonResponse({"success": True, "html": _render_leg_extras_panel(leg)})
+
+
+@login_required
+@require_POST
+def set_controlling_legflight(request, leg_id, legflight_id):
+    """Mark one LegFlight as controlling; clear the flag on others for the same leg."""
+    deny = _staff_only_or_403(request)
+    if deny:
+        return deny
+    leg = get_object_or_404(Leg, id=leg_id)
+    target = get_object_or_404(LegFlight, id=legflight_id, leg=leg)
+
+    with transaction.atomic():
+        leg.legflight_set.filter(is_controlling=True).update(is_controlling=False)
+        target.is_controlling = True
+        target.save(update_fields=["is_controlling"])
+        # Keep the legacy OneToOne in sync with the controlling flight
+        if leg.flight_information_id != target.flight_id:
+            leg.flight_information = target.flight
+            leg.save(update_fields=["flight_information"])
+
+    return JsonResponse({"success": True, "html": _render_leg_extras_panel(leg)})
+
+
+@login_required
+@require_POST
+def delete_leg_flight(request, leg_id, legflight_id):
+    """Detach a flight from a leg. If it was the controlling row, promote
+    another LegFlight to controlling (or clear flight_information if none left)."""
+    deny = _staff_only_or_403(request)
+    if deny:
+        return deny
+    leg = get_object_or_404(Leg, id=leg_id)
+    target = get_object_or_404(LegFlight, id=legflight_id, leg=leg)
+    flight = target.flight
+    was_controlling = target.is_controlling
+
+    with transaction.atomic():
+        target.delete()
+        if was_controlling:
+            replacement = leg.legflight_set.order_by("sequence", "id").first()
+            if replacement:
+                replacement.is_controlling = True
+                replacement.save(update_fields=["is_controlling"])
+                if leg.flight_information_id != replacement.flight_id:
+                    leg.flight_information = replacement.flight
+                    leg.save(update_fields=["flight_information"])
+            else:
+                # No flights left — clear the legacy OneToOne
+                if leg.flight_information_id:
+                    leg.flight_information = None
+                    leg.save(update_fields=["flight_information"])
+        # If the flight is now orphaned (no other legs use it) and it was created
+        # via this inline UI, garbage-collect it. We check both old and new sides.
+        still_used = (
+            Leg.objects.filter(flight_information=flight).exists()
+            or LegFlight.objects.filter(flight=flight).exists()
+        )
+        if not still_used:
+            try:
+                flight.delete()
+            except Exception:
+                pass
+
+    return JsonResponse({"success": True, "html": _render_leg_extras_panel(leg)})
 
 
 # ============================================================================
@@ -5420,6 +5782,8 @@ def create_dispatcher_reservation(booking_data):
                 dropoff_location=leg_data.get('dropoff_location', ''),
                 private_notes=private_notes,
             )
+            if flight is not None:
+                _sync_legacy_flight_information(leg)
 
             # Apply per-leg trip-detail overrides if any were captured in step 4
             overrides = leg_data.get('overrides') or {}
@@ -5588,7 +5952,8 @@ def add_leg_to_reservation(request):
             )
             leg.flight_information = flight
             leg.save()
-        
+            _sync_legacy_flight_information(leg)
+
         # Recalculate revenue_share for all legs now that there is one more leg
         reservation.recalculate_leg_revenue_shares()
         
@@ -5635,6 +6000,9 @@ def driver_payment_management(request):
     selected_driver_id = request.GET.get("driver")
     date_from = request.GET.get("date_from", "")
     date_to = request.GET.get("date_to", "")
+    active_tab = request.GET.get("tab", "all")
+    if active_tab not in ("all", "inhouse", "affiliate"):
+        active_tab = "all"
     selected_driver = None
     legs = []
     total_pay = 0
@@ -5712,8 +6080,20 @@ def driver_payment_management(request):
 
     inhouse_drivers = [d for d in drivers_with_unpaid if d.driver_type == 'inhouse']
     affiliate_drivers = [d for d in drivers_with_unpaid if d.driver_type == 'affiliate']
+    combined_drivers = list(drivers_with_unpaid)
     total_inhouse_owed = sum(d.total_owed for d in inhouse_drivers)
     total_affiliate_owed = sum(d.total_owed for d in affiliate_drivers)
+    total_owed_all = total_inhouse_owed + total_affiliate_owed
+
+    if active_tab == "inhouse":
+        tab_drivers = inhouse_drivers
+        tab_total_owed = total_inhouse_owed
+    elif active_tab == "affiliate":
+        tab_drivers = affiliate_drivers
+        tab_total_owed = total_affiliate_owed
+    else:
+        tab_drivers = combined_drivers
+        tab_total_owed = total_owed_all
 
     # ── Detail mode: load legs for selected driver ──
     last_payment_info = None
@@ -5798,8 +6178,16 @@ def driver_payment_management(request):
         # Overview data (always available)
         "inhouse_drivers": inhouse_drivers,
         "affiliate_drivers": affiliate_drivers,
+        "combined_drivers": combined_drivers,
+        "tab_drivers": tab_drivers,
+        "tab_total_owed": tab_total_owed,
+        "active_tab": active_tab,
+        "all_count": len(combined_drivers),
+        "inhouse_count": len(inhouse_drivers),
+        "affiliate_count": len(affiliate_drivers),
         "total_inhouse_owed": total_inhouse_owed,
         "total_affiliate_owed": total_affiliate_owed,
+        "total_owed_all": total_owed_all,
         "overdue_count": overdue_count,
         "overdue_days": overdue_days,
         # Legacy "drivers" for dropdown (keep compat) — combined list
@@ -11090,7 +11478,7 @@ def lead_analytics(request):
 # =============================================
 
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Min
+from django.db.models import Min, Max
 from users.models import TravelAgent, Agency, CommissionPayout, AgencyCommissionPayout
 from users.services import (
     process_agent_payout as svc_process_agent_payout,
@@ -11143,6 +11531,7 @@ def affiliate_payments(request):
             ),
             distinct=True,
         ),
+        last_paid_at=Max("commission_payouts__paid_at"),
     )
 
     if show == "owing":
@@ -11218,8 +11607,15 @@ def affiliate_payments(request):
         ).values_list("travel_agent").annotate(cnt=Count("id")).values_list("travel_agent", "cnt")
     )
 
-    # Pagination for agents
-    agents_paginator = Paginator(agents_qs, 25)
+    # Pagination for agents — allow user to choose page size (clamped for safety)
+    try:
+        per_page = int(request.GET.get("per_page", 50))
+    except (TypeError, ValueError):
+        per_page = 50
+    if per_page not in (25, 50, 100, 200):
+        per_page = 50
+
+    agents_paginator = Paginator(agents_qs, per_page)
     agents_page = request.GET.get("agents_page", 1)
     try:
         agents_page_obj = agents_paginator.page(agents_page)
@@ -11228,6 +11624,7 @@ def affiliate_payments(request):
 
     # Attach unpaid res counts and recalculate live_unpaid in Python for precision
     from reservations.models import Reservation as UnpaidRes
+    page_total_unpaid = Decimal("0")
     for agent in agents_page_obj:
         agent.unpaid_res_count = agent_unpaid_counts.get(agent.id, 0)
         # Python Decimal calculation — no SQL rounding issues
@@ -11238,6 +11635,7 @@ def affiliate_payments(request):
         agent.live_unpaid = sum(
             (r.base_price or Decimal("0")) * rate for r in unpaid_qs
         ).quantize(Decimal("0.01"))
+        page_total_unpaid += agent.live_unpaid
 
     # Agency unpaid reservation counts
     agency_res_counts = {}
@@ -11337,6 +11735,8 @@ def affiliate_payments(request):
         "show": show,
         "sort": sort,
         "pay_method": pay_method,
+        "per_page": per_page,
+        "page_total_unpaid": page_total_unpaid.quantize(Decimal("0.01")),
         "total_owing": total_owing,
         "total_owing_agencies": total_owing_agencies,
         "total_owing_agents": total_owing_agents["count"] or 0,
@@ -12326,11 +12726,29 @@ def admin_travel_agent_detail(request, pk):
         .order_by("-count")
     )
 
-    # Recent commission payouts
-    payouts = CommissionPayout.objects.filter(agent=agent).order_by("-paid_at")[:10]
+    # Pending payment breakdown (reuses the same service the AJAX preview uses)
+    pending_preview = svc_preview_agent_payout(agent)
+
+    # Paginated commission payouts
+    payouts_qs = (
+        CommissionPayout.objects.filter(agent=agent)
+        .select_related("agency")
+        .order_by("-paid_at")
+    )
+    payouts_paginator = Paginator(payouts_qs, 25)
+    payouts_page = request.GET.get("payouts_page", 1)
+    try:
+        payouts_page_obj = payouts_paginator.page(payouts_page)
+    except (PageNotAnInteger, EmptyPage):
+        payouts_page_obj = payouts_paginator.page(1)
 
     # All agencies for the assign dropdown
     all_agencies = Agency.objects.order_by("name")
+
+    # Can this agent be paid directly from the profile?
+    can_pay_directly = (
+        not agent.agency_handles_payment and float(live_unpaid or 0) > 0
+    )
 
     context = {
         "agent": agent,
@@ -12338,8 +12756,10 @@ def admin_travel_agent_detail(request, pk):
         "live_unpaid": live_unpaid,
         "recent_reservations": recent,
         "status_breakdown": status_breakdown,
-        "payouts": payouts,
+        "payouts_page_obj": payouts_page_obj,
         "all_agencies": all_agencies,
+        "pending_preview": pending_preview,
+        "can_pay_directly": can_pay_directly,
     }
     return render(request, "dispatching/travel_agent_detail.html", context)
 
@@ -12433,6 +12853,26 @@ def admin_travel_agency_detail(request, pk):
         .order_by("-created_at")[:20]
     )
 
+    # Pending payment breakdown (reuses the same service the AJAX preview uses)
+    pending_preview = svc_preview_agency_payout(agency)
+    can_pay_agency = (
+        any(a.agency_handles_payment for a in agents)
+        and float(pending_preview.get("total") or 0) > 0
+    )
+
+    # Paginated agency payouts
+    agency_payouts_qs = (
+        AgencyCommissionPayout.objects.filter(agency=agency)
+        .prefetch_related("agent_payouts__agent__user")
+        .order_by("-paid_at")
+    )
+    agency_payouts_paginator = Paginator(agency_payouts_qs, 25)
+    agency_payouts_page = request.GET.get("payouts_page", 1)
+    try:
+        agency_payouts_page_obj = agency_payouts_paginator.page(agency_payouts_page)
+    except (PageNotAnInteger, EmptyPage):
+        agency_payouts_page_obj = agency_payouts_paginator.page(1)
+
     context = {
         "agency": agency,
         "agent_rows": agent_rows,
@@ -12442,6 +12882,9 @@ def admin_travel_agency_detail(request, pk):
         "total_reservations": total_reservations,
         "active_agent_count": sum(1 for a in agents if a.is_active),
         "recent_reservations": recent,
+        "pending_preview": pending_preview,
+        "can_pay_agency": can_pay_agency,
+        "agency_payouts_page_obj": agency_payouts_page_obj,
     }
     return render(request, "dispatching/travel_agency_detail.html", context)
 

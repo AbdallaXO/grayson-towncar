@@ -511,6 +511,15 @@
                       </div>
                     {% endif %}
 
+                    {% if leg.legflight_set.count > 1 %}
+                      <div class="mb-2 p-1 border rounded" style="background-color: #fffbe6; border-color: #ffe58f !important;">
+                        <div class="small fw-semibold text-warning-emphasis mb-1">
+                          <i class="bi bi-airplane-fill"></i> Multiple flights for this group
+                        </div>
+                        {% include "dispatching/includes/_leg_flights_inline.html" %}
+                      </div>
+                    {% endif %}
+
                     <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
                     <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
                     {% if leg.cleared_time %}
@@ -560,6 +569,14 @@
                     <div class="small">
                       <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                     </div>
+                    {% for stop in leg.additional_dropoffs %}
+                      <div class="small" style="border-left: 3px solid #1b5e20; padding-left: 6px; margin-top: 2px;">
+                        <span class="fw-bold text-success">+ Drop-off:</span> {{ stop.display_location }}
+                      </div>
+                    {% endfor %}
+                    {% if leg.has_intermediate_stops %}
+                      {% include "dispatching/includes/_leg_stops_inline.html" %}
+                    {% endif %}
                     {% if leg.cruise_information %}
                       <div class="mt-2">
                         <span class="badge bg-dark text-white">

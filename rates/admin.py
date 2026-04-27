@@ -1,5 +1,5 @@
 from django.contrib import admin
-from rates.models import Vehicle, Route, Rate, Location
+from rates.models import Vehicle, Route, Rate, Location, LocationGroup
 
 # Register your models here.
 
@@ -29,7 +29,7 @@ class VehicleAdmin(admin.ModelAdmin):
             ),
         }),
         ("Extra Seat Fees", {
-            "fields": ("extra_carseat_fee", "extra_booster_fee"),
+            "fields": ("extra_carseat_fee", "extra_booster_fee", "extra_stop_fee"),
         }),
         ("Display", {
             "fields": ("carseats_display",),
@@ -37,14 +37,36 @@ class VehicleAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(LocationGroup)
+class LocationGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "location_count")
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
+
+    def location_count(self, obj):
+        return obj.locations.count()
+    location_count.short_description = "# Locations"
+
+
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    pass
+    list_display = ("name", "group", "aliases")
+    list_filter = ("group",)
+    search_fields = ("name", "aliases")
+    autocomplete_fields = ("group",)
 
 
 @admin.register(Route)
 class RouteAdmin(admin.ModelAdmin):
-    pass
+    list_display = ("origin", "destination", "extra_stop_groups_summary")
+    search_fields = ("origin__name", "destination__name", "slug")
+    autocomplete_fields = ("origin", "destination")
+    filter_horizontal = ("allowed_extra_stop_groups",)
+
+    def extra_stop_groups_summary(self, obj):
+        names = list(obj.allowed_extra_stop_groups.values_list("name", flat=True)[:3])
+        return ", ".join(names) if names else "—"
+    extra_stop_groups_summary.short_description = "Extra-stop groups"
 
 
 @admin.register(Rate)

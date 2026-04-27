@@ -5,14 +5,101 @@
 
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
+<style>
+  .pending-pay-panel {
+    border: 1px solid var(--gt-border); border-left: 4px solid var(--gt-gold);
+    background: linear-gradient(180deg, #fffdf6, #fff);
+  }
+  .pending-pay-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--gt-border);
+  }
+  .pending-pay-head .label {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--gt-muted); font-weight: 600;
+  }
+  .pending-pay-head .amount {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 500;
+    color: var(--gt-red); letter-spacing: -0.5px;
+  }
+  .pending-pay-empty {
+    padding: 22px; text-align: center; color: var(--gt-muted);
+    background: var(--gt-surface); border-top: 1px solid var(--gt-border);
+    font-size: .85rem;
+  }
+  .pending-pay-empty i { color: var(--gt-green); font-size: 1.3rem; margin-right: 6px; }
+  .gt-pay-actions { display: flex; gap: .5rem; }
+  .gt-pay-actions .tap-action-btn { padding: .45rem .9rem; font-size: .8rem; }
+  .gt-pay-result { padding: 14px 18px; }
+
+  /* Payment hero card */
+  .pay-hero {
+    background: #fff; border: 1px solid var(--gt-border);
+    border-radius: var(--gt-radius); padding: 20px 24px; margin-bottom: 20px;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 22px;
+    align-items: center;
+  }
+  .pay-hero .ph-label {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--gt-muted); font-weight: 700; margin-bottom: 8px;
+  }
+  .pay-hero .ph-method-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 1.05rem; font-weight: 700; letter-spacing: .3px;
+  }
+  .pay-hero .ph-method-badge i { font-size: 1.2rem; }
+  .pay-hero .ph-method-badge.venmo   { background: #008CFF; color: #fff; }
+  .pay-hero .ph-method-badge.zelle   { background: #6D2FBF; color: #fff; }
+  .pay-hero .ph-method-badge.paypal  { background: #003087; color: #fff; }
+  .pay-hero .ph-method-badge.cashapp { background: #00C244; color: #fff; }
+  .pay-hero .ph-method-badge.bank    { background: #2c3e50; color: #fff; }
+  .pay-hero .ph-method-badge.check   { background: #7f8c8d; color: #fff; }
+  .pay-hero .ph-method-badge.other   { background: #95a5a6; color: #fff; }
+  .pay-hero .ph-method-badge.agency  { background: var(--gt-gold); color: #1a1d21; }
+  .pay-hero .ph-method-badge.none    {
+    background: #fff5f0; color: #c97a1a; border: 2px dashed #f0c089;
+  }
+  .pay-hero .ph-info {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.15rem;
+    font-weight: 500; color: var(--gt-dark); word-break: break-all;
+    padding: 10px 14px; background: var(--gt-surface);
+    border-radius: 6px; border: 1px solid var(--gt-border);
+    user-select: all;
+  }
+  .pay-hero .ph-info.empty { color: #c97a1a; font-family: 'DM Sans', sans-serif; font-style: italic; font-size: .95rem; }
+  .pay-hero .ph-copy-btn {
+    background: var(--gt-dark); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 6px;
+    font-size: .85rem; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .pay-hero .ph-copy-btn:hover { background: var(--gt-dark-2); }
+  .pay-hero .ph-copy-btn.copied { background: var(--gt-green); }
+
+  @media (max-width: 768px) {
+    .pay-hero { grid-template-columns: 1fr; gap: 14px; padding: 16px; }
+  }
+
+  /* Bump detail-row legibility on this page */
+  .tap-detail-row { padding: .75rem 0; font-size: .95rem; }
+  .tap-detail-label { width: 150px; font-size: .75rem; }
+  .tap-detail-value { font-size: .95rem; }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4 tap-wrap">
 
-  <a href="{% url 'admin_travel_agencies' %}" class="tap-back-link">
-    <i class="bi bi-arrow-left"></i> All travel agencies
-  </a>
+  <div class="d-flex justify-content-between align-items-center" style="margin-bottom: .5rem;">
+    <a href="{% url 'admin_travel_agencies' %}" class="tap-back-link" style="margin-bottom: 0;">
+      <i class="bi bi-arrow-left"></i> All travel agencies
+    </a>
+    <a href="{% url 'affiliate_payments' %}" class="tap-back-link" style="margin-bottom: 0;">
+      <i class="bi bi-wallet2"></i> Affiliate Management
+    </a>
+  </div>
 
   <div class="tap-page-head">
     <div>
@@ -32,6 +119,38 @@
         <i class="bi bi-pencil"></i> Edit in Admin
       </a>
     </div>
+  </div>
+
+  <!-- Payment Hero -->
+  <div class="pay-hero">
+    <div>
+      <div class="ph-label">Payment Method</div>
+      {% if agency.payment_method %}
+        <div class="ph-method-badge {{ agency.payment_method }}">
+          <i class="bi bi-credit-card-2-front"></i>
+          {{ agency.get_payment_method_display }}
+        </div>
+      {% else %}
+        <div class="ph-method-badge none">
+          <i class="bi bi-exclamation-triangle"></i>
+          Not Set
+        </div>
+      {% endif %}
+    </div>
+    <div>
+      <div class="ph-label">Payment Info / Recipient</div>
+      {% if agency.payment_info %}
+        <div class="ph-info" id="agency-payment-info">{{ agency.payment_info }}</div>
+      {% else %}
+        <div class="ph-info empty">No recipient info set &mdash; add it before processing payouts.</div>
+      {% endif %}
+    </div>
+    {% if agency.payment_info %}
+      <button type="button" class="ph-copy-btn" id="agency-payment-copy"
+              data-copy-target="agency-payment-info">
+        <i class="bi bi-clipboard"></i> Copy
+      </button>
+    {% endif %}
   </div>
 
   <!-- Headline stats -->
@@ -58,6 +177,56 @@
 
     <!-- LEFT: Agents under this agency -->
     <div>
+
+      <!-- Pending Payment -->
+      <div class="tap-panel pending-pay-panel">
+        <div class="pending-pay-head">
+          <div>
+            <div class="label">Pending Agency Payment</div>
+            <div class="amount">${{ pending_preview.total|default:"0.00" }}</div>
+            {% if pending_preview.count %}
+              <div class="tap-sub">{{ pending_preview.count }} unpaid reservation{{ pending_preview.count|pluralize }} across {{ pending_preview.agents_count }} agent{{ pending_preview.agents_count|pluralize }}</div>
+            {% endif %}
+          </div>
+          <div>
+            {% if can_pay_agency %}
+              {% include "dispatching/includes/_process_payment_widget.html" with entity_type="agency" entity_id=agency.id entity_name=agency.name pending_total=pending_preview.total %}
+            {% endif %}
+          </div>
+        </div>
+
+        {% if pending_preview.agents %}
+          <table class="tap-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th class="text-end">Rate</th>
+                <th class="text-center">Reservations</th>
+                <th class="text-end">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in pending_preview.agents %}
+              <tr>
+                <td>
+                  <div class="tap-name">{{ a.agent_name }}</div>
+                  <div class="tap-sub">{{ a.email }}</div>
+                </td>
+                <td class="text-end tap-money">{{ a.commission_rate }}%</td>
+                <td class="text-center">{{ a.count }}</td>
+                <td class="text-end tap-money green">${{ a.subtotal }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="pending-pay-empty">
+            <i class="bi bi-check-circle-fill"></i>
+            All caught up &mdash; no agents with pending agency-handled commissions.
+          </div>
+        {% endif %}
+      </div>
+
       <div class="tap-panel">
         <div class="tap-panel-head">
           <i class="bi bi-people"></i>
@@ -111,6 +280,70 @@
         <div class="tap-empty">
           <i class="bi bi-person-x"></i>
           No agents linked to this agency yet.
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Agency Payouts -->
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-wallet2"></i>
+          <h6>Agency Payouts</h6>
+          <div class="spacer"></div>
+          <span class="tap-sub">{{ agency_payouts_page_obj.paginator.count }} total</span>
+        </div>
+        {% if agency_payouts_page_obj.object_list %}
+        <table class="tap-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Period</th>
+              <th class="text-center">Agents</th>
+              <th class="text-end">Total</th>
+              <th>Paid at</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in agency_payouts_page_obj %}
+            <tr>
+              <td class="tap-sub">#{{ p.id }}</td>
+              <td class="tap-sub">{{ p.payout_period_start|date:"M j, Y" }} → {{ p.payout_period_end|date:"M j, Y" }}</td>
+              <td class="text-center">{{ p.agent_payouts.count }}</td>
+              <td class="text-end tap-money green">${{ p.total_amount|floatformat:2|intcomma }}</td>
+              <td class="tap-sub">{{ p.paid_at|date:"M j, Y g:i A" }}</td>
+              <td class="text-end">
+                <a href="{% url 'admin_agency_payout_detail' p.id %}" class="tap-action-btn outline" title="View payout">
+                  <i class="bi bi-arrow-right"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if agency_payouts_page_obj.has_other_pages %}
+        <nav style="padding: 12px 18px; border-top: 1px solid var(--gt-border);">
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if agency_payouts_page_obj.has_previous %}
+              <li class="page-item"><a class="page-link" href="?payouts_page={{ agency_payouts_page_obj.previous_page_number }}">&laquo;</a></li>
+            {% endif %}
+            {% for num in agency_payouts_page_obj.paginator.page_range %}
+              {% if agency_payouts_page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+              {% elif num > agency_payouts_page_obj.number|add:"-3" and num < agency_payouts_page_obj.number|add:"3" %}
+                <li class="page-item"><a class="page-link" href="?payouts_page={{ num }}">{{ num }}</a></li>
+              {% endif %}
+            {% endfor %}
+            {% if agency_payouts_page_obj.has_next %}
+              <li class="page-item"><a class="page-link" href="?payouts_page={{ agency_payouts_page_obj.next_page_number }}">&raquo;</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="tap-empty">
+          <i class="bi bi-wallet"></i>
+          No agency payouts yet.
         </div>
         {% endif %}
       </div>
@@ -185,18 +418,6 @@
             </div>
           </div>
           <div class="tap-detail-row">
-            <div class="tap-detail-label">Payment Method</div>
-            <div class="tap-detail-value">
-              {% if agency.payment_method %}{{ agency.get_payment_method_display }}{% else %}<span class="empty">Not set</span>{% endif %}
-            </div>
-          </div>
-          <div class="tap-detail-row">
-            <div class="tap-detail-label">Payment Info</div>
-            <div class="tap-detail-value {% if not agency.payment_info %}empty{% endif %}">
-              {{ agency.payment_info|default:"—" }}
-            </div>
-          </div>
-          <div class="tap-detail-row">
             <div class="tap-detail-label">Total Paid</div>
             <div class="tap-detail-value tap-money green">${{ agency.total_paid_commission|floatformat:2|intcomma }}</div>
           </div>
@@ -228,6 +449,25 @@
   </div>
 
 </div>
+<script>
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".ph-copy-btn");
+    if (!btn) return;
+    const targetId = btn.dataset.copyTarget;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    const text = target.textContent.trim();
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btn.innerHTML;
+      btn.classList.add("copied");
+      btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.innerHTML = original;
+      }, 1600);
+    });
+  });
+</script>
 {% endblock %}
 
 {% block footer %}{% endblock %}

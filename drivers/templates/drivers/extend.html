@@ -1,85 +1,173 @@
 {% extends "main.html" %}
 {% load static %}
+{% load humanize %}
 
-{% block extra_head %}
+{% block extra_css %}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    .driver-card {
-      transition: transform 0.2s, box-shadow 0.2s;
-      border-left: 4px solid #6c757d;
+    :root {
+      --gt-gold: #C9A227;
+      --gt-bg: #0d1117;
+      --gt-surface: #161b22;
+      --gt-surface-2: #1c2128;
+      --gt-border: #2a313a;
+      --gt-text: #e6edf3;
+      --gt-muted: #8b949e;
     }
-    .driver-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    body { background: var(--gt-bg) !important; }
+    .directory-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
+    .directory-page .container-fluid { max-width: 1500px; }
+    .directory-page h1 { color: var(--gt-text); }
+    .directory-page .text-muted-dark { color: var(--gt-muted) !important; }
+
+    /* Stat tiles */
+    .stat-tile {
+      background: var(--gt-surface); border: 1px solid var(--gt-border);
+      border-radius: 10px; padding: 0.85rem 1rem; height: 100%;
     }
-    .driver-card.inhouse {
-      border-left-color: #0d6efd;
+    .stat-tile .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted); font-weight: 600; }
+    .stat-tile .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; margin-top: 0.3rem; font-family: 'JetBrains Mono', ui-monospace, monospace; color: var(--gt-text); }
+    .stat-tile.accent-gold .stat-value { color: var(--gt-gold); }
+    .stat-tile.accent-green .stat-value { color: #4ade80; }
+    .stat-tile.accent-blue .stat-value { color: #60a5fa; }
+
+    /* Filter card */
+    .filter-card {
+      background: var(--gt-surface); border: 1px solid var(--gt-border);
+      border-radius: 10px; padding: 1rem; margin-bottom: 1rem;
     }
-    .driver-card.affiliate {
-      border-left-color: #ffc107;
+    .filter-card .form-control, .filter-card .form-select {
+      background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);
     }
-    .badge-available {
-      background-color: #28a745;
+    .filter-card .form-control::placeholder { color: var(--gt-muted); }
+    .filter-card .form-control:focus, .filter-card .form-select:focus {
+      background: var(--gt-surface-2); color: var(--gt-text); border-color: var(--gt-gold);
+      box-shadow: 0 0 0 0.15rem rgba(201,162,39,0.15);
     }
-    .badge-busy {
-      background-color: #dc3545;
+    .filter-card .form-label { color: var(--gt-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .filter-card .btn-filter {
+      background: var(--gt-gold); color: #0d1117; border: none; font-weight: 600;
     }
-    .badge-scheduled {
-      background-color: #ffc107;
-      color: #000;
+    .filter-card .btn-filter:hover { background: #b48a1c; color: #0d1117; }
+
+    /* Tab pills */
+    .dir-tabs {
+      display: inline-flex; background: var(--gt-surface-2); padding: 4px;
+      border-radius: 999px; gap: 2px; border: 1px solid var(--gt-border);
     }
-    .phone-link {
-      color: #0d6efd;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      white-space: nowrap;
+    .dir-tab {
+      color: var(--gt-muted); background: transparent; border: none;
+      padding: 0.45rem 1.1rem; border-radius: 999px; font-size: 0.85rem;
+      font-weight: 600; letter-spacing: 0.02em; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      transition: background 0.18s ease, color 0.18s ease;
     }
-    .phone-link:hover {
-      text-decoration: underline;
+    .dir-tab:hover { color: var(--gt-text); background: rgba(255,255,255,0.06); }
+    .dir-tab.active {
+      background: var(--gt-gold); color: #0d1117;
+      box-shadow: 0 1px 4px rgba(201,162,39,0.4);
     }
-    .driver-phone {
-      white-space: nowrap;
+    .dir-tab .tab-count {
+      font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+      background: rgba(255,255,255,0.1); color: inherit;
     }
-    .schedule-text {
+    .dir-tab.active .tab-count { background: rgba(13,17,23,0.18); color: #0d1117; }
+
+    /* Driver table */
+    .driver-table-card {
+      background: var(--gt-surface); border: 1px solid var(--gt-border);
+      border-radius: 10px; overflow: hidden;
+    }
+    .driver-table { width: 100%; margin: 0; color: var(--gt-text); }
+    .driver-table thead th {
+      background: var(--gt-surface-2); color: var(--gt-muted);
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--gt-border); white-space: nowrap;
+    }
+    .driver-table tbody td {
+      padding: 0.7rem 0.75rem; border-bottom: 1px solid var(--gt-border); vertical-align: middle;
+    }
+    .driver-table tbody tr:hover { background: rgba(201,162,39,0.06); }
+    .driver-table tbody tr:last-child td { border-bottom: 0; }
+    .driver-name-link {
+      color: var(--gt-text); font-weight: 600; text-decoration: none;
+      border-bottom: 1px dotted transparent; transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .driver-name-link:hover { color: var(--gt-gold); border-bottom-color: var(--gt-gold); }
+    .driver-username { color: var(--gt-muted); font-size: 0.7rem; display: block; }
+
+    /* Type badges */
+    .type-badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 999px; letter-spacing: 0.04em;
+    }
+    .type-badge.inhouse { background: rgba(13,110,253,0.18); color: #60a5fa; }
+    .type-badge.affiliate { background: rgba(124,58,237,0.18); color: #a78bfa; }
+
+    /* Availability badges in Today cell */
+    .avail-pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    }
+    .avail-pill.free { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .avail-pill.busy { background: rgba(245,158,11,0.15); color: #fbbf24; }
+
+    /* Phone / email links */
+    .contact-link { color: #60a5fa; text-decoration: none; white-space: nowrap; }
+    .contact-link:hover { color: var(--gt-gold); text-decoration: underline; }
+
+    /* Status badges in next-trip detail */
+    .status-mini { font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .status-mini.confirmed { background: rgba(124,58,237,0.18); color: #a78bfa; }
+    .status-mini.in-progress, .status-mini.on-the-way, .status-mini.on-location, .status-mini.picked-up { background: rgba(59,130,246,0.18); color: #60a5fa; }
+
+    /* Total paid cell */
+    .total-paid-cell .paid-amount {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-weight: 700;
+      color: #4ade80;
       font-size: 0.95rem;
-      color: #212529;
-      font-weight: 500;
-      white-space: pre-line;
-      line-height: 1.6;
+      line-height: 1.1;
     }
-    .schedule-item {
-      font-size: 0.9rem;
-      padding: 0.25rem 0.5rem;
-      margin: 0.25rem 0;
-      background-color: #f8f9fa;
-      border-radius: 4px;
+    .total-paid-cell .paid-sub {
+      font-size: 0.6rem;
+      color: var(--gt-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.15rem;
     }
-    .table-view .table {
-      background-color: white;
+
+    /* Action buttons */
+    .row-actions .btn {
+      font-size: 0.72rem; padding: 0.25rem 0.55rem; font-weight: 600;
+      background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);
     }
-    .table-view .table tbody tr:hover {
-      background-color: #f8f9fa;
+    .row-actions .btn-profile { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+    .row-actions .btn-profile:hover { background: #b48a1c; border-color: #b48a1c; color: #0d1117; }
+    .row-actions .btn:not(.btn-profile):hover { background: rgba(201,162,39,0.12); color: var(--gt-gold); border-color: rgba(201,162,39,0.3); }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--gt-muted); }
+    .empty-state i { font-size: 2rem; display: block; margin-bottom: 0.5rem; opacity: 0.5; }
+
+    /* Notes icon contrast */
+    .notes-icon { color: var(--gt-muted); }
+    .notes-icon.bi-sticky-fill { color: var(--gt-gold); }
+
+    .schedule-text {
+      font-size: 0.78rem; color: var(--gt-text); white-space: pre-line; line-height: 1.4;
     }
-    .table th {
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .table td {
-      vertical-align: middle;
-    }
-    .driver-table {
-      width: 100%;
-      table-layout: auto;
-    }
-    .phone-cell {
-      min-width: 180px;
-      width: 180px;
-      white-space: nowrap;
+
+    /* Responsive: keep table scrollable horizontally on small screens */
+    @media (max-width: 991.98px) {
+      .driver-table thead { display: none; }
+      .driver-table, .driver-table tbody, .driver-table tr, .driver-table td { display: block; width: 100%; }
+      .driver-table tr { border-bottom: 1px solid var(--gt-border); padding: 0.5rem 0.25rem; }
+      .driver-table td { border-bottom: 0; padding: 0.35rem 0.5rem; }
+      .driver-table td::before { content: attr(data-label); display: block; color: var(--gt-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-bottom: 0.15rem; }
     }
   </style>
-{% endblock extra_head %}
+{% endblock extra_css %}
 
 {% block footer %}
 {% endblock footer %}
@@ -91,174 +179,211 @@
   {% block navbar %}{% endblock %}
   {% include "dispatching/dispatcher_navbar.html" %}
   
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 mb-0">
-        <i class="bi bi-people-fill me-2"></i>Driver Directory
-      </h1>
-      <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
-      </a>
-    </div>
+  <div class="directory-page">
+    <div class="container-fluid">
 
-    <!-- Filters -->
-    <div class="card mb-4">
-      <div class="card-body">
-        <form method="get" action="{% url 'drivers_extend' %}" class="row g-3">
-          <div class="col-md-4">
+      {# Header #}
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+        <h1 class="h3 mb-0">
+          <i class="bi bi-people-fill me-2" style="color: var(--gt-gold);"></i>Driver Directory
+        </h1>
+        <a href="{% url 'dashboard' %}" class="btn" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);">
+          <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+        </a>
+      </div>
+
+      {# Stat tiles #}
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="stat-tile">
+            <div class="stat-label">Total Drivers</div>
+            <div class="stat-value">{{ all_count_total }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-tile accent-blue">
+            <div class="stat-label">In-House</div>
+            <div class="stat-value">{{ inhouse_count_total }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-tile accent-gold">
+            <div class="stat-label">Affiliate</div>
+            <div class="stat-value">{{ affiliate_count_total }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-tile accent-green">
+            <div class="stat-label">Available Now</div>
+            <div class="stat-value">{{ available_count }}</div>
+          </div>
+        </div>
+      </div>
+
+      {# Tab pills #}
+      <div class="d-flex justify-content-center mb-3">
+        <div class="dir-tabs" role="tablist" aria-label="Driver type filter">
+          <a href="?tab=all{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}"
+             class="dir-tab {% if active_tab == 'all' %}active{% endif %}">
+            <i class="bi bi-grid-fill"></i> All <span class="tab-count">{{ all_count_total }}</span>
+          </a>
+          <a href="?tab=inhouse{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}"
+             class="dir-tab {% if active_tab == 'inhouse' %}active{% endif %}">
+            <i class="bi bi-building"></i> In-House <span class="tab-count">{{ inhouse_count_total }}</span>
+          </a>
+          <a href="?tab=affiliate{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}"
+             class="dir-tab {% if active_tab == 'affiliate' %}active{% endif %}">
+            <i class="bi bi-person-badge"></i> Affiliate <span class="tab-count">{{ affiliate_count_total }}</span>
+          </a>
+        </div>
+      </div>
+
+      {# Filters #}
+      <div class="filter-card">
+        <form method="get" action="{% url 'drivers_extend' %}" class="row g-2 align-items-end">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          <div class="col-md-6">
             <label for="search" class="form-label">Search</label>
-            <input type="text" 
-                   class="form-control" 
-                   id="search" 
-                   name="search" 
-                   placeholder="Name, username, or vehicle..."
-                   value="{{ search_query }}">
+            <input type="text" class="form-control" id="search" name="search"
+                   placeholder="Name, username, or vehicle..." value="{{ search_query }}">
           </div>
-          
           <div class="col-md-3">
-            <label for="type" class="form-label">Driver Type</label>
-            <select class="form-select" id="type" name="type">
-              <option value="">All Types</option>
-              <option value="inhouse" {% if driver_type_filter == "inhouse" %}selected{% endif %}>Inhouse</option>
-              <option value="affiliate" {% if driver_type_filter == "affiliate" %}selected{% endif %}>Affiliate/Outhouse</option>
-            </select>
-          </div>
-          
-          <div class="col-md-3">
-            <label for="availability" class="form-label">Availability</label>
+            <label for="availability" class="form-label">Availability (next 7d)</label>
             <select class="form-select" id="availability" name="availability">
               <option value="">All</option>
               <option value="available" {% if availability_filter == "available" %}selected{% endif %}>Available</option>
               <option value="busy" {% if availability_filter == "busy" %}selected{% endif %}>Busy</option>
             </select>
           </div>
-          
-          <div class="col-md-2 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary w-100">
+          <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-filter w-100">
               <i class="bi bi-funnel me-1"></i>Filter
             </button>
+            {% if search_query or availability_filter %}
+              <a href="?tab={{ active_tab }}" class="btn" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);" title="Reset filters">
+                <i class="bi bi-x-circle"></i>
+              </a>
+            {% endif %}
           </div>
         </form>
       </div>
-    </div>
 
-    <!-- Driver Table -->
-    <div class="card">
-      <div class="card-body p-0">
+      {# Driver Table #}
+      <div class="driver-table-card">
         <div class="table-responsive">
-          <table class="table table-hover mb-0 driver-table">
-            <thead class="table-light">
+          <table class="driver-table">
+            <thead>
               <tr>
-                <th>Name</th>
+                <th>Driver</th>
                 <th>Type</th>
-                <th>Phone</th>
-                <th>Email</th>
+                <th>Contact</th>
                 <th>Vehicle</th>
                 <th>Schedule</th>
                 <th>Today</th>
-                <th>Notes</th>
-                <th>Actions</th>
+                <th class="text-end">Total Paid</th>
+                <th class="text-center">Notes</th>
+                <th class="text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
               {% for driver in drivers %}
                 <tr>
-                  <td>
-                    <strong>
+                  <td data-label="Driver">
+                    <a href="{% url 'driver_profile' driver.id %}" class="driver-name-link">
                       {% if driver.profile.first_name %}
                         {{ driver.profile.first_name }} {{ driver.profile.last_name }}
                       {% else %}
                         {{ driver.profile.username }}
                       {% endif %}
-                    </strong>
-                    <br>
-                    <small class="text-muted">{{ driver.profile.username }}</small>
-                  </td>
-                  <td>
-                    <span class="badge {% if driver.driver_type == 'inhouse' %}bg-primary{% else %}bg-warning text-dark{% endif %}">
-                      {% if driver.driver_type == 'inhouse' %}
-                        <i class="bi bi-building me-1"></i>Inhouse
-                      {% else %}
-                        <i class="bi bi-person-badge me-1"></i>Affiliate
-                      {% endif %}
-                    </span>
-                    {% if driver.driver_type == 'inhouse' %}
-                    <i class="bi bi-stopwatch{% if not driver.exclude_from_timing %}-fill{% endif %} ms-1 timing-toggle"
-                       style="cursor:pointer; font-size:0.9rem; color:{% if driver.exclude_from_timing %}#ccc{% else %}#2e7d32{% endif %};"
-                       data-driver-id="{{ driver.id }}"
-                       data-excluded="{{ driver.exclude_from_timing|yesno:'true,false' }}"
-                       title="{% if driver.exclude_from_timing %}Excluded from route timing — click to include{% else %}Included in route timing — click to exclude{% endif %}"></i>
-                    {% endif %}
-                  </td>
-                  <td class="phone-cell">
-                    {% if driver.phone_number %}
-                      <a href="tel:{{ driver.phone_number }}" class="phone-link driver-phone">
-                        <i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}
-                      </a>
-                    {% else %}
-                      <span class="text-muted">Not set</span>
-                    {% endif %}
-                  </td>
-                  <td>
-                    <a href="mailto:{{ driver.profile.email }}" class="text-decoration-none">
-                      {{ driver.profile.email|truncatechars:30 }}
                     </a>
+                    <span class="driver-username">@{{ driver.profile.username }}</span>
                   </td>
-                  <td>
+                  <td data-label="Type">
+                    {% if driver.driver_type == 'inhouse' %}
+                      <span class="type-badge inhouse"><i class="bi bi-building me-1"></i>IN-HOUSE</span>
+                    {% else %}
+                      <span class="type-badge affiliate"><i class="bi bi-person-badge me-1"></i>AFFILIATE</span>
+                    {% endif %}
+                    {% if driver.driver_type == 'inhouse' %}
+                      <i class="bi bi-stopwatch{% if not driver.exclude_from_timing %}-fill{% endif %} ms-1 timing-toggle"
+                         style="cursor:pointer; font-size:0.9rem; color:{% if driver.exclude_from_timing %}#6c757d{% else %}#4ade80{% endif %};"
+                         data-driver-id="{{ driver.id }}"
+                         data-excluded="{{ driver.exclude_from_timing|yesno:'true,false' }}"
+                         title="{% if driver.exclude_from_timing %}Excluded from route timing — click to include{% else %}Included in route timing — click to exclude{% endif %}"></i>
+                    {% endif %}
+                  </td>
+                  <td data-label="Contact">
+                    {% if driver.phone_number %}
+                      <div><a href="tel:{{ driver.phone_number }}" class="contact-link"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}</a></div>
+                    {% endif %}
+                    {% if driver.profile.email %}
+                      <div style="font-size: 0.78rem;"><a href="mailto:{{ driver.profile.email }}" class="contact-link"><i class="bi bi-envelope me-1"></i>{{ driver.profile.email|truncatechars:28 }}</a></div>
+                    {% endif %}
+                    {% if not driver.phone_number and not driver.profile.email %}
+                      <span class="text-muted-dark">—</span>
+                    {% endif %}
+                  </td>
+                  <td data-label="Vehicle">
                     <strong>{{ driver.vehicle_display }}</strong>
                   </td>
-                  <td>
+                  <td data-label="Schedule">
                     {% if driver.get_schedule_display %}
                       <span class="schedule-text">{{ driver.get_schedule_display }}</span>
                     {% else %}
-                      <span class="text-muted">-</span>
+                      <span class="text-muted-dark">—</span>
                     {% endif %}
                   </td>
-                  <td>
+                  <td data-label="Today">
                     {% if driver.today_trip_count %}
-                      <div style="font-size:0.8125rem;">
-                        <span class="badge bg-primary">{{ driver.today_trip_count }} trip{{ driver.today_trip_count|pluralize }}</span>
-                        <div class="mt-1" style="font-size:0.75rem;">
-                          <span class="badge bg-{{ driver.next_trip_status|default:'secondary' }}" style="font-size:0.6875rem;{% if driver.next_trip_status == 'on-the-way' %}background:#f97316!important{% elif driver.next_trip_status == 'confirmed' %}background:#7c3aed!important{% elif driver.next_trip_status == 'picked-up' %}background:#3b82f6!important{% endif %}">
-                            {{ driver.next_trip_status }}
-                          </span>
-                          {{ driver.next_trip_time|date:"g:i A" }}
-                        </div>
-                        <div class="text-muted" style="font-size:0.6875rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ driver.next_trip_pickup }} → {{ driver.next_trip_dropoff }}">
-                          {{ driver.next_trip_pickup|truncatechars:25 }} → {{ driver.next_trip_dropoff|truncatechars:25 }}
-                        </div>
+                      <div>
+                        <span class="avail-pill busy"><i class="bi bi-clock-fill"></i>{{ driver.today_trip_count }} trip{{ driver.today_trip_count|pluralize }}</span>
+                      </div>
+                      <div class="mt-1" style="font-size: 0.72rem;">
+                        <span class="status-mini {{ driver.next_trip_status }}">{{ driver.next_trip_status }}</span>
+                        <span class="text-muted-dark ms-1">{{ driver.next_trip_time|date:"g:i A" }}</span>
+                      </div>
+                      <div class="text-muted-dark" style="font-size: 0.7rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ driver.next_trip_pickup }} → {{ driver.next_trip_dropoff }}">
+                        {{ driver.next_trip_pickup|truncatechars:22 }} → {{ driver.next_trip_dropoff|truncatechars:22 }}
                       </div>
                     {% else %}
-                      <span class="text-muted" style="font-size:0.8125rem;">No trips</span>
+                      <span class="avail-pill free"><i class="bi bi-check-circle-fill"></i>Available</span>
                     {% endif %}
                   </td>
-                  <td class="text-center">
+                  <td data-label="Total Paid" class="text-end total-paid-cell">
+                    {% if driver.lifetime_paid and driver.lifetime_paid > 0 %}
+                      <div class="paid-amount" title="${{ driver.lifetime_paid|floatformat:2|intcomma }} paid all-time">
+                        ${{ driver.lifetime_paid|floatformat:0|intcomma }}
+                      </div>
+                      <div class="paid-sub">all-time</div>
+                    {% else %}
+                      <span class="text-muted-dark">—</span>
+                    {% endif %}
+                  </td>
+                  <td data-label="Notes" class="text-center">
                     {% if driver.notes %}
-                      <i class="bi bi-sticky-fill text-primary notes-icon" 
-                         data-bs-toggle="tooltip" 
-                         data-bs-placement="left" 
+                      <i class="bi bi-sticky-fill notes-icon"
+                         data-bs-toggle="tooltip"
+                         data-bs-placement="left"
                          data-bs-html="true"
                          title="{{ driver.notes|escape|linebreaksbr }}"
                          data-driver-id="{{ driver.id }}"
                          data-driver-name="{% if driver.profile.first_name %}{{ driver.profile.first_name }} {{ driver.profile.last_name }}{% else %}{{ driver.profile.username }}{% endif %}"
                          data-notes="{{ driver.notes|escape }}"
-                         style="cursor: pointer; font-size: 1.2rem;"></i>
+                         style="cursor: pointer; font-size: 1.15rem;"></i>
                     {% else %}
-                      <i class="bi bi-sticky text-muted notes-icon" 
+                      <i class="bi bi-sticky notes-icon"
                          data-driver-id="{{ driver.id }}"
                          data-driver-name="{% if driver.profile.first_name %}{{ driver.profile.first_name }} {{ driver.profile.last_name }}{% else %}{{ driver.profile.username }}{% endif %}"
                          data-notes=""
-                         style="cursor: pointer; font-size: 1.2rem;"></i>
+                         style="cursor: pointer; font-size: 1.15rem;"></i>
                     {% endif %}
                   </td>
-                  <td>
-                    <div class="d-flex flex-wrap gap-2">
-                      <a href="{% url 'dashboard' %}?driver={{ driver.id }}" 
-                         class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-eye me-1"></i>View
+                  <td data-label="Actions" class="text-end row-actions">
+                    <div class="d-inline-flex flex-wrap gap-1 justify-content-end">
+                      <a href="{% url 'driver_profile' driver.id %}" class="btn btn-profile">
+                        <i class="bi bi-person-circle me-1"></i>Profile
                       </a>
-                      <a href="{% url 'driver_statement_list' driver.id %}"
-                         class="btn btn-sm btn-outline-secondary">
+                      <a href="{% url 'driver_statement_list' driver.id %}" class="btn">
                         <i class="bi bi-receipt me-1"></i>Statements
                       </a>
                     </div>
@@ -266,9 +391,10 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="8" class="text-center py-4">
-                    <div class="alert alert-info mb-0">
-                      <i class="bi bi-info-circle me-2"></i>No drivers found matching your filters.
+                  <td colspan="9">
+                    <div class="empty-state">
+                      <i class="bi bi-search"></i>
+                      <div>No drivers found matching your filters.</div>
                     </div>
                   </td>
                 </tr>
@@ -277,37 +403,8 @@
           </table>
         </div>
       </div>
-    </div>
 
-    <!-- Summary Stats -->
-    {% if drivers %}
-      <div class="row mt-4">
-        <div class="col-md-4">
-          <div class="card text-center">
-            <div class="card-body">
-              <h3 class="text-primary">{{ total_drivers }}</h3>
-              <p class="text-muted mb-0">Total Drivers</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card text-center">
-            <div class="card-body">
-              <h3 class="text-success">{{ available_count }}</h3>
-              <p class="text-muted mb-0">Available</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card text-center">
-            <div class="card-body">
-              <h3 class="text-warning">{{ inhouse_count }}</h3>
-              <p class="text-muted mb-0">Inhouse Drivers</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    {% endif %}
+    </div>
   </div>
 
   <!-- Toast Notification -->

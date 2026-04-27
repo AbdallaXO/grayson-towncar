@@ -668,18 +668,9 @@
                 <dt class="col-sm-4">Driver Status</dt>
                 <dd class="col-sm-8"><span class="badge bg-secondary">Cancelled</span></dd>
                 {% endif %}
-              </dl>
 
-              <dl class="row mb-0">
-                <dt class="col-sm-4">Pickup Location</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ leg.pickup_location }}
-                </dd>
-
-                <dt class="col-sm-4">Drop-off Location</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ leg.dropoff_location }}
-                </dd>
+                {# Pickup → (extras) → Drop-off, rendered as plain rows to match the rest #}
+                {% include "dispatching/includes/_leg_journey.html" %}
 
                 <dt class="col-sm-4">Passengers</dt>
                 <dd class="col-sm-8 fw-semibold">
@@ -733,10 +724,10 @@
                   {% endif %}
                 </dd>
 
-                {% if leg.flight_information %}
-                  <dt class="col-sm-4">Flight</dt>
+                {% if leg.flight_information or leg.legflight_set.exists %}
+                  <dt class="col-sm-4">Flight{{ leg.legflight_set.count|pluralize }}</dt>
                   <dd class="col-sm-8 fw-semibold">
-                    {{ leg.flight_information }}
+                    {% include "dispatching/includes/_leg_flights_inline.html" %}
                   </dd>
                 {% endif %}
 
@@ -802,11 +793,51 @@
                     <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
                        target="_blank"
                        class="btn btn-dark btn-sm">Admin Edit</a>
+                    <button type="button"
+                            class="btn btn-outline-warning btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#legExtrasModal_{{ leg.id }}"
+                            title="Add, edit, or remove stops & flights for this leg">
+                      <i class="bi bi-geo-alt-fill"></i>
+                      Stops &amp; flights{% if leg.has_extra_stops or leg.legflight_set.count > 1 %} ({{ leg.legstop_set.count }} stop{{ leg.legstop_set.count|pluralize }}, {{ leg.legflight_set.count }} flight{{ leg.legflight_set.count|pluralize }}){% endif %}
+                    </button>
                     <button class="btn btn-danger btn-sm delete-leg-btn"
                             data-leg-id="{{ leg.id }}"
                             data-leg-info="{{ leg.pickup_date|date:'M j, Y' }} {{ leg.pickup_time|time:'g:i A' }} - {{ leg.pickup_location }} to {{ leg.dropoff_location }}">
                       <i class="bi bi-trash"></i> Delete Leg
                     </button>
+                  </div>
+                </div>
+
+                {# Stops & flights editor — opens in a modal #}
+                <div class="modal fade leg-extras-modal"
+                     id="legExtrasModal_{{ leg.id }}"
+                     tabindex="-1"
+                     aria-labelledby="legExtrasModalLabel_{{ leg.id }}"
+                     aria-hidden="true">
+                  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="legExtrasModalLabel_{{ leg.id }}">
+                          <i class="bi bi-geo-alt-fill text-warning me-2"></i>
+                          Stops &amp; flights
+                          <small class="text-muted ms-2 fw-normal">
+                            {{ leg.pickup_date|date:'M j' }} &middot; {{ leg.pickup_time|time:'g:i A' }}
+                          </small>
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body p-0">
+                        <div id="legExtras_{{ leg.id }}" class="leg-extras-wrapper">
+                          {% include "dispatching/includes/_leg_extras_panel.html" %}
+                        </div>
+                      </div>
+                      <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                          <i class="bi bi-check-lg me-1"></i>Done
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2189,6 +2220,170 @@
                           legHistoryModalBody.innerHTML = '<p class="text-danger">Failed to load history.</p>';
                       });
               });
+          }
+
+          // ===========================================================
+          // Stops & Flights editor (modal-based)
+          // ===========================================================
+
+          // Category change: set data-category on the parent card so CSS can
+          // hide/show the Wait min field. Reset min value to a sane default.
+          // Works for both the add-card and per-row edit forms.
+          document.addEventListener('change', function(e) {
+              // Add-card category dropdown
+              var sel = e.target.closest('[data-add-stop-category]');
+              if (sel) {
+                  var card = sel.closest('[data-leg-extras-add-stop-card]');
+                  if (card) {
+                      card.setAttribute('data-category', sel.value);
+                      var minInput = card.querySelector('[data-add-stop-min]');
+                      if (minInput) {
+                          if (sel.value === 'dropoff' || sel.value === 'charter') {
+                              minInput.value = '0';
+                          } else if (minInput.value === '0') {
+                              minInput.value = '10';
+                          }
+                      }
+                  }
+                  return;
+              }
+              // Per-row edit category dropdown
+              var rowSel = e.target.closest('[data-row-category]');
+              if (rowSel) {
+                  var rowEdit = rowSel.closest('.lex-row-edit');
+                  if (rowEdit) {
+                      rowEdit.setAttribute('data-current-category', rowSel.value);
+                  }
+              }
+          });
+
+          // Single delegated handler — works for buttons inside the panel
+          // even after we swap the HTML on every save.
+          document.addEventListener('click', function(e) {
+              var btn = e.target.closest('[data-leg-extras-action]');
+              if (!btn) return;
+              var panel = btn.closest('.leg-extras-panel');
+              if (!panel) return;
+
+              var legId = panel.dataset.legId;
+              var action = btn.dataset.legExtrasAction;
+              var csrf = '{{ csrf_token }}';
+              var url = null;
+              var body = {};
+
+              if (action === 'toggle-edit') {
+                  // Pure UI toggle — flip the card between display + edit modes.
+                  var card = btn.closest('.lex-row, .row-card');
+                  if (card) card.classList.toggle('editing');
+                  return;
+              } else if (action === 'close-add-stop' || action === 'close-add-flight') {
+                  // Pure UI — collapse the parent <details>
+                  var det = btn.closest('details');
+                  if (det) det.removeAttribute('open');
+                  return;
+              } else if (action === 'add-stop') {
+                  url = '/dispatching/leg/' + legId + '/stop/add/';
+                  var card = panel.querySelector('[data-leg-extras-add-stop-card]');
+                  body = collectFields(card, '[data-add-stop-field]');
+                  // Charter has no fixed destination — location is optional there.
+                  if (body.stop_type !== 'charter' && (!body.location_text || !body.location_text.trim())) {
+                      alert('Please enter a stop location.');
+                      return;
+                  }
+                  // Drop-off has no wait time. Charter uses hours → minutes conversion.
+                  if (body.stop_type === 'dropoff') {
+                      body.duration_minutes = 0;
+                  } else if (body.stop_type === 'charter') {
+                      var hrs = parseInt(body.charter_hours || 0, 10);
+                      if (!hrs || hrs < 1) {
+                          alert('Please enter how many hours the charter runs.');
+                          return;
+                      }
+                      if (!body.start_time) {
+                          alert('Please enter the charter start time.');
+                          return;
+                      }
+                      body.duration_minutes = hrs * 60;
+                  }
+                  delete body.charter_hours;
+              } else if (action === 'save-stop') {
+                  var row = btn.closest('[data-leg-stop-row]');
+                  url = '/dispatching/leg/' + legId + '/stop/' + row.dataset.stopId + '/update/';
+                  body = collectFields(row, '[data-stop-field]');
+                  // Same charter conversion on edit
+                  if (body.stop_type === 'charter') {
+                      var hrs2 = parseInt(body.charter_hours || 0, 10);
+                      if (hrs2 && hrs2 > 0) {
+                          body.duration_minutes = hrs2 * 60;
+                      }
+                  }
+                  delete body.charter_hours;
+              } else if (action === 'delete-stop') {
+                  var row2 = btn.closest('[data-leg-stop-row]');
+                  if (!confirm('Remove this stop?')) return;
+                  url = '/dispatching/leg/' + legId + '/stop/' + row2.dataset.stopId + '/delete/';
+              } else if (action === 'add-flight') {
+                  url = '/dispatching/leg/' + legId + '/flight/add/';
+                  var fcard = panel.querySelector('[data-leg-extras-add-flight-card]');
+                  body = collectFields(fcard, '[data-add-flight-field]');
+                  if (!body.airline && !body.flight_number) {
+                      alert('Please enter at least an airline or flight number.');
+                      return;
+                  }
+              } else if (action === 'set-controlling') {
+                  var lfRow = btn.closest('[data-legflight-row]');
+                  url = '/dispatching/leg/' + legId + '/flight/' + lfRow.dataset.legflightId + '/set-controlling/';
+              } else if (action === 'delete-flight') {
+                  var lfRow2 = btn.closest('[data-legflight-row]');
+                  if (!confirm('Detach this flight from the leg?')) return;
+                  url = '/dispatching/leg/' + legId + '/flight/' + lfRow2.dataset.legflightId + '/delete/';
+              } else {
+                  return;
+              }
+
+              btn.disabled = true;
+              var originalHTML = btn.innerHTML;
+              btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+              fetch(url, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': csrf,
+                      'X-Requested-With': 'XMLHttpRequest',
+                  },
+                  body: JSON.stringify(body),
+              })
+                  .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, data: d}; }); })
+                  .then(function(res) {
+                      if (!res.ok || !res.data.success) {
+                          alert((res.data && res.data.error) || 'Save failed');
+                          btn.disabled = false;
+                          btn.innerHTML = originalHTML;
+                          return;
+                      }
+                      // Replace the panel HTML in-place so all rows refresh
+                      var wrapper = panel.parentElement;
+                      wrapper.innerHTML = res.data.html;
+                  })
+                  .catch(function(err) {
+                      alert('Network error: ' + err);
+                      btn.disabled = false;
+                      btn.innerHTML = originalHTML;
+                  });
+          });
+
+          function collectFields(scope, selector) {
+              var out = {};
+              if (!scope) return out;
+              scope.querySelectorAll(selector).forEach(function(input) {
+                  if (input.type === 'checkbox') {
+                      out[input.name] = input.checked;
+                  } else {
+                      out[input.name] = input.value;
+                  }
+              });
+              return out;
           }
       });
   </script>

@@ -73,8 +73,26 @@
                             </button>
                           </div>
                         </div>
+
+                        {% for stop in leg.intermediate_stops %}
+                          <div class="gt-route-point gt-route-stop" style="border-left:3px solid #d4a017;padding-left:10px;margin:4px 0;">
+                            <div class="gt-route-label">
+                              <i class="bi bi-stopwatch"></i> {{ stop.get_stop_type_display }}{% if stop.stop_type == 'charter' %}{% if stop.charter_hours %} &middot; {{ stop.charter_hours }} hr{% endif %}{% if stop.start_time %} &middot; starts {{ stop.start_time|time:"g:i A" }}{% endif %}{% elif stop.duration_minutes %} &middot; {{ stop.duration_minutes }} min{% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-wrap">
+                              <span class="gt-route-address">{{ stop.display_location }}</span>
+                              {% if stop.location_text %}
+                                <button class="gt-nav-btn navigate-btn" data-address="{{ stop.location_text }}">
+                                  <i class="bi bi-cursor-fill"></i> Go
+                                </button>
+                              {% endif %}
+                            </div>
+                            {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}
+                          </div>
+                        {% endfor %}
+
                         <div class="gt-route-point gt-route-dropoff">
-                          <div class="gt-route-label">Dropoff</div>
+                          <div class="gt-route-label">Drop-off</div>
                           <div class="d-flex align-items-center gap-1 flex-wrap">
                             <span class="gt-route-address">{{ leg.dropoff_location }}</span>
                             <button class="gt-nav-btn navigate-btn" data-address="{{ leg.dropoff_location }}">
@@ -82,6 +100,21 @@
                             </button>
                           </div>
                         </div>
+
+                        {% for stop in leg.additional_dropoffs %}
+                          <div class="gt-route-point gt-route-dropoff" style="border-left:3px solid #1b5e20;padding-left:10px;margin:4px 0;">
+                            <div class="gt-route-label">
+                              Additional Drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-wrap">
+                              <span class="gt-route-address">{{ stop.display_location }}</span>
+                              <button class="gt-nav-btn navigate-btn" data-address="{{ stop.location_text }}">
+                                <i class="bi bi-cursor-fill"></i> Go
+                              </button>
+                            </div>
+                            {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}
+                          </div>
+                        {% endfor %}
                       </div>
 
                       {# Live traffic hidden for drivers — dispatch only #}
@@ -415,13 +448,42 @@
                       <i class="bi bi-cursor-fill"></i> Navigate
                     </button>
                   </div>
+
+                  {% for stop in leg.intermediate_stops %}
+                    <div class="gt-route-point gt-route-stop" style="border-left:3px solid #d4a017;padding-left:10px;margin:6px 0;">
+                      <div class="gt-route-label">
+                        <i class="bi bi-stopwatch"></i> {{ stop.get_stop_type_display }}{% if stop.stop_type == 'charter' %}{% if stop.charter_hours %} &middot; {{ stop.charter_hours }} hr{% endif %}{% if stop.start_time %} &middot; starts {{ stop.start_time|time:"g:i A" }}{% endif %}{% elif stop.duration_minutes %} &middot; {{ stop.duration_minutes }} min{% endif %}
+                      </div>
+                      <div class="gt-route-address">{{ stop.display_location }}</div>
+                      {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}
+                      {% if stop.location_text %}
+                        <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ stop.location_text }}">
+                          <i class="bi bi-cursor-fill"></i> Navigate
+                        </button>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+
                   <div class="gt-route-point gt-route-dropoff">
-                    <div class="gt-route-label">Dropoff</div>
+                    <div class="gt-route-label">Drop-off</div>
                     <div class="gt-route-address">{{ leg.dropoff_location }}</div>
                     <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ leg.dropoff_location }}">
                       <i class="bi bi-cursor-fill"></i> Navigate
                     </button>
                   </div>
+
+                  {% for stop in leg.additional_dropoffs %}
+                    <div class="gt-route-point gt-route-dropoff" style="border-left:3px solid #1b5e20;padding-left:10px;margin:6px 0;">
+                      <div class="gt-route-label">
+                        Additional Drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+                      </div>
+                      <div class="gt-route-address">{{ stop.display_location }}</div>
+                      {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}
+                      <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ stop.location_text }}">
+                        <i class="bi bi-cursor-fill"></i> Navigate
+                      </button>
+                    </div>
+                  {% endfor %}
                 </div>
 
                 {# Live traffic hidden for drivers — dispatch only #}

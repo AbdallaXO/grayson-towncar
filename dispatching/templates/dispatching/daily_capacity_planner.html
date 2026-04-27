@@ -1034,8 +1034,10 @@
                              data-luggage="{{ slot.luggage }}"
                              data-luggage-type="{{ slot.luggage_type }}"
                              data-carseats="{{ slot.carseats_short }}"
-                             data-store-stop="{{ slot.store_stop|yesno:'1,0' }}">
-                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}
+                             data-store-stop="{{ slot.store_stop|yesno:'1,0' }}"
+                             data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
+                             data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}">
+                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="slot-publix" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="slot-publix" title="multi-flight" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}
                         </div>
                         {% endfor %}
                     </div>

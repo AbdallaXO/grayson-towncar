@@ -12,7 +12,8 @@ import json
 import os
 from django.conf import settings
 from django.contrib import messages
-from django.db.models import Q, Prefetch, Count
+from django.db.models import Q, Prefetch, Count, Sum, Value, DecimalField, Subquery, OuterRef
+from django.db.models.functions import Coalesce
 from drivers.utils import get_drive_time as google_drive_time
 from dispatching.scheduler import (
     estimate_job_end_time,
@@ -655,8 +656,18 @@ def extend(request):
     if not request.user.is_staff:
         return redirect("home")
     
-    # Get filter parameters
-    driver_type_filter = request.GET.get("type", "")  # "inhouse" or "affiliate"
+    # Get filter parameters. `tab` is the new pill-bar param; `type` kept for
+    # backward compatibility with old links/bookmarks.
+    tab_param = request.GET.get("tab", "")
+    if tab_param in ("inhouse", "affiliate"):
+        driver_type_filter = tab_param
+        active_tab = tab_param
+    elif tab_param == "all":
+        driver_type_filter = ""
+        active_tab = "all"
+    else:
+        driver_type_filter = request.GET.get("type", "")  # "inhouse" or "affiliate"
+        active_tab = driver_type_filter or "all"
     search_query = request.GET.get("search", "")
     availability_filter = request.GET.get("availability", "")  # "available" or "busy"
     
@@ -681,7 +692,16 @@ def extend(request):
     today = timezone.localdate()
     next_week = today + timedelta(days=7)
     
-    # Annotate with upcoming leg counts
+    # Annotate with upcoming leg counts and lifetime total paid.
+    # `lifetime_paid` is computed via subquery to avoid being inflated by the
+    # legs join below (a Sum + Count in the same annotate() multiplies rows).
+    lifetime_paid_sq = (
+        DriverPayment.objects
+        .filter(driver=OuterRef("pk"))
+        .values("driver")
+        .annotate(total=Sum("amount"))
+        .values("total")
+    )
     drivers = drivers.annotate(
         upcoming_count=Count(
             "legs",
@@ -689,8 +709,12 @@ def extend(request):
                 legs__pickup_date__gte=today,
                 legs__pickup_date__lte=next_week,
                 legs__status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
-            )
-        )
+            ),
+        ),
+        lifetime_paid=Coalesce(
+            Subquery(lifetime_paid_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
+            Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        ),
     )
     
     # Apply availability filter
@@ -737,9 +761,17 @@ def extend(request):
             driver.next_trip_status = next_leg.status
             driver.today_trip_count = len(driver.todays_legs)
 
+    # Counts for tab pills — these reflect the *type* split across the unfiltered
+    # roster, not the currently filtered list, so the tab labels stay stable as
+    # the user toggles search/availability.
+    all_count_total = Driver.objects.count()
+    inhouse_count_total = Driver.objects.filter(driver_type="inhouse").count()
+    affiliate_count_total = all_count_total - inhouse_count_total
+
     context = {
         "drivers": drivers_list,
         "driver_type_filter": driver_type_filter,
+        "active_tab": active_tab,
         "search_query": search_query,
         "availability_filter": availability_filter,
         "today": today,
@@ -747,9 +779,104 @@ def extend(request):
         "total_drivers": len(drivers_list),
         "available_count": available_count,
         "inhouse_count": inhouse_count,
+        "all_count_total": all_count_total,
+        "inhouse_count_total": inhouse_count_total,
+        "affiliate_count_total": affiliate_count_total,
     }
-    
+
     return render(request, "drivers/extend.html", context)
+
+
+@login_required(login_url="login")
+def driver_profile(request, driver_id):
+    """
+    Staff-facing driver profile page.
+
+    Aggregates info that already exists on the Driver model — contact, vehicle,
+    schedule, today/upcoming legs, unpaid pay summary, recent payouts — onto a
+    single page reachable from the directory and pay management.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    driver = get_object_or_404(
+        Driver.objects.select_related("profile"), id=driver_id
+    )
+
+    today = timezone.localdate()
+    horizon = today + timedelta(days=14)
+
+    # Upcoming legs in the next 14 days (active/in-flight statuses).
+    upcoming_legs = (
+        Leg.objects
+        .filter(
+            driver=driver,
+            pickup_date__gte=today,
+            pickup_date__lte=horizon,
+        )
+        .exclude(status__in=["cancelled"])
+        .select_related("reservation", "reservation__customer")
+        .order_by("pickup_date", "pickup_time")
+    )
+
+    todays_legs = [leg for leg in upcoming_legs if leg.pickup_date == today]
+
+    # Unpaid leg summary — reuse model helpers so totals match Pay Mgmt exactly.
+    unpaid_legs = driver.get_unpaid_legs() if hasattr(driver, "get_unpaid_legs") else []
+    total_unpaid = (
+        driver.get_total_unpaid_amount()
+        if hasattr(driver, "get_total_unpaid_amount")
+        else 0
+    )
+
+    # Recent payouts (last 10).
+    recent_payments = (
+        DriverPayment.objects
+        .filter(driver=driver)
+        .select_related("created_by")
+        .order_by("-payment_date")[:10]
+    )
+    last_payment = recent_payments[0] if recent_payments else None
+
+    # Weekly schedule overrides (DriverWeeklySchedule rows, one per day-of-week
+    # configured by the user). Sorted Mon-Sun.
+    weekly_schedule = list(
+        driver.weekly_schedule.all().order_by("day_of_week")
+        if hasattr(driver, "weekly_schedule") else []
+    )
+
+    # Date overrides (PTO / blocked / preferred) within the next 30 days.
+    upcoming_overrides = []
+    if hasattr(driver, "date_overrides"):
+        upcoming_overrides = list(
+            driver.date_overrides
+            .filter(date__gte=today, date__lte=today + timedelta(days=30))
+            .order_by("date")
+        )
+
+    # Availability today (uses model helper if present).
+    is_available_today = (
+        driver.is_available_today()
+        if hasattr(driver, "is_available_today")
+        else len(todays_legs) == 0
+    )
+
+    context = {
+        "driver": driver,
+        "today": today,
+        "horizon": horizon,
+        "todays_legs": todays_legs,
+        "upcoming_legs": upcoming_legs,
+        "upcoming_count": len(upcoming_legs),
+        "unpaid_legs_count": len(unpaid_legs) if hasattr(unpaid_legs, "__len__") else unpaid_legs.count(),
+        "total_unpaid": total_unpaid,
+        "recent_payments": recent_payments,
+        "last_payment": last_payment,
+        "weekly_schedule": weekly_schedule,
+        "upcoming_overrides": upcoming_overrides,
+        "is_available_today": is_available_today,
+    }
+    return render(request, "drivers/driver_profile.html", context)
 
 
 @login_required(login_url="login")

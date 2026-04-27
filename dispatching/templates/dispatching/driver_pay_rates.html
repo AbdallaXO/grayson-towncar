@@ -3,26 +3,165 @@
 
 {% block extra_css %}
 <style>
-  .rate-input { width: 90px; }
-  .rate-row:hover { background: #f8f9fa; }
-  .save-indicator { font-size: 0.75rem; margin-left: 0.5rem; }
-  .section-card { border: 1px solid #dee2e6; border-radius: 0.5rem; }
-  .section-header { background: #f8f9fa; padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; border-radius: 0.5rem 0.5rem 0 0; }
-  /* Grid setup styles */
+  :root {
+    --gt-gold: #C9A227;
+    --gt-bg: #0d1117;
+    --gt-surface: #161b22;
+    --gt-surface-2: #1c2128;
+    --gt-border: #2a313a;
+    --gt-text: #e6edf3;
+    --gt-muted: #8b949e;
+  }
+  body { background: var(--gt-bg) !important; }
+  .rates-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
+  .rates-page .container-fluid { max-width: 1400px; }
+  .rates-page h1, .rates-page h4, .rates-page h5, .rates-page h6 { color: var(--gt-text); }
+  .rates-page small, .rates-page .text-muted { color: var(--gt-muted) !important; }
+
+  /* Page header */
+  .rates-header {
+    background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+    border: 1px solid var(--gt-border); border-radius: 12px;
+    padding: 1.1rem 1.4rem; margin-bottom: 1.25rem;
+    display: flex; flex-wrap: wrap; gap: 0.75rem;
+    justify-content: space-between; align-items: center;
+  }
+  .rates-header h1 { font-size: 1.6rem; font-weight: 700; margin: 0; }
+  .rates-header h1 i { color: var(--gt-gold); margin-right: 0.5rem; }
+  .btn.header-action-btn,
+  a.header-action-btn {
+    background-color: #0d1117 !important;
+    color: #fff !important;
+    border: 1px solid var(--gt-border) !important;
+    padding: 0.5rem 1.05rem !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    text-decoration: none !important;
+    transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  }
+  .btn.header-action-btn:hover,
+  a.header-action-btn:hover {
+    background-color: var(--gt-gold) !important;
+    color: #0d1117 !important;
+    border-color: var(--gt-gold) !important;
+  }
+  .btn.header-action-btn i,
+  a.header-action-btn i { color: var(--gt-gold); transition: color 0.18s ease; }
+  .btn.header-action-btn:hover i,
+  a.header-action-btn:hover i { color: #0d1117; }
+
+  /* Section cards */
+  .section-card {
+    background: var(--gt-surface); border: 1px solid var(--gt-border);
+    border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem;
+  }
+  .section-header {
+    background: var(--gt-surface-2); border-bottom: 1px solid var(--gt-border);
+    padding: 0.85rem 1.1rem; color: var(--gt-text);
+  }
+  .section-header h6 { color: var(--gt-text); font-weight: 600; font-size: 0.95rem; }
+  .section-header small { color: var(--gt-muted) !important; font-weight: 400; font-size: 0.78rem; }
+
+  /* Tables */
+  .rates-page table { color: var(--gt-text); margin-bottom: 0; }
+  .rates-page table.table { background: transparent; --bs-table-bg: transparent; --bs-table-color: var(--gt-text); }
+  .rates-page table thead th {
+    background: var(--gt-surface-2); color: var(--gt-muted);
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+    font-weight: 700; border-bottom: 1px solid var(--gt-border); border-color: var(--gt-border);
+    padding: 0.55rem 0.75rem;
+  }
+  .rates-page table tbody td {
+    border-color: var(--gt-border); padding: 0.55rem 0.75rem;
+    vertical-align: middle; background: transparent; color: var(--gt-text);
+  }
+  .rates-page table.table-bordered { --bs-table-border-color: var(--gt-border); }
+  .rate-row:hover { background: rgba(201,162,39,0.06) !important; }
+  .rate-row:hover td { background: transparent; }
+
+  /* Form inputs */
+  .rates-page .form-control, .rates-page .form-select {
+    background: var(--gt-surface-2); color: var(--gt-text);
+    border: 1px solid var(--gt-border);
+  }
+  .rates-page .form-control::placeholder { color: var(--gt-muted); opacity: 0.7; }
+  .rates-page .form-control:focus, .rates-page .form-select:focus {
+    background: var(--gt-surface-2); color: var(--gt-text);
+    border-color: var(--gt-gold); box-shadow: 0 0 0 0.15rem rgba(201,162,39,0.15);
+  }
+  .rates-page .input-group-text {
+    background: #0d1117; color: var(--gt-gold);
+    border: 1px solid var(--gt-border); font-weight: 700;
+  }
+  .rates-page label.form-label, .rates-page .fw-bold { color: var(--gt-text); }
+
+  .rate-input { width: 110px; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 600; }
+  .save-indicator { font-size: 0.72rem; margin-left: 0.5rem; color: #4ade80 !important; font-weight: 600; }
+
+  /* Driver selector emphasis */
+  .driver-selector {
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+    padding: 0.5rem 0.65rem; border-radius: 8px;
+  }
+  .driver-selector .form-select { border-color: var(--gt-border); }
+
+  /* Driver-type badges in selector / heading */
+  .rates-page .badge.bg-primary, .rates-page .badge.bg-warning {
+    background: rgba(255,255,255,0.08) !important; color: var(--gt-text) !important;
+    border: 1px solid var(--gt-border); font-weight: 600;
+  }
+
+  /* Buttons */
+  .rates-page .btn-primary {
+    background: var(--gt-gold); border-color: var(--gt-gold); color: #0d1117; font-weight: 700;
+  }
+  .rates-page .btn-primary:hover { background: #b48a1c; border-color: #b48a1c; color: #0d1117; }
+  .rates-page .btn-outline-dark {
+    background: var(--gt-surface-2); border-color: var(--gt-border); color: var(--gt-text);
+  }
+  .rates-page .btn-outline-dark:hover { background: var(--gt-gold); border-color: var(--gt-gold); color: #0d1117; }
+  .rates-page .btn-outline-danger { color: #f87171; border-color: rgba(248,113,113,0.4); }
+  .rates-page .btn-outline-danger:hover { background: rgba(248,113,113,0.15); color: #f87171; border-color: #f87171; }
+
+  /* Grid table tweaks */
   .grid-table { font-size: 0.85rem; }
-  .grid-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d; font-weight: 600; }
   .grid-table .grid-input { width: 80px; text-align: center; }
-  .grid-table td { vertical-align: middle; }
   .grid-vehicle-label { font-weight: 500; white-space: nowrap; }
-  .grid-arrow { color: #6c757d; font-size: 0.75rem; }
+  .grid-arrow { color: var(--gt-muted); font-size: 0.75rem; }
   .copy-btn { font-size: 0.7rem; padding: 0.15rem 0.4rem; }
-  /* Route group collapsed display */
-  .route-group-header { border-radius: 0.25rem 0.25rem 0 0; }
-  .route-group-header:hover { background: #e9ecef !important; }
+
+  /* Route group collapsed display (affiliate per-route cards) */
+  .route-group-card { background: var(--gt-surface-2); border: 1px solid var(--gt-border) !important; border-radius: 8px !important; overflow: hidden; }
+  .route-group-header { background: rgba(255,255,255,0.03) !important; border-radius: 8px 8px 0 0; transition: background 0.15s ease; padding: 0.7rem 1rem !important; }
+  .route-group-header:hover { background: rgba(201,162,39,0.08) !important; }
   .route-group-header[aria-expanded="true"] .route-group-preview { display: none; }
-  .route-group-header .badge { font-size: 0.7rem; font-weight: 500; }
-  .route-label:hover { background: #f0f4ff; }
-  .route-label:has(input:checked) { background: #e8f0fe; border: 1px solid #4285f4; border-radius: 4px; }
+  .route-group-header strong { color: var(--gt-text); }
+  .route-group-header .badge.bg-secondary { background: rgba(201,162,39,0.15) !important; color: var(--gt-gold) !important; border: 1px solid rgba(201,162,39,0.3); font-weight: 600; }
+
+  /* Route checkbox list (Quick Setup) */
+  #route-checkboxes {
+    background: var(--gt-surface-2) !important; border: 1px solid var(--gt-border) !important; border-radius: 8px !important;
+  }
+  .route-label { color: var(--gt-text); transition: background 0.15s ease; }
+  .route-label:hover { background: rgba(201,162,39,0.08); }
+  .route-label:has(input:checked) { background: rgba(201,162,39,0.15) !important; border: 1px solid rgba(201,162,39,0.4) !important; border-radius: 6px; }
+
+  /* Quick Setup card */
+  #quick-setup { background: var(--gt-surface) !important; border: 1px solid var(--gt-border) !important; border-radius: 10px; overflow: hidden; }
+  #quick-setup .card-header { background: linear-gradient(90deg, #1c2128 0%, #0d1117 100%) !important; color: #fff !important; border-bottom: 1px solid var(--gt-border) !important; padding: 0.7rem 1rem; }
+  #quick-setup .card-header h6 { color: #fff; }
+  #quick-setup .card-header .bi-lightning-fill { color: var(--gt-gold) !important; }
+  #quick-setup .form-check-label { color: var(--gt-text); }
+
+  /* Manual add-rate fallback */
+  .rates-page details summary { color: var(--gt-muted); cursor: pointer; padding: 0.5rem 0; }
+  .rates-page details summary:hover { color: var(--gt-gold); }
+  .rates-page details .card.bg-light { background: var(--gt-surface-2) !important; border: 1px solid var(--gt-border) !important; color: var(--gt-text); }
+
+  /* Empty / placeholder text */
+  .rates-empty { padding: 2rem 1rem; text-align: center; color: var(--gt-muted); }
+  .rates-empty i { font-size: 2rem; display: block; margin-bottom: 0.5rem; opacity: 0.5; }
 </style>
 {% endblock extra_css %}
 
@@ -30,13 +169,29 @@
 
 {% block content %}
 {% include 'dispatching/dispatcher_navbar.html' %}
-<div class="container-fluid py-3">
-  <h4 class="mb-3">Driver Pay Rates</h4>
+<div class="rates-page">
+<div class="container-fluid">
+
+  {# ── Page header with action buttons ──────────────────────────── #}
+  <div class="rates-header">
+    <h1><i class="bi bi-cash-stack"></i>Driver Pay Rates</h1>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'driver_payment_management' %}" class="header-action-btn">
+        <i class="bi bi-credit-card-2-back me-1"></i>Driver Pay
+      </a>
+      <a href="{% url 'drivers_extend' %}" class="header-action-btn">
+        <i class="bi bi-people-fill me-1"></i>Driver Directory
+      </a>
+    </div>
+  </div>
 
   {# ── Section 1: Inhouse Default Rates ─────────────────────────── #}
-  <div class="section-card mb-4">
+  <div class="section-card">
     <div class="section-header">
-      <h6 class="mb-0">Inhouse Default Rates <small class="text-muted">(applies to all inhouse drivers unless overridden)</small></h6>
+      <h6 class="mb-0">
+        <i class="bi bi-building me-2" style="color: var(--gt-gold);"></i>Inhouse Default Rates
+        <small class="ms-2">applies to all in-house drivers unless overridden</small>
+      </h6>
     </div>
     <div class="p-3">
       <table class="table table-sm table-bordered mb-0">
@@ -73,10 +228,13 @@
 
   {# ── Section 2: Driver Rate Setup ─────────────────────────────── #}
   <div class="section-card">
-    <div class="section-header d-flex justify-content-between align-items-center">
-      <h6 class="mb-0">Driver Rate Setup</h6>
-      <form method="get" class="d-flex align-items-center gap-2 mb-0">
-        <select name="driver" class="form-select form-select-sm" style="width:250px" onchange="this.form.submit()">
+    <div class="section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h6 class="mb-0">
+        <i class="bi bi-person-gear me-2" style="color: var(--gt-gold);"></i>Per-Driver Rate Setup
+      </h6>
+      <form method="get" class="d-flex align-items-center gap-2 mb-0 driver-selector">
+        <label class="mb-0 me-1" style="font-size:0.78rem; color: var(--gt-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;">Driver</label>
+        <select name="driver" class="form-select form-select-sm" style="width:260px" onchange="this.form.submit()">
           <option value="">-- Select Driver --</option>
           {% for driver in drivers %}
           <option value="{{ driver.id }}" {% if selected_driver_id == driver.id|stringformat:"d" %}selected{% endif %}>
@@ -116,8 +274,8 @@
       {# ── Affiliate: grouped by route ─────────────────────────── #}
       <div class="d-flex flex-column gap-2 mb-3">
         {% for group in grouped_rates %}
-        <div class="border rounded">
-          <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light route-group-header" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#route-group-{{ group.route.id }}">
+        <div class="route-group-card">
+          <div class="d-flex align-items-center justify-content-between route-group-header" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#route-group-{{ group.route.id }}">
             <div>
               <strong>{{ group.route.origin.name }} &harr; {{ group.route.destination.name }}</strong>
               <span class="badge bg-secondary ms-2">{{ group.rates|length }} rate{{ group.rates|length|pluralize }}</span>
@@ -369,11 +527,13 @@
       </details>
     </div>
     {% else %}
-    <div class="p-3 text-center text-muted">
-      Select a driver to manage their pay rates.
+    <div class="rates-empty">
+      <i class="bi bi-person-circle"></i>
+      <div>Select a driver above to manage their pay rates.</div>
     </div>
     {% endif %}
   </div>
+</div>
 </div>
 {% endblock content %}
 
@@ -482,7 +642,7 @@ document.querySelectorAll('.delete-rate-btn').forEach(btn => {
     .then(data => {
       if (data.success) {
         // Remove the row; if last rate in a route group, remove the whole card
-        const groupCard = row.closest('.border.rounded');
+        const groupCard = row.closest('.route-group-card');
         row.remove();
         if (groupCard && groupCard.querySelectorAll('.rate-row').length === 0) {
           groupCard.remove();

@@ -281,6 +281,9 @@ class ScheduleSlot:
     luggage_type: str = ""
     carseats_short: str = ""
     store_stop: bool = False
+    # Multi-stop / multi-flight indicators (default 0 keeps legacy slots unchanged)
+    extra_stop_count: int = 0
+    secondary_flight_count: int = 0
     # Set by view for template positioning
     position_pct: float = 0
     width_pct: float = 0
@@ -770,6 +773,21 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             pass
         _carseats_short = ", ".join(_carseat_parts)
 
+        # Count extra stops + secondary flights. Uses prefetched .all() collections
+        # when available to avoid per-leg COUNT queries; falls back to .count()
+        # for unprefetched legs (rare path).
+        try:
+            _ls = leg.legstop_set
+            _legstop_count = len(_ls.all()) if hasattr(_ls, '_result_cache') and _ls._result_cache is not None else _ls.count()
+        except Exception:
+            _legstop_count = 0
+        try:
+            _lf = leg.legflight_set
+            _legflight_count = len(_lf.all()) if hasattr(_lf, '_result_cache') and _lf._result_cache is not None else _lf.count()
+        except Exception:
+            _legflight_count = 0
+        _secondary_flights = max(_legflight_count - 1, 0) if _legflight_count else 0
+
         slot = ScheduleSlot(
             leg_id=leg.id,
             pickup_time=leg.pickup_time,
@@ -792,6 +810,8 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             luggage_type=leg.effective_luggage_type or "",
             carseats_short=_carseats_short,
             store_stop=bool(leg.reservation.store_stop) if (leg.reservation and leg.get_trip_type() == 'arrival') else False,
+            extra_stop_count=_legstop_count,
+            secondary_flight_count=_secondary_flights,
         )
         schedules[leg.driver.id].slots.append(slot)
 

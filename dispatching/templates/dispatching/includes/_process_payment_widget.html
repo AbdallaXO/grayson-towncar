@@ -1,0 +1,135 @@
+{% comment %}
+Embeddable "Process Payment" widget for profile pages
+(travel_agent_detail.html, travel_agency_detail.html).
+
+Required context:
+  - entity_type: "agent" or "agency"
+  - entity_id: int
+  - entity_name: str
+  - pending_total: str (e.g. "123.45") - shown on the button
+{% endcomment %}
+{% load static %}
+
+<div class="gt-pay-actions" data-pay-type="{{ entity_type }}" data-pay-id="{{ entity_id }}"
+     data-pay-amount="{{ pending_total }}" data-pay-name="{{ entity_name }}">
+  <button type="button" class="tap-action-btn gold gt-pay-btn" data-send-email="false">
+    <i class="bi bi-cash"></i> Pay ${{ pending_total }}
+  </button>
+  <button type="button" class="tap-action-btn outline gt-pay-btn" data-send-email="true">
+    <i class="bi bi-envelope-check"></i> Pay &amp; Email
+  </button>
+</div>
+
+<div class="gt-pay-result" style="display:none;"></div>
+
+<!-- Confirm modal + JS (one per page is fine; the JS init self-guards if included twice). -->
+<div class="modal fade" id="gtPayConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Payout</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="gtPayConfirmBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-dark" id="gtPayConfirmBtn">
+          <i class="bi bi-check-lg me-1"></i>Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  if (window.__gtPayWidgetInit) return;
+  window.__gtPayWidgetInit = true;
+
+  const URLS = {
+    agent:  "{% url 'process_agent_payout' %}",
+    agency: "{% url 'process_agency_payout' %}",
+  };
+  const CSRF = "{{ csrf_token }}";
+
+  let pending = null;
+
+  function getModal() {
+    return bootstrap.Modal.getOrCreateInstance(document.getElementById("gtPayConfirmModal"));
+  }
+
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".gt-pay-btn");
+    if (!btn) return;
+
+    const widget = btn.closest(".gt-pay-actions");
+    if (!widget) return;
+
+    const type = widget.dataset.payType;
+    const id = widget.dataset.payId;
+    const name = widget.dataset.payName;
+    const amount = widget.dataset.payAmount;
+    const sendEmail = btn.dataset.sendEmail === "true";
+
+    pending = { widget, type, id, sendEmail };
+
+    let html = `<p>Process commission payout for <strong>${name}</strong>?</p>`;
+    html += `<p class="h4 text-success mb-2">$${parseFloat(amount).toFixed(2)}</p>`;
+    if (sendEmail) {
+      html += `<p class="text-muted mb-0"><i class="bi bi-envelope me-1"></i>A statement email will be sent automatically.</p>`;
+    }
+    document.getElementById("gtPayConfirmBody").innerHTML = html;
+    getModal().show();
+  });
+
+  document.getElementById("gtPayConfirmBtn").addEventListener("click", function () {
+    if (!pending) return;
+    const { widget, type, id, sendEmail } = pending;
+    const btn = this;
+    btn.disabled = true;
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+    fetch(URLS[type], {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify({ id: id, send_email: sendEmail }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        getModal().hide();
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        if (!data.success) {
+          alert("Error: " + (data.error || "Unknown error"));
+          return;
+        }
+        const result = widget.parentElement.querySelector(".gt-pay-result");
+        widget.style.display = "none";
+        if (result) {
+          let html = `
+            <div class="alert alert-success d-flex align-items-center justify-content-between mb-0" role="alert">
+              <div>
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <strong>Paid $${parseFloat(data.amount).toFixed(2)}</strong>
+                ${data.email_sent_to ? `&middot; statement sent to ${data.email_sent_to}` : ""}
+              </div>
+              <a href="${data.payout_url}" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-eye me-1"></i>View Payout
+              </a>
+            </div>`;
+          result.innerHTML = html;
+          result.style.display = "block";
+        }
+      })
+      .catch(() => {
+        getModal().hide();
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+        alert("Network error. Please try again.");
+      });
+
+    pending = null;
+  });
+})();
+</script>

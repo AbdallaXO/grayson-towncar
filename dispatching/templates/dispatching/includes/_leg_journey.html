@@ -1,0 +1,46 @@
+{# Pickup → on-the-way stops → primary drop-off → additional drop-offs. #}
+{# Renders as dt/dd rows so it sits naturally inside the leg's <dl class="row">. #}
+{# Required context: leg #}
+
+<dt class="col-sm-4">Pickup</dt>
+<dd class="col-sm-8 fw-semibold">{{ leg.pickup_location|default:"—" }}</dd>
+
+{% for stop in leg.intermediate_stops %}
+  <dt class="col-sm-4">{{ stop.get_stop_type_display }}</dt>
+  <dd class="col-sm-8 fw-semibold">
+    {{ stop.display_location }}
+    {% if stop.stop_type == 'charter' %}
+      {% if stop.start_time %}
+        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">starts {{ stop.start_time|time:"g:i A" }}</span>
+      {% endif %}
+      {% if stop.charter_hours %}
+        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">{{ stop.charter_hours }} hr</span>
+      {% endif %}
+    {% elif stop.duration_minutes %}
+      <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">{{ stop.duration_minutes }} min</span>
+    {% endif %}
+    {% if stop.extra_fee %}
+      <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">+${{ stop.extra_fee|floatformat:2 }}</span>
+    {% endif %}
+    {% if stop.notes %}<div class="small text-muted fst-italic mt-1">{{ stop.notes }}</div>{% endif %}
+  </dd>
+{% endfor %}
+
+<dt class="col-sm-4">Drop-off</dt>
+<dd class="col-sm-8 fw-semibold">{{ leg.dropoff_location|default:"—" }}</dd>
+
+{% for stop in leg.additional_dropoffs %}
+  <dt class="col-sm-4">
+    Additional drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+  </dt>
+  <dd class="col-sm-8 fw-semibold">
+    {{ stop.display_location }}
+    {% if stop.extra_fee %}
+      <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">+${{ stop.extra_fee|floatformat:2 }}</span>
+    {% endif %}
+    {% if stop.requires_manual_review %}
+      <span class="badge bg-warning text-dark ms-1">review</span>
+    {% endif %}
+    {% if stop.notes %}<div class="small text-muted fst-italic mt-1">{{ stop.notes }}</div>{% endif %}
+  </dd>
+{% endfor %}

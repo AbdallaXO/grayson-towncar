@@ -5,14 +5,110 @@
 
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
+<style>
+  .pending-pay-panel {
+    border: 1px solid var(--gt-border); border-left: 4px solid var(--gt-gold);
+    background: linear-gradient(180deg, #fffdf6, #fff);
+  }
+  .pending-pay-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--gt-border);
+  }
+  .pending-pay-head .label {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--gt-muted); font-weight: 600;
+  }
+  .pending-pay-head .amount {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.6rem; font-weight: 500;
+    color: var(--gt-red); letter-spacing: -0.5px;
+  }
+  .pending-pay-empty {
+    padding: 22px; text-align: center; color: var(--gt-muted);
+    background: var(--gt-surface); border-top: 1px solid var(--gt-border);
+    font-size: .85rem;
+  }
+  .pending-pay-empty i { color: var(--gt-green); font-size: 1.3rem; margin-right: 6px; }
+  .gt-pay-actions { display: flex; gap: .5rem; }
+  .gt-pay-actions .tap-action-btn { padding: .45rem .9rem; font-size: .8rem; }
+  .gt-pay-result { padding: 14px 18px; }
+  .pay-via-agency-notice {
+    padding: 14px 18px; background: var(--gt-gold-soft);
+    color: #8a6d10; font-size: .85rem; display: flex; align-items: center; gap: .5rem;
+  }
+  .pay-via-agency-notice a { color: #8a6d10; font-weight: 700; text-decoration: underline; }
+
+  /* Payment hero card */
+  .pay-hero {
+    background: #fff; border: 1px solid var(--gt-border);
+    border-radius: var(--gt-radius); padding: 20px 24px; margin-bottom: 20px;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 22px;
+    align-items: center;
+  }
+  .pay-hero .ph-label {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--gt-muted); font-weight: 700; margin-bottom: 8px;
+  }
+  .pay-hero .ph-method-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 1.05rem; font-weight: 700; letter-spacing: .3px;
+  }
+  .pay-hero .ph-method-badge i { font-size: 1.2rem; }
+  .pay-hero .ph-method-badge.venmo   { background: #008CFF; color: #fff; }
+  .pay-hero .ph-method-badge.zelle   { background: #6D2FBF; color: #fff; }
+  .pay-hero .ph-method-badge.paypal  { background: #003087; color: #fff; }
+  .pay-hero .ph-method-badge.cashapp { background: #00C244; color: #fff; }
+  .pay-hero .ph-method-badge.bank    { background: #2c3e50; color: #fff; }
+  .pay-hero .ph-method-badge.check   { background: #7f8c8d; color: #fff; }
+  .pay-hero .ph-method-badge.other   { background: #95a5a6; color: #fff; }
+  .pay-hero .ph-method-badge.agency  { background: var(--gt-gold); color: #1a1d21; }
+  .pay-hero .ph-method-badge.none    {
+    background: #fff5f0; color: #c97a1a; border: 2px dashed #f0c089;
+  }
+  .pay-hero .ph-info {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.15rem;
+    font-weight: 500; color: var(--gt-dark); word-break: break-all;
+    padding: 10px 14px; background: var(--gt-surface);
+    border-radius: 6px; border: 1px solid var(--gt-border);
+    user-select: all;
+  }
+  .pay-hero .ph-info.empty { color: #c97a1a; font-family: 'DM Sans', sans-serif; font-style: italic; font-size: .95rem; }
+  .pay-hero .ph-info-sub {
+    font-size: .78rem; color: var(--gt-muted); margin-top: 6px;
+  }
+  .pay-hero .ph-info-sub a { color: var(--gt-gold); font-weight: 600; }
+  .pay-hero .ph-copy-btn {
+    background: var(--gt-dark); color: #fff; border: none;
+    padding: 10px 16px; border-radius: 6px;
+    font-size: .85rem; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .pay-hero .ph-copy-btn:hover { background: var(--gt-dark-2); }
+  .pay-hero .ph-copy-btn.copied { background: var(--gt-green); }
+
+  @media (max-width: 768px) {
+    .pay-hero { grid-template-columns: 1fr; gap: 14px; padding: 16px; }
+  }
+
+  /* Bump detail-row legibility on this page */
+  .tap-detail-row { padding: .75rem 0; font-size: .95rem; }
+  .tap-detail-label { width: 150px; font-size: .75rem; }
+  .tap-detail-value { font-size: .95rem; }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4 tap-wrap">
 
-  <a href="{% url 'admin_travel_agents' %}" class="tap-back-link">
-    <i class="bi bi-arrow-left"></i> All travel agents
-  </a>
+  <div class="d-flex justify-content-between align-items-center" style="margin-bottom: .5rem;">
+    <a href="{% url 'admin_travel_agents' %}" class="tap-back-link" style="margin-bottom: 0;">
+      <i class="bi bi-arrow-left"></i> All travel agents
+    </a>
+    <a href="{% url 'affiliate_payments' %}" class="tap-back-link" style="margin-bottom: 0;">
+      <i class="bi bi-wallet2"></i> Affiliate Management
+    </a>
+  </div>
 
   <div class="tap-page-head">
     <div>
@@ -44,6 +140,67 @@
         <i class="bi bi-eye"></i> Agent View
       </a>
     </div>
+  </div>
+
+  <!-- Payment Hero -->
+  <div class="pay-hero">
+    {% if agent.agency_handles_payment and agent.agency %}
+      <div>
+        <div class="ph-label">Payment Method</div>
+        <div class="ph-method-badge agency">
+          <i class="bi bi-building"></i>
+          Paid via Agency
+        </div>
+      </div>
+      <div>
+        <div class="ph-label">Recipient</div>
+        {% if agent.agency.payment_method %}
+          <div class="ph-info">
+            {{ agent.agency.get_payment_method_display }}
+            {% if agent.agency.payment_info %} &middot; {{ agent.agency.payment_info }}{% endif %}
+          </div>
+          <div class="ph-info-sub">
+            Pays through <a href="{% url 'admin_travel_agency_detail' agent.agency.pk %}">{{ agent.agency.name }}</a>.
+          </div>
+        {% else %}
+          <div class="ph-info empty">{{ agent.agency.name }} has no payment method set yet.</div>
+        {% endif %}
+      </div>
+      {% if agent.agency.payment_info %}
+        <button type="button" class="ph-copy-btn" data-copy-target="agent-payment-info-source">
+          <i class="bi bi-clipboard"></i> Copy
+        </button>
+        <span id="agent-payment-info-source" style="display:none">{{ agent.agency.payment_info }}</span>
+      {% endif %}
+    {% else %}
+      <div>
+        <div class="ph-label">Payment Method</div>
+        {% if agent.payment_method %}
+          <div class="ph-method-badge {{ agent.payment_method }}">
+            <i class="bi bi-credit-card-2-front"></i>
+            {{ agent.get_payment_method_display }}
+          </div>
+        {% else %}
+          <div class="ph-method-badge none">
+            <i class="bi bi-exclamation-triangle"></i>
+            Not Set
+          </div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="ph-label">Payment Info / Recipient</div>
+        {% if agent.payment_info %}
+          <div class="ph-info" id="agent-payment-info">{{ agent.payment_info }}</div>
+        {% else %}
+          <div class="ph-info empty">No payment info set &mdash; add it before processing payouts.</div>
+        {% endif %}
+      </div>
+      {% if agent.payment_info %}
+        <button type="button" class="ph-copy-btn" data-copy-target="agent-payment-info">
+          <i class="bi bi-clipboard"></i> Copy
+        </button>
+      {% endif %}
+    {% endif %}
   </div>
 
   <!-- Headline stats -->
@@ -93,22 +250,6 @@
             <div class="tap-detail-value">{{ agent.commission_rate }}%</div>
           </div>
           <div class="tap-detail-row">
-            <div class="tap-detail-label">Payment Method</div>
-            <div class="tap-detail-value">
-              {% if agent.payment_method %}
-                {{ agent.get_payment_method_display }}
-              {% else %}
-                <span class="tap-detail-value empty">Not set</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="tap-detail-row">
-            <div class="tap-detail-label">Payment Info</div>
-            <div class="tap-detail-value {% if not agent.payment_info %}empty{% endif %}">
-              {{ agent.payment_info|default:"—" }}
-            </div>
-          </div>
-          <div class="tap-detail-row">
             <div class="tap-detail-label">Agency Pays</div>
             <div class="tap-detail-value">
               {% if agent.agency_handles_payment %}
@@ -129,6 +270,64 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Pending Payment -->
+      <div class="tap-panel pending-pay-panel">
+        <div class="pending-pay-head">
+          <div>
+            <div class="label">Pending Payment</div>
+            <div class="amount">${{ live_unpaid|floatformat:2|intcomma }}</div>
+            {% if pending_preview.count %}
+              <div class="tap-sub">{{ pending_preview.count }} unpaid completed reservation{{ pending_preview.count|pluralize }} &middot; period {{ pending_preview.period_start }} → {{ pending_preview.period_end }}</div>
+            {% endif %}
+          </div>
+          <div>
+            {% if agent.agency_handles_payment and agent.agency %}
+              {# rendered below as full-width notice #}
+            {% elif can_pay_directly %}
+              {% include "dispatching/includes/_process_payment_widget.html" with entity_type="agent" entity_id=agent.id entity_name=agent.agent_name|default:agent.user.username pending_total=pending_preview.total %}
+            {% endif %}
+          </div>
+        </div>
+
+        {% if agent.agency_handles_payment and agent.agency %}
+          <div class="pay-via-agency-notice">
+            <i class="bi bi-info-circle"></i>
+            Paid via agency &mdash;
+            <a href="{% url 'admin_travel_agency_detail' agent.agency.pk %}">process from {{ agent.agency.name }}</a>.
+          </div>
+        {% elif pending_preview.count %}
+          <table class="tap-table">
+            <thead>
+              <tr>
+                <th>Res #</th>
+                <th>Customer</th>
+                <th>Route</th>
+                <th class="text-end">Base</th>
+                <th class="text-end">Commission</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in pending_preview.reservations %}
+              <tr>
+                <td>#{{ r.id }}</td>
+                <td>{{ r.customer }}</td>
+                <td class="tap-sub">{{ r.route|default:"—" }}</td>
+                <td class="text-end tap-money">${{ r.base_price }}</td>
+                <td class="text-end tap-money green">${{ r.commission }}</td>
+                <td class="tap-sub">{{ r.date }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <div class="pending-pay-empty">
+            <i class="bi bi-check-circle-fill"></i>
+            All caught up &mdash; no unpaid completed reservations.
+          </div>
+        {% endif %}
       </div>
 
       <!-- Recent reservations -->
@@ -255,28 +454,91 @@
       </div>
       {% endif %}
 
-      <!-- Recent payouts -->
-      {% if payouts %}
+      <!-- Payouts history -->
       <div class="tap-panel">
         <div class="tap-panel-head">
           <i class="bi bi-wallet2"></i>
-          <h6>Recent Payouts</h6>
+          <h6>Payouts</h6>
+          <div class="spacer"></div>
+          <span class="tap-sub">{{ payouts_page_obj.paginator.count }} total</span>
         </div>
-        <div class="tap-panel-body" style="padding: 0;">
-          {% for p in payouts %}
-          <div class="tap-detail-row" style="padding: .55rem 18px;">
-            <div class="tap-detail-label">{{ p.paid_at|date:"M j, Y" }}</div>
-            <div class="tap-detail-value text-end tap-money green">${{ p.total_amount|floatformat:2|intcomma }}</div>
-          </div>
-          {% endfor %}
+        {% if payouts_page_obj.object_list %}
+        <table class="tap-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Period</th>
+              <th class="text-end">Amount</th>
+              <th>Paid at</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in payouts_page_obj %}
+            <tr>
+              <td class="tap-sub">#{{ p.id }}</td>
+              <td class="tap-sub">{{ p.payout_period_start|date:"M j, Y" }} → {{ p.payout_period_end|date:"M j, Y" }}</td>
+              <td class="text-end tap-money green">${{ p.total_amount|floatformat:2|intcomma }}</td>
+              <td class="tap-sub">{{ p.paid_at|date:"M j, Y g:i A" }}</td>
+              <td class="text-end">
+                <a href="{% url 'admin_agent_payout_detail' p.pk %}" class="tap-action-btn outline" title="View payout">
+                  <i class="bi bi-arrow-right"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if payouts_page_obj.has_other_pages %}
+        <nav style="padding: 12px 18px; border-top: 1px solid var(--gt-border);">
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if payouts_page_obj.has_previous %}
+              <li class="page-item"><a class="page-link" href="?payouts_page={{ payouts_page_obj.previous_page_number }}">&laquo;</a></li>
+            {% endif %}
+            {% for num in payouts_page_obj.paginator.page_range %}
+              {% if payouts_page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+              {% elif num > payouts_page_obj.number|add:"-3" and num < payouts_page_obj.number|add:"3" %}
+                <li class="page-item"><a class="page-link" href="?payouts_page={{ num }}">{{ num }}</a></li>
+              {% endif %}
+            {% endfor %}
+            {% if payouts_page_obj.has_next %}
+              <li class="page-item"><a class="page-link" href="?payouts_page={{ payouts_page_obj.next_page_number }}">&raquo;</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="tap-empty">
+          <i class="bi bi-wallet"></i>
+          No payouts yet.
         </div>
+        {% endif %}
       </div>
-      {% endif %}
 
     </div>
   </div>
 
 </div>
+<script>
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".ph-copy-btn");
+    if (!btn) return;
+    const targetId = btn.dataset.copyTarget;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    const text = target.textContent.trim();
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btn.innerHTML;
+      btn.classList.add("copied");
+      btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.innerHTML = original;
+      }, 1600);
+    });
+  });
+</script>
 {% endblock %}
 
 {% block footer %}{% endblock %}

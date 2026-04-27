@@ -1,0 +1,25 @@
+{# Renders ONLY the on-the-way stops for a leg (LegStops where stop_type != 'dropoff'). #}
+{# Drop-offs are first-class destinations and should be rendered by the caller as       #}
+{# their own labeled rows ("Drop-off Location", "Additional Drop-off"). This partial    #}
+{# handles only brief pauses with a duration: luggage drops, store stops, waits.        #}
+{# Renders nothing when leg has no intermediate stops.                                   #}
+{# Required context: leg #}
+{% with stops=leg.intermediate_stops %}
+  {% if stops %}
+    <div class="leg-stops-inline" style="margin: 4px 0 4px 8px;">
+      {% for stop in stops %}
+        <div class="leg-stop-row" style="font-size: 0.85rem; line-height: 1.3; padding: 3px 0 3px 8px; border-left: 3px solid #d4a017;">
+          <span class="badge bg-warning text-dark" style="font-size: 0.65rem;"><i class="bi bi-stopwatch"></i> Stop{% if stop.duration_minutes %} · {{ stop.duration_minutes }} min{% endif %}</span>
+          <strong>{{ stop.display_location }}</strong>
+          <span class="text-muted">— {{ stop.get_stop_type_display|lower }}</span>
+          {% if stop.requires_manual_review %}
+            <span class="badge bg-warning text-dark" title="Pending price review" style="font-size: 0.6rem;">review</span>
+          {% endif %}
+          {% if stop.notes %}
+            <div class="text-muted small ps-3" style="font-style: italic;">{{ stop.notes }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

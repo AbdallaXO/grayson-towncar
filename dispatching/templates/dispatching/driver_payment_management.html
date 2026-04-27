@@ -62,7 +62,8 @@
           background: rgba(201, 162, 39, 0.06) !important;
       }
       .pay-driver-row.overdue {
-          border-left: 4px solid #dc3545;
+          border-left: 4px solid #C9A227;
+          background: rgba(201, 162, 39, 0.04);
       }
       .pay-driver-row:not(.overdue) {
           border-left: 4px solid transparent;
@@ -130,7 +131,7 @@
       }
       /* Overdue alert */
       .overdue-banner {
-          background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+          background: linear-gradient(90deg, #b45309 0%, #92400e 100%);
           color: #fff;
           border-radius: 6px;
           padding: 0.65rem 1rem;
@@ -139,9 +140,60 @@
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          box-shadow: 0 2px 8px rgba(220,53,69,0.25);
+          box-shadow: 0 2px 8px rgba(180,83,9,0.25);
       }
       .overdue-banner i { font-size: 1.1rem; }
+
+      /* Big back-to-list button (driver detail mode) */
+      .back-to-list-btn {
+          display: inline-flex;
+          align-items: center;
+          background: #0d1117;
+          color: #fff;
+          padding: 0.65rem 1.25rem;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 1rem;
+          text-decoration: none;
+          border: 2px solid #C9A227;
+          transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      }
+      .back-to-list-btn:hover {
+          background: #C9A227;
+          color: #0d1117;
+          transform: translateX(-2px);
+      }
+      .back-to-list-btn i { font-size: 1.1rem; }
+
+      /* Header action buttons (Pay Rates, Driver Directory) */
+      .btn.header-action-btn,
+      a.header-action-btn {
+          background-color: #0d1117 !important;
+          color: #fff !important;
+          border: 1px solid #2a313a !important;
+          padding: 0.5rem 1.05rem !important;
+          border-radius: 6px !important;
+          font-weight: 600 !important;
+          font-size: 0.9rem !important;
+          text-decoration: none !important;
+          transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+      }
+      .btn.header-action-btn:hover,
+      a.header-action-btn:hover {
+          background-color: #C9A227 !important;
+          color: #0d1117 !important;
+          border-color: #C9A227 !important;
+      }
+      .btn.header-action-btn i,
+      a.header-action-btn i {
+          color: #C9A227;
+          transition: color 0.18s ease;
+      }
+      .btn.header-action-btn:hover i,
+      a.header-action-btn:hover i {
+          color: #0d1117;
+      }
 
       /* Mobile overview cards */
       @media (max-width: 991.98px) {
@@ -161,6 +213,80 @@
       }
       .mobile-driver-card:hover { background: rgba(201,162,39,0.06); }
       .mobile-driver-card.overdue { border-left: 4px solid #dc3545; }
+
+      /* ── Tab pills ── */
+      .pay-tabs {
+          display: inline-flex;
+          background: #0d1117;
+          padding: 4px;
+          border-radius: 999px;
+          gap: 2px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      }
+      .pay-tab {
+          color: rgba(255,255,255,0.7);
+          background: transparent;
+          border: none;
+          padding: 0.45rem 1.1rem;
+          border-radius: 999px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          transition: background 0.18s ease, color 0.18s ease;
+      }
+      .pay-tab:hover { color: #fff; background: rgba(255,255,255,0.08); }
+      .pay-tab.active {
+          background: #C9A227;
+          color: #0d1117;
+          box-shadow: 0 1px 4px rgba(201,162,39,0.4);
+      }
+      .pay-tab .tab-count {
+          font-size: 0.7rem;
+          font-weight: 700;
+          padding: 1px 7px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.15);
+          color: inherit;
+      }
+      .pay-tab.active .tab-count {
+          background: rgba(13,17,23,0.18);
+          color: #0d1117;
+      }
+      .pay-section-header.tabbed {
+          background: #0d1117;
+          color: #fff;
+      }
+      .pay-section-header.tabbed .section-total { color: #C9A227; }
+
+      /* Type badge inside the All tab */
+      .driver-type-badge {
+          display: inline-block;
+          font-size: 0.6rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          padding: 1px 6px;
+          border-radius: 3px;
+          margin-left: 6px;
+          vertical-align: middle;
+      }
+      .driver-type-badge.inhouse { background: #1a1d21; color: #e6edf3; border: 1px solid #2a313a; }
+      .driver-type-badge.affiliate { background: rgba(201,162,39,0.15); color: #C9A227; border: 1px solid rgba(201,162,39,0.3); }
+
+      /* Profile link inside the driver-name cell */
+      .driver-name-link {
+          color: inherit;
+          text-decoration: none;
+          border-bottom: 1px dotted transparent;
+          transition: border-color 0.15s ease, color 0.15s ease;
+      }
+      .driver-name-link:hover {
+          color: #C9A227;
+          border-bottom-color: #C9A227;
+      }
   </style>
 {% endblock extra_css %}
 
@@ -175,11 +301,11 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap">
           <h1 class="mb-3 mb-md-0 fs-1 fw-bold">Driver Pay Management</h1>
           <div class="d-flex flex-wrap gap-2">
-            <a href="{% url 'dashboard' %}" class="btn btn-dark">
-              <i class="bi bi-calendar-date me-1"></i>Legs Dashboard
+            <a href="{% url 'driver_pay_rates' %}" class="btn header-action-btn">
+              <i class="bi bi-cash-stack me-1"></i>Pay Rates
             </a>
-            <a href="{% url 'legs_list' %}" class="btn btn-warning">
-              <i class="bi bi-list-ul me-1"></i>All Legs
+            <a href="{% url 'drivers_extend' %}" class="btn header-action-btn">
+              <i class="bi bi-people-fill me-1"></i>Driver Directory
             </a>
           </div>
         </div>
@@ -261,8 +387,8 @@
       <!-- Back to overview -->
       <div class="row mb-3">
         <div class="col-12">
-          <a href="{% url 'driver_payment_management' %}" class="text-decoration-none" style="color:#C9A227; font-weight:500; font-size:0.9rem;">
-            <i class="bi bi-arrow-left me-1"></i>All drivers
+          <a href="{% url 'driver_payment_management' %}" class="back-to-list-btn">
+            <i class="bi bi-arrow-left-circle-fill me-2"></i>Back to All Drivers
           </a>
         </div>
       </div>
@@ -276,9 +402,9 @@
                 <i class="bi bi-person-check"></i>
                 {% if selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% else %}Driver #{{ selected_driver.id }}{% endif %}
                 {% if selected_driver.driver_type == 'inhouse' %}
-                  <span class="badge" style="background:rgba(255,255,255,0.15); font-size:0.65rem; font-weight:500;">INHOUSE</span>
+                  <span class="badge" style="background:rgba(255,255,255,0.15); font-size:0.65rem; font-weight:500; letter-spacing:0.04em;">INHOUSE</span>
                 {% else %}
-                  <span class="badge" style="background:#7c3aed; font-size:0.65rem; font-weight:500;">AFFILIATE</span>
+                  <span class="badge" style="background:rgba(201,162,39,0.25); color:#C9A227; font-size:0.65rem; font-weight:600; letter-spacing:0.04em; border:1px solid rgba(201,162,39,0.4);">AFFILIATE</span>
                 {% endif %}
               </h5>
               {% if last_payment_info %}
@@ -286,7 +412,7 @@
                   <i class="bi bi-clock-history me-1"></i>Last paid {{ last_payment_info.date|date:"M j, Y" }} &mdash; ${{ last_payment_info.amount|floatformat:2 }}
                 </span>
               {% else %}
-                <span class="last-paid-badge" style="background:rgba(220,53,69,0.3);">
+                <span class="last-paid-badge" style="background:rgba(180,83,9,0.35);">
                   <i class="bi bi-exclamation-triangle me-1"></i>Never paid
                 </span>
               {% endif %}
@@ -295,7 +421,7 @@
               <div class="row g-3 text-center">
                 <div class="col-6 col-md">
                   <div class="pay-overview-stat" style="padding:0.75rem 0;">
-                    <div class="stat-value" style="font-size:1.5rem; color:#0d6efd;">{{ leg_count }}</div>
+                    <div class="stat-value" style="font-size:1.5rem; color:#1a1d21;">{{ leg_count }}</div>
                     <div class="stat-label">Total Legs</div>
                   </div>
                 </div>
@@ -1062,7 +1188,7 @@
         <div class="col-6 col-md-3">
           <div class="card border-0 shadow-sm h-100">
             <div class="pay-overview-stat">
-              <div class="stat-value text-dark">{{ inhouse_drivers|length|add:affiliate_drivers|length }}</div>
+              <div class="stat-value text-dark">{{ all_count }}</div>
               <div class="stat-label">Drivers to Pay</div>
             </div>
           </div>
@@ -1099,115 +1225,50 @@
         </div>
       {% endif %}
 
-      {# ── Inhouse Drivers ── #}
-      <div class="row mb-4">
-        <div class="col-12">
-          <div class="card border-0 shadow-sm overflow-hidden">
-            <div class="pay-section-header" style="background:#0d1117; color:#fff;">
-              <span><i class="bi bi-people-fill me-2"></i>Inhouse Drivers</span>
-              <span class="section-total" style="color:#C9A227;">${{ total_inhouse_owed|floatformat:2 }}</span>
+      {# ── Tab pills (All / In-House / Affiliates) ── #}
+      {% with qs_dates="" %}
+        {% if date_from or date_to %}
+          {% with qs_dates="&date_from="|add:date_from|add:"&date_to="|add:date_to %}{% endwith %}
+        {% endif %}
+        <div class="row mb-3">
+          <div class="col-12 d-flex justify-content-center">
+            <div class="pay-tabs" role="tablist" aria-label="Driver pay filter">
+              <a href="?tab=all{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                 class="pay-tab {% if active_tab == 'all' %}active{% endif %}">
+                <i class="bi bi-grid-fill"></i> All <span class="tab-count">{{ all_count }}</span>
+              </a>
+              <a href="?tab=inhouse{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                 class="pay-tab {% if active_tab == 'inhouse' %}active{% endif %}">
+                <i class="bi bi-building"></i> In-House <span class="tab-count">{{ inhouse_count }}</span>
+              </a>
+              <a href="?tab=affiliate{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                 class="pay-tab {% if active_tab == 'affiliate' %}active{% endif %}">
+                <i class="bi bi-person-badge"></i> Affiliates <span class="tab-count">{{ affiliate_count }}</span>
+              </a>
             </div>
-            {% if inhouse_drivers %}
-              <div class="table-responsive">
-                <table class="table pay-driver-table mb-0 sortable-table" id="inhouseTable">
-                  <thead>
-                    <tr>
-                      <th style="width:25%; cursor:pointer;" data-sort="name" class="sortable-header">Driver <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
-                      <th class="text-center sortable-header" style="width:10%; cursor:pointer;" data-sort="unpaid">Unpaid <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
-                      <th class="text-center sortable-header" style="width:10%; cursor:pointer;" data-sort="ready">Ready <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
-                      <th class="text-end sortable-header" style="width:15%; cursor:pointer;" data-sort="owed">Owed <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
-                      <th class="sortable-header" style="width:12%; cursor:pointer;" data-sort="oldest">Oldest <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
-                      <th class="sortable-header" style="width:12%; cursor:pointer;" data-sort="last-paid">Last Paid <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
-                      <th class="text-end" style="width:16%;"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for d in inhouse_drivers %}
-                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'" data-name="{% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}" data-unpaid="{{ d.unpaid_count }}" data-ready="{{ d.completed_unpaid_count }}" data-owed="{{ d.total_owed|floatformat:2 }}" data-oldest="{{ d.days_since_oldest|default:'9999' }}" data-last-paid="{{ d.days_since_last_paid|default:'9999' }}">
-                        <td class="driver-name-cell">
-                          {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.8rem;"></i>{% endif %}
-                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
-                          <span class="method-tag">{{ d.payment_method|default:"Direct Deposit" }}</span>
-                        </td>
-                        <td class="text-center">
-                          <span class="badge rounded-pill" style="background:#dee2e6; color:#333;">{{ d.unpaid_count }}</span>
-                        </td>
-                        <td class="text-center">
-                          {% if d.completed_unpaid_count %}
-                            <span class="badge rounded-pill bg-success">{{ d.completed_unpaid_count }}</span>
-                          {% else %}
-                            <span style="color:#ccc;">0</span>
-                          {% endif %}
-                        </td>
-                        <td class="text-end fw-bold">${{ d.total_owed|floatformat:2 }}</td>
-                        <td>
-                          {% if d.oldest_unpaid_date %}{{ d.oldest_unpaid_date|date:"M j" }} <span class="{% if d.days_since_oldest > 14 %}text-danger fw-bold{% else %}text-muted{% endif %}" style="font-size:0.75rem;">({{ d.days_since_oldest }}d)</span>{% else %}<span style="color:#ccc;">-</span>{% endif %}
-                        </td>
-                        <td>
-                          {% if d.days_since_last_paid != None %}
-                            <span class="{% if d.days_since_last_paid > 14 %}text-danger fw-bold{% endif %}">{{ d.days_since_last_paid }}d ago</span>
-                          {% else %}
-                            <span class="text-danger fw-bold">Never</span>
-                          {% endif %}
-                        </td>
-                        <td class="text-end">
-                          <a href="?driver={{ d.id }}" class="pay-btn" onclick="event.stopPropagation();">
-                            <i class="bi bi-arrow-right me-1"></i>Pay
-                          </a>
-                        </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-              {# Mobile cards #}
-              <div class="mobile-driver-cards p-2">
-                {% for d in inhouse_drivers %}
-                  <div class="mobile-driver-card {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
-                    <div class="d-flex justify-content-between align-items-start">
-                      <div>
-                        <div class="fw-bold">
-                          {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.75rem;"></i>{% endif %}
-                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
-                        </div>
-                        <div class="text-muted" style="font-size:0.75rem;">{{ d.payment_method|default:"Direct Deposit" }}</div>
-                      </div>
-                      <div class="text-end">
-                        <div class="fw-bold">${{ d.total_owed|floatformat:2 }}</div>
-                        <div style="font-size:0.75rem;">
-                          <span class="badge rounded-pill" style="background:#dee2e6; color:#333;">{{ d.unpaid_count }} legs</span>
-                          {% if d.completed_unpaid_count %}<span class="badge rounded-pill bg-success">{{ d.completed_unpaid_count }} ready</span>{% endif %}
-                        </div>
-                      </div>
-                    </div>
-                    <div class="d-flex justify-content-between mt-2" style="font-size:0.75rem; color:#999;">
-                      <span>Oldest: {% if d.oldest_unpaid_date %}{{ d.oldest_unpaid_date|date:"M j" }}{% else %}-{% endif %}</span>
-                      <span>Last paid: {% if d.days_since_last_paid != None %}<span class="{% if d.days_since_last_paid > 14 %}text-danger fw-bold{% endif %}">{{ d.days_since_last_paid }}d ago</span>{% else %}<span class="text-danger fw-bold">Never</span>{% endif %}</span>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            {% else %}
-              <div class="overview-empty">
-                <i class="bi bi-check-circle-fill"></i>
-                All caught up! No inhouse drivers with unpaid legs.
-              </div>
-            {% endif %}
           </div>
         </div>
-      </div>
+      {% endwith %}
 
-      {# ── Affiliate Drivers ── #}
+      {# ── Tabbed driver table ── #}
       <div class="row mb-4">
         <div class="col-12">
           <div class="card border-0 shadow-sm overflow-hidden">
-            <div class="pay-section-header" style="background: linear-gradient(135deg, #5a2d82, #7c3aed); color:#fff;">
-              <span><i class="bi bi-person-badge me-2"></i>Affiliate Drivers</span>
-              <span class="section-total">${{ total_affiliate_owed|floatformat:2 }}</span>
+            <div class="pay-section-header tabbed">
+              <span>
+                {% if active_tab == 'inhouse' %}
+                  <i class="bi bi-people-fill me-2"></i>In-House Drivers
+                {% elif active_tab == 'affiliate' %}
+                  <i class="bi bi-person-badge me-2"></i>Affiliate Drivers
+                {% else %}
+                  <i class="bi bi-grid-fill me-2"></i>All Drivers
+                {% endif %}
+              </span>
+              <span class="section-total">${{ tab_total_owed|floatformat:2 }}</span>
             </div>
-            {% if affiliate_drivers %}
+            {% if tab_drivers %}
               <div class="table-responsive">
-                <table class="table pay-driver-table mb-0 sortable-table" id="affiliateTable">
+                <table class="table pay-driver-table mb-0 sortable-table" id="payDriverTable">
                   <thead>
                     <tr>
                       <th style="width:25%; cursor:pointer;" data-sort="name" class="sortable-header">Driver <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
@@ -1220,11 +1281,20 @@
                     </tr>
                   </thead>
                   <tbody>
-                    {% for d in affiliate_drivers %}
+                    {% for d in tab_drivers %}
                       <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'" data-name="{% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}" data-unpaid="{{ d.unpaid_count }}" data-ready="{{ d.completed_unpaid_count }}" data-owed="{{ d.total_owed|floatformat:2 }}" data-oldest="{{ d.days_since_oldest|default:'9999' }}" data-last-paid="{{ d.days_since_last_paid|default:'9999' }}">
                         <td class="driver-name-cell">
                           {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.8rem;"></i>{% endif %}
-                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                          <a href="{% url 'driver_profile' d.id %}" class="driver-name-link" onclick="event.stopPropagation();" title="Open driver profile">
+                            {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                          </a>
+                          {% if active_tab == 'all' %}
+                            {% if d.driver_type == 'inhouse' %}
+                              <span class="driver-type-badge inhouse">INHOUSE</span>
+                            {% else %}
+                              <span class="driver-type-badge affiliate">AFFILIATE</span>
+                            {% endif %}
+                          {% endif %}
                           <span class="method-tag">{{ d.payment_method|default:"Direct Deposit" }}</span>
                         </td>
                         <td class="text-center">
@@ -1260,13 +1330,22 @@
               </div>
               {# Mobile cards #}
               <div class="mobile-driver-cards p-2">
-                {% for d in affiliate_drivers %}
+                {% for d in tab_drivers %}
                   <div class="mobile-driver-card {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
                     <div class="d-flex justify-content-between align-items-start">
                       <div>
                         <div class="fw-bold">
                           {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.75rem;"></i>{% endif %}
-                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                          <a href="{% url 'driver_profile' d.id %}" class="driver-name-link" onclick="event.stopPropagation();">
+                            {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                          </a>
+                          {% if active_tab == 'all' %}
+                            {% if d.driver_type == 'inhouse' %}
+                              <span class="driver-type-badge inhouse">INHOUSE</span>
+                            {% else %}
+                              <span class="driver-type-badge affiliate">AFFILIATE</span>
+                            {% endif %}
+                          {% endif %}
                         </div>
                         <div class="text-muted" style="font-size:0.75rem;">{{ d.payment_method|default:"Direct Deposit" }}</div>
                       </div>
@@ -1288,7 +1367,13 @@
             {% else %}
               <div class="overview-empty">
                 <i class="bi bi-check-circle-fill"></i>
-                All caught up! No affiliate drivers with unpaid legs.
+                {% if active_tab == 'inhouse' %}
+                  All caught up! No in-house drivers with unpaid legs.
+                {% elif active_tab == 'affiliate' %}
+                  All caught up! No affiliates with unpaid legs.
+                {% else %}
+                  All caught up! No drivers with unpaid legs.
+                {% endif %}
               </div>
             {% endif %}
           </div>

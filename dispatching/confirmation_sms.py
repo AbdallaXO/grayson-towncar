@@ -182,7 +182,7 @@ def leg_to_row(leg):
         "travel_agent_agency": (
             (travel_agent.agency.name if travel_agent.agency else travel_agent.agency_name) or ""
         ) if travel_agent else "",
-        "travel_agent_number": str(travel_agent.id) if travel_agent else "",
+        "travel_agent_phone": (travel_agent.phone or "") if travel_agent else "",
         "airline": (flight.airline or "") if flight else "",
         "airline_display": (flight.airline_display_name or flight.airline or "").strip() if flight else "",
         "flight_number": (flight.flight_number or "").strip() if flight else "",

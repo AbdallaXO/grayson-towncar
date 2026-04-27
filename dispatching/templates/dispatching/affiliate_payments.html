@@ -1,7 +1,7 @@
 {% extends 'main.html' %}
-{% load static %}
+{% load static humanize %}
 
-{% block title %}Affiliate Payments{% endblock %}
+{% block title %}Affiliate Management{% endblock %}
 
 {% block extra_css %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,199 +10,428 @@
   :root {
     --gt-gold: #C9A227;
     --gt-gold-soft: rgba(201,162,39,0.12);
+    --gt-gold-tint: #fdfaef;
     --gt-dark: #1a1d21;
     --gt-dark-2: #23272b;
     --gt-surface: #f7f8fa;
-    --gt-border: #e2e5ea;
-    --gt-red: #e74c3c;
-    --gt-green: #27ae60;
-    --gt-text: #2c3e50;
-    --gt-muted: #7f8c9b;
-    --gt-radius: 10px;
+    --gt-surface-2: #fbfbfd;
+    --gt-border: #e6e8ee;
+    --gt-border-soft: #eef0f4;
+    --gt-red: #e04444;
+    --gt-green: #1f9d55;
+    --gt-text: #1c2330;
+    --gt-muted: #7c8597;
+    --gt-radius: 12px;
+    --gt-radius-sm: 8px;
+    --gt-shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
+    --gt-shadow-md: 0 4px 14px rgba(15,23,42,0.06);
   }
 
-  .container-fluid { font-family: 'DM Sans', sans-serif; color: var(--gt-text); }
+  body { background: var(--gt-surface); }
+  .container-fluid { font-family: 'DM Sans', sans-serif; color: var(--gt-text); max-width: 1400px; }
 
-  /* Page header */
-  .page-title { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; color: var(--gt-dark); }
-  .page-subtitle { font-size: 0.85rem; color: var(--gt-muted); font-weight: 400; }
+  /* === Page header === */
+  .am-page-head {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    flex-wrap: wrap; gap: 1rem; margin-bottom: 20px;
+  }
+  .am-title { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.6px; color: var(--gt-dark); margin: 0; }
+  .am-subtitle { font-size: .9rem; color: var(--gt-muted); margin: 4px 0 0; }
+  .am-head-actions { display: flex; gap: .5rem; }
+  .am-head-actions .btn {
+    border-radius: var(--gt-radius-sm); font-weight: 600; font-size: .82rem;
+    padding: .5rem .95rem;
+  }
 
-  /* Summary cards */
-  .summary-strip {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+  /* === KPI cards (lighter, modern) === */
+  .am-kpis {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;
   }
-  .summary-card {
-    background: var(--gt-dark); color: #fff; border-radius: var(--gt-radius);
-    padding: 20px 16px; text-align: center; position: relative; overflow: hidden;
-  }
-  .summary-card::after {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--gt-gold), transparent);
-  }
-  .summary-card .sc-label {
-    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;
-    color: rgba(255,255,255,0.5); margin-bottom: 6px; font-weight: 500;
-  }
-  .summary-card .sc-value {
-    font-family: 'JetBrains Mono', monospace; font-size: 1.4rem; font-weight: 500;
-  }
-  .summary-card .sc-value.red { color: #ff6b6b; }
-  .summary-card .sc-value.gold { color: var(--gt-gold); }
-
-  /* Filter bar */
-  .filter-bar {
+  .am-kpi {
     background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
-    padding: 10px 16px; margin-bottom: 24px;
+    padding: 18px 18px; box-shadow: var(--gt-shadow-sm);
+    position: relative; overflow: hidden;
+    transition: transform .15s ease, box-shadow .15s ease;
   }
-  .filter-bar .form-control, .filter-bar .form-select {
-    border-color: var(--gt-border); font-size: 0.82rem; border-radius: 6px;
+  .am-kpi:hover { box-shadow: var(--gt-shadow-md); }
+  .am-kpi.primary {
+    background: linear-gradient(135deg, var(--gt-gold-tint), #fff);
+    border-color: rgba(201,162,39,.32);
   }
-  .filter-bar .form-control:focus, .filter-bar .form-select:focus {
-    border-color: var(--gt-gold); box-shadow: 0 0 0 2px var(--gt-gold-soft);
+  .am-kpi.primary::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--gt-gold);
   }
-  .filter-bar .btn-dark {
-    background: var(--gt-dark); border-color: var(--gt-dark); border-radius: 6px;
-  }
-  .filter-bar .btn-dark:hover { background: var(--gt-dark-2); }
-
-  /* Section labels */
-  .section-label {
-    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1.2px; color: var(--gt-muted); margin-bottom: 14px;
-    padding-bottom: 8px; border-bottom: 1px solid var(--gt-border);
+  .am-kpi .kpi-label {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: 1.2px;
+    color: var(--gt-muted); font-weight: 700; margin-bottom: 8px;
     display: flex; align-items: center; gap: 6px;
   }
-  .section-label i { color: var(--gt-gold); }
+  .am-kpi .kpi-label i { color: var(--gt-gold); font-size: .85rem; }
+  .am-kpi .kpi-value {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.7rem; font-weight: 500;
+    color: var(--gt-dark); letter-spacing: -1px; line-height: 1;
+  }
+  .am-kpi .kpi-value.red { color: var(--gt-red); }
+  .am-kpi .kpi-sub { font-size: .75rem; color: var(--gt-muted); margin-top: 6px; }
 
-  /* Entity cards */
-  .card-entity {
+  /* === Sticky section nav === */
+  .am-section-nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(247,248,250,0.92); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    margin: 0 -.5rem 18px; padding: 10px .5rem;
+    border-bottom: 1px solid transparent;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .am-section-nav.scrolled { border-color: var(--gt-border); box-shadow: var(--gt-shadow-sm); }
+  .am-section-nav-inner {
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .am-tab {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: 999px;
+    color: var(--gt-text); font-size: .85rem; font-weight: 600;
+    padding: .45rem 1rem; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all .15s ease;
+  }
+  .am-tab:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
+  .am-tab.active {
+    background: var(--gt-dark); border-color: var(--gt-dark); color: #fff;
+  }
+  .am-tab .count {
+    background: var(--gt-gold-soft); color: var(--gt-dark);
+    font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+  }
+  .am-tab.active .count { background: rgba(255,255,255,.16); color: #fff; }
+
+  /* === Filter bar (cleaner, sticky for long lists) === */
+  .am-filter-wrap {
+    position: sticky; top: 56px; z-index: 40;
+    margin: 0 -.5rem 20px; padding: 0 .5rem;
+    background: rgba(247,248,250,0.92); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: box-shadow .2s, padding .2s;
+  }
+  .am-filter-wrap.scrolled {
+    box-shadow: 0 1px 0 var(--gt-border), 0 6px 16px rgba(15,23,42,.04);
+    padding-top: 8px; padding-bottom: 8px;
+  }
+  .am-filter {
     background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
-    margin-bottom: 10px; transition: all 0.2s ease;
+    padding: 10px 14px;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    box-shadow: var(--gt-shadow-sm);
   }
-  .card-entity:hover { border-color: #ccc; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
-  .card-entity.paid {
-    border-color: var(--gt-green); background: linear-gradient(135deg, #f0fdf4, #fff);
+  .am-filter .am-search {
+    flex: 1; min-width: 240px; position: relative;
   }
-  .card-entity .entity-header {
-    padding: 14px 18px; cursor: pointer;
-    display: flex; align-items: center; gap: 12px; transition: background 0.15s;
+  .am-filter .am-search i {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--gt-muted); font-size: .9rem;
   }
-  .card-entity .entity-header:hover { background: var(--gt-surface); }
-  .card-entity .entity-body { padding: 0 18px 14px; }
+  .am-filter .am-search input {
+    width: 100%; border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    padding: .5rem .8rem .5rem 2.1rem; font-size: .88rem;
+    background: var(--gt-surface-2);
+  }
+  .am-filter .am-search input:focus {
+    outline: none; border-color: var(--gt-gold); background: #fff;
+    box-shadow: 0 0 0 3px var(--gt-gold-soft);
+  }
+  .am-filter select {
+    border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    padding: .45rem 2rem .45rem .7rem; font-size: .82rem;
+    background: var(--gt-surface-2); cursor: pointer; color: var(--gt-text);
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='12' height='12'%3E%3Cpath fill='%237c8597' d='M3.5 5.5l4.5 4 4.5-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .65rem center;
+  }
+  .am-filter select:focus { outline: none; border-color: var(--gt-gold); }
+  .am-filter .am-btn-primary {
+    background: var(--gt-dark); color: #fff; border: none; border-radius: var(--gt-radius-sm);
+    padding: .5rem 1.1rem; font-size: .82rem; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .am-filter .am-btn-primary:hover { background: var(--gt-dark-2); }
+  .am-filter .am-btn-reset {
+    color: var(--gt-muted); background: none; border: none; font-size: .82rem;
+    padding: .5rem .6rem; cursor: pointer; text-decoration: underline;
+  }
+  .am-filter .am-btn-reset:hover { color: var(--gt-dark); }
 
-  .entity-expand {
-    transition: transform 0.25s ease; font-size: 0.7rem; color: var(--gt-muted);
-    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
-    background: var(--gt-surface); border-radius: 4px;
+  /* === Section heading === */
+  .am-section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 24px 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--gt-border-soft);
+    flex-wrap: wrap; gap: 10px;
   }
-  .entity-expand.open { transform: rotate(90deg); background: var(--gt-gold-soft); color: var(--gt-gold); }
-
-  .entity-info { flex: 1; min-width: 0; }
-  .entity-name {
-    font-weight: 600; font-size: 0.92rem; color: var(--gt-dark);
-    margin-bottom: 3px; letter-spacing: -0.2px;
+  .am-section-head h2 {
+    font-size: .95rem; font-weight: 700; margin: 0;
+    color: var(--gt-dark); letter-spacing: -0.2px;
+    display: flex; align-items: center; gap: 8px;
   }
-  .entity-meta { font-size: 0.78rem; color: var(--gt-muted); line-height: 1.5; }
-
-  .entity-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: relative; z-index: 2; }
-  .entity-actions .dropdown-menu { z-index: 1050; }
-
-  .amount-lg {
-    font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 500;
-    color: var(--gt-red); letter-spacing: -0.5px;
+  .am-section-head h2 i { color: var(--gt-gold); font-size: 1rem; }
+  .am-section-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .am-section-count {
+    font-size: .78rem; color: var(--gt-muted); font-weight: 500;
   }
-  .paid-state .amount-lg { color: var(--gt-green); }
+  .am-section-count strong { color: var(--gt-dark); font-weight: 700; }
+  .am-page-total {
+    font-size: .78rem; color: var(--gt-muted);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .am-page-total .amt {
+    font-family: 'JetBrains Mono', monospace; color: var(--gt-red); font-weight: 600;
+  }
 
-  /* Payment badges — bold, high-contrast for quick scanning */
+  /* Enhanced pagination */
+  .am-paginator {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 16px 0; flex-wrap: wrap;
+    border-top: 1px solid var(--gt-border-soft); margin-top: 14px;
+  }
+  .am-paginator-info { font-size: .82rem; color: var(--gt-muted); }
+  .am-paginator-info strong { color: var(--gt-dark); font-weight: 700; }
+  .am-paginator-controls { display: flex; align-items: center; gap: 4px; }
+  .am-paginator-controls a, .am-paginator-controls span.cur, .am-paginator-controls span.gap {
+    border: 1px solid var(--gt-border-soft);
+    color: var(--gt-text); background: #fff;
+    padding: .35rem .65rem; min-width: 32px; text-align: center;
+    border-radius: var(--gt-radius-sm); font-size: .82rem; text-decoration: none;
+    line-height: 1;
+  }
+  .am-paginator-controls a:hover { background: var(--gt-surface); border-color: var(--gt-dark); }
+  .am-paginator-controls span.cur {
+    background: var(--gt-dark); border-color: var(--gt-dark); color: #fff; font-weight: 700;
+  }
+  .am-paginator-controls span.gap { border: none; background: none; color: var(--gt-muted); }
+  .am-paginator-controls .disabled {
+    opacity: .35; pointer-events: none; background: var(--gt-surface);
+  }
+  .am-paginator-jump {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .82rem; color: var(--gt-muted);
+  }
+  .am-paginator-jump input {
+    width: 56px; border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    padding: .3rem .5rem; font-size: .82rem; background: var(--gt-surface-2);
+    text-align: center;
+  }
+  .am-paginator-jump input:focus { outline: none; border-color: var(--gt-gold); background: #fff; }
+
+  /* === Entity row (cleaner, single-row layout) === */
+  .am-entity {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    margin-bottom: 8px; transition: border-color .15s ease, box-shadow .15s ease;
+    overflow: hidden;
+  }
+  .am-entity:hover { border-color: #d3d7e0; box-shadow: var(--gt-shadow-sm); }
+  .am-entity.paid {
+    border-color: rgba(31,157,85,.4);
+    background: linear-gradient(135deg, #f3fbf6, #fff);
+  }
+  .am-entity-head {
+    padding: 14px 16px; cursor: pointer;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .am-entity-head:hover { background: var(--gt-surface-2); }
+
+  .am-avatar {
+    width: 38px; height: 38px; flex-shrink: 0;
+    background: var(--gt-gold-soft); color: var(--gt-gold);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+  }
+  .am-entity.paid .am-avatar { background: rgba(31,157,85,.12); color: var(--gt-green); }
+
+  .am-entity-info { flex: 1; min-width: 0; }
+  .am-entity-line1 {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .am-entity-name {
+    font-weight: 700; font-size: .98rem; color: var(--gt-dark);
+    letter-spacing: -0.2px;
+  }
+  .am-entity-name a {
+    color: inherit; text-decoration: none;
+    border-bottom: 1px solid transparent; transition: border-color .15s, color .15s;
+  }
+  .am-entity-name a:hover { color: var(--gt-gold); border-bottom-color: var(--gt-gold); }
+
+  .am-entity-meta {
+    display: flex; flex-wrap: wrap; gap: 6px 12px;
+    font-size: .78rem; color: var(--gt-muted); align-items: center;
+  }
+  .am-entity-meta .dot { width: 3px; height: 3px; background: var(--gt-border); border-radius: 50%; }
+  .am-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--gt-surface); border: 1px solid var(--gt-border-soft);
+    padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 500;
+    color: var(--gt-text);
+  }
+  .am-chip i { font-size: .75rem; color: var(--gt-muted); }
+  .am-chip.never { color: #c97a1a; border-color: #f1d59c; background: #fff7e8; }
+
+  /* Payment badges */
   .payment-badge {
     display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
-    letter-spacing: 0.3px;
+    padding: 2px 9px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 0.2px; line-height: 1.4;
   }
-  .payment-badge.venmo { background: #008CFF; color: #fff; }
-  .payment-badge.zelle { background: #6D2FBF; color: #fff; }
-  .payment-badge.paypal { background: #003087; color: #fff; }
-  .payment-badge.cashapp { background: #00C244; color: #fff; }
-  .payment-badge.bank { background: #2c3e50; color: #fff; }
-  .payment-badge.check { background: #7f8c8d; color: #fff; }
-  .payment-badge.other { background: #95a5a6; color: #fff; }
-  .payment-badge.agency { background: var(--gt-gold); color: #fff; }
+  .payment-badge.venmo   { background: #e8f4fd; color: #006cc1; }
+  .payment-badge.zelle   { background: #f0e6ff; color: #5a25a3; }
+  .payment-badge.paypal  { background: #e8efff; color: #003087; }
+  .payment-badge.cashapp { background: #e1faea; color: #008f33; }
+  .payment-badge.bank    { background: #eff1f4; color: #2c3e50; }
+  .payment-badge.check   { background: #eef0f4; color: #555f6e; }
+  .payment-badge.other   { background: #eef0f4; color: #6b7280; }
+  .payment-badge.agency  { background: var(--gt-gold-soft); color: #8a6d10; }
 
-  /* Buttons */
-  .btn-dark {
-    background: var(--gt-dark); border-color: var(--gt-dark); border-radius: 6px;
-    font-size: 0.82rem; font-weight: 500; letter-spacing: 0.2px;
+  /* Right-side amount + actions */
+  .am-entity-right {
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
   }
-  .btn-dark:hover { background: var(--gt-dark-2); }
-  .btn-outline-primary {
-    color: var(--gt-gold); border-color: var(--gt-gold); border-radius: 6px; font-size: 0.82rem;
+  .am-amount {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; font-weight: 600;
+    color: var(--gt-red); letter-spacing: -0.5px; line-height: 1;
+    min-width: 90px; text-align: right;
   }
-  .btn-outline-primary:hover { background: var(--gt-gold); border-color: var(--gt-gold); color: #fff; }
-  .btn-outline-dark { border-radius: 6px; font-size: 0.82rem; }
+  .am-entity.paid .am-amount { color: var(--gt-green); }
 
-  /* Preview table */
+  .am-actions { display: flex; align-items: center; gap: 6px; }
+  .am-actions .btn-pay {
+    background: var(--gt-dark); color: #fff; border: none;
+    padding: .5rem 1rem; border-radius: var(--gt-radius-sm);
+    font-size: .85rem; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .am-actions .btn-pay:hover { background: var(--gt-dark-2); }
+  .am-actions .btn-pay:disabled { background: #b8bdc6; cursor: not-allowed; }
+  .am-actions .btn-icon {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--gt-muted); cursor: pointer; transition: all .15s;
+    text-decoration: none;
+  }
+  .am-actions .btn-icon:hover { color: var(--gt-dark); border-color: var(--gt-dark); }
+  .am-actions .badge-paid {
+    background: rgba(31,157,85,.12); color: var(--gt-green);
+    padding: 4px 12px; border-radius: 999px; font-size: .75rem; font-weight: 700;
+  }
+  .am-actions .dropdown-menu {
+    border: 1px solid var(--gt-border); box-shadow: var(--gt-shadow-md);
+    border-radius: var(--gt-radius-sm); padding: 4px; z-index: 1050;
+  }
+  .am-actions .dropdown-item {
+    border-radius: var(--gt-radius-sm); font-size: .85rem; padding: .5rem .8rem;
+  }
+  .am-actions .dropdown-item:hover { background: var(--gt-surface); color: var(--gt-dark); }
+
+  .am-chevron {
+    color: var(--gt-muted); font-size: .85rem; flex-shrink: 0;
+    transition: transform .25s ease;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  }
+  .am-chevron.open { transform: rotate(90deg); color: var(--gt-gold); }
+
+  .am-entity-body {
+    padding: 0 18px 16px; border-top: 1px solid var(--gt-border-soft);
+    background: var(--gt-surface-2);
+  }
+
+  /* Empty state */
+  .am-empty {
+    text-align: center; padding: 48px 20px; color: var(--gt-muted);
+    background: #fff; border: 1px dashed var(--gt-border); border-radius: var(--gt-radius);
+  }
+  .am-empty i { font-size: 2rem; opacity: .5; display: block; margin-bottom: .5rem; }
+
+  /* === Preview / inline tables === */
+  .preview-table { font-size: .82rem; margin: 8px 0 0; }
   .preview-table th {
-    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom-width: 2px;
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); background: var(--gt-surface);
+    padding: 8px 10px; border-bottom: 1px solid var(--gt-border);
   }
-  .preview-table td { font-size: 0.82rem; }
+  .preview-table td { padding: 9px 10px; border-bottom: 1px solid var(--gt-border-soft); }
 
-  /* Payout history */
-  .nav-tabs { border-bottom: 2px solid var(--gt-border); }
+  /* === Payout history tables === */
+  .am-card {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    overflow: hidden; box-shadow: var(--gt-shadow-sm); margin-bottom: 16px;
+  }
+  .am-card-head {
+    padding: 14px 18px; border-bottom: 1px solid var(--gt-border-soft);
+    background: #fff;
+  }
+
+  .nav-tabs { border-bottom: 1px solid var(--gt-border); padding: 0 14px; gap: 4px; }
   .nav-tabs .nav-link {
     font-size: 0.82rem; font-weight: 600; color: var(--gt-muted);
-    border: none; padding: 8px 16px; border-bottom: 2px solid transparent; margin-bottom: -2px;
+    border: none; padding: 12px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    background: none;
   }
   .nav-tabs .nav-link.active {
     color: var(--gt-dark); border-bottom-color: var(--gt-gold); background: none;
   }
-  .nav-tabs .nav-link:hover { color: var(--gt-dark); border-bottom-color: #ddd; }
+  .nav-tabs .nav-link:hover { color: var(--gt-dark); }
 
-  /* History tables */
-  .table { font-size: 0.84rem; }
+  .table { font-size: 0.86rem; margin: 0; }
   .table thead th {
-    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom: 2px solid var(--gt-border);
-    padding: 10px 12px;
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--gt-muted); background: var(--gt-surface);
+    border-bottom: 1px solid var(--gt-border); padding: 11px 14px;
   }
-  .table tbody td { padding: 10px 12px; vertical-align: middle; }
-  .table-light { background: var(--gt-surface) !important; }
+  .table tbody td {
+    padding: 12px 14px; vertical-align: middle;
+    border-bottom: 1px solid var(--gt-border-soft);
+  }
+  .table tbody tr:last-child td { border-bottom: none; }
+  .table tbody tr:hover { background: var(--gt-surface-2); }
 
-  /* Modals */
-  .modal-content { border-radius: 12px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-  .modal-header { border-bottom: 1px solid var(--gt-border); padding: 16px 20px; }
+  .am-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* === Modals === */
+  .modal-content { border-radius: var(--gt-radius); border: none; box-shadow: 0 20px 60px rgba(15,23,42,.18); }
+  .modal-header { border-bottom: 1px solid var(--gt-border); padding: 16px 22px; }
   .modal-title { font-weight: 700; font-size: 1rem; letter-spacing: -0.3px; }
-  .modal-body { padding: 20px; }
-  .modal-footer { border-top: 1px solid var(--gt-border); padding: 12px 20px; }
+  .modal-body { padding: 22px; }
+  .modal-footer { border-top: 1px solid var(--gt-border); padding: 14px 22px; }
 
-  /* Pagination */
+  /* === Pagination === */
+  .pagination { gap: 4px; }
   .page-link {
-    color: var(--gt-dark); border-color: var(--gt-border); font-size: 0.82rem;
-    border-radius: 6px !important; margin: 0 2px;
+    color: var(--gt-text); border: 1px solid var(--gt-border-soft); font-size: 0.82rem;
+    border-radius: var(--gt-radius-sm) !important; padding: .35rem .7rem;
   }
+  .page-link:hover { background: var(--gt-surface); color: var(--gt-dark); }
   .page-item.active .page-link {
-    background: var(--gt-dark); border-color: var(--gt-dark);
+    background: var(--gt-dark); border-color: var(--gt-dark); color: #fff;
   }
 
-  /* Paid banner */
-  .paid-banner {
-    display: flex; align-items: center; gap: 8px; padding: 8px 14px;
-    background: linear-gradient(135deg, #d1e7dd, #e8f5e9);
-    border-radius: 6px; font-size: 0.85rem; color: #0f5132; margin-bottom: 8px;
+  /* === Animations === */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .am-entity { animation: fadeUp .25s ease both; }
+  .am-entity:nth-child(2) { animation-delay: .03s; }
+  .am-entity:nth-child(3) { animation-delay: .06s; }
+  .am-entity:nth-child(4) { animation-delay: .09s; }
+  .am-entity:nth-child(5) { animation-delay: .12s; }
+  .am-entity:nth-child(6) { animation-delay: .15s; }
+
+  /* === Responsive === */
+  @media (max-width: 992px) {
+    .am-kpis { grid-template-columns: repeat(2, 1fr); }
+    .am-kpi .kpi-value { font-size: 1.4rem; }
   }
-
-  /* Animations */
-  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .card-entity { animation: fadeSlideIn 0.3s ease both; }
-  .card-entity:nth-child(2) { animation-delay: 0.03s; }
-  .card-entity:nth-child(3) { animation-delay: 0.06s; }
-  .card-entity:nth-child(4) { animation-delay: 0.09s; }
-  .card-entity:nth-child(5) { animation-delay: 0.12s; }
-
-  /* Responsive */
   @media (max-width: 768px) {
-    .summary-strip { grid-template-columns: repeat(2, 1fr); }
-    .entity-actions { flex-wrap: wrap; }
+    .am-entity-head { flex-wrap: wrap; }
+    .am-entity-right { width: 100%; justify-content: space-between; padding-left: 52px; }
+    .am-amount { min-width: auto; }
+    .am-filter { padding: 10px; }
+    .am-filter .am-search { min-width: 100%; }
   }
 </style>
 {% endblock %}
@@ -213,236 +442,337 @@
 {% include 'dispatching/dispatcher_navbar.html' %}
 <div class="container-fluid py-4">
   <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="am-page-head">
     <div>
-      <h1 class="page-title mb-0">Affiliate Payments</h1>
-      <p class="page-subtitle mb-0">Process commission payouts for agents and agencies</p>
+      <h1 class="am-title">Affiliate Management</h1>
+      <p class="am-subtitle">Review balances, process payouts, and open agency or agent profiles.</p>
     </div>
-    <a href="{% url 'agency_payouts_report' %}" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-binoculars me-1"></i>Affiliate Explorer
-    </a>
-  </div>
-
-  <!-- Summary Cards -->
-  <div class="summary-strip">
-    <div class="summary-card">
-      <div class="sc-label">Total Owing</div>
-      <div class="sc-value red">${{ total_owing|floatformat:2 }}</div>
-    </div>
-    <div class="summary-card">
-      <div class="sc-label">Agencies Owing</div>
-      <div class="sc-value gold">{{ total_owing_agencies }}</div>
-    </div>
-    <div class="summary-card">
-      <div class="sc-label">Agents Owing</div>
-      <div class="sc-value gold">{{ total_owing_agents }}</div>
-    </div>
-    <div class="summary-card">
-      <div class="sc-label">Total Payouts</div>
-      <div class="sc-value">{{ total_payouts }}</div>
+    <div class="am-head-actions">
+      <a href="{% url 'agency_payouts_report' %}" class="btn btn-outline-dark">
+        <i class="bi bi-binoculars me-1"></i>Affiliate Explorer
+      </a>
     </div>
   </div>
 
-  <!-- Filter Bar -->
-  <div class="filter-bar">
-    <form method="get" class="row g-2 align-items-center">
-      <div class="col-md-4">
-        <div class="input-group input-group-sm">
-          <span class="input-group-text"><i class="bi bi-search"></i></span>
-          <input type="text" name="q" class="form-control" placeholder="Search name, email, agency..." value="{{ search }}">
-        </div>
+  <!-- KPI Cards -->
+  <div class="am-kpis">
+    <div class="am-kpi primary">
+      <div class="kpi-label"><i class="bi bi-wallet2"></i> Total Owing</div>
+      <div class="kpi-value red">${{ total_owing|floatformat:2 }}</div>
+      <div class="kpi-sub">Across all agencies and agents</div>
+    </div>
+    <div class="am-kpi">
+      <div class="kpi-label"><i class="bi bi-building"></i> Agencies Owing</div>
+      <div class="kpi-value">{{ total_owing_agencies }}</div>
+      <div class="kpi-sub">With unpaid commissions</div>
+    </div>
+    <div class="am-kpi">
+      <div class="kpi-label"><i class="bi bi-person"></i> Agents Owing</div>
+      <div class="kpi-value">{{ total_owing_agents }}</div>
+      <div class="kpi-sub">Paid directly</div>
+    </div>
+    <div class="am-kpi">
+      <div class="kpi-label"><i class="bi bi-clock-history"></i> Total Payouts</div>
+      <div class="kpi-value">{{ total_payouts }}</div>
+      <div class="kpi-sub">Lifetime processed</div>
+    </div>
+  </div>
+
+  <!-- Sticky Section Nav -->
+  <nav class="am-section-nav" id="amSectionNav">
+    <div class="am-section-nav-inner">
+      <a href="#section-agencies" class="am-tab" data-target="section-agencies">
+        <i class="bi bi-building"></i>Agencies
+        {% if agencies %}<span class="count">{{ agencies|length }}</span>{% endif %}
+      </a>
+      <a href="#section-agents" class="am-tab" data-target="section-agents">
+        <i class="bi bi-person"></i>Agents
+        <span class="count">{{ agents_page_obj.paginator.count }}</span>
+      </a>
+      <a href="#section-history" class="am-tab" data-target="section-history">
+        <i class="bi bi-clock-history"></i>Payout History
+        <span class="count">{{ total_payouts }}</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Filter Bar (sticky) -->
+  <div class="am-filter-wrap" id="amFilterWrap">
+    <form method="get" class="am-filter">
+      <div class="am-search">
+        <i class="bi bi-search"></i>
+        <input type="text" name="q" placeholder="Search name, email, or agency…" value="{{ search }}">
       </div>
-      <div class="col-md-2">
-        <select name="show" class="form-select form-select-sm">
-          <option value="owing" {% if show == "owing" %}selected{% endif %}>Owing Only</option>
-          <option value="all" {% if show == "all" %}selected{% endif %}>All</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <select name="pay_method" class="form-select form-select-sm">
-          <option value="" {% if not pay_method %}selected{% endif %}>All Methods</option>
-          <option value="venmo" {% if pay_method == "venmo" %}selected{% endif %}>Venmo</option>
-          <option value="zelle" {% if pay_method == "zelle" %}selected{% endif %}>Zelle</option>
-          <option value="paypal" {% if pay_method == "paypal" %}selected{% endif %}>PayPal</option>
-          <option value="cashapp" {% if pay_method == "cashapp" %}selected{% endif %}>Cash App</option>
-          <option value="bank" {% if pay_method == "bank" %}selected{% endif %}>Bank Transfer</option>
-          <option value="check" {% if pay_method == "check" %}selected{% endif %}>Check</option>
-          <option value="other" {% if pay_method == "other" %}selected{% endif %}>Other</option>
-          <option value="no_agency" {% if pay_method == "no_agency" %}selected{% endif %}>-- Exclude Agency --</option>
-          <option value="none" {% if pay_method == "none" %}selected{% endif %}>-- No Method Set --</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <select name="sort" class="form-select form-select-sm">
-          <option value="amount" {% if sort == "amount" %}selected{% endif %}>Sort: Amount</option>
-          <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
-          <option value="date" {% if sort == "date" %}selected{% endif %}>Sort: Last Paid</option>
-        </select>
-      </div>
-      <div class="col-md-1">
-        <button type="submit" class="btn btn-dark btn-sm w-100"><i class="bi bi-funnel me-1"></i>Filter</button>
-      </div>
-      <div class="col-md-1">
-        <a href="{% url 'affiliate_payments' %}" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
-      </div>
+      <select name="show" title="Owing or all">
+        <option value="owing" {% if show == "owing" %}selected{% endif %}>Owing only</option>
+        <option value="all" {% if show == "all" %}selected{% endif %}>Show all</option>
+      </select>
+      <select name="pay_method" title="Payment method">
+        <option value="" {% if not pay_method %}selected{% endif %}>All methods</option>
+        <option value="venmo" {% if pay_method == "venmo" %}selected{% endif %}>Venmo</option>
+        <option value="zelle" {% if pay_method == "zelle" %}selected{% endif %}>Zelle</option>
+        <option value="paypal" {% if pay_method == "paypal" %}selected{% endif %}>PayPal</option>
+        <option value="cashapp" {% if pay_method == "cashapp" %}selected{% endif %}>Cash App</option>
+        <option value="bank" {% if pay_method == "bank" %}selected{% endif %}>Bank transfer</option>
+        <option value="check" {% if pay_method == "check" %}selected{% endif %}>Check</option>
+        <option value="other" {% if pay_method == "other" %}selected{% endif %}>Other</option>
+        <option value="no_agency" {% if pay_method == "no_agency" %}selected{% endif %}>Exclude Agency</option>
+        <option value="none" {% if pay_method == "none" %}selected{% endif %}>No method set</option>
+      </select>
+      <select name="sort" title="Sort">
+        <option value="amount" {% if sort == "amount" %}selected{% endif %}>Sort: Amount</option>
+        <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
+        <option value="date" {% if sort == "date" %}selected{% endif %}>Sort: Last paid</option>
+      </select>
+      <select name="per_page" title="Rows per page" onchange="this.form.submit()">
+        <option value="25" {% if per_page == 25 %}selected{% endif %}>25/page</option>
+        <option value="50" {% if per_page == 50 %}selected{% endif %}>50/page</option>
+        <option value="100" {% if per_page == 100 %}selected{% endif %}>100/page</option>
+        <option value="200" {% if per_page == 200 %}selected{% endif %}>200/page</option>
+      </select>
+      <button type="submit" class="am-btn-primary"><i class="bi bi-funnel"></i>Apply</button>
+      <a href="{% url 'affiliate_payments' %}" class="am-btn-reset">Reset</a>
     </form>
   </div>
 
   <!-- AGENCIES SECTION -->
-  {% if agencies %}
-  <div class="section-label">
-    <i class="bi bi-building me-1"></i>Agencies ({{ agencies|length }} {% if show == "owing" %}owing{% endif %})
-  </div>
-
-  {% for agency in agencies %}
-  <div class="card-entity" id="agency-card-{{ agency.id }}" data-type="agency" data-id="{{ agency.id }}">
-    <div class="entity-header" onclick="toggleExpand(this)">
-      <i class="bi bi-chevron-right entity-expand" id="expand-agency-{{ agency.id }}"></i>
-      <div class="entity-info">
-        <div class="entity-name">{{ agency.name }}</div>
-        <div class="entity-meta">
-          {{ agency.owing_agent_count }} agent{{ agency.owing_agent_count|pluralize }} &middot;
-          {{ agency.unpaid_res_count }} reservation{{ agency.unpaid_res_count|pluralize }} &middot;
-          {% if agency.payment_method %}
-            <span class="payment-badge {{ agency.payment_method }}">
-              {{ agency.get_payment_method_display }}{% if agency.payment_info %}: {{ agency.payment_info|truncatechars:40 }}{% endif %}
-            </span>
-          {% else %}
-            <span class="text-muted">No payment method set</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="entity-actions" onclick="event.stopPropagation();">
-        <span class="amount-lg">${{ agency.unpaid_total|floatformat:2 }}</span>
-        <button class="btn btn-outline-primary btn-sm" onclick="showPreview('agency', {{ agency.id }}, '{{ agency.name|escapejs }}')">
-          <i class="bi bi-eye me-1"></i>Preview
-        </button>
-        <div class="btn-group">
-          <button type="button" class="btn btn-dark btn-sm" onclick="processPayout('agency', {{ agency.id }}, false)">
-            Pay ${{ agency.unpaid_total|floatformat:2 }}
-          </button>
-          <button type="button" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="visually-hidden">Toggle Dropdown</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="#" onclick="processPayout('agency', {{ agency.id }}, false); return false;">
-              <i class="bi bi-cash me-2"></i>Pay Only</a></li>
-            <li><a class="dropdown-item" href="#" onclick="processPayout('agency', {{ agency.id }}, true); return false;">
-              <i class="bi bi-envelope-check me-2"></i>Pay & Email</a></li>
-          </ul>
-        </div>
-      </div>
+  <div id="section-agencies">
+    <div class="am-section-head">
+      <h2><i class="bi bi-building"></i>Agencies</h2>
+      <span class="am-section-count">
+        {% if agencies %}{{ agencies|length }} {% if show == "owing" %}owing{% else %}total{% endif %}{% else %}0{% endif %}
+      </span>
     </div>
-    <div class="entity-body" id="detail-agency-{{ agency.id }}" style="display:none;"></div>
-  </div>
-  {% endfor %}
-  {% endif %}
 
-  <!-- INDIVIDUAL AGENTS SECTION -->
-  <div class="section-label mt-4">
-    <i class="bi bi-person me-1"></i>Individual Agents ({{ agents_page_obj.paginator.count }} {% if show == "owing" %}owing{% endif %})
-  </div>
-
-  {% for agent in agents_page_obj %}
-  <div class="card-entity" id="agent-card-{{ agent.id }}" data-type="agent" data-id="{{ agent.id }}">
-    <div class="entity-header" onclick="toggleExpand(this)">
-      <i class="bi bi-chevron-right entity-expand" id="expand-agent-{{ agent.id }}"></i>
-      <div class="entity-info">
-        <div class="entity-name">{{ agent.agent_name|default:agent.user.username }}</div>
-        <div class="entity-meta">
-          {% if agent.agency %}Under: {{ agent.agency.name }} (pays agent directly) &middot; {% else %}Independent &middot; {% endif %}
-          {{ agent.commission_rate }}% &middot;
-          {{ agent.unpaid_res_count }} reservation{{ agent.unpaid_res_count|pluralize }} &middot;
-          {% if agent.payment_method %}
-            <span class="payment-badge {{ agent.payment_method }}">
-              {{ agent.get_payment_method_display }}{% if agent.payment_info %}: {{ agent.payment_info|truncatechars:40 }}{% endif %}
-            </span>
-          {% else %}
-            <span class="text-muted">No payment method</span>
-          {% endif %}
+    {% if agencies %}
+      {% for agency in agencies %}
+      <div class="am-entity" id="agency-card-{{ agency.id }}" data-type="agency" data-id="{{ agency.id }}">
+        <div class="am-entity-head" onclick="toggleExpand(this)">
+          <div class="am-avatar"><i class="bi bi-building"></i></div>
+          <div class="am-entity-info">
+            <div class="am-entity-line1">
+              <span class="am-entity-name">
+                <a href="{% url 'admin_travel_agency_detail' agency.id %}" onclick="event.stopPropagation();">{{ agency.name }}</a>
+              </span>
+              {% if agency.last_paid_at %}
+                <span class="am-chip" title="{{ agency.last_paid_at|date:'M d, Y g:i A' }}">
+                  <i class="bi bi-clock-history"></i>{{ agency.last_paid_at|naturaltime }}
+                </span>
+              {% else %}
+                <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
+              {% endif %}
+            </div>
+            <div class="am-entity-meta">
+              <span><i class="bi bi-people me-1"></i>{{ agency.owing_agent_count }} agent{{ agency.owing_agent_count|pluralize }}</span>
+              <span class="dot"></span>
+              <span>{{ agency.unpaid_res_count }} reservation{{ agency.unpaid_res_count|pluralize }}</span>
+              <span class="dot"></span>
+              {% if agency.payment_method %}
+                <span class="payment-badge {{ agency.payment_method }}">
+                  {{ agency.get_payment_method_display }}{% if agency.payment_info %} · {{ agency.payment_info|truncatechars:32 }}{% endif %}
+                </span>
+              {% else %}
+                <span class="am-chip never"><i class="bi bi-exclamation-triangle"></i>No payment method</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="am-entity-right" onclick="event.stopPropagation();">
+            <span class="am-amount">${{ agency.unpaid_total|floatformat:2 }}</span>
+            <div class="am-actions">
+              <button class="btn-pay" onclick="processPayout('agency', {{ agency.id }}, false)">
+                <i class="bi bi-cash"></i>Pay
+              </button>
+              <div class="dropdown">
+                <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="#" onclick="showPreview('agency', {{ agency.id }}, '{{ agency.name|escapejs }}'); return false;">
+                    <i class="bi bi-eye me-2"></i>Preview payout</a></li>
+                  <li><a class="dropdown-item" href="#" onclick="processPayout('agency', {{ agency.id }}, true); return false;">
+                    <i class="bi bi-envelope-check me-2"></i>Pay &amp; email statement</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'admin_travel_agency_detail' agency.id %}">
+                    <i class="bi bi-person-vcard me-2"></i>Open profile</a></li>
+                </ul>
+              </div>
+              <i class="bi bi-chevron-right am-chevron" id="expand-agency-{{ agency.id }}"></i>
+            </div>
+          </div>
         </div>
+        <div class="am-entity-body" id="detail-agency-{{ agency.id }}" style="display:none;"></div>
       </div>
-      <div class="entity-actions" onclick="event.stopPropagation();">
-        <span class="amount-lg">${{ agent.live_unpaid|floatformat:2 }}</span>
-        <button class="btn btn-outline-primary btn-sm" onclick="showPreview('agent', {{ agent.id }}, '{{ agent.agent_name|default:agent.user.username|escapejs }}')">
-          <i class="bi bi-eye me-1"></i>Preview
-        </button>
-        {% if agent.live_unpaid > 0 %}
-        <div class="btn-group">
-          <button type="button" class="btn btn-dark btn-sm" onclick="processPayout('agent', {{ agent.id }}, false)">
-            Pay ${{ agent.live_unpaid|floatformat:2 }}
-          </button>
-          <button type="button" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="visually-hidden">Toggle Dropdown</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="#" onclick="processPayout('agent', {{ agent.id }}, false); return false;">
-              <i class="bi bi-cash me-2"></i>Pay Only</a></li>
-            <li><a class="dropdown-item" href="#" onclick="processPayout('agent', {{ agent.id }}, true); return false;">
-              <i class="bi bi-envelope-check me-2"></i>Pay & Email</a></li>
-          </ul>
-        </div>
+      {% endfor %}
+    {% else %}
+    <div class="am-empty">
+      <i class="bi bi-building"></i>
+      No agencies match the current filters.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- AGENTS SECTION -->
+  <div id="section-agents">
+    <div class="am-section-head">
+      <h2><i class="bi bi-person"></i>Individual Agents</h2>
+      <div class="am-section-meta">
+        {% if agents_page_obj.paginator.count %}
+          <span class="am-section-count">
+            Showing <strong>{{ agents_page_obj.start_index }}–{{ agents_page_obj.end_index }}</strong>
+            of <strong>{{ agents_page_obj.paginator.count }}</strong>
+            {% if show == "owing" %}owing{% endif %}
+          </span>
+          {% if page_total_unpaid > 0 %}
+            <span class="am-page-total">
+              <i class="bi bi-cash-stack"></i> This page totals
+              <span class="amt">${{ page_total_unpaid|floatformat:2 }}</span>
+            </span>
+          {% endif %}
         {% else %}
-        <span class="badge bg-secondary">Paid Up</span>
+          <span class="am-section-count">No agents</span>
         {% endif %}
       </div>
     </div>
-    <div class="entity-body" id="detail-agent-{{ agent.id }}" style="display:none;"></div>
-  </div>
-  {% empty %}
-  <div class="text-center text-muted py-4">No agents found.</div>
-  {% endfor %}
 
-  <!-- Pagination -->
-  {% if agents_page_obj.has_other_pages %}
-  <nav class="mt-3">
-    <ul class="pagination pagination-sm justify-content-center">
-      {% if agents_page_obj.has_previous %}
-        <li class="page-item">
-          <a class="page-link" href="?agents_page={{ agents_page_obj.previous_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&laquo;</a>
-        </li>
-      {% endif %}
-      {% for num in agents_page_obj.paginator.page_range %}
-        {% if agents_page_obj.number == num %}
-          <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-        {% elif num > agents_page_obj.number|add:"-3" and num < agents_page_obj.number|add:"3" %}
-          <li class="page-item">
-            <a class="page-link" href="?agents_page={{ num }}&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">{{ num }}</a>
-          </li>
+    {% for agent in agents_page_obj %}
+    <div class="am-entity" id="agent-card-{{ agent.id }}" data-type="agent" data-id="{{ agent.id }}">
+      <div class="am-entity-head" onclick="toggleExpand(this)">
+        <div class="am-avatar"><i class="bi bi-person"></i></div>
+        <div class="am-entity-info">
+          <div class="am-entity-line1">
+            <span class="am-entity-name">
+              <a href="{% url 'admin_travel_agent_detail' agent.id %}" onclick="event.stopPropagation();">{{ agent.agent_name|default:agent.user.username }}</a>
+            </span>
+            {% if agent.last_payment_date %}
+              <span class="am-chip" title="{{ agent.last_payment_date|date:'M d, Y g:i A' }}">
+                <i class="bi bi-clock-history"></i>{{ agent.last_payment_date|naturaltime }}
+              </span>
+            {% else %}
+              <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
+            {% endif %}
+          </div>
+          <div class="am-entity-meta">
+            <span>
+              {% if agent.agency %}<i class="bi bi-building me-1"></i>{{ agent.agency.name }}{% else %}<i class="bi bi-person-walking me-1"></i>Independent{% endif %}
+            </span>
+            <span class="dot"></span>
+            <span>{{ agent.commission_rate }}% rate</span>
+            <span class="dot"></span>
+            <span>{{ agent.unpaid_res_count }} reservation{{ agent.unpaid_res_count|pluralize }}</span>
+            <span class="dot"></span>
+            {% if agent.payment_method %}
+              <span class="payment-badge {{ agent.payment_method }}">
+                {{ agent.get_payment_method_display }}{% if agent.payment_info %} · {{ agent.payment_info|truncatechars:32 }}{% endif %}
+              </span>
+            {% else %}
+              <span class="am-chip never"><i class="bi bi-exclamation-triangle"></i>No payment method</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="am-entity-right" onclick="event.stopPropagation();">
+          <span class="am-amount">${{ agent.live_unpaid|floatformat:2 }}</span>
+          <div class="am-actions">
+            {% if agent.live_unpaid > 0 %}
+              <button class="btn-pay" onclick="processPayout('agent', {{ agent.id }}, false)">
+                <i class="bi bi-cash"></i>Pay
+              </button>
+              <div class="dropdown">
+                <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                  <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  <li><a class="dropdown-item" href="#" onclick="showPreview('agent', {{ agent.id }}, '{{ agent.agent_name|default:agent.user.username|escapejs }}'); return false;">
+                    <i class="bi bi-eye me-2"></i>Preview payout</a></li>
+                  <li><a class="dropdown-item" href="#" onclick="processPayout('agent', {{ agent.id }}, true); return false;">
+                    <i class="bi bi-envelope-check me-2"></i>Pay &amp; email statement</a></li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item" href="{% url 'admin_travel_agent_detail' agent.id %}">
+                    <i class="bi bi-person-vcard me-2"></i>Open profile</a></li>
+                </ul>
+              </div>
+            {% else %}
+              <span class="badge-paid"><i class="bi bi-check-circle-fill"></i> Paid up</span>
+              <a class="btn-icon" href="{% url 'admin_travel_agent_detail' agent.id %}" title="View profile">
+                <i class="bi bi-person-vcard"></i>
+              </a>
+            {% endif %}
+            <i class="bi bi-chevron-right am-chevron" id="expand-agent-{{ agent.id }}"></i>
+          </div>
+        </div>
+      </div>
+      <div class="am-entity-body" id="detail-agent-{{ agent.id }}" style="display:none;"></div>
+    </div>
+    {% empty %}
+    <div class="am-empty">
+      <i class="bi bi-person"></i>
+      No agents match the current filters.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination (enhanced — first/last + jump-to-page) -->
+  {% if agents_page_obj.paginator.num_pages > 1 %}
+  {% with p=agents_page_obj qs="&q="|add:search|add:"&show="|add:show|add:"&sort="|add:sort|add:"&pay_method="|add:pay_method|add:"&per_page="|add:per_page|stringformat:"s" %}
+  <div class="am-paginator">
+    <div class="am-paginator-info">
+      Page <strong>{{ p.number }}</strong> of <strong>{{ p.paginator.num_pages }}</strong>
+      &middot; <strong>{{ p.paginator.count }}</strong> agent{{ p.paginator.count|pluralize }}
+    </div>
+    <div class="am-paginator-controls">
+      <a href="?agents_page=1{{ qs }}" class="{% if not p.has_previous %}disabled{% endif %}" title="First page">&laquo;</a>
+      <a href="?agents_page={{ p.previous_page_number|default:1 }}{{ qs }}" class="{% if not p.has_previous %}disabled{% endif %}" title="Previous">&lsaquo;</a>
+      {% for num in p.paginator.page_range %}
+        {% if p.number == num %}
+          <span class="cur">{{ num }}</span>
+        {% elif num == 1 or num == p.paginator.num_pages or num > p.number|add:"-3" and num < p.number|add:"3" %}
+          <a href="?agents_page={{ num }}{{ qs }}">{{ num }}</a>
+        {% elif num == p.number|add:"-3" or num == p.number|add:"3" %}
+          <span class="gap">…</span>
         {% endif %}
       {% endfor %}
-      {% if agents_page_obj.has_next %}
-        <li class="page-item">
-          <a class="page-link" href="?agents_page={{ agents_page_obj.next_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&raquo;</a>
-        </li>
-      {% endif %}
-    </ul>
-  </nav>
+      <a href="?agents_page={{ p.next_page_number|default:p.paginator.num_pages }}{{ qs }}" class="{% if not p.has_next %}disabled{% endif %}" title="Next">&rsaquo;</a>
+      <a href="?agents_page={{ p.paginator.num_pages }}{{ qs }}" class="{% if not p.has_next %}disabled{% endif %}" title="Last page">&raquo;</a>
+    </div>
+    <form method="get" class="am-paginator-jump" onsubmit="return validateJump(this, {{ p.paginator.num_pages }})">
+      <input type="hidden" name="q" value="{{ search }}">
+      <input type="hidden" name="show" value="{{ show }}">
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <input type="hidden" name="pay_method" value="{{ pay_method }}">
+      <input type="hidden" name="per_page" value="{{ per_page }}">
+      <span>Jump to</span>
+      <input type="number" name="agents_page" min="1" max="{{ p.paginator.num_pages }}" placeholder="{{ p.number }}">
+      <button type="submit" class="am-btn-primary" style="padding: .35rem .65rem;">Go</button>
+    </form>
+  </div>
+  {% endwith %}
   {% endif %}
 
   <!-- PAYOUT HISTORY -->
-  <div class="section-label mt-5">
-    <i class="bi bi-clock-history me-1"></i>Payout History
-  </div>
+  <div id="section-history">
+    <div class="am-section-head">
+      <h2><i class="bi bi-clock-history"></i>Payout History</h2>
+      <span class="am-section-count">{{ total_payouts }} total payouts</span>
+    </div>
 
-  <ul class="nav nav-tabs mb-3" role="tablist">
-    <li class="nav-item">
-      <button class="nav-tab-btn nav-link {% if history_tab == 'agency' %}active{% endif %}"
-              id="agency-history-tab" data-bs-toggle="tab" data-bs-target="#agency-history"
-              type="button" role="tab">
-        Agency Payouts ({{ agency_payouts_page_obj.paginator.count }})
-      </button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-tab-btn nav-link {% if history_tab == 'agent' %}active{% endif %}"
-              id="agent-history-tab" data-bs-toggle="tab" data-bs-target="#agent-history"
-              type="button" role="tab">
-        Agent Payouts ({{ agent_payouts_page_obj.paginator.count }})
-      </button>
-    </li>
-  </ul>
+    <div class="am-card">
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item">
+          <button class="nav-tab-btn nav-link {% if history_tab == 'agency' %}active{% endif %}"
+                  id="agency-history-tab" data-bs-toggle="tab" data-bs-target="#agency-history"
+                  type="button" role="tab">
+            Agency Payouts <span class="text-muted ms-1">({{ agency_payouts_page_obj.paginator.count }})</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-tab-btn nav-link {% if history_tab == 'agent' %}active{% endif %}"
+                  id="agent-history-tab" data-bs-toggle="tab" data-bs-target="#agent-history"
+                  type="button" role="tab">
+            Agent Payouts <span class="text-muted ms-1">({{ agent_payouts_page_obj.paginator.count }})</span>
+          </button>
+        </li>
+      </ul>
 
-  <div class="tab-content">
+      <div class="tab-content">
     <!-- Agency Payouts Tab -->
     <div class="tab-pane fade {% if history_tab == 'agency' %}show active{% endif %}" id="agency-history" role="tabpanel">
       {% if agency_payouts_page_obj %}
@@ -464,7 +794,9 @@
             <tr>
               <td>#{{ payout.id }}</td>
               <td>
-                <strong>{{ payout.agency.name }}</strong>
+                <a href="{% url 'admin_travel_agency_detail' payout.agency.id %}" class="text-decoration-none text-dark">
+                  <strong>{{ payout.agency.name }}</strong>
+                </a>
                 {% if payout.agency.payment_method %}
                   <br><span class="payment-badge {{ payout.agency.payment_method }}">{{ payout.agency.get_payment_method_display }}</span>
                 {% endif %}
@@ -531,10 +863,18 @@
             <tr>
               <td>#{{ payout.id }}</td>
               <td>
-                <strong>{{ payout.agent.agent_name|default:payout.agent.user.username }}</strong>
+                <a href="{% url 'admin_travel_agent_detail' payout.agent.id %}" class="text-decoration-none text-dark">
+                  <strong>{{ payout.agent.agent_name|default:payout.agent.user.username }}</strong>
+                </a>
                 <br><small class="text-muted">{{ payout.agent.user.email }}</small>
               </td>
-              <td>{{ payout.agency.name|default:"Independent" }}</td>
+              <td>
+                {% if payout.agency %}
+                  <a href="{% url 'admin_travel_agency_detail' payout.agency.id %}" class="text-decoration-none text-dark">{{ payout.agency.name }}</a>
+                {% else %}
+                  Independent
+                {% endif %}
+              </td>
               <td class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</td>
               <td>{{ payout.payout_period_start|date:"M d, Y" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
               <td>{{ payout.paid_at|date:"M d, Y g:i A" }}</td>
@@ -571,11 +911,13 @@
       </nav>
       {% endif %}
       {% else %}
-      <p class="text-muted text-center py-3">No agent payouts yet.</p>
+      <p class="text-muted text-center py-4 mb-0">No agent payouts yet.</p>
       {% endif %}
     </div>
-  </div>
-</div>
+      </div><!-- /tab-content -->
+    </div><!-- /am-card -->
+  </div><!-- /section-history -->
+</div><!-- /container-fluid -->
 
 <!-- Preview Modal -->
 <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
@@ -652,14 +994,14 @@ const URLS = {
 let pendingPayment = null;
 
 function toggleExpand(headerEl) {
-  const card = headerEl.closest('.card-entity');
+  const card = headerEl.closest('.am-entity');
   const type = card.dataset.type;
   const id = card.dataset.id;
   const detailEl = document.getElementById(`detail-${type}-${id}`);
   const expandIcon = document.getElementById(`expand-${type}-${id}`);
 
   if (detailEl.style.display === 'none') {
-    expandIcon.classList.add('open');
+    if (expandIcon) expandIcon.classList.add('open');
     detailEl.style.display = 'block';
 
     // Load preview if empty
@@ -676,7 +1018,7 @@ function toggleExpand(headerEl) {
         });
     }
   } else {
-    expandIcon.classList.remove('open');
+    if (expandIcon) expandIcon.classList.remove('open');
     detailEl.style.display = 'none';
   }
 }
@@ -744,7 +1086,7 @@ function showPreview(type, id, name) {
 
 function processPayout(type, id, sendEmail) {
   const card = document.getElementById(`${type}-card-${id}`);
-  const name = card.querySelector('.entity-name').textContent;
+  const name = card.querySelector('.am-entity-name').textContent.trim();
 
   // Fetch live preview amount so confirm dialog matches actual payout
   const url = type === 'agency' ? URLS.previewAgency : URLS.previewAgent;
@@ -813,48 +1155,28 @@ function updateCardToPaid(type, id, data) {
   const card = document.getElementById(`${type}-card-${id}`);
   card.classList.add('paid');
 
-  const header = card.querySelector('.entity-header');
-  const actionsEl = card.querySelector('.entity-actions');
-
-  // Update amount display
-  const amountEl = actionsEl.querySelector('.amount-lg');
+  // Update right-side cluster: amount + actions
+  const rightEl = card.querySelector('.am-entity-right');
+  const amountEl = rightEl.querySelector('.am-amount');
   if (amountEl) {
-    amountEl.textContent = `Paid $${parseFloat(data.amount).toFixed(2)}`;
-    amountEl.style.color = '#198754';
+    amountEl.textContent = `$${parseFloat(data.amount).toFixed(2)}`;
   }
 
-  // Replace action buttons with post-payment actions
-  let emailInfo = '';
-  if (data.email_sent_to) {
-    emailInfo = `<small class="text-muted d-block mt-1">Statement sent to ${data.email_sent_to}</small>`;
+  const actionsEl = rightEl.querySelector('.am-actions');
+  if (actionsEl) {
+    actionsEl.innerHTML = `
+      <span class="badge-paid"><i class="bi bi-check-circle-fill"></i> Paid</span>
+      <a href="${data.payout_url}" class="btn-icon" title="View payout">
+        <i class="bi bi-eye"></i>
+      </a>
+      <button class="btn-icon" onclick="openEmailModal('${type}', ${data.payout_id})" title="Email statement">
+        <i class="bi bi-envelope"></i>
+      </button>
+      <button class="btn-icon" onclick="dismissCard('${type}', ${id})" title="Dismiss">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    `;
   }
-
-  // Build payout URL
-  let viewUrl = data.payout_url;
-
-  // Build email statement URL
-  let emailStatementUrl;
-  if (type === 'agency') {
-    emailStatementUrl = URLS.sendAgencyStatement.replace('__ID__', data.payout_id);
-  } else {
-    emailStatementUrl = URLS.sendAgentStatement.replace('__ID__', data.payout_id);
-  }
-
-  actionsEl.innerHTML = `
-    <div class="paid-state">
-      <span class="amount-lg" style="color: #198754;">Paid $${parseFloat(data.amount).toFixed(2)}</span>
-      ${emailInfo}
-    </div>
-    <a href="${viewUrl}" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-eye me-1"></i>View Payout
-    </a>
-    <button class="btn btn-outline-dark btn-sm" onclick="openEmailModal('${type}', ${data.payout_id})">
-      <i class="bi bi-envelope me-1"></i>Email Statement
-    </button>
-    <button class="btn btn-outline-secondary btn-sm" onclick="dismissCard('${type}', ${id})">
-      <i class="bi bi-x-lg"></i>
-    </button>
-  `;
 
   // Clear any expanded detail (it's now stale)
   const detailEl = document.getElementById(`detail-${type}-${id}`);
@@ -929,16 +1251,64 @@ function updateSummaryStats() {
       .then(html => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
-        const newCards = doc.querySelectorAll('.summary-card');
-        const currentCards = document.querySelectorAll('.summary-card');
-        newCards.forEach((newCard, i) => {
-          if (currentCards[i]) {
-            currentCards[i].querySelector('.sc-value').textContent = newCard.querySelector('.sc-value').textContent;
-          }
+        const newCards = doc.querySelectorAll('.am-kpi .kpi-value');
+        const currentCards = document.querySelectorAll('.am-kpi .kpi-value');
+        newCards.forEach((newVal, i) => {
+          if (currentCards[i]) currentCards[i].textContent = newVal.textContent;
         });
       })
       .catch(() => {});
   }, 1000);
+}
+
+// === Sticky-nav + sticky-filter shadow + active section highlighting ===
+(function () {
+  const nav = document.getElementById('amSectionNav');
+  const filterWrap = document.getElementById('amFilterWrap');
+  if (!nav) return;
+  const sections = ['section-agencies', 'section-agents', 'section-history']
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+  const tabs = nav.querySelectorAll('.am-tab');
+
+  function updateNavState() {
+    const navTop = nav.getBoundingClientRect().top;
+    nav.classList.toggle('scrolled', navTop <= 1);
+    if (filterWrap) {
+      filterWrap.classList.toggle('scrolled', filterWrap.getBoundingClientRect().top <= 57);
+    }
+
+    // Pick the section closest to (but past) the nav bar
+    let activeId = sections[0]?.id;
+    for (const sec of sections) {
+      const top = sec.getBoundingClientRect().top - 130;
+      if (top <= 0) activeId = sec.id;
+    }
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.target === activeId));
+  }
+
+  // Smooth-scroll with offset for sticky nav + filter
+  tabs.forEach(t => {
+    t.addEventListener('click', (e) => {
+      const target = document.getElementById(t.dataset.target);
+      if (!target) return;
+      e.preventDefault();
+      const y = target.getBoundingClientRect().top + window.pageYOffset - 130;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    });
+  });
+
+  document.addEventListener('scroll', updateNavState, { passive: true });
+  updateNavState();
+})();
+
+// === Pagination jump-to-page validator ===
+function validateJump(form, maxPage) {
+  const input = form.querySelector('input[name="agents_page"]');
+  const v = parseInt(input.value, 10);
+  if (!v || v < 1) { input.value = 1; return false; }
+  if (v > maxPage) { input.value = maxPage; }
+  return true;
 }
 </script>
 {% endblock %}

@@ -763,16 +763,6 @@
                       title="Dim completed jobs to focus on active ones">
                 <i class="bi bi-eye-slash me-1"></i><span class="dim-btn-text">Dim Done</span>
               </button>
-              <button id="expandAllFlightsBtn"
-                      class="btn btn-sm btn-outline-secondary"
-                      title="Expand all flight details">
-                <i class="bi bi-chevron-down me-1"></i>Expand All
-              </button>
-              <button id="collapseAllFlightsBtn"
-                      class="btn btn-sm btn-outline-secondary"
-                      title="Collapse all flight details">
-                <i class="bi bi-chevron-up me-1"></i>Collapse All
-              </button>
               <a href="{% url 'legs_dashboard_export_csv' %}?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
                  class="btn btn-sm btn-outline-dark"
                  title="Export legs to CSV">
@@ -785,9 +775,6 @@
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li><button class="dropdown-item dim-completed-dropdown" type="button"><i class="bi bi-eye-slash me-2"></i><span class="dim-btn-text-mobile">Dim Completed</span></button></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><button class="dropdown-item expand-all-flights-dropdown" type="button"><i class="bi bi-chevron-down me-2"></i>Expand All Flights</button></li>
-                <li><button class="dropdown-item collapse-all-flights-dropdown" type="button"><i class="bi bi-chevron-up me-2"></i>Collapse All Flights</button></li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
                   <a class="dropdown-item" href="{% url 'legs_dashboard_export_csv' %}?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}">
@@ -921,17 +908,20 @@
                             {% endif %}
                           </div>
 
-                          <!-- Collapsible Flight Details -->
-                          <div class="mb-1">
+                          <!-- Flight Details (modal) -->
+                          <div class="mb-1 d-flex flex-wrap gap-1 align-items-center">
                             <button class="btn btn-sm btn-outline-secondary flight-details-toggle"
                                     type="button"
-                                    data-bs-toggle="collapse"
+                                    data-bs-toggle="modal"
                                     data-bs-target="#flightDetails{{ leg.id }}"
-                                    aria-expanded="false"
-                                    aria-controls="flightDetails{{ leg.id }}"
                                     data-leg-id="{{ leg.id }}"
-                                    title="Show/Hide additional flight details">
-                              <i class="bi bi-chevron-down me-1"></i>More Details
+                                    title="View full flight details">
+                              <i class="bi bi-info-circle me-1"></i>Details
+                              {% if leg.legflight_set.count > 1 %}
+                                <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
+                                  <i class="bi bi-airplane-fill me-1"></i>{{ leg.legflight_set.count }} flights
+                                </span>
+                              {% endif %}
                             </button>
                             <button class="btn btn-sm btn-outline-primary refresh-flight-btn"
                                     data-leg-id="{{ leg.id }}"
@@ -947,167 +937,6 @@
                             {% endif %}
                           </div>
 
-                          <div class="collapse" id="flightDetails{{ leg.id }}">
-                            <div class="card card-body p-3 mt-1"
-                                 style="background-color: #f8f9fa;
-                                        border: 1px solid #dee2e6">
-                              {% if leg.flight_information.origin or leg.flight_information.destination %}
-                                <div class="text-muted mb-3">
-                                  {% if leg.flight_information.origin %}
-                                    <div data-field="origin" class="mb-1">
-                                      <i class="bi bi-arrow-up-circle me-1"></i>{{ leg.flight_information.origin }}
-                                    </div>
-                                  {% else %}
-                                    <div data-field="origin" style="display: none;"></div>
-                                  {% endif %}
-                                  {% if leg.flight_information.destination %}
-                                    <div data-field="destination">
-                                      <i class="bi bi-arrow-down-circle me-1"></i>{{ leg.flight_information.destination }}
-                                    </div>
-                                  {% else %}
-                                    <div data-field="destination" style="display: none;"></div>
-                                  {% endif %}
-                                </div>
-                              {% else %}
-                                <div class="text-muted mb-3" style="display: none;">
-                                  <div data-field="origin" style="display: none;"></div>
-                                  <div data-field="destination" style="display: none;"></div>
-                                </div>
-                              {% endif %}
-
-                              {% if leg.flight_information.gate or leg.flight_information.terminal %}
-                                <div class="mb-3 d-flex flex-wrap gap-1">
-                                  {% if leg.flight_information.terminal %}
-                                    <span class="badge bg-secondary"
-                                          data-field="terminal"
-                                          style="font-size: 0.875rem">Terminal {{ leg.flight_information.terminal }}</span>
-                                  {% else %}
-                                    <span class="badge bg-secondary"
-                                          data-field="terminal"
-                                          style="display: none"></span>
-                                  {% endif %}
-                                  {% if leg.flight_information.gate %}
-                                    <span class="badge bg-primary"
-                                          data-field="gate"
-                                          style="font-size: 0.875rem">Gate {{ leg.flight_information.gate }}</span>
-                                  {% else %}
-                                    <span class="badge bg-primary" data-field="gate" style="display: none;"></span>
-                                  {% endif %}
-                                  {% if leg.flight_information.baggage_claim %}
-                                    <span class="badge bg-warning text-dark"
-                                          data-field="baggage_claim"
-                                          style="font-size: 0.875rem"><i class="bi bi-bag me-1"></i>Baggage: {{ leg.flight_information.baggage_claim }}</span>
-                                  {% else %}
-                                    <span class="badge bg-warning text-dark"
-                                          data-field="baggage_claim"
-                                          style="display: none"></span>
-                                  {% endif %}
-                                </div>
-                              {% else %}
-                                <div class="mb-3" style="display: none;">
-                                  <span class="badge bg-secondary"
-                                        data-field="terminal"
-                                        style="display: none"></span>
-                                  <span class="badge bg-primary" data-field="gate" style="display: none;"></span>
-                                  <span class="badge bg-warning text-dark"
-                                        data-field="baggage_claim"
-                                        style="display: none"></span>
-                                </div>
-                              {% endif %}
-
-                              {% if leg.flight_information.actual_arrival_local or leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_arrival_local %}
-                                <div class="mb-3">
-                                  {% if leg.get_trip_type == 'return' %}
-                                    <div class="text-secondary fw-semibold mb-2">
-                                      <i class="bi bi-airplane-takeoff me-1"></i>Runway Departure:
-                                    </div>
-                                  {% else %}
-                                    <div class="text-secondary fw-semibold mb-2">
-                                      <i class="bi bi-airplane-landing me-1"></i>Runway Landing:
-                                    </div>
-                                  {% endif %}
-                                  {% if leg.flight_information.scheduled_arrival_local %}
-                                    <div class="text-muted ms-3 mb-1 d-flex flex-wrap align-items-center"
-                                         data-field="scheduled_arrival">
-                                      <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled Runway:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% else %}
-                                    <div class="text-muted ms-3"
-                                         data-field="scheduled_arrival"
-                                         style="display: none"></div>
-                                  {% endif %}
-                                  {% if leg.flight_information.actual_arrival_local %}
-                                    <div class="fw-bold text-success ms-3 d-flex flex-wrap align-items-center"
-                                         data-field="actual_arrival">
-                                      <i class="bi bi-check-circle me-1"></i><strong class="me-1">Landed:</strong><span class="text-nowrap">{{ leg.flight_information.actual_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% elif leg.flight_information.estimated_arrival_local %}
-                                    <div class="fw-bold text-primary ms-3 d-flex flex-wrap align-items-center"
-                                         data-field="estimated_arrival">
-                                      <i class="bi bi-clock-history me-1"></i><strong class="me-1">Est. Runway:</strong><span class="text-nowrap">{{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% else %}
-                                    <div class="fw-bold text-primary ms-3"
-                                         data-field="estimated_arrival"
-                                         style="display: none"></div>
-                                  {% endif %}
-                                </div>
-                              {% else %}
-                                <div class="mb-3" style="display: none;">
-                                  <div class="text-muted ms-3"
-                                       data-field="scheduled_arrival"
-                                       style="display: none"></div>
-                                  <div class="fw-bold text-success ms-3"
-                                       data-field="actual_arrival"
-                                       style="display: none"></div>
-                                  <div class="fw-bold text-primary ms-3"
-                                       data-field="estimated_arrival"
-                                       style="display: none"></div>
-                                </div>
-                              {% endif %}
-
-                              {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
-                                <div class="mb-3">
-                                  {% if leg.get_trip_type == 'return' %}
-                                    <div class="text-secondary fw-semibold mb-2">
-                                      <i class="bi bi-door-closed me-1"></i>Gate Departure:
-                                    </div>
-                                  {% else %}
-                                    <div class="text-secondary fw-semibold mb-2">
-                                      <i class="bi bi-door-open me-1"></i>Arrived:
-                                    </div>
-                                  {% endif %}
-                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                    <div class="text-muted ms-3 mb-1 d-flex flex-wrap align-items-center">
-                                      <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled Arrival:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% endif %}
-                                  {% if leg.flight_information.actual_gate_arrival_local %}
-                                    <div class="fw-bold text-success ms-3 d-flex flex-wrap align-items-center">
-                                      <i class="bi bi-check-circle me-1"></i><strong class="me-1">Arrived:</strong><span class="text-nowrap">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% elif leg.flight_information.estimated_gate_arrival_local %}
-                                    <div class="fw-bold text-primary ms-3 d-flex flex-wrap align-items-center">
-                                      <i class="bi bi-clock-history me-1"></i><strong class="me-1">Estimated:</strong><span class="text-nowrap">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% endif %}
-                                </div>
-                              {% endif %}
-
-                              {% if leg.flight_information.last_updated %}
-                                <div class="text-muted mt-2"
-                                     style="font-size: 0.875rem"
-                                     data-field="last_updated">
-                                  <i class="bi bi-info-circle me-1"></i>Last Updated: {{ leg.flight_information.last_updated|localtime|date:"g:i A" }}
-                                </div>
-                              {% else %}
-                                <div class="text-muted"
-                                     style="font-size: 0.875rem;
-                                            display: none"
-                                     data-field="last_updated"></div>
-                              {% endif %}
-                            </div>
-                          </div>
                         </div>
                       {% endif %}
 
@@ -1152,11 +981,22 @@
                         <div class="text-secondary small">Pickup:</div>
                         <div>{{ leg.pickup_location }}</div>
                       </div>
+                      {% if leg.has_intermediate_stops %}
+                        {% include "dispatching/includes/_leg_stops_inline.html" %}
+                      {% endif %}
                       <div class="border-top my-1"></div>
                       <div>
                         <div class="text-secondary small">Dropoff:</div>
                         <div>{{ leg.dropoff_location }}</div>
                       </div>
+                      {% for stop in leg.additional_dropoffs %}
+                        <div class="small mt-1" style="border-left: 3px solid #1b5e20; padding-left: 6px;">
+                          <span class="fw-bold text-success">+ Drop-off:</span> {{ stop.display_location }}
+                          {% if stop.notes %}
+                            <div class="text-muted small ps-2" style="font-style: italic;">{{ stop.notes }}</div>
+                          {% endif %}
+                        </div>
+                      {% endfor %}
                       {% if leg.cruise_information %}
                         <div class="mt-2">
                           <span class="badge bg-dark text-white">
@@ -1467,6 +1307,22 @@
                                   <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
                                 </div>
                               {% endif %}
+                              {% if leg.flight_information or leg.legflight_set.exists %}
+                                <div class="mt-1">
+                                  <button class="btn btn-sm btn-outline-secondary"
+                                          type="button"
+                                          data-bs-toggle="modal"
+                                          data-bs-target="#flightDetails{{ leg.id }}"
+                                          title="View full flight details">
+                                    <i class="bi bi-info-circle me-1"></i>Details
+                                    {% if leg.legflight_set.count > 1 %}
+                                      <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
+                                        <i class="bi bi-airplane-fill me-1"></i>{{ leg.legflight_set.count }} flights
+                                      </span>
+                                    {% endif %}
+                                  </button>
+                                </div>
+                              {% endif %}
                               <div class="mt-2">
                                 {% with trip_display=leg.get_trip_type_display %}
                                   <span class="badge bg-{{ trip_display.color }}">
@@ -1510,9 +1366,20 @@
                               <div>
                                 <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
                               </div>
+                              {% if leg.has_intermediate_stops %}
+                                {% include "dispatching/includes/_leg_stops_inline.html" %}
+                              {% endif %}
                               <div>
                                 <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                               </div>
+                              {% for stop in leg.additional_dropoffs %}
+                                <div style="border-left: 3px solid #1b5e20; padding-left: 6px; margin-top: 2px;">
+                                  <span class="fw-bold text-success">+ Drop-off:</span> {{ stop.display_location }}
+                                  {% if stop.notes %}
+                                    <div class="text-muted small ps-2" style="font-style: italic;">{{ stop.notes }}</div>
+                                  {% endif %}
+                                </div>
+                              {% endfor %}
                               {% if leg.cruise_information %}
                                 <div class="mt-2">
                                   <span class="badge bg-dark text-white">
@@ -1739,6 +1606,12 @@
           </div>
         </div>
       </div>
+
+      {% for leg in legs %}
+        {% if leg.flight_information or leg.legflight_set.exists %}
+          {% include "dispatching/includes/_flight_details_modal.html" %}
+        {% endif %}
+      {% endfor %}
 
       <!-- Pagination (if needed) -->
       {% if page_obj.paginator.num_pages > 1 %}
@@ -2305,7 +2178,7 @@
 
                           if (data.success) {
                               this.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
-                              // Update flight UI in-place without page reload
+                              // Update flight UI in-place for the controlling flight
                               if (data.flight_data) {
                                   updateFlightUI(legId, data.flight_data);
                               }
@@ -2315,6 +2188,14 @@
                                   row.style.transition = 'background-color 0.5s';
                                   row.style.backgroundColor = '#d4edda';
                                   setTimeout(() => { row.style.backgroundColor = ''; }, 1500);
+                              }
+                              // Multi-flight legs: live update only handles the controlling
+                              // flight's card and the row's key info. Reload so the secondary
+                              // flight cards in the modal also show fresh data.
+                              if (data.multi_flight) {
+                                  this.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i><span class="small">Reloading…</span>';
+                                  setTimeout(() => { window.location.reload(); }, 800);
+                                  return;
                               }
                               setTimeout(() => {
                                   this.disabled = false;
@@ -2428,97 +2309,6 @@
               if (btn) btn.addEventListener('click', toggle);
               if (mobileBtn) mobileBtn.addEventListener('click', toggle);
           })();
-
-          // Expand All / Collapse All functionality
-          const expandAllBtn = document.getElementById('expandAllFlightsBtn');
-          const collapseAllBtn = document.getElementById('collapseAllFlightsBtn');
-
-          if (expandAllBtn) {
-              expandAllBtn.addEventListener('click', function() {
-                  // Get all collapse elements
-                  const collapseElements = document.querySelectorAll('.collapse[id^="flightDetails"]');
-                  collapseElements.forEach(collapse => {
-                      const bsCollapse = new bootstrap.Collapse(collapse, {
-                          toggle: false
-                      });
-                      bsCollapse.show();
-                  });
-
-                  // Update all toggle buttons
-                  document.querySelectorAll('.flight-details-toggle').forEach(btn => {
-                      btn.setAttribute('aria-expanded', 'true');
-                      const icon = btn.querySelector('i');
-                      if (icon) {
-                          icon.classList.remove('bi-chevron-down');
-                          icon.classList.add('bi-chevron-up');
-                      }
-                  });
-              });
-          }
-
-          if (collapseAllBtn) {
-              collapseAllBtn.addEventListener('click', function() {
-                  // Get all collapse elements
-                  const collapseElements = document.querySelectorAll('.collapse[id^="flightDetails"]');
-                  collapseElements.forEach(collapse => {
-                      const bsCollapse = new bootstrap.Collapse(collapse, {
-                          toggle: false
-                      });
-                      bsCollapse.hide();
-                  });
-
-                  // Update all toggle buttons
-                  document.querySelectorAll('.flight-details-toggle').forEach(btn => {
-                      btn.setAttribute('aria-expanded', 'false');
-                      const icon = btn.querySelector('i');
-                      if (icon) {
-                          icon.classList.remove('bi-chevron-up');
-                          icon.classList.add('bi-chevron-down');
-                      }
-                  });
-              });
-          }
-
-          // Dropdown menu expand/collapse handlers (for tablet/mobile)
-          document.querySelectorAll('.expand-all-flights-dropdown').forEach(btn => {
-              btn.addEventListener('click', () => expandAllBtn && expandAllBtn.click());
-          });
-          document.querySelectorAll('.collapse-all-flights-dropdown').forEach(btn => {
-              btn.addEventListener('click', () => collapseAllBtn && collapseAllBtn.click());
-          });
-
-          // Update toggle button icons when individual collapses are toggled
-          document.querySelectorAll('.flight-details-toggle').forEach(btn => {
-              btn.addEventListener('click', function() {
-                  const targetId = this.getAttribute('data-bs-target');
-                  const collapseElement = document.querySelector(targetId);
-                  if (collapseElement) {
-                      collapseElement.addEventListener('shown.bs.collapse', function() {
-                          const toggleBtn = document.querySelector(`[data-bs-target="${targetId}"]`);
-                          if (toggleBtn) {
-                              toggleBtn.setAttribute('aria-expanded', 'true');
-                              const icon = toggleBtn.querySelector('i');
-                              if (icon) {
-                                  icon.classList.remove('bi-chevron-down');
-                                  icon.classList.add('bi-chevron-up');
-                              }
-                          }
-                      });
-
-                      collapseElement.addEventListener('hidden.bs.collapse', function() {
-                          const toggleBtn = document.querySelector(`[data-bs-target="${targetId}"]`);
-                          if (toggleBtn) {
-                              toggleBtn.setAttribute('aria-expanded', 'false');
-                              const icon = toggleBtn.querySelector('i');
-                              if (icon) {
-                                  icon.classList.remove('bi-chevron-up');
-                                  icon.classList.add('bi-chevron-down');
-                              }
-                          }
-                      });
-                  }
-              });
-          });
 
           // Bulk refresh all flights — inline AJAX (no modal)
           const refreshAllBtn = document.getElementById('refreshAllFlightsBtn');

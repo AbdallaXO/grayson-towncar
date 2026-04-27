@@ -1,0 +1,41 @@
+{# Renders all flights attached to a leg, with the controlling one marked. #}
+{# Falls back to the legacy single flight_information when no LegFlight rows exist. #}
+{# Required context: leg #}
+{% with legflights=leg.legflight_set.all %}
+  {% if legflights %}
+    {% for lf in legflights %}
+      <div class="leg-flight-row" style="font-size: 0.85rem; line-height: 1.3; padding: 2px 0;">
+        {% if lf.is_controlling %}
+          <span class="badge bg-success text-white" title="This flight controls pickup timing" style="font-size: 0.6rem;">
+            <i class="bi bi-bullseye"></i> controlling
+          </span>
+        {% else %}
+          <span class="badge bg-secondary text-white" style="font-size: 0.6rem;">also tracking</span>
+        {% endif %}
+        <i class="bi bi-airplane"></i>
+        <strong>
+          {% if lf.flight.airline_display_name %}{{ lf.flight.airline_display_name }}{% else %}{{ lf.flight.airline }}{% endif %}
+          #{{ lf.flight.flight_number }}
+        </strong>
+        {% if lf.flight.flight_iata %}
+          <span class="text-muted small">({{ lf.flight.flight_iata }})</span>
+        {% endif %}
+        {% if lf.flight.scheduled_arrival_local %}
+          <span class="text-muted small">— sched {{ lf.flight.scheduled_arrival_local|date:"g:i A" }}</span>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% elif leg.flight_information %}
+    {# Legacy fallback — no LegFlight rows yet. Render the OneToOne flight as before. #}
+    <div class="leg-flight-row" style="font-size: 0.85rem;">
+      <i class="bi bi-airplane"></i>
+      <strong>
+        {% if leg.flight_information.airline_display_name %}{{ leg.flight_information.airline_display_name }}{% else %}{{ leg.flight_information.airline }}{% endif %}
+        #{{ leg.flight_information.flight_number }}
+      </strong>
+      {% if leg.flight_information.flight_iata %}
+        <span class="text-muted small">({{ leg.flight_information.flight_iata }})</span>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endwith %}

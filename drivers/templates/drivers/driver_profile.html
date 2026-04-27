@@ -1,0 +1,411 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block extra_css %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --gt-gold: #C9A227;
+      --gt-bg: #0d1117;
+      --gt-surface: #161b22;
+      --gt-surface-2: #1c2128;
+      --gt-border: #2a313a;
+      --gt-text: #e6edf3;
+      --gt-muted: #8b949e;
+    }
+    body { background: var(--gt-bg) !important; }
+    .profile-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
+    .profile-page .container-fluid { max-width: 1400px; }
+    .profile-card { background: var(--gt-surface); border: 1px solid var(--gt-border); border-radius: 10px; color: var(--gt-text); }
+    .profile-card .card-header {
+      background: var(--gt-surface-2); border-bottom: 1px solid var(--gt-border);
+      color: var(--gt-text); padding: 0.7rem 1rem; font-weight: 600;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .profile-card .card-body { padding: 1rem; }
+
+    /* Header strip */
+    .profile-hero {
+      background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+      border: 1px solid var(--gt-border); border-radius: 12px;
+      padding: 1.25rem 1.5rem; margin-bottom: 1.25rem;
+    }
+    .profile-hero h1 { font-size: 1.75rem; font-weight: 700; margin: 0; color: var(--gt-text); }
+    .profile-hero .subtitle { color: var(--gt-muted); font-size: 0.875rem; margin-top: 0.25rem; }
+    .type-badge {
+      display: inline-block; font-size: 0.7rem; font-weight: 700;
+      padding: 3px 10px; border-radius: 999px; letter-spacing: 0.05em;
+      vertical-align: middle; margin-left: 0.5rem;
+    }
+    .type-badge.inhouse { background: rgba(13,110,253,0.18); color: #60a5fa; border: 1px solid rgba(13,110,253,0.4); }
+    .type-badge.affiliate { background: rgba(124,58,237,0.18); color: #a78bfa; border: 1px solid rgba(124,58,237,0.4); }
+    .availability-pill {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    }
+    .availability-pill.available { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
+    .availability-pill.busy { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.35); }
+
+    /* Stat tiles */
+    .stat-tile {
+      background: var(--gt-surface); border: 1px solid var(--gt-border);
+      border-radius: 10px; padding: 0.95rem 1rem; height: 100%;
+    }
+    .stat-tile .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted); font-weight: 600; }
+    .stat-tile .stat-value { font-size: 1.65rem; font-weight: 700; line-height: 1.1; margin-top: 0.35rem; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .stat-tile .stat-sub { font-size: 0.7rem; color: var(--gt-muted); margin-top: 0.2rem; }
+    .stat-tile.accent-gold .stat-value { color: var(--gt-gold); }
+    .stat-tile.accent-red .stat-value { color: #f87171; }
+    .stat-tile.accent-green .stat-value { color: #4ade80; }
+    .stat-tile.accent-blue .stat-value { color: #60a5fa; }
+
+    /* Action buttons in hero */
+    .hero-actions .btn {
+      background: var(--gt-surface-2); color: var(--gt-text);
+      border: 1px solid var(--gt-border); font-weight: 500;
+      padding: 0.4rem 0.85rem; font-size: 0.85rem; border-radius: 6px;
+    }
+    .hero-actions .btn:hover { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+    .hero-actions .btn-primary-action { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+    .hero-actions .btn-primary-action:hover { background: #b48a1c; border-color: #b48a1c; color: #0d1117; }
+
+    /* Generic info rows */
+    .info-row { display: flex; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--gt-border); }
+    .info-row:last-child { border-bottom: 0; }
+    .info-row .info-label { color: var(--gt-muted); font-size: 0.8rem; font-weight: 500; }
+    .info-row .info-value { color: var(--gt-text); font-weight: 500; text-align: right; }
+    .info-row .info-value a { color: #60a5fa; text-decoration: none; }
+    .info-row .info-value a:hover { text-decoration: underline; }
+
+    /* Schedule grid */
+    .schedule-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.4rem; }
+    .schedule-day {
+      background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+      border-radius: 6px; padding: 0.5rem 0.4rem; text-align: center; font-size: 0.75rem;
+    }
+    .schedule-day .day-name { color: var(--gt-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .schedule-day .day-shift { color: var(--gt-text); font-weight: 600; margin-top: 0.2rem; font-size: 0.7rem; }
+    .schedule-day.excluded { opacity: 0.5; }
+    .schedule-day.excluded .day-shift { color: #f87171; }
+
+    /* Upcoming legs list */
+    .leg-item {
+      display: flex; gap: 0.75rem; align-items: flex-start;
+      padding: 0.7rem 0.5rem; border-bottom: 1px solid var(--gt-border);
+    }
+    .leg-item:last-child { border-bottom: 0; }
+    .leg-item .leg-when {
+      min-width: 56px; text-align: center; font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    .leg-item .leg-when .day { font-size: 0.65rem; color: var(--gt-muted); text-transform: uppercase; }
+    .leg-item .leg-when .date { font-size: 0.95rem; font-weight: 700; line-height: 1; color: var(--gt-text); }
+    .leg-item .leg-when .time { font-size: 0.7rem; color: var(--gt-muted); margin-top: 0.15rem; }
+    .leg-item .leg-body { flex: 1; min-width: 0; }
+    .leg-item .leg-customer { font-weight: 600; color: var(--gt-text); font-size: 0.9rem; }
+    .leg-item .leg-route { color: var(--gt-muted); font-size: 0.78rem; margin-top: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .leg-item .leg-status { font-size: 0.65rem; padding: 2px 7px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .leg-status.completed { background: rgba(34,197,94,0.18); color: #4ade80; }
+    .leg-status.confirmed { background: rgba(124,58,237,0.18); color: #a78bfa; }
+    .leg-status.in-progress, .leg-status.on-the-way, .leg-status.on-location, .leg-status.picked-up { background: rgba(59,130,246,0.18); color: #60a5fa; }
+    .leg-status.unassigned { background: rgba(107,114,128,0.18); color: #9ca3af; }
+
+    /* Recent payments table */
+    .payments-table { width: 100%; }
+    .payments-table th { color: var(--gt-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--gt-border); }
+    .payments-table td { padding: 0.5rem; border-bottom: 1px solid var(--gt-border); font-size: 0.85rem; }
+    .payments-table td.amount { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 700; color: #4ade80; }
+    .payments-table tr:last-child td { border-bottom: 0; }
+    .payments-table a { color: var(--gt-gold); text-decoration: none; }
+    .payments-table a:hover { text-decoration: underline; }
+
+    /* Empty states */
+    .empty-state { text-align: center; padding: 1.5rem 1rem; color: var(--gt-muted); }
+    .empty-state i { font-size: 1.6rem; display: block; margin-bottom: 0.4rem; opacity: 0.6; }
+    .empty-state .small-cta { font-size: 0.8rem; margin-top: 0.4rem; }
+
+    .text-muted-dark { color: var(--gt-muted) !important; }
+  </style>
+{% endblock extra_css %}
+
+{% block footer %}{% endblock footer %}
+{% block newsletter %}{% endblock newsletter %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="profile-page">
+    <div class="container-fluid">
+
+      {# ── Hero ── #}
+      <div class="profile-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+          <div class="text-muted-dark" style="font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase;">
+            <a href="{% url 'drivers_extend' %}" style="color: var(--gt-muted); text-decoration: none;">
+              <i class="bi bi-arrow-left me-1"></i>Driver Directory
+            </a>
+          </div>
+          <h1 class="mt-1">
+            {% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %}
+            {% if driver.driver_type == 'inhouse' %}
+              <span class="type-badge inhouse"><i class="bi bi-building me-1"></i>IN-HOUSE</span>
+            {% else %}
+              <span class="type-badge affiliate"><i class="bi bi-person-badge me-1"></i>AFFILIATE</span>
+            {% endif %}
+            {% if is_available_today %}
+              <span class="availability-pill available ms-2"><i class="bi bi-check-circle-fill"></i>Available today</span>
+            {% else %}
+              <span class="availability-pill busy ms-2"><i class="bi bi-clock-fill"></i>{{ todays_legs|length }} trip{{ todays_legs|length|pluralize }} today</span>
+            {% endif %}
+          </h1>
+          <div class="subtitle">
+            {% if driver.profile.username %}@{{ driver.profile.username }} &middot; {% endif %}
+            {{ driver.payment_method|default:"Direct Deposit"|title }}
+            {% if driver.vehicle %} &middot; {{ driver.vehicle }}{% endif %}
+          </div>
+        </div>
+        <div class="hero-actions d-flex flex-wrap gap-2">
+          <a href="{% url 'driver_payment_management' %}?driver={{ driver.id }}" class="btn btn-primary-action">
+            <i class="bi bi-cash-coin me-1"></i>Open in Pay Mgmt
+          </a>
+          <a href="{% url 'driver_statement_list' driver.id %}" class="btn">
+            <i class="bi bi-receipt me-1"></i>Statements
+          </a>
+          <a href="{% url 'dashboard' %}?driver={{ driver.id }}" class="btn">
+            <i class="bi bi-calendar-event me-1"></i>Today's Schedule
+          </a>
+          {% if request.user.is_superuser %}
+            <a href="/admin/drivers/driver/{{ driver.id }}/change/" class="btn">
+              <i class="bi bi-pencil me-1"></i>Edit
+            </a>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── Stat tiles ── #}
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="stat-tile accent-blue">
+            <div class="stat-label">Upcoming (14d)</div>
+            <div class="stat-value">{{ upcoming_count }}</div>
+            <div class="stat-sub">Active legs scheduled</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-tile {% if unpaid_legs_count %}accent-red{% endif %}">
+            <div class="stat-label">Unpaid Legs</div>
+            <div class="stat-value">{{ unpaid_legs_count }}</div>
+            <div class="stat-sub">Awaiting payout</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-tile accent-gold">
+            <div class="stat-label">Total Owed</div>
+            <div class="stat-value">${{ total_unpaid|floatformat:2 }}</div>
+            <div class="stat-sub">From unpaid legs</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="stat-tile accent-green">
+            <div class="stat-label">Last Paid</div>
+            <div class="stat-value" style="font-size: 1.05rem;">
+              {% if last_payment %}{{ last_payment.payment_date|date:"M j, Y" }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+            </div>
+            <div class="stat-sub">
+              {% if last_payment %}${{ last_payment.amount|floatformat:2 }}{% else %}No payments on file{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        {# ── Left column: Contact + Vehicle + Schedule ── #}
+        <div class="col-lg-5">
+
+          {# Contact + Vehicle #}
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-person-vcard me-2"></i>Contact &amp; Vehicle</span>
+            </div>
+            <div class="card-body">
+              <div class="info-row">
+                <span class="info-label">Phone</span>
+                <span class="info-value">
+                  {% if driver.phone_number %}
+                    <a href="tel:{{ driver.phone_number }}"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}</a>
+                  {% else %}<span class="text-muted-dark">—</span>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Email</span>
+                <span class="info-value">
+                  {% if driver.profile.email %}
+                    <a href="mailto:{{ driver.profile.email }}">{{ driver.profile.email }}</a>
+                  {% else %}<span class="text-muted-dark">—</span>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Vehicle</span>
+                <span class="info-value">{{ driver.get_vehicle_display|default:driver.vehicle|default:"—" }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Payment Method</span>
+                <span class="info-value">{{ driver.payment_method|default:"Direct Deposit"|title }}</span>
+              </div>
+              {% if driver.night_bonus %}
+                <div class="info-row">
+                  <span class="info-label">Night Bonus</span>
+                  <span class="info-value">${{ driver.night_bonus|floatformat:2 }}</span>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Weekly schedule #}
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-calendar-week me-2"></i>Weekly Schedule</span>
+            </div>
+            <div class="card-body">
+              {% if weekly_schedule %}
+                <div class="schedule-grid">
+                  {% for ws in weekly_schedule %}
+                    <div class="schedule-day {% if ws.excluded %}excluded{% endif %}">
+                      <div class="day-name">{{ ws.get_day_of_week_display|slice:":3" }}</div>
+                      <div class="day-shift">
+                        {% if ws.excluded %}OFF
+                        {% elif ws.shift_type %}{{ ws.get_shift_type_display|default:ws.shift_type }}
+                        {% else %}—{% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% elif driver.schedule %}
+                <div style="font-size: 0.9rem; white-space: pre-line; color: var(--gt-text);">{{ driver.schedule }}</div>
+              {% else %}
+                <div class="empty-state">
+                  <i class="bi bi-calendar-x"></i>
+                  <div>No weekly schedule set.</div>
+                  <div class="small-cta">Defaults: {{ driver.default_shift_type|default:"full day"|title }}, {{ driver.default_start_hour }}:00 – {{ driver.default_end_hour }}:00</div>
+                </div>
+              {% endif %}
+
+              {% if upcoming_overrides %}
+                <div class="mt-3" style="font-size: 0.78rem; color: var(--gt-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;">
+                  Upcoming Overrides
+                </div>
+                <div class="mt-1">
+                  {% for o in upcoming_overrides %}
+                    <div class="info-row" style="padding: 0.4rem 0;">
+                      <span class="info-label">{{ o.date|date:"D, M j" }}</span>
+                      <span class="info-value" style="font-size: 0.8rem;">
+                        {% if o.shift_type %}{{ o.get_shift_type_display|default:o.shift_type }}
+                        {% elif o.excluded %}OFF
+                        {% else %}Override{% endif %}
+                      </span>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Notes #}
+          {% if driver.notes %}
+            <div class="profile-card mb-3">
+              <div class="card-header">
+                <span><i class="bi bi-sticky me-2"></i>Dispatcher Notes</span>
+              </div>
+              <div class="card-body" style="font-size: 0.9rem; white-space: pre-line; color: var(--gt-text);">
+                {{ driver.notes }}
+              </div>
+            </div>
+          {% endif %}
+
+        </div>
+
+        {# ── Right column: Upcoming legs + Recent payments ── #}
+        <div class="col-lg-7">
+
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-calendar-event me-2"></i>Upcoming Legs (Next 14 Days)</span>
+              <span class="text-muted-dark" style="font-size: 0.8rem; font-weight: 500;">{{ upcoming_count }} total</span>
+            </div>
+            <div class="card-body" style="padding: 0.5rem 1rem;">
+              {% if upcoming_legs %}
+                {% for leg in upcoming_legs %}
+                  <div class="leg-item">
+                    <div class="leg-when">
+                      <div class="day">{{ leg.pickup_date|date:"D" }}</div>
+                      <div class="date">{{ leg.pickup_date|date:"M j" }}</div>
+                      <div class="time">{{ leg.pickup_time|date:"g:i A" }}</div>
+                    </div>
+                    <div class="leg-body">
+                      <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="leg-customer">
+                          <a href="{% url 'reservation_details' leg.reservation.uuid %}" style="color: inherit; text-decoration: none;">
+                            {{ leg.reservation.customer.get_full_name }}
+                          </a>
+                        </div>
+                        <span class="leg-status {{ leg.status }}">{{ leg.status|title }}</span>
+                      </div>
+                      <div class="leg-route" title="{{ leg.pickup_location }} → {{ leg.dropoff_location }}">
+                        <i class="bi bi-geo-alt me-1"></i>{{ leg.pickup_location|truncatechars:38 }} → {{ leg.dropoff_location|truncatechars:38 }}
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div class="empty-state">
+                  <i class="bi bi-calendar-check"></i>
+                  <div>No upcoming legs in the next 14 days.</div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-cash-stack me-2"></i>Recent Payouts</span>
+              <a href="{% url 'driver_statement_list' driver.id %}" style="color: var(--gt-gold); text-decoration: none; font-size: 0.8rem; font-weight: 500;">
+                All statements <i class="bi bi-arrow-right"></i>
+              </a>
+            </div>
+            <div class="card-body" style="padding: 0.5rem 1rem;">
+              {% if recent_payments %}
+                <table class="payments-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Method</th>
+                      <th class="text-end">Amount</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for p in recent_payments %}
+                      <tr>
+                        <td>{{ p.payment_date|date:"M j, Y" }}</td>
+                        <td>{{ p.payment_method|default:"—"|title }}</td>
+                        <td class="amount text-end">${{ p.amount|floatformat:2 }}</td>
+                        <td class="text-end"><a href="{% url 'driver_statement_detail' driver.id p.id %}">View</a></td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <div class="empty-state">
+                  <i class="bi bi-receipt"></i>
+                  <div>No payments on file yet.</div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+{% endblock content %}
