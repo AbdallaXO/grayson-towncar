@@ -359,6 +359,12 @@ class FleetVehicle(models.Model):
     make = models.CharField(max_length=50)
     model = models.CharField(max_length=50)
     notes = models.TextField(blank=True)
+    license_plate = models.CharField(max_length=20, blank=True)
+    vin = models.CharField(max_length=17, blank=True)
+    is_active = models.BooleanField(default=True)
+    samsara_vehicle_id = models.CharField(max_length=64, blank=True, db_index=True)
+    samsara_sync_enabled = models.BooleanField(default=True)
+    samsara_last_synced_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["vehicle_number"]

@@ -44,6 +44,7 @@ urlpatterns = [
     path("drivers/", include("drivers.urls")),
     path("dispatching/", include("dispatching.urls")),
     path("ghl/", include("ghl_integration.urls")),
+    path("samsara/", include("samsara_integration.urls")),
 ]
 
 if settings.DEBUG:

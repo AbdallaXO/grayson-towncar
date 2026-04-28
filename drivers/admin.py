@@ -960,7 +960,23 @@ class DriverPayRateAdmin(admin.ModelAdmin):
 
 @admin.register(FleetVehicle)
 class FleetVehicleAdmin(admin.ModelAdmin):
-    list_display = ["vehicle_number", "vehicle_type", "year", "make", "model", "notes"]
-    list_editable = ["notes"]
-    search_fields = ["vehicle_number", "make", "model"]
-    list_filter = ["vehicle_type", "year", "make"]
+    list_display = [
+        "vehicle_number", "vehicle_type", "year", "make", "model",
+        "license_plate", "is_active", "samsara_vehicle_id", "samsara_sync_enabled",
+    ]
+    list_editable = ["is_active", "samsara_sync_enabled"]
+    search_fields = ["vehicle_number", "make", "model", "license_plate", "vin", "samsara_vehicle_id"]
+    list_filter = ["vehicle_type", "year", "make", "is_active", "samsara_sync_enabled"]
+    readonly_fields = ["samsara_last_synced_at"]
+    fieldsets = (
+        ("Vehicle", {
+            "fields": ("vehicle_number", "vehicle_type", "year", "make", "model",
+                       "license_plate", "vin", "is_active", "notes"),
+        }),
+        ("Samsara", {
+            "fields": ("samsara_vehicle_id", "samsara_sync_enabled", "samsara_last_synced_at"),
+            "description": "Map this vehicle to its Samsara device. Run "
+                           "`python manage.py samsara_sync_vehicles --apply` after devices "
+                           "are installed to auto-match by VIN / plate / number.",
+        }),
+    )

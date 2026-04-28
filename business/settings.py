@@ -86,6 +86,7 @@ OUR_APPS = [
     "drivers",
     "dispatching",
     "ghl_integration",
+    "samsara_integration",
     "ops.apps.OpsConfig",
 ]
 
@@ -229,6 +230,13 @@ TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
 GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
+
+# Samsara Settings
+SAMSARA_API_KEY = os.environ.get("SAMSARA_API_KEY", "")
+SAMSARA_API_BASE_URL = os.environ.get("SAMSARA_API_BASE_URL", "https://api.samsara.com")
+SAMSARA_SYNC_ENABLED = os.environ.get("SAMSARA_SYNC_ENABLED", "False").lower() == "true"
+SAMSARA_POLL_INTERVAL_SECONDS = int(os.environ.get("SAMSARA_POLL_INTERVAL_SECONDS", "60"))
+SAMSARA_FRESHNESS_WARNING_MINUTES = int(os.environ.get("SAMSARA_FRESHNESS_WARNING_MINUTES", "10"))
 
 # Scheduled tasks are handled by ghl_integration.scheduler (background thread).
 # No Celery required — the scheduler runs batch_send_unsent_leads and
