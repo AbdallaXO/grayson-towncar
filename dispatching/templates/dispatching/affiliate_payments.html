@@ -601,8 +601,7 @@
             </div>
             {% if agency.payment_method %}
               <div class="am-pay-row{% if agency.payment_info %} am-pay-row--copyable{% endif %}"
-                   {% if agency.payment_info %}data-copy="{{ agency.payment_info }}" title="Click to copy"{% endif %}
-                   onclick="event.stopPropagation();">
+                   {% if agency.payment_info %}data-copy="{{ agency.payment_info }}" title="Click to copy"{% endif %}>
                 <span class="payment-badge {{ agency.payment_method }}">{{ agency.get_payment_method_display }}</span>
                 {% if agency.payment_info %}
                   <span class="payment-handle">{{ agency.payment_info }}</span>
@@ -703,8 +702,7 @@
           </div>
           {% if agent.payment_method %}
             <div class="am-pay-row{% if agent.payment_info %} am-pay-row--copyable{% endif %}"
-                 {% if agent.payment_info %}data-copy="{{ agent.payment_info }}" title="Click to copy"{% endif %}
-                 onclick="event.stopPropagation();">
+                 {% if agent.payment_info %}data-copy="{{ agent.payment_info }}" title="Click to copy"{% endif %}>
               <span class="payment-badge {{ agent.payment_method }}">{{ agent.get_payment_method_display }}</span>
               {% if agent.payment_info %}
                 <span class="payment-handle">{{ agent.payment_info }}</span>
@@ -1039,14 +1037,19 @@ const URLS = {
 // Track pending payment for confirm modal
 let pendingPayment = null;
 
-// Click-to-copy on payment-info pill (bulk-pay workflow)
+// Click-to-copy on payment-info pill (bulk-pay workflow).
+// Registered in CAPTURE phase so it fires before any bubble-phase
+// stopPropagation handlers up the tree (e.g. the parent card's
+// toggle-expand or the inline stopPropagation on .am-pay-row).
 document.addEventListener('click', function(e) {
-  const row = e.target.closest('.am-pay-row--copyable[data-copy]');
+  const row = e.target.closest('.am-pay-row');
   if (!row) return;
-  e.preventDefault();
+  // Always block the parent card from toggling-expand on pill clicks
   e.stopPropagation();
+  if (!row.classList.contains('am-pay-row--copyable')) return;
   const text = row.dataset.copy;
   if (!text) return;
+  e.preventDefault();
   const finish = () => {
     const icon = row.querySelector('.payment-copy-icon');
     const orig = icon ? icon.className : null;
@@ -1057,17 +1060,29 @@ document.addEventListener('click', function(e) {
       if (icon && orig) icon.className = orig;
     }, 1200);
   };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(finish).catch(() => {});
+  if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
   } else {
-    // Fallback for older browsers / non-secure contexts
-    const ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); finish(); } catch (_) {}
-    document.body.removeChild(ta);
+    fallbackCopy(text, finish);
   }
-});
+}, true);
+
+function fallbackCopy(text, onDone) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '0';
+  ta.style.left = '0';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) {}
+  document.body.removeChild(ta);
+  if (ok && onDone) onDone();
+}
 
 function toggleExpand(headerEl) {
   const card = headerEl.closest('.am-entity');
