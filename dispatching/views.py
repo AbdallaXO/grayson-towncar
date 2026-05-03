@@ -6326,12 +6326,12 @@ def recalculate_driver_pay(request):
     """Recalculate auto-fill pay for legs.
 
     Accepts JSON body:
-      - driver_id (int, optional): recalc all zero-pay unpaid legs for this driver
+      - driver_id (int, optional): recalc unpaid legs for this driver
       - leg_ids (list[int], optional): recalc specific legs
       - force (bool, optional): if true, recalculate even when pay is already set
 
     By default only touches legs where all pay fields are null/zero.
-    With force=true + leg_ids, overwrites existing values.
+    With force=true, overwrites existing values (works in both modes).
     """
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
@@ -6351,31 +6351,26 @@ def recalculate_driver_pay(request):
     from reservations.models import Leg
     from django.db.models import Q
 
+    zero_pay_q = Q(
+        Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0),
+        Q(driver_gratuity__isnull=True) | Q(driver_gratuity=0),
+        Q(driver_additional__isnull=True) | Q(driver_additional=0),
+        Q(driver_pay_amount__isnull=True) | Q(driver_pay_amount=0),
+    )
+
     # Build queryset
     if leg_ids:
         legs_qs = Leg.objects.filter(id__in=leg_ids, driver__isnull=False)
         if not force:
-            # Only zero-pay legs
-            zero_pay_q = Q(
-                Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0),
-                Q(driver_gratuity__isnull=True) | Q(driver_gratuity=0),
-                Q(driver_additional__isnull=True) | Q(driver_additional=0),
-                Q(driver_pay_amount__isnull=True) | Q(driver_pay_amount=0),
-            )
             legs_qs = legs_qs.filter(zero_pay_q)
     else:
-        # driver_id mode: always only zero-pay
-        zero_pay_q = Q(
-            Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0),
-            Q(driver_gratuity__isnull=True) | Q(driver_gratuity=0),
-            Q(driver_additional__isnull=True) | Q(driver_additional=0),
-            Q(driver_pay_amount__isnull=True) | Q(driver_pay_amount=0),
-            driver__isnull=False,
-        )
         legs_qs = Leg.objects.filter(
             driver_id=driver_id,
             payment_status='unpaid',
-        ).filter(zero_pay_q)
+            driver__isnull=False,
+        )
+        if not force:
+            legs_qs = legs_qs.filter(zero_pay_q)
 
     legs = list(
         legs_qs

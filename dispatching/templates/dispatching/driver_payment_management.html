@@ -1934,16 +1934,16 @@
               recalcModal.show();
           }
 
-          // Recalculate all zero-pay legs for driver
+          // Recalculate all unpaid legs for driver (overwrites existing values)
           const recalcBtn = document.getElementById('recalcPayBtn');
           if (recalcBtn) {
               recalcBtn.addEventListener('click', function() {
                   const driverId = this.dataset.driverId;
                   const btn = this;
                   showRecalcModal(
-                      'Recalculate pay for all $0 legs?',
-                      'Manually-entered values will NOT be changed.',
-                      () => doRecalculate({ driver_id: parseInt(driverId) }, btn, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay')
+                      'Recalculate pay for ALL unpaid legs?',
+                      'Existing pay values (including manual entries) will be overwritten with current rates.',
+                      () => doRecalculate({ driver_id: parseInt(driverId), force: true }, btn, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay')
                   );
               });
           }

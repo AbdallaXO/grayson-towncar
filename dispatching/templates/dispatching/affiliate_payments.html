@@ -720,7 +720,7 @@
     </div>
     <div class="am-paginator-controls">
       <a href="?agents_page=1{{ qs }}" class="{% if not p.has_previous %}disabled{% endif %}" title="First page">&laquo;</a>
-      <a href="?agents_page={{ p.previous_page_number|default:1 }}{{ qs }}" class="{% if not p.has_previous %}disabled{% endif %}" title="Previous">&lsaquo;</a>
+      <a href="?agents_page={% if p.has_previous %}{{ p.previous_page_number }}{% else %}1{% endif %}{{ qs }}" class="{% if not p.has_previous %}disabled{% endif %}" title="Previous">&lsaquo;</a>
       {% for num in p.paginator.page_range %}
         {% if p.number == num %}
           <span class="cur">{{ num }}</span>
@@ -730,7 +730,7 @@
           <span class="gap">…</span>
         {% endif %}
       {% endfor %}
-      <a href="?agents_page={{ p.next_page_number|default:p.paginator.num_pages }}{{ qs }}" class="{% if not p.has_next %}disabled{% endif %}" title="Next">&rsaquo;</a>
+      <a href="?agents_page={% if p.has_next %}{{ p.next_page_number }}{% else %}{{ p.paginator.num_pages }}{% endif %}{{ qs }}" class="{% if not p.has_next %}disabled{% endif %}" title="Next">&rsaquo;</a>
       <a href="?agents_page={{ p.paginator.num_pages }}{{ qs }}" class="{% if not p.has_next %}disabled{% endif %}" title="Last page">&raquo;</a>
     </div>
     <form method="get" class="am-paginator-jump" onsubmit="return validateJump(this, {{ p.paginator.num_pages }})">
