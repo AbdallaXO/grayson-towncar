@@ -290,6 +290,34 @@
   .payment-badge.other   { background: #eef0f4; color: #6b7280; }
   .payment-badge.agency  { background: var(--gt-gold-soft); color: #8a6d10; }
 
+  /* Click-to-copy pay row — designed for bulk-pay workflow */
+  .am-pay-row {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 12px 5px 6px;
+    background: var(--gt-surface);
+    border: 1px solid var(--gt-border-soft);
+    border-radius: 999px;
+    margin-top: 6px;
+    max-width: 100%;
+    user-select: none;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .am-pay-row--copyable { cursor: pointer; }
+  .am-pay-row--copyable:hover { background: #eef0f4; border-color: var(--gt-border); }
+  .am-pay-row.copied { background: #d4edda; border-color: #b1dfbb; }
+  .am-pay-row .payment-badge { font-size: .7rem; padding: 2px 9px; flex-shrink: 0; }
+  .am-pay-row .payment-handle {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: .85rem; font-weight: 500;
+    color: var(--gt-text);
+    letter-spacing: -.1px;
+    word-break: break-all;
+  }
+  .am-pay-row .payment-handle--missing { font-style: italic; color: var(--gt-muted); font-weight: 400; }
+  .am-pay-row .payment-copy-icon { font-size: .9rem; color: var(--gt-muted); flex-shrink: 0; }
+  .am-pay-row--copyable:hover .payment-copy-icon { color: var(--gt-text); }
+  .am-pay-row.copied .payment-copy-icon { color: #1e7e34; }
+
   /* Right-side amount + actions */
   .am-entity-right {
     display: flex; align-items: center; gap: 12px; flex-shrink: 0;
@@ -566,15 +594,24 @@
               <span><i class="bi bi-people me-1"></i>{{ agency.owing_agent_count }} agent{{ agency.owing_agent_count|pluralize }}</span>
               <span class="dot"></span>
               <span>{{ agency.unpaid_res_count }} reservation{{ agency.unpaid_res_count|pluralize }}</span>
-              <span class="dot"></span>
-              {% if agency.payment_method %}
-                <span class="payment-badge {{ agency.payment_method }}">
-                  {{ agency.get_payment_method_display }}{% if agency.payment_info %} · {{ agency.payment_info|truncatechars:32 }}{% endif %}
-                </span>
-              {% else %}
+              {% if not agency.payment_method %}
+                <span class="dot"></span>
                 <span class="am-chip never"><i class="bi bi-exclamation-triangle"></i>No payment method</span>
               {% endif %}
             </div>
+            {% if agency.payment_method %}
+              <div class="am-pay-row{% if agency.payment_info %} am-pay-row--copyable{% endif %}"
+                   {% if agency.payment_info %}data-copy="{{ agency.payment_info }}" title="Click to copy"{% endif %}
+                   onclick="event.stopPropagation();">
+                <span class="payment-badge {{ agency.payment_method }}">{{ agency.get_payment_method_display }}</span>
+                {% if agency.payment_info %}
+                  <span class="payment-handle">{{ agency.payment_info }}</span>
+                  <i class="bi bi-clipboard payment-copy-icon"></i>
+                {% else %}
+                  <span class="payment-handle payment-handle--missing">No handle saved</span>
+                {% endif %}
+              </div>
+            {% endif %}
           </div>
           <div class="am-entity-right" onclick="event.stopPropagation();">
             <span class="am-amount">${{ agency.unpaid_total|floatformat:2 }}</span>
@@ -659,15 +696,24 @@
             <span>{{ agent.commission_rate }}% rate</span>
             <span class="dot"></span>
             <span>{{ agent.unpaid_res_count }} reservation{{ agent.unpaid_res_count|pluralize }}</span>
-            <span class="dot"></span>
-            {% if agent.payment_method %}
-              <span class="payment-badge {{ agent.payment_method }}">
-                {{ agent.get_payment_method_display }}{% if agent.payment_info %} · {{ agent.payment_info|truncatechars:32 }}{% endif %}
-              </span>
-            {% else %}
+            {% if not agent.payment_method %}
+              <span class="dot"></span>
               <span class="am-chip never"><i class="bi bi-exclamation-triangle"></i>No payment method</span>
             {% endif %}
           </div>
+          {% if agent.payment_method %}
+            <div class="am-pay-row{% if agent.payment_info %} am-pay-row--copyable{% endif %}"
+                 {% if agent.payment_info %}data-copy="{{ agent.payment_info }}" title="Click to copy"{% endif %}
+                 onclick="event.stopPropagation();">
+              <span class="payment-badge {{ agent.payment_method }}">{{ agent.get_payment_method_display }}</span>
+              {% if agent.payment_info %}
+                <span class="payment-handle">{{ agent.payment_info }}</span>
+                <i class="bi bi-clipboard payment-copy-icon"></i>
+              {% else %}
+                <span class="payment-handle payment-handle--missing">No handle saved</span>
+              {% endif %}
+            </div>
+          {% endif %}
         </div>
         <div class="am-entity-right" onclick="event.stopPropagation();">
           <span class="am-amount">${{ agent.live_unpaid|floatformat:2 }}</span>
@@ -992,6 +1038,36 @@ const URLS = {
 
 // Track pending payment for confirm modal
 let pendingPayment = null;
+
+// Click-to-copy on payment-info pill (bulk-pay workflow)
+document.addEventListener('click', function(e) {
+  const row = e.target.closest('.am-pay-row--copyable[data-copy]');
+  if (!row) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const text = row.dataset.copy;
+  if (!text) return;
+  const finish = () => {
+    const icon = row.querySelector('.payment-copy-icon');
+    const orig = icon ? icon.className : null;
+    row.classList.add('copied');
+    if (icon) icon.className = 'bi bi-check2-circle payment-copy-icon';
+    setTimeout(() => {
+      row.classList.remove('copied');
+      if (icon && orig) icon.className = orig;
+    }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(finish).catch(() => {});
+  } else {
+    // Fallback for older browsers / non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); finish(); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+});
 
 function toggleExpand(headerEl) {
   const card = headerEl.closest('.am-entity');
