@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Local scratch / production-derived audit artifacts (never commit)
+/scratch/
+
 # C extensions
 *.so
 

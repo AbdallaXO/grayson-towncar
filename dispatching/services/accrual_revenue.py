@@ -2,29 +2,45 @@
 Accrual Revenue Report — service module.
 
 Builds accrual-basis revenue figures: revenue is recognized when the *ride was
-fulfilled* (Leg.status='completed' AND Leg.pickup_date in the selected range),
+fulfilled* (Leg.pickup_date in the selected range, Leg.status != 'cancelled'),
 regardless of when the customer paid.
 
 This module is the single source of truth for the report. The page view and the
 CSV/TXT exports all call build_report() so their numbers always reconcile.
 
 Inclusion rule (a leg is included iff ALL of):
-    - Leg.status == "completed"
     - Leg.pickup_date in [start_date, end_date]
+    - Leg.status != "cancelled"
     - Leg.exclude_from_analytics is False
-    - Leg.reservation.status != "cancelled"
+    - Reservation.status != "cancelled"
 
-Revenue per leg = Leg.revenue_share (already split from Reservation.total_price,
-which includes gratuity + additional_charges). When revenue_share is NULL the
-report falls back to an equal split of Reservation.total_price and flags the
-leg as estimated.
+Notes on inclusion:
+- Statuses 'in-progress', 'confirmed', 'on-the-way', 'on-location', 'picked-up'
+  are included (and flagged FLAG_PENDING_STATUS) because in production data
+  many rides genuinely ran but the dispatcher never tapped 'completed'. Filter
+  by flag to exclude them if you want a stricter view.
 
-Stripe fees are intentionally OMITTED — there is no source-of-truth field on
-Payment for actual fees charged.
+Revenue per leg: smart fallback.
+- If sum(Leg.revenue_share over non-cancelled legs of the parent) reconciles
+  to Reservation.total_price (within $0.02), use Leg.revenue_share directly.
+- Otherwise, allocate Reservation.total_price across non-cancelled legs:
+    - If any non-cancelled leg has leg_base_price set, use those as weights
+      (mirrors Reservation.recalculate_leg_revenue_shares logic).
+    - Otherwise, equal split.
+- The allocated amount is computed at report time only — Leg.revenue_share is
+  never modified in the database.
 
-Refunds are tied to in-range completed reservations regardless of refund date,
-per business decision. Gross is NEVER reduced by refunds; net-after-refunds is
-shown separately.
+Stripe processing fees: OMITTED. There is no source-of-truth field on Payment.
+
+Refunds: never reduce gross. Two views surfaced:
+- "Refunds tied to in-range reservations": sum(Reservation.total_refunded) for
+  any reservation that has at least one included leg, regardless of refund date.
+- "Refund payments in window": sum(Payment.refunded_amount) where Payment.status
+  = 'refunded' and Payment.updated_at falls in the date window.
+
+Gratuity is included in headline gross (it's part of Reservation.total_price).
+A separate "Gross excluding gratuity" line is also published since drivers
+receive ~98% of customer-paid gratuity in production data — accountant's call.
 """
 
 from __future__ import annotations
@@ -33,9 +49,9 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Iterable, Optional
+from typing import Optional
 
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Sum
 from django.utils import timezone
 
 from reservations.models import Leg, Reservation
@@ -45,25 +61,34 @@ from dispatching.analytics import categorize_location
 
 ZERO = Decimal("0.00")
 CENT = Decimal("0.01")
+RECONCILE_TOLERANCE = Decimal("0.02")  # allow 2¢ rounding before falling back
 
 
 # ── Anomaly flag tags ─────────────────────────────────────────────────────────
 
-FLAG_ESTIMATED_SHARE = "estimated_share"          # revenue_share was NULL; equal-split fallback used
-FLAG_ZERO_OR_NEGATIVE = "zero_or_negative"        # revenue_share <= 0
+FLAG_REALLOCATED = "reallocated"                  # rev_share didn't reconcile, fallback used
+FLAG_ZERO_OR_NEGATIVE = "zero_or_negative"        # allocated revenue <= 0
 FLAG_SPLIT_RANGE = "split_range"                  # reservation has legs both in and out of range
 FLAG_REFUNDED = "refunded"                        # reservation.total_refunded > 0
-FLAG_CANCELLED_RES = "cancelled_with_completed"   # reservation cancelled but leg completed
+FLAG_CANCELLED_RES = "cancelled_with_completed"   # reservation cancelled but leg in non-cancelled status
 FLAG_UNPAID = "unpaid"                            # leg/reservation not paid (A/R note)
+FLAG_PENDING_STATUS = "pending_status"            # leg in non-completed, non-cancelled status
 
 FLAG_LABELS = {
-    FLAG_ESTIMATED_SHARE: "Estimated revenue (equal-split fallback — leg.revenue_share was NULL)",
-    FLAG_ZERO_OR_NEGATIVE: "Zero or negative fare",
+    FLAG_REALLOCATED: "Revenue reallocated — leg.revenue_share did not reconcile to reservation.total_price; allocated from total_price",
+    FLAG_ZERO_OR_NEGATIVE: "Zero or negative fare (reservation total_price is also zero)",
     FLAG_SPLIT_RANGE: "Split-range — reservation has legs both inside and outside the range",
     FLAG_REFUNDED: "Refunded reservation — review refund period vs accrual range",
-    FLAG_CANCELLED_RES: "Reservation is cancelled but leg is completed — data inconsistency",
+    FLAG_CANCELLED_RES: "Reservation is cancelled but a leg is non-cancelled — data inconsistency",
     FLAG_UNPAID: "Unpaid — accounts receivable (still in accrual since service was rendered)",
+    FLAG_PENDING_STATUS: "Pending status — leg not marked 'completed'. Verify the ride actually ran.",
 }
+
+
+# Allocation methods (stored on each LegRow.allocation_method)
+ALLOC_REVENUE_SHARE = "revenue_share"           # used Leg.revenue_share (reconciled)
+ALLOC_WEIGHTED = "weighted_total_price"         # allocated total_price by leg_base_price weights
+ALLOC_EQUAL = "equal_split"                     # allocated total_price equally across non-cancelled legs
 
 
 # ── Result dataclasses ────────────────────────────────────────────────────────
@@ -78,16 +103,16 @@ class LegRow:
     pickup_date: date
     pickup_time: time
     status_changed_at: Optional[datetime]
-    trip_type: str  # one_way / round_trip
+    trip_type: str
     pickup_location: str
     dropoff_location: str
     leg_status: str
     vehicle: str
     booking_source: str
-    reservation_payment_status: str  # cached property on Reservation
+    reservation_payment_status: str
     leg_payment_status: str
     gross_fare_in_range: Decimal
-    revenue_share_was_null: bool
+    allocation_method: str  # one of ALLOC_*
     tip_allocated: Decimal
     additional_charges_allocated: Decimal
     base_price_allocated: Decimal
@@ -95,7 +120,7 @@ class LegRow:
     reservation_total_refunded: Decimal
     driver_pay: Decimal
     driver_name: str
-    route_category: str  # categorize(pickup) → categorize(dropoff)
+    route_category: str
     flags: list[str] = field(default_factory=list)
 
 
@@ -116,11 +141,12 @@ class DayRow:
 @dataclass
 class AnomalyBucket:
     """Lists of LegRow grouped by flag."""
-    estimated_share: list[LegRow] = field(default_factory=list)
+    reallocated: list[LegRow] = field(default_factory=list)
     zero_or_negative: list[LegRow] = field(default_factory=list)
     split_range: list[LegRow] = field(default_factory=list)
     refunded: list[LegRow] = field(default_factory=list)
     cancelled_with_completed: list[LegRow] = field(default_factory=list)
+    pending_status: list[LegRow] = field(default_factory=list)
 
 
 @dataclass
@@ -142,10 +168,17 @@ class AccrualReport:
     tips_allocated: Decimal
     additional_charges_allocated: Decimal
     base_price_allocated: Decimal
+    gross_excluding_gratuity: Decimal
+
+    # Refund views (gross is never reduced; net lines computed for display)
     refunds_for_inrange_reservations: Decimal
-    net_after_refunds: Decimal
+    refund_payments_in_window: Decimal
+    net_after_inrange_refunds: Decimal
+    net_after_window_refund_payments: Decimal
+
+    # Cost informational
     driver_pay_total: Decimal
-    estimated_margin: Decimal  # gross - driver_pay (informational)
+    estimated_margin: Decimal  # gross - driver_pay_total (informational)
 
     # Group rows
     by_day: list[DayRow]
@@ -158,6 +191,11 @@ class AccrualReport:
     # Audit
     legs: list[LegRow]
     anomalies: AnomalyBucket
+
+    # Backwards-compat alias kept so existing template `net_after_refunds` works.
+    @property
+    def net_after_refunds(self) -> Decimal:
+        return self.net_after_inrange_refunds
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -181,20 +219,18 @@ def build_report(
         booking_source: optional Reservation.booking_source filter.
         payment_status: optional Reservation.payment_status (cached property)
             filter — applied post-fetch since it's a property, not a column.
-
-    Returns:
-        AccrualReport with all summary/breakdown/audit data populated.
     """
     if end_date < start_date:
         start_date, end_date = end_date, start_date
 
+    # ── 1. Pull every in-range, non-cancelled leg ─────────────────────────
     legs_qs = (
         Leg.objects.filter(
-            status="completed",
             pickup_date__gte=start_date,
             pickup_date__lte=end_date,
             exclude_from_analytics=False,
         )
+        .exclude(status="cancelled")
         .exclude(reservation__status="cancelled")
         .select_related(
             "reservation",
@@ -204,9 +240,8 @@ def build_report(
             "driver",
         )
         .prefetch_related(
-            # for split-range detection — need ALL legs of each in-range reservation
+            # ALL legs of each in-range reservation (siblings for allocation + split-range)
             "reservation__legs",
-            # for refund/payment_status calculation
             Prefetch(
                 "reservation__payments",
                 queryset=Payment.objects.order_by("-created_at"),
@@ -216,89 +251,182 @@ def build_report(
     )
 
     if vehicle_id:
-        # Match either leg-level override or reservation-level vehicle.
         from django.db.models import Q
         legs_qs = legs_qs.filter(
-            Q(vehicle_id=vehicle_id) | Q(vehicle__isnull=True, reservation__vehicle_id=vehicle_id)
+            Q(vehicle_id=vehicle_id)
+            | Q(vehicle__isnull=True, reservation__vehicle_id=vehicle_id)
         )
     if booking_source:
         legs_qs = legs_qs.filter(reservation__booking_source=booking_source)
 
-    legs = list(legs_qs)
+    in_range_legs = list(legs_qs)
 
-    # Build LegRow objects with all derived fields.
+    # ── 2. Group in-range legs by reservation; allocate per reservation ───
+    by_res: dict = defaultdict(list)
+    for leg in in_range_legs:
+        by_res[leg.reservation_id].append(leg)
+
+    leg_revenue: dict[int, Decimal] = {}
+    leg_method: dict[int, str] = {}
+    for res_id, in_range_for_res in by_res.items():
+        res = in_range_for_res[0].reservation
+        # Siblings come from prefetch — includes the in-range legs and any others.
+        all_valid_legs = [l for l in res.legs.all() if l.status != "cancelled"]
+        method, alloc_map = _allocate_reservation(res, in_range_for_res, all_valid_legs)
+        leg_revenue.update(alloc_map)
+        for leg_id in alloc_map:
+            leg_method[leg_id] = method
+
+    # ── 3. Build LegRow objects ───────────────────────────────────────────
     rows: list[LegRow] = []
-    for leg in legs:
-        rows.append(_build_leg_row(leg, start_date, end_date))
+    for leg in in_range_legs:
+        revenue = leg_revenue.get(leg.id, ZERO)
+        method = leg_method.get(leg.id, ALLOC_REVENUE_SHARE)
+        rows.append(_build_leg_row(leg, revenue, method, start_date, end_date))
 
     # Post-fetch filter on reservation.payment_status (it's a @cached_property).
     if payment_status:
         rows = [r for r in rows if r.reservation_payment_status == payment_status]
 
-    return _aggregate(rows, start_date, end_date, {
-        "vehicle_id": vehicle_id,
-        "booking_source": booking_source,
-        "payment_status": payment_status,
-    })
+    # ── 4. Refund payments dated in the window (separate from per-reservation refunds) ─
+    window_end_exclusive = datetime.combine(end_date + timedelta(days=1), time.min)
+    window_start_inclusive = datetime.combine(start_date, time.min)
+    if timezone.is_aware(timezone.now()):
+        tz = timezone.get_current_timezone()
+        window_end_exclusive = timezone.make_aware(window_end_exclusive, tz)
+        window_start_inclusive = timezone.make_aware(window_start_inclusive, tz)
+    refund_payments_in_window = (
+        Payment.objects.filter(
+            status="refunded",
+            refunded_amount__isnull=False,
+            updated_at__gte=window_start_inclusive,
+            updated_at__lt=window_end_exclusive,
+        ).aggregate(s=Sum("refunded_amount"))["s"]
+        or ZERO
+    )
+
+    return _aggregate(
+        rows,
+        start_date,
+        end_date,
+        Decimal(refund_payments_in_window or 0),
+        {
+            "vehicle_id": vehicle_id,
+            "booking_source": booking_source,
+            "payment_status": payment_status,
+        },
+    )
+
+
+# ── Allocation ────────────────────────────────────────────────────────────────
+
+
+def _allocate_reservation(
+    res: Reservation,
+    in_range_legs: list[Leg],
+    all_valid_legs: list[Leg],
+) -> tuple[str, dict[int, Decimal]]:
+    """
+    Decide each in-range leg's revenue contribution for `res`.
+
+    Returns (allocation_method, {leg_id: Decimal}).
+
+    Smart-fallback rules:
+      1. If sum(Leg.revenue_share over non-cancelled siblings) reconciles to
+         Reservation.total_price within RECONCILE_TOLERANCE AND > 0:
+         use Leg.revenue_share for each in-range leg.
+      2. Else allocate Reservation.total_price across non-cancelled siblings:
+         - If any non-cancelled leg has leg_base_price set: weighted by
+           leg_base_price (with default = base_price/n_valid for unset legs).
+         - Else: equal split.
+
+    Reservation.total_price is never modified.
+    """
+    total = Decimal(res.total_price or 0)
+
+    # Path 1 — revenue_share reconciles
+    sum_share = sum(
+        Decimal(l.revenue_share or 0) for l in all_valid_legs
+    )
+    if sum_share > 0 and abs(sum_share - total) <= RECONCILE_TOLERANCE:
+        return ALLOC_REVENUE_SHARE, {
+            l.id: Decimal(l.revenue_share or 0).quantize(CENT)
+            for l in in_range_legs
+        }
+
+    n_valid = len(all_valid_legs)
+    if n_valid == 0 or total <= 0:
+        # Pathological: no valid legs (shouldn't happen since we have in_range_legs)
+        # or total_price is 0/negative. Return zeros and let zero_or_negative flag fire.
+        return ALLOC_EQUAL, {l.id: ZERO for l in in_range_legs}
+
+    # Path 2a — weighted by leg_base_price
+    has_weights = any(l.leg_base_price is not None for l in all_valid_legs)
+    if has_weights:
+        base = Decimal(res.base_price or 0)
+        default = (base / Decimal(n_valid)).quantize(CENT) if base else ZERO
+        total_weight = sum(
+            Decimal(l.leg_base_price if l.leg_base_price is not None else default)
+            for l in all_valid_legs
+        )
+        if total_weight > 0:
+            return ALLOC_WEIGHTED, {
+                l.id: (
+                    total
+                    * Decimal(l.leg_base_price if l.leg_base_price is not None else default)
+                    / total_weight
+                ).quantize(CENT)
+                for l in in_range_legs
+            }
+
+    # Path 2b — equal split
+    share = (total / Decimal(n_valid)).quantize(CENT)
+    return ALLOC_EQUAL, {l.id: share for l in in_range_legs}
+
+
+def _allocate_field(
+    leg_revenue: Decimal, reservation_total: Decimal, field_value: Decimal
+) -> Decimal:
+    """
+    Proportionally allocate a reservation-level money field (gratuity_amount,
+    additional_charges, base_price) to one leg using the same weight as its
+    revenue contribution: leg_alloc = field * (leg_revenue / total_price).
+    """
+    if not field_value:
+        return ZERO
+    if reservation_total and reservation_total > 0:
+        ratio = Decimal(leg_revenue) / Decimal(reservation_total)
+        return (Decimal(field_value) * ratio).quantize(CENT)
+    return ZERO
 
 
 # ── Row construction ──────────────────────────────────────────────────────────
 
 
-def _leg_revenue(leg: Leg) -> tuple[Decimal, bool]:
-    """
-    Return (revenue, was_null).
-    If leg.revenue_share is NULL, fall back to equal-split of reservation total
-    and signal that an estimate was used.
-    """
-    if leg.revenue_share is not None:
-        return Decimal(leg.revenue_share), False
+def _build_leg_row(
+    leg: Leg,
+    revenue: Decimal,
+    method: str,
+    start_date: date,
+    end_date: date,
+) -> LegRow:
     res = leg.reservation
-    if not res or res.total_price is None:
-        return ZERO, True
-    leg_count = len(res.legs.all()) or 1  # prefetched
-    share = (Decimal(res.total_price) / Decimal(leg_count)).quantize(CENT)
-    return share, True
-
-
-def _allocate_field(leg_share: Decimal, reservation_total: Decimal, field_value: Decimal) -> Decimal:
-    """
-    Proportionally allocate a reservation-level money field (gratuity_amount,
-    additional_charges, base_price) to one leg based on its revenue_share weight.
-
-    leg_alloc = field_value * (leg_share / reservation_total)
-
-    Falls back to equal split if reservation_total is zero.
-    """
-    if not field_value:
-        return ZERO
-    if reservation_total and reservation_total > 0:
-        ratio = Decimal(leg_share) / Decimal(reservation_total)
-        return (Decimal(field_value) * ratio).quantize(CENT)
-    return Decimal(field_value).quantize(CENT)
-
-
-def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
-    res = leg.reservation
-    revenue, was_null = _leg_revenue(leg)
     res_total = Decimal(res.total_price) if (res and res.total_price) else ZERO
+    revenue = Decimal(revenue or 0).quantize(CENT)
 
     tip_alloc = _allocate_field(revenue, res_total, Decimal(res.gratuity_amount or 0)) if res else ZERO
     addl_alloc = _allocate_field(revenue, res_total, Decimal(res.additional_charges or 0)) if res else ZERO
     base_alloc = _allocate_field(revenue, res_total, Decimal(res.base_price or 0)) if res else ZERO
 
-    # Driver pay: prefer total_driver_pay cached property (sums base+grat+additional).
     driver_pay = ZERO
     try:
         driver_pay = Decimal(leg.total_driver_pay or 0)
     except Exception:
         driver_pay = ZERO
 
-    # Effective vehicle display
     eff_vehicle = leg.effective_vehicle
     vehicle_str = eff_vehicle.get_vehicle_type_display() if eff_vehicle else ""
 
-    # Customer name
     if res and getattr(res, "customer", None):
         cust = res.customer
         customer_name = (
@@ -308,8 +436,6 @@ def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
     else:
         customer_name = ""
 
-    # Reservation payment_status is a @cached_property — accessing it triggers
-    # the computation, but payments are prefetched so no extra queries.
     res_pay_status = ""
     if res:
         try:
@@ -317,14 +443,14 @@ def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
         except Exception:
             res_pay_status = ""
 
-    # Flags
     flags: list[str] = []
-    if was_null:
-        flags.append(FLAG_ESTIMATED_SHARE)
-    if revenue is not None and revenue <= ZERO:
+    if method != ALLOC_REVENUE_SHARE:
+        flags.append(FLAG_REALLOCATED)
+    if revenue <= ZERO:
         flags.append(FLAG_ZERO_OR_NEGATIVE)
+    if leg.status not in ("completed", "cancelled"):
+        flags.append(FLAG_PENDING_STATUS)
     if res:
-        # Split-range: any sibling leg whose pickup_date is outside the window.
         for sibling in res.legs.all():
             if sibling.pickup_date < start_date or sibling.pickup_date > end_date:
                 flags.append(FLAG_SPLIT_RANGE)
@@ -333,7 +459,6 @@ def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
             flags.append(FLAG_REFUNDED)
         if res.status == "cancelled":
             flags.append(FLAG_CANCELLED_RES)
-        # Unpaid A/R: leg unpaid AND reservation not paid.
         if leg.payment_status == "unpaid" and not getattr(res, "is_paid", False):
             flags.append(FLAG_UNPAID)
 
@@ -352,7 +477,7 @@ def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
         pickup_date=leg.pickup_date,
         pickup_time=leg.pickup_time,
         status_changed_at=leg.status_changed_at,
-        trip_type=(res.get_trip_type_display() if res else "") if res else "",
+        trip_type=(res.get_trip_type_display() if res else "") or "",
         pickup_location=leg.pickup_location or "",
         dropoff_location=leg.dropoff_location or "",
         leg_status=leg.status or "",
@@ -360,8 +485,8 @@ def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
         booking_source=(res.booking_source if res else "") or "",
         reservation_payment_status=res_pay_status,
         leg_payment_status=leg.payment_status or "",
-        gross_fare_in_range=revenue.quantize(CENT) if revenue is not None else ZERO,
-        revenue_share_was_null=was_null,
+        gross_fare_in_range=revenue,
+        allocation_method=method,
         tip_allocated=tip_alloc,
         additional_charges_allocated=addl_alloc,
         base_price_allocated=base_alloc,
@@ -377,7 +502,13 @@ def _build_leg_row(leg: Leg, start_date: date, end_date: date) -> LegRow:
 # ── Aggregation ───────────────────────────────────────────────────────────────
 
 
-def _aggregate(rows: list[LegRow], start_date: date, end_date: date, filters: dict) -> AccrualReport:
+def _aggregate(
+    rows: list[LegRow],
+    start_date: date,
+    end_date: date,
+    refund_payments_in_window: Decimal,
+    filters: dict,
+) -> AccrualReport:
     total_legs = len(rows)
     unique_res_ids: set[str] = set()
     gross = ZERO
@@ -423,13 +554,11 @@ def _aggregate(rows: list[LegRow], start_date: date, end_date: date, filters: di
         p["count"] += 1
         p["rev"] += r.gross_fare_in_range
 
-        # Refund total — only count each reservation's refund once.
         if r.reservation_id and r.reservation_id not in refunds_seen_for_res:
             refunds_seen_for_res[r.reservation_id] = r.reservation_total_refunded
 
-        # Anomaly bucketing
-        if FLAG_ESTIMATED_SHARE in r.flags:
-            anomalies.estimated_share.append(r)
+        if FLAG_REALLOCATED in r.flags:
+            anomalies.reallocated.append(r)
         if FLAG_ZERO_OR_NEGATIVE in r.flags:
             anomalies.zero_or_negative.append(r)
         if FLAG_SPLIT_RANGE in r.flags:
@@ -438,11 +567,17 @@ def _aggregate(rows: list[LegRow], start_date: date, end_date: date, filters: di
             anomalies.refunded.append(r)
         if FLAG_CANCELLED_RES in r.flags:
             anomalies.cancelled_with_completed.append(r)
+        if FLAG_PENDING_STATUS in r.flags:
+            anomalies.pending_status.append(r)
 
     refunds_total = sum(refunds_seen_for_res.values(), ZERO)
 
     avg_per_leg = (gross / Decimal(total_legs)).quantize(CENT) if total_legs else ZERO
-    avg_per_res = (gross / Decimal(len(unique_res_ids))).quantize(CENT) if unique_res_ids else ZERO
+    avg_per_res = (
+        (gross / Decimal(len(unique_res_ids))).quantize(CENT)
+        if unique_res_ids
+        else ZERO
+    )
 
     by_day_rows = [
         DayRow(day=d, leg_count=v["count"], revenue=v["rev"].quantize(CENT))
@@ -450,26 +585,26 @@ def _aggregate(rows: list[LegRow], start_date: date, end_date: date, filters: di
     ]
     by_vehicle_rows = sorted(
         [BreakdownRow(label=k, leg_count=v["count"], revenue=v["rev"].quantize(CENT)) for k, v in by_vehicle.items()],
-        key=lambda x: x.revenue,
-        reverse=True,
+        key=lambda x: x.revenue, reverse=True,
     )
     by_source_rows = sorted(
         [BreakdownRow(label=k, leg_count=v["count"], revenue=v["rev"].quantize(CENT)) for k, v in by_source.items()],
-        key=lambda x: x.revenue,
-        reverse=True,
+        key=lambda x: x.revenue, reverse=True,
     )
     by_route_rows = sorted(
         [BreakdownRow(label=k, leg_count=v["count"], revenue=v["rev"].quantize(CENT)) for k, v in by_route.items()],
-        key=lambda x: x.revenue,
-        reverse=True,
+        key=lambda x: x.revenue, reverse=True,
     )
     by_pay_rows = sorted(
         [BreakdownRow(label=k, leg_count=v["count"], revenue=v["rev"].quantize(CENT)) for k, v in by_pay.items()],
-        key=lambda x: x.revenue,
-        reverse=True,
+        key=lambda x: x.revenue, reverse=True,
     )
 
     top_legs = sorted(rows, key=lambda r: r.gross_fare_in_range, reverse=True)[:10]
+
+    refund_payments_in_window = Decimal(refund_payments_in_window or 0).quantize(CENT)
+    refunds_total_q = refunds_total.quantize(CENT)
+    gross_q = gross.quantize(CENT)
 
     return AccrualReport(
         start_date=start_date,
@@ -478,14 +613,17 @@ def _aggregate(rows: list[LegRow], start_date: date, end_date: date, filters: di
         filters=filters,
         total_legs=total_legs,
         total_reservations=len(unique_res_ids),
-        gross_accrual_revenue=gross.quantize(CENT),
+        gross_accrual_revenue=gross_q,
         avg_fare_per_leg=avg_per_leg,
         avg_fare_per_reservation=avg_per_res,
         tips_allocated=tips_total.quantize(CENT),
         additional_charges_allocated=addl_total.quantize(CENT),
         base_price_allocated=base_total.quantize(CENT),
-        refunds_for_inrange_reservations=refunds_total.quantize(CENT),
-        net_after_refunds=(gross - refunds_total).quantize(CENT),
+        gross_excluding_gratuity=(gross - tips_total).quantize(CENT),
+        refunds_for_inrange_reservations=refunds_total_q,
+        refund_payments_in_window=refund_payments_in_window,
+        net_after_inrange_refunds=(gross_q - refunds_total_q),
+        net_after_window_refund_payments=(gross_q - refund_payments_in_window),
         driver_pay_total=driver_pay_total.quantize(CENT),
         estimated_margin=(gross - driver_pay_total).quantize(CENT),
         by_day=by_day_rows,
@@ -503,13 +641,10 @@ def _aggregate(rows: list[LegRow], start_date: date, end_date: date, filters: di
 
 
 def resolve_quick_filter(quick: str, today: Optional[date] = None) -> Optional[tuple[date, date]]:
-    """
-    Map a quick-filter token to (start_date, end_date) in America/New_York.
-    Returns None if quick is empty/unknown/'custom'.
-    """
+    """Map a quick-filter token to (start_date, end_date) in America/New_York."""
     if not quick or quick == "custom":
         return None
-    today = today or timezone.localdate()  # already America/New_York since USE_TZ=True
+    today = today or timezone.localdate()
 
     if quick == "today":
         return today, today

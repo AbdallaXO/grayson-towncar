@@ -116,9 +116,9 @@
       <div class="col-lg col-md-6">
         <div class="card shadow-sm h-100">
           <div class="card-body">
-            <div class="text-muted small text-uppercase">Completed legs</div>
+            <div class="text-muted small text-uppercase">Legs included</div>
             <div class="display-6 fw-bold">{{ report.total_legs|intcomma }}</div>
-            <div class="text-muted small">Across {{ report.total_reservations|intcomma }} reservation{{ report.total_reservations|pluralize }}</div>
+            <div class="text-muted small">Across {{ report.total_reservations|intcomma }} reservation{{ report.total_reservations|pluralize }} (status != cancelled)</div>
           </div>
         </div>
       </div>
@@ -134,9 +134,9 @@
       <div class="col-lg col-md-6">
         <div class="card shadow-sm h-100">
           <div class="card-body">
-            <div class="text-muted small text-uppercase">Net after refunds</div>
-            <div class="display-6 fw-bold">${{ report.net_after_refunds|floatformat:2|intcomma }}</div>
-            <div class="text-muted small">Refunds (any date): ${{ report.refunds_for_inrange_reservations|floatformat:2|intcomma }}</div>
+            <div class="text-muted small text-uppercase">Gross excl. gratuity</div>
+            <div class="display-6 fw-bold">${{ report.gross_excluding_gratuity|floatformat:2|intcomma }}</div>
+            <div class="text-muted small">Tips ~98% pass-through to drivers</div>
           </div>
         </div>
       </div>
@@ -172,32 +172,55 @@
       <div class="col-md-3">
         <div class="card border-0 bg-light h-100">
           <div class="card-body py-2">
-            <div class="small text-muted">Base price (allocated)</div>
-            <div class="fs-5 fw-semibold">${{ report.base_price_allocated|floatformat:2|intcomma }}</div>
+            <div class="small text-muted">Driver pay (info)</div>
+            <div class="fs-5 fw-semibold">${{ report.driver_pay_total|floatformat:2|intcomma }}</div>
           </div>
         </div>
       </div>
       <div class="col-md-3">
         <div class="card border-0 bg-light h-100">
           <div class="card-body py-2">
-            <div class="small text-muted">Driver pay (info)</div>
-            <div class="fs-5 fw-semibold">${{ report.driver_pay_total|floatformat:2|intcomma }}</div>
+            <div class="small text-muted">Est. margin (gross&minus;driver)</div>
+            <div class="fs-5 fw-semibold">${{ report.estimated_margin|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Refund views row -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="card border-0 bg-light h-100">
+          <div class="card-body py-2">
+            <div class="small text-muted">Refunds tied to in-range reservations <em>(any refund date)</em></div>
+            <div class="fs-5 fw-semibold">${{ report.refunds_for_inrange_reservations|floatformat:2|intcomma }}</div>
+            <div class="small text-muted">Net after these refunds: <strong>${{ report.net_after_inrange_refunds|floatformat:2|intcomma }}</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card border-0 bg-light h-100">
+          <div class="card-body py-2">
+            <div class="small text-muted">Refund payments issued in window <em>(Payment.updated_at)</em></div>
+            <div class="fs-5 fw-semibold">${{ report.refund_payments_in_window|floatformat:2|intcomma }}</div>
+            <div class="small text-muted">Net after window refund payments: <strong>${{ report.net_after_window_refund_payments|floatformat:2|intcomma }}</strong></div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Anomaly warning -->
-    {% with split=report.anomalies.split_range|length zero=report.anomalies.zero_or_negative|length est=report.anomalies.estimated_share|length canc=report.anomalies.cancelled_with_completed|length ref=report.anomalies.refunded|length %}
-    {% if split or zero or est or canc or ref %}
+    {% with split=report.anomalies.split_range|length zero=report.anomalies.zero_or_negative|length real=report.anomalies.reallocated|length pend=report.anomalies.pending_status|length canc=report.anomalies.cancelled_with_completed|length ref=report.anomalies.refunded|length %}
+    {% if split or zero or real or pend or canc or ref %}
     <div class="alert alert-warning d-flex align-items-start gap-2">
       <i class="bi bi-exclamation-triangle-fill fs-4"></i>
       <div>
         <strong>Items needing review:</strong>
+        {% if real %}<span class="badge bg-warning text-dark">{{ real }} reallocated</span>{% endif %}
+        {% if pend %}<span class="badge bg-warning text-dark">{{ pend }} pending-status</span>{% endif %}
         {% if split %}<span class="badge bg-warning text-dark">{{ split }} split-range</span>{% endif %}
         {% if zero %}<span class="badge bg-warning text-dark">{{ zero }} zero/negative fare</span>{% endif %}
-        {% if est %}<span class="badge bg-warning text-dark">{{ est }} estimated share</span>{% endif %}
-        {% if canc %}<span class="badge bg-warning text-dark">{{ canc }} cancelled-with-completed-leg</span>{% endif %}
+        {% if canc %}<span class="badge bg-warning text-dark">{{ canc }} cancelled-w/-non-cancelled-leg</span>{% endif %}
         {% if ref %}<span class="badge bg-warning text-dark">{{ ref }} refunded reservation{{ ref|pluralize }}</span>{% endif %}
         <a href="#anomalies" class="ms-2 small">See details ↓</a>
       </div>
@@ -338,13 +361,24 @@
             {% endfor %}
           </ul>
         {% endif %}
-        {% if report.anomalies.estimated_share %}
-          <h6 class="mt-2">Estimated revenue share ({{ report.anomalies.estimated_share|length }})</h6>
-          <p class="text-muted small mb-2"><code>Leg.revenue_share</code> was NULL; equal-split fallback used. Run <code>python manage.py recalculate_leg_revenue_shares</code> to populate.</p>
+        {% if report.anomalies.reallocated %}
+          <h6 class="mt-2">Revenue reallocated from total_price ({{ report.anomalies.reallocated|length }})</h6>
+          <p class="text-muted small mb-2"><code>Leg.revenue_share</code> didn't reconcile to <code>Reservation.total_price</code>; report-time fallback allocated <code>total_price</code> across non-cancelled legs. The DB is unchanged. Run <code>python manage.py recalculate_leg_revenue_shares</code> to fix the underlying data.</p>
           <ul class="small mb-3">
-            {% for r in report.anomalies.estimated_share %}
-              <li>Res <code>{{ r.reservation_id }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · ${{ r.gross_fare_in_range|floatformat:2|intcomma }}</li>
+            {% for r in report.anomalies.reallocated|slice:":50" %}
+              <li>Res <code>{{ r.reservation_id|slice:":8" }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · ${{ r.gross_fare_in_range|floatformat:2|intcomma }} <span class="badge bg-secondary">{{ r.allocation_method }}</span></li>
             {% endfor %}
+            {% if report.anomalies.reallocated|length > 50 %}<li><em>… {{ report.anomalies.reallocated|length|add:"-50" }} more in CSV</em></li>{% endif %}
+          </ul>
+        {% endif %}
+        {% if report.anomalies.pending_status %}
+          <h6 class="mt-2">Pending-status legs ({{ report.anomalies.pending_status|length }})</h6>
+          <p class="text-muted small mb-2">Leg pickup_date is in range and status is not 'cancelled', but also not 'completed'. Could be a ride that ran but wasn't marked complete, OR a future-status leg. Verify each.</p>
+          <ul class="small mb-3">
+            {% for r in report.anomalies.pending_status|slice:":50" %}
+              <li>Res <code>{{ r.reservation_id|slice:":8" }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · status=<strong>{{ r.leg_status }}</strong> · ${{ r.gross_fare_in_range|floatformat:2|intcomma }}</li>
+            {% endfor %}
+            {% if report.anomalies.pending_status|length > 50 %}<li><em>… {{ report.anomalies.pending_status|length|add:"-50" }} more in CSV</em></li>{% endif %}
           </ul>
         {% endif %}
         {% if report.anomalies.zero_or_negative %}
@@ -373,7 +407,7 @@
             {% endfor %}
           </ul>
         {% endif %}
-        {% if not report.anomalies.split_range and not report.anomalies.estimated_share and not report.anomalies.zero_or_negative and not report.anomalies.cancelled_with_completed and not report.anomalies.refunded %}
+        {% if not report.anomalies.split_range and not report.anomalies.reallocated and not report.anomalies.pending_status and not report.anomalies.zero_or_negative and not report.anomalies.cancelled_with_completed and not report.anomalies.refunded %}
           <p class="text-muted small mb-0">No anomalies in this range. ✓</p>
         {% endif %}
       </div>
