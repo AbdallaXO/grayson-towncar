@@ -1,0 +1,455 @@
+{% extends "main.html" %}
+{% load static humanize %}
+
+{% block title %}Accrual Revenue Report{% endblock title %}
+
+{% block content %}
+  {% block navbar %}{% endblock navbar %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-3">
+      <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <h1 class="mb-0 fs-2 fw-bold">
+            <i class="bi bi-cash-stack me-2"></i>Accrual Revenue Report
+          </h1>
+          <p class="text-muted mb-0 small">
+            Revenue from rides actually <strong>completed</strong> in the date range, anchored on
+            <code>Leg.pickup_date</code> &mdash; <em>independent of payment date</em>. Timezone: {{ report.timezone_name }}.
+          </p>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{% url 'accrual_revenue_csv' %}?{{ request.GET.urlencode }}" class="btn btn-outline-dark">
+            <i class="bi bi-filetype-csv me-1"></i>Download CSV
+          </a>
+          <a href="{% url 'accrual_revenue_txt' %}?{{ request.GET.urlencode }}" class="btn btn-outline-dark">
+            <i class="bi bi-file-earmark-text me-1"></i>Download TXT Summary
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+              <div class="col-lg-2">
+                <label class="form-label">Quick Range</label>
+                <select name="quick" class="form-select" onchange="this.form.submit()">
+                  <option value="custom" {% if params.quick == "custom" %}selected{% endif %}>Custom…</option>
+                  <option value="today" {% if params.quick == "today" %}selected{% endif %}>Today</option>
+                  <option value="yesterday" {% if params.quick == "yesterday" %}selected{% endif %}>Yesterday</option>
+                  <option value="this_month" {% if params.quick == "this_month" %}selected{% endif %}>This month</option>
+                  <option value="last_month" {% if params.quick == "last_month" %}selected{% endif %}>Last month</option>
+                  <option value="ytd" {% if params.quick == "ytd" %}selected{% endif %}>Year to date</option>
+                </select>
+              </div>
+              <div class="col-lg-2">
+                <label class="form-label">From</label>
+                <input type="date" name="start" class="form-control" value="{{ params.start_date|date:'Y-m-d' }}">
+              </div>
+              <div class="col-lg-2">
+                <label class="form-label">To</label>
+                <input type="date" name="end" class="form-control" value="{{ params.end_date|date:'Y-m-d' }}">
+              </div>
+              <div class="col-lg-2">
+                <label class="form-label">Vehicle</label>
+                <select name="vehicle_id" class="form-select">
+                  <option value="">All vehicles</option>
+                  {% for v in vehicles %}
+                    <option value="{{ v.id }}" {% if params.vehicle_id == v.id %}selected{% endif %}>
+                      {{ v.get_vehicle_type_display }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-lg-2">
+                <label class="form-label">Source</label>
+                <select name="booking_source" class="form-select">
+                  <option value="">All sources</option>
+                  {% for code, label in booking_sources %}
+                    <option value="{{ code }}" {% if params.booking_source == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-lg-2">
+                <label class="form-label">Payment</label>
+                <select name="payment_status" class="form-select">
+                  <option value="">All payment statuses</option>
+                  {% for code, label in payment_statuses %}
+                    <option value="{{ code }}" {% if params.payment_status == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-funnel me-1"></i>Apply
+                </button>
+                <a href="{% url 'accrual_revenue_report' %}" class="btn btn-outline-secondary">
+                  <i class="bi bi-x-circle me-1"></i>Reset
+                </a>
+                <span class="text-muted small ms-2">
+                  Showing {{ report.start_date|date:"Y-m-d" }} &rarr; {{ report.end_date|date:"Y-m-d" }}
+                </span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-4">
+      <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100 border-warning">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase">Gross Accrual Revenue</div>
+            <div class="display-6 fw-bold">${{ report.gross_accrual_revenue|floatformat:2|intcomma }}</div>
+            <div class="text-muted small">The headline number — never reduced by anything.</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase">Completed legs</div>
+            <div class="display-6 fw-bold">{{ report.total_legs|intcomma }}</div>
+            <div class="text-muted small">Across {{ report.total_reservations|intcomma }} reservation{{ report.total_reservations|pluralize }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase">Avg fare / leg</div>
+            <div class="display-6 fw-bold">${{ report.avg_fare_per_leg|floatformat:2|intcomma }}</div>
+            <div class="text-muted small">Avg / reservation: ${{ report.avg_fare_per_reservation|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase">Net after refunds</div>
+            <div class="display-6 fw-bold">${{ report.net_after_refunds|floatformat:2|intcomma }}</div>
+            <div class="text-muted small">Refunds (any date): ${{ report.refunds_for_inrange_reservations|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg col-md-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small text-uppercase">Est. margin</div>
+            <div class="display-6 fw-bold">${{ report.estimated_margin|floatformat:2|intcomma }}</div>
+            <div class="text-muted small">Gross &minus; driver pay (informational)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Breakdown numbers row -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card border-0 bg-light h-100">
+          <div class="card-body py-2">
+            <div class="small text-muted">Tips/gratuity (allocated)</div>
+            <div class="fs-5 fw-semibold">${{ report.tips_allocated|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 bg-light h-100">
+          <div class="card-body py-2">
+            <div class="small text-muted">Additional charges (alloc)</div>
+            <div class="fs-5 fw-semibold">${{ report.additional_charges_allocated|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 bg-light h-100">
+          <div class="card-body py-2">
+            <div class="small text-muted">Base price (allocated)</div>
+            <div class="fs-5 fw-semibold">${{ report.base_price_allocated|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 bg-light h-100">
+          <div class="card-body py-2">
+            <div class="small text-muted">Driver pay (info)</div>
+            <div class="fs-5 fw-semibold">${{ report.driver_pay_total|floatformat:2|intcomma }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Anomaly warning -->
+    {% with split=report.anomalies.split_range|length zero=report.anomalies.zero_or_negative|length est=report.anomalies.estimated_share|length canc=report.anomalies.cancelled_with_completed|length ref=report.anomalies.refunded|length %}
+    {% if split or zero or est or canc or ref %}
+    <div class="alert alert-warning d-flex align-items-start gap-2">
+      <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+      <div>
+        <strong>Items needing review:</strong>
+        {% if split %}<span class="badge bg-warning text-dark">{{ split }} split-range</span>{% endif %}
+        {% if zero %}<span class="badge bg-warning text-dark">{{ zero }} zero/negative fare</span>{% endif %}
+        {% if est %}<span class="badge bg-warning text-dark">{{ est }} estimated share</span>{% endif %}
+        {% if canc %}<span class="badge bg-warning text-dark">{{ canc }} cancelled-with-completed-leg</span>{% endif %}
+        {% if ref %}<span class="badge bg-warning text-dark">{{ ref }} refunded reservation{{ ref|pluralize }}</span>{% endif %}
+        <a href="#anomalies" class="ms-2 small">See details ↓</a>
+      </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Breakdown tables -->
+    <div class="row g-3 mb-4">
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header"><i class="bi bi-calendar-day me-1"></i>Revenue by day</div>
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table class="table table-sm mb-0">
+              <thead class="table-light sticky-top"><tr><th>Day</th><th class="text-end">Legs</th><th class="text-end">Revenue</th></tr></thead>
+              <tbody>
+                {% for d in report.by_day %}
+                  <tr>
+                    <td>{{ d.day|date:"Y-m-d (D)" }}</td>
+                    <td class="text-end">{{ d.leg_count }}</td>
+                    <td class="text-end">${{ d.revenue|floatformat:2|intcomma }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3" class="text-center text-muted">No data for this range</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header"><i class="bi bi-truck me-1"></i>Revenue by vehicle</div>
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table class="table table-sm mb-0">
+              <thead class="table-light sticky-top"><tr><th>Vehicle</th><th class="text-end">Legs</th><th class="text-end">Revenue</th></tr></thead>
+              <tbody>
+                {% for b in report.by_vehicle %}
+                  <tr><td>{{ b.label }}</td><td class="text-end">{{ b.leg_count }}</td><td class="text-end">${{ b.revenue|floatformat:2|intcomma }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="3" class="text-center text-muted">—</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header"><i class="bi bi-funnel me-1"></i>Revenue by source</div>
+          <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+            <table class="table table-sm mb-0">
+              <thead class="table-light sticky-top"><tr><th>Source</th><th class="text-end">Legs</th><th class="text-end">Revenue</th></tr></thead>
+              <tbody>
+                {% for b in report.by_source %}
+                  <tr><td>{{ b.label }}</td><td class="text-end">{{ b.leg_count }}</td><td class="text-end">${{ b.revenue|floatformat:2|intcomma }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="3" class="text-center text-muted">—</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-header"><i class="bi bi-credit-card me-1"></i>Revenue by payment status</div>
+          <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+            <table class="table table-sm mb-0">
+              <thead class="table-light sticky-top"><tr><th>Payment status</th><th class="text-end">Legs</th><th class="text-end">Revenue</th></tr></thead>
+              <tbody>
+                {% for b in report.by_payment_status %}
+                  <tr><td>{{ b.label }}</td><td class="text-end">{{ b.leg_count }}</td><td class="text-end">${{ b.revenue|floatformat:2|intcomma }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="3" class="text-center text-muted">—</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header"><i class="bi bi-signpost-2 me-1"></i>Revenue by route category</div>
+          <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+            <table class="table table-sm mb-0">
+              <thead class="table-light sticky-top"><tr><th>Pickup → Dropoff</th><th class="text-end">Legs</th><th class="text-end">Revenue</th></tr></thead>
+              <tbody>
+                {% for b in report.by_route_category %}
+                  <tr><td>{{ b.label }}</td><td class="text-end">{{ b.leg_count }}</td><td class="text-end">${{ b.revenue|floatformat:2|intcomma }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="3" class="text-center text-muted">—</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top 10 -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header"><i class="bi bi-trophy me-1"></i>Top 10 highest-fare legs</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr>
+            <th>Pickup</th><th>Customer</th><th>Pickup → Dropoff</th><th>Vehicle</th><th class="text-end">Fare</th>
+          </tr></thead>
+          <tbody>
+            {% for r in report.top_legs %}
+              <tr>
+                <td>{{ r.pickup_date|date:"Y-m-d" }} {{ r.pickup_time|time:"H:i" }}</td>
+                <td>{{ r.customer_name }}</td>
+                <td><small>{{ r.pickup_location }} → {{ r.dropoff_location }}</small></td>
+                <td>{{ r.vehicle }}</td>
+                <td class="text-end">${{ r.gross_fare_in_range|floatformat:2|intcomma }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-center text-muted">—</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Anomalies -->
+    <div class="card shadow-sm mb-4" id="anomalies">
+      <div class="card-header"><i class="bi bi-exclamation-triangle me-1"></i>Anomalies / accounting flags</div>
+      <div class="card-body">
+        {% if report.anomalies.split_range %}
+          <h6 class="mt-2">Split-range reservations ({{ report.anomalies.split_range|length }})</h6>
+          <p class="text-muted small mb-2">Reservation has legs both inside and outside the date range. Only the in-range completed leg's <code>revenue_share</code> is counted; verify per-leg pricing is correct.</p>
+          <ul class="small mb-3">
+            {% for r in report.anomalies.split_range %}
+              <li>Res <code>{{ r.reservation_id }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · ${{ r.gross_fare_in_range|floatformat:2|intcomma }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if report.anomalies.estimated_share %}
+          <h6 class="mt-2">Estimated revenue share ({{ report.anomalies.estimated_share|length }})</h6>
+          <p class="text-muted small mb-2"><code>Leg.revenue_share</code> was NULL; equal-split fallback used. Run <code>python manage.py recalculate_leg_revenue_shares</code> to populate.</p>
+          <ul class="small mb-3">
+            {% for r in report.anomalies.estimated_share %}
+              <li>Res <code>{{ r.reservation_id }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · ${{ r.gross_fare_in_range|floatformat:2|intcomma }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if report.anomalies.zero_or_negative %}
+          <h6 class="mt-2">Zero / negative fare ({{ report.anomalies.zero_or_negative|length }})</h6>
+          <ul class="small mb-3">
+            {% for r in report.anomalies.zero_or_negative %}
+              <li>Res <code>{{ r.reservation_id }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · ${{ r.gross_fare_in_range|floatformat:2|intcomma }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if report.anomalies.cancelled_with_completed %}
+          <h6 class="mt-2">Reservation cancelled but leg completed ({{ report.anomalies.cancelled_with_completed|length }})</h6>
+          <p class="text-muted small mb-2">Data inconsistency — review.</p>
+          <ul class="small mb-3">
+            {% for r in report.anomalies.cancelled_with_completed %}
+              <li>Res <code>{{ r.reservation_id }}</code> · leg #{{ r.leg_id }} · ${{ r.gross_fare_in_range|floatformat:2|intcomma }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if report.anomalies.refunded %}
+          <h6 class="mt-2">Refunded reservations ({{ report.anomalies.refunded|length }})</h6>
+          <p class="text-muted small mb-2">Refund period not bounded by accrual range. Review whether the refund belongs in this period.</p>
+          <ul class="small mb-0">
+            {% for r in report.anomalies.refunded %}
+              <li>Res <code>{{ r.reservation_id }}</code> · leg #{{ r.leg_id }} · {{ r.pickup_date|date:"Y-m-d" }} · refunded ${{ r.reservation_total_refunded|floatformat:2|intcomma }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if not report.anomalies.split_range and not report.anomalies.estimated_share and not report.anomalies.zero_or_negative and not report.anomalies.cancelled_with_completed and not report.anomalies.refunded %}
+          <p class="text-muted small mb-0">No anomalies in this range. ✓</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Audit table -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-1"></i>Audit detail ({{ report.legs|length }} leg{{ report.legs|length|pluralize }})</span>
+        <a href="{% url 'accrual_revenue_csv' %}?{{ request.GET.urlencode }}" class="btn btn-sm btn-outline-dark">
+          <i class="bi bi-download me-1"></i>CSV
+        </a>
+      </div>
+      <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Res #</th>
+              <th>Customer</th>
+              <th>Pickup</th>
+              <th>Pickup → Dropoff</th>
+              <th>Vehicle</th>
+              <th>Source</th>
+              <th>Pay</th>
+              <th class="text-end">Gross</th>
+              <th class="text-end">Tip</th>
+              <th class="text-end">Add'l</th>
+              <th class="text-end">Refund (res)</th>
+              <th class="text-end">Driver pay</th>
+              <th>Driver</th>
+              <th>Flags</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in report.legs %}
+              <tr {% if r.flags %}class="table-warning"{% endif %}>
+                <td><a href="{% url 'reservation_details' id=r.reservation_id %}">{{ r.reservation_id|slice:":8" }}</a></td>
+                <td>{{ r.customer_name }}</td>
+                <td><small>{{ r.pickup_date|date:"Y-m-d" }}<br>{{ r.pickup_time|time:"H:i" }}</small></td>
+                <td><small>{{ r.pickup_location|truncatechars:40 }}<br>→ {{ r.dropoff_location|truncatechars:40 }}</small></td>
+                <td><small>{{ r.vehicle }}</small></td>
+                <td><small>{{ r.booking_source }}</small></td>
+                <td><small>{{ r.reservation_payment_status }}</small></td>
+                <td class="text-end fw-semibold">${{ r.gross_fare_in_range|floatformat:2|intcomma }}</td>
+                <td class="text-end"><small>${{ r.tip_allocated|floatformat:2 }}</small></td>
+                <td class="text-end"><small>${{ r.additional_charges_allocated|floatformat:2 }}</small></td>
+                <td class="text-end"><small>${{ r.reservation_total_refunded|floatformat:2 }}</small></td>
+                <td class="text-end"><small>${{ r.driver_pay|floatformat:2 }}</small></td>
+                <td><small>{{ r.driver_name }}</small></td>
+                <td>
+                  {% for f in r.flags %}
+                    <span class="badge bg-warning text-dark" title="{{ f }}">{{ f }}</span>
+                  {% endfor %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="14" class="text-center text-muted py-4">No completed legs in this date range.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Methodology footer -->
+    <div class="card border-0 bg-light mb-4">
+      <div class="card-body small text-muted">
+        <strong>Methodology.</strong>
+        Includes legs where <code>status = "completed"</code>, <code>pickup_date</code> is within the
+        selected range (America/New_York), <code>exclude_from_analytics = false</code>, and the parent
+        reservation is not cancelled. Revenue per leg comes from <code>Leg.revenue_share</code>
+        (already includes gratuity and additional charges as part of <code>Reservation.total_price</code>);
+        when NULL, an equal split of the reservation total is used and the leg is flagged.
+        <strong>Stripe processing fees are not included</strong> (no source-of-truth field).
+        Refunds are shown for any in-range reservation regardless of refund date; gross is never reduced.
+        Driver pay and estimated margin are informational and never subtracted from gross.
+      </div>
+    </div>
+  </div>
+{% endblock content %}

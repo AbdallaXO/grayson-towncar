@@ -12883,3 +12883,282 @@ def admin_travel_agency_detail(request, pk):
     }
     return render(request, "dispatching/travel_agency_detail.html", context)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Accrual Revenue Report (admin-only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_accrual_request(request):
+    """
+    Parse start/end/quick/vehicle/source/payment_status from request.GET.
+    Returns dict suitable for both the page render context and the service call.
+    """
+    from .services import accrual_revenue as ar_service
+
+    today = timezone.localdate()
+    quick = request.GET.get("quick", "")
+    start_str = request.GET.get("start", "")
+    end_str = request.GET.get("end", "")
+
+    quick_range = ar_service.resolve_quick_filter(quick, today=today)
+    if quick_range:
+        start_date, end_date = quick_range
+    else:
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").date() if start_str else today.replace(day=1)
+        except ValueError:
+            start_date = today.replace(day=1)
+        try:
+            end_date = datetime.strptime(end_str, "%Y-%m-%d").date() if end_str else today
+        except ValueError:
+            end_date = today
+        quick = "custom"
+
+    vehicle_id = request.GET.get("vehicle_id") or ""
+    try:
+        vehicle_id_int = int(vehicle_id) if vehicle_id else None
+    except ValueError:
+        vehicle_id_int = None
+
+    booking_source = request.GET.get("booking_source") or None
+    payment_status = request.GET.get("payment_status") or None
+
+    return {
+        "start_date": start_date,
+        "end_date": end_date,
+        "quick": quick,
+        "vehicle_id": vehicle_id_int,
+        "booking_source": booking_source,
+        "payment_status": payment_status,
+    }
+
+
+@login_required(login_url="login")
+def accrual_revenue_report(request):
+    """
+    Accrual Revenue Report — superuser-only.
+
+    Shows revenue earned (rides fulfilled with status='completed') within a
+    date range, anchored on Leg.pickup_date. Independent of payment date.
+    """
+    if not can_view_revenue(request.user):
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect("dashboard")
+
+    from .services import accrual_revenue as ar_service
+
+    params = _parse_accrual_request(request)
+    report = ar_service.build_report(
+        params["start_date"],
+        params["end_date"],
+        vehicle_id=params["vehicle_id"],
+        booking_source=params["booking_source"],
+        payment_status=params["payment_status"],
+    )
+
+    # Filter dropdown options (cheap)
+    vehicles = list(Vehicle.objects.order_by("vehicle_type"))
+    booking_sources = [
+        ("google_ads", "Google Ads"),
+        ("google_organic", "Google Organic"),
+        ("meta_ads", "Meta Ads"),
+        ("meta_organic", "Meta Organic"),
+        ("travel_agent", "Travel Agent"),
+        ("referral", "Referral"),
+        ("direct", "Direct"),
+        ("phone", "Phone"),
+        ("other", "Other"),
+    ]
+    payment_statuses = [
+        ("paid", "Paid"),
+        ("unpaid", "Unpaid"),
+        ("card_saved", "Card Saved"),
+        ("pending", "Pending"),
+        ("failed", "Failed"),
+    ]
+
+    context = {
+        "report": report,
+        "params": params,
+        "vehicles": vehicles,
+        "booking_sources": booking_sources,
+        "payment_statuses": payment_statuses,
+        "flag_labels": ar_service.FLAG_LABELS,
+    }
+    return render(request, "dispatching/accrual_revenue_report.html", context)
+
+
+@login_required(login_url="login")
+def accrual_revenue_csv(request):
+    """CSV detail export of the accrual revenue report (one row per included leg)."""
+    if not can_view_revenue(request.user):
+        return redirect("home")
+
+    from .services import accrual_revenue as ar_service
+
+    params = _parse_accrual_request(request)
+    report = ar_service.build_report(
+        params["start_date"],
+        params["end_date"],
+        vehicle_id=params["vehicle_id"],
+        booking_source=params["booking_source"],
+        payment_status=params["payment_status"],
+    )
+
+    fieldnames = [
+        "reservation_id",
+        "leg_id",
+        "customer_name",
+        "pickup_date",
+        "pickup_time",
+        "status_changed_at",
+        "trip_type",
+        "pickup_location",
+        "dropoff_location",
+        "leg_status",
+        "vehicle",
+        "booking_source",
+        "reservation_payment_status",
+        "leg_payment_status",
+        "gross_fare_in_range",
+        "tip_allocated",
+        "additional_charges_allocated",
+        "base_price_allocated",
+        "reservation_total_price",
+        "reservation_total_refunded",
+        "driver_pay",
+        "driver_name",
+        "route_category",
+        "flags",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for r in report.legs:
+        writer.writerow({
+            "reservation_id": r.reservation_id,
+            "leg_id": r.leg_id,
+            "customer_name": r.customer_name,
+            "pickup_date": r.pickup_date.isoformat(),
+            "pickup_time": r.pickup_time.isoformat() if r.pickup_time else "",
+            "status_changed_at": r.status_changed_at.isoformat() if r.status_changed_at else "",
+            "trip_type": r.trip_type,
+            "pickup_location": r.pickup_location,
+            "dropoff_location": r.dropoff_location,
+            "leg_status": r.leg_status,
+            "vehicle": r.vehicle,
+            "booking_source": r.booking_source,
+            "reservation_payment_status": r.reservation_payment_status,
+            "leg_payment_status": r.leg_payment_status,
+            "gross_fare_in_range": str(r.gross_fare_in_range),
+            "tip_allocated": str(r.tip_allocated),
+            "additional_charges_allocated": str(r.additional_charges_allocated),
+            "base_price_allocated": str(r.base_price_allocated),
+            "reservation_total_price": str(r.reservation_total_price),
+            "reservation_total_refunded": str(r.reservation_total_refunded),
+            "driver_pay": str(r.driver_pay),
+            "driver_name": r.driver_name,
+            "route_category": r.route_category,
+            "flags": ";".join(r.flags),
+        })
+
+    csv_bytes = output.getvalue().encode("utf-8")
+    response = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
+    fname = f"accrual_revenue_{params['start_date'].isoformat()}_to_{params['end_date'].isoformat()}.csv"
+    response["Content-Disposition"] = f'attachment; filename="{fname}"'
+    return response
+
+
+@login_required(login_url="login")
+def accrual_revenue_txt(request):
+    """TXT summary export — accountant-friendly."""
+    if not can_view_revenue(request.user):
+        return redirect("home")
+
+    from .services import accrual_revenue as ar_service
+
+    params = _parse_accrual_request(request)
+    report = ar_service.build_report(
+        params["start_date"],
+        params["end_date"],
+        vehicle_id=params["vehicle_id"],
+        booking_source=params["booking_source"],
+        payment_status=params["payment_status"],
+    )
+
+    lines = []
+    lines.append("ACCRUAL REVENUE REPORT")
+    lines.append("Supreme Transportations / Grayson Towncar")
+    lines.append("")
+    lines.append(f"Date range: {report.start_date} -> {report.end_date}  ({report.timezone_name})")
+    lines.append(f"Generated:  {timezone.now().strftime('%Y-%m-%d %H:%M %Z')}  by {request.user.email or request.user.username}")
+    lines.append(f"Filters:    vehicle_id={params['vehicle_id']!r}, booking_source={params['booking_source']!r}, payment_status={params['payment_status']!r}")
+    lines.append("")
+    lines.append("--- TOTALS ---")
+    lines.append(f"Completed legs included:        {report.total_legs}")
+    lines.append(f"Unique reservations included:   {report.total_reservations}")
+    lines.append(f"GROSS ACCRUAL REVENUE:          ${report.gross_accrual_revenue:,.2f}")
+    lines.append("")
+    lines.append(f"Avg fare per leg:               ${report.avg_fare_per_leg:,.2f}")
+    lines.append(f"Avg fare per reservation:       ${report.avg_fare_per_reservation:,.2f}")
+    lines.append("")
+    lines.append("--- BREAKDOWN (informational, NOT subtracted from gross) ---")
+    lines.append(f"Tips/gratuity (allocated):      ${report.tips_allocated:,.2f}")
+    lines.append(f"Additional charges (alloc):     ${report.additional_charges_allocated:,.2f}")
+    lines.append(f"Base price (allocated):         ${report.base_price_allocated:,.2f}")
+    lines.append(f"Refunds (in-range res, any date): ${report.refunds_for_inrange_reservations:,.2f}")
+    lines.append(f"Net after refunds:              ${report.net_after_refunds:,.2f}")
+    lines.append(f"Driver pay (informational):     ${report.driver_pay_total:,.2f}")
+    lines.append(f"Estimated margin (gross-driver pay): ${report.estimated_margin:,.2f}")
+    lines.append("")
+    lines.append("--- BY DAY ---")
+    for d in report.by_day:
+        lines.append(f"  {d.day}   {d.leg_count:>4} legs   ${d.revenue:,.2f}")
+    lines.append("")
+    lines.append("--- BY VEHICLE ---")
+    for b in report.by_vehicle:
+        lines.append(f"  {b.label:<30} {b.leg_count:>4} legs   ${b.revenue:,.2f}")
+    lines.append("")
+    lines.append("--- BY SOURCE ---")
+    for b in report.by_source:
+        lines.append(f"  {b.label:<30} {b.leg_count:>4} legs   ${b.revenue:,.2f}")
+    lines.append("")
+    lines.append("--- BY ROUTE CATEGORY ---")
+    for b in report.by_route_category:
+        lines.append(f"  {b.label:<60} {b.leg_count:>4} legs   ${b.revenue:,.2f}")
+    lines.append("")
+    lines.append("--- BY PAYMENT STATUS ---")
+    for b in report.by_payment_status:
+        lines.append(f"  {b.label:<20} {b.leg_count:>4} legs   ${b.revenue:,.2f}")
+    lines.append("")
+    lines.append("--- INCLUDED ---")
+    lines.append("Legs with status='completed' AND pickup_date in range AND")
+    lines.append("exclude_from_analytics=False AND reservation.status != 'cancelled'.")
+    lines.append("")
+    lines.append("--- EXCLUDED ---")
+    lines.append("Cancelled legs/reservations, in-progress / confirmed / on-the-way /")
+    lines.append("on-location / picked-up legs (not yet fulfilled), no-shows (modeled")
+    lines.append("as cancelled), legs flagged exclude_from_analytics, legs whose")
+    lines.append("pickup_date is outside the selected range.")
+    lines.append("")
+    lines.append("--- ANOMALIES (review) ---")
+    lines.append(f"Split-range reservations:        {len(report.anomalies.split_range)}")
+    lines.append(f"Zero/negative-fare legs:         {len(report.anomalies.zero_or_negative)}")
+    lines.append(f"Estimated-share legs:            {len(report.anomalies.estimated_share)}")
+    lines.append(f"Cancelled-with-completed-leg:    {len(report.anomalies.cancelled_with_completed)}")
+    lines.append(f"Refunded reservations:           {len(report.anomalies.refunded)}")
+    lines.append("")
+    lines.append("--- NOTES ---")
+    lines.append("- Stripe processing fees are NOT included (no source-of-truth field).")
+    lines.append("- Refund period is NOT bounded by the date range — refunds tied to")
+    lines.append("  in-range completed reservations are shown regardless of refund date.")
+    lines.append("- Gross figures already include gratuity and additional charges")
+    lines.append("  (Reservation.total_price = base + additional + gratuity).")
+    lines.append("- Driver pay is informational; NOT subtracted from gross accrual revenue.")
+
+    body = "\n".join(lines) + "\n"
+    response = HttpResponse(body.encode("utf-8"), content_type="text/plain; charset=utf-8")
+    fname = f"accrual_revenue_{params['start_date'].isoformat()}_to_{params['end_date'].isoformat()}.txt"
+    response["Content-Disposition"] = f'attachment; filename="{fname}"'
+    return response
+
