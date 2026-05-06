@@ -201,4 +201,170 @@ Visual language matches affiliate_payments.html.
   display: inline-flex; align-items: center; gap: .3rem; margin-bottom: .5rem;
 }
 .tap-back-link:hover { color: var(--gt-dark); }
+
+/* ─────────────────────────────────────────────────────────
+   Inline-edit table (Travel Agents directory)
+   ───────────────────────────────────────────────────────── */
+.tap-table-edit thead th { padding: .65rem .7rem; }
+.tap-table-edit tbody td { padding: .55rem .7rem; vertical-align: middle; }
+.tap-cell-check { width: 36px; padding-right: 0 !important; }
+.tap-col-agency  { min-width: 200px; max-width: 240px; }
+.tap-col-pays    { width: 86px; }
+.tap-col-pmethod { min-width: 220px; }
+.tap-col-rate    { width: 90px; white-space: nowrap; }
+
+.tap-check {
+  width: 16px; height: 16px; cursor: pointer; accent-color: var(--gt-gold);
+}
+
+.tap-inline-select {
+  width: 100%; padding: .35rem .5rem;
+  font-size: .82rem; color: var(--gt-text);
+  background: #fff; border: 1px solid var(--gt-border); border-radius: 6px;
+  transition: border-color .15s, box-shadow .15s, background .25s;
+}
+.tap-inline-select:hover { border-color: #c9cdd4; }
+.tap-inline-select:focus {
+  outline: none; border-color: var(--gt-gold);
+  box-shadow: 0 0 0 2px var(--gt-gold-soft);
+}
+.tap-inline-select.saving { background: #fff8e1; }
+.tap-inline-select.saved  {
+  background: rgba(39,174,96,.12); border-color: var(--gt-green);
+}
+
+.tap-inline-rate {
+  width: 64px; padding: .3rem .4rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .85rem; text-align: right;
+  border: 1px solid var(--gt-border); border-radius: 6px;
+  background: #fff; color: var(--gt-text);
+  transition: border-color .15s, box-shadow .15s, background .25s;
+  -moz-appearance: textfield;
+}
+.tap-inline-rate::-webkit-outer-spin-button,
+.tap-inline-rate::-webkit-inner-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
+.tap-inline-rate:hover { border-color: #c9cdd4; }
+.tap-inline-rate:focus {
+  outline: none; border-color: var(--gt-gold);
+  box-shadow: 0 0 0 2px var(--gt-gold-soft);
+}
+.tap-inline-rate.saving { background: #fff8e1; }
+.tap-inline-rate.saved {
+  background: rgba(39,174,96,.12); border-color: var(--gt-green);
+}
+.tap-rate-unit { color: var(--gt-muted); font-size: .8rem; margin-left: 2px; }
+
+/* iOS-style toggle for "Agency pays" */
+.tap-toggle { display: inline-flex; cursor: pointer; user-select: none; }
+.tap-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.tap-toggle-track {
+  width: 36px; height: 20px;
+  background: #cfd3da; border-radius: 999px;
+  position: relative; transition: background .15s;
+  display: inline-block;
+}
+.tap-toggle-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  background: #fff; border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  transition: transform .18s ease;
+}
+.tap-toggle input:checked + .tap-toggle-track {
+  background: var(--gt-green);
+}
+.tap-toggle input:checked + .tap-toggle-track .tap-toggle-thumb {
+  transform: translateX(16px);
+}
+.tap-toggle input:disabled + .tap-toggle-track {
+  background: #e8eaee; opacity: .55; cursor: not-allowed;
+}
+.tap-toggle input:focus-visible + .tap-toggle-track {
+  box-shadow: 0 0 0 2px var(--gt-gold-soft);
+}
+
+/* Bulk action bar */
+.tap-bulk-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  background: var(--gt-dark); color: #fff;
+  border-radius: var(--gt-radius);
+  padding: 10px 16px; margin-bottom: 14px;
+  position: sticky; top: 8px; z-index: 5;
+  box-shadow: 0 4px 18px rgba(26,29,33,.18);
+}
+.tap-bulk-bar[hidden] { display: none; }
+.tap-bulk-left { font-size: .85rem; }
+.tap-bulk-left strong { color: var(--gt-gold); font-size: 1rem; margin-right: 4px; }
+.tap-bulk-clear {
+  color: rgba(255,255,255,.7); text-decoration: underline;
+  font-size: .78rem; margin-left: 10px;
+}
+.tap-bulk-clear:hover { color: #fff; }
+.tap-bulk-actions { display: flex; align-items: center; gap: 8px; }
+.tap-bulk-input {
+  width: 240px; font-size: .82rem;
+  background: #fff; color: var(--gt-text);
+  border: 1px solid transparent; border-radius: 6px;
+}
+
+/* Toast */
+.tap-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--gt-dark); color: #fff;
+  padding: 10px 16px; border-radius: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .85rem; font-weight: 500;
+  box-shadow: 0 8px 28px rgba(26,29,33,.28);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .2s, transform .2s;
+  z-index: 9999;
+}
+.tap-toast.show { opacity: 1; transform: translateY(0); }
+.tap-toast i { color: var(--gt-green); font-size: 1rem; }
+.tap-toast.error { background: #6b1a1a; }
+.tap-toast.error i { color: #ffb3a7; }
+
+/* Payment-info pill (mirrored from affiliate_payments.html) */
+.payment-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: .7rem; font-weight: 700; letter-spacing: .2px; line-height: 1.4;
+  flex-shrink: 0;
+}
+.payment-badge.venmo   { background: #e8f4fd; color: #006cc1; }
+.payment-badge.zelle   { background: #f0e6ff; color: #5a25a3; }
+.payment-badge.paypal  { background: #e8efff; color: #003087; }
+.payment-badge.cashapp { background: #e1faea; color: #008f33; }
+.payment-badge.bank    { background: #eff1f4; color: #2c3e50; }
+.payment-badge.check   { background: #eef0f4; color: #555f6e; }
+.payment-badge.other   { background: #eef0f4; color: #6b7280; }
+.payment-badge.agency  { background: var(--gt-gold-soft); color: #8a6d10; }
+
+.am-pay-row {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 6px;
+  background: var(--gt-surface);
+  border: 1px solid var(--gt-border);
+  border-radius: 999px;
+  max-width: 100%;
+  user-select: none;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.am-pay-row--copyable { cursor: pointer; }
+.am-pay-row--copyable:hover { background: #eef0f4; border-color: #c8ccd2; }
+.am-pay-row.copied { background: #d4edda; border-color: #b1dfbb; }
+.am-pay-row .payment-handle {
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  font-size: .8rem; font-weight: 500;
+  color: var(--gt-text); letter-spacing: -.1px;
+  word-break: break-all;
+}
+.am-pay-row .payment-handle--missing { font-style: italic; color: var(--gt-muted); font-weight: 400; }
+.am-pay-row .payment-copy-icon { font-size: .85rem; color: var(--gt-muted); flex-shrink: 0; }
+.am-pay-row--copyable:hover .payment-copy-icon { color: var(--gt-text); }
+.am-pay-row.copied .payment-copy-icon { color: #1e7e34; }
 </style>

@@ -10,7 +10,7 @@ from django.db.models import Sum, Q, Count, Prefetch
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from django import forms
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db import transaction
 import stripe
 import stripe.error
@@ -12513,6 +12513,9 @@ def admin_travel_agents(request):
     status = request.GET.get("status", "active")  # active | inactive | all
     agency_filter = request.GET.get("agency", "")  # "<id>" | "none" | ""
     sort = request.GET.get("sort", "name")  # name | unpaid | recent | rate
+    agency_pays = request.GET.get("agency_pays", "")  # yes | no | ""
+    payment_method_filter = request.GET.get("pmethod", "")  # paypal | venmo | ... | none | ""
+    has_unpaid = request.GET.get("has_unpaid", "")  # yes | ""
 
     agents_qs = TravelAgent.objects.select_related("user", "agency")
 
@@ -12526,6 +12529,24 @@ def admin_travel_agents(request):
     elif agency_filter.isdigit():
         agents_qs = agents_qs.filter(agency_id=int(agency_filter))
 
+    if agency_pays == "yes":
+        agents_qs = agents_qs.filter(agency_handles_payment=True)
+    elif agency_pays == "no":
+        agents_qs = agents_qs.filter(agency_handles_payment=False)
+
+    if payment_method_filter == "none":
+        agents_qs = agents_qs.filter(Q(payment_method__isnull=True) | Q(payment_method=""))
+    elif payment_method_filter:
+        agents_qs = agents_qs.filter(payment_method=payment_method_filter)
+
+    if has_unpaid == "yes":
+        # Agents with at least one completed reservation whose commission is unpaid.
+        from reservations.models import Reservation as _R
+        unpaid_ids = _R.objects.filter(
+            commission_paid=False, status="completed"
+        ).values_list("travel_agent_id", flat=True).distinct()
+        agents_qs = agents_qs.filter(id__in=list(unpaid_ids))
+
     if search:
         agents_qs = agents_qs.filter(
             Q(agent_name__icontains=search)
@@ -12533,6 +12554,8 @@ def admin_travel_agents(request):
             | Q(agency__name__icontains=search)
             | Q(user__email__icontains=search)
             | Q(user__username__icontains=search)
+            | Q(user__first_name__icontains=search)
+            | Q(user__last_name__icontains=search)
             | Q(phone__icontains=search)
         )
 
@@ -12602,10 +12625,14 @@ def admin_travel_agents(request):
         "status_filter": status,
         "agency_filter": agency_filter,
         "sort": sort,
+        "agency_pays_filter": agency_pays,
+        "payment_method_filter": payment_method_filter,
+        "has_unpaid_filter": has_unpaid,
         "total_agents": total_agents,
         "agents_with_agency": agents_with_agency,
         "agents_no_agency": agents_no_agency,
         "agencies_for_filter": agencies_for_filter,
+        "payment_method_choices": TravelAgent.PAYMENT_METHOD_CHOICES,
     }
     return render(request, "dispatching/travel_agents_list.html", context)
 
@@ -12767,14 +12794,22 @@ def admin_travel_agent_set_agency(request, pk):
     Assign an agent to an agency. Accepts:
       - existing_agency: <agency_id> | "" (none = unassign)
       - new_agency_name: optional — if filled, creates a new Agency and assigns it
+
+    Responds with JSON when the request asks for it
+    (X-Requested-With: XMLHttpRequest or Accept: application/json),
+    otherwise redirects to the agent detail page.
     """
     agent = get_object_or_404(TravelAgent, pk=pk)
+    wants_json = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
+    )
 
     new_name = (request.POST.get("new_agency_name") or "").strip()
     existing = (request.POST.get("existing_agency") or "").strip()
 
+    flash = ""
     if new_name:
-        # Reuse if a matching agency name already exists (case-insensitive)
         agency = Agency.objects.filter(name__iexact=new_name).first()
         created = False
         if not agency:
@@ -12782,29 +12817,119 @@ def admin_travel_agent_set_agency(request, pk):
             created = True
         agent.agency = agency
         agent.save(update_fields=["agency"])
-        if created:
-            messages.success(
-                request,
-                f"Created agency \"{agency.name}\" and assigned {agent} to it.",
-            )
-        else:
-            messages.success(
-                request,
-                f"Assigned {agent} to existing agency \"{agency.name}\".",
-            )
+        flash = (
+            f"Created agency \"{agency.name}\" and assigned {agent} to it."
+            if created else
+            f"Assigned {agent} to existing agency \"{agency.name}\"."
+        )
     elif existing == "":
         agent.agency = None
         agent.save(update_fields=["agency"])
-        messages.success(request, f"Removed {agent} from their agency.")
+        flash = f"Removed {agent} from their agency."
     elif existing.isdigit():
         agency = get_object_or_404(Agency, pk=int(existing))
         agent.agency = agency
         agent.save(update_fields=["agency"])
-        messages.success(request, f"Assigned {agent} to {agency.name}.")
+        flash = f"Assigned {agent} to {agency.name}."
     else:
+        if wants_json:
+            return JsonResponse({"success": False, "error": "No agency selection provided."}, status=400)
         messages.error(request, "No agency selection provided.")
+        return redirect("admin_travel_agent_detail", pk=agent.pk)
 
+    if wants_json:
+        return JsonResponse({
+            "success": True,
+            "message": flash,
+            "agency": (
+                {"id": agent.agency.id, "name": agent.agency.name}
+                if agent.agency else None
+            ),
+        })
+    messages.success(request, flash)
     return redirect("admin_travel_agent_detail", pk=agent.pk)
+
+
+@login_required
+@staff_member_required
+@require_POST
+def admin_travel_agent_toggle_agency_pays(request, pk):
+    """JSON: flip the agency_handles_payment flag on a single agent."""
+    agent = get_object_or_404(TravelAgent, pk=pk)
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    val = bool(data.get("agency_handles_payment"))
+    if val and not agent.agency_id:
+        return JsonResponse(
+            {"success": False, "error": "Assign an agency before enabling agency-pays."},
+            status=400,
+        )
+    agent.agency_handles_payment = val
+    agent.save(update_fields=["agency_handles_payment"])
+    return JsonResponse({"success": True, "agency_handles_payment": val})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def admin_travel_agent_set_rate(request, pk):
+    """JSON: update commission_rate (0-100) on a single agent."""
+    agent = get_object_or_404(TravelAgent, pk=pk)
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    raw = data.get("commission_rate")
+    try:
+        rate = Decimal(str(raw))
+    except (InvalidOperation, TypeError):
+        return JsonResponse({"success": False, "error": "Invalid number"}, status=400)
+    if rate < 0 or rate > 100:
+        return JsonResponse({"success": False, "error": "Rate must be between 0 and 100."}, status=400)
+    agent.commission_rate = rate
+    agent.save(update_fields=["commission_rate"])
+    return JsonResponse({"success": True, "commission_rate": str(rate.quantize(Decimal('0.01')))})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def admin_travel_agents_bulk_assign(request):
+    """JSON: assign many agents to one agency in a single call.
+
+    Body:
+      - agent_ids: [int]
+      - agency_id: <int> | null  (null = unassign)
+    """
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    agent_ids = data.get("agent_ids") or []
+    if not isinstance(agent_ids, list) or not agent_ids:
+        return JsonResponse({"success": False, "error": "agent_ids required"}, status=400)
+    try:
+        agent_ids = [int(x) for x in agent_ids]
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "agent_ids must be ints"}, status=400)
+
+    raw_agency = data.get("agency_id")
+    agency = None
+    if raw_agency not in (None, "", "null"):
+        try:
+            agency = Agency.objects.get(pk=int(raw_agency))
+        except (Agency.DoesNotExist, TypeError, ValueError):
+            return JsonResponse({"success": False, "error": "Agency not found"}, status=404)
+
+    updated = TravelAgent.objects.filter(id__in=agent_ids).update(agency=agency)
+    return JsonResponse({
+        "success": True,
+        "updated": updated,
+        "agency": ({"id": agency.id, "name": agency.name} if agency else None),
+    })
 
 
 @login_required

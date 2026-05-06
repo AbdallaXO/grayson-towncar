@@ -296,6 +296,21 @@ urlpatterns = [
         name="admin_travel_agent_set_agency",
     ),
     path(
+        "travel-agents/<int:pk>/toggle-agency-pays/",
+        views.admin_travel_agent_toggle_agency_pays,
+        name="admin_travel_agent_toggle_agency_pays",
+    ),
+    path(
+        "travel-agents/<int:pk>/set-rate/",
+        views.admin_travel_agent_set_rate,
+        name="admin_travel_agent_set_rate",
+    ),
+    path(
+        "travel-agents/bulk-assign/",
+        views.admin_travel_agents_bulk_assign,
+        name="admin_travel_agents_bulk_assign",
+    ),
+    path(
         "travel-agencies/",
         views.admin_travel_agencies,
         name="admin_travel_agencies",

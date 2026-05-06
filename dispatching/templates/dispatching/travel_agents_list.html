@@ -8,12 +8,13 @@
 {% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="container-fluid py-4 tap-wrap">
 
   <div class="tap-page-head">
     <div>
       <h1 class="tap-title">Travel Agents</h1>
-      <div class="tap-subtitle">Browse, search and review every travel agent in one place.</div>
+      <div class="tap-subtitle">Search, assign agencies, set payment routing — all inline.</div>
     </div>
     <div class="tap-tab-row">
       <a href="{% url 'admin_travel_agents' %}" class="tap-tab active">
@@ -51,18 +52,11 @@
   <!-- Filter bar -->
   <form method="get" class="tap-filter">
     <div class="row g-2 align-items-center">
-      <div class="col-md-4">
+      <div class="col-12 col-lg-4">
         <input type="search" name="q" value="{{ search }}" class="form-control"
-               placeholder="Search name, email, agency, phone…">
+               placeholder="Search first/last name, email, agency, phone…">
       </div>
-      <div class="col-md-2">
-        <select name="status" class="form-select">
-          <option value="active"   {% if status_filter == "active" %}selected{% endif %}>Active</option>
-          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
-          <option value="all"      {% if status_filter == "all" %}selected{% endif %}>All</option>
-        </select>
-      </div>
-      <div class="col-md-3">
+      <div class="col-6 col-md-3 col-lg-2">
         <select name="agency" class="form-select">
           <option value="">All agencies</option>
           <option value="none" {% if agency_filter == "none" %}selected{% endif %}>— No agency —</option>
@@ -71,7 +65,36 @@
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-6 col-md-3 col-lg-2">
+        <select name="pmethod" class="form-select">
+          <option value="">Any payment method</option>
+          <option value="none" {% if payment_method_filter == "none" %}selected{% endif %}>— None set —</option>
+          {% for val, label in payment_method_choices %}
+          <option value="{{ val }}" {% if payment_method_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3 col-lg-1">
+        <select name="status" class="form-select">
+          <option value="active"   {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          <option value="all"      {% if status_filter == "all" %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3 col-lg-1">
+        <select name="agency_pays" class="form-select" title="Filter by who receives the commission">
+          <option value="">Pays: Any</option>
+          <option value="yes" {% if agency_pays_filter == "yes" %}selected{% endif %}>Pays: Agency</option>
+          <option value="no"  {% if agency_pays_filter == "no" %}selected{% endif %}>Pays: Agent</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3 col-lg-1">
+        <select name="has_unpaid" class="form-select">
+          <option value="">Owed: Any</option>
+          <option value="yes" {% if has_unpaid_filter == "yes" %}selected{% endif %}>Has unpaid</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-3 col-lg-1">
         <select name="sort" class="form-select">
           <option value="name"   {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
           <option value="unpaid" {% if sort == "unpaid" %}selected{% endif %}>Sort: Unpaid</option>
@@ -79,20 +102,45 @@
           <option value="recent" {% if sort == "recent" %}selected{% endif %}>Sort: Recent</option>
         </select>
       </div>
-      <div class="col-md-1 text-end">
-        <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search"></i></button>
+      <div class="col-12 col-lg-12 d-flex justify-content-end">
+        <button type="submit" class="btn btn-dark px-4"><i class="bi bi-funnel"></i> Apply filters</button>
       </div>
     </div>
   </form>
 
+  <!-- Bulk action bar (visible when ≥1 row selected) -->
+  <div class="tap-bulk-bar" id="bulkBar" hidden>
+    <div class="tap-bulk-left">
+      <strong id="bulkCount">0</strong> selected
+      <a href="#" class="tap-bulk-clear" id="bulkClear">Clear</a>
+    </div>
+    <div class="tap-bulk-actions">
+      <select id="bulkAgencySelect" class="form-select form-select-sm tap-bulk-input">
+        <option value="">— Choose agency —</option>
+        <option value="__none__">— Unassign agency —</option>
+        {% for ag in agencies_for_filter %}
+        <option value="{{ ag.id }}">{{ ag.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" class="tap-action-btn gold" id="bulkAssignBtn">
+        <i class="bi bi-arrow-right-circle"></i> Assign to agency
+      </button>
+    </div>
+  </div>
+
   <!-- Table -->
   <div class="tap-table-wrap">
-    <table class="tap-table">
+    <table class="tap-table tap-table-edit">
       <thead>
         <tr>
+          <th class="tap-cell-check">
+            <input type="checkbox" id="selectAll" class="tap-check" aria-label="Select all on this page">
+          </th>
           <th>Agent</th>
-          <th>Agency</th>
-          <th class="text-end">Rate</th>
+          <th class="tap-col-agency">Agency</th>
+          <th class="tap-col-pays" title="If checked, the agency receives the commission instead of the agent">Agency pays</th>
+          <th class="tap-col-pmethod">Payment</th>
+          <th class="tap-col-rate text-end">Rate</th>
           <th class="text-end">Reservations</th>
           <th class="text-end">Unpaid Comm.</th>
           <th>Status</th>
@@ -101,7 +149,10 @@
       </thead>
       <tbody>
         {% for row in rows %}
-        <tr>
+        <tr data-agent-id="{{ row.agent.pk }}">
+          <td class="tap-cell-check">
+            <input type="checkbox" class="tap-check tap-row-check" value="{{ row.agent.pk }}" aria-label="Select agent {{ row.agent.agent_name }}">
+          </td>
           <td>
             <a href="{% url 'admin_travel_agent_detail' row.agent.pk %}" class="row-link">
               <div class="tap-name">{{ row.agent.agent_name|default:row.agent.user.email }}</div>
@@ -111,20 +162,49 @@
               </div>
             </a>
           </td>
-          <td>
-            {% if row.agent.agency %}
-              <a href="{% url 'admin_travel_agency_detail' row.agent.agency.pk %}" class="row-link">
-                <span class="tap-pill tap-pill-info"><i class="bi bi-building"></i> {{ row.agent.agency.name }}</span>
-              </a>
-            {% elif row.agent.agency_name %}
-              <span class="tap-pill tap-pill-muted" title="Free-text only — not linked to an Agency record">
-                {{ row.agent.agency_name }}
-              </span>
+          <td class="tap-col-agency">
+            <select class="tap-inline-select tap-agency-select" data-agent-id="{{ row.agent.pk }}">
+              <option value="">— No agency —</option>
+              {% for ag in agencies_for_filter %}
+              <option value="{{ ag.id }}" {% if row.agent.agency_id == ag.id %}selected{% endif %}>{{ ag.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="tap-col-pays text-center">
+            <label class="tap-toggle" title="{% if not row.agent.agency_id %}Assign an agency first{% else %}Toggle whether the agency receives this agent's commission{% endif %}">
+              <input type="checkbox"
+                     class="tap-pays-check"
+                     data-agent-id="{{ row.agent.pk }}"
+                     {% if row.agent.agency_handles_payment %}checked{% endif %}
+                     {% if not row.agent.agency_id %}disabled{% endif %}>
+              <span class="tap-toggle-track"><span class="tap-toggle-thumb"></span></span>
+            </label>
+          </td>
+          <td class="tap-col-pmethod">
+            {% if row.agent.payment_method %}
+              <div class="am-pay-row{% if row.agent.payment_info %} am-pay-row--copyable{% endif %}"
+                   {% if row.agent.payment_info %}data-copy="{{ row.agent.payment_info }}" title="Click to copy"{% endif %}>
+                <span class="payment-badge {{ row.agent.payment_method }}">{{ row.agent.get_payment_method_display }}</span>
+                {% if row.agent.payment_info %}
+                  <span class="payment-handle">{{ row.agent.payment_info }}</span>
+                  <i class="bi bi-clipboard payment-copy-icon"></i>
+                {% else %}
+                  <span class="payment-handle payment-handle--missing">No handle saved</span>
+                {% endif %}
+              </div>
             {% else %}
-              <span class="tap-pill tap-pill-muted">—</span>
+              <span class="tap-pill tap-pill-muted"><i class="bi bi-exclamation-circle"></i> Not set</span>
             {% endif %}
           </td>
-          <td class="text-end tap-money">{{ row.agent.commission_rate }}%</td>
+          <td class="tap-col-rate text-end">
+            <input type="number"
+                   class="tap-inline-rate"
+                   data-agent-id="{{ row.agent.pk }}"
+                   value="{{ row.agent.commission_rate }}"
+                   min="0" max="100" step="0.01"
+                   aria-label="Commission rate %">
+            <span class="tap-rate-unit">%</span>
+          </td>
           <td class="text-end">
             {{ row.res_count }}
             {% if row.unpaid_res_count %}
@@ -149,7 +229,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="7">
+          <td colspan="10">
             <div class="tap-empty">
               <i class="bi bi-person-badge"></i>
               No agents match your filters.
@@ -165,17 +245,274 @@
   <nav class="mt-3">
     <ul class="pagination justify-content-center">
       {% if page.has_previous %}
-      <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&q={{ search }}&status={{ status_filter }}&agency={{ agency_filter }}&sort={{ sort }}">Prev</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&q={{ search }}&status={{ status_filter }}&agency={{ agency_filter }}&pmethod={{ payment_method_filter }}&agency_pays={{ agency_pays_filter }}&has_unpaid={{ has_unpaid_filter }}&sort={{ sort }}">Prev</a></li>
       {% endif %}
       <li class="page-item disabled"><span class="page-link">Page {{ page.number }} of {{ paginator.num_pages }}</span></li>
       {% if page.has_next %}
-      <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&q={{ search }}&status={{ status_filter }}&agency={{ agency_filter }}&sort={{ sort }}">Next</a></li>
+      <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&q={{ search }}&status={{ status_filter }}&agency={{ agency_filter }}&pmethod={{ payment_method_filter }}&agency_pays={{ agency_pays_filter }}&has_unpaid={{ has_unpaid_filter }}&sort={{ sort }}">Next</a></li>
       {% endif %}
     </ul>
   </nav>
   {% endif %}
 
 </div>
+
+<!-- Toast -->
+<div class="tap-toast" id="tapToast" role="status" aria-live="polite" hidden>
+  <i class="bi bi-check-circle-fill"></i>
+  <span class="tap-toast-text">Saved</span>
+</div>
+
+<script>
+(function(){
+  const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || '';
+  const toast = document.getElementById('tapToast');
+  const toastText = toast.querySelector('.tap-toast-text');
+  let toastTimer = null;
+
+  function showToast(message, kind) {
+    toastText.textContent = message;
+    toast.classList.remove('error', 'show');
+    if (kind === 'error') toast.classList.add('error');
+    toast.hidden = false;
+    // Force reflow so the transition runs
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => { toast.hidden = true; }, 250);
+    }, 1800);
+  }
+
+  function jsonFetch(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify(body),
+    }).then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${r.status}`);
+      }
+      return data;
+    });
+  }
+
+  function formFetch(url, formData) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken,
+      },
+      body: formData,
+    }).then(async (r) => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${r.status}`);
+      }
+      return data;
+    });
+  }
+
+  // ── Inline agency dropdown ──
+  document.querySelectorAll('.tap-agency-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const id = sel.dataset.agentId;
+      const fd = new FormData();
+      fd.append('existing_agency', sel.value);
+      sel.classList.add('saving');
+      formFetch(`/dispatching/travel-agents/${id}/set-agency/`, fd)
+        .then((data) => {
+          sel.classList.remove('saving');
+          sel.classList.add('saved');
+          setTimeout(() => sel.classList.remove('saved'), 800);
+          // Enable/disable the matching agency-pays checkbox
+          const row = sel.closest('tr');
+          const paysBox = row?.querySelector('.tap-pays-check');
+          if (paysBox) {
+            const hasAgency = !!data.agency;
+            paysBox.disabled = !hasAgency;
+            if (!hasAgency) paysBox.checked = false;
+          }
+          showToast(data.message || 'Agency updated');
+        })
+        .catch((err) => {
+          sel.classList.remove('saving');
+          showToast(err.message || 'Update failed', 'error');
+        });
+    });
+  });
+
+  // ── Inline agency-pays toggle ──
+  document.querySelectorAll('.tap-pays-check').forEach(box => {
+    box.addEventListener('change', () => {
+      const id = box.dataset.agentId;
+      const desired = box.checked;
+      box.disabled = true;
+      jsonFetch(`/dispatching/travel-agents/${id}/toggle-agency-pays/`, {
+        agency_handles_payment: desired,
+      })
+        .then((data) => {
+          box.disabled = false;
+          box.checked = data.agency_handles_payment;
+          showToast(data.agency_handles_payment ? 'Routed to agency' : 'Routed to agent');
+        })
+        .catch((err) => {
+          box.disabled = false;
+          box.checked = !desired;  // revert
+          showToast(err.message || 'Toggle failed', 'error');
+        });
+    });
+  });
+
+  // ── Inline commission rate ──
+  document.querySelectorAll('.tap-inline-rate').forEach(input => {
+    let original = input.value;
+    input.addEventListener('focus', () => { original = input.value; });
+    input.addEventListener('blur', () => {
+      if (input.value === original) return;
+      const id = input.dataset.agentId;
+      input.classList.add('saving');
+      jsonFetch(`/dispatching/travel-agents/${id}/set-rate/`, {
+        commission_rate: input.value,
+      })
+        .then((data) => {
+          input.classList.remove('saving');
+          input.classList.add('saved');
+          setTimeout(() => input.classList.remove('saved'), 800);
+          input.value = data.commission_rate;
+          original = input.value;
+          showToast('Rate updated');
+        })
+        .catch((err) => {
+          input.classList.remove('saving');
+          input.value = original;
+          showToast(err.message || 'Rate save failed', 'error');
+        });
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { input.value = original; input.blur(); }
+    });
+  });
+
+  // ── Bulk select ──
+  const selectAll = document.getElementById('selectAll');
+  const bulkBar = document.getElementById('bulkBar');
+  const bulkCount = document.getElementById('bulkCount');
+  const bulkClear = document.getElementById('bulkClear');
+  const bulkAssignBtn = document.getElementById('bulkAssignBtn');
+  const bulkAgencySelect = document.getElementById('bulkAgencySelect');
+
+  function refreshBulkBar() {
+    const checked = document.querySelectorAll('.tap-row-check:checked');
+    bulkCount.textContent = checked.length;
+    bulkBar.hidden = checked.length === 0;
+    if (selectAll) {
+      const all = document.querySelectorAll('.tap-row-check');
+      selectAll.checked = checked.length > 0 && checked.length === all.length;
+      selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+
+  selectAll?.addEventListener('change', () => {
+    document.querySelectorAll('.tap-row-check').forEach(cb => { cb.checked = selectAll.checked; });
+    refreshBulkBar();
+  });
+  document.querySelectorAll('.tap-row-check').forEach(cb => {
+    cb.addEventListener('change', refreshBulkBar);
+  });
+  bulkClear?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelectorAll('.tap-row-check').forEach(cb => { cb.checked = false; });
+    if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
+    refreshBulkBar();
+  });
+
+  bulkAssignBtn?.addEventListener('click', () => {
+    const ids = Array.from(document.querySelectorAll('.tap-row-check:checked')).map(cb => parseInt(cb.value, 10));
+    if (!ids.length) { showToast('No agents selected', 'error'); return; }
+    const choice = bulkAgencySelect.value;
+    if (!choice) { showToast('Pick an agency first', 'error'); return; }
+    const agency_id = choice === '__none__' ? null : parseInt(choice, 10);
+
+    bulkAssignBtn.disabled = true;
+    const original = bulkAssignBtn.innerHTML;
+    bulkAssignBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working…';
+
+    jsonFetch('/dispatching/travel-agents/bulk-assign/', { agent_ids: ids, agency_id: agency_id })
+      .then((data) => {
+        // Reflect changes inline without a full reload
+        ids.forEach(id => {
+          const row = document.querySelector(`tr[data-agent-id="${id}"]`);
+          const sel = row?.querySelector('.tap-agency-select');
+          if (sel) sel.value = data.agency ? String(data.agency.id) : '';
+          const paysBox = row?.querySelector('.tap-pays-check');
+          if (paysBox) {
+            paysBox.disabled = !data.agency;
+            if (!data.agency) paysBox.checked = false;
+          }
+        });
+        bulkAssignBtn.disabled = false;
+        bulkAssignBtn.innerHTML = original;
+        bulkAgencySelect.value = '';
+        showToast(`Updated ${data.updated} agent${data.updated === 1 ? '' : 's'}`);
+        bulkClear.click();
+      })
+      .catch((err) => {
+        bulkAssignBtn.disabled = false;
+        bulkAssignBtn.innerHTML = original;
+        showToast(err.message || 'Bulk assign failed', 'error');
+      });
+  });
+
+  // ── Click-to-copy for payment handle (capture-phase, mirrors affiliate_payments) ──
+  document.addEventListener('click', function(e) {
+    const row = e.target.closest('.am-pay-row--copyable[data-copy]');
+    if (!row) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const text = row.dataset.copy;
+    if (!text) return;
+    const finish = () => {
+      const icon = row.querySelector('.payment-copy-icon');
+      const orig = icon ? icon.className : null;
+      row.classList.add('copied');
+      if (icon) icon.className = 'bi bi-check2-circle payment-copy-icon';
+      setTimeout(() => {
+        row.classList.remove('copied');
+        if (icon && orig) icon.className = orig;
+      }, 1200);
+      showToast('Copied to clipboard');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+    } else {
+      fallbackCopy(text, finish);
+    }
+  }, true);
+
+  function fallbackCopy(text, onDone) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { if (document.execCommand('copy') && onDone) onDone(); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+})();
+</script>
 {% endblock %}
 
 {% block footer %}{% endblock %}
