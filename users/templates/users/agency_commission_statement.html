@@ -57,11 +57,15 @@
         .summary-label {
             color: #666666;
             font-size: 14px;
+            display: inline-block;
+            min-width: 140px;
+            padding-right: 16px;
         }
 
         .summary-value {
             font-weight: bold;
             font-size: 14px;
+            display: inline-block;
         }
 
         .total-box {
@@ -402,12 +406,6 @@
       <p style="margin-top: 8px; font-size: 11px; color: #999999;">
         <span class="badge-nc">N/C</span> = Non-Commissionable &mdash; Gratuity and additional charges are not included in commission calculations.
       </p>
-
-      {% if payout.notes %}
-      <div style="margin-top: 20px; padding: 12px; background-color: #fff3cd; border-radius: 6px; font-size: 13px;">
-        <strong>Notes:</strong> {{ payout.notes }}
-      </div>
-      {% endif %}
 
       <div class="footer">
         <p>Thank you for your partnership with Grayson Towncar!</p>
