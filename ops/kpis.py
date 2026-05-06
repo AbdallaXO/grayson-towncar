@@ -72,19 +72,29 @@ def _safe_div(num, den):
 
 
 def _scoped(qs, start, end):
-    """Apply the standard created_at window to a Reservation queryset."""
+    """Apply the booking-creation window (created_at) — used for volume metrics."""
     return qs.filter(created_at__gte=start, created_at__lt=end)
+
+
+def _scoped_paid(qs, start, end):
+    """
+    Apply the payment-receipt window (first_paid_at) — used for cash-basis
+    revenue metrics so a booking made in March but paid in April lands in
+    April's totals. Caller is responsible for also applying PAID.
+    """
+    return qs.filter(first_paid_at__gte=start, first_paid_at__lt=end)
 
 
 def overview(start, end) -> dict:
     """
-    Headline cards: created vs paid volume, conversion, paid revenue, avg ticket,
-    plus gross/refunded so the dashboard can show net-vs-gross side by side.
+    Headline cards. Volume (Bookings Created) is anchored on created_at; every
+    paid metric is anchored on first_paid_at so the page reflects money that
+    actually landed during the window.
     """
-    qs = _scoped(Reservation.objects.all(), start, end)
-    paid_qs = qs.filter(PAID)
+    qs_created = _scoped(Reservation.objects.all(), start, end)
+    paid_qs = _scoped_paid(Reservation.objects.filter(PAID), start, end)
 
-    created = qs.count()
+    created = qs_created.count()
     paid = paid_qs.count()
     paid_revenue = paid_qs.aggregate(s=Sum("paid_amount"))["s"] or ZERO
     gross_paid = paid_qs.aggregate(s=Sum("gross_paid"))["s"] or ZERO
@@ -94,6 +104,9 @@ def overview(start, end) -> dict:
     return {
         "bookings_created": created,
         "bookings_paid": paid,
+        # paid/created — both anchored on their own date, so this rate is
+        # "for every booking created in the window we collected on N payments
+        # in the same window" (mixed-cohort, but matches the headline cards).
         "paid_conv_rate": round(_safe_div(paid, created) * 100, 1),
         "paid_revenue": paid_revenue,        # net of refunds (the headline)
         "gross_paid": gross_paid,            # before refunds
@@ -108,37 +121,58 @@ def overview(start, end) -> dict:
 
 def by_source(start, end):
     """
-    Per-channel breakdown: created, paid, conversion %, revenue, % of revenue.
-    Returns a list of dicts (NOT a queryset) so the template can compute
-    percent-of-total without re-iterating.
+    Per-channel breakdown — Created column is anchored on created_at, all
+    paid columns on first_paid_at. Two grouped queries merged in Python on
+    booking_source so each metric uses the right window anchor.
     """
-    rows = list(
+    label_map = dict(Reservation.BOOKING_SOURCE_CHOICES)
+
+    created_rows = (
         _scoped(Reservation.objects.all(), start, end)
         .values("booking_source")
+        .annotate(created=Count("id"))
+    )
+    by_src_created = {r["booking_source"]: r["created"] for r in created_rows}
+
+    paid_rows = (
+        _scoped_paid(Reservation.objects.filter(PAID), start, end)
+        .values("booking_source")
         .annotate(
-            created=Count("id"),
-            paid=Count("id", filter=PAID),
+            paid=Count("id"),
             paid_revenue=Coalesce(
-                Sum("paid_amount", filter=PAID),
+                Sum("paid_amount"),
                 ZERO,
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             ),
         )
-        .order_by("-paid_revenue")
     )
+    by_src_paid = {r["booking_source"]: r for r in paid_rows}
+
+    all_sources = set(by_src_created) | set(by_src_paid)
+    rows = []
+    for src in all_sources:
+        created = by_src_created.get(src, 0)
+        p = by_src_paid.get(src, {"paid": 0, "paid_revenue": ZERO})
+        rows.append({
+            "booking_source": src,
+            "label": label_map.get(src, src or "—"),
+            "created": created,
+            "paid": p["paid"],
+            "paid_revenue": p["paid_revenue"] or ZERO,
+        })
+
     total_revenue = sum((r["paid_revenue"] for r in rows), ZERO)
-    label_map = dict(Reservation.BOOKING_SOURCE_CHOICES)
     for r in rows:
-        r["label"] = label_map.get(r["booking_source"], r["booking_source"] or "—")
         r["conv_rate"] = round(_safe_div(r["paid"], r["created"]) * 100, 1)
         r["pct_of_revenue"] = round(_safe_div(r["paid_revenue"], total_revenue) * 100, 1)
+    rows.sort(key=lambda r: (r["paid_revenue"], r["created"]), reverse=True)
     return rows
 
 
 def by_travel_agent(start, end, limit: int = 25):
-    """Top travel agents by paid revenue in the window."""
+    """Top travel agents by paid revenue in the window (cash-basis: first_paid_at)."""
     return list(
-        _scoped(Reservation.objects.filter(PAID, travel_agent__isnull=False), start, end)
+        _scoped_paid(Reservation.objects.filter(PAID, travel_agent__isnull=False), start, end)
         .values(
             "travel_agent_id",
             "travel_agent__agent_name",
@@ -156,7 +190,7 @@ def by_travel_agent(start, end, limit: int = 25):
 
 def travel_agent_totals(start, end) -> dict:
     """Combined totals across all travel-agent bookings — used for the leaderboard footer."""
-    agg = _scoped(
+    agg = _scoped_paid(
         Reservation.objects.filter(PAID, travel_agent__isnull=False),
         start, end,
     ).aggregate(
@@ -172,9 +206,9 @@ def travel_agent_totals(start, end) -> dict:
 
 
 def by_route(start, end, limit: int = 15):
-    """Top revenue-generating routes."""
+    """Top revenue-generating routes (cash-basis: first_paid_at)."""
     return list(
-        _scoped(Reservation.objects.filter(PAID), start, end)
+        _scoped_paid(Reservation.objects.filter(PAID), start, end)
         .values(
             "rate__route__origin__name",
             "rate__route__destination__name",
@@ -188,9 +222,9 @@ def by_route(start, end, limit: int = 15):
 
 
 def by_vehicle(start, end):
-    """Paid revenue by vehicle type."""
+    """Paid revenue by vehicle type (cash-basis: first_paid_at)."""
     return list(
-        _scoped(Reservation.objects.filter(PAID), start, end)
+        _scoped_paid(Reservation.objects.filter(PAID), start, end)
         .values("vehicle__vehicle_type")
         .annotate(
             paid_bookings=Count("id"),
