@@ -1175,11 +1175,11 @@
                                 <span class="text-muted">at {{ last_update.timestamp|easy_time }}</span>
                               </div>
                               <div class="small text-muted">
-                                Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
+                                Updated by: {% firstof last_update.updated_by.get_full_name last_update.updated_by.username "System" %}
                               </div>
                               {% if leg.driver and leg.driver_assigned_at %}
                                 <div class="small text-muted">
-                                  Assigned by {{ leg.driver_assigned_by.get_full_name|default:leg.driver_assigned_by.username|default:"System" }}
+                                  Assigned by {% firstof leg.driver_assigned_by.get_full_name leg.driver_assigned_by.username "System" %}
                                   on {{ leg.driver_assigned_at|date:"n/j/Y g:i A" }}
                                 </div>
                               {% endif %}
@@ -1534,11 +1534,11 @@
                                   <span class="text-muted">at {{ last_update.timestamp|easy_time }}</span>
                                 </div>
                                 <div class="small text-muted">
-                                  Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
+                                  Updated by: {% firstof last_update.updated_by.get_full_name last_update.updated_by.username "System" %}
                                 </div>
                                 {% if leg.driver and leg.driver_assigned_at %}
                                   <div class="small text-muted">
-                                    Assigned by {{ leg.driver_assigned_by.get_full_name|default:leg.driver_assigned_by.username|default:"System" }}
+                                    Assigned by {% firstof leg.driver_assigned_by.get_full_name leg.driver_assigned_by.username "System" %}
                                     on {{ leg.driver_assigned_at|date:"n/j/Y g:i A" }}
                                   </div>
                                 {% endif %}
@@ -3291,7 +3291,7 @@
                   </div>
                   <div class="text-muted small">
                     <i class="bi bi-person me-1"></i>
-                    Updated by: {{ status_update.updated_by.get_full_name|default:status_update.updated_by.username|default:"System" }}
+                    Updated by: {% firstof status_update.updated_by.get_full_name status_update.updated_by.username "System" %}
                   </div>
                   {% if status_update.notes %}
                     <div class="mt-2 p-2 bg-light rounded border-start border-3 border-warning">
