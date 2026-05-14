@@ -1,29 +1,69 @@
 """
 Revenue & source-attribution KPI helpers.
 
-Single source of truth for the math behind the revenue dashboard. Every
-function here returns paid-only data (Reservation.is_paid=True) unless its
-docstring explicitly says otherwise. Volume metrics that must include
-unpaid bookings (e.g. conversion rate) are computed inside `overview()`.
+Single source of truth for the math behind the revenue dashboard. The
+"revenue" definition is intentionally **cash-basis with a fallback for
+non-tracked payments**:
 
-If "paid" ever needs to mean something different (e.g. only after the trip
-is completed), change it in one place: PAID below.
+  • A reservation counts as revenue when EITHER:
+        - it has at least one Payment row with status="paid"
+          (the Stripe path; is_paid=True / paid_amount populated), OR
+        - its status is "completed" (the ride happened — operator
+          collected cash, invoice, ACH, or some other means we don't
+          model row-by-row).
+
+  • Revenue amount per reservation:
+        - Stripe-tracked  → paid_amount (net of refunds)
+        - non-Stripe done → total_price (the contracted amount)
+
+  • Revenue anchor date (which 30-day window the revenue lands in):
+        - Stripe-tracked  → first_paid_at (when the money landed)
+        - non-Stripe done → created_at   (when the booking was taken;
+                                           most cash bookings are
+                                           prepaid/deposit-at-booking)
+
+Why not anchor non-Stripe on the trip pickup_date?
+  The operator wants cash basis ("payments we received in this window"),
+  not accrual ("revenue earned because the trip happened"). created_at is
+  the closest proxy we have for "when the cash landed" until we start
+  recording explicit payment dates for non-Stripe payments.
+
+If you ever want accrual semantics again, swap created_at for the latest
+leg's pickup_date inside _REVENUE_ANCHOR_EXPR below.
 """
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
-from django.db.models import Avg, Count, DecimalField, Q, Sum
+from django.db.models import (
+    Avg, Case, Count, DecimalField, F, Q, Sum, Value, When,
+)
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
 from reservations.models import Reservation
 
 
-# Filter constant — using is_paid=True keeps the query at the DB layer
-# instead of falling through to the @cached_property payment_status.
-PAID = Q(is_paid=True)
-
 ZERO = Decimal("0.00")
+
+# A reservation contributes to revenue when it was Stripe-paid OR delivered.
+_REVENUE_FILTER = Q(is_paid=True) | Q(status="completed")
+
+# Net revenue per row: Stripe = paid_amount (net of refunds); non-Stripe = total_price.
+_REVENUE_AMOUNT_EXPR = Case(
+    When(is_paid=True, then=F("paid_amount")),
+    default=F("total_price"),
+    output_field=DecimalField(max_digits=12, decimal_places=2),
+)
+
+# Gross revenue per row: Stripe = gross_paid (before refunds); non-Stripe = total_price.
+_REVENUE_GROSS_EXPR = Case(
+    When(is_paid=True, then=F("gross_paid")),
+    default=F("total_price"),
+    output_field=DecimalField(max_digits=12, decimal_places=2),
+)
+
+# Cash-basis anchor: when did we receive the money?
+_REVENUE_ANCHOR_EXPR = Coalesce("first_paid_at", "created_at")
 
 
 def resolve_range(start=None, end=None, days: int = 30):
@@ -45,14 +85,12 @@ def resolve_range(start=None, end=None, days: int = 30):
         if isinstance(value, datetime):
             dt = value
         else:
-            # plain date — pin to start or end of day
             dt = datetime.combine(value, time.max if end_of_day else time.min)
         if timezone.is_naive(dt):
             dt = timezone.make_aware(dt, tz)
         return dt
 
     if start or end:
-        # Custom range. Default missing side to a sensible bound.
         start_dt = _to_aware(start) if start else _to_aware(date(2000, 1, 1))
         if end:
             end_date = end.date() if isinstance(end, datetime) else end
@@ -72,58 +110,76 @@ def _safe_div(num, den):
 
 
 def _scoped(qs, start, end):
-    """Apply the booking-creation window (created_at) — used for volume metrics."""
+    """Booking-creation window — used for volume metrics."""
     return qs.filter(created_at__gte=start, created_at__lt=end)
 
 
-def _scoped_paid(qs, start, end):
+def revenue_qs(start, end):
     """
-    Apply the payment-receipt window (first_paid_at) — used for cash-basis
-    revenue metrics so a booking made in March but paid in April lands in
-    April's totals. Caller is responsible for also applying PAID.
+    The cash-basis revenue queryset for [start, end). Every other helper
+    in this module builds on top of this — guarantees a consistent
+    definition of 'paid revenue' across the dashboard.
+
+    Each row carries:
+      - revenue_amount: net revenue (Decimal)
+      - revenue_gross:  pre-refund gross (Decimal)
+      - revenue_at:     date money was received (DateTime)
     """
-    return qs.filter(first_paid_at__gte=start, first_paid_at__lt=end)
+    return (
+        Reservation.objects.filter(_REVENUE_FILTER)
+        .annotate(
+            revenue_at=_REVENUE_ANCHOR_EXPR,
+            revenue_amount=_REVENUE_AMOUNT_EXPR,
+            revenue_gross=_REVENUE_GROSS_EXPR,
+        )
+        .filter(revenue_at__gte=start, revenue_at__lt=end)
+    )
 
 
 def overview(start, end) -> dict:
     """
-    Headline cards. Volume (Bookings Created) is anchored on created_at; every
-    paid metric is anchored on first_paid_at so the page reflects money that
-    actually landed during the window.
+    Headline cards. Volume (Bookings Created) is anchored on created_at;
+    every revenue metric is cash-basis on revenue_at (first_paid_at or
+    created_at fallback for non-Stripe completed trips).
     """
     qs_created = _scoped(Reservation.objects.all(), start, end)
-    paid_qs = _scoped_paid(Reservation.objects.filter(PAID), start, end)
+    paid_qs = revenue_qs(start, end)
 
     created = qs_created.count()
     paid = paid_qs.count()
-    paid_revenue = paid_qs.aggregate(s=Sum("paid_amount"))["s"] or ZERO
-    gross_paid = paid_qs.aggregate(s=Sum("gross_paid"))["s"] or ZERO
-    refunded = paid_qs.aggregate(s=Sum("total_refunded"))["s"] or ZERO
-    avg_ticket = paid_qs.aggregate(a=Avg("paid_amount"))["a"] or ZERO
+
+    agg = paid_qs.aggregate(
+        net=Sum("revenue_amount"),
+        gross=Sum("revenue_gross"),
+        # total_refunded is a Stripe-only field; for non-Stripe rows it's 0/null.
+        refunded=Sum("total_refunded"),
+        avg_ticket=Avg("revenue_amount"),
+    )
+    paid_revenue = agg["net"] or ZERO
+    gross_paid = agg["gross"] or ZERO
+    refunded = agg["refunded"] or ZERO
+    avg_ticket = agg["avg_ticket"] or ZERO
 
     return {
         "bookings_created": created,
         "bookings_paid": paid,
-        # paid/created — both anchored on their own date, so this rate is
-        # "for every booking created in the window we collected on N payments
-        # in the same window" (mixed-cohort, but matches the headline cards).
+        # mixed-cohort rate matching the headline cards
         "paid_conv_rate": round(_safe_div(paid, created) * 100, 1),
-        "paid_revenue": paid_revenue,        # net of refunds (the headline)
-        "gross_paid": gross_paid,            # before refunds
+        "paid_revenue": paid_revenue,
+        "gross_paid": gross_paid,
         "refunded": refunded,
         "avg_ticket": avg_ticket,
         "repeat_revenue": (
             paid_qs.filter(is_repeat_booking=True)
-            .aggregate(s=Sum("paid_amount"))["s"] or ZERO
+            .aggregate(s=Sum("revenue_amount"))["s"] or ZERO
         ),
     }
 
 
 def by_source(start, end):
     """
-    Per-channel breakdown — Created column is anchored on created_at, all
-    paid columns on first_paid_at. Two grouped queries merged in Python on
-    booking_source so each metric uses the right window anchor.
+    Per-channel breakdown. Created column is anchored on created_at; all
+    paid columns use the cash-basis revenue_at anchor.
     """
     label_map = dict(Reservation.BOOKING_SOURCE_CHOICES)
 
@@ -135,12 +191,12 @@ def by_source(start, end):
     by_src_created = {r["booking_source"]: r["created"] for r in created_rows}
 
     paid_rows = (
-        _scoped_paid(Reservation.objects.filter(PAID), start, end)
+        revenue_qs(start, end)
         .values("booking_source")
         .annotate(
             paid=Count("id"),
             paid_revenue=Coalesce(
-                Sum("paid_amount"),
+                Sum("revenue_amount"),
                 ZERO,
                 output_field=DecimalField(max_digits=12, decimal_places=2),
             ),
@@ -170,9 +226,10 @@ def by_source(start, end):
 
 
 def by_travel_agent(start, end, limit: int = 25):
-    """Top travel agents by paid revenue in the window (cash-basis: first_paid_at)."""
+    """Top travel agents by paid revenue in the window (cash-basis)."""
     return list(
-        _scoped_paid(Reservation.objects.filter(PAID, travel_agent__isnull=False), start, end)
+        revenue_qs(start, end)
+        .filter(travel_agent__isnull=False)
         .values(
             "travel_agent_id",
             "travel_agent__agent_name",
@@ -180,9 +237,9 @@ def by_travel_agent(start, end, limit: int = 25):
         )
         .annotate(
             paid_bookings=Count("id"),
-            paid_revenue=Sum("paid_amount"),
+            paid_revenue=Sum("revenue_amount"),
             commission=Sum("commission_amount"),
-            avg_ticket=Avg("paid_amount"),
+            avg_ticket=Avg("revenue_amount"),
         )
         .order_by("-paid_revenue")[:limit]
     )
@@ -190,13 +247,14 @@ def by_travel_agent(start, end, limit: int = 25):
 
 def travel_agent_totals(start, end) -> dict:
     """Combined totals across all travel-agent bookings — used for the leaderboard footer."""
-    agg = _scoped_paid(
-        Reservation.objects.filter(PAID, travel_agent__isnull=False),
-        start, end,
-    ).aggregate(
-        paid_bookings=Count("id"),
-        paid_revenue=Sum("paid_amount"),
-        commission=Sum("commission_amount"),
+    agg = (
+        revenue_qs(start, end)
+        .filter(travel_agent__isnull=False)
+        .aggregate(
+            paid_bookings=Count("id"),
+            paid_revenue=Sum("revenue_amount"),
+            commission=Sum("commission_amount"),
+        )
     )
     return {
         "paid_bookings": agg["paid_bookings"] or 0,
@@ -206,30 +264,30 @@ def travel_agent_totals(start, end) -> dict:
 
 
 def by_route(start, end, limit: int = 15):
-    """Top revenue-generating routes (cash-basis: first_paid_at)."""
+    """Top revenue-generating routes (cash-basis)."""
     return list(
-        _scoped_paid(Reservation.objects.filter(PAID), start, end)
+        revenue_qs(start, end)
         .values(
             "rate__route__origin__name",
             "rate__route__destination__name",
         )
         .annotate(
             paid_bookings=Count("id"),
-            paid_revenue=Sum("paid_amount"),
+            paid_revenue=Sum("revenue_amount"),
         )
         .order_by("-paid_revenue")[:limit]
     )
 
 
 def by_vehicle(start, end):
-    """Paid revenue by vehicle type (cash-basis: first_paid_at)."""
+    """Paid revenue by vehicle type (cash-basis)."""
     return list(
-        _scoped_paid(Reservation.objects.filter(PAID), start, end)
+        revenue_qs(start, end)
         .values("vehicle__vehicle_type")
         .annotate(
             paid_bookings=Count("id"),
-            paid_revenue=Sum("paid_amount"),
-            avg_ticket=Avg("paid_amount"),
+            paid_revenue=Sum("revenue_amount"),
+            avg_ticket=Avg("revenue_amount"),
         )
         .order_by("-paid_revenue")
     )
@@ -237,20 +295,14 @@ def by_vehicle(start, end):
 
 def revenue_trend(start, end):
     """
-    Daily paid-revenue series, keyed on first_paid_at (when the money
-    actually landed) — not on created_at, since a booking can be created on
-    one day and paid on another.
+    Daily paid-revenue series. Keyed on revenue_at (cash-basis anchor).
     """
     return list(
-        Reservation.objects.filter(
-            PAID,
-            first_paid_at__gte=start,
-            first_paid_at__lt=end,
-        )
-        .annotate(day=TruncDate("first_paid_at"))
+        revenue_qs(start, end)
+        .annotate(day=TruncDate("revenue_at"))
         .values("day")
         .annotate(
-            paid_revenue=Sum("paid_amount"),
+            paid_revenue=Sum("revenue_amount"),
             bookings=Count("id"),
         )
         .order_by("day")
