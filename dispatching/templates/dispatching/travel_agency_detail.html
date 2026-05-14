@@ -89,7 +89,10 @@
 </style>
 {% endblock %}
 
+{% block navbar %}{% endblock %}
+
 {% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
 <div class="container-fluid py-4 tap-wrap">
 
   <div class="d-flex justify-content-between align-items-center" style="margin-bottom: .5rem;">
