@@ -149,89 +149,35 @@ class Driver(models.Model):
         schedule_parts = [part.strip() for part in self.schedule.split(',')]
         return '\n'.join(schedule_parts)
 
-    def _check_date_override(self, target_date):
-        """Check for a date-specific override (PTO, day off, etc.). Returns the override or None."""
-        for override in self.date_overrides.all():
-            if override.date == target_date:
-                return override
-        return None
+    def get_effective_availability(self, target_date):
+        """
+        Single source of truth: combine recurring (weekly/default) availability with
+        any active DriverDateOverride for `target_date`. Returns a rich dict — see
+        drivers.availability.resolve_effective_availability.
+        """
+        from drivers.availability import resolve_effective_availability
+        return resolve_effective_availability(self, target_date)
 
     def get_availability_for_date(self, target_date):
         """
-        Return (is_available, start_hour, end_hour, preference, flexible) for a given date.
-        Priority: date override > weekly schedule > driver defaults.
-
-        flexible=True means the driver has no hard time limits — the planner
-        uses start/end as hints for cluster assignment but doesn't filter jobs
-        outside the window.
+        Legacy 5-tuple shim: (is_available, start_hour, end_hour, preference, flexible).
+        Kept for the auto-assigner and other older callers.
         """
-        # Date-specific override wins (PTO, day off request, etc.)
-        override = self._check_date_override(target_date)
-        if override is not None:
-            if not override.is_available:
-                return (False, 0, 0, "", False)
-            # Override says available — fall through to weekly/defaults for hours
-
-        day_of_week = target_date.weekday()
-        for entry in self.weekly_schedule.all():
-            if entry.day_of_week == day_of_week:
-                return (
-                    entry.is_available if override is None else True,
-                    entry.start_hour,
-                    entry.end_hour,
-                    entry.preference,
-                    entry.flexible,
-                )
-        return (True, self.default_start_hour, self.default_end_hour, self.default_preference, self.default_flexible)
+        eff = self.get_effective_availability(target_date)
+        return (
+            eff["is_available"],
+            eff["start_hour"],
+            eff["end_hour"],
+            eff["preference"],
+            eff["flexible"],
+        )
 
     def get_full_availability(self, target_date):
         """
-        Return a dict with all availability fields for a given date, including
-        shift_type, max_hours, and scheduling_notes. Use this when you need the
-        new fields; use get_availability_for_date() for the legacy 5-tuple.
+        Dict with shift_type, max_hours, scheduling_notes, plus the new
+        effective-availability fields (status, display_label, exception, ...).
         """
-        # Date-specific override wins
-        override = self._check_date_override(target_date)
-        if override is not None and not override.is_available:
-            reason_label = dict(DriverDateOverride.REASON_CHOICES).get(override.reason, override.reason)
-            return {
-                "is_available": False,
-                "start_hour": 0,
-                "end_hour": 0,
-                "preference": "",
-                "flexible": False,
-                "shift_type": "off",
-                "preferred_shift": "",
-                "max_hours": None,
-                "scheduling_notes": f"{reason_label}: {override.notes}".strip(": ") if override.notes else reason_label,
-                "date_override": override,
-            }
-
-        day_of_week = target_date.weekday()
-        for entry in self.weekly_schedule.all():
-            if entry.day_of_week == day_of_week:
-                return {
-                    "is_available": entry.is_available if override is None else True,
-                    "start_hour": entry.start_hour,
-                    "end_hour": entry.end_hour,
-                    "preference": entry.preference,
-                    "flexible": entry.flexible,
-                    "shift_type": entry.shift_type,
-                    "preferred_shift": entry.preferred_shift,
-                    "max_hours": entry.max_hours,
-                    "scheduling_notes": entry.scheduling_notes,
-                }
-        return {
-            "is_available": True,
-            "start_hour": self.default_start_hour,
-            "end_hour": self.default_end_hour,
-            "preference": self.default_preference,
-            "flexible": self.default_flexible,
-            "shift_type": self.default_shift_type,
-            "preferred_shift": self.default_preferred_shift,
-            "max_hours": self.default_max_hours,
-            "scheduling_notes": "",
-        }
+        return self.get_effective_availability(target_date)
 
     def __str__(self):
         if self.profile.first_name:
@@ -318,35 +264,90 @@ class DriverWeeklySchedule(models.Model):
 
 
 class DriverDateOverride(models.Model):
-    """Date-specific availability override. Takes priority over weekly schedule.
-    Use for PTO, requested days off, vacations, or special availability on a specific date."""
+    """One-time availability exception. Takes priority over weekly schedule.
+
+    Supports:
+      - Single-day OFF (legacy default).
+      - Multi-day off requests (date + end_date).
+      - Partial-day windows (available_until / available_after / available_window /
+        unavailable_window) using start_time / end_time.
+      - Flexible override (driver works even though normally off).
+      - Note-only entries (no schedule change, just dispatcher info).
+    """
     REASON_CHOICES = [
         ("day_off", "Day Off"),
         ("pto", "PTO"),
         ("vacation", "Vacation"),
         ("sick", "Sick"),
+        ("appointment", "Appointment"),
         ("other", "Other"),
+    ]
+    EXCEPTION_TYPE_CHOICES = [
+        ("off",                 "Off (full day)"),
+        ("available_until",     "Available until time"),
+        ("available_after",     "Available after time"),
+        ("available_window",    "Available only during window"),
+        ("unavailable_window",  "Unavailable during window"),
+        ("flexible",            "Flexible (override off-day)"),
+        ("note_only",           "Note only"),
     ]
 
     driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="date_overrides")
-    date = models.DateField()
+    date = models.DateField(help_text="First day this exception applies.")
+    end_date = models.DateField(
+        null=True, blank=True,
+        help_text="Last day this exception applies. Leave blank for a single-day exception."
+    )
+    exception_type = models.CharField(
+        max_length=24, choices=EXCEPTION_TYPE_CHOICES, default="off",
+        help_text="What kind of exception this is."
+    )
+    start_time = models.TimeField(
+        null=True, blank=True,
+        help_text="For partial-day exceptions: the start of the affected window."
+    )
+    end_time = models.TimeField(
+        null=True, blank=True,
+        help_text="For partial-day exceptions: the end of the affected window."
+    )
     is_available = models.BooleanField(
         default=False,
-        help_text="False = driver is off on this date. True = special availability override."
+        help_text="Derived: False for full-day Off; True for partial-day or flexible exceptions."
     )
     reason = models.CharField(max_length=20, choices=REASON_CHOICES, default="day_off")
     notes = models.CharField(max_length=200, blank=True, default="")
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="created_driver_overrides",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("driver", "date")
         ordering = ["date", "driver"]
 
+    def save(self, *args, **kwargs):
+        # Keep is_available in sync with exception_type so older code paths
+        # (admin filters, auto-assigner cascade) keep working.
+        self.is_available = self.exception_type != "off"
+        super().save(*args, **kwargs)
+
+    def applies_on(self, target_date):
+        if self.end_date is None:
+            return self.date == target_date
+        return self.date <= target_date <= self.end_date
+
+    @property
+    def date_range_display(self):
+        if self.end_date is None or self.end_date == self.date:
+            return self.date.strftime("%b %d, %Y")
+        if self.date.year == self.end_date.year:
+            return f"{self.date.strftime('%b %d')} – {self.end_date.strftime('%b %d, %Y')}"
+        return f"{self.date.strftime('%b %d, %Y')} – {self.end_date.strftime('%b %d, %Y')}"
+
     def __str__(self):
-        reason_label = dict(self.REASON_CHOICES).get(self.reason, self.reason)
-        if self.is_available:
-            return f"{self.driver} — {self.date}: Available (override)"
-        return f"{self.driver} — {self.date}: OFF ({reason_label})"
+        type_label = dict(self.EXCEPTION_TYPE_CHOICES).get(self.exception_type, self.exception_type)
+        return f"{self.driver} — {self.date_range_display}: {type_label}"
 
 
 class FleetVehicle(models.Model):

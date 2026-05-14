@@ -224,33 +224,21 @@ def index(request):
     assignment_map = {
         assignment.driver_id: assignment for assignment in inhouse_assignments
     }
-    _selected_dow = selected_date.weekday()  # 0=Mon … 6=Sun
     inhouse_driver_rows = []
     for _driver in inhouse_drivers:
-        _is_off = False
-        for _entry in _driver.weekly_schedule.all():
-            if _entry.day_of_week == _selected_dow:
-                _is_off = not _entry.is_available
-                break
         _assignment = assignment_map.get(_driver.id)
+        # Driver availability for this date — combines weekly + date overrides
+        _ld_eff = _driver.get_effective_availability(selected_date)
+        _is_off = not _ld_eff["is_available"]
         # If driver has a vehicle assigned today, treat them as working regardless of schedule
         if _is_off and _assignment and _assignment.vehicle_id:
             _is_off = False
-        # Driver availability for this date
-        _ld_avail = _driver.get_availability_for_date(selected_date)
-        _ld_is_avail, _ld_sh, _ld_eh, _ld_pref, _ld_flex = _ld_avail
-        _ld_full = _driver.get_full_availability(selected_date)
+        _ld_is_avail = _ld_eff["is_available"]
+        _ld_sh = _ld_eff["start_hour"]
+        _ld_eh = _ld_eff["end_hour"]
+        _ld_pref = _ld_eff["preference"]
+        _ld_flex = _ld_eff["flexible"]
 
-        def _ld_fmt_hour(h):
-            if h == 0: return '12a'
-            if h < 12: return f'{h}a'
-            if h == 12: return '12p'
-            return f'{h - 12}p'
-
-        _LD_SHIFT_SHORT = {
-            "morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night",
-            "split": "Split", "full_day": "All Day", "custom": "",
-        }
         _LD_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
             "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
@@ -262,18 +250,11 @@ def index(request):
         if _assignment and _assignment.vehicle:
             _ld_vnotes = _assignment.vehicle.notes or ''
 
-        _ld_stype = _ld_full.get("shift_type", "full_day")
-        _ld_mhrs = _ld_full.get("max_hours")
-        if _ld_is_avail:
-            if _ld_stype == "full_day":
-                _ld_shift_disp = "All Day"
-            else:
-                _ld_prefix = _LD_SHIFT_SHORT.get(_ld_stype, "")
-                _ld_shift_disp = f"{_ld_prefix} {_ld_fmt_hour(_ld_sh)}-{_ld_fmt_hour(_ld_eh)}".strip()
-            if _ld_mhrs:
-                _ld_shift_disp += f" ({int(_ld_mhrs)}h)"
-        else:
-            _ld_shift_disp = ''
+        _ld_stype = _ld_eff.get("shift_type", "full_day")
+        _ld_mhrs = _ld_eff.get("max_hours")
+        _ld_shift_disp = _ld_eff["display_label"] if _ld_is_avail else ''
+        if _ld_is_avail and _ld_mhrs and _ld_eff["status"] != "limited":
+            _ld_shift_disp += f" ({int(_ld_mhrs)}h)"
 
         inhouse_driver_rows.append({
             "driver": _driver,
@@ -290,8 +271,12 @@ def index(request):
             "driver_notes": _driver.notes or '',
             "driver_phone": _driver.phone_number or '',
             "vehicle_notes": _ld_vnotes,
-            "preferred_shift": _ld_full.get("preferred_shift", ""),
-            "scheduling_notes": _ld_full.get("scheduling_notes", ""),
+            "preferred_shift": _ld_eff.get("preferred_shift", ""),
+            "scheduling_notes": _ld_eff.get("scheduling_notes", ""),
+            "avail_status": _ld_eff["status"],
+            "avail_tooltip": _ld_eff["tooltip"],
+            "exception_notes": _ld_eff["exception_notes"],
+            "has_exception": _ld_eff["has_exception"],
         })
     def _inhouse_vehicle_sort_key(row):
         # Off-today drivers sink to bottom; within each group: assigned first, then by vehicle#/name
@@ -970,21 +955,23 @@ def schedule_board(request):
             if assignment.vehicle.vehicle_type:
                 vehicle_type_label = str(assignment.vehicle.vehicle_type)
 
-        # Driver availability for selected date
-        _avail = driver.get_availability_for_date(selected_date)
-        _is_avail, _sh, _eh, _pref, _flex = _avail
-        _full_avail = driver.get_full_availability(selected_date)
-        _stype = _full_avail.get("shift_type", "full_day")
-        _mhrs = _full_avail.get("max_hours")
-        _pshift = _full_avail.get("preferred_shift", "")
-        _snotes = _full_avail.get("scheduling_notes", "")
-        if _stype == "full_day":
-            _shift_display = "All Day"
-        else:
-            _SHIFT_SHORT_MAP = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
-            _shift_display = f"{_SHIFT_SHORT_MAP.get(_stype, '')} {_fmt_hour(_sh)}-{_fmt_hour(_eh)}".strip()
-        if _mhrs:
+        # Driver availability for selected date (effective: weekly + any active exception)
+        _eff = driver.get_effective_availability(selected_date)
+        _is_avail, _sh, _eh, _pref, _flex = (
+            _eff["is_available"], _eff["start_hour"], _eff["end_hour"],
+            _eff["preference"], _eff["flexible"],
+        )
+        _stype = _eff.get("shift_type", "full_day")
+        _mhrs = _eff.get("max_hours")
+        _pshift = _eff.get("preferred_shift", "")
+        _snotes = _eff.get("scheduling_notes", "")
+        _shift_display = _eff["display_label"] if _is_avail else "Off"
+        if _is_avail and _mhrs and _eff["status"] != "limited":
             _shift_display += f" ({int(_mhrs)}h)"
+        _avail_status = _eff["status"]
+        _avail_tooltip = _eff["tooltip"]
+        _exception_notes = _eff["exception_notes"]
+        _has_exception = _eff["has_exception"]
         _pref_short = _PREF_SHORT.get(_pref, '')
 
         for slot in sched.slots:
@@ -1019,6 +1006,10 @@ def schedule_board(request):
             'vehicle_notes': vehicle_notes,
             'preferred_shift': _pshift,
             'scheduling_notes': _snotes,
+            'avail_status': _avail_status,
+            'avail_tooltip': _avail_tooltip,
+            'exception_notes': _exception_notes,
+            'has_exception': _has_exception,
         })
 
     # Build "available but no jobs" list for drivers not in the timeline
@@ -1026,21 +1017,17 @@ def schedule_board(request):
     for driver in inhouse_drivers:
         if driver.id in _drivers_in_timeline:
             continue
-        _avail = driver.get_availability_for_date(selected_date)
-        _is_avail, _sh, _eh, _pref, _flex = _avail
-        _nj_full = driver.get_full_availability(selected_date)
-        _nj_stype = _nj_full.get("shift_type", "full_day")
-        _nj_mhrs = _nj_full.get("max_hours")
-        _SHIFT_SHORT_MAP2 = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
-        if _is_avail:
-            if _nj_stype == "full_day":
-                _nj_shift_disp = "All Day"
-            else:
-                _nj_shift_disp = f"{_SHIFT_SHORT_MAP2.get(_nj_stype, '')} {_fmt_hour(_sh)}-{_fmt_hour(_eh)}".strip()
-            if _nj_mhrs:
-                _nj_shift_disp += f" ({int(_nj_mhrs)}h)"
-        else:
-            _nj_shift_disp = ''
+        _nj_eff = driver.get_effective_availability(selected_date)
+        _is_avail = _nj_eff["is_available"]
+        _sh, _eh, _pref, _flex = (
+            _nj_eff["start_hour"], _nj_eff["end_hour"],
+            _nj_eff["preference"], _nj_eff["flexible"],
+        )
+        _nj_stype = _nj_eff.get("shift_type", "full_day")
+        _nj_mhrs = _nj_eff.get("max_hours")
+        _nj_shift_disp = _nj_eff["display_label"] if _is_avail else ''
+        if _is_avail and _nj_mhrs and _nj_eff["status"] != "limited":
+            _nj_shift_disp += f" ({int(_nj_mhrs)}h)"
         assignment = assignments.get(driver.id)
         _vnum = ''
         _vtype = ''
@@ -1064,8 +1051,12 @@ def schedule_board(request):
             'pref_short': _PREF_SHORT.get(_pref, ''),
             'driver_notes': driver.notes or '',
             'driver_phone': driver.phone_number or '',
-            'preferred_shift': _nj_full.get("preferred_shift", ""),
-            'scheduling_notes': _nj_full.get("scheduling_notes", ""),
+            'preferred_shift': _nj_eff.get("preferred_shift", ""),
+            'scheduling_notes': _nj_eff.get("scheduling_notes", ""),
+            'avail_status': _nj_eff["status"],
+            'avail_tooltip': _nj_eff["tooltip"],
+            'exception_notes': _nj_eff["exception_notes"],
+            'has_exception': _nj_eff["has_exception"],
         })
 
     # Build unassigned timeline slots
@@ -2165,6 +2156,29 @@ def check_driver_feasibility(request):
         driver = Driver.objects.get(id=driver_id)
         target_date = leg.pickup_date
 
+        # Check driver availability for this date (Off / partial-day / window)
+        from drivers.availability import is_pickup_within_window
+        eff = driver.get_effective_availability(target_date)
+        availability_warnings = []
+        availability_blocks = False
+        if not eff["is_available"]:
+            availability_blocks = True
+            reason_pretty = (eff.get("exception_reason") or "").replace("_", " ").title()
+            msg = f"Driver is OFF on {target_date.strftime('%b %d')}"
+            if reason_pretty:
+                msg += f" ({reason_pretty})"
+            if eff.get("exception_notes"):
+                msg += f" — {eff['exception_notes']}"
+            availability_warnings.append(msg)
+        else:
+            ok, reason = is_pickup_within_window(eff, leg.pickup_time, dropoff_dt=None)
+            if not ok:
+                availability_warnings.append(reason)
+                if eff.get("exception_notes"):
+                    availability_warnings.append(f"Note: {eff['exception_notes']}")
+            elif eff.get("exception_notes"):
+                availability_warnings.append(f"Driver note: {eff['exception_notes']}")
+
         # Check vehicle type match
         vehicle_match = True
         vehicle_mismatch_detail = ""
@@ -2205,20 +2219,23 @@ def check_driver_feasibility(request):
         driver_schedule = schedules.get(driver.id)
 
         if not driver_schedule:
-            # No existing schedule — always feasible
+            # No existing schedule — always feasible (modulo availability)
             end_time = estimate_job_end_time(leg, target_date)
-            warnings = []
+            warnings = list(availability_warnings)
             if not vehicle_match and vehicle_mismatch_detail:
                 warnings.append(vehicle_mismatch_detail)
+            feasible = not availability_blocks
+            reason = "Driver is off this date" if availability_blocks else "No other trips — fully available"
             return JsonResponse({
-                "feasible": True,
+                "feasible": feasible,
                 "buffer_minutes": 999,
                 "warnings": warnings,
-                "reason": "No other trips — fully available",
+                "reason": reason,
                 "estimated_end": end_time.strftime("%I:%M %p").lstrip("0") if end_time else None,
                 "existing_trips": 0,
                 "vehicle_match": vehicle_match,
                 "vehicle_mismatch_detail": vehicle_mismatch_detail,
+                "avail_status": eff["status"],
             })
 
         from dispatching.models import SchedulerSettings
@@ -2227,18 +2244,23 @@ def check_driver_feasibility(request):
         end_time = estimate_job_end_time(leg, target_date)
 
         warnings = list(result.warnings) if result.warnings else []
+        warnings = availability_warnings + warnings
         if not vehicle_match and vehicle_mismatch_detail:
             warnings.append(vehicle_mismatch_detail)
 
+        feasible = result.feasible and not availability_blocks
+        reason = "Driver is off this date" if availability_blocks else result.reason
+
         return JsonResponse({
-            "feasible": result.feasible,
+            "feasible": feasible,
             "buffer_minutes": result.buffer_minutes,
             "warnings": warnings,
-            "reason": result.reason,
+            "reason": reason,
             "estimated_end": end_time.strftime("%I:%M %p").lstrip("0") if end_time else None,
             "existing_trips": len(driver_schedule.slots),
             "vehicle_match": vehicle_match,
             "vehicle_mismatch_detail": vehicle_mismatch_detail,
+            "avail_status": eff["status"],
         })
 
     except Leg.DoesNotExist:
@@ -7797,18 +7819,14 @@ def capacity_planner(request):
         _assignment = assignment_map.get(d.id)
         if _is_off and _assignment and _assignment.vehicle_id:
             _is_off = False
-        # Driver availability for this date
-        _va_avail = d.get_availability_for_date(selected_date)
-        _va_is_avail, _va_sh, _va_eh, _va_pref, _va_flex = _va_avail
-        _va_full = d.get_full_availability(selected_date)
+        # Driver availability for this date — combines weekly + active exception
+        _va_eff = d.get_effective_availability(selected_date)
+        _va_is_avail = _va_eff["is_available"]
+        _va_sh, _va_eh, _va_pref, _va_flex = (
+            _va_eff["start_hour"], _va_eff["end_hour"],
+            _va_eff["preference"], _va_eff["flexible"],
+        )
 
-        def _va_fmt_hour(h):
-            if h == 0: return '12a'
-            if h < 12: return f'{h}a'
-            if h == 12: return '12p'
-            return f'{h - 12}p'
-
-        _VA_SHIFT_SHORT = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
         _VA_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
             "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
@@ -7821,17 +7839,11 @@ def capacity_planner(request):
         if _assignment and _assignment.vehicle:
             _va_vnotes = _assignment.vehicle.notes or ''
 
-        _va_stype = _va_full.get("shift_type", "full_day")
-        _va_mhrs = _va_full.get("max_hours")
-        if _va_is_avail:
-            if _va_stype == "full_day":
-                _va_shift_disp = "All Day"
-            else:
-                _va_shift_disp = f"{_VA_SHIFT_SHORT.get(_va_stype, '')} {_va_fmt_hour(_va_sh)}-{_va_fmt_hour(_va_eh)}".strip()
-            if _va_mhrs:
-                _va_shift_disp += f" ({int(_va_mhrs)}h)"
-        else:
-            _va_shift_disp = ''
+        _va_stype = _va_eff.get("shift_type", "full_day")
+        _va_mhrs = _va_eff.get("max_hours")
+        _va_shift_disp = _va_eff["display_label"] if _va_is_avail else ''
+        if _va_is_avail and _va_mhrs and _va_eff["status"] != "limited":
+            _va_shift_disp += f" ({int(_va_mhrs)}h)"
 
         vehicle_assign_rows.append({
             "driver": d,
@@ -7849,8 +7861,12 @@ def capacity_planner(request):
             "driver_notes": d.notes or '',
             "driver_phone": d.phone_number or '',
             "vehicle_notes": _va_vnotes,
-            "preferred_shift": _va_full.get("preferred_shift", ""),
-            "scheduling_notes": _va_full.get("scheduling_notes", ""),
+            "preferred_shift": _va_eff.get("preferred_shift", ""),
+            "scheduling_notes": _va_eff.get("scheduling_notes", ""),
+            "avail_status": _va_eff["status"],
+            "avail_tooltip": _va_eff["tooltip"],
+            "exception_notes": _va_eff["exception_notes"],
+            "has_exception": _va_eff["has_exception"],
         })
 
     # Sort: assigned drivers first (by vehicle number), then unassigned, off last
@@ -8057,15 +8073,8 @@ def capacity_planner(request):
         # Driver availability for selected date
         _cp_avail = driver.get_availability_for_date(selected_date)
         _cp_is_avail, _cp_sh, _cp_eh, _cp_pref, _cp_flex = _cp_avail
-        _cp_full = driver.get_full_availability(selected_date)
+        _cp_eff = driver.get_effective_availability(selected_date)
 
-        def _cp_fmt_hour(h):
-            if h == 0: return '12a'
-            if h < 12: return f'{h}a'
-            if h == 12: return '12p'
-            return f'{h - 12}p'
-
-        _CP_SHIFT_SHORT = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
         _CP_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
             "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
@@ -8074,13 +8083,10 @@ def capacity_planner(request):
             "only_cruise": "Only Cruises",
         }
 
-        _cp_stype = _cp_full.get("shift_type", "full_day")
-        _cp_mhrs = _cp_full.get("max_hours")
-        if _cp_stype == "full_day":
-            _cp_shift_disp = "All Day"
-        else:
-            _cp_shift_disp = f"{_CP_SHIFT_SHORT.get(_cp_stype, '')} {_cp_fmt_hour(_cp_sh)}-{_cp_fmt_hour(_cp_eh)}".strip()
-        if _cp_mhrs:
+        _cp_stype = _cp_eff.get("shift_type", "full_day")
+        _cp_mhrs = _cp_eff.get("max_hours")
+        _cp_shift_disp = _cp_eff["display_label"] if _cp_eff["is_available"] else "Off"
+        if _cp_eff["is_available"] and _cp_mhrs and _cp_eff["status"] != "limited":
             _cp_shift_disp += f" ({int(_cp_mhrs)}h)"
 
         inhouse_timeline.append({
@@ -8104,8 +8110,12 @@ def capacity_planner(request):
             'driver_notes': driver.notes or '',
             'driver_phone': driver.phone_number or '',
             'vehicle_notes': _cp_vnotes,
-            'preferred_shift': _cp_full.get("preferred_shift", ""),
-            'scheduling_notes': _cp_full.get("scheduling_notes", ""),
+            'preferred_shift': _cp_eff.get("preferred_shift", ""),
+            'scheduling_notes': _cp_eff.get("scheduling_notes", ""),
+            'avail_status': _cp_eff["status"],
+            'avail_tooltip': _cp_eff["tooltip"],
+            'exception_notes': _cp_eff["exception_notes"],
+            'has_exception': _cp_eff["has_exception"],
         })
 
     # Build per-driver availability for the selected date (for auto-assign modal defaults)
@@ -10029,20 +10039,52 @@ def save_driver_weekly_schedules(request):
 
 @login_required(login_url="login")
 def manage_driver_date_overrides(request):
-    """Add or delete date-specific availability overrides (day-off requests, PTO, etc.)."""
+    """Add, edit, or delete driver availability exceptions (off, partial-day, ranges)."""
     from drivers.models import DriverDateOverride
+    from datetime import datetime as dt
 
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    def _parse_date(s):
+        return dt.strptime(s, "%Y-%m-%d").date() if s else None
+
+    def _parse_time(s):
+        if not s:
+            return None
+        for fmt in ("%H:%M", "%H:%M:%S"):
+            try:
+                return dt.strptime(s, fmt).time()
+            except ValueError:
+                continue
+        return None
+
+    def _serialize(o):
+        return {
+            "id": o.id,
+            "date": o.date.strftime("%Y-%m-%d"),
+            "end_date": o.end_date.strftime("%Y-%m-%d") if o.end_date else None,
+            "exception_type": o.exception_type,
+            "exception_type_label": dict(DriverDateOverride.EXCEPTION_TYPE_CHOICES).get(o.exception_type, o.exception_type),
+            "start_time": o.start_time.strftime("%H:%M") if o.start_time else None,
+            "end_time": o.end_time.strftime("%H:%M") if o.end_time else None,
+            "is_available": o.is_available,
+            "reason": o.reason,
+            "reason_label": dict(DriverDateOverride.REASON_CHOICES).get(o.reason, o.reason),
+            "notes": o.notes,
+            "date_range_display": o.date_range_display,
+        }
 
     if request.method == "GET":
         driver_id = request.GET.get("driver_id")
         if not driver_id:
             return JsonResponse({"success": False, "error": "Missing driver_id"}, status=400)
-        overrides = DriverDateOverride.objects.filter(
-            driver_id=driver_id, date__gte=timezone.localdate()
-        ).order_by("date").values("id", "date", "is_available", "reason", "notes")
-        return JsonResponse({"success": True, "overrides": list(overrides)})
+        today = timezone.localdate()
+        # Show single-day exceptions today/future and multi-day exceptions whose end is today/future
+        qs = DriverDateOverride.objects.filter(driver_id=driver_id).filter(
+            Q(end_date__isnull=True, date__gte=today) | Q(end_date__gte=today)
+        ).order_by("date")
+        return JsonResponse({"success": True, "overrides": [_serialize(o) for o in qs]})
 
     if request.method == "POST":
         try:
@@ -10052,27 +10094,69 @@ def manage_driver_date_overrides(request):
 
         action = data.get("action")
 
-        if action == "add":
+        if action in ("add", "edit"):
             driver_id = data.get("driver_id")
+            override_id = data.get("id")
             date_str = data.get("date")
+            end_date_str = data.get("end_date") or None
+            exception_type = data.get("exception_type", "off")
+            start_time_str = data.get("start_time") or None
+            end_time_str = data.get("end_time") or None
             reason = data.get("reason", "day_off")
-            notes = data.get("notes", "")
-            if not driver_id or not date_str:
-                return JsonResponse({"success": False, "error": "Missing driver_id or date"}, status=400)
+            notes = (data.get("notes") or "").strip()
+
+            if action == "add" and not driver_id:
+                return JsonResponse({"success": False, "error": "Missing driver_id"}, status=400)
+            if not date_str:
+                return JsonResponse({"success": False, "error": "Missing date"}, status=400)
             try:
-                from datetime import datetime as dt
-                override_date = dt.strptime(date_str, "%Y-%m-%d").date()
+                start_date = _parse_date(date_str)
+                end_date = _parse_date(end_date_str)
+                start_time = _parse_time(start_time_str)
+                end_time = _parse_time(end_time_str)
             except ValueError:
-                return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
-            try:
-                driver = Driver.objects.get(id=driver_id, driver_type="inhouse")
-            except Driver.DoesNotExist:
-                return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
-            obj, created = DriverDateOverride.objects.update_or_create(
-                driver=driver, date=override_date,
-                defaults={"is_available": False, "reason": reason, "notes": notes.strip()},
-            )
-            return JsonResponse({"success": True, "created": created, "id": obj.id})
+                return JsonResponse({"success": False, "error": "Invalid date or time format"}, status=400)
+            if end_date and end_date < start_date:
+                return JsonResponse({"success": False, "error": "End date must be on or after start date"}, status=400)
+            if exception_type not in dict(DriverDateOverride.EXCEPTION_TYPE_CHOICES):
+                return JsonResponse({"success": False, "error": "Invalid exception type"}, status=400)
+            # Time fields are required for the windowed exception types
+            time_required = {
+                "available_until":    (False, True),   # need end_time
+                "available_after":    (True, False),   # need start_time
+                "available_window":   (True, True),    # need both
+                "unavailable_window": (True, True),
+            }
+            if exception_type in time_required:
+                need_st, need_en = time_required[exception_type]
+                if need_st and start_time is None:
+                    return JsonResponse({"success": False, "error": "Start time is required for this exception type"}, status=400)
+                if need_en and end_time is None:
+                    return JsonResponse({"success": False, "error": "End time is required for this exception type"}, status=400)
+
+            if action == "edit":
+                if not override_id:
+                    return JsonResponse({"success": False, "error": "Missing id"}, status=400)
+                try:
+                    obj = DriverDateOverride.objects.get(id=override_id)
+                except DriverDateOverride.DoesNotExist:
+                    return JsonResponse({"success": False, "error": "Exception not found"}, status=404)
+            else:
+                try:
+                    driver = Driver.objects.get(id=driver_id, driver_type="inhouse")
+                except Driver.DoesNotExist:
+                    return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+                obj = DriverDateOverride(driver=driver, created_by=request.user)
+
+            obj.date = start_date
+            obj.end_date = end_date
+            obj.exception_type = exception_type
+            obj.start_time = start_time
+            obj.end_time = end_time
+            obj.reason = reason
+            obj.notes = notes
+            obj.save()
+            return JsonResponse({"success": True, "created": action == "add", "override": _serialize(obj)})
 
         elif action == "delete":
             override_id = data.get("id")
@@ -10131,9 +10215,40 @@ def inhouse_schedule(request):
         "evening":  "PM",
         "night":    "Night",
         "split":    "Split",
-        "full_day": "All Day",
+        "full_day": "Flexible",
         "custom":   "",
     }
+    EXC_TYPE_LABELS = dict(DriverDateOverride.EXCEPTION_TYPE_CHOICES)
+
+    def _fmt_time_short(t):
+        if t is None:
+            return ""
+        h, m = t.hour, t.minute
+        if m == 0:
+            return _fmt_hour(h)
+        # 4:30p
+        suffix = "a" if h < 12 else "p"
+        h12 = 12 if h % 12 == 0 else h % 12
+        return f"{h12}:{m:02d}{suffix}"
+
+    def _exception_label(o):
+        """Short label for the upcoming-exception list, e.g. 'Off', 'Until 4p', 'Window 8a-2p'."""
+        et = o.exception_type
+        if et == "off":
+            return "Off"
+        if et == "available_until":
+            return f"Until {_fmt_time_short(o.end_time)}" if o.end_time else "Until ?"
+        if et == "available_after":
+            return f"After {_fmt_time_short(o.start_time)}" if o.start_time else "After ?"
+        if et == "available_window":
+            return f"Window {_fmt_time_short(o.start_time)}-{_fmt_time_short(o.end_time)}"
+        if et == "unavailable_window":
+            return f"Block {_fmt_time_short(o.start_time)}-{_fmt_time_short(o.end_time)}"
+        if et == "flexible":
+            return "Flexible"
+        if et == "note_only":
+            return "Note"
+        return EXC_TYPE_LABELS.get(et, et)
 
     driver_rows = []
     for driver in inhouse_drivers:
@@ -10155,7 +10270,7 @@ def inhouse_schedule(request):
             if not avail:
                 pill_label = "Off"
             elif stype == "full_day":
-                pill_label = "All Day"
+                pill_label = "Flexible"
             elif stype in SHIFT_PILL:
                 _prefix = SHIFT_PILL[stype]
                 pill_label = f"{_prefix} {_fmt_hour(sh)}-{_fmt_hour(eh)}".strip()
@@ -10179,14 +10294,29 @@ def inhouse_schedule(request):
                 "scheduling_notes": snotes,
                 "pill_label": pill_label,
             })
-        # Upcoming date overrides (PTO, day-off requests)
-        upcoming_overrides = [
-            {"id": o.id, "date": o.date.strftime("%Y-%m-%d"), "date_display": o.date.strftime("%b %d, %Y"),
-             "reason": o.reason, "reason_label": dict(DriverDateOverride.REASON_CHOICES).get(o.reason, o.reason),
-             "notes": o.notes}
-            for o in driver.date_overrides.all()
-            if o.date >= today
-        ]
+
+        # Upcoming exceptions (single-day today/future or ranges that haven't ended)
+        upcoming_overrides = []
+        for o in driver.date_overrides.all():
+            applies_future = (o.end_date or o.date) >= today
+            if not applies_future:
+                continue
+            upcoming_overrides.append({
+                "id": o.id,
+                "date": o.date.strftime("%Y-%m-%d"),
+                "end_date": o.end_date.strftime("%Y-%m-%d") if o.end_date else "",
+                "date_display": o.date_range_display,
+                "exception_type": o.exception_type,
+                "exception_type_label": EXC_TYPE_LABELS.get(o.exception_type, o.exception_type),
+                "exception_short": _exception_label(o),
+                "start_time": o.start_time.strftime("%H:%M") if o.start_time else "",
+                "end_time":   o.end_time.strftime("%H:%M")   if o.end_time   else "",
+                "reason": o.reason,
+                "reason_label": dict(DriverDateOverride.REASON_CHOICES).get(o.reason, o.reason),
+                "notes": o.notes,
+            })
+        upcoming_overrides.sort(key=lambda x: x["date"])
+
         driver_rows.append({"driver": driver, "days": days, "upcoming_overrides": upcoming_overrides})
 
     context = {
@@ -10196,6 +10326,7 @@ def inhouse_schedule(request):
         "preferred_shift_choices": DriverWeeklySchedule.PREFERRED_SHIFT_CHOICES,
         "preference_choices": DriverWeeklySchedule.PREFERENCE_CHOICES,
         "day_off_reason_choices": DriverDateOverride.REASON_CHOICES,
+        "exception_type_choices": DriverDateOverride.EXCEPTION_TYPE_CHOICES,
         "today": today,
         "today_legs_url": f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
     }

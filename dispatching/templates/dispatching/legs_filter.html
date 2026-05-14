@@ -643,15 +643,18 @@
             <!-- Driver slots (drop targets) -->
             <div class="va-drivers-grid px-3 py-2" id="vaDriverGrid">
               {% for row in inhouse_driver_rows %}
-              <div class="va-driver-slot {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}"
+              <div class="va-driver-slot va-status-{{ row.avail_status }} {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}{% if row.avail_status == 'limited' %} va-limited{% endif %}"
                    data-driver-id="{{ row.driver.id }}"
                    data-driver-name="{{ row.driver }}"
                    data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
                 <div class="va-drv-name">
                   {{ row.driver }}
                   {% if row.is_off_today %}
-                  <span class="va-off-badge">Off</span>
-                  {% elif row.leg_count > 0 %}
+                  <span class="va-off-badge" title="{{ row.avail_tooltip }}">Off</span>
+                  {% elif row.avail_status == 'limited' %}
+                  <span class="va-limited-badge" title="{{ row.avail_tooltip }}">Limited</span>
+                  {% endif %}
+                  {% if not row.is_off_today and row.leg_count > 0 %}
                   <span class="va-legs-badge">{{ row.leg_count }} leg{{ row.leg_count|pluralize }}</span>
                   {% endif %}
                   {% if not row.is_off_today %}
@@ -667,6 +670,9 @@
                         data-driver-phone="{{ row.driver_phone }}"
                         data-driver-notes="{{ row.driver_notes|escapejs }}"
                         data-scheduling-notes="{{ row.scheduling_notes|escapejs }}"
+                        data-avail-label="{{ row.shift_display|escapejs }}"
+                        data-avail-tooltip="{{ row.avail_tooltip|escapejs }}"
+                        data-exception-notes="{{ row.exception_notes|escapejs }}"
                         data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
                         data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
                         data-vehicle-notes="{{ row.vehicle_notes|escapejs }}">i</span>
@@ -675,12 +681,17 @@
                 {% if not row.is_off_today %}
                 <div class="va-drv-context">
                   {% if row.shift_display %}
-                    <span class="va-shift-badge sb-{{ row.shift_type }}">{{ row.shift_display }}</span>
-                    {% if row.flexible %}<i class="bi bi-unlock" style="color:#059669;" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" style="color:#d32f2f;" title="Hard limits"></i>{% endif %}
-                    {% if row.max_hours %}<span class="va-maxhrs-tag">({{ row.max_hours|floatformat:0 }}h max)</span>{% endif %}
+                    <span class="va-shift-badge sb-{{ row.avail_status }}" title="{{ row.avail_tooltip }}">{{ row.shift_display }}</span>
+                    {% if row.avail_status != 'limited' %}
+                      {% if row.flexible %}<i class="bi bi-unlock" style="color:#059669;" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" style="color:#d32f2f;" title="Hard limits"></i>{% endif %}
+                      {% if row.max_hours %}<span class="va-maxhrs-tag">({{ row.max_hours|floatformat:0 }}h max)</span>{% endif %}
+                    {% endif %}
                   {% endif %}
                   {% if row.preferred_shift %}<span class="va-pref-shift-badge">Pref {{ row.preferred_shift|title }}</span>{% endif %}
                   {% if row.pref_short %}<span class="va-pref {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>{% endif %}
+                  {% if row.exception_notes %}
+                    <span class="va-exception-note" title="{{ row.exception_notes }}"><i class="bi bi-sticky-fill me-1"></i>{{ row.exception_notes|truncatechars:42 }}</span>
+                  {% endif %}
                 </div>
                 {% endif %}
                 <div class="va-drv-vehicle" id="va-slot-{{ row.driver.id }}">
@@ -3556,6 +3567,13 @@
           border-color: #fecaca;
           opacity: .75;
       }
+      .va-driver-slot.va-limited {
+          border-color: #f59e0b;
+          background: #fffbeb;
+      }
+      .va-driver-slot.va-limited.va-has {
+          background: #fffbeb;
+      }
       .va-driver-slot.va-drag-over {
           border-color: #16a34a !important;
           border-style: solid !important;
@@ -3578,6 +3596,30 @@
           background: #fee2e2;
           color: #b91c1c;
           font-weight: 600;
+      }
+      .va-limited-badge {
+          font-size: 0.6rem;
+          padding: 0.1rem 0.35rem;
+          border-radius: 999px;
+          background: #fef3c7;
+          color: #92400e;
+          font-weight: 600;
+          cursor: help;
+      }
+      .va-exception-note {
+          font-size: 0.66rem;
+          color: #92400e;
+          font-style: italic;
+          background: #fffbeb;
+          border: 1px dashed #fde68a;
+          padding: 1px 5px;
+          border-radius: 4px;
+          margin-left: auto;
+          max-width: 220px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          cursor: help;
       }
       .va-legs-badge {
           font-size: 0.6rem;
@@ -3608,6 +3650,11 @@
       .va-shift-badge.sb-split    { background: #eff6ff; color: #1e40af; }
       .va-shift-badge.sb-full_day { background: #ecfdf5; color: #065f46; }
       .va-shift-badge.sb-custom   { background: #f0fdf4; color: #166534; }
+      /* Status-driven badges (preferred — match driver-card class va-status-*) */
+      .va-shift-badge.sb-flexible     { background: #ecfdf5; color: #065f46; cursor: help; }
+      .va-shift-badge.sb-fixed_window { background: #f0fdf4; color: #166534; cursor: help; }
+      .va-shift-badge.sb-limited      { background: #fef3c7; color: #92400e; cursor: help; border: 1px solid #fcd34d; }
+      .va-shift-badge.sb-off          { background: #fee2e2; color: #991b1b; }
       .va-maxhrs-tag { font-size: 0.6rem; color: #9ca3af; font-weight: 600; white-space: nowrap; }
       .va-pref-shift-badge {
           display: inline-flex; font-size: 0.6rem; font-weight: 700;
@@ -3723,10 +3770,16 @@
           const name = el.dataset.driverName || '';
           const vNum = el.dataset.vehicleNum ? '#' + el.dataset.vehicleNum : '';
           const vLabel = el.dataset.vehicleLabel || '';
-          const SHIFT_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night',split:'Split AM/PM',full_day:'Full Day',custom:'Set Hours'};
+          const SHIFT_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night',split:'Split AM/PM',full_day:'Flexible',custom:'Set Hours'};
           const stype = el.dataset.shiftType || 'custom';
           let html = '<div class="ld-popup-header" style="background:#1a2332;">' + name + (vNum ? ' — ' + vNum + ' ' + vLabel : '') + '</div>';
           html += '<div class="ld-popup-body">';
+          if (el.dataset.availLabel) {
+              html += '<div class="ld-popup-row"><span class="ld-label">Available</span><span class="ld-value" style="font-weight:700;">' + el.dataset.availLabel + '</span></div>';
+          }
+          if (el.dataset.availTooltip) {
+              html += '<div style="font-size:0.65rem;color:#6b7280;font-style:italic;margin:-2px 0 4px;">' + el.dataset.availTooltip + '</div>';
+          }
           html += '<div class="ld-popup-row"><span class="ld-label">Shift Type</span><span class="ld-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
           html += '<div class="ld-popup-row"><span class="ld-label">Hours</span><span class="ld-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
           const flex = el.dataset.flexible === 'True';
@@ -3738,6 +3791,11 @@
           }
           if (el.dataset.preference) html += '<div class="ld-popup-row"><span class="ld-label">Trip Pref</span><span class="ld-value">' + el.dataset.preference + '</span></div>';
           if (el.dataset.driverPhone) html += '<div class="ld-popup-row"><span class="ld-label">Phone</span><span class="ld-value">' + el.dataset.driverPhone + '</span></div>';
+          if (el.dataset.exceptionNotes) {
+              html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+              html += '<div style="font-size:0.65rem;color:#92400e;font-weight:600;margin-bottom:2px;"><i class="bi bi-exclamation-circle me-1"></i>Exception Note</div>';
+              html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.exceptionNotes + '</div></div>';
+          }
           if (el.dataset.schedulingNotes) {
               html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
               html += '<div style="font-size:0.65rem;color:#1565c0;font-weight:600;margin-bottom:2px;"><i class="bi bi-info-circle me-1"></i>Scheduling Notes</div>';

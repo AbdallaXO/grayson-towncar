@@ -87,16 +87,35 @@
   .day-pill.off .pill-label { font-weight: 600; }
 
   .pill-flex-icon { font-size: 0.55rem; opacity: 0.7; }
-  /* Day-off section */
+  /* Exception (day-off / partial-day) section */
   .dayoff-section { border-top: 1px solid #e5e7eb; padding-top: 0.6rem; }
   .dayoff-list { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.4rem; }
   .dayoff-item {
     display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.25rem 0.5rem; background: #fef2f2; border: 1px solid #fecaca;
-    border-radius: 6px; font-size: 0.78rem;
+    padding: 0.25rem 0.5rem; border: 1px solid; border-radius: 6px; font-size: 0.78rem;
   }
-  .dayoff-date { font-weight: 600; color: #991b1b; }
-  .dayoff-reason { font-size: 0.7rem; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+  .dayoff-item.exc-off            { background: #fef2f2; border-color: #fecaca; }
+  .dayoff-item.exc-off            .dayoff-date { color: #991b1b; }
+  .dayoff-item.exc-flexible       { background: #ecfdf5; border-color: #a7f3d0; }
+  .dayoff-item.exc-flexible       .dayoff-date { color: #065f46; }
+  .dayoff-item.exc-note_only      { background: #f9fafb; border-color: #e5e7eb; }
+  .dayoff-item.exc-note_only      .dayoff-date { color: #374151; }
+  .dayoff-item.exc-available_until,
+  .dayoff-item.exc-available_after,
+  .dayoff-item.exc-available_window,
+  .dayoff-item.exc-unavailable_window { background: #fffbeb; border-color: #fde68a; }
+  .dayoff-item.exc-available_until    .dayoff-date,
+  .dayoff-item.exc-available_after    .dayoff-date,
+  .dayoff-item.exc-available_window   .dayoff-date,
+  .dayoff-item.exc-unavailable_window .dayoff-date { color: #92400e; }
+  .dayoff-date { font-weight: 600; }
+  .dayoff-type {
+    font-size: 0.66rem; padding: 1px 5px; border-radius: 3px; font-weight: 700;
+    background: rgba(0,0,0,0.06); color: #374151; letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .dayoff-reason { font-size: 0.7rem; padding: 1px 5px; border-radius: 3px; font-weight: 600;
+                   background: rgba(0,0,0,0.05); color: #4b5563; }
   .dayoff-notes { font-size: 0.72rem; color: #6b7280; font-style: italic; }
   .dayoff-remove {
     margin-left: auto; background: none; border: none; color: #dc2626;
@@ -104,6 +123,15 @@
   }
   .dayoff-remove:hover { color: #991b1b; }
   .dayoff-empty { font-size: 0.75rem; font-style: italic; }
+  .exc-form-row {
+    display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;
+    margin-top: 0.35rem;
+  }
+  .exc-form-row .form-control-sm,
+  .exc-form-row .form-select-sm { font-size: 0.78rem; padding: 0.2rem 0.4rem; }
+  .exc-form-row label { font-size: 0.68rem; color: #6b7280; margin: 0 0.1rem 0 0.2rem; font-weight: 600; }
+  .exc-form-row .exc-time-block { display: none; align-items: center; gap: 0.25rem; }
+  .exc-form-row .exc-time-block.show { display: inline-flex; }
 
   .pill-pref-shift {
     font-size: 0.52rem; font-weight: 600; color: #6366f1;
@@ -266,7 +294,9 @@
     <span class="legend-item"><span class="legend-swatch" style="background:#f5f3ff;border-color:#c4b5fd;"></span> Evening</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#1e293b;border-color:#475569;"></span> Night</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#eff6ff;border-color:#93c5fd;"></span> Split AM/PM</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#ecfdf5;border-color:#6ee7b7;"></span> Full Day</span>
+    <span class="legend-item" title="No fixed start/end. Schedule any physically possible time.">
+      <span class="legend-swatch" style="background:#ecfdf5;border-color:#6ee7b7;"></span> Flexible
+    </span>
     <span class="legend-item"><span class="legend-swatch" style="background:#f0fdf4;border-color:#a7f3d0;"></span> Set Hours</span>
     <span class="ms-2 text-muted"><i class="bi bi-unlock"></i> = flexible &nbsp; <i class="bi bi-lock-fill"></i> = hard limits</span>
   </div>
@@ -469,33 +499,59 @@
                   placeholder="e.g. Prefers airport runs, has a backup SUV, contact before 6 AM...">{{ row.driver.notes|default:"" }}</textarea>
       </div>
 
-      <!-- Day-Off Requests -->
+      <!-- Availability Exceptions: days off, partial-day limits, range requests -->
       <div class="mt-3 dayoff-section">
         <label class="form-label small fw-semibold text-muted mb-1">
-          <i class="bi bi-calendar-x me-1"></i>Scheduled Days Off
+          <i class="bi bi-calendar-x me-1"></i>Availability Exceptions
+          <span class="text-muted" style="font-weight:400;font-size:0.7rem;">
+            &mdash; one-time off requests, partial-day limits, or notes
+          </span>
         </label>
         <div class="dayoff-list" id="dayoff-list-{{ row.driver.id }}">
           {% for ov in row.upcoming_overrides %}
-            <div class="dayoff-item" id="dayoff-{{ ov.id }}">
+            <div class="dayoff-item exc-{{ ov.exception_type }}" id="dayoff-{{ ov.id }}">
               <span class="dayoff-date">{{ ov.date_display }}</span>
-              <span class="dayoff-reason">{{ ov.reason_label }}</span>
+              <span class="dayoff-type">{{ ov.exception_short }}</span>
+              {% if ov.exception_type == 'off' %}<span class="dayoff-reason">{{ ov.reason_label }}</span>{% endif %}
               {% if ov.notes %}<span class="dayoff-notes">{{ ov.notes }}</span>{% endif %}
               <button class="dayoff-remove" onclick="removeDayOff({{ ov.id }}, {{ row.driver.id }})" title="Remove">&times;</button>
             </div>
           {% empty %}
-            <div class="dayoff-empty text-muted">No upcoming days off scheduled</div>
+            <div class="dayoff-empty text-muted">No upcoming exceptions</div>
           {% endfor %}
         </div>
-        <div class="dayoff-add-form mt-1" style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap;">
+
+        <div class="exc-form-row">
+          <label>From</label>
           <input type="date" id="dayoff-date-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;">
-          <select id="dayoff-reason-{{ row.driver.id }}" class="form-control form-control-sm" style="width:100px;">
+          <label>To</label>
+          <input type="date" id="dayoff-end-date-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;" placeholder="(same)">
+          <label>Type</label>
+          <select id="dayoff-type-{{ row.driver.id }}" class="form-select form-select-sm" style="width:175px;"
+                  onchange="onExcTypeChange({{ row.driver.id }})">
+            {% for val, label in exception_type_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+
+          <span class="exc-time-block" id="exc-time-{{ row.driver.id }}">
+            <label>Start</label>
+            <input type="time" id="dayoff-start-time-{{ row.driver.id }}" class="form-control form-control-sm" style="width:110px;" step="900">
+            <label>End</label>
+            <input type="time" id="dayoff-end-time-{{ row.driver.id }}" class="form-control form-control-sm" style="width:110px;" step="900">
+          </span>
+        </div>
+        <div class="exc-form-row">
+          <label>Reason</label>
+          <select id="dayoff-reason-{{ row.driver.id }}" class="form-select form-select-sm" style="width:130px;">
             {% for val, label in day_off_reason_choices %}
               <option value="{{ val }}">{{ label }}</option>
             {% endfor %}
           </select>
-          <input type="text" id="dayoff-notes-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;" placeholder="Note (optional)">
+          <input type="text" id="dayoff-notes-{{ row.driver.id }}" class="form-control form-control-sm" style="flex:1;min-width:160px;"
+                 placeholder='e.g. "Family trip", "Doctor appt", "Must finish by 4 PM"'>
           <button class="btn btn-sm btn-outline-danger" onclick="addDayOff({{ row.driver.id }})">
-            <i class="bi bi-plus me-1"></i>Add Day Off
+            <i class="bi bi-plus me-1"></i>Add Exception
           </button>
         </div>
       </div>
@@ -545,7 +601,7 @@
 
   const SHIFT_PILL_LABELS = {
     morning: 'AM', midday: 'Mid', evening: 'PM', night: 'Night',
-    split: 'Split', full_day: 'All Day', custom: '',
+    split: 'Split', full_day: 'Flexible', custom: '',
   };
 
   const SHIFT_CSS = {
@@ -790,7 +846,7 @@
   function buildPillLabel(stype, sh, eh, maxHours) {
     let label;
     if (stype === 'full_day') {
-      label = 'All Day';
+      label = 'Flexible';
     } else {
       const prefix = SHIFT_PILL_LABELS[stype] || '';
       label = (prefix ? prefix + ' ' : '') + fmtHour(sh) + '-' + fmtHour(eh);
@@ -849,44 +905,101 @@
   }
   const DAYOFF_URL = '{% url "manage_driver_date_overrides" %}';
 
+  // Which exception types need a time window picker
+  const EXC_NEEDS_TIME = {
+    available_until:    { start: false, end: true  },
+    available_after:    { start: true,  end: false },
+    available_window:   { start: true,  end: true  },
+    unavailable_window: { start: true,  end: true  },
+  };
+
+  window.onExcTypeChange = function(driverId) {
+    const sel = document.getElementById('dayoff-type-' + driverId);
+    const block = document.getElementById('exc-time-' + driverId);
+    if (!sel || !block) return;
+    const cfg = EXC_NEEDS_TIME[sel.value];
+    if (cfg) {
+      block.classList.add('show');
+      const startInput = document.getElementById('dayoff-start-time-' + driverId);
+      const endInput   = document.getElementById('dayoff-end-time-'   + driverId);
+      startInput.disabled = !cfg.start;
+      endInput.disabled   = !cfg.end;
+      // For UX, blank disabled values
+      if (!cfg.start) startInput.value = '';
+      if (!cfg.end)   endInput.value   = '';
+    } else {
+      block.classList.remove('show');
+    }
+  };
+
+  function buildExceptionShort(et, st, en) {
+    function ft(s) {
+      if (!s) return '?';
+      const [h, m] = s.split(':').map(Number);
+      const suffix = h < 12 ? 'a' : 'p';
+      const h12 = h % 12 === 0 ? 12 : h % 12;
+      return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2,'0')}${suffix}`;
+    }
+    if (et === 'off')                 return 'Off';
+    if (et === 'flexible')            return 'Flexible';
+    if (et === 'note_only')           return 'Note';
+    if (et === 'available_until')     return 'Until ' + ft(en);
+    if (et === 'available_after')     return 'After ' + ft(st);
+    if (et === 'available_window')    return 'Window ' + ft(st) + '-' + ft(en);
+    if (et === 'unavailable_window')  return 'Block '  + ft(st) + '-' + ft(en);
+    return et;
+  }
+
   window.addDayOff = function(driverId) {
-    const dateEl = document.getElementById('dayoff-date-' + driverId);
-    const reasonEl = document.getElementById('dayoff-reason-' + driverId);
-    const notesEl = document.getElementById('dayoff-notes-' + driverId);
+    const dateEl     = document.getElementById('dayoff-date-' + driverId);
+    const endDateEl  = document.getElementById('dayoff-end-date-' + driverId);
+    const typeEl     = document.getElementById('dayoff-type-' + driverId);
+    const reasonEl   = document.getElementById('dayoff-reason-' + driverId);
+    const notesEl    = document.getElementById('dayoff-notes-' + driverId);
+    const startTimeEl = document.getElementById('dayoff-start-time-' + driverId);
+    const endTimeEl   = document.getElementById('dayoff-end-time-'   + driverId);
     if (!dateEl.value) { dateEl.focus(); return; }
+
+    const payload = {
+      action: 'add', driver_id: driverId,
+      date: dateEl.value,
+      end_date: endDateEl.value || null,
+      exception_type: typeEl.value,
+      start_time: startTimeEl && startTimeEl.value ? startTimeEl.value : null,
+      end_time:   endTimeEl   && endTimeEl.value   ? endTimeEl.value   : null,
+      reason: reasonEl.value,
+      notes: notesEl.value,
+    };
 
     fetch(DAYOFF_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({
-        action: 'add', driver_id: driverId,
-        date: dateEl.value, reason: reasonEl.value, notes: notesEl.value
-      }),
+      body: JSON.stringify(payload),
     })
       .then(r => r.json())
       .then(data => {
-        if (data.success) {
-          const list = document.getElementById('dayoff-list-' + driverId);
-          // Remove "no days off" message
-          const empty = list.querySelector('.dayoff-empty');
-          if (empty) empty.remove();
-          // Format the date for display
-          const d = new Date(dateEl.value + 'T00:00:00');
-          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          const dateDisp = months[d.getMonth()] + ' ' + String(d.getDate()).padStart(2,'0') + ', ' + d.getFullYear();
-          const REASON_LABELS = {day_off:'Day Off',pto:'PTO',vacation:'Vacation',sick:'Sick',other:'Other'};
-          let html = `<div class="dayoff-item" id="dayoff-${data.id}">`;
-          html += `<span class="dayoff-date">${dateDisp}</span>`;
-          html += `<span class="dayoff-reason">${REASON_LABELS[reasonEl.value] || reasonEl.value}</span>`;
-          if (notesEl.value) html += `<span class="dayoff-notes">${notesEl.value}</span>`;
-          html += `<button class="dayoff-remove" onclick="removeDayOff(${data.id}, ${driverId})" title="Remove">&times;</button>`;
-          html += '</div>';
-          list.insertAdjacentHTML('beforeend', html);
-          dateEl.value = '';
-          notesEl.value = '';
-        } else {
-          alert('Error: ' + (data.error || 'Failed'));
+        if (!data.success) { alert('Error: ' + (data.error || 'Failed')); return; }
+        const ov = data.override;
+        const list = document.getElementById('dayoff-list-' + driverId);
+        const empty = list.querySelector('.dayoff-empty');
+        if (empty) empty.remove();
+        const REASON_LABELS = {day_off:'Day Off',pto:'PTO',vacation:'Vacation',sick:'Sick',appointment:'Appointment',other:'Other'};
+        const shortLbl = buildExceptionShort(ov.exception_type, ov.start_time, ov.end_time);
+        let html = `<div class="dayoff-item exc-${ov.exception_type}" id="dayoff-${ov.id}">`;
+        html += `<span class="dayoff-date">${ov.date_range_display}</span>`;
+        html += `<span class="dayoff-type">${shortLbl}</span>`;
+        if (ov.exception_type === 'off') {
+          html += `<span class="dayoff-reason">${REASON_LABELS[ov.reason] || ov.reason}</span>`;
         }
+        if (ov.notes) html += `<span class="dayoff-notes">${ov.notes}</span>`;
+        html += `<button class="dayoff-remove" onclick="removeDayOff(${ov.id}, ${driverId})" title="Remove">&times;</button>`;
+        html += '</div>';
+        list.insertAdjacentHTML('beforeend', html);
+        dateEl.value = '';
+        endDateEl.value = '';
+        notesEl.value = '';
+        if (startTimeEl) startTimeEl.value = '';
+        if (endTimeEl) endTimeEl.value = '';
       })
       .catch(() => alert('Network error'));
   };
@@ -904,11 +1017,17 @@
           if (el) el.remove();
           const list = document.getElementById('dayoff-list-' + driverId);
           if (list && !list.querySelector('.dayoff-item')) {
-            list.innerHTML = '<div class="dayoff-empty text-muted">No upcoming days off scheduled</div>';
+            list.innerHTML = '<div class="dayoff-empty text-muted">No upcoming exceptions</div>';
           }
         }
       });
   };
+
+  // Initialize time-block visibility for all driver cards on first load
+  document.querySelectorAll('[id^="dayoff-type-"]').forEach(sel => {
+    const id = sel.id.replace('dayoff-type-', '');
+    onExcTypeChange(id);
+  });
 })();
 </script>
 {% endblock %}

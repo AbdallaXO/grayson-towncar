@@ -20,8 +20,9 @@ class DriverWeeklyScheduleInline(admin.TabularInline):
 class DriverDateOverrideInline(admin.TabularInline):
     model = DriverDateOverride
     extra = 1
-    fields = ["date", "is_available", "reason", "notes"]
+    fields = ["date", "end_date", "exception_type", "start_time", "end_time", "reason", "notes"]
     ordering = ["date"]
+    fk_name = "driver"
 
 
 class DriverPayRateInline(admin.TabularInline):
@@ -964,3 +965,22 @@ class FleetVehicleAdmin(admin.ModelAdmin):
     list_editable = ["notes"]
     search_fields = ["vehicle_number", "make", "model"]
     list_filter = ["vehicle_type", "year", "make"]
+
+
+@admin.register(DriverDateOverride)
+class DriverDateOverrideAdmin(admin.ModelAdmin):
+    list_display = ["driver", "date", "end_date", "exception_type", "start_time", "end_time", "reason", "notes", "created_by"]
+    list_filter = ["exception_type", "reason", "driver"]
+    search_fields = [
+        "driver__profile__first_name",
+        "driver__profile__last_name",
+        "notes",
+    ]
+    date_hierarchy = "date"
+    autocomplete_fields = ["driver"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)

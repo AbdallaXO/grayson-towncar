@@ -159,6 +159,23 @@
       .shift-badge.sb-split    { background: #eff6ff; color: #1e40af; }
       .shift-badge.sb-full_day { background: #ecfdf5; color: #065f46; }
       .shift-badge.sb-custom   { background: #f0fdf4; color: #166534; }
+      /* Status-driven badges (preferred) */
+      .shift-badge.sb-flexible     { background: #ecfdf5; color: #065f46; cursor: help; }
+      .shift-badge.sb-fixed_window { background: #f0fdf4; color: #166534; cursor: help; }
+      .shift-badge.sb-limited      { background: #fef3c7; color: #92400e; cursor: help; border: 1px solid #fcd34d; }
+      .shift-badge.sb-off          { background: #fee2e2; color: #991b1b; }
+      .driver-timeline-row.driver-status-limited .driver-name-col {
+          border-left: 3px solid #f59e0b; padding-left: 6px; background: rgba(252, 211, 77, 0.08);
+      }
+      .driver-timeline-row.driver-status-off .driver-name-col {
+          border-left: 3px solid #fecaca; padding-left: 6px; opacity: 0.75;
+      }
+      .exception-note-tag {
+          font-size: 0.55rem; color: #92400e; font-style: italic;
+          background: #fffbeb; border: 1px dashed #fde68a;
+          padding: 1px 4px; border-radius: 3px; cursor: help;
+          max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .maxhrs-tag { font-size: 0.58rem; color: #9ca3af; font-weight: 600; white-space: nowrap; }
       .pref-shift-badge {
           display: inline-flex; font-size: 0.58rem; font-weight: 700;
@@ -325,7 +342,7 @@
 
             <!-- Driver rows -->
             {% for data in inhouse_timeline %}
-              <div class="driver-timeline-row" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
+              <div class="driver-timeline-row driver-status-{{ data.avail_status }}" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
                 <div class="driver-name-col">
                   <div class="d-flex align-items-center">
                     {% if data.vehicle_number %}<span class="vehicle-num">#{{ data.vehicle_number }}</span>{% endif %}
@@ -335,16 +352,21 @@
                     {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                   </small>
                   <div class="driver-avail-line">
-                    <span class="shift-badge sb-{{ data.shift_type }}">{{ data.shift_display }}</span>
-                    <span class="driver-shift">
-                      {% if data.flexible %}<i class="bi bi-unlock" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" title="Hard limits"></i>{% endif %}
-                    </span>
-                    {% if data.max_hours %}<span class="maxhrs-tag">({{ data.max_hours|floatformat:0 }}h max)</span>{% endif %}
+                    <span class="shift-badge sb-{{ data.avail_status }}" title="{{ data.avail_tooltip }}">{{ data.shift_display }}</span>
+                    {% if data.avail_status != 'limited' and data.avail_status != 'off' %}
+                      <span class="driver-shift">
+                        {% if data.flexible %}<i class="bi bi-unlock" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" title="Hard limits"></i>{% endif %}
+                      </span>
+                      {% if data.max_hours %}<span class="maxhrs-tag">({{ data.max_hours|floatformat:0 }}h max)</span>{% endif %}
+                    {% endif %}
                     {% if data.preferred_shift %}<span class="pref-shift-badge">Pref {{ data.preferred_shift|title }}</span>{% endif %}
                     {% if data.pref_short %}
                       <span class="pref-badge {% if 'arrival' in data.preference %}pref-arrival{% elif 'return' in data.preference %}pref-return{% elif 'cruise' in data.preference %}pref-cruise{% endif %}">
                         {{ data.pref_short }}
                       </span>
+                    {% endif %}
+                    {% if data.exception_notes %}
+                      <span class="exception-note-tag" title="{{ data.exception_notes }}"><i class="bi bi-sticky-fill me-1"></i>{{ data.exception_notes|truncatechars:32 }}</span>
                     {% endif %}
                     <span class="driver-info-icon" data-driver-popup
                           data-driver-name="{{ data.driver }}"
@@ -358,6 +380,9 @@
                           data-driver-phone="{{ data.driver_phone }}"
                           data-driver-notes="{{ data.driver_notes|escapejs }}"
                           data-scheduling-notes="{{ data.scheduling_notes|escapejs }}"
+                          data-avail-label="{{ data.shift_display|escapejs }}"
+                          data-avail-tooltip="{{ data.avail_tooltip|escapejs }}"
+                          data-exception-notes="{{ data.exception_notes|escapejs }}"
                           data-vehicle-label="{{ data.vehicle_type_label }}"
                           data-vehicle-num="{{ data.vehicle_number }}"
                           data-vehicle-notes="{{ data.vehicle_notes|escapejs }}">i</span>
@@ -541,9 +566,15 @@
         const vNum = el.dataset.vehicleNum ? '#' + el.dataset.vehicleNum : '';
         const vLabel = el.dataset.vehicleLabel || '';
         const headerText = name + (vNum ? ' — ' + vNum + ' ' + vLabel : '');
-        const SHIFT_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night',split:'Split AM/PM',full_day:'Full Day',custom:'Set Hours'};
+        const SHIFT_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night',split:'Split AM/PM',full_day:'Flexible',custom:'Set Hours'};
         let html = '<div class="tl-popup-header" style="background:#1a2332;">' + headerText + '</div>';
         html += '<div class="tl-popup-body">';
+        if (el.dataset.availLabel) {
+          html += '<div class="tl-popup-row"><span class="tl-label">Available</span><span class="tl-value" style="font-weight:700;">' + el.dataset.availLabel + '</span></div>';
+        }
+        if (el.dataset.availTooltip) {
+          html += '<div style="font-size:0.65rem;color:#6b7280;font-style:italic;margin:-2px 0 4px;">' + el.dataset.availTooltip + '</div>';
+        }
         const stype = el.dataset.shiftType || 'custom';
         html += '<div class="tl-popup-row"><span class="tl-label">Shift Type</span><span class="tl-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
         html += '<div class="tl-popup-row"><span class="tl-label">Hours</span><span class="tl-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
@@ -561,6 +592,12 @@
         }
         if (el.dataset.driverPhone) {
           html += '<div class="tl-popup-row"><span class="tl-label">Phone</span><span class="tl-value">' + el.dataset.driverPhone + '</span></div>';
+        }
+        if (el.dataset.exceptionNotes) {
+          html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+          html += '<div style="font-size:0.65rem;color:#92400e;font-weight:600;margin-bottom:2px;"><i class="bi bi-exclamation-circle me-1"></i>Exception Note</div>';
+          html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.exceptionNotes + '</div>';
+          html += '</div>';
         }
         if (el.dataset.schedulingNotes) {
           html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
