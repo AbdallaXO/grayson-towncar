@@ -2,10 +2,10 @@
 Revenue & source-attribution KPI helpers.
 
 Single source of truth for the math behind the revenue dashboard. The
-"revenue" definition is intentionally **cash-basis with a fallback for
-non-tracked payments**:
+"revenue" definition is **cash-basis** — money actually received during
+the window — with two payment paths:
 
-  • A reservation counts as revenue when EITHER:
+  • A reservation contributes to revenue when EITHER:
         - it has at least one Payment row with status="paid"
           (the Stripe path; is_paid=True / paid_amount populated), OR
         - its status is "completed" (the ride happened — operator
@@ -16,37 +16,49 @@ non-tracked payments**:
         - Stripe-tracked  → paid_amount (net of refunds)
         - non-Stripe done → total_price (the contracted amount)
 
-  • Revenue anchor date (which 30-day window the revenue lands in):
-        - Stripe-tracked  → first_paid_at (when the money landed)
-        - non-Stripe done → created_at   (when the booking was taken;
-                                           most cash bookings are
-                                           prepaid/deposit-at-booking)
+  • Revenue anchor date (which window the revenue lands in):
+        - Stripe-tracked  → first_paid_at  (when Stripe credited us)
+        - non-Stripe done → earliest non-cancelled leg's pickup_date
+                            (cash-on-pickup is the dominant non-Stripe
+                            pattern — the trip date is when the cash
+                            actually changes hands)
+        - legless edge    → created_at fallback
 
-Why not anchor non-Stripe on the trip pickup_date?
-  The operator wants cash basis ("payments we received in this window"),
-  not accrual ("revenue earned because the trip happened"). created_at is
-  the closest proxy we have for "when the cash landed" until we start
-  recording explicit payment dates for non-Stripe payments.
-
-If you ever want accrual semantics again, swap created_at for the latest
-leg's pickup_date inside _REVENUE_ANCHOR_EXPR below.
+This is intentionally NOT the accrual report — pickup_date is only used
+as a cash-receipt proxy for non-Stripe trips. Stripe trips still anchor
+on the actual payment-receipt date, even when that's months before the
+trip. If you need accrual semantics (revenue when service was delivered,
+regardless of payment) use the separate `accrual_revenue_report` page.
 """
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db.models import (
-    Avg, Case, Count, DecimalField, F, Q, Sum, Value, When,
+    Avg, Case, Count, DateTimeField, DecimalField, Exists, F, OuterRef, Q,
+    Subquery, Sum, Value, When,
 )
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
-from reservations.models import Reservation
+from reservations.models import Leg, Reservation
 
 
 ZERO = Decimal("0.00")
 
-# A reservation contributes to revenue when it was Stripe-paid OR delivered.
-_REVENUE_FILTER = Q(is_paid=True) | Q(status="completed")
+# Earliest non-cancelled leg's pickup_date — used as the cash-receipt proxy
+# for non-Stripe completed trips, since most are paid at pickup.
+_earliest_active_pickup_subq = (
+    Leg.objects.filter(reservation=OuterRef("pk"))
+    .exclude(status="cancelled")
+    .order_by("pickup_date", "pickup_time")
+    .values("pickup_date")[:1]
+)
+
+# Catches round-trip reservations stuck in "confirmed" with one leg already
+# completed (operator updated the leg but not the parent reservation).
+_has_completed_leg_subq = Exists(
+    Leg.objects.filter(reservation=OuterRef("pk"), status="completed")
+)
 
 # Net revenue per row: Stripe = paid_amount (net of refunds); non-Stripe = total_price.
 _REVENUE_AMOUNT_EXPR = Case(
@@ -62,8 +74,16 @@ _REVENUE_GROSS_EXPR = Case(
     output_field=DecimalField(max_digits=12, decimal_places=2),
 )
 
-# Cash-basis anchor: when did we receive the money?
-_REVENUE_ANCHOR_EXPR = Coalesce("first_paid_at", "created_at")
+# Cash-basis anchor: when did we actually receive the money?
+# COALESCE returns the first non-NULL value, so for Stripe-paid rows
+# first_paid_at wins (real receipt date), and for cash-only rows the
+# subquery returns the earliest non-cancelled leg pickup_date.
+_REVENUE_ANCHOR_EXPR = Coalesce(
+    "first_paid_at",
+    Subquery(_earliest_active_pickup_subq),
+    "created_at",
+    output_field=DateTimeField(),
+)
 
 
 def resolve_range(start=None, end=None, days: int = 30):
@@ -120,17 +140,27 @@ def revenue_qs(start, end):
     in this module builds on top of this — guarantees a consistent
     definition of 'paid revenue' across the dashboard.
 
+    A reservation contributes when ANY of these is true:
+      - is_paid=True (Stripe path)
+      - status="completed" (whole-trip cash collection)
+      - at least one Leg has status="completed" (partial collection on
+        round-trips where operator hasn't flipped the parent reservation)
+
     Each row carries:
       - revenue_amount: net revenue (Decimal)
       - revenue_gross:  pre-refund gross (Decimal)
       - revenue_at:     date money was received (DateTime)
     """
     return (
-        Reservation.objects.filter(_REVENUE_FILTER)
+        Reservation.objects
         .annotate(
+            has_completed_leg=_has_completed_leg_subq,
             revenue_at=_REVENUE_ANCHOR_EXPR,
             revenue_amount=_REVENUE_AMOUNT_EXPR,
             revenue_gross=_REVENUE_GROSS_EXPR,
+        )
+        .filter(
+            Q(is_paid=True) | Q(status="completed") | Q(has_completed_leg=True)
         )
         .filter(revenue_at__gte=start, revenue_at__lt=end)
     )
