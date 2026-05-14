@@ -983,7 +983,7 @@
         const list = document.getElementById('dayoff-list-' + driverId);
         const empty = list.querySelector('.dayoff-empty');
         if (empty) empty.remove();
-        const REASON_LABELS = {day_off:'Day Off',pto:'PTO',vacation:'Vacation',sick:'Sick',appointment:'Appointment',other:'Other'};
+        const REASON_LABELS = {day_off:'Day Off',vacation:'Vacation',sick:'Sick',appointment:'Appointment',other:'Other'};
         const shortLbl = buildExceptionShort(ov.exception_type, ov.start_time, ov.end_time);
         let html = `<div class="dayoff-item exc-${ov.exception_type}" id="dayoff-${ov.id}">`;
         html += `<span class="dayoff-date">${ov.date_range_display}</span>`;

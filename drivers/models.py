@@ -276,7 +276,6 @@ class DriverDateOverride(models.Model):
     """
     REASON_CHOICES = [
         ("day_off", "Day Off"),
-        ("pto", "PTO"),
         ("vacation", "Vacation"),
         ("sick", "Sick"),
         ("appointment", "Appointment"),

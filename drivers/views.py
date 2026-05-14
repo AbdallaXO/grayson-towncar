@@ -845,7 +845,7 @@ def driver_profile(request, driver_id):
         if hasattr(driver, "weekly_schedule") else []
     )
 
-    # Date overrides (PTO / blocked / preferred) within the next 30 days.
+    # Date overrides (day off / vacation / sick / etc.) within the next 30 days.
     upcoming_overrides = []
     if hasattr(driver, "date_overrides"):
         upcoming_overrides = list(
