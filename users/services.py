@@ -15,12 +15,84 @@ from users.emails import send_agent_commission_statement, send_agency_commission
 logger = logging.getLogger(__name__)
 
 
-def process_agent_payout(agent, send_email=False, recipient_email=None, sent_by=None):
-    """
-    Process payout for a single agent, optionally email statement.
-    Returns (payout, amount, agency_payout).
+def _apply_reference_and_method(payout, *, payment_reference, payment_method_used, fallback_method):
+    """Stamp a freshly created payout with the operator-supplied reference + method."""
+    if not payout:
+        return
+    reference = (payment_reference or "").strip()
+    method = (payment_method_used or fallback_method or "").strip()
+    if reference or method:
+        payout.payment_reference = reference
+        payout.payment_method_used = method
+        payout.save(update_fields=["payment_reference", "payment_method_used"])
+
+
+def _log_payout_audit(payout, *, sent_by):
+    """Write one AuditLog row for a freshly created payout, attributed to the operator."""
+    if not payout:
+        return
+    from reservations.models import AuditLog  # late import to avoid circular
+
+    model_name = payout.__class__.__name__
+    summary_parts = [f"amount=${payout.total_amount}"]
+    if payout.payment_method_used:
+        summary_parts.append(f"method={payout.payment_method_used}")
+    if payout.payment_reference:
+        summary_parts.append(f"ref={payout.payment_reference}")
+    if model_name == "CommissionPayout":
+        summary_parts.append(f"agent_id={payout.agent_id}")
+        if payout.agency_id:
+            summary_parts.append(f"agency_id={payout.agency_id}")
+    elif model_name == "AgencyCommissionPayout":
+        summary_parts.append(f"agency_id={payout.agency_id}")
+
+    try:
+        AuditLog.objects.create(
+            model_name=model_name,
+            object_id=payout.id,
+            action="commission_processed",
+            new_value=" ".join(summary_parts),
+            user=sent_by,
+            username=getattr(sent_by, "username", "system") if sent_by else "system",
+        )
+    except Exception:  # noqa: BLE001 — audit must not break the payout flow
+        logger.exception("Failed to write AuditLog for %s #%s", model_name, payout.id)
+
+
+def process_agent_payout(
+    agent,
+    *,
+    send_email=False,
+    recipient_email=None,
+    sent_by=None,
+    payment_reference="",
+    payment_method_used="",
+):
+    """Process payout for a single agent, optionally email statement.
+
+    Returns (payout, amount, agency_payout). When payment_reference or
+    payment_method_used is given, both the agent payout and any spawned agency
+    payout are stamped with those values so they show up on the audit trail.
     """
     payout, amount, agency_payout = agent.process_commission_payment()
+
+    if payout:
+        _apply_reference_and_method(
+            payout,
+            payment_reference=payment_reference,
+            payment_method_used=payment_method_used,
+            fallback_method=agent.effective_payment_method,
+        )
+        _log_payout_audit(payout, sent_by=sent_by)
+
+    if agency_payout:
+        _apply_reference_and_method(
+            agency_payout,
+            payment_reference=payment_reference,
+            payment_method_used=payment_method_used,
+            fallback_method=(agent.agency.payment_method if agent.agency else ""),
+        )
+        _log_payout_audit(agency_payout, sent_by=sent_by)
 
     if payout and send_email:
         email = recipient_email or agent.user.email
@@ -29,12 +101,38 @@ def process_agent_payout(agent, send_email=False, recipient_email=None, sent_by=
     return payout, amount, agency_payout
 
 
-def process_agency_payout(agency, send_email=False, recipient_email=None, sent_by=None):
-    """
-    Process payout for entire agency, optionally email statement.
+def process_agency_payout(
+    agency,
+    *,
+    send_email=False,
+    recipient_email=None,
+    sent_by=None,
+    payment_reference="",
+    payment_method_used="",
+):
+    """Process payout for entire agency, optionally email statement.
+
     Returns (payout, amount).
     """
     payout, amount = agency.process_agency_commission_payment()
+
+    if payout:
+        _apply_reference_and_method(
+            payout,
+            payment_reference=payment_reference,
+            payment_method_used=payment_method_used,
+            fallback_method=agency.payment_method,
+        )
+        _log_payout_audit(payout, sent_by=sent_by)
+        # Stamp every child agent payout too so per-agent history stays consistent.
+        for child in payout.agent_payouts.all():
+            _apply_reference_and_method(
+                child,
+                payment_reference=payment_reference,
+                payment_method_used=payment_method_used,
+                fallback_method=agency.payment_method,
+            )
+            _log_payout_audit(child, sent_by=sent_by)
 
     if payout and send_email:
         email = recipient_email
@@ -45,6 +143,102 @@ def process_agency_payout(agency, send_email=False, recipient_email=None, sent_b
             _run_in_background(send_agency_commission_statement, agency, payout, email, sent_by=sent_by)
 
     return payout, amount
+
+
+def process_bulk_payouts(items, *, sent_by):
+    """Process a list of mark-paid actions atomically per-item.
+
+    items: list of dicts. Each must have:
+        - "type": "agent" | "agency"
+        - "id":   int
+        - "reference": str (optional, defaults to "")
+        - "method":    str (optional, defaults to the payee's stored method)
+        - "email":     bool (optional)
+
+    Each item runs in its own transaction so one failure does not roll back successes.
+    Returns a list of result dicts, one per input item, in the same order.
+    """
+    from users.models import TravelAgent, Agency
+
+    results = []
+    for item in items:
+        kind = item.get("type")
+        try:
+            obj_id = int(item.get("id"))
+        except (TypeError, ValueError):
+            results.append({"ok": False, "id": item.get("id"), "error": "Invalid id."})
+            continue
+
+        reference = item.get("reference") or ""
+        method = item.get("method") or ""
+        email = bool(item.get("email"))
+
+        try:
+            if kind == "agent":
+                agent = TravelAgent.objects.select_related("user", "agency").get(id=obj_id)
+                if agent.calculate_unpaid_commissions() <= 0:
+                    results.append({
+                        "ok": False, "type": "agent", "id": obj_id,
+                        "name": agent.agent_name or agent.user.get_username(),
+                        "error": "No unpaid commissions.",
+                    })
+                    continue
+                payout, amount, agency_payout = process_agent_payout(
+                    agent,
+                    sent_by=sent_by,
+                    payment_reference=reference,
+                    payment_method_used=method,
+                    send_email=email,
+                    recipient_email=agent.user.email,
+                )
+                results.append({
+                    "ok": True, "type": "agent", "id": obj_id,
+                    "name": agent.agent_name or agent.user.get_username(),
+                    "amount": str(amount or Decimal("0")),
+                    "payout_id": payout.id if payout else None,
+                    "agency_payout_id": agency_payout.id if agency_payout else None,
+                })
+
+            elif kind == "agency":
+                agency = Agency.objects.get(id=obj_id)
+                owing_agents = agency.agents.filter(
+                    unpaid_commissions__gt=0, agency_handles_payment=True
+                ).count()
+                if owing_agents == 0:
+                    results.append({
+                        "ok": False, "type": "agency", "id": obj_id, "name": agency.name,
+                        "error": "No unpaid commissions in this agency.",
+                    })
+                    continue
+                recipient_email = None
+                if email:
+                    first_head = agency.heads.first()
+                    recipient_email = first_head.email if first_head else None
+                payout, amount = process_agency_payout(
+                    agency,
+                    sent_by=sent_by,
+                    payment_reference=reference,
+                    payment_method_used=method,
+                    send_email=email,
+                    recipient_email=recipient_email,
+                )
+                results.append({
+                    "ok": True, "type": "agency", "id": obj_id, "name": agency.name,
+                    "amount": str(amount or Decimal("0")),
+                    "payout_id": payout.id if payout else None,
+                    "agents_count": payout.agent_payouts.count() if payout else 0,
+                })
+
+            else:
+                results.append({"ok": False, "id": obj_id, "error": f"Unknown type: {kind!r}"})
+
+        except (TravelAgent.DoesNotExist, Agency.DoesNotExist):
+            results.append({"ok": False, "type": kind, "id": obj_id, "error": "Not found."})
+        except Exception as exc:  # noqa: BLE001 — log every failure, keep going
+            logger.exception("Bulk payout failed for %s #%s", kind, obj_id)
+            results.append({"ok": False, "type": kind, "id": obj_id, "error": str(exc)})
+
+    return results
 
 
 def preview_agent_payout(agent):

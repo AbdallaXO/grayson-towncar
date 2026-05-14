@@ -171,6 +171,31 @@ class TravelAgent(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
+    # ---------- Dashboard helper properties (no DB hits) ----------
+    @property
+    def routes_through_agency(self):
+        """True if commissions for this agent are paid to their agency."""
+        return bool(self.agency_handles_payment and self.agency_id)
+
+    @property
+    def effective_payment_method(self):
+        """The method actually used for this agent — agency's if routed through agency, else own."""
+        if self.routes_through_agency and self.agency:
+            return self.agency.payment_method or ""
+        return self.payment_method or ""
+
+    @property
+    def effective_payment_info(self):
+        """The handle/info actually used — agency's if routed through agency, else own."""
+        if self.routes_through_agency and self.agency:
+            return self.agency.payment_info or ""
+        return self.payment_info or ""
+
+    @property
+    def payment_info_complete(self):
+        """True only when both method and handle are populated on the effective payee."""
+        return bool(self.effective_payment_method) and bool(self.effective_payment_info)
+
     def calculate_unpaid_commissions(self):
         """Calculate unpaid commissions based on commission_rate without saving."""
         from django.db.models import Sum, F, ExpressionWrapper, DecimalField
@@ -483,6 +508,15 @@ class CommissionPayout(models.Model):
     paid_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
 
+    # Captured at mark-paid time: external transaction ID and the method actually used.
+    payment_reference = models.CharField(max_length=120, blank=True, default="")
+    payment_method_used = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=TravelAgent.PAYMENT_METHOD_CHOICES,
+    )
+
     # Non-persistent field to track signal processing
     _skip_signal_handler = False
 
@@ -510,6 +544,14 @@ class AgencyCommissionPayout(models.Model):
     payout_period_end = models.DateField()
     paid_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
+
+    payment_reference = models.CharField(max_length=120, blank=True, default="")
+    payment_method_used = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=TravelAgent.PAYMENT_METHOD_CHOICES,
+    )
 
     def __str__(self):
         return f"{self.agency.name} – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"
@@ -561,6 +603,10 @@ class Agency(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def payment_info_complete(self):
+        return bool(self.payment_method) and bool(self.payment_info)
 
     class Meta:
         verbose_name = "Agency"

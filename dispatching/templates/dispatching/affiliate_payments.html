@@ -461,6 +461,314 @@
     .am-filter { padding: 10px; }
     .am-filter .am-search { min-width: 100%; }
   }
+
+  /* ============================================================
+     === EXTENSIONS: 6 KPI tiles, method pills, status badges, ===
+     === Recommended Queue, bulk bar, review modal, checkboxes ===
+     ============================================================ */
+
+  /* 6-tile KPI grid */
+  .am-kpis { grid-template-columns: repeat(6, 1fr); }
+  @media (max-width: 1200px) { .am-kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 600px)  { .am-kpis { grid-template-columns: repeat(2, 1fr); } }
+
+  .am-kpi-warn    { border-color: #f1d59c; background: linear-gradient(135deg, #fff8e6, #fff); }
+  .am-kpi-warn::before    { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#c97a1a; }
+  .am-kpi-warn    .kpi-value { color: #b46612; }
+  .am-kpi-warn    .kpi-label i { color: #c97a1a; }
+
+  .am-kpi-danger  { border-color: #f4c7c7; background: linear-gradient(135deg, #fff0f0, #fff); }
+  .am-kpi-danger::before  { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--gt-red); }
+  .am-kpi-danger  .kpi-value { color: var(--gt-red); }
+  .am-kpi-danger  .kpi-label i { color: var(--gt-red); }
+
+  .am-kpi-success { border-color: #b1dfbb; background: linear-gradient(135deg, #f1fbf4, #fff); }
+  .am-kpi-success::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--gt-green); }
+  .am-kpi-success .kpi-value { color: var(--gt-green); }
+  .am-kpi-success .kpi-label i { color: var(--gt-green); }
+
+  /* Method breakdown pills row */
+  .am-method-pills {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin: -10px 0 22px;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid var(--gt-border-soft);
+    border-radius: var(--gt-radius);
+    box-shadow: var(--gt-shadow-sm);
+  }
+  .am-method-pills-label {
+    font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--gt-muted); margin-right: 4px;
+  }
+  .am-method-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 12px 4px 6px;
+    background: var(--gt-surface);
+    border: 1px solid var(--gt-border-soft);
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--gt-text);
+    font-size: .82rem;
+    transition: border-color .15s, background .15s, transform .1s;
+  }
+  .am-method-pill:hover {
+    background: #fff; border-color: var(--gt-dark);
+    color: var(--gt-dark); transform: translateY(-1px);
+  }
+  .am-method-pill.is-active {
+    background: var(--gt-dark); border-color: var(--gt-dark); color: #fff;
+  }
+  .am-method-pill.is-active .am-method-pill-count { background: rgba(255,255,255,.16); color: #fff; }
+  .am-method-pill.is-active .payment-badge { filter: brightness(0.95) saturate(1.1); }
+  .am-method-pill-count {
+    background: var(--gt-gold-soft); color: var(--gt-dark);
+    font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+    line-height: 1.3;
+  }
+  .am-method-pill--missing { border-style: dashed; }
+
+  /* Colored tab variants */
+  .am-tab.am-tab-primary { border-color: rgba(201,162,39,0.4); background: var(--gt-gold-tint); }
+  .am-tab.am-tab-primary.active { background: var(--gt-gold); border-color: var(--gt-gold); color: var(--gt-dark); }
+  .am-tab.am-tab-primary .count { background: rgba(201,162,39,0.2); }
+  .am-tab.am-tab-primary.active .count { background: rgba(26,29,33,0.12); color: var(--gt-dark); }
+
+  .am-tab.am-tab-warn   { border-color: #f1d59c; background: #fff8e6; color: #8a5a1c; }
+  .am-tab.am-tab-warn.active { background: #c97a1a; border-color: #c97a1a; color: #fff; }
+  .am-tab.am-tab-warn .count { background: rgba(201,122,26,0.12); color: #8a5a1c; }
+  .am-tab.am-tab-warn.active .count { background: rgba(255,255,255,0.18); color: #fff; }
+
+  .am-tab.am-tab-danger { border-color: #f4c7c7; background: #fff0f0; color: #a83232; }
+  .am-tab.am-tab-danger.active { background: var(--gt-red); border-color: var(--gt-red); color: #fff; }
+  .am-tab.am-tab-danger .count { background: rgba(224,68,68,0.12); color: #a83232; }
+  .am-tab.am-tab-danger.active .count { background: rgba(255,255,255,0.18); color: #fff; }
+
+  /* Min-amount input in filter bar */
+  .am-min-amount {
+    display: inline-flex; align-items: center;
+    border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    background: var(--gt-surface-2); overflow: hidden;
+  }
+  .am-min-amount-prefix {
+    padding: .45rem 0 .45rem .7rem; color: var(--gt-muted); font-size: .82rem;
+  }
+  .am-min-amount input {
+    border: none; background: transparent; padding: .45rem .7rem .45rem .25rem;
+    font-size: .82rem; color: var(--gt-text); width: 84px; outline: none;
+  }
+  .am-min-amount:focus-within { border-color: var(--gt-gold); background: #fff; }
+
+  /* Status badges on entity rows */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 9px; border-radius: 999px;
+    font-size: .68rem; font-weight: 700; letter-spacing: .2px;
+    line-height: 1.4;
+  }
+  .status-badge i { font-size: .75rem; }
+  .status-badge.ready    { background: rgba(31,157,85,.12); color: var(--gt-green); }
+  .status-badge.paid     { background: rgba(31,157,85,.12); color: var(--gt-green); }
+  .status-badge.overdue  { background: #fff0f0; color: #a83232; border: 1px solid #f4c7c7; }
+  .status-badge.missing  { background: #fff8e6; color: #8a5a1c; border: 1px solid #f1d59c; }
+  .status-badge.never    { background: #eef0f4; color: #555f6e; }
+
+  /* Bulk-select checkbox column */
+  .am-checkbox, .am-checkbox-spacer {
+    width: 22px; height: 22px; flex-shrink: 0;
+    margin-right: 8px;
+  }
+  .am-checkbox {
+    appearance: none; -webkit-appearance: none;
+    border: 1.5px solid var(--gt-border);
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    position: relative;
+    transition: border-color .15s, background .15s;
+  }
+  .am-checkbox:hover { border-color: var(--gt-dark); }
+  .am-checkbox:checked {
+    background: var(--gt-gold); border-color: var(--gt-gold);
+  }
+  .am-checkbox:checked::after {
+    content: ''; position: absolute;
+    left: 6px; top: 2px;
+    width: 6px; height: 11px;
+    border: solid #fff; border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .am-entity.selected {
+    border-color: var(--gt-gold);
+    box-shadow: 0 0 0 3px var(--gt-gold-soft);
+  }
+
+  /* Wrap the existing entity-head click target inside a flexbox so the
+     checkbox sits left, and the rest stays the same. */
+  .am-entity-head {
+    align-items: center;
+  }
+  .am-entity-head-clickable {
+    display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0;
+    cursor: pointer;
+  }
+  .am-entity-head-clickable:hover { background: var(--gt-surface-2); }
+
+  /* Sticky bulk action bar at the bottom of the viewport */
+  .am-bulk-bar {
+    position: fixed; left: 50%; bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 1040;
+    background: var(--gt-dark);
+    color: #fff;
+    border-radius: 999px;
+    padding: 10px 12px 10px 22px;
+    box-shadow: 0 18px 50px rgba(15,23,42,.28), 0 4px 14px rgba(15,23,42,.18);
+    animation: bulkBarUp .25s ease;
+  }
+  @keyframes bulkBarUp {
+    from { opacity: 0; transform: translate(-50%, 16px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+  }
+  .am-bulk-bar[hidden] { display: none; }
+  .am-bulk-bar-inner {
+    display: flex; align-items: center; gap: 18px;
+  }
+  .am-bulk-count {
+    font-size: .9rem; display: inline-flex; align-items: center; gap: 10px;
+  }
+  .am-bulk-count strong { font-weight: 700; }
+  .am-bulk-total {
+    color: var(--gt-gold); font-size: 1rem; padding-left: 8px; border-left: 1px solid rgba(255,255,255,0.18);
+  }
+  .am-bulk-actions {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .am-bulk-actions .btn-pay {
+    background: var(--gt-gold); color: var(--gt-dark);
+    border-radius: 999px; padding: .5rem 1.1rem;
+  }
+  .am-bulk-actions .btn-pay:hover { background: #d6ae31; }
+  .am-bulk-actions .btn-icon {
+    background: transparent; border-color: rgba(255,255,255,0.2); color: #fff;
+    border-radius: 50%;
+  }
+  .am-bulk-actions .btn-icon:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  @media (max-width: 720px) {
+    .am-bulk-bar { left: 12px; right: 12px; transform: none; bottom: 12px; border-radius: var(--gt-radius); }
+    .am-bulk-bar-inner { flex-direction: column; align-items: stretch; gap: 8px; }
+    .am-bulk-actions { justify-content: space-between; }
+  }
+
+  /* Recommended Queue card */
+  .am-recommended {
+    background: linear-gradient(135deg, var(--gt-gold-tint), #fff);
+    border: 1px solid rgba(201,162,39,.32);
+    border-radius: var(--gt-radius);
+    padding: 18px 20px;
+    margin-bottom: 22px;
+    box-shadow: var(--gt-shadow-sm);
+    position: relative;
+  }
+  .am-recommended::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--gt-gold); border-radius: var(--gt-radius) 0 0 var(--gt-radius);
+  }
+  .am-recommended-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 14px; margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .am-recommended-title {
+    font-size: 1rem; font-weight: 700; color: var(--gt-dark); margin: 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .am-recommended-title i { color: var(--gt-gold); }
+  .am-recommended-sub {
+    font-size: .8rem; color: var(--gt-muted); margin: 4px 0 0; line-height: 1.4;
+  }
+  .am-btn-ghost {
+    background: #fff; border: 1px solid var(--gt-border);
+    border-radius: var(--gt-radius-sm); padding: .45rem .9rem;
+    font-size: .82rem; font-weight: 600; color: var(--gt-text); cursor: pointer;
+    display: inline-flex; align-items: center;
+  }
+  .am-btn-ghost:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
+  .am-recommended-list {
+    display: grid; gap: 6px;
+  }
+  .am-rec-row {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1px solid var(--gt-border-soft);
+    border-radius: var(--gt-radius-sm); padding: 8px 12px;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .am-rec-row:hover { border-color: var(--gt-dark); }
+  .am-rec-row.selected { border-color: var(--gt-gold); box-shadow: 0 0 0 2px var(--gt-gold-soft); }
+  .am-rec-avatar {
+    width: 28px; height: 28px; background: var(--gt-gold-soft); color: var(--gt-gold);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: .85rem;
+  }
+  .am-rec-name { font-weight: 600; color: var(--gt-dark); font-size: .9rem; }
+  .am-rec-amount { margin-left: auto; color: var(--gt-red); font-weight: 600; }
+
+  /* Review & Mark Paid modal contents */
+  .am-review-controls {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    background: var(--gt-surface); border: 1px solid var(--gt-border-soft);
+    border-radius: var(--gt-radius-sm); padding: 12px;
+    margin-bottom: 16px;
+  }
+  .am-review-control { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+  .am-review-control-grow { flex: 1 1 240px; min-width: 200px; }
+  .am-review-control-check { justify-content: flex-end; }
+  .am-review-control label {
+    font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--gt-muted); margin: 0;
+  }
+  .am-review-control select, .am-review-control input[type="text"] {
+    border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
+    padding: .45rem .7rem; font-size: .88rem;
+    background: #fff;
+    min-width: 180px;
+  }
+  .am-review-control select:focus, .am-review-control input[type="text"]:focus {
+    outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 3px var(--gt-gold-soft);
+  }
+  .am-check-inline {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .85rem; cursor: pointer;
+  }
+  .am-check-inline input { width: 16px; height: 16px; }
+
+  .am-review-table th {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); background: var(--gt-surface);
+    padding: 8px 10px; border-bottom: 1px solid var(--gt-border);
+  }
+  .am-review-table td { padding: 9px 10px; vertical-align: middle; border-bottom: 1px solid var(--gt-border-soft); }
+  .am-review-table input[type="text"] {
+    width: 100%; border: 1px solid var(--gt-border); border-radius: 6px;
+    padding: .35rem .55rem; font-size: .82rem; background: #fff;
+  }
+  .am-review-table input[type="text"]:focus {
+    outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 2px var(--gt-gold-soft);
+  }
+  .am-review-table .review-row-method {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .am-review-table .review-row-method select {
+    border: 1px solid var(--gt-border-soft); border-radius: 6px;
+    padding: .25rem .45rem; font-size: .78rem; background: #fff;
+  }
+  .am-review-results { margin-top: 14px; }
+  .am-review-results .am-review-result-row {
+    padding: 7px 12px; border-radius: var(--gt-radius-sm);
+    font-size: .82rem; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .am-review-results .am-review-result-row.ok    { background: #f1fbf4; color: var(--gt-green); }
+  .am-review-results .am-review-result-row.fail  { background: #fff0f0; color: var(--gt-red); }
 </style>
 {% endblock %}
 
@@ -476,8 +784,11 @@
       <p class="am-subtitle">Review balances, process payouts, and open agency or agent profiles.</p>
     </div>
     <div class="am-head-actions">
-      <a href="{% url 'agency_payouts_report' %}" class="btn btn-outline-dark">
-        <i class="bi bi-binoculars me-1"></i>Affiliate Explorer
+      <a href="{% url 'agency_payouts_report' %}" class="btn btn-outline-dark" title="Analytics: overview, agencies, agents">
+        <i class="bi bi-graph-up me-1"></i>Analytics
+      </a>
+      <a href="{% url 'admin_commission_report' %}" class="btn btn-outline-dark" title="Lifetime payout history + CSV export">
+        <i class="bi bi-clock-history me-1"></i>History &amp; Export
       </a>
     </div>
   </div>
@@ -492,33 +803,78 @@
     <div class="am-kpi">
       <div class="kpi-label"><i class="bi bi-building"></i> Agencies Owing</div>
       <div class="kpi-value">{{ total_owing_agencies }}</div>
-      <div class="kpi-sub">With unpaid commissions</div>
+      <div class="kpi-sub">${{ total_owing_agencies_amount|floatformat:2 }}</div>
     </div>
     <div class="am-kpi">
-      <div class="kpi-label"><i class="bi bi-person"></i> Agents Owing</div>
+      <div class="kpi-label"><i class="bi bi-person"></i> Direct Agents Owing</div>
       <div class="kpi-value">{{ total_owing_agents }}</div>
-      <div class="kpi-sub">Paid directly</div>
+      <div class="kpi-sub">${{ total_owing_agents_amount|floatformat:2 }}</div>
     </div>
-    <div class="am-kpi">
-      <div class="kpi-label"><i class="bi bi-clock-history"></i> Total Payouts</div>
-      <div class="kpi-value">{{ total_payouts }}</div>
-      <div class="kpi-sub">Lifetime processed</div>
+    <div class="am-kpi am-kpi-warn">
+      <div class="kpi-label"><i class="bi bi-exclamation-triangle"></i> Missing Info</div>
+      <div class="kpi-value">{{ kpi_missing_count }}</div>
+      <div class="kpi-sub">${{ kpi_missing_total|floatformat:2 }} blocked</div>
+    </div>
+    <div class="am-kpi am-kpi-danger">
+      <div class="kpi-label"><i class="bi bi-clock-history"></i> Overdue &gt; 30d</div>
+      <div class="kpi-value">{{ kpi_overdue_count }}</div>
+      <div class="kpi-sub">${{ kpi_overdue_total|floatformat:2 }} past due</div>
+    </div>
+    <div class="am-kpi am-kpi-success">
+      <div class="kpi-label"><i class="bi bi-check2-circle"></i> Paid This Month</div>
+      <div class="kpi-value">${{ kpi_paid_this_month|floatformat:2 }}</div>
+      <div class="kpi-sub">Settled this calendar month</div>
     </div>
   </div>
 
-  <!-- Sticky Section Nav -->
+  <!-- By-payment-method breakdown pills -->
+  {% if by_method_pills %}
+  <div class="am-method-pills" aria-label="Amount owed by payment method">
+    <span class="am-method-pills-label">Owed by method:</span>
+    {% for slot in by_method_pills %}
+      {% if slot.amount > 0 %}
+        <a href="?section=agents&pay_method={% if slot.key == '_missing' %}none{% else %}{{ slot.key }}{% endif %}{% if search %}&q={{ search }}{% endif %}"
+           class="am-method-pill {% if slot.key == '_missing' %}am-method-pill--missing{% endif %} {% if pay_method == slot.key %}is-active{% endif %}"
+           title="Filter direct agents by {{ slot.label }}">
+          <span class="payment-badge {% if slot.key == '_missing' %}other{% else %}{{ slot.key }}{% endif %}">{{ slot.label }}</span>
+          <span class="am-mono">${{ slot.amount|floatformat:0 }}</span>
+          <span class="am-method-pill-count">{{ slot.count }}</span>
+        </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Sticky Section Nav (URL-driven tabs) -->
   <nav class="am-section-nav" id="amSectionNav">
     <div class="am-section-nav-inner">
-      <a href="#section-agencies" class="am-tab" data-target="section-agencies">
+      <a href="?section=pay_today{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
+         class="am-tab am-tab-primary {% if section == 'pay_today' %}active{% endif %}">
+        <i class="bi bi-star-fill"></i>Pay Today
+        <span class="count">{{ pay_today_count }}</span>
+      </a>
+      <a href="?section=agencies{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
+         class="am-tab {% if section == 'agencies' %}active{% endif %}">
         <i class="bi bi-building"></i>Agencies
-        {% if agencies %}<span class="count">{{ agencies|length }}</span>{% endif %}
+        <span class="count">{{ total_owing_agencies }}</span>
       </a>
-      <a href="#section-agents" class="am-tab" data-target="section-agents">
-        <i class="bi bi-person"></i>Agents
-        <span class="count">{{ agents_page_obj.paginator.count }}</span>
+      <a href="?section=agents{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
+         class="am-tab {% if section == 'agents' %}active{% endif %}">
+        <i class="bi bi-person"></i>Direct Agents
+        <span class="count">{{ total_owing_agents }}</span>
       </a>
-      <a href="#section-history" class="am-tab" data-target="section-history">
-        <i class="bi bi-clock-history"></i>Payout History
+      <a href="?section=missing{% if search %}&q={{ search }}{% endif %}"
+         class="am-tab am-tab-warn {% if section == 'missing' %}active{% endif %}">
+        <i class="bi bi-exclamation-triangle"></i>Missing Info
+        <span class="count">{{ missing_info_count }}</span>
+      </a>
+      <a href="?section=overdue{% if search %}&q={{ search }}{% endif %}"
+         class="am-tab am-tab-danger {% if section == 'overdue' %}active{% endif %}">
+        <i class="bi bi-clock-history"></i>Overdue
+        <span class="count">{{ overdue_count }}</span>
+      </a>
+      <a href="?section=history" class="am-tab {% if section == 'history' %}active{% endif %}">
+        <i class="bi bi-archive"></i>History
         <span class="count">{{ total_payouts }}</span>
       </a>
     </div>
@@ -527,6 +883,7 @@
   <!-- Filter Bar (sticky) -->
   <div class="am-filter-wrap" id="amFilterWrap">
     <form method="get" class="am-filter">
+      <input type="hidden" name="section" value="{{ section }}">
       <div class="am-search">
         <i class="bi bi-search"></i>
         <input type="text" name="q" placeholder="Search name, email, or agency…" value="{{ search }}">
@@ -547,8 +904,13 @@
         <option value="no_agency" {% if pay_method == "no_agency" %}selected{% endif %}>Exclude Agency</option>
         <option value="none" {% if pay_method == "none" %}selected{% endif %}>No method set</option>
       </select>
+      <div class="am-min-amount" title="Hide payouts smaller than this">
+        <span class="am-min-amount-prefix">$</span>
+        <input type="number" name="min_amount" min="0" step="1" value="{% if min_amount %}{{ min_amount|floatformat:0 }}{% endif %}" placeholder="Min">
+      </div>
       <select name="sort" title="Sort">
         <option value="amount" {% if sort == "amount" %}selected{% endif %}>Sort: Amount</option>
+        <option value="overdue" {% if sort == "overdue" %}selected{% endif %}>Sort: Oldest unpaid</option>
         <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
         <option value="date" {% if sort == "date" %}selected{% endif %}>Sort: Last paid</option>
       </select>
@@ -559,11 +921,51 @@
         <option value="200" {% if per_page == 200 %}selected{% endif %}>200/page</option>
       </select>
       <button type="submit" class="am-btn-primary"><i class="bi bi-funnel"></i>Apply</button>
-      <a href="{% url 'affiliate_payments' %}" class="am-btn-reset">Reset</a>
+      <a href="?section={{ section }}" class="am-btn-reset">Reset</a>
     </form>
   </div>
 
+  {# ─────────────── Pay Today: Recommended Queue ─────────────── #}
+  {% if section == 'pay_today' and pay_today_recommended %}
+  <div class="am-recommended">
+    <div class="am-recommended-head">
+      <div>
+        <h2 class="am-recommended-title"><i class="bi bi-star-fill"></i> Recommended for today</h2>
+        <p class="am-recommended-sub">Top {{ pay_today_recommended|length }} payees ranked by amount &times; overdue age. Select the ones you've already sent externally, then bulk-mark them paid.</p>
+      </div>
+      <button type="button" class="am-btn-ghost" onclick="selectAllRecommended()">
+        <i class="bi bi-check-all me-1"></i>Select all
+      </button>
+    </div>
+    <div class="am-recommended-list">
+      {% for rec in pay_today_recommended %}
+        {% with p=rec.payee kind=rec.kind %}
+        <label class="am-rec-row" data-bulk-row data-kind="{{ kind }}" data-id="{{ p.id }}" data-amount="{{ p.display_amount|floatformat:2 }}" data-name="{% if kind == 'agency' %}{{ p.name|escapejs }}{% else %}{{ p.agent_name|default:p.user.username|escapejs }}{% endif %}" data-method="{% if kind == 'agency' %}{{ p.payment_method|default:'' }}{% else %}{{ p.payment_method|default:'' }}{% endif %}">
+          <input type="checkbox" class="am-checkbox am-bulk-cb" onchange="toggleBulkSelect(this)">
+          <span class="am-rec-avatar">
+            {% if kind == 'agency' %}<i class="bi bi-building"></i>{% else %}<i class="bi bi-person"></i>{% endif %}
+          </span>
+          <span class="am-rec-name">
+            {% if kind == 'agency' %}{{ p.name }}{% else %}{{ p.agent_name|default:p.user.username }}{% endif %}
+          </span>
+          {% if p.payment_method %}
+            <span class="payment-badge {{ p.payment_method }}">{{ p.get_payment_method_display }}</span>
+          {% else %}
+            <span class="status-badge missing"><i class="bi bi-exclamation-triangle"></i>Missing info</span>
+          {% endif %}
+          {% if p.is_overdue %}
+            <span class="status-badge overdue"><i class="bi bi-clock-history"></i>{{ p.overdue_days }}d</span>
+          {% endif %}
+          <span class="am-rec-amount am-mono">${{ p.display_amount|floatformat:2 }}</span>
+        </label>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- AGENCIES SECTION -->
+  {% if section == 'pay_today' or section == 'agencies' or section == 'missing' or section == 'overdue' %}
   <div id="section-agencies">
     <div class="am-section-head">
       <h2><i class="bi bi-building"></i>Agencies</h2>
@@ -574,69 +976,133 @@
 
     {% if agencies %}
       {% for agency in agencies %}
-      <div class="am-entity" id="agency-card-{{ agency.id }}" data-type="agency" data-id="{{ agency.id }}">
-        <div class="am-entity-head" onclick="toggleExpand(this)">
-          <div class="am-avatar"><i class="bi bi-building"></i></div>
-          <div class="am-entity-info">
-            <div class="am-entity-line1">
-              <span class="am-entity-name">
-                <a href="{% url 'admin_travel_agency_detail' agency.id %}" onclick="event.stopPropagation();">{{ agency.name }}</a>
-              </span>
-              {% if agency.last_paid_at %}
-                <span class="am-chip" title="{{ agency.last_paid_at|date:'M d, Y g:i A' }}">
-                  <i class="bi bi-clock-history"></i>{{ agency.last_paid_at|naturaltime }}
+      <div class="am-entity" id="agency-card-{{ agency.id }}" data-type="agency" data-id="{{ agency.id }}"
+           data-bulk-row data-kind="agency" data-amount="{{ agency.display_amount|floatformat:2 }}"
+           data-name="{{ agency.name|escapejs }}" data-method="{{ agency.payment_method|default:'' }}">
+        <div class="am-entity-head">
+          {% if agency.unpaid_total > 0 %}
+            <input type="checkbox" class="am-checkbox am-bulk-cb" onchange="toggleBulkSelect(this)" onclick="event.stopPropagation();" title="Select for bulk mark-paid">
+          {% else %}
+            <span class="am-checkbox-spacer"></span>
+          {% endif %}
+          <div class="am-entity-head-clickable" onclick="toggleExpand(this)">
+            <div class="am-avatar"><i class="bi bi-building"></i></div>
+            <div class="am-entity-info">
+              <div class="am-entity-line1">
+                <span class="am-entity-name">
+                  <a href="{% url 'admin_travel_agency_detail' agency.id %}" onclick="event.stopPropagation();">{{ agency.name }}</a>
                 </span>
-              {% else %}
-                <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
-              {% endif %}
-            </div>
-            <div class="am-entity-meta">
-              <span><i class="bi bi-people me-1"></i>{{ agency.owing_agent_count }} agent{{ agency.owing_agent_count|pluralize }}</span>
-              <span class="dot"></span>
-              <span>{{ agency.unpaid_res_count }} reservation{{ agency.unpaid_res_count|pluralize }}</span>
-              {% if not agency.payment_method %}
-                <span class="dot"></span>
-                <span class="am-chip never"><i class="bi bi-exclamation-triangle"></i>No payment method</span>
-              {% endif %}
-            </div>
-            {% if agency.payment_method %}
-              <div class="am-pay-row{% if agency.payment_info %} am-pay-row--copyable{% endif %}"
-                   {% if agency.payment_info %}data-copy="{{ agency.payment_info }}" title="Click to copy"{% endif %}>
-                <span class="payment-badge {{ agency.payment_method }}">{{ agency.get_payment_method_display }}</span>
-                {% if agency.payment_info %}
-                  <span class="payment-handle">{{ agency.payment_info }}</span>
-                  <i class="bi bi-clipboard payment-copy-icon"></i>
-                {% else %}
-                  <span class="payment-handle payment-handle--missing">No handle saved</span>
+                {% if agency.is_overdue %}
+                  <span class="status-badge overdue"><i class="bi bi-clock-history"></i>Overdue {{ agency.overdue_days }}d</span>
+                {% endif %}
+                {% if agency.is_missing_info %}
+                  <span class="status-badge missing"><i class="bi bi-exclamation-triangle"></i>Missing info</span>
+                {% endif %}
+                {% if agency.paid_today %}
+                  <span class="status-badge paid"><i class="bi bi-check2"></i>Paid today</span>
+                {% endif %}
+                {% if agency.last_paid_at %}
+                  <span class="am-chip" title="{{ agency.last_paid_at|date:'M d, Y g:i A' }}">
+                    <i class="bi bi-clock-history"></i>{{ agency.last_paid_at|naturaltime }}
+                  </span>
+                {% elif agency.unpaid_total > 0 %}
+                  <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
                 {% endif %}
               </div>
-            {% endif %}
-          </div>
-          <div class="am-entity-right" onclick="event.stopPropagation();">
-            <span class="am-amount">${{ agency.unpaid_total|floatformat:2 }}</span>
-            <div class="am-actions">
-              <button class="btn-pay" onclick="processPayout('agency', {{ agency.id }}, false)">
-                <i class="bi bi-cash"></i>Pay
-              </button>
-              <div class="dropdown">
-                <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="More">
-                  <i class="bi bi-three-dots-vertical"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li><a class="dropdown-item" href="#" onclick="showPreview('agency', {{ agency.id }}, '{{ agency.name|escapejs }}'); return false;">
-                    <i class="bi bi-eye me-2"></i>Preview payout</a></li>
-                  <li><a class="dropdown-item" href="#" onclick="processPayout('agency', {{ agency.id }}, true); return false;">
-                    <i class="bi bi-envelope-check me-2"></i>Pay &amp; email statement</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="{% url 'admin_travel_agency_detail' agency.id %}">
-                    <i class="bi bi-person-vcard me-2"></i>Open profile</a></li>
-                </ul>
+              <div class="am-entity-meta">
+                <span><i class="bi bi-people me-1"></i>{{ agency.owing_agent_count }} agent{{ agency.owing_agent_count|pluralize }}</span>
+                <span class="dot"></span>
+                <span>{{ agency.unpaid_res_count }} reservation{{ agency.unpaid_res_count|pluralize }}</span>
+                {% if agency.oldest_unpaid %}
+                  <span class="dot"></span>
+                  <span title="{{ agency.oldest_unpaid|date:'M d, Y' }}"><i class="bi bi-hourglass-split me-1"></i>Oldest: {{ agency.oldest_unpaid|naturaltime }}</span>
+                {% endif %}
               </div>
-              <i class="bi bi-chevron-right am-chevron" id="expand-agency-{{ agency.id }}"></i>
+              {% if agency.payment_method %}
+                <div class="am-pay-row{% if agency.payment_info %} am-pay-row--copyable{% endif %}"
+                     {% if agency.payment_info %}data-copy="{{ agency.payment_info }}" title="Click to copy"{% endif %}>
+                  <span class="payment-badge {{ agency.payment_method }}">{{ agency.get_payment_method_display }}</span>
+                  {% if agency.payment_info %}
+                    <span class="payment-handle">{{ agency.payment_info }}</span>
+                    <i class="bi bi-clipboard payment-copy-icon"></i>
+                  {% else %}
+                    <span class="payment-handle payment-handle--missing">No handle saved</span>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+            <div class="am-entity-right" onclick="event.stopPropagation();">
+              <span class="am-amount">${{ agency.display_amount|floatformat:2 }}</span>
+              <div class="am-actions">
+                {% if agency.unpaid_total > 0 %}
+                  <button class="btn-pay" onclick="markPaid('agency', {{ agency.id }})" title="Open Review & Mark Paid for just this agency">
+                    <i class="bi bi-check2-circle"></i>Mark Paid
+                  </button>
+                  <div class="dropdown">
+                    <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                      <i class="bi bi-three-dots-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                      <li><a class="dropdown-item" href="#" onclick="showPreview('agency', {{ agency.id }}, '{{ agency.name|escapejs }}'); return false;">
+                        <i class="bi bi-eye me-2"></i>Preview details</a></li>
+                      <li><a class="dropdown-item" href="#" onclick="markPaid('agency', {{ agency.id }}, true); return false;">
+                        <i class="bi bi-envelope-check me-2"></i>Mark Paid &amp; email statement</a></li>
+                      <li><hr class="dropdown-divider"></li>
+                      <li><a class="dropdown-item" href="{% url 'admin_travel_agency_detail' agency.id %}">
+                        <i class="bi bi-person-vcard me-2"></i>Open profile</a></li>
+                    </ul>
+                  </div>
+                {% else %}
+                  <span class="badge-paid"><i class="bi bi-check-circle-fill"></i> Paid up</span>
+                {% endif %}
+                <i class="bi bi-chevron-right am-chevron" id="expand-agency-{{ agency.id }}"></i>
+              </div>
             </div>
           </div>
         </div>
-        <div class="am-entity-body" id="detail-agency-{{ agency.id }}" style="display:none;"></div>
+        <div class="am-entity-body" id="detail-agency-{{ agency.id }}" style="display:none;">
+          {% if agency.child_agents %}
+            <table class="preview-table">
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Method</th>
+                  <th class="text-end">Reservations</th>
+                  <th class="text-end">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for child in agency.child_agents %}
+                <tr>
+                  <td>
+                    <a href="{% url 'admin_travel_agent_detail' child.id %}" class="text-decoration-none text-dark">
+                      <strong>{{ child.agent_name|default:child.user.username }}</strong>
+                    </a>
+                    <div class="text-muted small">{{ child.commission_rate }}% rate</div>
+                  </td>
+                  <td>
+                    {% if child.payment_method %}
+                      <span class="payment-badge {{ child.payment_method }}">{{ child.get_payment_method_display }}</span>
+                    {% else %}
+                      <span class="status-badge missing"><i class="bi bi-exclamation-triangle"></i>No method</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">{{ child.unpaid_res_count }}</td>
+                  <td class="text-end am-mono">${{ child.display_amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="text-end fw-bold">Agency total:</td>
+                  <td class="text-end am-mono fw-bold" style="color: var(--gt-red);">${{ agency.display_amount|floatformat:2 }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          {% else %}
+            <p class="text-muted px-3 py-2 mb-0">No agency-handled agents with unpaid commissions.</p>
+          {% endif %}
+        </div>
       </div>
       {% endfor %}
     {% else %}
@@ -646,11 +1112,13 @@
     </div>
     {% endif %}
   </div>
+  {% endif %}{# /agencies section #}
 
   <!-- AGENTS SECTION -->
+  {% if section == 'pay_today' or section == 'agents' or section == 'missing' or section == 'overdue' %}
   <div id="section-agents">
     <div class="am-section-head">
-      <h2><i class="bi bi-person"></i>Individual Agents</h2>
+      <h2><i class="bi bi-person"></i>Direct Agents</h2>
       <div class="am-section-meta">
         {% if agents_page_obj.paginator.count %}
           <span class="am-section-count">
@@ -671,76 +1139,94 @@
     </div>
 
     {% for agent in agents_page_obj %}
-    <div class="am-entity" id="agent-card-{{ agent.id }}" data-type="agent" data-id="{{ agent.id }}">
-      <div class="am-entity-head" onclick="toggleExpand(this)">
-        <div class="am-avatar"><i class="bi bi-person"></i></div>
-        <div class="am-entity-info">
-          <div class="am-entity-line1">
-            <span class="am-entity-name">
-              <a href="{% url 'admin_travel_agent_detail' agent.id %}" onclick="event.stopPropagation();">{{ agent.agent_name|default:agent.user.username }}</a>
-            </span>
-            {% if agent.last_payment_date %}
-              <span class="am-chip" title="{{ agent.last_payment_date|date:'M d, Y g:i A' }}">
-                <i class="bi bi-clock-history"></i>{{ agent.last_payment_date|naturaltime }}
+    <div class="am-entity" id="agent-card-{{ agent.id }}" data-type="agent" data-id="{{ agent.id }}"
+         data-bulk-row data-kind="agent" data-amount="{{ agent.display_amount|floatformat:2 }}"
+         data-name="{{ agent.agent_name|default:agent.user.username|escapejs }}" data-method="{{ agent.payment_method|default:'' }}">
+      <div class="am-entity-head">
+        {% if agent.live_unpaid > 0 %}
+          <input type="checkbox" class="am-checkbox am-bulk-cb" onchange="toggleBulkSelect(this)" onclick="event.stopPropagation();" title="Select for bulk mark-paid">
+        {% else %}
+          <span class="am-checkbox-spacer"></span>
+        {% endif %}
+        <div class="am-entity-head-clickable" onclick="toggleExpand(this)">
+          <div class="am-avatar"><i class="bi bi-person"></i></div>
+          <div class="am-entity-info">
+            <div class="am-entity-line1">
+              <span class="am-entity-name">
+                <a href="{% url 'admin_travel_agent_detail' agent.id %}" onclick="event.stopPropagation();">{{ agent.agent_name|default:agent.user.username }}</a>
               </span>
-            {% else %}
-              <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
-            {% endif %}
-          </div>
-          <div class="am-entity-meta">
-            <span>
-              {% if agent.agency %}<i class="bi bi-building me-1"></i>{{ agent.agency.name }}{% else %}<i class="bi bi-person-walking me-1"></i>Independent{% endif %}
-            </span>
-            <span class="dot"></span>
-            <span>{{ agent.commission_rate }}% rate</span>
-            <span class="dot"></span>
-            <span>{{ agent.unpaid_res_count }} reservation{{ agent.unpaid_res_count|pluralize }}</span>
-            {% if not agent.payment_method %}
-              <span class="dot"></span>
-              <span class="am-chip never"><i class="bi bi-exclamation-triangle"></i>No payment method</span>
-            {% endif %}
-          </div>
-          {% if agent.payment_method %}
-            <div class="am-pay-row{% if agent.payment_info %} am-pay-row--copyable{% endif %}"
-                 {% if agent.payment_info %}data-copy="{{ agent.payment_info }}" title="Click to copy"{% endif %}>
-              <span class="payment-badge {{ agent.payment_method }}">{{ agent.get_payment_method_display }}</span>
-              {% if agent.payment_info %}
-                <span class="payment-handle">{{ agent.payment_info }}</span>
-                <i class="bi bi-clipboard payment-copy-icon"></i>
-              {% else %}
-                <span class="payment-handle payment-handle--missing">No handle saved</span>
+              {% if agent.is_overdue %}
+                <span class="status-badge overdue"><i class="bi bi-clock-history"></i>Overdue {{ agent.overdue_days }}d</span>
+              {% endif %}
+              {% if agent.is_missing_info %}
+                <span class="status-badge missing"><i class="bi bi-exclamation-triangle"></i>Missing info</span>
+              {% endif %}
+              {% if agent.paid_today %}
+                <span class="status-badge paid"><i class="bi bi-check2"></i>Paid today</span>
+              {% endif %}
+              {% if agent.last_payment_date %}
+                <span class="am-chip" title="{{ agent.last_payment_date|date:'M d, Y g:i A' }}">
+                  <i class="bi bi-clock-history"></i>{{ agent.last_payment_date|naturaltime }}
+                </span>
+              {% elif agent.live_unpaid > 0 %}
+                <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
               {% endif %}
             </div>
-          {% endif %}
-        </div>
-        <div class="am-entity-right" onclick="event.stopPropagation();">
-          <span class="am-amount">${{ agent.live_unpaid|floatformat:2 }}</span>
-          <div class="am-actions">
-            {% if agent.live_unpaid > 0 %}
-              <button class="btn-pay" onclick="processPayout('agent', {{ agent.id }}, false)">
-                <i class="bi bi-cash"></i>Pay
-              </button>
-              <div class="dropdown">
-                <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="More">
-                  <i class="bi bi-three-dots-vertical"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li><a class="dropdown-item" href="#" onclick="showPreview('agent', {{ agent.id }}, '{{ agent.agent_name|default:agent.user.username|escapejs }}'); return false;">
-                    <i class="bi bi-eye me-2"></i>Preview payout</a></li>
-                  <li><a class="dropdown-item" href="#" onclick="processPayout('agent', {{ agent.id }}, true); return false;">
-                    <i class="bi bi-envelope-check me-2"></i>Pay &amp; email statement</a></li>
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item" href="{% url 'admin_travel_agent_detail' agent.id %}">
-                    <i class="bi bi-person-vcard me-2"></i>Open profile</a></li>
-                </ul>
+            <div class="am-entity-meta">
+              <span>
+                {% if agent.agency %}<i class="bi bi-building me-1"></i>{{ agent.agency.name }}{% else %}<i class="bi bi-person-walking me-1"></i>Independent{% endif %}
+              </span>
+              <span class="dot"></span>
+              <span>{{ agent.commission_rate }}% rate</span>
+              <span class="dot"></span>
+              <span>{{ agent.unpaid_res_count }} reservation{{ agent.unpaid_res_count|pluralize }}</span>
+              {% if agent.oldest_unpaid %}
+                <span class="dot"></span>
+                <span title="{{ agent.oldest_unpaid|date:'M d, Y' }}"><i class="bi bi-hourglass-split me-1"></i>Oldest: {{ agent.oldest_unpaid|naturaltime }}</span>
+              {% endif %}
+            </div>
+            {% if agent.payment_method %}
+              <div class="am-pay-row{% if agent.payment_info %} am-pay-row--copyable{% endif %}"
+                   {% if agent.payment_info %}data-copy="{{ agent.payment_info }}" title="Click to copy"{% endif %}>
+                <span class="payment-badge {{ agent.payment_method }}">{{ agent.get_payment_method_display }}</span>
+                {% if agent.payment_info %}
+                  <span class="payment-handle">{{ agent.payment_info }}</span>
+                  <i class="bi bi-clipboard payment-copy-icon"></i>
+                {% else %}
+                  <span class="payment-handle payment-handle--missing">No handle saved</span>
+                {% endif %}
               </div>
-            {% else %}
-              <span class="badge-paid"><i class="bi bi-check-circle-fill"></i> Paid up</span>
-              <a class="btn-icon" href="{% url 'admin_travel_agent_detail' agent.id %}" title="View profile">
-                <i class="bi bi-person-vcard"></i>
-              </a>
             {% endif %}
-            <i class="bi bi-chevron-right am-chevron" id="expand-agent-{{ agent.id }}"></i>
+          </div>
+          <div class="am-entity-right" onclick="event.stopPropagation();">
+            <span class="am-amount">${{ agent.display_amount|floatformat:2 }}</span>
+            <div class="am-actions">
+              {% if agent.live_unpaid > 0 %}
+                <button class="btn-pay" onclick="markPaid('agent', {{ agent.id }})" title="Open Review & Mark Paid for just this agent">
+                  <i class="bi bi-check2-circle"></i>Mark Paid
+                </button>
+                <div class="dropdown">
+                  <button class="btn-icon" data-bs-toggle="dropdown" aria-expanded="false" title="More">
+                    <i class="bi bi-three-dots-vertical"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="#" onclick="showPreview('agent', {{ agent.id }}, '{{ agent.agent_name|default:agent.user.username|escapejs }}'); return false;">
+                      <i class="bi bi-eye me-2"></i>Preview details</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="markPaid('agent', {{ agent.id }}, true); return false;">
+                      <i class="bi bi-envelope-check me-2"></i>Mark Paid &amp; email statement</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="{% url 'admin_travel_agent_detail' agent.id %}">
+                      <i class="bi bi-person-vcard me-2"></i>Open profile</a></li>
+                  </ul>
+                </div>
+              {% else %}
+                <span class="badge-paid"><i class="bi bi-check-circle-fill"></i> Paid up</span>
+                <a class="btn-icon" href="{% url 'admin_travel_agent_detail' agent.id %}" title="View profile">
+                  <i class="bi bi-person-vcard"></i>
+                </a>
+              {% endif %}
+              <i class="bi bi-chevron-right am-chevron" id="expand-agent-{{ agent.id }}"></i>
+            </div>
           </div>
         </div>
       </div>
@@ -749,14 +1235,21 @@
     {% empty %}
     <div class="am-empty">
       <i class="bi bi-person"></i>
-      No agents match the current filters.
+      {% if section == 'missing' %}
+        No payees with missing payment info. Nice — everyone's set up.
+      {% elif section == 'overdue' %}
+        No payees overdue more than 30 days. Caught up!
+      {% else %}
+        No agents match the current filters.
+      {% endif %}
     </div>
     {% endfor %}
   </div>
+  {% endif %}{# /agents section #}
 
   <!-- Pagination (enhanced — first/last + jump-to-page) -->
   {% if agents_page_obj.paginator.num_pages > 1 %}
-  {% with p=agents_page_obj qs="&q="|add:search|add:"&show="|add:show|add:"&sort="|add:sort|add:"&pay_method="|add:pay_method|add:"&per_page="|add:per_page|stringformat:"s" %}
+  {% with p=agents_page_obj qs="&section="|add:section|add:"&q="|add:search|add:"&show="|add:show|add:"&sort="|add:sort|add:"&pay_method="|add:pay_method|add:"&per_page="|add:per_page|stringformat:"s" %}
   <div class="am-paginator">
     <div class="am-paginator-info">
       Page <strong>{{ p.number }}</strong> of <strong>{{ p.paginator.num_pages }}</strong>
@@ -778,10 +1271,12 @@
       <a href="?agents_page={{ p.paginator.num_pages }}{{ qs }}" class="{% if not p.has_next %}disabled{% endif %}" title="Last page">&raquo;</a>
     </div>
     <form method="get" class="am-paginator-jump" onsubmit="return validateJump(this, {{ p.paginator.num_pages }})">
+      <input type="hidden" name="section" value="{{ section }}">
       <input type="hidden" name="q" value="{{ search }}">
       <input type="hidden" name="show" value="{{ show }}">
       <input type="hidden" name="sort" value="{{ sort }}">
       <input type="hidden" name="pay_method" value="{{ pay_method }}">
+      <input type="hidden" name="min_amount" value="{{ min_amount|default_if_none:'' }}">
       <input type="hidden" name="per_page" value="{{ per_page }}">
       <span>Jump to</span>
       <input type="number" name="agents_page" min="1" max="{{ p.paginator.num_pages }}" placeholder="{{ p.number }}">
@@ -792,9 +1287,10 @@
   {% endif %}
 
   <!-- PAYOUT HISTORY -->
+  {% if section == 'history' %}
   <div id="section-history">
     <div class="am-section-head">
-      <h2><i class="bi bi-clock-history"></i>Payout History</h2>
+      <h2><i class="bi bi-archive"></i>Payout History</h2>
       <span class="am-section-count">{{ total_payouts }} total payouts</span>
     </div>
 
@@ -961,6 +1457,25 @@
       </div><!-- /tab-content -->
     </div><!-- /am-card -->
   </div><!-- /section-history -->
+  {% endif %}{# /history section #}
+
+  {# ─────────────── Sticky bulk action bar ─────────────── #}
+  <div class="am-bulk-bar" id="amBulkBar" hidden>
+    <div class="am-bulk-bar-inner">
+      <span class="am-bulk-count">
+        <strong id="amBulkCount">0</strong> selected
+        <span class="am-mono am-bulk-total" id="amBulkTotal">$0.00</span>
+      </span>
+      <div class="am-bulk-actions">
+        <button type="button" class="btn-pay" onclick="openReviewModal()">
+          <i class="bi bi-check2-circle"></i>Review &amp; Mark Paid
+        </button>
+        <button type="button" class="btn-icon" onclick="clearBulkSelection()" title="Clear selection">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+  </div>
 </div><!-- /container-fluid -->
 
 <!-- Preview Modal -->
@@ -992,6 +1507,79 @@
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-dark" id="confirmPayBtn" onclick="executePayment()">
           <i class="bi bi-check-lg me-1"></i>Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Review & Mark Paid Modal -->
+<div class="modal fade" id="reviewPayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-check2-circle me-2"></i>Review &amp; Mark Paid
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3" style="font-size: .88rem;">
+          Sent these externally already? Confirm the method and reference number for each payee below.
+          One <strong>CommissionPayout</strong> record will be created per agent;
+          <strong>AgencyCommissionPayout</strong> records cover all agents inside that agency.
+        </p>
+
+        <div class="am-review-controls">
+          <div class="am-review-control">
+            <label>Method used (applies to all)</label>
+            <select id="reviewBulkMethod" onchange="applyBulkMethod()">
+              <option value="">— per-row default —</option>
+              {% for code, label in payment_method_choices %}
+                <option value="{{ code }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="am-review-control am-review-control-grow">
+            <label>Bulk reference (applies to all blank rows)</label>
+            <input type="text" id="reviewBulkReference" placeholder="e.g. PayPal batch #ABC123"
+                   oninput="applyBulkReference()">
+          </div>
+          <div class="am-review-control am-review-control-check">
+            <label class="am-check-inline">
+              <input type="checkbox" id="reviewBulkEmail">
+              <span>Email statements after marking paid</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle am-review-table" id="reviewPayTable">
+            <thead>
+              <tr>
+                <th style="width: 32px;"></th>
+                <th>Payee</th>
+                <th>Method</th>
+                <th style="width: 220px;">Reference</th>
+                <th class="text-end" style="width: 110px;">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="reviewPayTableBody"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4" class="text-end fw-bold">Bulk total:</td>
+                <td class="text-end am-mono fw-bold" id="reviewPayTotal" style="color: var(--gt-green);">$0.00</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div id="reviewPayResults" class="am-review-results" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-dark" id="reviewPayConfirmBtn" onclick="submitReviewPayouts()">
+          <i class="bi bi-check-lg me-1"></i><span id="reviewPayConfirmLabel">Confirm — Mark Paid</span>
         </button>
       </div>
     </div>
@@ -1352,46 +1940,245 @@ function updateSummaryStats() {
   }, 1000);
 }
 
-// === Sticky-nav + sticky-filter shadow + active section highlighting ===
+// === Sticky-nav + sticky-filter shadow (tabs are real navigation now) ===
 (function () {
   const nav = document.getElementById('amSectionNav');
   const filterWrap = document.getElementById('amFilterWrap');
   if (!nav) return;
-  const sections = ['section-agencies', 'section-agents', 'section-history']
-    .map(id => document.getElementById(id))
-    .filter(Boolean);
-  const tabs = nav.querySelectorAll('.am-tab');
-
   function updateNavState() {
-    const navTop = nav.getBoundingClientRect().top;
-    nav.classList.toggle('scrolled', navTop <= 1);
+    nav.classList.toggle('scrolled', nav.getBoundingClientRect().top <= 1);
     if (filterWrap) {
       filterWrap.classList.toggle('scrolled', filterWrap.getBoundingClientRect().top <= 57);
     }
-
-    // Pick the section closest to (but past) the nav bar
-    let activeId = sections[0]?.id;
-    for (const sec of sections) {
-      const top = sec.getBoundingClientRect().top - 130;
-      if (top <= 0) activeId = sec.id;
-    }
-    tabs.forEach(t => t.classList.toggle('active', t.dataset.target === activeId));
   }
-
-  // Smooth-scroll with offset for sticky nav + filter
-  tabs.forEach(t => {
-    t.addEventListener('click', (e) => {
-      const target = document.getElementById(t.dataset.target);
-      if (!target) return;
-      e.preventDefault();
-      const y = target.getBoundingClientRect().top + window.pageYOffset - 130;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    });
-  });
-
   document.addEventListener('scroll', updateNavState, { passive: true });
   updateNavState();
 })();
+
+// ============================================================
+// === Bulk-select + Review & Mark Paid flow                 ===
+// ============================================================
+// Selection state: Map keyed by "type:id" so an agent and agency with the
+// same numeric id never collide. Value carries everything the modal needs.
+const bulkSelection = new Map();
+
+function _bulkKey(kind, id) { return `${kind}:${id}`; }
+
+const PAYMENT_METHOD_CHOICES = [
+  {% for code, label in payment_method_choices %}["{{ code }}", "{{ label|escapejs }}"]{% if not forloop.last %}, {% endif %}{% endfor %}
+];
+
+function _methodSelectHtml(selectedMethod) {
+  let html = '<select class="review-row-method-select" data-row-method>';
+  html += '<option value="">—</option>';
+  for (const [code, label] of PAYMENT_METHOD_CHOICES) {
+    const sel = (code === (selectedMethod || '')) ? ' selected' : '';
+    html += `<option value="${code}"${sel}>${label}</option>`;
+  }
+  html += '</select>';
+  return html;
+}
+
+function toggleBulkSelect(checkbox) {
+  const row = checkbox.closest('[data-bulk-row]');
+  if (!row) return;
+  const kind = row.dataset.kind;
+  const id = row.dataset.id;
+  const key = _bulkKey(kind, id);
+  if (checkbox.checked) {
+    bulkSelection.set(key, {
+      kind, id: parseInt(id, 10),
+      amount: parseFloat(row.dataset.amount || '0'),
+      name: row.dataset.name || '',
+      method: row.dataset.method || '',
+    });
+    row.classList.add('selected');
+  } else {
+    bulkSelection.delete(key);
+    row.classList.remove('selected');
+  }
+  // Keep all sibling checkboxes (recommended queue + main rows) in sync if same payee appears twice.
+  document.querySelectorAll(`[data-bulk-row][data-kind="${kind}"][data-id="${id}"]`).forEach(el => {
+    el.classList.toggle('selected', checkbox.checked);
+    const cb = el.querySelector('.am-bulk-cb');
+    if (cb && cb !== checkbox) cb.checked = checkbox.checked;
+  });
+  updateBulkBar();
+}
+
+function clearBulkSelection() {
+  bulkSelection.clear();
+  document.querySelectorAll('.am-bulk-cb').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('[data-bulk-row].selected').forEach(r => r.classList.remove('selected'));
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('amBulkBar');
+  if (!bar) return;
+  const count = bulkSelection.size;
+  bar.hidden = count === 0;
+  document.getElementById('amBulkCount').textContent = count;
+  let total = 0;
+  for (const item of bulkSelection.values()) total += item.amount || 0;
+  document.getElementById('amBulkTotal').textContent = '$' + total.toFixed(2);
+}
+
+function selectAllRecommended() {
+  document.querySelectorAll('.am-recommended .am-bulk-cb').forEach(cb => {
+    if (!cb.checked) { cb.checked = true; toggleBulkSelect(cb); }
+  });
+}
+
+// Single-row Mark Paid button → add this row to selection (if not already), open modal.
+function markPaid(type, id, sendEmail) {
+  const row = document.querySelector(`[data-bulk-row][data-kind="${type}"][data-id="${id}"]`);
+  if (row) {
+    const cb = row.querySelector('.am-bulk-cb');
+    if (cb && !cb.checked) { cb.checked = true; toggleBulkSelect(cb); }
+  } else {
+    // Fallback: insert synthetically (rare — only if row markup missing).
+    bulkSelection.set(_bulkKey(type, id), { kind: type, id: parseInt(id, 10), amount: 0, name: '', method: '' });
+    updateBulkBar();
+  }
+  if (sendEmail) {
+    document.getElementById('reviewBulkEmail').checked = true;
+  }
+  openReviewModal();
+}
+
+function openReviewModal() {
+  if (bulkSelection.size === 0) {
+    alert('No payees selected.');
+    return;
+  }
+  const tbody = document.getElementById('reviewPayTableBody');
+  tbody.innerHTML = '';
+  let total = 0;
+  for (const item of bulkSelection.values()) {
+    total += item.amount || 0;
+    const tr = document.createElement('tr');
+    tr.dataset.kind = item.kind;
+    tr.dataset.id = item.id;
+    tr.innerHTML = `
+      <td>${item.kind === 'agency' ? '<i class="bi bi-building text-muted"></i>' : '<i class="bi bi-person text-muted"></i>'}</td>
+      <td>
+        <strong>${item.name || '(unnamed)'}</strong>
+        <div class="text-muted small">${item.kind === 'agency' ? 'Agency payout' : 'Direct agent payout'}</div>
+      </td>
+      <td>${_methodSelectHtml(item.method)}</td>
+      <td><input type="text" data-row-reference placeholder="optional txn ID"></td>
+      <td class="text-end am-mono">$${(item.amount || 0).toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  document.getElementById('reviewPayTotal').textContent = '$' + total.toFixed(2);
+  document.getElementById('reviewPayConfirmLabel').textContent = `Confirm — Mark ${bulkSelection.size} Paid`;
+  document.getElementById('reviewPayResults').hidden = true;
+  document.getElementById('reviewPayResults').innerHTML = '';
+  document.getElementById('reviewBulkMethod').value = '';
+  document.getElementById('reviewBulkReference').value = '';
+  const btn = document.getElementById('reviewPayConfirmBtn');
+  btn.disabled = false;
+  btn.innerHTML = `<i class="bi bi-check-lg me-1"></i><span id="reviewPayConfirmLabel">Confirm — Mark ${bulkSelection.size} Paid</span>`;
+  new bootstrap.Modal(document.getElementById('reviewPayModal')).show();
+}
+
+function applyBulkMethod() {
+  const bulk = document.getElementById('reviewBulkMethod').value;
+  if (!bulk) return;
+  document.querySelectorAll('#reviewPayTableBody [data-row-method]').forEach(sel => {
+    sel.value = bulk;
+  });
+}
+
+function applyBulkReference() {
+  const bulk = document.getElementById('reviewBulkReference').value;
+  document.querySelectorAll('#reviewPayTableBody [data-row-reference]').forEach(input => {
+    // Only fill blank rows so per-row overrides survive.
+    if (!input.value) input.dataset.bulkFilled = 'true';
+    if (input.dataset.bulkFilled === 'true') input.value = bulk;
+  });
+}
+
+function submitReviewPayouts() {
+  const rows = Array.from(document.querySelectorAll('#reviewPayTableBody tr'));
+  if (!rows.length) return;
+  const sendEmail = document.getElementById('reviewBulkEmail').checked;
+  const defaultMethod = document.getElementById('reviewBulkMethod').value;
+  const defaultRef = document.getElementById('reviewBulkReference').value;
+  const items = rows.map(tr => ({
+    type: tr.dataset.kind,
+    id: parseInt(tr.dataset.id, 10),
+    method: tr.querySelector('[data-row-method]').value,
+    reference: tr.querySelector('[data-row-reference]').value,
+    email: sendEmail,
+  }));
+
+  const btn = document.getElementById('reviewPayConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing…';
+
+  fetch('{% url "process_bulk_payout" %}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': CSRF_TOKEN,
+    },
+    body: JSON.stringify({
+      items,
+      default_method: defaultMethod,
+      default_reference: defaultRef,
+      send_email: sendEmail,
+    }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      const wrap = document.getElementById('reviewPayResults');
+      wrap.hidden = false;
+      if (data.success) {
+        let html = `<div class="am-review-result-row ok"><i class="bi bi-check-circle-fill"></i>${data.processed} processed, ${data.failed} failed.</div>`;
+        for (const r of (data.items || [])) {
+          if (r.ok) {
+            html += `<div class="am-review-result-row ok"><i class="bi bi-check-circle"></i>${r.name || (r.type + ' #' + r.id)} — $${parseFloat(r.amount).toFixed(2)} marked paid.</div>`;
+          } else {
+            html += `<div class="am-review-result-row fail"><i class="bi bi-x-circle-fill"></i>${r.name || (r.type + ' #' + r.id)}: ${r.error || 'failed'}</div>`;
+          }
+        }
+        wrap.innerHTML = html;
+        // Fade out the successfully-paid rows on the page.
+        for (const r of (data.items || [])) {
+          if (!r.ok) continue;
+          document.querySelectorAll(`[data-bulk-row][data-kind="${r.type}"][data-id="${r.id}"]`).forEach(el => {
+            el.style.transition = 'opacity .35s, transform .35s';
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(-6px)';
+            setTimeout(() => el.remove(), 380);
+          });
+          bulkSelection.delete(_bulkKey(r.type, r.id));
+        }
+        updateBulkBar();
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Done';
+        // Trigger a refresh of KPI tiles only (cheap visual update).
+        setTimeout(() => { updateSummaryStats(); }, 300);
+        // Auto-close modal after 2s so the operator can move on.
+        setTimeout(() => {
+          bootstrap.Modal.getInstance(document.getElementById('reviewPayModal')).hide();
+        }, 2000);
+      } else {
+        wrap.innerHTML = `<div class="am-review-result-row fail"><i class="bi bi-x-circle-fill"></i>${data.error || 'Server error.'}</div>`;
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Retry';
+      }
+    })
+    .catch(err => {
+      const wrap = document.getElementById('reviewPayResults');
+      wrap.hidden = false;
+      wrap.innerHTML = '<div class="am-review-result-row fail"><i class="bi bi-x-circle-fill"></i>Network error. Please try again.</div>';
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Retry';
+    });
+}
 
 // === Pagination jump-to-page validator ===
 function validateJump(form, maxPage) {

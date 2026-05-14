@@ -279,6 +279,11 @@ urlpatterns = [
         views.preview_agency_payout_view,
         name="preview_agency_payout",
     ),
+    path(
+        "affiliate-payments/process-bulk/",
+        views.process_bulk_payout_view,
+        name="process_bulk_payout",
+    ),
     # Travel Agent / Agency management (admin)
     path(
         "travel-agents/",
