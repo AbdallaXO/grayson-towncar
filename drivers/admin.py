@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -76,6 +76,23 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "payment_method",
                     "night_bonus",
                 )
+            },
+        ),
+        (
+            "Gusto Payroll (optional)",
+            {
+                "fields": (
+                    "gusto_first_name",
+                    "gusto_last_name",
+                    "gusto_business_name",
+                    "gusto_ssn_ein_last4",
+                    "gusto_contractor_id",
+                    "gusto_payment_type",
+                ),
+                "description": "Optional fields used only by the Gusto Smart Import CSV export. "
+                               "Leave first/last blank to fall back to the user's profile name. "
+                               "Store ONLY the last 4 digits of SSN/EIN (e.g. \"9579\" or \"*9579\") — never the full number.",
+                "classes": ("collapse",),
             },
         ),
         (
@@ -984,3 +1001,24 @@ class DriverDateOverrideAdmin(admin.ModelAdmin):
         if not change and not obj.created_by_id:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(DriverPaymentExport)
+class DriverPaymentExportAdmin(admin.ModelAdmin):
+    list_display = [
+        "created_at", "created_by", "from_date", "to_date",
+        "selected_driver_count", "total_amount", "csv_file_name",
+    ]
+    list_filter = ["created_by"]
+    search_fields = ["csv_file_name", "created_by__username"]
+    date_hierarchy = "created_at"
+    readonly_fields = [
+        "created_at", "created_by", "from_date", "to_date", "csv_file_name",
+        "selected_driver_count", "total_amount", "exported_payment_ids",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

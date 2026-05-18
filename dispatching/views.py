@@ -6753,6 +6753,182 @@ def process_driver_payment(request):
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
 
 
+# ── Gusto Smart Import CSV Export ────────────────────────────────────
+#
+# Final step AFTER the existing driver payment processing flow. Staff picks
+# a payroll period (Mon–Sun by convention), reviews already-processed
+# in-house DriverPayments for that period, ticks the rows they want, and
+# downloads a CSV that uploads cleanly into Gusto's Smart Import.
+#
+# This view never touches calculation, never calls Gusto's API, and never
+# marks anything as paid. It only reads finalized DriverPayments.
+
+
+def _payroll_week_default(today=None):
+    """Return (from_date, to_date) for the Mon–Sun week most recently completed.
+
+    Payroll usually runs Sunday (or Monday). On any day of the week, the
+    "current" payroll period is the Mon–Sun week ending on the most recent
+    Sunday-or-today. We default to "last completed week" so the page is
+    immediately useful on Monday morning.
+    """
+    from datetime import timedelta as _td
+    if today is None:
+        today = timezone.localdate()
+    # Monday of the week containing `today`. weekday(): Mon=0 … Sun=6.
+    this_monday = today - _td(days=today.weekday())
+    last_monday = this_monday - _td(days=7)
+    last_sunday = last_monday + _td(days=6)
+    return last_monday, last_sunday
+
+
+def _parse_period(request):
+    """Pull from_date / to_date off the request. Returns (from_date, to_date, errors)."""
+    from datetime import datetime as _dt
+    errors = []
+    raw_from = (request.GET.get("from_date") or request.POST.get("from_date") or "").strip()
+    raw_to = (request.GET.get("to_date") or request.POST.get("to_date") or "").strip()
+    if not raw_from or not raw_to:
+        f, t = _payroll_week_default()
+        return f, t, errors
+    try:
+        from_date = _dt.strptime(raw_from, "%Y-%m-%d").date()
+        to_date = _dt.strptime(raw_to, "%Y-%m-%d").date()
+    except ValueError:
+        errors.append("Invalid date format. Use YYYY-MM-DD.")
+        f, t = _payroll_week_default()
+        return f, t, errors
+    if from_date > to_date:
+        errors.append("From date must be on or before To date.")
+    return from_date, to_date, errors
+
+
+@login_required(login_url="login")
+def gusto_export_view(request):
+    """Page + CSV download for Gusto Smart Import.
+
+    GET  → render the eligibility table.
+    POST → validate selected payment IDs and stream the CSV download.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from drivers.gusto_export import (
+        build_rows_for_period,
+        validate_selection,
+        write_csv,
+        csv_filename,
+        GUSTO_CSV_HEADER,
+    )
+    from drivers.models import DriverPaymentExport
+
+    from_date, to_date, period_errors = _parse_period(request)
+
+    # ── POST: generate the CSV ──
+    if request.method == "POST":
+        for err in period_errors:
+            messages.error(request, err)
+        if period_errors:
+            return redirect(f"{reverse('gusto_export')}?from_date={from_date}&to_date={to_date}")
+
+        payment_ids = request.POST.getlist("payment_ids")
+        if not payment_ids:
+            messages.error(request, "Select at least one processed payment to export.")
+            return redirect(f"{reverse('gusto_export')}?from_date={from_date}&to_date={to_date}")
+
+        result = validate_selection(payment_ids, from_date, to_date)
+        if result.errors and not result.valid_payments:
+            for e in result.errors:
+                messages.error(request, e)
+            return redirect(f"{reverse('gusto_export')}?from_date={from_date}&to_date={to_date}")
+
+        # Even with a mix of valid + blocked rows, we refuse the export rather
+        # than silently dropping the bad ones. Staff must uncheck them.
+        if result.errors:
+            for e in result.errors:
+                messages.error(request, e)
+            messages.error(
+                request,
+                "Export cancelled — fix the blockers above (uncheck affiliate / zero / out-of-range "
+                "rows) and try again."
+            )
+            return redirect(f"{reverse('gusto_export')}?from_date={from_date}&to_date={to_date}")
+
+        # Build the CSV in memory (typical payroll has <50 rows — no streaming needed).
+        buf = io.StringIO()
+        write_csv(result.rows, buf)
+        filename = csv_filename(from_date, to_date)
+
+        total = sum((r.fixed_amount for r in result.rows), Decimal("0.00"))
+        try:
+            DriverPaymentExport.objects.create(
+                created_by=request.user,
+                from_date=from_date,
+                to_date=to_date,
+                csv_file_name=filename,
+                selected_driver_count=len(result.rows),
+                total_amount=total,
+                exported_payment_ids=[r.payment.id for r in result.rows],
+            )
+        except Exception as e:
+            # Don't block the download just because audit logging hiccupped —
+            # but make some noise in the server logs.
+            logger.warning(f"Failed to log DriverPaymentExport: {e}", exc_info=True)
+
+        response = HttpResponse(buf.getvalue(), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    # ── GET: render the page ──
+    for err in period_errors:
+        messages.error(request, err)
+
+    rows = build_rows_for_period(from_date, to_date)
+
+    # Annotate "statement emailed?" by looking at EmailLog metadata.
+    # One query covers every payment shown on the page.
+    statement_emailed_payment_ids: set = set()
+    if rows:
+        try:
+            from ops.models import EmailLog
+            payment_id_strs = [str(r.payment.id) for r in rows]
+            payment_id_ints = [r.payment.id for r in rows]
+            email_qs = EmailLog.objects.filter(
+                email_type="driver_statement",
+                success=True,
+            ).filter(
+                Q(metadata__payment_id__in=payment_id_ints)
+                | Q(metadata__payment_id__in=payment_id_strs)
+            ).values_list("metadata", flat=True)
+            for md in email_qs:
+                pid = md.get("payment_id") if isinstance(md, dict) else None
+                if pid is None:
+                    continue
+                try:
+                    statement_emailed_payment_ids.add(int(pid))
+                except (TypeError, ValueError):
+                    pass
+        except Exception as e:
+            logger.warning(f"Gusto export: failed to look up statement-emailed status: {e}")
+
+    eligible_count = sum(1 for r in rows if r.is_eligible)
+    eligible_total = sum((r.fixed_amount for r in rows if r.is_eligible), Decimal("0.00"))
+
+    recent_exports = DriverPaymentExport.objects.select_related("created_by").all()[:10]
+
+    context = {
+        "from_date": from_date,
+        "to_date": to_date,
+        "rows": rows,
+        "eligible_count": eligible_count,
+        "eligible_total": eligible_total,
+        "statement_emailed_payment_ids": statement_emailed_payment_ids,
+        "recent_exports": recent_exports,
+        "header_columns": GUSTO_CSV_HEADER,
+    }
+    return render(request, "dispatching/gusto_export.html", context)
+
+
 # ── Driver Pay Rates ─────────────────────────────────────────────────
 
 

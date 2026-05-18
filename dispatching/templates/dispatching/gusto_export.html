@@ -1,0 +1,431 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  :root {
+    --gt-gold: #C9A227;
+    --gt-bg: #0d1117;
+    --gt-surface: #161b22;
+    --gt-surface-2: #1c2128;
+    --gt-border: #2a313a;
+    --gt-text: #e6edf3;
+    --gt-muted: #8b949e;
+    --gt-danger: #d73a49;
+    --gt-warn: #f0a52a;
+    --gt-ok: #2ea043;
+  }
+  body { background: var(--gt-bg) !important; }
+  .gusto-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
+  .gusto-page .container-fluid { max-width: 1500px; }
+  .gusto-page h1, .gusto-page h4, .gusto-page h5, .gusto-page h6 { color: var(--gt-text); }
+  .gusto-page small, .gusto-page .text-muted { color: var(--gt-muted) !important; }
+
+  .gusto-header {
+    background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+    border: 1px solid var(--gt-border); border-radius: 12px;
+    padding: 1.1rem 1.4rem; margin-bottom: 1.25rem;
+  }
+  .gusto-card {
+    background: var(--gt-surface); border: 1px solid var(--gt-border);
+    border-radius: 10px; padding: 1.1rem 1.25rem;
+  }
+  .gusto-card + .gusto-card { margin-top: 1rem; }
+
+  .filter-form .form-label { color: var(--gt-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .filter-form .form-control, .filter-form .form-select {
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border); color: var(--gt-text);
+  }
+  .filter-form .form-control:focus, .filter-form .form-select:focus {
+    border-color: var(--gt-gold); box-shadow: 0 0 0 0.15rem rgba(201,162,39,0.25);
+  }
+
+  .summary-stat { padding: 0.5rem 0.75rem; }
+  .summary-stat .stat-value { font-size: 1.5rem; font-weight: 700; }
+  .summary-stat .stat-label { font-size: 0.7rem; color: var(--gt-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  table.gusto-table { color: var(--gt-text); }
+  table.gusto-table thead th {
+    background: var(--gt-surface-2); color: var(--gt-muted);
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--gt-border); padding: 0.7rem 0.75rem;
+  }
+  table.gusto-table tbody td {
+    border-bottom: 1px solid var(--gt-border); padding: 0.7rem 0.75rem; vertical-align: middle;
+  }
+  table.gusto-table tbody tr.row-ineligible { opacity: 0.55; }
+  table.gusto-table tbody tr.row-ineligible td .checkbox-cell { cursor: not-allowed; }
+
+  .badge-eligible { background: rgba(46,160,67,0.15); color: var(--gt-ok); border: 1px solid rgba(46,160,67,0.4); }
+  .badge-warn { background: rgba(240,165,42,0.15); color: var(--gt-warn); border: 1px solid rgba(240,165,42,0.4); }
+  .badge-block { background: rgba(215,58,73,0.15); color: var(--gt-danger); border: 1px solid rgba(215,58,73,0.4); }
+  .badge-affiliate { background: rgba(201,162,39,0.15); color: var(--gt-gold); border: 1px solid rgba(201,162,39,0.4); }
+  .badge-inhouse { background: rgba(255,255,255,0.06); color: var(--gt-text); border: 1px solid var(--gt-border); }
+  .badge-pill { font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 10px; letter-spacing: 0.04em; }
+
+  .warning-list, .blocker-list { list-style: none; padding: 0; margin: 0; font-size: 0.78rem; }
+  .warning-list li { color: var(--gt-warn); }
+  .blocker-list li { color: var(--gt-danger); }
+
+  .btn-export {
+    background: var(--gt-gold); color: #0d1117; border: none; font-weight: 700;
+    padding: 0.55rem 1.2rem; border-radius: 6px;
+  }
+  .btn-export:hover { background: #ddb540; color: #0d1117; }
+  .btn-export:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--gt-text); border: 1px solid var(--gt-border); padding: 0.45rem 0.9rem; border-radius: 6px; }
+  .btn-ghost:hover { background: var(--gt-surface-2); color: var(--gt-text); }
+
+  .preset-btn { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
+
+  .gusto-explain {
+    background: rgba(201,162,39,0.06); border-left: 3px solid var(--gt-gold);
+    color: var(--gt-text); padding: 0.75rem 1rem; font-size: 0.85rem; border-radius: 4px;
+  }
+
+  .recent-exports-row { font-size: 0.85rem; }
+  .recent-exports-row code { color: var(--gt-gold); background: transparent; }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<div class="gusto-page">
+  <div class="container-fluid">
+
+    <div class="gusto-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <h1 class="mb-1 fs-3 fw-bold">
+          <i class="bi bi-filetype-csv me-2" style="color: var(--gt-gold);"></i>Gusto Payroll CSV Export
+        </h1>
+        <div class="text-muted" style="font-size: 0.85rem;">
+          Export already-processed <strong>in-house</strong> driver payments for upload into Gusto Smart Import.
+          This is a download-only step — it does not call Gusto and does not mark anything paid.
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'driver_payment_management' %}" class="btn-ghost text-decoration-none">
+          <i class="bi bi-arrow-left me-1"></i>Back to Driver Pay
+        </a>
+      </div>
+    </div>
+
+    {% if messages %}
+      <div class="mb-3">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags|default:'info' }} py-2 px-3 mb-2" role="alert" style="font-size: 0.88rem;">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- Period selection -->
+    <div class="gusto-card filter-form">
+      <form method="get" action="{% url 'gusto_export' %}" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label for="from_date" class="form-label">Payroll From (Mon)</label>
+          <input type="date" class="form-control" id="from_date" name="from_date" value="{{ from_date|date:'Y-m-d' }}" required>
+        </div>
+        <div class="col-md-3">
+          <label for="to_date" class="form-label">Payroll To (Sun)</label>
+          <input type="date" class="form-control" id="to_date" name="to_date" value="{{ to_date|date:'Y-m-d' }}" required>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button type="submit" class="btn-ghost"><i class="bi bi-funnel me-1"></i>Load Period</button>
+          <button type="button" class="btn-ghost preset-btn" id="presetLastWeek">Last Mon–Sun</button>
+          <button type="button" class="btn-ghost preset-btn" id="presetThisWeek">This Mon–Sun</button>
+        </div>
+        <div class="col-md-3 text-end">
+          <div class="text-muted" style="font-size: 0.82rem;">
+            Showing processed in-house payments whose legs all fall in this period.
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="gusto-card">
+      <div class="row g-3 text-center">
+        <div class="col-6 col-md-3">
+          <div class="summary-stat">
+            <div class="stat-value">{{ rows|length }}</div>
+            <div class="stat-label">Processed In-House Payments</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="summary-stat">
+            <div class="stat-value" style="color: var(--gt-ok);">{{ eligible_count }}</div>
+            <div class="stat-label">Eligible for Export</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="summary-stat">
+            <div class="stat-value" style="color: var(--gt-gold);">${{ eligible_total|floatformat:2 }}</div>
+            <div class="stat-label">Eligible Total</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="summary-stat">
+            <div class="stat-value">{{ from_date|date:'M j' }} – {{ to_date|date:'M j, Y' }}</div>
+            <div class="stat-label">Payroll Period</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export table -->
+    <form method="post" action="{% url 'gusto_export' %}" id="exportForm">
+      {% csrf_token %}
+      <input type="hidden" name="from_date" value="{{ from_date|date:'Y-m-d' }}">
+      <input type="hidden" name="to_date" value="{{ to_date|date:'Y-m-d' }}">
+
+      <div class="gusto-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn-ghost" id="selectAllEligible">
+              <i class="bi bi-check2-square me-1"></i>Select All Eligible
+            </button>
+            <button type="button" class="btn-ghost" id="deselectAll">
+              <i class="bi bi-square me-1"></i>Deselect All
+            </button>
+            <span class="text-muted ms-2" style="font-size: 0.82rem;">
+              <span id="selectedCount">0</span> selected
+              &middot; $<span id="selectedTotal">0.00</span>
+            </span>
+          </div>
+          <button type="submit" class="btn-export" id="exportBtn" disabled>
+            <i class="bi bi-download me-1"></i>Export Selected to Gusto CSV
+          </button>
+        </div>
+
+        {% if rows %}
+        <div class="table-responsive">
+          <table class="table gusto-table mb-0">
+            <thead>
+              <tr>
+                <th style="width: 38px;">
+                  <input type="checkbox" id="headerCheckbox" title="Select all eligible">
+                </th>
+                <th>Driver</th>
+                <th class="text-end">Payment Amount</th>
+                <th>Payment Status</th>
+                <th>Statement Emailed</th>
+                <th>In-House / Affiliate</th>
+                <th>Gusto Identifier</th>
+                <th>Warnings</th>
+                <th>Eligible</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                {% with p=row.payment d=row.payment.driver %}
+                <tr class="payment-row {% if not row.is_eligible %}row-ineligible{% endif %}"
+                    data-amount="{{ row.fixed_amount|floatformat:2 }}"
+                    data-eligible="{% if row.is_eligible %}1{% else %}0{% endif %}">
+                  <td class="checkbox-cell">
+                    <input type="checkbox" name="payment_ids" value="{{ p.id }}"
+                           class="payment-checkbox"
+                           {% if not row.is_eligible %}disabled{% endif %}>
+                  </td>
+                  <td>
+                    <div class="fw-semibold">
+                      {{ d.profile.get_full_name|default:d.profile.username|default:"—" }}
+                    </div>
+                    <div class="text-muted" style="font-size: 0.75rem;">
+                      Payment #{{ p.id }} &middot; processed {{ p.payment_date|date:"M j, Y" }}
+                    </div>
+                  </td>
+                  <td class="text-end fw-bold" style="color: var(--gt-gold);">
+                    ${{ row.fixed_amount|floatformat:2 }}
+                  </td>
+                  <td>
+                    <span class="badge-pill badge-eligible">PROCESSED</span>
+                  </td>
+                  <td>
+                    {% if p.id in statement_emailed_payment_ids %}
+                      <span class="badge-pill badge-eligible">SENT</span>
+                    {% else %}
+                      <span class="badge-pill badge-warn">NOT SENT</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if d.driver_type == 'inhouse' %}
+                      <span class="badge-pill badge-inhouse">IN-HOUSE</span>
+                    {% else %}
+                      <span class="badge-pill badge-affiliate">AFFILIATE</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.ssn_ein %}
+                      <code style="color: var(--gt-gold);">{{ row.ssn_ein }}</code>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                    {% if row.business_name %}
+                      <div class="text-muted" style="font-size: 0.72rem;">{{ row.business_name }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.blockers %}
+                      <ul class="blocker-list">
+                        {% for b in row.blockers %}<li>&#9888; {{ b }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                    {% if row.warnings %}
+                      <ul class="warning-list">
+                        {% for w in row.warnings %}<li>&#9888; {{ w }}</li>{% endfor %}
+                      </ul>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.is_eligible %}
+                      <span class="badge-pill badge-eligible">YES</span>
+                    {% else %}
+                      <span class="badge-pill badge-block">NO</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endwith %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="gusto-explain">
+            No processed in-house driver payments found for
+            <strong>{{ from_date|date:'M j, Y' }}</strong> &ndash; <strong>{{ to_date|date:'M j, Y' }}</strong>.
+            Process driver payments first on the
+            <a href="{% url 'driver_payment_management' %}" style="color: var(--gt-gold);">Driver Pay Management</a> page,
+            then return here.
+          </div>
+        {% endif %}
+      </div>
+    </form>
+
+    <!-- Recent exports -->
+    {% if recent_exports %}
+    <div class="gusto-card mt-3">
+      <h5 class="mb-3"><i class="bi bi-clock-history me-2"></i>Recent Gusto Exports</h5>
+      <div class="table-responsive">
+        <table class="table gusto-table mb-0">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>By</th>
+              <th>Period</th>
+              <th>File</th>
+              <th class="text-end">Drivers</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for exp in recent_exports %}
+            <tr class="recent-exports-row">
+              <td>{{ exp.created_at|date:"M j, Y g:i A" }}</td>
+              <td>{{ exp.created_by.get_full_name|default:exp.created_by.username|default:"—" }}</td>
+              <td>{{ exp.from_date|date:"M j" }} &ndash; {{ exp.to_date|date:"M j, Y" }}</td>
+              <td><code>{{ exp.csv_file_name }}</code></td>
+              <td class="text-end">{{ exp.selected_driver_count }}</td>
+              <td class="text-end" style="color: var(--gt-gold);">${{ exp.total_amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById('exportForm');
+  if (!form) return;
+  const checkboxes = form.querySelectorAll('.payment-checkbox');
+  const headerCb = document.getElementById('headerCheckbox');
+  const selectAllBtn = document.getElementById('selectAllEligible');
+  const deselectBtn = document.getElementById('deselectAll');
+  const exportBtn = document.getElementById('exportBtn');
+  const countEl = document.getElementById('selectedCount');
+  const totalEl = document.getElementById('selectedTotal');
+
+  function refreshSummary() {
+    let count = 0;
+    let total = 0;
+    checkboxes.forEach(cb => {
+      if (cb.checked && !cb.disabled) {
+        count += 1;
+        const amt = parseFloat(cb.closest('tr').dataset.amount || '0') || 0;
+        total += amt;
+      }
+    });
+    countEl.textContent = String(count);
+    totalEl.textContent = total.toFixed(2);
+    exportBtn.disabled = count === 0;
+    // Sync header checkbox state
+    const eligible = Array.from(checkboxes).filter(cb => !cb.disabled);
+    headerCb.checked = eligible.length > 0 && eligible.every(cb => cb.checked);
+    headerCb.indeterminate = !headerCb.checked && eligible.some(cb => cb.checked);
+  }
+
+  checkboxes.forEach(cb => cb.addEventListener('change', refreshSummary));
+
+  if (headerCb) {
+    headerCb.addEventListener('change', () => {
+      checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = headerCb.checked; });
+      refreshSummary();
+    });
+  }
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', () => {
+      checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = true; });
+      refreshSummary();
+    });
+  }
+  if (deselectBtn) {
+    deselectBtn.addEventListener('click', () => {
+      checkboxes.forEach(cb => { cb.checked = false; });
+      refreshSummary();
+    });
+  }
+
+  // Date presets
+  function fmt(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  }
+  function setDates(from, to) {
+    document.getElementById('from_date').value = fmt(from);
+    document.getElementById('to_date').value = fmt(to);
+  }
+  function monday(d) {
+    const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const wd = out.getDay();          // Sun=0 … Sat=6
+    const offset = wd === 0 ? -6 : (1 - wd);
+    out.setDate(out.getDate() + offset);
+    return out;
+  }
+  const thisWeekBtn = document.getElementById('presetThisWeek');
+  const lastWeekBtn = document.getElementById('presetLastWeek');
+  if (thisWeekBtn) thisWeekBtn.addEventListener('click', () => {
+    const m = monday(new Date());
+    const s = new Date(m); s.setDate(s.getDate() + 6);
+    setDates(m, s);
+  });
+  if (lastWeekBtn) lastWeekBtn.addEventListener('click', () => {
+    const m = monday(new Date()); m.setDate(m.getDate() - 7);
+    const s = new Date(m); s.setDate(s.getDate() + 6);
+    setDates(m, s);
+  });
+
+  refreshSummary();
+})();
+</script>
+
+{% endblock %}

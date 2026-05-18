@@ -184,6 +184,11 @@ urlpatterns = [
         name="process_driver_payment",
     ),
     path(
+        "driver-payments/gusto-export/",
+        views.gusto_export_view,
+        name="gusto_export",
+    ),
+    path(
         "bulk-update-leg-status/",
         views.bulk_update_leg_status,
         name="bulk_update_leg_status",

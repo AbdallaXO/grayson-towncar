@@ -62,6 +62,40 @@ class Driver(models.Model):
         help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."
     )
 
+    # ── Gusto contractor matching (used only by the Gusto Smart Import CSV export) ──
+    # All fields optional. Leave blank to fall back to profile.first_name / last_name
+    # for matching. Only the masked last-4 or contractor ID is stored — never the
+    # full SSN/EIN. Gusto's Smart Import accepts a masked identifier such as "*9579".
+    gusto_first_name = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Legal first name on file with Gusto. Leave blank to use profile first name."
+    )
+    gusto_last_name = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Legal last name on file with Gusto. Leave blank to use profile last name."
+    )
+    gusto_business_name = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Business / DBA name if contractor is paid as a business entity."
+    )
+    gusto_ssn_ein_last4 = models.CharField(
+        max_length=5, blank=True, default="",
+        help_text="Last 4 digits of SSN or EIN, e.g. \"9579\" or \"*9579\". Used for Gusto matching only. Do NOT enter the full number."
+    )
+    gusto_contractor_id = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Gusto's internal contractor ID, if known. Optional alternative to last-4."
+    )
+    GUSTO_PAYMENT_TYPE_CHOICES = [
+        ("", "—"),
+        ("individual", "Individual (SSN)"),
+        ("business", "Business (EIN)"),
+    ]
+    gusto_payment_type = models.CharField(
+        max_length=20, choices=GUSTO_PAYMENT_TYPE_CHOICES, blank=True, default="",
+        help_text="How this contractor is paid in Gusto. Informational only."
+    )
+
     def get_unpaid_legs(self):
         """Return all legs that are unpaid regardless of status"""
         return self.legs.filter(payment_status="unpaid")
@@ -636,3 +670,42 @@ class LegPayment(models.Model):
 
     def __str__(self):
         return f"Payment {self.payment.id} - Leg {self.leg.id}"
+
+
+class DriverPaymentExport(models.Model):
+    """
+    Audit record for each Gusto Smart Import CSV download.
+
+    This does NOT mark anything as "paid in Gusto" — staff still upload the CSV
+    manually. The record exists so the team can answer "did we already export
+    this payroll period, who did it, and which DriverPayment IDs were in it?"
+    Re-exports are intentionally allowed.
+    """
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="gusto_csv_exports",
+    )
+    from_date = models.DateField(help_text="Payroll period start (Monday typically).")
+    to_date = models.DateField(help_text="Payroll period end (Sunday typically).")
+    csv_file_name = models.CharField(max_length=255)
+    selected_driver_count = models.PositiveIntegerField(default=0)
+    total_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal("0.00"),
+    )
+    exported_payment_ids = models.JSONField(
+        default=list, blank=True,
+        help_text="List of DriverPayment IDs included in this CSV."
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Driver payment Gusto export"
+        verbose_name_plural = "Driver payment Gusto exports"
+
+    def __str__(self):
+        return (
+            f"Gusto export {self.from_date}→{self.to_date} "
+            f"({self.selected_driver_count} drivers, ${self.total_amount})"
+        )
