@@ -11658,25 +11658,71 @@ def affiliate_payments(request):
     month_start = today_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     # ---------- Shared SQL expressions ----------
-    unpaid_filter = Q(reservations__commission_paid=False, reservations__status="completed")
-    commission_expr = ExpressionWrapper(
-        F("reservations__base_price") * F("commission_rate") / Value(Decimal("100.00")),
+    # Commission = base_price * travel_agent.commission_rate / 100, evaluated on a Reservation row.
+    res_commission_expr = ExpressionWrapper(
+        F("base_price") * F("travel_agent__commission_rate") / Value(Decimal("100.00")),
         output_field=DecimalField(max_digits=12, decimal_places=4),
     )
 
-    # ---------- AGENTS: one queryset with all annotations, used by every tab + KPIs ----------
+    # ---------- AGENTS: per-agent Subqueries (avoid JOIN explosion + huge GROUP BY) ----------
+    # Previously these were JOIN-aggregates (Sum/Min/Count over reservations) which forced a
+    # GROUP BY across every TravelAgent+User+Agency column. With many reservations that produced
+    # a huge intermediate row set per page render. Correlated subqueries keep the outer SELECT
+    # flat and let the DB use the reservations indexes per agent.
+    agent_unpaid_subquery = (
+        Reservation.objects.filter(
+            commission_paid=False, status="completed",
+            travel_agent=OuterRef("pk"),
+        )
+        .annotate(calc=res_commission_expr)
+        .values("travel_agent")
+        .annotate(total=Sum("calc"))
+        .values("total")
+    )
+    agent_oldest_subquery = (
+        Reservation.objects.filter(
+            commission_paid=False, status="completed",
+            travel_agent=OuterRef("pk"),
+        )
+        .values("travel_agent")
+        .annotate(o=Min("created_at"))
+        .values("o")
+    )
+    agent_res_count_subquery = (
+        Reservation.objects.filter(
+            commission_paid=False, status="completed",
+            travel_agent=OuterRef("pk"),
+        )
+        .values("travel_agent")
+        .annotate(c=Count("id"))
+        .values("c")
+    )
+
+    # has_unpaid: cheap EXISTS used to short-circuit the WHERE for "show owing" filters.
+    # Without this, Postgres has to compute the full SUM subquery for every agent just to
+    # check if it's > 0. EXISTS hits the partial unpaid-completed index and returns at the
+    # first matching reservation, so per-agent filter cost is O(1) index probe.
+    agent_has_unpaid_subquery = Reservation.objects.filter(
+        travel_agent=OuterRef("pk"),
+        commission_paid=False,
+        status="completed",
+    )
+
     agents_qs_base = (
         TravelAgent.objects.filter(is_active=True)
         .select_related("user", "agency")
         .annotate(
-            # Keep precision at 4dp; quantize for display only.
+            has_unpaid=Exists(agent_has_unpaid_subquery),
             live_unpaid=CoalesceFunc(
-                Sum(commission_expr, filter=unpaid_filter),
+                Subquery(
+                    agent_unpaid_subquery,
+                    output_field=DecimalField(max_digits=12, decimal_places=4),
+                ),
                 Value(Decimal("0")),
                 output_field=DecimalField(max_digits=12, decimal_places=4),
             ),
-            oldest_unpaid=Min("reservations__created_at", filter=unpaid_filter),
-            unpaid_res_count=Count("reservations", filter=unpaid_filter, distinct=True),
+            oldest_unpaid=Subquery(agent_oldest_subquery),
+            unpaid_res_count=CoalesceFunc(Subquery(agent_res_count_subquery), Value(0)),
         )
     )
 
@@ -11727,37 +11773,56 @@ def affiliate_payments(request):
         .values("c")
     )
 
+    # Count of agents within the agency who currently have any unpaid completed reservation.
+    # Implemented as a Subquery (instead of Count("agents", filter=...) which forces a
+    # JOIN across agencies × agents × reservations and blows up the GROUP BY).
+    agency_owing_agent_count_subquery = (
+        TravelAgent.objects.filter(
+            agency=OuterRef("pk"),
+            agency_handles_payment=True,
+            reservations__commission_paid=False,
+            reservations__status="completed",
+        )
+        .values("agency")
+        .annotate(c=Count("id", distinct=True))
+        .values("c")
+    )
+    # Most-recent agency payout time. Subquery so the agencies query stays JOIN-free.
+    agency_last_paid_subquery = (
+        AgencyCommissionPayout.objects.filter(agency=OuterRef("pk"))
+        .order_by("-paid_at")
+        .values("paid_at")[:1]
+    )
+
+    # Cheap EXISTS used to filter agencies before the expensive SUM/COUNT subqueries run.
+    agency_has_unpaid_subquery = Reservation.objects.filter(
+        commission_paid=False,
+        status="completed",
+        travel_agent__agency=OuterRef("pk"),
+        travel_agent__agency_handles_payment=True,
+    )
+
     agencies_qs_base = (
         Agency.objects.filter(is_active=True)
         .prefetch_related("heads")
         .annotate(
+            has_unpaid=Exists(agency_has_unpaid_subquery),
             unpaid_total=CoalesceFunc(
                 Subquery(agency_unpaid_subquery),
                 Value(Decimal("0")),
                 output_field=DecimalField(max_digits=12, decimal_places=4),
             ),
-            owing_agent_count=Count(
-                "agents",
-                filter=Q(
-                    agents__agency_handles_payment=True,
-                    agents__reservations__commission_paid=False,
-                    agents__reservations__status="completed",
-                ),
-                distinct=True,
+            owing_agent_count=CoalesceFunc(
+                Subquery(agency_owing_agent_count_subquery), Value(0)
             ),
             unpaid_res_count=CoalesceFunc(Subquery(agency_res_count_subquery), Value(0)),
             oldest_unpaid=Subquery(agency_oldest_subquery),
-            last_paid_at=Max("commission_payouts__paid_at"),
+            last_paid_at=Subquery(agency_last_paid_subquery),
         )
     )
 
     # ---------- Global KPIs (aggregate directly from Reservation to avoid
     #               summing an already-aggregated annotation) ----------
-    # Base unpaid reservation queryset with the commission amount precomputed.
-    res_commission_expr = ExpressionWrapper(
-        F("base_price") * F("travel_agent__commission_rate") / Value(Decimal("100.00")),
-        output_field=DecimalField(max_digits=12, decimal_places=4),
-    )
     direct_res_qs = (
         Reservation.objects.filter(
             commission_paid=False, status="completed",
@@ -11777,33 +11842,36 @@ def affiliate_payments(request):
         .annotate(calc=res_commission_expr)
     )
 
+    # Combine overall + missing aggregates into one DB round-trip each.
+    missing_direct_q = (
+        Q(travel_agent__payment_method__isnull=True) | Q(travel_agent__payment_method="")
+        | Q(travel_agent__payment_info__isnull=True) | Q(travel_agent__payment_info="")
+    )
     direct_owing_agg = direct_res_qs.aggregate(
         total=Sum("calc"),
         count=Count("travel_agent_id", distinct=True),
+        missing_total=Sum("calc", filter=missing_direct_q),
+        missing_count=Count("travel_agent_id", distinct=True, filter=missing_direct_q),
     )
     kpi_direct_owing_total = direct_owing_agg["total"] or Decimal("0")
     kpi_direct_owing_count = direct_owing_agg["count"] or 0
 
+    missing_agency_q = (
+        Q(travel_agent__agency__payment_method__isnull=True) | Q(travel_agent__agency__payment_method="")
+        | Q(travel_agent__agency__payment_info__isnull=True) | Q(travel_agent__agency__payment_info="")
+    )
     agencies_owing_agg = agency_res_qs.aggregate(
         total=Sum("calc"),
         count=Count("travel_agent__agency_id", distinct=True),
+        missing_total=Sum("calc", filter=missing_agency_q),
+        missing_count=Count("travel_agent__agency_id", distinct=True, filter=missing_agency_q),
     )
     kpi_agencies_owing_total = agencies_owing_agg["total"] or Decimal("0")
     kpi_agencies_owing_count = agencies_owing_agg["count"] or 0
 
     kpi_total_owing = kpi_direct_owing_total + kpi_agencies_owing_total
-
-    # Missing payment info — direct agents OR agencies with blank method or blank info
-    missing_direct_agg = direct_res_qs.filter(
-        Q(travel_agent__payment_method__isnull=True) | Q(travel_agent__payment_method="")
-        | Q(travel_agent__payment_info__isnull=True) | Q(travel_agent__payment_info="")
-    ).aggregate(total=Sum("calc"), count=Count("travel_agent_id", distinct=True))
-    missing_agency_agg = agency_res_qs.filter(
-        Q(travel_agent__agency__payment_method__isnull=True) | Q(travel_agent__agency__payment_method="")
-        | Q(travel_agent__agency__payment_info__isnull=True) | Q(travel_agent__agency__payment_info="")
-    ).aggregate(total=Sum("calc"), count=Count("travel_agent__agency_id", distinct=True))
-    kpi_missing_total = (missing_direct_agg["total"] or Decimal("0")) + (missing_agency_agg["total"] or Decimal("0"))
-    kpi_missing_count = (missing_direct_agg["count"] or 0) + (missing_agency_agg["count"] or 0)
+    kpi_missing_total = (direct_owing_agg["missing_total"] or Decimal("0")) + (agencies_owing_agg["missing_total"] or Decimal("0"))
+    kpi_missing_count = (direct_owing_agg["missing_count"] or 0) + (agencies_owing_agg["missing_count"] or 0)
 
     # Overdue (>30 days). Approximate "payee count" by counting distinct payees whose oldest
     # unpaid is at least 30 days old. Easiest: aggregate by payee, filter by oldest, count.
@@ -11889,10 +11957,12 @@ def affiliate_payments(request):
             | Q(agency__name__icontains=search)
         )
 
-    # show=owing applies to non-history tabs.
+    # show=owing applies to non-history tabs. Filter via the EXISTS annotation rather
+    # than `live_unpaid__gt=0` so Postgres uses the partial unpaid-completed index instead
+    # of recomputing a SUM subquery per agent/agency.
     if section != "history" and show == "owing":
-        agencies_qs = agencies_qs.filter(unpaid_total__gt=0)
-        direct_agents_qs = direct_agents_qs.filter(live_unpaid__gt=0)
+        agencies_qs = agencies_qs.filter(has_unpaid=True)
+        direct_agents_qs = direct_agents_qs.filter(has_unpaid=True)
 
     # min_amount filter
     if min_amount > 0:
@@ -11916,20 +11986,20 @@ def affiliate_payments(request):
 
     # Section-specific filters
     if section == "missing":
-        direct_agents_qs = direct_agents_qs.filter(live_unpaid__gt=0).filter(
+        direct_agents_qs = direct_agents_qs.filter(has_unpaid=True).filter(
             Q(payment_method__isnull=True) | Q(payment_method="")
             | Q(payment_info__isnull=True) | Q(payment_info="")
         )
-        agencies_qs = agencies_qs.filter(unpaid_total__gt=0).filter(
+        agencies_qs = agencies_qs.filter(has_unpaid=True).filter(
             Q(payment_method__isnull=True) | Q(payment_method="")
             | Q(payment_info__isnull=True) | Q(payment_info="")
         )
     elif section == "overdue":
         direct_agents_qs = direct_agents_qs.filter(
-            live_unpaid__gt=0, oldest_unpaid__lte=thirty_days_ago
+            has_unpaid=True, oldest_unpaid__lte=thirty_days_ago
         )
         agencies_qs = agencies_qs.filter(
-            unpaid_total__gt=0, oldest_unpaid__lte=thirty_days_ago
+            has_unpaid=True, oldest_unpaid__lte=thirty_days_ago
         )
     elif section == "agencies":
         # Show only agencies list; clear agents.
@@ -12010,7 +12080,7 @@ def affiliate_payments(request):
     if visible_agencies:
         agency_ids = [a.id for a in visible_agencies]
         children_qs = (
-            agency_handled_agents_base.filter(agency_id__in=agency_ids, live_unpaid__gt=0)
+            agency_handled_agents_base.filter(agency_id__in=agency_ids, has_unpaid=True)
             .order_by("-live_unpaid")
         )
         # Group children by agency_id in a dict so the template never re-queries.
@@ -12023,17 +12093,23 @@ def affiliate_payments(request):
             agency.child_agents = children_by_agency.get(agency.id, [])
 
     # ---------- Pay Today: curated recommended queue ----------
+    # Reuse the already-loaded visible_agencies and agents_page_obj instead of
+    # firing two more heavy aggregate queries — the page-1 set (sorted by amount)
+    # plus the full owing-agencies list is plenty to score top-8 by amount × overdue.
     pay_today_recommended = []
     if section == "pay_today":
-        # Rank: amount × overdue days (with overdue days at least 1). Top 8.
         candidates = []
-        for agent in direct_agents_base.filter(live_unpaid__gt=0).annotate()[:120]:
-            _enrich_payee(agent, "live_unpaid")
-            score = float(agent.display_amount) * max(agent.overdue_days, 1)
+        for agent in agents_page_obj.object_list:
+            amt = getattr(agent, "display_amount", None) or Decimal("0")
+            if amt <= 0:
+                continue
+            score = float(amt) * max(getattr(agent, "overdue_days", 0) or 0, 1)
             candidates.append((score, agent, "agent"))
-        for agency in agencies_qs_base.filter(unpaid_total__gt=0).annotate()[:80]:
-            _enrich_payee(agency, "unpaid_total")
-            score = float(agency.display_amount) * max(agency.overdue_days, 1)
+        for agency in visible_agencies:
+            amt = getattr(agency, "display_amount", None) or Decimal("0")
+            if amt <= 0:
+                continue
+            score = float(amt) * max(getattr(agency, "overdue_days", 0) or 0, 1)
             candidates.append((score, agency, "agency"))
         candidates.sort(key=lambda t: t[0], reverse=True)
         pay_today_recommended = [
@@ -12041,30 +12117,39 @@ def affiliate_payments(request):
         ]
 
     # ---------- Payout history ----------
+    # Only build the heavy paginated/prefetched querysets when the user is on
+    # the History tab. Other tabs only need the total count for the nav badge.
     history_tab = request.GET.get("history_tab", "agency")
-    agency_payouts = (
-        AgencyCommissionPayout.objects.select_related("agency")
-        .prefetch_related("agent_payouts__agent__user")
-        .order_by("-paid_at")
-    )
-    agency_payouts_paginator = Paginator(agency_payouts, 15)
-    agency_payouts_page = request.GET.get("ap_page", 1)
-    try:
-        agency_payouts_page_obj = agency_payouts_paginator.page(agency_payouts_page)
-    except (PageNotAnInteger, EmptyPage):
-        agency_payouts_page_obj = agency_payouts_paginator.page(1)
+    agency_payouts_page_obj = None
+    agent_payouts_page_obj = None
+    if section == "history":
+        agency_payouts = (
+            AgencyCommissionPayout.objects.select_related("agency")
+            .prefetch_related("agent_payouts__agent__user")
+            .order_by("-paid_at")
+        )
+        agency_payouts_paginator = Paginator(agency_payouts, 15)
+        agency_payouts_page = request.GET.get("ap_page", 1)
+        try:
+            agency_payouts_page_obj = agency_payouts_paginator.page(agency_payouts_page)
+        except (PageNotAnInteger, EmptyPage):
+            agency_payouts_page_obj = agency_payouts_paginator.page(1)
 
-    agent_payouts = (
-        CommissionPayout.objects.select_related("agent", "agent__user", "agency")
-        .order_by("-paid_at")
-    )
-    agent_payouts_paginator = Paginator(agent_payouts, 15)
-    agent_payouts_page = request.GET.get("cp_page", 1)
-    try:
-        agent_payouts_page_obj = agent_payouts_paginator.page(agent_payouts_page)
-    except (PageNotAnInteger, EmptyPage):
-        agent_payouts_page_obj = agent_payouts_paginator.page(1)
-    total_payouts = agent_payouts_paginator.count + agency_payouts_paginator.count
+        agent_payouts = (
+            CommissionPayout.objects.select_related("agent", "agent__user", "agency")
+            .order_by("-paid_at")
+        )
+        agent_payouts_paginator = Paginator(agent_payouts, 15)
+        agent_payouts_page = request.GET.get("cp_page", 1)
+        try:
+            agent_payouts_page_obj = agent_payouts_paginator.page(agent_payouts_page)
+        except (PageNotAnInteger, EmptyPage):
+            agent_payouts_page_obj = agent_payouts_paginator.page(1)
+        total_payouts = agent_payouts_paginator.count + agency_payouts_paginator.count
+    else:
+        total_payouts = (
+            CommissionPayout.objects.count() + AgencyCommissionPayout.objects.count()
+        )
 
     context = {
         # tab + filter state

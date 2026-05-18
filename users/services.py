@@ -248,13 +248,15 @@ def preview_agent_payout(agent):
     """
     from reservations.models import Reservation
 
-    unpaid = Reservation.objects.filter(
-        travel_agent=agent, commission_paid=False, status="completed"
-    ).select_related(
-        "customer", "rate__route__origin", "rate__route__destination"
-    ).order_by("-created_at")
+    unpaid = list(
+        Reservation.objects.filter(
+            travel_agent=agent, commission_paid=False, status="completed"
+        ).select_related(
+            "customer", "rate__route__origin", "rate__route__destination"
+        ).prefetch_related("legs").order_by("-created_at")
+    )
 
-    if not unpaid.exists():
+    if not unpaid:
         return {"reservations": [], "total": Decimal("0"), "count": 0}
 
     reservations_data = []

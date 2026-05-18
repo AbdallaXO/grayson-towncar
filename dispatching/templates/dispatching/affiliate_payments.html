@@ -1341,7 +1341,7 @@
                   <br><span class="payment-badge {{ payout.agency.payment_method }}">{{ payout.agency.get_payment_method_display }}</span>
                 {% endif %}
               </td>
-              <td>{{ payout.agent_payouts.count }}</td>
+              <td>{{ payout.agent_payouts.all|length }}</td>
               <td class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</td>
               <td>{{ payout.payout_period_start|date:"M d, Y" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
               <td>{{ payout.paid_at|date:"M d, Y g:i A" }}</td>

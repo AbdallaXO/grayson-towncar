@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from .constants import (
     FLIGHT_TYPE_CHOICES,
     TRIP_CHOICES,
@@ -332,6 +333,14 @@ class Reservation(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["refund_status"]),
             models.Index(fields=["travel_agent", "status"]),
+            # Targets the affiliate_payments per-agent subqueries that filter
+            # commission_paid=False AND status='completed' AND travel_agent=X.
+            # Partial index stays tiny because rows leave once paid.
+            models.Index(
+                fields=["travel_agent", "created_at"],
+                name="res_unpaid_completed_agent_idx",
+                condition=Q(commission_paid=False, status="completed"),
+            ),
         ]
 
     def save(self, *args, **kwargs):
