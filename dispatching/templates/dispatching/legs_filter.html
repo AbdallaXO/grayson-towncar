@@ -2463,6 +2463,13 @@
               var dateLabel = opts.dateLabel || '';
               var headerSub = (totals.total || 0) + ' arrival flight(s) refreshed' + (dateLabel ? ' — ' + dateLabel : '');
 
+              var rowsBody = problemRows.length === 0
+                  ? '<div class="frr-empty"><i class="bi bi-check2-circle me-1"></i>No problem flights — every refreshed leg looks aligned.</div>'
+                  : problemRows.map(frrRowHtml).join('');
+              var matchAllBtnHtml = opts.matchAllDate
+                  ? '<button type="button" class="btn btn-sm btn-success" id="frrMatchAllBtn" data-date="' + frrEscape(opts.matchAllDate) + '"><i class="bi bi-clock-history me-1"></i>Match All Flight Times</button>'
+                  : '';
+
               var html = ''
                   + '<div class="frr-modal" role="dialog" aria-modal="true" aria-label="Flight refresh review">'
                   +   '<div class="frr-header d-flex justify-content-between align-items-center">'
@@ -2480,19 +2487,13 @@
                   +       '<div class="small text-muted">Showing <span id="frrShownCount">' + problemRows.length + '</span> of ' + rows.length + '</div>'
                   +       '<label class="form-check-label small"><input type="checkbox" id="frrShowAll" class="form-check-input me-1"> Show all refreshed flights</label>'
                   +     '</div>'
-                  +     '<div id="frrRows">'
-                  +       (problemRows.length === 0
-                  +           ? '<div class="frr-empty"><i class="bi bi-check2-circle me-1"></i>No problem flights — every refreshed leg looks aligned.</div>'
-                  +           : problemRows.map(frrRowHtml).join(''))
-                  +     '</div>'
+                  +     '<div id="frrRows">' + rowsBody + '</div>'
                   +   '</div>'
                   +   '<div class="frr-footer">'
                   +     '<div class="small text-muted">' + (problemRows.length > 0 ? '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Resolve flagged legs before sending confirmations.' : 'All clear.') + '</div>'
                   +     '<div class="d-flex gap-2">'
                   +       '<button type="button" class="btn btn-sm btn-secondary frr-close">Close</button>'
-                  +       (opts.matchAllDate
-                  +           ? '<button type="button" class="btn btn-sm btn-success" id="frrMatchAllBtn" data-date="' + frrEscape(opts.matchAllDate) + '"><i class="bi bi-clock-history me-1"></i>Match All Flight Times</button>'
-                  +           : '')
+                  +       matchAllBtnHtml
                   +     '</div>'
                   +   '</div>'
                   + '</div>';
