@@ -299,6 +299,46 @@
           transition: none !important;
       }
 
+      /* Flight Refresh Review modal */
+      .frr-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+          z-index: 10050; display: flex; align-items: center; justify-content: center;
+          padding: 1rem;
+      }
+      .frr-modal {
+          background: #fff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.30);
+          max-width: 1080px; width: 100%; max-height: 92vh;
+          display: flex; flex-direction: column; overflow: hidden;
+      }
+      .frr-header { padding: 14px 20px; border-bottom: 1px solid #e9ecef; background: linear-gradient(135deg,#1e293b,#334155); color:#fff; }
+      .frr-header h5 { margin: 0; font-weight: 700; font-size: 1.05rem; }
+      .frr-header .frr-sub { font-size: 0.8rem; opacity: 0.85; }
+      .frr-body { padding: 14px 20px; overflow-y: auto; flex: 1 1 auto; }
+      .frr-footer { padding: 12px 20px; border-top: 1px solid #e9ecef; background: #f8f9fa; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .frr-counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+      .frr-count-card {
+          flex: 1 1 130px; min-width: 130px; border-radius: 10px; padding: 10px 12px;
+          color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      }
+      .frr-count-card .frr-n { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+      .frr-count-card .frr-l { font-size: 0.75rem; opacity: 0.92; text-transform: uppercase; letter-spacing: 0.02em; }
+      .frr-count-ok { background: #198754; }
+      .frr-count-warning { background: #d39e00; color: #1f1300; }
+      .frr-count-warning .frr-l { opacity: 0.85; }
+      .frr-count-manual { background: #7c4dff; }
+      .frr-count-danger { background: #dc3545; }
+      .frr-row { border: 1px solid #e9ecef; border-left-width: 4px; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+      .frr-row[data-severity="success"]  { border-left-color: #198754; }
+      .frr-row[data-severity="warning"]  { border-left-color: #d39e00; background: #fffbea; }
+      .frr-row[data-severity="manual"]   { border-left-color: #7c4dff; background: #f6f3ff; }
+      .frr-row[data-severity="danger"]   { border-left-color: #dc3545; background: #fff5f5; }
+      .frr-row .frr-line1 { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+      .frr-row .frr-meta { font-size: 0.78rem; color: #495057; margin-top: 2px; }
+      .frr-row .frr-action { font-size: 0.78rem; color: #1f1f1f; margin-top: 4px; font-weight: 500; }
+      .frr-row .frr-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+      .badge.bg-manual { background-color: #7c4dff !important; color: #fff !important; }
+      .frr-empty { color: #6c757d; font-style: italic; padding: 18px 0; text-align: center; }
+
   </style>
 {% endblock extra_css %}
 
@@ -2321,6 +2361,282 @@
               if (mobileBtn) mobileBtn.addEventListener('click', toggle);
           })();
 
+          // ── Flight Refresh Review Summary ──
+          // Holds the most recent refresh summary so other handlers (Match-All)
+          // can warn the dispatcher when there are flagged legs.
+          var lastRefreshSummary = null;
+
+          function frrEscape(s) {
+              if (s === null || s === undefined) return '';
+              return String(s)
+                  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+          }
+
+          function frrFlightLabel(row) {
+              var ident = row.flight_iata || (row.airline && row.flight_number ? (row.airline + ' ' + row.flight_number) : row.flight_number);
+              return ident || '—';
+          }
+
+          function frrBadge(row) {
+              var sev = row.severity || 'success';
+              var labelMap = { success: 'OK', warning: 'Needs Review', manual: 'Manual Action', danger: 'Missing' };
+              var iconMap  = { success: 'bi-check-circle', warning: 'bi-exclamation-triangle', manual: 'bi-tools', danger: 'bi-x-octagon' };
+              var classMap = { success: 'bg-success', warning: 'bg-warning text-dark', manual: 'bg-manual', danger: 'bg-danger' };
+              return '<span class="badge ' + classMap[sev] + '"><i class="bi ' + iconMap[sev] + ' me-1"></i>' + labelMap[sev] + '</span>';
+          }
+
+          function frrRowHtml(row) {
+              var resUrl = row.reservation_url || '#';
+              var editUrl = row.edit_url || '#';
+              var mismatch = (row.mismatch_minutes != null)
+                  ? ' · <span class="text-muted">' + row.mismatch_minutes + ' min ' + (row.mismatch_direction || '') + '</span>'
+                  : '';
+              var times = '';
+              if (row.new_arrival_time || row.old_arrival_time) {
+                  times = 'Flight arr ' + frrEscape(row.new_arrival_time || '—');
+                  if (row.old_arrival_time && row.old_arrival_time !== row.new_arrival_time) {
+                      times += ' <span class="text-muted">(was ' + frrEscape(row.old_arrival_time) + ')</span>';
+                  }
+              }
+              var driver = row.assigned_driver ? ' · Driver: ' + frrEscape(row.assigned_driver) : '';
+              var canMatch = (row.status !== 'missing') && row.new_arrival_time;
+              var matchBtn = canMatch
+                  ? '<button class="btn btn-sm btn-outline-success frr-match-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-clock-history"></i> Match Pickup</button>'
+                  : '';
+              var reviewedBtn = '<button class="btn btn-sm btn-outline-secondary frr-reviewed-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-check2"></i> Mark Reviewed</button>';
+
+              return ''
+                  + '<div class="frr-row" data-severity="' + frrEscape(row.severity) + '" data-status="' + frrEscape(row.status) + '" data-leg-id="' + row.leg_id + '">'
+                  +   '<div class="frr-line1">'
+                  +     frrBadge(row)
+                  +     '<strong>#' + frrEscape(row.reservation_id) + '</strong>'
+                  +     '<span>' + frrEscape(row.guest_name) + '</span>'
+                  +     '<span class="text-muted">' + frrEscape(frrFlightLabel(row)) + (row.airline ? ' · ' + frrEscape(row.airline) : '') + '</span>'
+                  +     mismatch
+                  +   '</div>'
+                  +   '<div class="frr-meta">'
+                  +     'Pickup ' + frrEscape(row.pickup_time || '—') + ' · ' + times + driver
+                  +   '</div>'
+                  +   '<div class="frr-meta text-muted">'
+                  +     frrEscape(row.pickup_location || '') + ' → ' + frrEscape(row.dropoff_location || '')
+                  +   '</div>'
+                  +   (row.issue_label ? '<div class="frr-action"><i class="bi bi-info-circle me-1"></i>' + frrEscape(row.issue_label) + '</div>' : '')
+                  +   (row.recommended_action ? '<div class="frr-action text-primary">→ ' + frrEscape(row.recommended_action) + '</div>' : '')
+                  +   '<div class="frr-actions">'
+                  +     '<a class="btn btn-sm btn-outline-primary" href="' + frrEscape(resUrl) + '" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Open Reservation</a>'
+                  +     '<a class="btn btn-sm btn-outline-secondary" href="' + frrEscape(editUrl) + '" target="_blank"><i class="bi bi-pencil"></i> Edit Flight</a>'
+                  +     matchBtn
+                  +     reviewedBtn
+                  +   '</div>'
+                  + '</div>';
+          }
+
+          function frrCountCard(cls, n, label) {
+              return '<div class="frr-count-card ' + cls + '"><div class="frr-n">' + n + '</div><div class="frr-l">' + label + '</div></div>';
+          }
+
+          function frrToast(message, type) {
+              // Reuse existing toast if available; otherwise minimal fallback.
+              if (typeof showToast === 'function') {
+                  showToast(message, type);
+                  return;
+              }
+              var ev = document.createEvent('CustomEvent');
+              alert(message);
+          }
+
+          function openRefreshReviewModal(summary, opts) {
+              opts = opts || {};
+              if (!summary) return;
+              var totals = summary.totals || {};
+              var rows = summary.rows || [];
+              var problemRows = rows.filter(function(r){ return r.status !== 'ok'; });
+
+              var existing = document.getElementById('frrOverlay');
+              if (existing) existing.remove();
+
+              var overlay = document.createElement('div');
+              overlay.id = 'frrOverlay';
+              overlay.className = 'frr-overlay';
+
+              var dateLabel = opts.dateLabel || '';
+              var headerSub = (totals.total || 0) + ' arrival flight(s) refreshed' + (dateLabel ? ' — ' + dateLabel : '');
+
+              var html = ''
+                  + '<div class="frr-modal" role="dialog" aria-modal="true" aria-label="Flight refresh review">'
+                  +   '<div class="frr-header d-flex justify-content-between align-items-center">'
+                  +     '<div><h5><i class="bi bi-airplane me-2"></i>Flight Refresh Review</h5><div class="frr-sub">' + frrEscape(headerSub) + '</div></div>'
+                  +     '<button type="button" class="btn btn-sm btn-light frr-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>'
+                  +   '</div>'
+                  +   '<div class="frr-body">'
+                  +     '<div class="frr-counts">'
+                  +       frrCountCard('frr-count-ok',      (totals.ok || 0),            'OK')
+                  +       frrCountCard('frr-count-warning', (totals.needs_review || 0),  'Needs Review')
+                  +       frrCountCard('frr-count-manual',  (totals.manual_action || 0), 'Manual Action')
+                  +       frrCountCard('frr-count-danger',  (totals.missing || 0),       'Missing / Not Found')
+                  +     '</div>'
+                  +     '<div class="d-flex justify-content-between align-items-center mb-2">'
+                  +       '<div class="small text-muted">Showing <span id="frrShownCount">' + problemRows.length + '</span> of ' + rows.length + '</div>'
+                  +       '<label class="form-check-label small"><input type="checkbox" id="frrShowAll" class="form-check-input me-1"> Show all refreshed flights</label>'
+                  +     '</div>'
+                  +     '<div id="frrRows">'
+                  +       (problemRows.length === 0
+                  +           ? '<div class="frr-empty"><i class="bi bi-check2-circle me-1"></i>No problem flights — every refreshed leg looks aligned.</div>'
+                  +           : problemRows.map(frrRowHtml).join(''))
+                  +     '</div>'
+                  +   '</div>'
+                  +   '<div class="frr-footer">'
+                  +     '<div class="small text-muted">' + (problemRows.length > 0 ? '<i class="bi bi-exclamation-triangle text-warning me-1"></i>Resolve flagged legs before sending confirmations.' : 'All clear.') + '</div>'
+                  +     '<div class="d-flex gap-2">'
+                  +       '<button type="button" class="btn btn-sm btn-secondary frr-close">Close</button>'
+                  +       (opts.matchAllDate
+                  +           ? '<button type="button" class="btn btn-sm btn-success" id="frrMatchAllBtn" data-date="' + frrEscape(opts.matchAllDate) + '"><i class="bi bi-clock-history me-1"></i>Match All Flight Times</button>'
+                  +           : '')
+                  +     '</div>'
+                  +   '</div>'
+                  + '</div>';
+
+              overlay.innerHTML = html;
+              document.body.appendChild(overlay);
+
+              function close() { overlay.remove(); }
+              overlay.querySelectorAll('.frr-close').forEach(function(b){ b.addEventListener('click', close); });
+              overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+
+              // Show-all toggle
+              var showAll = overlay.querySelector('#frrShowAll');
+              var rowsContainer = overlay.querySelector('#frrRows');
+              var shownCount = overlay.querySelector('#frrShownCount');
+              if (showAll) {
+                  showAll.addEventListener('change', function() {
+                      var listing = this.checked ? rows : problemRows;
+                      if (listing.length === 0) {
+                          rowsContainer.innerHTML = '<div class="frr-empty"><i class="bi bi-check2-circle me-1"></i>No flights matched the current filter.</div>';
+                      } else {
+                          rowsContainer.innerHTML = listing.map(frrRowHtml).join('');
+                      }
+                      shownCount.textContent = listing.length;
+                      attachRowHandlers();
+                  });
+              }
+
+              // Per-row action handlers (Match Pickup, Mark Reviewed)
+              function attachRowHandlers() {
+                  rowsContainer.querySelectorAll('.frr-match-btn').forEach(function(btn) {
+                      btn.addEventListener('click', function() {
+                          var legId = this.dataset.legId;
+                          var b = this;
+                          b.disabled = true;
+                          var orig = b.innerHTML;
+                          b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating…';
+                          fetch("{% url 'match_leg_time_to_flight' %}", {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                              body: JSON.stringify({ leg_id: parseInt(legId, 10) })
+                          }).then(r => r.json()).then(function(data) {
+                              if (data.success) {
+                                  var row = rowsContainer.querySelector('.frr-row[data-leg-id="' + legId + '"]');
+                                  if (row) {
+                                      row.setAttribute('data-severity', 'success');
+                                      row.setAttribute('data-status', 'ok');
+                                  }
+                                  b.innerHTML = '<i class="bi bi-check-circle"></i> Updated';
+                                  b.classList.remove('btn-outline-success');
+                                  b.classList.add('btn-success');
+                              } else {
+                                  b.disabled = false; b.innerHTML = orig;
+                                  alert(data.error || 'Could not update pickup time.');
+                              }
+                          }).catch(function(err){
+                              b.disabled = false; b.innerHTML = orig;
+                              alert('Error: ' + err.message);
+                          });
+                      });
+                  });
+                  rowsContainer.querySelectorAll('.frr-reviewed-btn').forEach(function(btn) {
+                      btn.addEventListener('click', function() {
+                          var legId = this.dataset.legId;
+                          var b = this;
+                          b.disabled = true;
+                          var orig = b.innerHTML;
+                          b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>…';
+                          fetch("{% url 'dismiss_flight_review' %}", {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                              body: JSON.stringify({ leg_id: parseInt(legId, 10) })
+                          }).then(r => r.json()).then(function(data) {
+                              if (data.success) {
+                                  b.innerHTML = '<i class="bi bi-check2-all"></i> Reviewed';
+                                  b.classList.remove('btn-outline-secondary');
+                                  b.classList.add('btn-secondary');
+                              } else {
+                                  b.disabled = false; b.innerHTML = orig;
+                                  alert(data.error || 'Could not mark reviewed.');
+                              }
+                          }).catch(function(err){
+                              b.disabled = false; b.innerHTML = orig;
+                              alert('Error: ' + err.message);
+                          });
+                      });
+                  });
+              }
+              attachRowHandlers();
+
+              // Match All from modal footer (with the same guard)
+              var modalMatchAll = overlay.querySelector('#frrMatchAllBtn');
+              if (modalMatchAll) {
+                  modalMatchAll.addEventListener('click', function() {
+                      runMatchAllForDate(this.dataset.date, this);
+                  });
+              }
+          }
+
+          // Risky-leg guard for Match-All. Returns true if dispatcher confirmed
+          // (or no risky rows exist); false if cancelled.
+          function frrConfirmMatchAllRisk() {
+              if (!lastRefreshSummary) return true;
+              var risky = (lastRefreshSummary.rows || []).filter(function(r){
+                  return r.status === 'missing' || r.status === 'manual_action';
+              });
+              if (risky.length === 0) return true;
+              var ids = risky.slice(0, 10).map(function(r){ return '#' + r.reservation_id; }).join(', ');
+              var more = risky.length > 10 ? ' …and ' + (risky.length - 10) + ' more' : '';
+              return confirm(
+                  'This refresh flagged ' + risky.length + ' leg(s) for review:\n' +
+                  '  ' + ids + more + '\n\n' +
+                  'Match All Flight Times will overwrite pickup times for ALL arrival legs on this date — including the flagged ones.\n\n' +
+                  'Proceed anyway?'
+              );
+          }
+
+          function runMatchAllForDate(date, btn) {
+              if (!date) { alert('No date selected.'); return; }
+              if (!frrConfirmMatchAllRisk()) return;
+              var originalHTML = btn.innerHTML;
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+              fetch("{% url 'match_all_leg_times_to_flight' %}", {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                  body: JSON.stringify({ date: date })
+              })
+              .then(r => r.json())
+              .then(function(data) {
+                  if (data.success) {
+                      alert(data.message || ('Updated ' + data.updated_count + ' leg(s).'));
+                      window.location.reload();
+                  } else {
+                      btn.disabled = false; btn.innerHTML = originalHTML;
+                      alert(data.error || 'Could not update leg times.');
+                  }
+              })
+              .catch(function(err) {
+                  btn.disabled = false; btn.innerHTML = originalHTML;
+                  alert('Error: ' + err.message);
+              });
+          }
+
           // Bulk refresh all flights — inline AJAX (no modal)
           const refreshAllBtn = document.getElementById('refreshAllFlightsBtn');
           if (refreshAllBtn) {
@@ -2434,6 +2750,13 @@
                                       clearInterval(poll);
                                       applyNewResults(data.results);
                                       finalize(data.success_count || 0, data.failure_count || 0);
+                                      if (data.summary) {
+                                          lastRefreshSummary = data.summary;
+                                          openRefreshReviewModal(data.summary, {
+                                              dateLabel: '{{ selected_date|date:"D, M j" }}',
+                                              matchAllDate: selectedDate,
+                                          });
+                                      }
                                   } else if (data.status === 'failed') {
                                       clearInterval(poll);
                                       btn.disabled = false;
@@ -2476,45 +2799,12 @@
               });
           }
 
-          // Match all flight times (set pickup to scheduled arrival for all arrival legs on date)
+          // Match all flight times — defers to runMatchAllForDate which adds the
+          // post-refresh risky-leg confirm() guard before applying.
           const matchAllFlightTimesBtn = document.getElementById('matchAllFlightTimesBtn');
           if (matchAllFlightTimesBtn) {
               matchAllFlightTimesBtn.addEventListener('click', function() {
-                  const btn = this;
-                  const date = btn.dataset.date;
-                  if (!date) {
-                      alert('No date selected.');
-                      return;
-                  }
-                  const originalHTML = btn.innerHTML;
-                  btn.disabled = true;
-                  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
-                  fetch("{% url 'match_all_leg_times_to_flight' %}", {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': '{{ csrf_token }}'
-                          },
-                          body: JSON.stringify({
-                              date: date
-                          })
-                      })
-                      .then(r => r.json())
-                      .then(data => {
-                          if (data.success) {
-                              alert(data.message || `Updated ${data.updated_count} leg(s).`);
-                              window.location.reload();
-                          } else {
-                              btn.disabled = false;
-                              btn.innerHTML = originalHTML;
-                              alert(data.error || 'Could not update leg times.');
-                          }
-                      })
-                      .catch(err => {
-                          btn.disabled = false;
-                          btn.innerHTML = originalHTML;
-                          alert('Error: ' + err.message);
-                      });
+                  runMatchAllForDate(this.dataset.date, this);
               });
           }
 

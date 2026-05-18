@@ -3,16 +3,106 @@
 
 {% block extra_css %}
 <style>
-  .dupe-card .card-header { padding: 0.45rem 0.75rem; font-size: 0.85rem; }
-  .dupe-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.35rem 0.5rem; }
-  .dupe-table td { padding: 0.5rem 0.6rem; vertical-align: top; }
-  .dupe-keep { background-color: #d4edda !important; }
-  .dupe-unpaid { background-color: #fff3cd !important; }
-  .dupe-done { background-color: #e2e3e5 !important; }
+  :root {
+    --dupe-keep-bg: #f1faf3;
+    --dupe-keep-border: #2f9e57;
+    --dupe-unpaid-bg: #fff8e6;
+    --dupe-unpaid-border: #e0a309;
+    --dupe-done-bg: #f3f4f6;
+    --dupe-done-border: #9aa0a6;
+  }
+  .dupe-page-title { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+  .dupe-subtitle { font-size: 0.8rem; color: #6b7280; }
+
+  .dupe-stat {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0.55rem 1rem;
+    min-width: 110px;
+    background: #fff;
+  }
+  .dupe-stat .stat-num { font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+  .dupe-stat .stat-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+  .dupe-stat.danger .stat-num { color: #dc3545; }
+
+  .dupe-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .dupe-card .card-header {
+    padding: 0.6rem 0.9rem;
+    font-size: 0.85rem;
+    background: #fafbfc;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .dupe-card .group-name { font-size: 0.95rem; font-weight: 700; }
+  .dupe-card .group-meta { font-size: 0.75rem; color: #6b7280; }
+  .dupe-card .group-meta i { opacity: 0.7; }
+
+  .dupe-table { font-size: 0.82rem; }
+  .dupe-table th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.5rem 0.65rem;
+    background: #f9fafb;
+    color: #6b7280;
+    font-weight: 600;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .dupe-table td {
+    padding: 0.6rem 0.65rem;
+    vertical-align: top;
+    border-color: #eef0f2;
+  }
+
+  .dupe-keep { background-color: var(--dupe-keep-bg) !important; }
+  .dupe-unpaid { background-color: var(--dupe-unpaid-bg) !important; }
+  .dupe-done { background-color: var(--dupe-done-bg) !important; }
+
+  /* Left accent stripe on the row's first cell */
+  .dupe-table tbody tr.dupe-keep > td:first-child   { box-shadow: inset 3px 0 0 var(--dupe-keep-border); }
+  .dupe-table tbody tr.dupe-unpaid > td:first-child { box-shadow: inset 3px 0 0 var(--dupe-unpaid-border); }
+  .dupe-table tbody tr.dupe-done > td:first-child   { box-shadow: inset 3px 0 0 var(--dupe-done-border); }
+
+  .status-pill {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+  }
+  .status-pill.keep   { background: #2f9e57; color: #fff; }
+  .status-pill.dupe   { background: #e0a309; color: #1a1a1a; }
+  .status-pill.done   { background: #9aa0a6; color: #fff; }
+
+  .res-link {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    text-decoration: none;
+  }
+  .res-link:hover { background: #f3f4f6; color: #111; }
+
+  .res-email { font-size: 0.72rem; color: #6b7280; word-break: break-all; }
+
+  .empty-state {
+    border: 1px dashed #d1d5db;
+    border-radius: 12px;
+    background: #fff;
+  }
 </style>
 {% endblock extra_css %}
 
 {% block newsletter %}{% endblock newsletter %}
+{% block footer %}{% endblock footer %}
 
 {% block content %}
   {% block navbar %}
@@ -21,74 +111,63 @@
 
   <div class="container-fluid py-3">
     <!-- Header -->
-    <div class="row mb-3">
-      <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center flex-wrap">
-          <h1 class="mb-0 fs-4 fw-bold">
-            <i class="bi bi-files me-2"></i>Duplicate Reservations
-          </h1>
-          <div class="d-flex gap-2 align-items-center">
-            {% if total_unpaid > 0 %}
-            <button class="btn btn-sm btn-danger" id="cancelAllBtn" onclick="cancelAll()">
-              <i class="bi bi-trash me-1"></i>Delete All {{ total_unpaid }} Unpaid
-            </button>
-            {% endif %}
-            <a href="{% url 'dashboard' %}" class="btn btn-sm btn-dark">
-              <i class="bi bi-arrow-left me-1"></i>Dashboard
-            </a>
-          </div>
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+      <div>
+        <div class="dupe-page-title">
+          <i class="bi bi-files me-2"></i>Duplicate Reservations
         </div>
-        <small class="text-muted">
-          Same customer, same day &mdash; one paid, one unpaid. Card-saved reservations are excluded. Sorted by upcoming dates first.
-        </small>
+        <div class="dupe-subtitle">
+          Same last name + phone, same pickup day &mdash; one paid, one unpaid. Card-saved reservations are excluded. Sorted by upcoming dates first.
+        </div>
+      </div>
+      <div class="d-flex gap-2 align-items-center">
+        {% if total_unpaid > 0 %}
+        <button class="btn btn-sm btn-danger" id="cancelAllBtn" onclick="cancelAll()">
+          <i class="bi bi-trash me-1"></i>Delete All {{ total_unpaid }} Unpaid
+        </button>
+        {% endif %}
+        <a href="{% url 'dashboard' %}" class="btn btn-sm btn-outline-dark">
+          <i class="bi bi-arrow-left me-1"></i>Dashboard
+        </a>
       </div>
     </div>
 
     <!-- Summary -->
-    <div class="row mb-3 g-2">
-      <div class="col-auto">
-        <div class="card shadow-sm border-0">
-          <div class="card-body text-center py-2 px-4">
-            <h4 class="fw-bold mb-0">{{ total_groups }}</h4>
-            <small class="text-muted" style="font-size: 0.7rem;">Groups</small>
-          </div>
-        </div>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <div class="dupe-stat">
+        <div class="stat-num">{{ total_groups }}</div>
+        <div class="stat-label">Groups</div>
       </div>
-      <div class="col-auto">
-        <div class="card shadow-sm border-0">
-          <div class="card-body text-center py-2 px-4">
-            <h4 class="fw-bold text-danger mb-0">{{ total_unpaid }}</h4>
-            <small class="text-muted" style="font-size: 0.7rem;">Unpaid Dupes</small>
-          </div>
-        </div>
+      <div class="dupe-stat danger">
+        <div class="stat-num">{{ total_unpaid }}</div>
+        <div class="stat-label">Unpaid Dupes</div>
       </div>
     </div>
 
     {% if duplicate_groups %}
     {% for group in duplicate_groups %}
-    <div class="card shadow-sm mb-3 dupe-card" id="group-{{ forloop.counter }}">
-      <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <div>
-          <strong class="me-2">{{ group.customer.first_name }} {{ group.customer.last_name }}</strong>
-          {% if group.customer.phone_number %}<small class="text-muted me-2"><i class="bi bi-telephone me-1"></i>{{ group.customer.phone_number }}</small>{% endif %}
-          {% if group.customer.email %}<small class="text-muted me-2"><i class="bi bi-envelope me-1"></i>{{ group.customer.email }}</small>{% endif %}
-          <span class="badge bg-dark" style="font-size: 0.7rem;">{{ group.pickup_date|date:"D, M d Y" }}</span>
+    <div class="card dupe-card mb-3" id="group-{{ forloop.counter }}">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <span class="group-name">{{ group.customer.first_name }} {{ group.customer.last_name }}</span>
+          {% if group.customer.phone_number %}<span class="group-meta"><i class="bi bi-telephone me-1"></i>{{ group.customer.phone_number }}</span>{% endif %}
+          <span class="group-meta"><i class="bi bi-calendar3 me-1"></i>{{ group.pickup_date|date:"D, M d Y" }}</span>
         </div>
-        <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">{{ group.unpaid|length }} unpaid</span>
+        <span class="status-pill dupe">{{ group.unpaid|length }} unpaid</span>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-bordered mb-0 dupe-table">
             <thead class="table-light">
               <tr>
-                <th style="width: 50px;"></th>
-                <th>Customer</th>
+                <th style="width: 56px;"></th>
+                <th style="width: 150px;">Res / Email</th>
                 <th>Trip Details</th>
                 <th>Pickup / Dropoff</th>
-                <th>Vehicle & Passengers</th>
-                <th>Payment</th>
+                <th style="width: 140px;">Vehicle</th>
+                <th style="width: 110px;">Payment</th>
                 <th>Notes</th>
-                <th style="width: 80px;"></th>
+                <th style="width: 90px;"></th>
               </tr>
             </thead>
             <tbody>
@@ -98,17 +177,12 @@
               <tr class="dupe-keep">
                 {% if forloop.first %}
                 <td class="text-center" rowspan="{{ leg_count }}">
-                  <span class="badge bg-success">KEEP</span>
+                  <span class="status-pill keep">Keep</span>
                 </td>
                 <!-- Customer -->
                 <td rowspan="{{ leg_count }}">
-                  <div class="d-flex align-items-center mb-1">
-                    <h6 class="mb-0 fw-bold" style="font-size: 0.85rem;">{{ res.customer.get_full_name }}</h6>
-                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank"
-                       class="badge bg-warning text-dark ms-2 text-decoration-none">#{{ res.id }}</a>
-                  </div>
-                  <div class="text-muted small"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
-                  <div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ res.customer.phone_number }}</div>
+                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="res-link">#{{ res.id }}</a>
+                  <div class="res-email mt-1"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
                 </td>
                 {% endif %}
                 <!-- Trip Details (per-leg) -->
@@ -189,7 +263,7 @@
                 <!-- Payment -->
                 <td rowspan="{{ leg_count }}">
                   <div class="fw-bold">${{ res.total_price }}</div>
-                  <span class="badge bg-success">{{ res.payment_status|title }}</span>
+                  <span class="status-pill keep mt-1">{{ res.payment_status|title }}</span>
                 </td>
                 <!-- Notes -->
                 <td rowspan="{{ leg_count }}">
@@ -207,8 +281,7 @@
                 </td>
                 <!-- Actions -->
                 <td class="text-center" rowspan="{{ leg_count }}">
-                  <small class="text-success fw-bold">Paid</small>
-                  <div class="text-muted" style="font-size: 0.68rem;">{{ res.created_at|date:"M d, g:i A" }}</div>
+                  <div class="text-muted" style="font-size: 0.68rem;">Created<br>{{ res.created_at|date:"M d, g:i A" }}</div>
                 </td>
                 {% endif %}
               </tr>
@@ -222,17 +295,12 @@
               <tr class="{% if forloop.first %}dupe-unpaid unpaid-row{% else %}dupe-unpaid{% endif %}" {% if forloop.first %}data-uuid="{{ res.uuid }}"{% endif %}>
                 {% if forloop.first %}
                 <td class="text-center" rowspan="{{ leg_count }}">
-                  <span class="badge bg-danger">DUPE</span>
+                  <span class="status-pill dupe">Dupe</span>
                 </td>
                 <!-- Customer -->
                 <td rowspan="{{ leg_count }}">
-                  <div class="d-flex align-items-center mb-1">
-                    <h6 class="mb-0 fw-bold" style="font-size: 0.85rem;">{{ res.customer.get_full_name }}</h6>
-                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank"
-                       class="badge bg-warning text-dark ms-2 text-decoration-none">#{{ res.id }}</a>
-                  </div>
-                  <div class="text-muted small"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
-                  <div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ res.customer.phone_number }}</div>
+                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="res-link">#{{ res.id }}</a>
+                  <div class="res-email mt-1"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
                 </td>
                 {% endif %}
                 <!-- Trip Details (per-leg) -->
@@ -313,7 +381,7 @@
                 <!-- Payment -->
                 <td rowspan="{{ leg_count }}">
                   <div class="fw-bold">${{ res.total_price }}</div>
-                  <span class="badge bg-warning text-dark">{{ res.payment_status|title }}</span>
+                  <span class="status-pill dupe mt-1">{{ res.payment_status|title }}</span>
                 </td>
                 <!-- Notes -->
                 <td rowspan="{{ leg_count }}">
@@ -350,12 +418,10 @@
     </div>
     {% endfor %}
     {% else %}
-    <div class="card shadow-sm">
-      <div class="card-body text-center py-5">
-        <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
-        <h4 class="mt-3">No Duplicates Found</h4>
-        <p class="text-muted">All clean &mdash; no paid/unpaid duplicates detected.</p>
-      </div>
+    <div class="empty-state text-center py-5">
+      <i class="bi bi-check-circle text-success" style="font-size: 2.5rem;"></i>
+      <h5 class="mt-3 mb-1 fw-semibold">No Duplicates Found</h5>
+      <p class="text-muted mb-0">All clean &mdash; no paid/unpaid duplicates detected.</p>
     </div>
     {% endif %}
   </div>
@@ -416,10 +482,10 @@ function cancelOne(btn, uuid, resId) {
             row.classList.add('dupe-done');
           }
         }
-        const firstBadge = mainRow.querySelector('td:first-child .badge');
+        const firstBadge = mainRow.querySelector('td:first-child .status-pill');
         if (firstBadge) {
-          firstBadge.className = 'badge bg-secondary';
-          firstBadge.textContent = 'DONE';
+          firstBadge.className = 'status-pill done';
+          firstBadge.textContent = 'Done';
         }
         btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Done</small>';
       } else {
@@ -468,10 +534,10 @@ function cancelAll() {
           success++;
           row.classList.remove('unpaid-row', 'dupe-unpaid');
           row.classList.add('dupe-done');
-          const firstBadge = row.querySelector('td:first-child .badge');
+          const firstBadge = row.querySelector('td:first-child .status-pill');
           if (firstBadge) {
-            firstBadge.className = 'badge bg-secondary';
-            firstBadge.textContent = 'DONE';
+            firstBadge.className = 'status-pill done';
+            firstBadge.textContent = 'Done';
           }
           btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Done</small>';
         } else {

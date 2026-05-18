@@ -408,6 +408,10 @@ JAZZMIN_UI_TWEAKS = {
     "actions_sticky_top": True,
 }
 
+# Mismatch threshold (minutes) used by the flight refresh review summary to
+# decide when pickup vs flight arrival is "off enough" to flag.
+FLIGHT_REVIEW_MISMATCH_THRESHOLD_MINUTES = 30
+
 # Slow-request logger — logs any request exceeding 500ms to Railway's console
 LOGGING = {
     "version": 1,

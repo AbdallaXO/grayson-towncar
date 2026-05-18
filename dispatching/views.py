@@ -4196,6 +4196,12 @@ def _refresh_single_flight(leg):
 def _run_bulk_flight_refresh(task_id, leg_ids):
     import time
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from .flight_refresh_review import (
+        snapshot_flight_state,
+        classify_refresh_row,
+        build_review_summary,
+        auto_create_flight_verify_tasks,
+    )
 
     task_key = _flight_refresh_cache_key(task_id)
     timeout_seconds = 60 * 60
@@ -4226,6 +4232,12 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 timeout=timeout_seconds,
             )
             return
+
+        # Snapshot each flight BEFORE refresh so we can detect what changed.
+        # Stored in-memory only — no model, scoped to this worker thread.
+        snapshots = {
+            leg.id: snapshot_flight_state(leg.flight_information) for leg in legs
+        }
 
         results = []
         success_count = 0
@@ -4274,6 +4286,37 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
             + (f", {failure_count} failed" if failure_count > 0 else "")
         )
 
+        # Classify each leg with fresh model state, build review summary, and
+        # auto-file flight_verify ops tasks for risky legs (dedup is handled
+        # inside ops.services.create_task — repeat refreshes don't spam).
+        summary = None
+        try:
+            from django.conf import settings as _settings
+            threshold = int(getattr(
+                _settings, "FLIGHT_REVIEW_MISMATCH_THRESHOLD_MINUTES", 30
+            ))
+            fresh_legs = list(
+                Leg.objects.filter(id__in=[l.id for l in legs])
+                .select_related("flight_information", "reservation__customer", "driver")
+            )
+            result_by_leg = {r.get("leg_id"): r for r in results}
+            rows = [
+                classify_refresh_row(
+                    leg,
+                    snapshots.get(leg.id),
+                    result_by_leg.get(leg.id),
+                    threshold_minutes=threshold,
+                )
+                for leg in fresh_legs
+            ]
+            summary = build_review_summary(rows)
+            try:
+                auto_create_flight_verify_tasks(rows)
+            except Exception as e:
+                logger.error(f"auto_create_flight_verify_tasks failed: {e}")
+        except Exception as e:
+            logger.error(f"Review summary build failed: {e}")
+
         cache.set(
             task_key,
             {
@@ -4284,6 +4327,7 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 "success_count": success_count,
                 "failure_count": failure_count,
                 "results": results,
+                "summary": summary,
                 "started_at": started_at,
                 "finished_at": timezone.now().isoformat(),
             },
@@ -4399,6 +4443,56 @@ def refresh_all_flights(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error in bulk refresh: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def dismiss_flight_review(request):
+    """
+    Close any open flight_verify task on a leg, called from the post-refresh
+    review modal's "Mark Reviewed" button. Idempotent — succeeds even if no
+    open task exists for the leg.
+    """
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+        if not leg_id:
+            return JsonResponse(
+                {"success": False, "error": "leg_id is required"}, status=400
+            )
+
+        from ops.models import OperationalTask
+        from ops.services import close_task
+
+        task = (
+            OperationalTask.objects.filter(
+                leg_id=leg_id,
+                task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                status__in=list(OperationalTask.OPEN_STATUSES),
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        closed = False
+        if task:
+            close_task(
+                task,
+                resolved_by=request.user,
+                resolution_notes=f"Reviewed via post-refresh summary by {request.user}",
+            )
+            closed = True
+        return JsonResponse({"success": True, "closed": closed})
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error dismissing flight review for leg: {e}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
@@ -7803,7 +7897,6 @@ def capacity_planner(request):
     inhouse_vehicles = FleetVehicle.objects.select_related("vehicle_type").all().order_by("vehicle_number")
 
     # Build vehicle_assign_rows with off-today and leg count info
-    _planner_dow = selected_date.weekday()
     _planner_leg_counts = {}
     for _leg in legs_list:
         if _leg.driver_id:
@@ -7811,17 +7904,14 @@ def capacity_planner(request):
 
     vehicle_assign_rows = []
     for d in inhouse_drivers:
-        _is_off = False
-        for _entry in d.weekly_schedule.all():
-            if _entry.day_of_week == _planner_dow:
-                _is_off = not _entry.is_available
-                break
         _assignment = assignment_map.get(d.id)
-        if _is_off and _assignment and _assignment.vehicle_id:
-            _is_off = False
         # Driver availability for this date — combines weekly + active exception
         _va_eff = d.get_effective_availability(selected_date)
         _va_is_avail = _va_eff["is_available"]
+        _is_off = not _va_is_avail
+        # If driver has a vehicle assigned today, treat them as working regardless of schedule
+        if _is_off and _assignment and _assignment.vehicle_id:
+            _is_off = False
         _va_sh, _va_eh, _va_pref, _va_flex = (
             _va_eff["start_hour"], _va_eff["end_hour"],
             _va_eff["preference"], _va_eff["flexible"],
@@ -12700,15 +12790,25 @@ def duplicate_reservations(request):
         .distinct()
     )
 
-    # Group by (customer_id, pickup_date)
+    # Group by (last_name_lower, phone_last10, pickup_date) so dupes across
+    # separate Customer rows (e.g. same person booked under two different emails)
+    # still collapse together. Falls back to first_name if last_name is blank.
     groups = defaultdict(list)
     for res in reservations:
-        if not res.customer_id:
+        customer = res.customer
+        if not customer:
             continue
         first_leg = res.legs.all().first()
-        if first_leg:
-            key = (res.customer_id, first_leg.pickup_date)
-            groups[key].append(res)
+        if not first_leg:
+            continue
+        phone_digits = "".join(ch for ch in (customer.phone_number or "") if ch.isdigit())[-10:]
+        if not phone_digits:
+            continue
+        name_part = (customer.last_name or customer.first_name or "").strip().lower()
+        if not name_part:
+            continue
+        key = (name_part, phone_digits, first_leg.pickup_date)
+        groups[key].append(res)
 
     # Find groups where at least one paid + one unpaid
     duplicate_groups = []
