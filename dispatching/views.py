@@ -6889,7 +6889,9 @@ def gusto_export_view(request):
             # but make some noise in the server logs.
             logger.warning(f"Failed to log DriverPaymentExport: {e}", exc_info=True)
 
-        response = HttpResponse(buf.getvalue(), content_type="text/csv; charset=utf-8")
+        # utf-8-sig advertises the BOM `write_csv` already wrote — needed
+        # for Gusto's Smart Import parser to recognize the header row.
+        response = HttpResponse(buf.getvalue(), content_type="text/csv; charset=utf-8-sig")
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 

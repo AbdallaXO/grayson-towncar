@@ -77,8 +77,18 @@ def _parse_name(full_name: str) -> tuple[str, str]:
 
 
 def _resolve_names(driver) -> tuple[str, str, str]:
-    """Return (first_name, last_name, business_name) using Gusto overrides → profile → parse fallback."""
+    """Return (first_name, last_name, business_name) using Gusto overrides → profile → parse fallback.
+
+    For business contractors (gusto_business_name set), `first_name` and
+    `last_name` are forced blank — Gusto's contractor-pay template shows
+    a business row as `,,Business Name LLC,*1234,...` with the individual
+    name fields empty. Putting a personal name on a business row confuses
+    Gusto's matcher because it tries to match by name first.
+    """
     business = (driver.gusto_business_name or "").strip()
+    if business:
+        # Business contractor — emit only the business identity.
+        return "", "", business
 
     first = (driver.gusto_first_name or "").strip()
     last = (driver.gusto_last_name or "").strip()
@@ -234,7 +244,13 @@ def write_csv(rows: Iterable[GustoRow], out) -> None:
 
     Only `fixed_amount` is populated for amounts — all other amount columns
     (hourly_rate, hours, bonus, reimbursement, tips, cash_tips) stay blank.
+
+    Prepends a UTF-8 BOM (U+FEFF). Gusto's Smart Import parser was built
+    around Excel-saved CSVs, which always start with a BOM. Without it,
+    the parser fails with "Missing required CSV headers" because its
+    column-name matcher only fires on BOM-prefixed input.
     """
+    out.write("﻿")  # UTF-8 BOM — see docstring
     writer = csv.writer(out)
     writer.writerow(GUSTO_CSV_HEADER)
     for r in rows:

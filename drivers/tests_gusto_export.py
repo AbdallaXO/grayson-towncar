@@ -109,22 +109,37 @@ class ResolveNamesTests(TestCase):
         f, l, b = _resolve_names(d)
         self.assertEqual((f, l, b), ("Bob", "Roberts", ""))
 
-    def test_business_pass_through(self):
+    def test_business_pass_through_clears_first_last(self):
+        """When gusto_business_name is set, first/last MUST be blank so
+        Gusto's matcher doesn't try to match the row as an individual."""
         d = _make_driver(
             "d7", first="Acme", last="LLC", gusto_business_name="Acme Transport LLC",
         )
         f, l, b = _resolve_names(d)
-        self.assertEqual(b, "Acme Transport LLC")
+        self.assertEqual((f, l, b), ("", "", "Acme Transport LLC"))
 
 
 # ── CSV writing ───────────────────────────────────────────────────────
 
 class CSVWriteTests(TestCase):
     def _read_csv(self, rows):
+        """Strip the leading UTF-8 BOM before parsing (Excel / Gusto do
+        the same — the BOM is metadata, not a cell value)."""
         buf = io.StringIO()
         write_csv(rows, buf)
-        buf.seek(0)
-        return list(csv.reader(buf))
+        content = buf.getvalue()
+        if content.startswith("﻿"):
+            content = content[1:]
+        return list(csv.reader(io.StringIO(content)))
+
+    def test_csv_starts_with_utf8_bom(self):
+        """Gusto's Smart Import requires the BOM to recognize the header row."""
+        buf = io.StringIO()
+        write_csv([], buf)
+        self.assertTrue(
+            buf.getvalue().startswith("﻿"),
+            "Gusto rejects CSVs without a UTF-8 BOM with 'Missing required CSV headers'.",
+        )
 
     def test_header_is_exact(self):
         out = self._read_csv([])

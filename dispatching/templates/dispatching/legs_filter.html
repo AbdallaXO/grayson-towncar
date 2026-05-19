@@ -339,6 +339,37 @@
       .badge.bg-manual { background-color: #7c4dff !important; color: #fff !important; }
       .frr-empty { color: #6c757d; font-style: italic; padding: 18px 0; text-align: center; }
 
+      /* Compact confirm dialog (used by Match-All) */
+      .frr-confirm { max-width: 560px; }
+      .frr-confirm .frr-header { background: linear-gradient(135deg,#b45309,#d97706); }
+      .frr-confirm.frr-danger .frr-header { background: linear-gradient(135deg,#7f1d1d,#dc2626); }
+      .frr-callout {
+          border-left: 4px solid #d97706; background: #fffbea; border-radius: 6px;
+          padding: 10px 12px; margin-bottom: 12px; font-size: 0.9rem;
+      }
+      .frr-callout strong { color: #92400e; }
+      .frr-callout.frr-callout-danger { border-left-color: #dc2626; background: #fef2f2; }
+      .frr-callout.frr-callout-danger strong { color: #991b1b; }
+      .frr-update-list {
+          max-height: 260px; overflow-y: auto; border: 1px solid #e9ecef;
+          border-radius: 6px; background: #fff; margin-bottom: 12px;
+      }
+      .frr-update-row {
+          display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px;
+          align-items: center; padding: 7px 10px; border-bottom: 1px solid #f1f3f5;
+          font-size: 0.83rem;
+      }
+      .frr-update-row:last-child { border-bottom: 0; }
+      .frr-update-row .frr-old { color: #6c757d; text-decoration: line-through; font-variant-numeric: tabular-nums; }
+      .frr-update-row .frr-arrow { color: #6c757d; }
+      .frr-update-row .frr-new { font-weight: 600; font-variant-numeric: tabular-nums; }
+      .frr-update-row .frr-delta {
+          font-size: 0.72rem; padding: 2px 6px; border-radius: 10px;
+          background: #fff3cd; color: #664d03;
+      }
+      .frr-update-row .frr-delta.frr-delta-manual { background: #ede4ff; color: #4527a0; }
+      .frr-update-row .frr-delta.frr-delta-danger { background: #ffe1e1; color: #842029; }
+
   </style>
 {% endblock extra_css %}
 
@@ -2547,11 +2578,11 @@
                                   b.classList.add('btn-success');
                               } else {
                                   b.disabled = false; b.innerHTML = orig;
-                                  alert(data.error || 'Could not update pickup time.');
+                                  frrShowToast(data.error || 'Could not update pickup time.', 'error');
                               }
                           }).catch(function(err){
                               b.disabled = false; b.innerHTML = orig;
-                              alert('Error: ' + err.message);
+                              frrShowToast('Error: ' + err.message, 'error');
                           });
                       });
                   });
@@ -2573,11 +2604,11 @@
                                   b.classList.add('btn-secondary');
                               } else {
                                   b.disabled = false; b.innerHTML = orig;
-                                  alert(data.error || 'Could not mark reviewed.');
+                                  frrShowToast(data.error || 'Could not mark reviewed.', 'error');
                               }
                           }).catch(function(err){
                               b.disabled = false; b.innerHTML = orig;
-                              alert('Error: ' + err.message);
+                              frrShowToast('Error: ' + err.message, 'error');
                           });
                       });
                   });
@@ -2593,48 +2624,191 @@
               }
           }
 
-          // Risky-leg guard for Match-All. Returns true if dispatcher confirmed
-          // (or no risky rows exist); false if cancelled.
-          function frrConfirmMatchAllRisk() {
-              if (!lastRefreshSummary) return true;
-              var risky = (lastRefreshSummary.rows || []).filter(function(r){
+          // Shared toast (outer-scope, so all FRR helpers can use it).
+          function frrShowToast(message, type) {
+              var tc = document.getElementById('toast-container');
+              if (!tc) {
+                  tc = document.createElement('div');
+                  tc.id = 'toast-container';
+                  tc.className = 'toast-container position-fixed top-0 end-0 p-3';
+                  tc.style.zIndex = '11000';
+                  document.body.appendChild(tc);
+              }
+              var bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning';
+              var icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-x-circle' : 'bi-exclamation-triangle';
+              var el = document.createElement('div');
+              el.className = 'toast align-items-center text-white ' + bg + ' border-0';
+              el.setAttribute('role', 'alert');
+              el.innerHTML = '<div class="d-flex"><div class="toast-body"><i class="bi ' + icon + ' me-2"></i>' + frrEscape(message) + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+              tc.appendChild(el);
+              try {
+                  var t = new bootstrap.Toast(el, { delay: 5000 });
+                  t.show();
+                  el.addEventListener('hidden.bs.toast', function(){ el.remove(); });
+              } catch (e) { /* bootstrap not loaded; leave the element visible */ }
+          }
+
+          // Build the per-leg "what will change" preview from the last refresh
+          // summary. Returns { changes:[{leg_id, reservation_id, guest_name,
+          // pickup_time, new_arrival_time, mismatch_minutes, mismatch_direction,
+          // status}], hasRisky:bool }.
+          function frrComputeMatchAllPreview() {
+              var rows = (lastRefreshSummary && lastRefreshSummary.rows) || [];
+              var threshold = 30;
+              var changes = rows.filter(function(r){
+                  // Anything that will visibly move >= threshold OR is in a
+                  // higher-severity bucket (large delay, date shift, etc.)
+                  if (r.status === 'missing') return false;  // no usable arrival time
+                  if (r.mismatch_minutes != null && r.mismatch_minutes >= threshold) return true;
+                  if (r.status === 'manual_action') return true;
+                  return false;
+              });
+              var hasRisky = rows.some(function(r){
                   return r.status === 'missing' || r.status === 'manual_action';
               });
-              if (risky.length === 0) return true;
-              var ids = risky.slice(0, 10).map(function(r){ return '#' + r.reservation_id; }).join(', ');
-              var more = risky.length > 10 ? ' …and ' + (risky.length - 10) + ' more' : '';
-              return confirm(
-                  'This refresh flagged ' + risky.length + ' leg(s) for review:\n' +
-                  '  ' + ids + more + '\n\n' +
-                  'Match All Flight Times will overwrite pickup times for ALL arrival legs on this date — including the flagged ones.\n\n' +
-                  'Proceed anyway?'
-              );
+              return { changes: changes, hasRisky: hasRisky, rows: rows };
+          }
+
+          // Styled confirm modal (Promise-based). Replaces native confirm().
+          function frrShowMatchAllConfirm(opts) {
+              opts = opts || {};
+              return new Promise(function(resolve) {
+                  var existing = document.getElementById('frrConfirmOverlay');
+                  if (existing) existing.remove();
+
+                  var preview = frrComputeMatchAllPreview();
+                  var changes = preview.changes;
+                  var hasRisky = preview.hasRisky;
+                  var hasSummary = lastRefreshSummary != null;
+
+                  var dangerVariant = hasRisky;
+                  var headerTitle = 'Match All Flight Times';
+                  var headerSub = opts.dateLabel
+                      ? 'Will update pickup times for arrival legs on ' + opts.dateLabel
+                      : 'Will update pickup times for arrival legs';
+
+                  // Main callout — always shown
+                  var calloutHtml = ''
+                      + '<div class="frr-callout">'
+                      +   '<strong><i class="bi bi-telephone-fill me-1"></i>Before sending confirmations:</strong> '
+                      +   'call each guest to verify their flight info. Match-All will overwrite pickup times based on the latest AeroAPI data — wrong flight numbers or out-of-date entries will set the wrong pickup time.'
+                      + '</div>';
+
+                  // Extra red callout when the refresh flagged risky rows
+                  var riskyHtml = '';
+                  if (hasRisky) {
+                      var risky = (lastRefreshSummary.rows || []).filter(function(r){
+                          return r.status === 'missing' || r.status === 'manual_action';
+                      });
+                      var ids = risky.slice(0, 8).map(function(r){ return '#' + r.reservation_id; }).join(', ');
+                      var more = risky.length > 8 ? ' …and ' + (risky.length - 8) + ' more' : '';
+                      riskyHtml = ''
+                          + '<div class="frr-callout frr-callout-danger">'
+                          +   '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>' + risky.length + ' flight(s) need manual attention:</strong> '
+                          +   frrEscape(ids + more) + '. These pickup times will still be overwritten unless you cancel and resolve them first.'
+                          + '</div>';
+                  }
+
+                  // Preview list of legs that WILL change
+                  var listHtml;
+                  if (!hasSummary) {
+                      listHtml = ''
+                          + '<div class="frr-empty">'
+                          +   '<i class="bi bi-info-circle me-1"></i>No refresh data available — preview unavailable. Run <strong>Refresh Arrival Flights</strong> first to see which legs would change.'
+                          + '</div>';
+                  } else if (changes.length === 0) {
+                      listHtml = ''
+                          + '<div class="frr-empty">'
+                          +   '<i class="bi bi-check2-circle text-success me-1"></i>No legs have a 30-min+ pickup vs flight mismatch — nothing visible to change.'
+                          + '</div>';
+                  } else {
+                      listHtml = '<div class="frr-update-list">' + changes.map(function(r){
+                          var deltaCls = r.status === 'manual_action' ? 'frr-delta frr-delta-manual'
+                                       : (r.mismatch_minutes >= 120 ? 'frr-delta frr-delta-danger' : 'frr-delta');
+                          var dir = r.mismatch_direction === 'late' ? 'late' : (r.mismatch_direction === 'early' ? 'early' : '');
+                          return ''
+                              + '<div class="frr-update-row">'
+                              +   '<div><strong>#' + frrEscape(r.reservation_id) + '</strong> · ' + frrEscape(r.guest_name) + '<div class="text-muted" style="font-size:0.72rem">' + frrEscape(frrFlightLabel(r)) + (r.airline ? ' · ' + frrEscape(r.airline) : '') + '</div></div>'
+                              +   '<span class="frr-old">' + frrEscape(r.pickup_time || '—') + '</span>'
+                              +   '<span class="frr-arrow"><i class="bi bi-arrow-right"></i></span>'
+                              +   '<span class="frr-new">' + frrEscape((r.new_arrival_time || '').split(' ').slice(-2).join(' ')) + ' <span class="' + deltaCls + '">' + (r.mismatch_minutes != null ? r.mismatch_minutes + ' min ' + dir : '') + '</span></span>'
+                              + '</div>';
+                      }).join('') + '</div>';
+                  }
+
+                  var legCount = changes.length;
+                  var confirmLabel = legCount > 0
+                      ? 'Update ' + legCount + ' Pickup Time' + (legCount === 1 ? '' : 's')
+                      : 'Update All Pickup Times';
+
+                  var overlay = document.createElement('div');
+                  overlay.id = 'frrConfirmOverlay';
+                  overlay.className = 'frr-overlay';
+                  overlay.innerHTML = ''
+                      + '<div class="frr-modal frr-confirm ' + (dangerVariant ? 'frr-danger' : '') + '" role="dialog" aria-modal="true">'
+                      +   '<div class="frr-header d-flex justify-content-between align-items-center">'
+                      +     '<div><h5><i class="bi bi-clock-history me-2"></i>' + frrEscape(headerTitle) + '</h5><div class="frr-sub">' + frrEscape(headerSub) + '</div></div>'
+                      +     '<button type="button" class="btn btn-sm btn-light frr-cancel" aria-label="Close"><i class="bi bi-x-lg"></i></button>'
+                      +   '</div>'
+                      +   '<div class="frr-body">'
+                      +     calloutHtml
+                      +     riskyHtml
+                      +     (hasSummary && changes.length > 0
+                          ? '<div class="small text-muted mb-1"><i class="bi bi-list-check me-1"></i>The following pickup time(s) will be updated:</div>'
+                          : '')
+                      +     listHtml
+                      +   '</div>'
+                      +   '<div class="frr-footer">'
+                      +     '<div class="small text-muted"><i class="bi bi-shield-exclamation me-1"></i>This cannot be undone in bulk — review carefully.</div>'
+                      +     '<div class="d-flex gap-2">'
+                      +       '<button type="button" class="btn btn-sm btn-outline-secondary frr-cancel">Cancel</button>'
+                      +       '<button type="button" class="btn btn-sm ' + (dangerVariant ? 'btn-danger' : 'btn-warning') + ' frr-ok">' + frrEscape(confirmLabel) + '</button>'
+                      +     '</div>'
+                      +   '</div>'
+                      + '</div>';
+
+                  document.body.appendChild(overlay);
+
+                  function cleanup(result) { overlay.remove(); resolve(result); }
+                  overlay.querySelectorAll('.frr-cancel').forEach(function(b){ b.addEventListener('click', function(){ cleanup(false); }); });
+                  overlay.querySelector('.frr-ok').addEventListener('click', function(){ cleanup(true); });
+                  overlay.addEventListener('click', function(e){ if (e.target === overlay) cleanup(false); });
+                  // ESC to cancel
+                  function onKey(e) {
+                      if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); cleanup(false); }
+                  }
+                  document.addEventListener('keydown', onKey);
+              });
           }
 
           function runMatchAllForDate(date, btn) {
-              if (!date) { alert('No date selected.'); return; }
-              if (!frrConfirmMatchAllRisk()) return;
-              var originalHTML = btn.innerHTML;
-              btn.disabled = true;
-              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
-              fetch("{% url 'match_all_leg_times_to_flight' %}", {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                  body: JSON.stringify({ date: date })
-              })
-              .then(r => r.json())
-              .then(function(data) {
-                  if (data.success) {
-                      alert(data.message || ('Updated ' + data.updated_count + ' leg(s).'));
-                      window.location.reload();
-                  } else {
+              if (!date) { frrShowToast('No date selected.', 'error'); return; }
+              var dateLabel = '{{ selected_date|date:"D, M j" }}';
+              frrShowMatchAllConfirm({ dateLabel: dateLabel }).then(function(confirmed) {
+                  if (!confirmed) return;
+                  var originalHTML = btn.innerHTML;
+                  btn.disabled = true;
+                  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+                  fetch("{% url 'match_all_leg_times_to_flight' %}", {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                      body: JSON.stringify({ date: date })
+                  })
+                  .then(r => r.json())
+                  .then(function(data) {
+                      if (data.success) {
+                          frrShowToast(data.message || ('Updated ' + data.updated_count + ' leg(s).'), 'success');
+                          // Give the toast a beat to be readable before reload.
+                          setTimeout(function(){ window.location.reload(); }, 900);
+                      } else {
+                          btn.disabled = false; btn.innerHTML = originalHTML;
+                          frrShowToast(data.error || 'Could not update leg times.', 'error');
+                      }
+                  })
+                  .catch(function(err) {
                       btn.disabled = false; btn.innerHTML = originalHTML;
-                      alert(data.error || 'Could not update leg times.');
-                  }
-              })
-              .catch(function(err) {
-                  btn.disabled = false; btn.innerHTML = originalHTML;
-                  alert('Error: ' + err.message);
+                      frrShowToast('Error: ' + err.message, 'error');
+                  });
               });
           }
 
