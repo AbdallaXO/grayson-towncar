@@ -32,6 +32,12 @@
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
   }
+  .bulk-action-bar {
+    padding: 0.6rem 1rem;
+    background: #fef2f2;
+    border-top: 1px solid #f3d4d4;
+    border-bottom: 1px solid #f3d4d4;
+  }
 </style>
 {% endblock %}
 
@@ -115,85 +121,117 @@
     </div>
 
     <div class="card mb-4">
-      <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span class="fw-semibold">Active Lines ({{ active_lines|length }})</span>
-        {% if candidate_legs %}
-          <button type="button" class="btn btn-sm btn-outline-primary"
-                  data-bs-toggle="modal" data-bs-target="#addLegModal">
-            <i class="bi bi-plus-circle me-1"></i>Add Missing Leg
-          </button>
-        {% else %}
-          <span class="text-muted small">
-            <i class="bi bi-info-circle me-1"></i>No unpaid completed legs available to add
-          </span>
-        {% endif %}
-      </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Date</th>
-                <th>Pickup Time</th>
-                <th>Pickup → Dropoff</th>
-                <th class="text-end">Amount</th>
-                <th class="text-end" style="width: 200px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for lp in active_lines %}
-                <tr class="stmt-line">
-                  <td>{{ lp.leg.pickup_date|date:"m/d/Y" }}</td>
-                  <td>{{ lp.leg.pickup_time|time:"g:i A" }}</td>
-                  <td>
-                    <div>{{ lp.leg.pickup_location }} → {{ lp.leg.dropoff_location }}</div>
-                    {% if lp.leg.reservation %}
-                      <small class="text-muted">Res #{{ lp.leg.reservation.id }}</small>
-                    {% endif %}
-                  </td>
-                  <td class="text-end fw-bold">
-                    ${{ lp.amount|floatformat:2 }}
-                    {% if lp.original_amount and lp.original_amount != lp.amount %}
-                      <div class="small text-muted">
-                        was ${{ lp.original_amount|floatformat:2 }}
-                      </div>
-                    {% endif %}
-                  </td>
-                  <td class="stmt-actions-cell text-end">
-                    <button type="button" class="btn btn-sm btn-outline-secondary"
-                            data-bs-toggle="modal"
-                            data-bs-target="#editLineModal"
-                            data-line-id="{{ lp.id }}"
-                            data-leg-id="{{ lp.leg.id }}"
-                            data-current-amount="{{ lp.amount|floatformat:2 }}">
-                      <i class="bi bi-pencil"></i> Edit
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-danger"
-                            data-bs-toggle="modal"
-                            data-bs-target="#voidLineModal"
-                            data-line-id="{{ lp.id }}"
-                            data-leg-id="{{ lp.leg.id }}"
-                            data-amount="{{ lp.amount|floatformat:2 }}">
-                      <i class="bi bi-x-circle"></i> Void
-                    </button>
-                  </td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="5" class="text-center py-4 text-muted">
-                    No active lines on this statement.
-                  </td>
-                </tr>
-              {% endfor %}
-              <tr class="table-light">
-                <td colspan="3" class="fw-bold text-end">Current Total</td>
-                <td class="fw-bold text-end fs-5">${{ payment.amount|floatformat:2 }}</td>
-                <td></td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="d-flex gap-2">
+          {% if candidate_legs %}
+            <button type="button" class="btn btn-sm btn-outline-primary"
+                    data-bs-toggle="modal" data-bs-target="#addLegModal">
+              <i class="bi bi-plus-circle me-1"></i>Add Missing Legs
+            </button>
+          {% else %}
+            <span class="text-muted small">
+              <i class="bi bi-info-circle me-1"></i>No unpaid completed legs available to add
+            </span>
+          {% endif %}
         </div>
       </div>
+
+      {% if active_lines %}
+        <div class="d-flex justify-content-between align-items-center bulk-action-bar" id="bulkActionBar">
+          <div class="small text-muted">
+            <span id="bulkSelectedCount">0</span> line(s) selected &middot;
+            total <strong>$<span id="bulkSelectedTotal">0.00</span></strong>
+          </div>
+          <button type="button" class="btn btn-sm btn-danger"
+                  id="bulkVoidBtn"
+                  data-bs-toggle="modal" data-bs-target="#bulkVoidModal"
+                  disabled>
+            <i class="bi bi-x-circle me-1"></i>Void Selected
+          </button>
+        </div>
+      {% endif %}
+
+      <form method="post" id="bulkVoidForm"
+            action="{% url 'bulk_void_leg_payments' driver.id payment.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="reason" id="bulkVoidReasonHidden">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 38px;">
+                    <input type="checkbox" id="bulkHeaderCheckbox" class="form-check-input"
+                           title="Select all">
+                  </th>
+                  <th>Date</th>
+                  <th>Pickup Time</th>
+                  <th>Pickup → Dropoff</th>
+                  <th class="text-end">Amount</th>
+                  <th class="text-end" style="width: 200px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for lp in active_lines %}
+                  <tr class="stmt-line">
+                    <td>
+                      <input type="checkbox" name="leg_payment_ids" value="{{ lp.id }}"
+                             class="form-check-input line-checkbox"
+                             data-amount="{{ lp.amount|floatformat:2 }}">
+                    </td>
+                    <td>{{ lp.leg.pickup_date|date:"m/d/Y" }}</td>
+                    <td>{{ lp.leg.pickup_time|time:"g:i A" }}</td>
+                    <td>
+                      <div>{{ lp.leg.pickup_location }} → {{ lp.leg.dropoff_location }}</div>
+                      {% if lp.leg.reservation %}
+                        <small class="text-muted">Res #{{ lp.leg.reservation.id }}</small>
+                      {% endif %}
+                    </td>
+                    <td class="text-end fw-bold">
+                      ${{ lp.amount|floatformat:2 }}
+                      {% if lp.original_amount and lp.original_amount != lp.amount %}
+                        <div class="small text-muted">
+                          was ${{ lp.original_amount|floatformat:2 }}
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td class="stmt-actions-cell text-end">
+                      <button type="button" class="btn btn-sm btn-outline-secondary"
+                              data-bs-toggle="modal"
+                              data-bs-target="#editLineModal"
+                              data-line-id="{{ lp.id }}"
+                              data-leg-id="{{ lp.leg.id }}"
+                              data-current-amount="{{ lp.amount|floatformat:2 }}">
+                        <i class="bi bi-pencil"></i> Edit
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-danger"
+                              data-bs-toggle="modal"
+                              data-bs-target="#voidLineModal"
+                              data-line-id="{{ lp.id }}"
+                              data-leg-id="{{ lp.leg.id }}"
+                              data-amount="{{ lp.amount|floatformat:2 }}">
+                        <i class="bi bi-x-circle"></i> Void
+                      </button>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                      No active lines on this statement.
+                    </td>
+                  </tr>
+                {% endfor %}
+                <tr class="table-light">
+                  <td colspan="4" class="fw-bold text-end">Current Total</td>
+                  <td class="fw-bold text-end fs-5">${{ payment.amount|floatformat:2 }}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </form>
     </div>
 
     {% if voided_lines %}
@@ -321,8 +359,8 @@
               Voiding this line removes <strong>$<span id="voidAmount">0.00</span></strong> from the statement total and returns leg <strong>#<span id="voidLegId">—</span></strong> to the unpaid queue so it can be paid in a future statement.
             </p>
             <p class="text-muted small">The voided line stays visible under "Voided Lines" for history.</p>
-            <label for="voidReason" class="form-label">Reason <span class="text-danger">*</span></label>
-            <textarea class="form-control" id="voidReason" name="reason" rows="2" required
+            <label for="voidReason" class="form-label">Reason <span class="text-muted small">(optional)</span></label>
+            <textarea class="form-control" id="voidReason" name="reason" rows="2"
                       placeholder="e.g. Leg dated outside 5/11-5/17 payroll period"></textarea>
           </div>
           <div class="modal-footer">
@@ -331,6 +369,35 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Bulk Void Modal -->
+  <div class="modal fade" id="bulkVoidModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Void Selected Lines</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>
+            You're about to void <strong><span id="bulkVoidCount">0</span></strong> line(s)
+            removing <strong>$<span id="bulkVoidTotal">0.00</span></strong> from the
+            statement total. The associated legs return to the unpaid queue.
+          </p>
+          <p class="text-muted small">Voided lines stay visible under "Voided Lines" for history.</p>
+          <label for="bulkVoidReason" class="form-label">
+            Reason <span class="text-muted small">(optional)</span>
+          </label>
+          <textarea class="form-control" id="bulkVoidReason" rows="2"
+                    placeholder="e.g. Legs dated outside payroll period"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="bulkVoidSubmit">Void Lines</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -355,8 +422,8 @@
               <input type="number" step="0.01" min="0" class="form-control" id="editNewAmount" name="new_amount" required>
             </div>
             <div class="mb-3">
-              <label for="editReason" class="form-label">Reason <span class="text-danger">*</span></label>
-              <textarea class="form-control" id="editReason" name="reason" rows="2" required
+              <label for="editReason" class="form-label">Reason <span class="text-muted small">(optional)</span></label>
+              <textarea class="form-control" id="editReason" name="reason" rows="2"
                         placeholder="e.g. Pay rate was wrong — should have been $40 not $25"></textarea>
             </div>
           </div>
@@ -370,59 +437,86 @@
   </div>
 
   {% if candidate_legs %}
-  <!-- Add Missing Leg Modal -->
+  <!-- Add Missing Legs Modal (multi-select) -->
   <div class="modal fade" id="addLegModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
-      <form method="post" action="{% url 'add_missing_leg_to_statement' driver.id payment.id %}">
+      <form method="post" action="{% url 'add_missing_leg_to_statement' driver.id payment.id %}" id="addLegForm">
         {% csrf_token %}
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Add a Missing Leg to This Statement</h5>
+            <h5 class="modal-title">Add Missing Legs to This Statement</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <p class="text-muted small">Pick a completed leg that should have been on this payment. The amount defaults to the leg's calculated pay — edit if needed.</p>
-            <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
-              <table class="table table-sm table-hover">
+            <p class="text-muted small">
+              Tick any completed legs that should have been on this payment. Each amount defaults to the leg's calculated pay — edit per row if needed. All selected legs are added together with the same reason.
+            </p>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="addLegSelectAll">Select all</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="addLegClearAll">Clear</button>
+              </div>
+              <div class="small text-muted">
+                <span id="addLegSelectedCount">0</span> selected &middot;
+                total <strong>$<span id="addLegSelectedTotal">0.00</span></strong>
+              </div>
+            </div>
+            <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+              <table class="table table-sm table-hover align-middle">
                 <thead class="table-light sticky-top">
                   <tr>
-                    <th></th>
+                    <th style="width: 36px;">
+                      <input type="checkbox" class="form-check-input" id="addLegHeaderCheckbox">
+                    </th>
                     <th>Date</th>
                     <th>Pickup → Dropoff</th>
-                    <th class="text-end">Default Amount</th>
+                    <th class="text-end" style="width: 140px;">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for leg in candidate_legs %}
+                    {% with default_amount=leg.total_driver_pay|default:"0.00"|floatformat:2 %}
                     <tr>
                       <td>
-                        <input class="form-check-input add-leg-radio" type="radio"
-                               name="leg_id" value="{{ leg.id }}" id="addLeg_{{ leg.id }}"
-                               data-default-amount="{{ leg.total_driver_pay|default:'0.00'|floatformat:2 }}" required>
+                        <input class="form-check-input add-leg-checkbox" type="checkbox"
+                               name="leg_ids" value="{{ leg.id }}" id="addLeg_{{ leg.id }}"
+                               data-default-amount="{{ default_amount }}">
                       </td>
                       <td><label for="addLeg_{{ leg.id }}" class="m-0">{{ leg.pickup_date|date:"m/d/Y" }}</label></td>
-                      <td>{{ leg.pickup_location }} → {{ leg.dropoff_location }}</td>
-                      <td class="text-end">${{ leg.total_driver_pay|default:"0.00"|floatformat:2 }}</td>
+                      <td>
+                        {{ leg.pickup_location }} → {{ leg.dropoff_location }}
+                        {% if leg.reservation %}
+                          <div class="small text-muted">Res #{{ leg.reservation.id }}</div>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text">$</span>
+                          <input type="number" step="0.01" min="0"
+                                 class="form-control text-end add-leg-amount"
+                                 name="amount_{{ leg.id }}"
+                                 value="{{ default_amount }}"
+                                 data-default-amount="{{ default_amount }}"
+                                 disabled>
+                        </div>
+                      </td>
                     </tr>
+                    {% endwith %}
                   {% endfor %}
                 </tbody>
               </table>
             </div>
-            <div class="row g-3 mt-2">
-              <div class="col-md-4">
-                <label for="addLegAmount" class="form-label">Amount <span class="text-danger">*</span></label>
-                <input type="number" step="0.01" min="0" class="form-control" id="addLegAmount" name="amount" required>
-              </div>
-              <div class="col-md-8">
-                <label for="addLegReason" class="form-label">Reason <span class="text-danger">*</span></label>
-                <textarea class="form-control" id="addLegReason" name="reason" rows="2" required
-                          placeholder="e.g. Leg was missed during processing — adding now"></textarea>
-              </div>
+            <div class="mt-3">
+              <label for="addLegReason" class="form-label">Reason <span class="text-muted small">(optional)</span></label>
+              <textarea class="form-control" id="addLegReason" name="reason" rows="2"
+                        placeholder="e.g. Legs were missed during processing — adding now"></textarea>
             </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success">Add Leg</button>
+            <button type="submit" class="btn btn-success" id="addLegSubmit" disabled>
+              <span id="addLegSubmitLabel">Add Selected Legs</span>
+            </button>
           </div>
         </div>
       </form>
@@ -432,6 +526,57 @@
 
   <script>
   (function() {
+    // ── Bulk-void: row checkboxes + sticky action bar + confirm modal ──
+    const lineCheckboxes = document.querySelectorAll('.line-checkbox');
+    const bulkHeaderCb = document.getElementById('bulkHeaderCheckbox');
+    const bulkCount = document.getElementById('bulkSelectedCount');
+    const bulkTotal = document.getElementById('bulkSelectedTotal');
+    const bulkBtn = document.getElementById('bulkVoidBtn');
+    const bulkVoidCountEl = document.getElementById('bulkVoidCount');
+    const bulkVoidTotalEl = document.getElementById('bulkVoidTotal');
+    const bulkVoidReason = document.getElementById('bulkVoidReason');
+    const bulkVoidReasonHidden = document.getElementById('bulkVoidReasonHidden');
+    const bulkVoidSubmit = document.getElementById('bulkVoidSubmit');
+    const bulkVoidForm = document.getElementById('bulkVoidForm');
+
+    function refreshBulkSelection() {
+      let count = 0;
+      let total = 0;
+      lineCheckboxes.forEach(cb => {
+        if (cb.checked) {
+          count += 1;
+          total += parseFloat(cb.getAttribute('data-amount') || '0') || 0;
+        }
+      });
+      if (bulkCount) bulkCount.textContent = String(count);
+      if (bulkTotal) bulkTotal.textContent = total.toFixed(2);
+      if (bulkBtn) bulkBtn.disabled = count === 0;
+      if (bulkVoidCountEl) bulkVoidCountEl.textContent = String(count);
+      if (bulkVoidTotalEl) bulkVoidTotalEl.textContent = total.toFixed(2);
+      if (bulkHeaderCb) {
+        const totalRows = lineCheckboxes.length;
+        bulkHeaderCb.checked = totalRows > 0 && count === totalRows;
+        bulkHeaderCb.indeterminate = count > 0 && count < totalRows;
+      }
+    }
+
+    lineCheckboxes.forEach(cb => cb.addEventListener('change', refreshBulkSelection));
+    if (bulkHeaderCb) {
+      bulkHeaderCb.addEventListener('change', () => {
+        lineCheckboxes.forEach(cb => { cb.checked = bulkHeaderCb.checked; });
+        refreshBulkSelection();
+      });
+    }
+    if (bulkVoidSubmit && bulkVoidForm) {
+      bulkVoidSubmit.addEventListener('click', () => {
+        if (bulkVoidReasonHidden) {
+          bulkVoidReasonHidden.value = (bulkVoidReason && bulkVoidReason.value) || '';
+        }
+        bulkVoidForm.submit();
+      });
+    }
+    refreshBulkSelection();
+
     const voidModal = document.getElementById('voidLineModal');
     if (voidModal) {
       voidModal.addEventListener('show.bs.modal', (ev) => {
@@ -463,15 +608,68 @@
       });
     }
 
-    document.querySelectorAll('.add-leg-radio').forEach(radio => {
-      radio.addEventListener('change', (ev) => {
-        const amt = ev.target.getAttribute('data-default-amount');
-        const input = document.getElementById('addLegAmount');
-        if (input && (!input.value || input.value === '0.00')) {
-          input.value = amt;
+    // ── Add Missing Legs modal: multi-select ──
+    const addLegCheckboxes = document.querySelectorAll('.add-leg-checkbox');
+    const addLegHeaderCb = document.getElementById('addLegHeaderCheckbox');
+    const addLegSelectAll = document.getElementById('addLegSelectAll');
+    const addLegClearAll = document.getElementById('addLegClearAll');
+    const addLegCount = document.getElementById('addLegSelectedCount');
+    const addLegTotal = document.getElementById('addLegSelectedTotal');
+    const addLegSubmit = document.getElementById('addLegSubmit');
+    const addLegSubmitLabel = document.getElementById('addLegSubmitLabel');
+
+    function refreshAddLegSummary() {
+      let count = 0;
+      let total = 0;
+      addLegCheckboxes.forEach(cb => {
+        const amtInput = cb.closest('tr').querySelector('.add-leg-amount');
+        if (cb.checked) {
+          count += 1;
+          amtInput.disabled = false;
+          total += parseFloat(amtInput.value || '0') || 0;
+        } else {
+          amtInput.disabled = true;
         }
       });
-    });
+      if (addLegCount) addLegCount.textContent = String(count);
+      if (addLegTotal) addLegTotal.textContent = total.toFixed(2);
+      if (addLegSubmit) addLegSubmit.disabled = count === 0;
+      if (addLegSubmitLabel) {
+        addLegSubmitLabel.textContent = count <= 1
+          ? 'Add Selected Leg'
+          : `Add ${count} Selected Legs`;
+      }
+      if (addLegHeaderCb) {
+        const total = addLegCheckboxes.length;
+        const checked = Array.from(addLegCheckboxes).filter(cb => cb.checked).length;
+        addLegHeaderCb.checked = total > 0 && checked === total;
+        addLegHeaderCb.indeterminate = checked > 0 && checked < total;
+      }
+    }
+
+    addLegCheckboxes.forEach(cb => cb.addEventListener('change', refreshAddLegSummary));
+    document.querySelectorAll('.add-leg-amount').forEach(inp => inp.addEventListener('input', refreshAddLegSummary));
+
+    if (addLegHeaderCb) {
+      addLegHeaderCb.addEventListener('change', () => {
+        addLegCheckboxes.forEach(cb => { cb.checked = addLegHeaderCb.checked; });
+        refreshAddLegSummary();
+      });
+    }
+    if (addLegSelectAll) {
+      addLegSelectAll.addEventListener('click', () => {
+        addLegCheckboxes.forEach(cb => { cb.checked = true; });
+        refreshAddLegSummary();
+      });
+    }
+    if (addLegClearAll) {
+      addLegClearAll.addEventListener('click', () => {
+        addLegCheckboxes.forEach(cb => { cb.checked = false; });
+        refreshAddLegSummary();
+      });
+    }
+
+    refreshAddLegSummary();
   })();
   </script>
 {% endblock %}

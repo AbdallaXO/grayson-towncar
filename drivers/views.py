@@ -1059,6 +1059,66 @@ def void_leg_payment_view(request, driver_id, payment_id, leg_payment_id):
 
 @login_required(login_url="login")
 @require_POST
+def bulk_void_leg_payments_view(request, driver_id, payment_id):
+    """Void multiple LegPayment lines on this payment in one go.
+
+    Accepts a list of `leg_payment_ids` (checkbox values) and a single
+    `reason` that applies to the whole batch. All-or-nothing: if any
+    line in the batch fails (already voided, etc.), NONE are voided
+    and the page redirects with an error.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from decimal import Decimal
+    from django.core.exceptions import ValidationError
+    from django.db import transaction
+    from drivers.payout_adjustments import void_leg_payment
+
+    payment = get_object_or_404(DriverPayment, id=payment_id, driver_id=driver_id)
+    raw_ids = request.POST.getlist("leg_payment_ids")
+    reason = request.POST.get("reason", "")
+
+    if not raw_ids:
+        messages.error(request, "Select at least one line to void.")
+        return _adjust_redirect(driver_id, payment_id)
+
+    voided = []
+    try:
+        with transaction.atomic():
+            for raw_id in raw_ids:
+                try:
+                    lp = LegPayment.objects.get(id=int(raw_id), payment=payment)
+                except (LegPayment.DoesNotExist, ValueError, TypeError):
+                    raise ValidationError(f"Line #{raw_id} not found on this payment.")
+                adj = void_leg_payment(lp, user=request.user, reason=reason)
+                voided.append((lp, adj))
+    except ValidationError as e:
+        msg = "; ".join(e.messages) if hasattr(e, "messages") else str(e)
+        prefix = "No lines were voided — " if voided else ""
+        messages.error(request, f"{prefix}{msg}")
+        return _adjust_redirect(driver_id, payment_id)
+
+    total_removed = sum((abs(adj.delta) for (_, adj) in voided), Decimal("0.00"))
+    if len(voided) == 1:
+        lp, adj = voided[0]
+        messages.success(
+            request,
+            f"Voided line for leg #{lp.leg_id} (−${abs(adj.delta):.2f}). "
+            f"Leg is back in the unpaid queue.",
+        )
+    else:
+        leg_id_list = ", ".join(f"#{lp.leg_id}" for (lp, _) in voided)
+        messages.success(
+            request,
+            f"Voided {len(voided)} lines ({leg_id_list}) — total −${total_removed:.2f}. "
+            f"Those legs are back in the unpaid queue.",
+        )
+    return _adjust_redirect(driver_id, payment_id)
+
+
+@login_required(login_url="login")
+@require_POST
 def edit_leg_payment_amount_view(request, driver_id, payment_id, leg_payment_id):
     """Edit a single LegPayment line's amount. Reason required."""
     if not request.user.is_staff:
@@ -1092,36 +1152,77 @@ def edit_leg_payment_amount_view(request, driver_id, payment_id, leg_payment_id)
 @login_required(login_url="login")
 @require_POST
 def add_missing_leg_view(request, driver_id, payment_id):
-    """Add a previously-unpaid leg to this DriverPayment. Reason required."""
+    """Add one or more previously-unpaid legs to this DriverPayment.
+
+    Accepts a list of `leg_ids` (checkbox values) and a per-leg amount
+    in `amount_<leg_id>`. A single `reason` covers the whole batch —
+    staff are adding the legs together as one corrective action.
+
+    All-or-nothing: if any leg in the batch fails validation, NONE are
+    added. The outer transaction.atomic() rolls back the savepoints
+    that each helper call opened.
+    """
     if not request.user.is_staff:
         return redirect("home")
 
+    from decimal import Decimal
     from django.core.exceptions import ValidationError
+    from django.db import transaction
     from drivers.payout_adjustments import add_missing_leg_to_payment
 
     payment = get_object_or_404(DriverPayment, id=payment_id, driver_id=driver_id)
-    leg_id = request.POST.get("leg_id", "")
-    amount = request.POST.get("amount", "")
+    # Accept both the new plural form and the legacy singular form
+    # (`leg_id`) for backward compatibility with any cached page.
+    leg_ids = request.POST.getlist("leg_ids")
+    if not leg_ids:
+        legacy = request.POST.get("leg_id", "").strip()
+        if legacy:
+            leg_ids = [legacy]
     reason = request.POST.get("reason", "")
 
-    try:
-        leg = Leg.objects.get(id=leg_id, driver_id=driver_id)
-    except (Leg.DoesNotExist, ValueError):
-        messages.error(request, "Selected leg not found.")
+    if not leg_ids:
+        messages.error(request, "Select at least one leg to add.")
         return _adjust_redirect(driver_id, payment_id)
 
+    # Fall back to the singular `amount` field when no per-leg amount
+    # was submitted — staff who only pick one leg shouldn't have to
+    # think about the per-row UI quirk.
+    fallback_amount = request.POST.get("amount", "")
+
+    added = []
     try:
-        adj = add_missing_leg_to_payment(
-            payment, leg=leg, amount=amount, user=request.user, reason=reason,
-        )
+        with transaction.atomic():
+            for raw_leg_id in leg_ids:
+                try:
+                    leg = Leg.objects.get(id=int(raw_leg_id), driver_id=driver_id)
+                except (Leg.DoesNotExist, ValueError, TypeError):
+                    raise ValidationError(f"Leg #{raw_leg_id} not found for this driver.")
+                amount = request.POST.get(f"amount_{leg.id}", "").strip() or fallback_amount
+                adj = add_missing_leg_to_payment(
+                    payment, leg=leg, amount=amount,
+                    user=request.user, reason=reason,
+                )
+                added.append((leg, adj))
     except ValidationError as e:
-        messages.error(request, "; ".join(e.messages) if hasattr(e, "messages") else str(e))
+        msg = "; ".join(e.messages) if hasattr(e, "messages") else str(e)
+        # Make it explicit nothing was added so staff don't think it half-applied.
+        prefix = "No legs were added — " if added else ""
+        messages.error(request, f"{prefix}{msg}")
         return _adjust_redirect(driver_id, payment_id)
 
-    messages.success(
-        request,
-        f"Added leg #{leg.id} to statement (+${adj.new_amount:.2f}).",
-    )
+    total = sum((adj.new_amount for (_, adj) in added), Decimal("0.00"))
+    if len(added) == 1:
+        leg, adj = added[0]
+        messages.success(
+            request,
+            f"Added leg #{leg.id} to statement (+${adj.new_amount:.2f}).",
+        )
+    else:
+        leg_id_list = ", ".join(f"#{leg.id}" for (leg, _) in added)
+        messages.success(
+            request,
+            f"Added {len(added)} legs to statement ({leg_id_list}) — total +${total:.2f}.",
+        )
     return _adjust_redirect(driver_id, payment_id)
 
 

@@ -113,11 +113,15 @@ class VoidLegPaymentTests(TestCase):
         self.assertEqual(adj.reason, "Wrong period")
         self.assertEqual(adj.created_by, self.staff)
 
-    def test_void_requires_reason(self):
-        with self.assertRaises(ValidationError):
-            void_leg_payment(self.line, user=self.staff, reason="")
-        with self.assertRaises(ValidationError):
-            void_leg_payment(self.line, user=self.staff, reason="  ")
+    def test_void_with_blank_reason_is_allowed(self):
+        """Reason is optional per latest user feedback — the audit row
+        still captures who/when/old/new, just not the why."""
+        adj = void_leg_payment(self.line, user=self.staff, reason="")
+        self.assertEqual(adj.reason, "")
+        adj2_line = self.payment.leg_payments.first()  # no-op, just to be explicit
+        # Trimmed-whitespace reason is also OK
+        # (use a fresh line — the first one is now voided)
+        # — covered indirectly by other tests; here we just confirm the empty path.
 
     def test_re_voiding_is_blocked(self):
         void_leg_payment(self.line, user=self.staff, reason="First void")
@@ -188,11 +192,13 @@ class EditLegPaymentAmountTests(TestCase):
                 self.line, new_amount="-10", user=self.staff, reason="Bad",
             )
 
-    def test_blank_reason_rejected(self):
-        with self.assertRaises(ValidationError):
-            edit_leg_payment_amount(
-                self.line, new_amount="40", user=self.staff, reason="",
-            )
+    def test_blank_reason_is_allowed(self):
+        """Reason is optional — the edit goes through even without one."""
+        adj = edit_leg_payment_amount(
+            self.line, new_amount="40", user=self.staff, reason="",
+        )
+        self.assertEqual(adj.reason, "")
+        self.assertEqual(adj.new_amount, Decimal("40.00"))
 
     def test_cannot_edit_voided_line(self):
         void_leg_payment(self.line, user=self.staff, reason="Void it first")
@@ -273,12 +279,14 @@ class AddMissingLegTests(TestCase):
                 user=self.staff, reason="Not completed",
             )
 
-    def test_blank_reason_rejected(self):
-        with self.assertRaises(ValidationError):
-            add_missing_leg_to_payment(
-                self.payment, leg=self.missing_leg, amount="50",
-                user=self.staff, reason="",
-            )
+    def test_blank_reason_is_allowed(self):
+        """Reason is optional — the add goes through even without one."""
+        adj = add_missing_leg_to_payment(
+            self.payment, leg=self.missing_leg, amount="50",
+            user=self.staff, reason="",
+        )
+        self.assertEqual(adj.reason, "")
+        self.assertEqual(adj.new_amount, Decimal("50.00"))
 
     def test_resurrects_existing_voided_line(self):
         """If a (payment, leg) pair was previously voided, adding the leg
@@ -421,13 +429,15 @@ class AdjustmentViewTests(TestCase):
         self.assertEqual(self.line.status, "voided")
         self.assertEqual(DriverPayoutAdjustment.objects.count(), 1)
 
-    def test_void_with_blank_reason_redirects_with_no_mutation(self):
+    def test_void_with_blank_reason_now_succeeds(self):
+        """Reason is optional — blank reason still voids the line."""
         self.client.login(username="adj_staff", password="x")
         resp = self.client.post(self._void_url(), {"reason": ""})
         self.assertEqual(resp.status_code, 302)
         self.line.refresh_from_db()
-        self.assertEqual(self.line.status, "active")
-        self.assertEqual(DriverPayoutAdjustment.objects.count(), 0)
+        self.assertEqual(self.line.status, "voided")
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 1)
+        self.assertEqual(DriverPayoutAdjustment.objects.first().reason, "")
 
     def test_edit_view_flow(self):
         self.client.login(username="adj_staff", password="x")
@@ -438,6 +448,183 @@ class AdjustmentViewTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.amount, Decimal("150.00"))
+
+
+# ── Bulk-void view ────────────────────────────────────────────────────
+
+
+class BulkVoidViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.reservation = _bootstrap_fixtures()
+        cls.driver = _make_driver("bulk_drv")
+        cls.staff = User.objects.create_user(username="bulk_staff", password="x", is_staff=True)
+        cls.non_staff = User.objects.create_user(username="bulk_rand", password="x", is_staff=False)
+
+    def setUp(self):
+        self.leg_a = _make_leg(self.reservation, self.driver, pickup_date=date(2026, 5, 13), amount=Decimal("100"))
+        self.leg_b = _make_leg(self.reservation, self.driver, pickup_date=date(2026, 5, 14), amount=Decimal("75"))
+        self.leg_c = _make_leg(self.reservation, self.driver, pickup_date=date(2026, 5, 15), amount=Decimal("50"))
+        self.payment = _process_payment(self.driver, [self.leg_a, self.leg_b, self.leg_c])
+        self.lp_a = self.payment.leg_payments.get(leg=self.leg_a)
+        self.lp_b = self.payment.leg_payments.get(leg=self.leg_b)
+        self.lp_c = self.payment.leg_payments.get(leg=self.leg_c)
+
+    def _url(self):
+        return reverse("bulk_void_leg_payments", args=[self.driver.id, self.payment.id])
+
+    def test_void_two_lines_in_one_request(self):
+        self.client.login(username="bulk_staff", password="x")
+        resp = self.client.post(self._url(), {
+            "leg_payment_ids": [str(self.lp_a.id), str(self.lp_b.id)],
+            "reason": "Wrong period",
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        self.payment.refresh_from_db()
+        self.lp_a.refresh_from_db()
+        self.lp_b.refresh_from_db()
+        self.lp_c.refresh_from_db()
+        self.leg_a.refresh_from_db()
+        self.leg_b.refresh_from_db()
+        self.leg_c.refresh_from_db()
+
+        self.assertEqual(self.lp_a.status, "voided")
+        self.assertEqual(self.lp_b.status, "voided")
+        self.assertEqual(self.lp_c.status, "active")
+        self.assertEqual(self.payment.amount, Decimal("50.00"))
+        self.assertEqual(self.leg_a.payment_status, "unpaid")
+        self.assertEqual(self.leg_b.payment_status, "unpaid")
+        self.assertEqual(self.leg_c.payment_status, "paid")
+
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 2)
+        for adj in DriverPayoutAdjustment.objects.all():
+            self.assertEqual(adj.adjustment_type, "void_line")
+            self.assertEqual(adj.reason, "Wrong period")
+
+    def test_empty_selection_no_op(self):
+        self.client.login(username="bulk_staff", password="x")
+        resp = self.client.post(self._url(), {"reason": "should fail"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 0)
+        self.lp_a.refresh_from_db()
+        self.assertEqual(self.lp_a.status, "active")
+
+    def test_one_bad_id_rolls_back_entire_batch(self):
+        """All-or-nothing: if one line in the batch can't be voided
+        (e.g. doesn't belong to this payment), none of the others get
+        voided either."""
+        self.client.login(username="bulk_staff", password="x")
+        resp = self.client.post(self._url(), {
+            "leg_payment_ids": [str(self.lp_a.id), "9999999"],
+            "reason": "Try",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.lp_a.refresh_from_db()
+        self.assertEqual(self.lp_a.status, "active",
+                         "Earlier-processed line must roll back when later one fails.")
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 0)
+
+    def test_non_staff_blocked(self):
+        self.client.login(username="bulk_rand", password="x")
+        resp = self.client.post(self._url(), {
+            "leg_payment_ids": [str(self.lp_a.id)],
+            "reason": "no",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.lp_a.refresh_from_db()
+        self.assertEqual(self.lp_a.status, "active")
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 0)
+
+
+# ── Multi-leg add view ────────────────────────────────────────────────
+
+
+class MultiAddLegViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.reservation = _bootstrap_fixtures()
+        cls.driver = _make_driver("multi_add_drv")
+        cls.staff = User.objects.create_user(username="multi_staff", password="x", is_staff=True)
+
+    def setUp(self):
+        # One existing leg to seed the payment
+        self.existing = _make_leg(self.reservation, self.driver, pickup_date=date(2026, 5, 13), amount=Decimal("100"))
+        self.payment = _process_payment(self.driver, [self.existing])
+        # Two unpaid completed legs we'll batch-add
+        self.miss_a = _make_leg(self.reservation, self.driver, pickup_date=date(2026, 5, 14), amount=Decimal("75"))
+        self.miss_b = _make_leg(self.reservation, self.driver, pickup_date=date(2026, 5, 15), amount=Decimal("60"))
+
+    def _url(self):
+        return reverse("add_missing_leg_to_statement", args=[self.driver.id, self.payment.id])
+
+    def test_batch_add_two_legs_with_per_leg_amounts(self):
+        self.client.login(username="multi_staff", password="x")
+        resp = self.client.post(self._url(), {
+            "leg_ids": [str(self.miss_a.id), str(self.miss_b.id)],
+            f"amount_{self.miss_a.id}": "80",
+            f"amount_{self.miss_b.id}": "65",
+            "reason": "Were missed",
+        })
+        self.assertEqual(resp.status_code, 302)
+
+        self.payment.refresh_from_db()
+        self.miss_a.refresh_from_db()
+        self.miss_b.refresh_from_db()
+
+        # Original 100 + 80 + 65 = 245
+        self.assertEqual(self.payment.amount, Decimal("245.00"))
+        self.assertEqual(self.miss_a.payment_status, "paid")
+        self.assertEqual(self.miss_b.payment_status, "paid")
+        # Two new adjustment rows (the existing leg's processing path
+        # doesn't create one — adjustments only fire for manual edits).
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 2)
+        types = set(DriverPayoutAdjustment.objects.values_list("adjustment_type", flat=True))
+        self.assertEqual(types, {"add_missing_leg"})
+
+    def test_batch_add_rolls_back_if_one_leg_fails(self):
+        """Use the second leg's id pointing to an unrelated driver — the
+        helper raises ValidationError, and the first leg should NOT have
+        been added either."""
+        other_driver = _make_driver("other_for_rollback")
+        other_leg = _make_leg(self.reservation, other_driver, pickup_date=date(2026, 5, 14), amount=Decimal("50"))
+
+        self.client.login(username="multi_staff", password="x")
+        resp = self.client.post(self._url(), {
+            "leg_ids": [str(self.miss_a.id), str(other_leg.id)],
+            f"amount_{self.miss_a.id}": "80",
+            f"amount_{other_leg.id}": "50",
+            "reason": "Batch test",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.miss_a.refresh_from_db()
+        # The valid leg in the batch must NOT have been added because the
+        # batch was atomic.
+        self.assertEqual(self.miss_a.payment_status, "unpaid")
+        # No active line was created for miss_a
+        self.assertFalse(
+            LegPayment.objects.filter(
+                payment=self.payment, leg=self.miss_a, status="active",
+            ).exists()
+        )
+        self.assertEqual(DriverPayoutAdjustment.objects.count(), 0)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.amount, Decimal("100.00"))
+
+    def test_legacy_singular_leg_id_still_works(self):
+        """Cached forms using the old `leg_id` + `amount` field names
+        should still post successfully."""
+        self.client.login(username="multi_staff", password="x")
+        resp = self.client.post(self._url(), {
+            "leg_id": str(self.miss_a.id),
+            "amount": "70",
+            "reason": "Single add via legacy form",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.miss_a.refresh_from_db()
+        self.assertEqual(self.miss_a.payment_status, "paid")
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.amount, Decimal("170.00"))
 
 
 # ── update_driver_pay_amount guard ────────────────────────────────────

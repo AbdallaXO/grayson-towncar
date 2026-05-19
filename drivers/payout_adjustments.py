@@ -30,17 +30,13 @@ from drivers.models import (
 )
 
 
-_MIN_REASON_LEN = 3
-
-
 def _validate_reason(reason: str) -> str:
-    """Trim + validate. Raises ValidationError on empty/too-short reason."""
-    cleaned = (reason or "").strip()
-    if len(cleaned) < _MIN_REASON_LEN:
-        raise ValidationError(
-            f"A reason of at least {_MIN_REASON_LEN} characters is required."
-        )
-    return cleaned
+    """Trim and return the reason. Empty is allowed — the audit row still
+    records who/when/old/new even when no reason is given. Earlier
+    revisions required a 3-char minimum; per user feedback that's been
+    relaxed since staff often correct typo-class mistakes that don't
+    need explanation."""
+    return (reason or "").strip()
 
 
 def _coerce_amount(value, *, field_name="amount") -> Decimal:

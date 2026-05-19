@@ -23,6 +23,11 @@ urlpatterns = [
         name="void_leg_payment",
     ),
     path(
+        "statement/<int:driver_id>/<int:payment_id>/void-lines/",
+        views.bulk_void_leg_payments_view,
+        name="bulk_void_leg_payments",
+    ),
+    path(
         "statement/<int:driver_id>/<int:payment_id>/edit-line/<int:leg_payment_id>/",
         views.edit_leg_payment_amount_view,
         name="edit_leg_payment_amount",
