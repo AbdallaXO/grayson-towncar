@@ -18,6 +18,21 @@ urlpatterns = [
         name="driver_statement_detail",
     ),
     path(
+        "statement/<int:driver_id>/<int:payment_id>/void-line/<int:leg_payment_id>/",
+        views.void_leg_payment_view,
+        name="void_leg_payment",
+    ),
+    path(
+        "statement/<int:driver_id>/<int:payment_id>/edit-line/<int:leg_payment_id>/",
+        views.edit_leg_payment_amount_view,
+        name="edit_leg_payment_amount",
+    ),
+    path(
+        "statement/<int:driver_id>/<int:payment_id>/add-leg/",
+        views.add_missing_leg_view,
+        name="add_missing_leg_to_statement",
+    ),
+    path(
         "update_leg_status/<int:leg_id>/",
         views.update_leg_status,
         name="update_leg_status",

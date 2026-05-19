@@ -6352,10 +6352,24 @@ def update_driver_pay_amount(request):
         
         # Get the leg
         leg = get_object_or_404(Leg, id=leg_id)
-        
+
+        # Guard: this endpoint edits the leg's stored pay before a payment
+        # is processed. Once the leg is on an active LegPayment line, edits
+        # must go through the statement detail page so they create an
+        # audit trail and recalculate the payment total.
+        if leg.payment_status != "unpaid":
+            return JsonResponse({
+                "success": False,
+                "error": (
+                    "This leg has already been paid. Edit the amount on "
+                    "the driver's payment statement instead — that path "
+                    "keeps an audit trail."
+                ),
+            }, status=400)
+
         try:
             from decimal import Decimal
-            
+
             # If new format is provided, use it; otherwise fall back to old format
             if driver_base_pay is not None or driver_gratuity is not None or driver_additional is not None:
                 # New format: separate fields

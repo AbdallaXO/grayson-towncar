@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404, render, redirect
-from .models import Driver, DriverPayment, LegPayment
+from .models import Driver, DriverPayment, LegPayment, DriverPayoutAdjustment
 from datetime import datetime, timedelta
 from reservations.models import Leg, LegStatus
 from django.contrib.auth.decorators import login_required
@@ -921,19 +921,30 @@ def driver_statement_list(request, driver_id):
 def driver_statement_detail(request, driver_id, payment_id):
     """
     Staff view of a single driver payment statement.
+
+    POST (existing behavior) sends the statement email — kept untouched
+    so the existing flow keeps working.
+
+    GET shows the statement with line-level edit controls (void, edit
+    amount, add missing leg). Voided lines are pulled out into a
+    separate history section. The adjustment audit trail and the
+    "missing leg candidates" for the add-leg modal are included in
+    the context.
     """
     if not request.user.is_staff:
         return redirect("home")
 
     driver = get_object_or_404(Driver, id=driver_id)
     payment = get_object_or_404(DriverPayment, id=payment_id, driver=driver)
-    leg_payments = (
+    all_lines = (
         LegPayment.objects.filter(payment=payment)
         .select_related("leg")
         .order_by("leg__pickup_date", "leg__pickup_time")
     )
-    legs = [lp.leg for lp in leg_payments if lp.leg]
-    leg_dates = [leg.pickup_date for leg in legs if leg.pickup_date]
+    active_lines = [lp for lp in all_lines if lp.status == LegPayment.STATUS_ACTIVE]
+    voided_lines = [lp for lp in all_lines if lp.status == LegPayment.STATUS_VOIDED]
+    active_legs = [lp.leg for lp in active_lines if lp.leg]
+    leg_dates = [leg.pickup_date for leg in active_legs if leg.pickup_date]
     pay_period_start = min(leg_dates) if leg_dates else None
     pay_period_end = max(leg_dates) if leg_dates else None
 
@@ -947,8 +958,9 @@ def driver_statement_detail(request, driver_id, payment_id):
             email_sent = send_driver_payment_statement(
                 driver=driver,
                 payment=payment,
-                legs=legs,
+                legs=active_legs,
                 recipient_email=recipient_email,
+                sent_by=request.user,
             )
             if email_sent:
                 messages.success(
@@ -963,15 +975,154 @@ def driver_statement_detail(request, driver_id, payment_id):
             payment_id=payment.id,
         )
 
+    # Adjustment history (most recent first)
+    adjustments = (
+        DriverPayoutAdjustment.objects
+        .filter(payment=payment)
+        .select_related("created_by", "leg")
+        .order_by("-created_at")
+    )
+
+    # Missing-leg candidates — driver's completed but unpaid legs.
+    # Capped at 50 to keep the modal lightweight.
+    candidate_legs = (
+        Leg.objects
+        .filter(driver=driver, status="completed", payment_status="unpaid")
+        .select_related("reservation", "reservation__customer")
+        .order_by("-pickup_date", "-pickup_time")[:50]
+    )
+
+    # Email / export status for the banner.
+    from drivers.payout_adjustments import statement_email_status
+    email_status = statement_email_status(payment)
+
     context = {
         "driver": driver,
         "payment": payment,
-        "leg_payments": leg_payments,
+        # `leg_payments` kept for backward compatibility with anything
+        # else that may have read it. The template uses `active_lines`
+        # and `voided_lines` for the new controls.
+        "leg_payments": active_lines,
+        "active_lines": active_lines,
+        "voided_lines": voided_lines,
         "pay_period_start": pay_period_start,
         "pay_period_end": pay_period_end,
+        "adjustments": adjustments,
+        "candidate_legs": candidate_legs,
+        "email_status": email_status,
     }
 
     return render(request, "drivers/driver_statement_detail.html", context)
+
+
+# ── Payout adjustment endpoints ─────────────────────────────────────
+#
+# All three flip the LegPayment line / DriverPayment total inside a
+# transaction (via the helpers in drivers.payout_adjustments) and
+# redirect back to the statement detail page with a flash message.
+#
+# Staff-only. Each requires a non-blank reason. ValidationErrors from
+# the helper layer surface as user-visible flash errors — no 500s.
+
+
+def _adjust_redirect(driver_id, payment_id):
+    return redirect("driver_statement_detail", driver_id=driver_id, payment_id=payment_id)
+
+
+@login_required(login_url="login")
+@require_POST
+def void_leg_payment_view(request, driver_id, payment_id, leg_payment_id):
+    """Void a single LegPayment line. Reason required."""
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from django.core.exceptions import ValidationError
+    from drivers.payout_adjustments import void_leg_payment
+
+    payment = get_object_or_404(DriverPayment, id=payment_id, driver_id=driver_id)
+    lp = get_object_or_404(LegPayment, id=leg_payment_id, payment=payment)
+    reason = request.POST.get("reason", "")
+
+    try:
+        adj = void_leg_payment(lp, user=request.user, reason=reason)
+    except ValidationError as e:
+        messages.error(request, "; ".join(e.messages) if hasattr(e, "messages") else str(e))
+        return _adjust_redirect(driver_id, payment_id)
+
+    messages.success(
+        request,
+        f"Voided line for leg #{lp.leg_id} (−${abs(adj.delta):.2f}). "
+        f"Leg is back in the unpaid queue.",
+    )
+    return _adjust_redirect(driver_id, payment_id)
+
+
+@login_required(login_url="login")
+@require_POST
+def edit_leg_payment_amount_view(request, driver_id, payment_id, leg_payment_id):
+    """Edit a single LegPayment line's amount. Reason required."""
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from django.core.exceptions import ValidationError
+    from drivers.payout_adjustments import edit_leg_payment_amount
+
+    payment = get_object_or_404(DriverPayment, id=payment_id, driver_id=driver_id)
+    lp = get_object_or_404(LegPayment, id=leg_payment_id, payment=payment)
+    new_amount = request.POST.get("new_amount", "")
+    reason = request.POST.get("reason", "")
+
+    try:
+        adj = edit_leg_payment_amount(
+            lp, new_amount=new_amount, user=request.user, reason=reason,
+        )
+    except ValidationError as e:
+        messages.error(request, "; ".join(e.messages) if hasattr(e, "messages") else str(e))
+        return _adjust_redirect(driver_id, payment_id)
+
+    sign = "+" if adj.delta >= 0 else "−"
+    messages.success(
+        request,
+        f"Updated leg #{lp.leg_id} amount to ${adj.new_amount:.2f} "
+        f"({sign}${abs(adj.delta):.2f}).",
+    )
+    return _adjust_redirect(driver_id, payment_id)
+
+
+@login_required(login_url="login")
+@require_POST
+def add_missing_leg_view(request, driver_id, payment_id):
+    """Add a previously-unpaid leg to this DriverPayment. Reason required."""
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from django.core.exceptions import ValidationError
+    from drivers.payout_adjustments import add_missing_leg_to_payment
+
+    payment = get_object_or_404(DriverPayment, id=payment_id, driver_id=driver_id)
+    leg_id = request.POST.get("leg_id", "")
+    amount = request.POST.get("amount", "")
+    reason = request.POST.get("reason", "")
+
+    try:
+        leg = Leg.objects.get(id=leg_id, driver_id=driver_id)
+    except (Leg.DoesNotExist, ValueError):
+        messages.error(request, "Selected leg not found.")
+        return _adjust_redirect(driver_id, payment_id)
+
+    try:
+        adj = add_missing_leg_to_payment(
+            payment, leg=leg, amount=amount, user=request.user, reason=reason,
+        )
+    except ValidationError as e:
+        messages.error(request, "; ".join(e.messages) if hasattr(e, "messages") else str(e))
+        return _adjust_redirect(driver_id, payment_id)
+
+    messages.success(
+        request,
+        f"Added leg #{leg.id} to statement (+${adj.new_amount:.2f}).",
+    )
+    return _adjust_redirect(driver_id, payment_id)
 
 
 @login_required

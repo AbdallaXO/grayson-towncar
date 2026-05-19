@@ -636,6 +636,13 @@ class LegPayment(models.Model):
     Links a payment to the specific legs that were paid
     """
 
+    STATUS_ACTIVE = "active"
+    STATUS_VOIDED = "voided"
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_VOIDED, "Voided"),
+    ]
+
     payment = models.ForeignKey(
         DriverPayment, on_delete=models.CASCADE, related_name="leg_payments"
     )
@@ -665,11 +672,109 @@ class LegPayment(models.Model):
         help_text="Additional pay amount for this leg (e.g., wait time, early morning bonus, etc.)",
     )
 
+    # ── Adjustment tracking ──
+    # `status` is the source of truth for "is this line counted as paid?"
+    # Voided lines stay in the table for history but are excluded from
+    # statement totals, the customer-facing email, and the Gusto export.
+    status = models.CharField(
+        max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True,
+    )
+    original_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="The line's amount at the moment of processing. Captured on first edit so subsequent edits don't lose the initial value.",
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="voided_leg_payments",
+    )
+    void_reason = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="updated_leg_payments",
+    )
+
     class Meta:
         unique_together = ("payment", "leg")
 
     def __str__(self):
         return f"Payment {self.payment.id} - Leg {self.leg.id}"
+
+
+class DriverPayoutAdjustment(models.Model):
+    """
+    Append-only audit row for every line-level correction made to a
+    processed DriverPayment statement.
+
+    One row is written each time staff voids a line, edits its amount,
+    or adds a missing leg. The row records who/when/why plus enough
+    state (old amount, new amount, signed delta) to reconstruct the
+    correction even if the linked LegPayment is later edited again.
+
+    These rows are NOT a separate "billing line" rolled into the next
+    statement. Voided legs return to the unpaid queue naturally and
+    flow through the existing payroll flow next period.
+    """
+
+    TYPE_VOID = "void_line"
+    TYPE_EDIT = "edit_amount"
+    TYPE_ADD = "add_missing_leg"
+    TYPE_CHOICES = [
+        (TYPE_VOID, "Void line"),
+        (TYPE_EDIT, "Edit amount"),
+        (TYPE_ADD, "Add missing leg"),
+    ]
+
+    payment = models.ForeignKey(
+        DriverPayment, on_delete=models.CASCADE, related_name="adjustments",
+    )
+    leg_payment = models.ForeignKey(
+        LegPayment, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="adjustments",
+    )
+    leg = models.ForeignKey(
+        Leg, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="payout_adjustments",
+        help_text="Denormalized — same as leg_payment.leg when present; "
+                  "set directly for add_missing_leg.",
+    )
+    adjustment_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    old_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Line amount before this adjustment. Null for add_missing_leg.",
+    )
+    new_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Line amount after this adjustment. Null for void_line.",
+    )
+    delta = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="Signed change applied to DriverPayment.amount.",
+    )
+    reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="created_payout_adjustments",
+    )
+    # Snapshot whether the statement had already been emailed / exported
+    # at the time of the correction — useful for "did the driver see the
+    # old total?" questions when reading the audit log later.
+    statement_was_emailed = models.BooleanField(default=False)
+    statement_was_exported = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["payment", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.get_adjustment_type_display()} on payment #{self.payment_id} "
+            f"({self.delta:+.2f}) by {self.created_by_id}"
+        )
 
 
 class DriverPaymentExport(models.Model):

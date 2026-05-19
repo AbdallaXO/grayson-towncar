@@ -273,6 +273,12 @@
                       <ul class="blocker-list">
                         {% for b in row.blockers %}<li>&#9888; {{ b }}</li>{% endfor %}
                       </ul>
+                      <a href="{% url 'driver_statement_detail' d.id p.id %}"
+                         class="badge-pill badge-warn"
+                         style="text-decoration:none; display:inline-block; margin-top:4px;"
+                         target="_blank" rel="noopener">
+                        Fix this payment &rarr;
+                      </a>
                     {% endif %}
                     {% if row.warnings %}
                       <ul class="warning-list">

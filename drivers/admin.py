@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -1016,6 +1016,33 @@ class DriverPaymentExportAdmin(admin.ModelAdmin):
         "created_at", "created_by", "from_date", "to_date", "csv_file_name",
         "selected_driver_count", "total_amount", "exported_payment_ids",
     ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(DriverPayoutAdjustment)
+class DriverPayoutAdjustmentAdmin(admin.ModelAdmin):
+    list_display = [
+        "created_at", "created_by", "payment", "adjustment_type",
+        "old_amount", "new_amount", "delta", "leg",
+        "statement_was_emailed", "statement_was_exported",
+    ]
+    list_filter = ["adjustment_type", "statement_was_emailed", "statement_was_exported"]
+    search_fields = [
+        "payment__id", "leg__id", "reason", "created_by__username",
+    ]
+    date_hierarchy = "created_at"
+    readonly_fields = [
+        "payment", "leg_payment", "leg", "adjustment_type",
+        "old_amount", "new_amount", "delta", "reason",
+        "created_at", "created_by",
+        "statement_was_emailed", "statement_was_exported",
+    ]
+    autocomplete_fields = []
 
     def has_add_permission(self, request):
         return False

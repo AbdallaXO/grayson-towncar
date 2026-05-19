@@ -162,7 +162,9 @@ def build_row(payment: DriverPayment, from_date: date, to_date: date) -> GustoRo
     min_pickup = getattr(payment, "_min_pickup", None)
     max_pickup = getattr(payment, "_max_pickup", None)
     if min_pickup is None or max_pickup is None:
-        agg = payment.leg_payments.aggregate(
+        # Only consider ACTIVE lines — voided lines are excluded from the
+        # period filter so the export reflects what was actually paid.
+        agg = payment.leg_payments.filter(status="active").aggregate(
             mn=Min("leg__pickup_date"), mx=Max("leg__pickup_date"),
         )
         min_pickup = agg["mn"]
@@ -190,23 +192,31 @@ def build_row(payment: DriverPayment, from_date: date, to_date: date) -> GustoRo
 
 
 def eligible_payments_qs(from_date: date, to_date: date):
-    """Processed in-house DriverPayments whose legs all fall in [from_date, to_date].
+    """Processed in-house DriverPayments whose ACTIVE legs all fall in [from_date, to_date].
 
-    Returns a queryset annotated with `_min_pickup` and `_max_pickup` for use
-    by `build_row` (avoids an N+1 aggregate).
+    Voided LegPayment lines are ignored for period detection — so once
+    staff void a wrong-period leg via the statement detail page, the
+    payment automatically becomes eligible for the prior period's CSV.
+
+    Returns a queryset annotated with `_min_pickup` and `_max_pickup`
+    (over active lines only) for use by `build_row`.
     """
+    from django.db.models import Q
+
+    active = Q(leg_payments__status="active")
     return (
         DriverPayment.objects
         .select_related("driver", "driver__profile", "created_by")
         .filter(
             driver__driver_type="inhouse",
             amount__gt=0,
+            leg_payments__status="active",
             leg_payments__leg__pickup_date__gte=from_date,
             leg_payments__leg__pickup_date__lte=to_date,
         )
         .annotate(
-            _min_pickup=Min("leg_payments__leg__pickup_date"),
-            _max_pickup=Max("leg_payments__leg__pickup_date"),
+            _min_pickup=Min("leg_payments__leg__pickup_date", filter=active),
+            _max_pickup=Max("leg_payments__leg__pickup_date", filter=active),
         )
         .filter(_min_pickup__gte=from_date, _max_pickup__lte=to_date)
         .distinct()
@@ -290,13 +300,16 @@ def validate_selection(
     # Pull only the IDs we were given. We do NOT pre-filter on
     # driver_type/amount here — we want explicit blockers if staff submitted
     # an affiliate/zero payment, not a silent drop.
+    active = Q(leg_payments__status="active")
     qs = (
         DriverPayment.objects
         .select_related("driver", "driver__profile")
         .filter(id__in=clean_ids)
         .annotate(
-            _min_pickup=Min("leg_payments__leg__pickup_date"),
-            _max_pickup=Max("leg_payments__leg__pickup_date"),
+            # Aggregate over ACTIVE lines only — voided lines shouldn't
+            # extend the apparent period of a payment.
+            _min_pickup=Min("leg_payments__leg__pickup_date", filter=active),
+            _max_pickup=Max("leg_payments__leg__pickup_date", filter=active),
         )
     )
     found_ids = {p.id for p in qs}

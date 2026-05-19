@@ -4,17 +4,72 @@
 {% block footer %}{% endblock %}
 {% block newsletter %}{% endblock %}
 
+{% block extra_css %}
+<style>
+  .stmt-line.voided td {
+    text-decoration: line-through;
+    color: #6c757d;
+  }
+  .stmt-actions-cell .btn {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.78rem;
+  }
+  .adjustment-history-row {
+    font-size: 0.85rem;
+  }
+  .adjustment-delta-plus { color: #198754; font-weight: 600; }
+  .adjustment-delta-minus { color: #b91c1c; font-weight: 600; }
+  details.voided-block summary {
+    cursor: pointer;
+    padding: 0.6rem 0.75rem;
+    background: #fff8e1;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #92400e;
+  }
+  details.voided-block[open] summary {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
   {% block navbar %}{% endblock %}
   {% include "dispatching/dispatcher_navbar.html" %}
 
   <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 mb-0">Payment Statement</h1>
+      <h1 class="h3 mb-0">Payment Statement #{{ payment.id }}</h1>
       <a href="{% url 'driver_statement_list' driver.id %}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-1"></i>Back to Statements
       </a>
     </div>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} py-2 px-3 mb-3" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    {% if email_status.emailed or email_status.exported %}
+      <div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>
+          <strong>This statement has already been shared.</strong>
+          {% if email_status.emailed %}
+            Emailed {{ email_status.last_emailed_at|date:"M j, Y g:i A" }}.
+          {% endif %}
+          {% if email_status.exported %}
+            Exported to Gusto {{ email_status.last_exported_at|date:"M j, Y g:i A" }}.
+          {% endif %}
+          Corrections below will update the totals on this page — re-send the email if the driver needs an updated copy.
+        </div>
+      </div>
+    {% endif %}
 
     <div class="card mb-4">
       <div class="card-body">
@@ -34,6 +89,10 @@
             <div class="fw-bold">{{ payment.payment_date|date:"F d, Y" }}</div>
           </div>
           <div class="col-md-4">
+            <div class="text-muted">Current Total</div>
+            <div class="fw-bold fs-5">${{ payment.amount|floatformat:2 }}</div>
+          </div>
+          <div class="col-md-4">
             <div class="text-muted">Payment Method</div>
             <div class="fw-bold">{{ payment.payment_method|title }}</div>
           </div>
@@ -41,13 +100,13 @@
             <div class="text-muted">Reference</div>
             <div class="fw-bold">{{ payment.reference_number|default:"N/A" }}</div>
           </div>
-          <div class="col-md-8">
-            <div class="text-muted">Pay Period</div>
+          <div class="col-md-4">
+            <div class="text-muted">Pay Period (active legs)</div>
             <div class="fw-bold">
               {% if pay_period_start and pay_period_end %}
-                {{ pay_period_start|date:"F d, Y" }} - {{ pay_period_end|date:"F d, Y" }}
+                {{ pay_period_start|date:"M j, Y" }} – {{ pay_period_end|date:"M j, Y" }}
               {% else %}
-                -
+                —
               {% endif %}
             </div>
           </div>
@@ -56,6 +115,19 @@
     </div>
 
     <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">Active Lines ({{ active_lines|length }})</span>
+        {% if candidate_legs %}
+          <button type="button" class="btn btn-sm btn-outline-primary"
+                  data-bs-toggle="modal" data-bs-target="#addLegModal">
+            <i class="bi bi-plus-circle me-1"></i>Add Missing Leg
+          </button>
+        {% else %}
+          <span class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i>No unpaid completed legs available to add
+          </span>
+        {% endif %}
+      </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-hover mb-0">
@@ -63,39 +135,60 @@
               <tr>
                 <th>Date</th>
                 <th>Pickup Time</th>
-                <th>Pickup Location</th>
-                <th>Dropoff Location</th>
-                <th>Base Pay</th>
-                <th>Gratuity</th>
-                <th>Additional</th>
-                <th>Total</th>
+                <th>Pickup → Dropoff</th>
+                <th class="text-end">Amount</th>
+                <th class="text-end" style="width: 200px;">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {% for lp in leg_payments %}
-                <tr>
+              {% for lp in active_lines %}
+                <tr class="stmt-line">
                   <td>{{ lp.leg.pickup_date|date:"m/d/Y" }}</td>
                   <td>{{ lp.leg.pickup_time|time:"g:i A" }}</td>
-                  <td>{{ lp.leg.pickup_location }}</td>
-                  <td>{{ lp.leg.dropoff_location }}</td>
-                  <td>${{ lp.base_pay|default:"0.00"|floatformat:2 }}</td>
-                  <td>${{ lp.gratuity|default:"0.00"|floatformat:2 }}</td>
-                  <td>${{ lp.additional|default:"0.00"|floatformat:2 }}</td>
-                  <td>${{ lp.amount|floatformat:2 }}</td>
+                  <td>
+                    <div>{{ lp.leg.pickup_location }} → {{ lp.leg.dropoff_location }}</div>
+                    {% if lp.leg.reservation %}
+                      <small class="text-muted">Res #{{ lp.leg.reservation.id }}</small>
+                    {% endif %}
+                  </td>
+                  <td class="text-end fw-bold">
+                    ${{ lp.amount|floatformat:2 }}
+                    {% if lp.original_amount and lp.original_amount != lp.amount %}
+                      <div class="small text-muted">
+                        was ${{ lp.original_amount|floatformat:2 }}
+                      </div>
+                    {% endif %}
+                  </td>
+                  <td class="stmt-actions-cell text-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editLineModal"
+                            data-line-id="{{ lp.id }}"
+                            data-leg-id="{{ lp.leg.id }}"
+                            data-current-amount="{{ lp.amount|floatformat:2 }}">
+                      <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#voidLineModal"
+                            data-line-id="{{ lp.id }}"
+                            data-leg-id="{{ lp.leg.id }}"
+                            data-amount="{{ lp.amount|floatformat:2 }}">
+                      <i class="bi bi-x-circle"></i> Void
+                    </button>
+                  </td>
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="8" class="text-center py-4 text-muted">
-                    No legs found for this payment.
+                  <td colspan="5" class="text-center py-4 text-muted">
+                    No active lines on this statement.
                   </td>
                 </tr>
               {% endfor %}
               <tr class="table-light">
-                <td colspan="4" class="fw-bold text-end">Total</td>
-                <td class="fw-bold">${{ payment.base_pay|default:"0.00"|floatformat:2 }}</td>
-                <td class="fw-bold">${{ payment.gratuity|default:"0.00"|floatformat:2 }}</td>
-                <td class="fw-bold">${{ payment.additional|default:"0.00"|floatformat:2 }}</td>
-                <td class="fw-bold">${{ payment.amount|floatformat:2 }}</td>
+                <td colspan="3" class="fw-bold text-end">Current Total</td>
+                <td class="fw-bold text-end fs-5">${{ payment.amount|floatformat:2 }}</td>
+                <td></td>
               </tr>
             </tbody>
           </table>
@@ -103,9 +196,94 @@
       </div>
     </div>
 
+    {% if voided_lines %}
+      <details class="voided-block mb-4">
+        <summary>
+          <i class="bi bi-archive me-1"></i>
+          Voided Lines ({{ voided_lines|length }}) — kept for history, not counted in total
+        </summary>
+        <div class="card border-top-0" style="border-top-left-radius:0; border-top-right-radius:0;">
+          <div class="card-body p-0">
+            <table class="table mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Date</th>
+                  <th>Pickup → Dropoff</th>
+                  <th class="text-end">Amount</th>
+                  <th>Voided By</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for lp in voided_lines %}
+                  <tr class="stmt-line voided">
+                    <td>{{ lp.leg.pickup_date|date:"m/d/Y" }}</td>
+                    <td>{{ lp.leg.pickup_location }} → {{ lp.leg.dropoff_location }}</td>
+                    <td class="text-end">${{ lp.amount|floatformat:2 }}</td>
+                    <td>
+                      {{ lp.voided_by.get_full_name|default:lp.voided_by.username|default:"—" }}
+                      <div class="small text-muted">{{ lp.voided_at|date:"M j, Y g:i A" }}</div>
+                    </td>
+                    <td>{{ lp.void_reason }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    {% endif %}
+
+    {% if adjustments %}
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">
+          <i class="bi bi-clock-history me-1"></i>Adjustment History
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0 adjustment-history-row">
+            <thead class="table-light">
+              <tr>
+                <th>When</th>
+                <th>By</th>
+                <th>Type</th>
+                <th>Leg</th>
+                <th class="text-end">Old</th>
+                <th class="text-end">New</th>
+                <th class="text-end">Δ</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for adj in adjustments %}
+                <tr>
+                  <td>{{ adj.created_at|date:"M j, Y g:i A" }}</td>
+                  <td>{{ adj.created_by.get_full_name|default:adj.created_by.username|default:"—" }}</td>
+                  <td>{{ adj.get_adjustment_type_display }}</td>
+                  <td>{% if adj.leg %}#{{ adj.leg_id }}{% else %}—{% endif %}</td>
+                  <td class="text-end">
+                    {% if adj.old_amount is not None %}${{ adj.old_amount|floatformat:2 }}{% else %}—{% endif %}
+                  </td>
+                  <td class="text-end">
+                    {% if adj.new_amount is not None %}${{ adj.new_amount|floatformat:2 }}{% else %}—{% endif %}
+                  </td>
+                  <td class="text-end {% if adj.delta >= 0 %}adjustment-delta-plus{% else %}adjustment-delta-minus{% endif %}">
+                    {% if adj.delta >= 0 %}+{% endif %}${{ adj.delta|floatformat:2 }}
+                  </td>
+                  <td>{{ adj.reason }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
     <div class="card">
       <div class="card-body">
         <h5 class="mb-3">Email Statement</h5>
+        <p class="text-muted small mb-3">
+          The email reflects the <strong>current</strong> totals after any corrections above. Re-send if you've adjusted lines since the last send.
+        </p>
         <form method="post" class="row g-3">
           {% csrf_token %}
           <div class="col-md-8">
@@ -127,4 +305,173 @@
       </div>
     </div>
   </div>
+
+  <!-- Void Line Modal -->
+  <div class="modal fade" id="voidLineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" id="voidLineForm">
+        {% csrf_token %}
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Void Payment Line</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>
+              Voiding this line removes <strong>$<span id="voidAmount">0.00</span></strong> from the statement total and returns leg <strong>#<span id="voidLegId">—</span></strong> to the unpaid queue so it can be paid in a future statement.
+            </p>
+            <p class="text-muted small">The voided line stays visible under "Voided Lines" for history.</p>
+            <label for="voidReason" class="form-label">Reason <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="voidReason" name="reason" rows="2" required
+                      placeholder="e.g. Leg dated outside 5/11-5/17 payroll period"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-danger">Void Line</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Line Modal -->
+  <div class="modal fade" id="editLineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form method="post" id="editLineForm">
+        {% csrf_token %}
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Line Amount</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>Editing the amount for leg <strong>#<span id="editLegId">—</span></strong>. The statement total updates immediately.</p>
+            <div class="mb-3">
+              <label for="editCurrentAmount" class="form-label">Current Amount</label>
+              <input type="text" class="form-control" id="editCurrentAmount" readonly>
+            </div>
+            <div class="mb-3">
+              <label for="editNewAmount" class="form-label">New Amount <span class="text-danger">*</span></label>
+              <input type="number" step="0.01" min="0" class="form-control" id="editNewAmount" name="new_amount" required>
+            </div>
+            <div class="mb-3">
+              <label for="editReason" class="form-label">Reason <span class="text-danger">*</span></label>
+              <textarea class="form-control" id="editReason" name="reason" rows="2" required
+                        placeholder="e.g. Pay rate was wrong — should have been $40 not $25"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Amount</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if candidate_legs %}
+  <!-- Add Missing Leg Modal -->
+  <div class="modal fade" id="addLegModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <form method="post" action="{% url 'add_missing_leg_to_statement' driver.id payment.id %}">
+        {% csrf_token %}
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Add a Missing Leg to This Statement</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small">Pick a completed leg that should have been on this payment. The amount defaults to the leg's calculated pay — edit if needed.</p>
+            <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+              <table class="table table-sm table-hover">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th></th>
+                    <th>Date</th>
+                    <th>Pickup → Dropoff</th>
+                    <th class="text-end">Default Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for leg in candidate_legs %}
+                    <tr>
+                      <td>
+                        <input class="form-check-input add-leg-radio" type="radio"
+                               name="leg_id" value="{{ leg.id }}" id="addLeg_{{ leg.id }}"
+                               data-default-amount="{{ leg.total_driver_pay|default:'0.00'|floatformat:2 }}" required>
+                      </td>
+                      <td><label for="addLeg_{{ leg.id }}" class="m-0">{{ leg.pickup_date|date:"m/d/Y" }}</label></td>
+                      <td>{{ leg.pickup_location }} → {{ leg.dropoff_location }}</td>
+                      <td class="text-end">${{ leg.total_driver_pay|default:"0.00"|floatformat:2 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <label for="addLegAmount" class="form-label">Amount <span class="text-danger">*</span></label>
+                <input type="number" step="0.01" min="0" class="form-control" id="addLegAmount" name="amount" required>
+              </div>
+              <div class="col-md-8">
+                <label for="addLegReason" class="form-label">Reason <span class="text-danger">*</span></label>
+                <textarea class="form-control" id="addLegReason" name="reason" rows="2" required
+                          placeholder="e.g. Leg was missed during processing — adding now"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success">Add Leg</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <script>
+  (function() {
+    const voidModal = document.getElementById('voidLineModal');
+    if (voidModal) {
+      voidModal.addEventListener('show.bs.modal', (ev) => {
+        const trigger = ev.relatedTarget;
+        const lineId = trigger.getAttribute('data-line-id');
+        const legId = trigger.getAttribute('data-leg-id');
+        const amount = trigger.getAttribute('data-amount');
+        document.getElementById('voidAmount').textContent = amount;
+        document.getElementById('voidLegId').textContent = legId;
+        const form = document.getElementById('voidLineForm');
+        form.action = `/drivers/statement/{{ driver.id }}/{{ payment.id }}/void-line/${lineId}/`;
+        document.getElementById('voidReason').value = '';
+      });
+    }
+
+    const editModal = document.getElementById('editLineModal');
+    if (editModal) {
+      editModal.addEventListener('show.bs.modal', (ev) => {
+        const trigger = ev.relatedTarget;
+        const lineId = trigger.getAttribute('data-line-id');
+        const legId = trigger.getAttribute('data-leg-id');
+        const current = trigger.getAttribute('data-current-amount');
+        document.getElementById('editLegId').textContent = legId;
+        document.getElementById('editCurrentAmount').value = `$${current}`;
+        document.getElementById('editNewAmount').value = current;
+        document.getElementById('editReason').value = '';
+        const form = document.getElementById('editLineForm');
+        form.action = `/drivers/statement/{{ driver.id }}/{{ payment.id }}/edit-line/${lineId}/`;
+      });
+    }
+
+    document.querySelectorAll('.add-leg-radio').forEach(radio => {
+      radio.addEventListener('change', (ev) => {
+        const amt = ev.target.getAttribute('data-default-amount');
+        const input = document.getElementById('addLegAmount');
+        if (input && (!input.value || input.value === '0.00')) {
+          input.value = amt;
+        }
+      });
+    });
+  })();
+  </script>
 {% endblock %}
