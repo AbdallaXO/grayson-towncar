@@ -29,35 +29,61 @@ from django.db.models import Max, Min, Q
 from drivers.models import DriverPayment
 
 
-# Exact Gusto Smart Import header. Order and spelling must not change —
-# the staff workflow is "click upload, Gusto auto-maps columns by name".
+# Exact Gusto Smart Import column names for contractor-pay upload.
+#
+# Spec (as of 2026-05-19, copied verbatim from Gusto's UI):
+#   contractor_type   — required, "Individual" or "Business" (case-insensitive)
+#   first_name/last_name  — required for individuals
+#   business_name     — required for businesses
+#   ssn / ein         — last 4 prefixed with "*", e.g. "*9579"; conditionally required
+#   hours_worked, wage, bonus, tips, cash_tips, reimbursement  — pay columns
+#   invoice_number    — required
+#   memo              — optional
+#
+# Earlier versions of this template had `fixed_amount`, `hourly_rate`,
+# `hours`, `ssn/ein`, and `note`. Gusto's contractor-pay Smart Import
+# no longer accepts those. The total contractor payment now goes in
+# `wage` with `hours_worked` left blank — Gusto treats that as "pay
+# this contractor $X for this period".
 GUSTO_CSV_HEADER = [
-    "last_name",
+    "contractor_type",
     "first_name",
+    "last_name",
     "business_name",
-    "ssn/ein",
-    "hourly_rate",
-    "hours",
-    "fixed_amount",
+    "ssn",
+    "ein",
+    "hours_worked",
+    "wage",
     "bonus",
-    "reimbursement",
     "tips",
     "cash_tips",
+    "reimbursement",
     "invoice_number",
-    "note",
+    "memo",
 ]
 
 
 @dataclass
 class GustoRow:
-    """One CSV row plus the metadata the UI needs to render eligibility."""
+    """One CSV row plus the metadata the UI needs to render eligibility.
+
+    `ssn_ein` carries the masked tax identifier (e.g. "*9579"); whether
+    it goes into the `ssn` column or the `ein` column at write time is
+    decided by `contractor_type` ("Individual" → ssn, "Business" → ein).
+    """
     payment: DriverPayment
+    contractor_type: str  # "Individual" or "Business"
     last_name: str
     first_name: str
     business_name: str
     ssn_ein: str
+    # `wage` is what Gusto's current schema calls the per-period contractor
+    # total. Kept as `fixed_amount` on the dataclass for backward-compat
+    # with anything that referenced the old name; written to the `wage`
+    # column at CSV time.
     fixed_amount: Decimal
-    note: str
+    invoice_number: str
+    note: str  # written to the `memo` column
     warnings: list = field(default_factory=list)
     blockers: list = field(default_factory=list)
 
@@ -150,14 +176,23 @@ def build_row(payment: DriverPayment, from_date: date, to_date: date) -> GustoRo
     amount = Decimal(payment.amount or 0)
 
     note = f"Grayson Towncar driver payment {from_date.isoformat()} to {to_date.isoformat()}"
+    # Gusto needs `contractor_type` to disambiguate which name fields
+    # and which tax-id column to read.
+    contractor_type = "Business" if business else "Individual"
+    # Invoice number is required by Gusto. The DriverPayment.id is a
+    # stable, unique, monotonic identifier we can trace back from the
+    # Gusto side.
+    invoice_number = str(payment.id)
 
     row = GustoRow(
         payment=payment,
+        contractor_type=contractor_type,
         last_name=last,
         first_name=first,
         business_name=business,
         ssn_ein=ssn_ein,
         fixed_amount=amount,
+        invoice_number=invoice_number,
         note=note,
     )
 
@@ -254,20 +289,24 @@ def write_csv(rows: Iterable[GustoRow], out) -> None:
     writer = csv.writer(out)
     writer.writerow(GUSTO_CSV_HEADER)
     for r in rows:
+        is_business = (r.contractor_type or "").strip().lower() == "business"
+        ssn = "" if is_business else r.ssn_ein
+        ein = r.ssn_ein if is_business else ""
         writer.writerow([
-            r.last_name,            # last_name
-            r.first_name,           # first_name
-            r.business_name,        # business_name
-            r.ssn_ein,              # ssn/ein
-            "",                     # hourly_rate — INTENTIONALLY BLANK
-            "",                     # hours — INTENTIONALLY BLANK
-            _format_amount(r.fixed_amount),  # fixed_amount — total payment
+            r.contractor_type,      # contractor_type — "Individual" or "Business"
+            r.first_name,           # first_name (blank for business rows)
+            r.last_name,            # last_name (blank for business rows)
+            r.business_name,        # business_name (blank for individual rows)
+            ssn,                    # ssn — masked last 4, individuals only
+            ein,                    # ein — masked last 4, businesses only
+            "",                     # hours_worked — INTENTIONALLY BLANK
+            _format_amount(r.fixed_amount),  # wage — total contractor payment
             "",                     # bonus — INTENTIONALLY BLANK
-            "",                     # reimbursement — INTENTIONALLY BLANK
             "",                     # tips — INTENTIONALLY BLANK
             "",                     # cash_tips — INTENTIONALLY BLANK
-            "",                     # invoice_number
-            r.note,                 # note
+            "",                     # reimbursement — INTENTIONALLY BLANK
+            r.invoice_number,       # invoice_number — required by Gusto
+            r.note,                 # memo
         ])
 
 

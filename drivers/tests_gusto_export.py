@@ -148,53 +148,68 @@ class CSVWriteTests(TestCase):
     def test_individual_driver_row(self):
         row = GustoRow(
             payment=None,  # not used by write_csv
+            contractor_type="Individual",
             last_name="Suarez", first_name="Yovanny",
             business_name="", ssn_ein="*9579",
             fixed_amount=Decimal("425.00"),
+            invoice_number="736",
             note="Grayson Towncar driver payment 2026-05-11 to 2026-05-17",
         )
         out = self._read_csv([row])
         self.assertEqual(len(out), 2)  # header + 1
-        # Header
         self.assertEqual(out[0], GUSTO_CSV_HEADER)
-        # Data row
-        self.assertEqual(
-            out[1],
-            ["Suarez", "Yovanny", "", "*9579",
-             "", "", "425.00",  # hourly_rate / hours BLANK, fixed_amount POPULATED
-             "", "", "", "",     # bonus / reimbursement / tips / cash_tips BLANK
-             "",                  # invoice_number
-             "Grayson Towncar driver payment 2026-05-11 to 2026-05-17"],
-        )
+        header = out[0]
+        data = out[1]
+        self.assertEqual(data[header.index("contractor_type")], "Individual")
+        self.assertEqual(data[header.index("first_name")], "Yovanny")
+        self.assertEqual(data[header.index("last_name")], "Suarez")
+        self.assertEqual(data[header.index("business_name")], "")
+        self.assertEqual(data[header.index("ssn")], "*9579")
+        self.assertEqual(data[header.index("ein")], "",
+                         "Individuals must NOT populate ein.")
+        self.assertEqual(data[header.index("wage")], "425.00")
+        self.assertEqual(data[header.index("invoice_number")], "736")
+        self.assertEqual(data[header.index("memo")],
+                         "Grayson Towncar driver payment 2026-05-11 to 2026-05-17")
 
-    def test_business_contractor_row(self):
+    def test_business_contractor_row_uses_ein_not_ssn(self):
         row = GustoRow(
             payment=None,
+            contractor_type="Business",
             last_name="", first_name="",
             business_name="Acme Transport LLC", ssn_ein="*1234",
             fixed_amount=Decimal("1200.00"),
+            invoice_number="737",
             note="Grayson Towncar driver payment 2026-05-11 to 2026-05-17",
-        )
-        out = self._read_csv([row])
-        self.assertEqual(out[1][2], "Acme Transport LLC")
-        self.assertEqual(out[1][6], "1200.00")  # fixed_amount column
-        # business row still leaves first/last blank
-        self.assertEqual(out[1][0], "")
-        self.assertEqual(out[1][1], "")
-
-    def test_fixed_amount_only_other_amount_columns_blank(self):
-        row = GustoRow(
-            payment=None, last_name="X", first_name="Y", business_name="",
-            ssn_ein="*0001", fixed_amount=Decimal("100.00"), note="n",
         )
         out = self._read_csv([row])
         header = out[0]
         data = out[1]
-        amount_cols = ["hourly_rate", "hours", "bonus", "reimbursement", "tips", "cash_tips"]
-        for col in amount_cols:
+        self.assertEqual(data[header.index("contractor_type")], "Business")
+        self.assertEqual(data[header.index("business_name")], "Acme Transport LLC")
+        self.assertEqual(data[header.index("first_name")], "")
+        self.assertEqual(data[header.index("last_name")], "")
+        self.assertEqual(data[header.index("ssn")], "",
+                         "Business rows must NOT populate ssn.")
+        self.assertEqual(data[header.index("ein")], "*1234")
+        self.assertEqual(data[header.index("wage")], "1200.00")
+        self.assertEqual(data[header.index("invoice_number")], "737")
+
+    def test_only_wage_carries_money_other_pay_cols_blank(self):
+        row = GustoRow(
+            payment=None, contractor_type="Individual",
+            last_name="X", first_name="Y", business_name="",
+            ssn_ein="*0001", fixed_amount=Decimal("100.00"),
+            invoice_number="1", note="n",
+        )
+        out = self._read_csv([row])
+        header = out[0]
+        data = out[1]
+        blank_pay_cols = ["hours_worked", "bonus", "tips", "cash_tips", "reimbursement"]
+        for col in blank_pay_cols:
             idx = header.index(col)
             self.assertEqual(data[idx], "", f"Column {col} must be blank, got {data[idx]!r}")
-        self.assertEqual(data[header.index("fixed_amount")], "100.00")
+        self.assertEqual(data[header.index("wage")], "100.00")
 
 
 class CsvFilenameTests(TestCase):
