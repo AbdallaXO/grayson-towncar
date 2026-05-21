@@ -3557,10 +3557,22 @@ def refresh_flight_data(request):
                 logger.info(f"Created flight verification task for leg {leg.id}")
 
         if not all_flight_data:
+            # `verifiable=True` tells the frontend it makes sense to offer the
+            # "Verify with Guest" email here — the flight is either missing or
+            # arriving at the wrong airport, both of which the guest can correct.
+            # Transient errors (rate limits, network issues) get verifiable=False
+            # so we don't spam the guest for something a retry would fix.
+            first_err_text = errors[0]["error"] if errors else ""
+            any_not_found_or_wrong_airport = (
+                any_not_found
+                or "orlando" in first_err_text.lower()
+                or "not found" in first_err_text.lower()
+            )
             return JsonResponse({
                 "success": False,
-                "error": errors[0]["error"] if errors else "Refresh failed",
+                "error": first_err_text or "Refresh failed",
                 "errors": errors,
+                "verifiable": any_not_found_or_wrong_airport,
             }, status=400)
 
         return JsonResponse({
@@ -13005,7 +13017,7 @@ def duplicate_reservations(request):
     # Find groups where at least one paid + one unpaid
     duplicate_groups = []
     total_unpaid = 0
-    for (customer_id, pickup_date), res_list in groups.items():
+    for (_name_part, _phone_digits, pickup_date), res_list in groups.items():
         seen_ids = set()
         unique = []
         for r in res_list:

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Flight updated by guest — {{ customer_full_name }}</title>
+<style>
+  body { margin:0; padding:0; background:#EFEFED; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#1A1A2E; }
+  .wrap { max-width:640px; margin:0 auto; padding:24px 16px 36px; }
+  .card { background:#fff; border-radius:6px; overflow:hidden; box-shadow:0 4px 16px rgba(12,27,51,.08); }
+  .hdr { background:#0C1B33; color:#fff; padding:20px 26px; }
+  .hdr .tag { font-size:10px; letter-spacing:0.18em; text-transform:uppercase; color:#C89B3C; font-weight:600; }
+  .hdr h1 { margin:6px 0 0; font-size:18px; font-weight:600; }
+  .body { padding:22px 26px; font-size:14px; line-height:1.55; }
+  .row { display:flex; justify-content:space-between; gap:16px; padding:10px 0; border-bottom:1px solid #E8E4DC; }
+  .row:last-child { border-bottom:none; }
+  .row .lbl { color:#5C6878; font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.08em; min-width:130px; flex:0 0 130px; }
+  .row .val { color:#1A1A2E; text-align:right; flex:1; }
+  .strike { text-decoration:line-through; color:#9AAABB; }
+  .arrow { color:#9AAABB; padding:0 4px; }
+  .new { font-weight:600; color:#0C1B33; }
+  .pickup-pill { display:inline-block; background:#0C1B33; color:#fff; padding:3px 10px; border-radius:3px; font-weight:600; font-size:13px; }
+  .pickup-pill.gold { background:#C89B3C; color:#0C1B33; }
+  .note { margin-top:14px; padding:12px 14px; border-radius:4px; font-size:13px; }
+  .note.warn { background:#FFF8EC; border:1px solid #F0DDA8; color:#7A5C12; }
+  .note.ok { background:#EAF5EB; border:1px solid #BFDDC1; color:#2E5C30; }
+  .cta { display:inline-block; background:#0C1B33; color:#fff; text-decoration:none; padding:10px 18px; border-radius:3px; font-weight:600; font-size:13px; margin-top:18px; letter-spacing:0.05em; }
+  .footer { margin-top:14px; font-size:11px; color:#9AAABB; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+
+    <div class="hdr">
+      <div class="tag">Flight Updated · Self-Service</div>
+      <h1>{{ customer_full_name }}{% if reservation %} · Reservation #50{{ reservation.id }}{% endif %}</h1>
+    </div>
+
+    <div class="body">
+
+      <div class="row">
+        <div class="lbl">Flight</div>
+        <div class="val">
+          {% if old_flight_label and old_flight_label != new_flight_label and old_flight_label != "(none on file)" %}
+            <span class="strike">{{ old_flight_label }}</span>
+            <span class="arrow">→</span>
+            <span class="new">{{ new_flight_label }}</span>
+          {% else %}
+            <span class="new">{{ new_flight_label }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="lbl">Pickup</div>
+        <div class="val">
+          {{ pickup_date|date:'l, M j' }}
+          ·
+          {% if pickup_adjusted %}
+            <span class="strike">{{ old_pickup_time_str }}</span>
+            <span class="arrow">→</span>
+            <span class="pickup-pill gold">{{ new_pickup_time_str }}</span>
+          {% elif pickup_time %}
+            <span class="pickup-pill">{{ pickup_time|time:'g:i A' }}</span>
+          {% else %}
+            TBD
+          {% endif %}
+        </div>
+      </div>
+
+      {% if pickup_location %}
+      <div class="row">
+        <div class="lbl">Route</div>
+        <div class="val">{{ pickup_location }} → {{ dropoff_location }}</div>
+      </div>
+      {% endif %}
+
+      {% if pickup_adjusted %}
+        <div class="note ok">
+          <strong>Auto-adjusted pickup time</strong> — slid {{ old_pickup_time_str }} → {{ new_pickup_time_str }} based on the new flight's scheduled arrival. No further action required unless the flight slips again.
+        </div>
+      {% elif flight_arrives_different_date %}
+        <div class="note warn">
+          <strong>Pickup date may need to shift.</strong> The new flight arrives on a different day than the booked pickup. Review and confirm the new date with the guest.
+        </div>
+      {% else %}
+        <div class="note ok">
+          New flight's arrival is within 15 minutes of the booked pickup — no time adjustment needed.
+        </div>
+      {% endif %}
+
+      {% if reservation_url %}
+        <a class="cta" href="{{ reservation_url }}">Open reservation →</a>
+      {% endif %}
+
+    </div>
+
+  </div>
+
+  <p class="footer">
+    Sent automatically when a guest confirms or corrects their flight via the verification link.
+  </p>
+
+</div>
+</body>
+</html>

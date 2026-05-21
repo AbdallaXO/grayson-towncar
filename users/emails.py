@@ -193,6 +193,129 @@ def send_reservation_confirmation_custom_recipient(reservation, recipient_email,
         return False
 
 
+# Subject line per reminder stage. "manual" is what the staff "Send reminder"
+# button uses; the four automation stages match ops.unpaid_reminders.
+PAYMENT_REMINDER_SUBJECTS = {
+    "manual": "Action Required: Finalize Your Grayson Towncar Reservation #{id}",
+    "first": "Finalize your Grayson Towncar reservation #{id}",
+    "second": "Reminder: your Grayson Towncar reservation #{id} is still unpaid",
+    "three_day": "3 days to pickup — payment needed: reservation #{id}",
+    "final": "Final reminder: complete payment for reservation #{id}",
+}
+
+
+def _log_payment_reminder_sent(
+    reservation, recipient, subject, stage="manual", sent_by=None, automated=False
+):
+    """
+    Centralized post-send logging for payment reminders.
+
+    Writes an EmailLog row tagged with stage + automated flag, then logs a
+    CommunicationAttempt against the open PAYMENT_CHASE task (if any).
+    Used by both the staff AJAX path and the automated reminder engine.
+    """
+    metadata = {"stage": stage, "automated": automated}
+    log_email_sent(
+        email_type="payment_reminder",
+        recipient_email=recipient,
+        subject=subject,
+        sent_by=sent_by,
+        reservation=reservation,
+        success=True,
+        metadata=metadata,
+    )
+
+    try:
+        from ops.models import OperationalTask, CommunicationAttempt
+        from ops.services import log_communication
+
+        payment_task = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.PAYMENT_CHASE,
+            reservation=reservation,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+        ).first()
+        if not payment_task:
+            return
+
+        notes = f"Payment reminder email sent (${reservation.amount_owed} owed, stage={stage})"
+        if sent_by is not None:
+            # Staff-triggered — also writes StaffActivity via log_communication.
+            log_communication(
+                task=payment_task,
+                channel="email",
+                outcome="sent",
+                user=sent_by,
+                contact_value=recipient,
+                notes=notes,
+                metadata=metadata,
+            )
+        else:
+            # Automated — log the CommunicationAttempt directly so we don't
+            # need a User row, and skip the StaffActivity entry which is
+            # meant for human actions only.
+            CommunicationAttempt.objects.create(
+                task=payment_task,
+                channel="email",
+                outcome="sent",
+                staff_user=None,
+                contact_value=recipient,
+                notes=notes,
+                metadata=metadata,
+            )
+            payment_task.attempts += 1
+            payment_task.last_attempt_at = timezone.now()
+            payment_task.save(update_fields=["attempts", "last_attempt_at", "updated_at"])
+    except Exception as e:
+        logger.warning(f"Failed to log comm for payment reminder: {e}")
+
+
+def send_payment_reminder(
+    reservation, checkout_url, stage="manual", sent_by=None, automated=False
+):
+    """
+    Synchronously send a payment reminder email and log the send.
+
+    Stage selects the subject line and the per-stage copy block in the
+    template (via the ``reminder_stage`` context variable). Raises on failure
+    so callers (AJAX endpoint, reminder engine) can react atomically.
+    """
+    recipient = reservation.customer.email if reservation.customer else None
+    if not recipient:
+        raise ValueError(
+            f"Reservation {reservation.uuid} has no customer email — cannot send reminder"
+        )
+
+    subject = PAYMENT_REMINDER_SUBJECTS.get(stage, PAYMENT_REMINDER_SUBJECTS["manual"]).format(
+        id=reservation.id
+    )
+
+    context = {
+        "reservation": reservation,
+        "checkout_url": checkout_url,
+        "reminder_stage": stage,
+    }
+    html_content = render_to_string("users/payment_reminder_email.html", context)
+
+    msg = EmailMultiAlternatives(
+        subject, "", "reservations@graysontowncar.com", [recipient]
+    )
+    msg.attach_alternative(html_content, "text/html")
+    msg.send()
+
+    logger.info(
+        f"Payment reminder sent for reservation {reservation.uuid} "
+        f"to {recipient} (stage={stage}, automated={automated})"
+    )
+    _log_payment_reminder_sent(
+        reservation=reservation,
+        recipient=recipient,
+        subject=subject,
+        stage=stage,
+        sent_by=sent_by,
+        automated=automated,
+    )
+
+
 @login_required
 @require_POST
 def send_payment_reminder_ajax(request):
@@ -213,84 +336,19 @@ def send_payment_reminder_ajax(request):
             reverse("create_checkout_session", args=[str(reservation.uuid)])
         )
 
-        context = {
-            "reservation": reservation,
-            "checkout_url": checkout_url,
-        }
-        subject = f"Action Required: Finalize Your Grayson Towncar Reservation #{reservation.id}"
-        from_email = "reservations@graysontowncar.com"
-        to = [reservation.customer.email]
-        html_content = render_to_string("users/payment_reminder_email.html", context)
-        msg = EmailMultiAlternatives(subject, "", from_email, to)
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-
-        logger.info(f"Payment reminder sent for reservation {reservation.uuid} to {reservation.customer.email} by {request.user}")
-        log_email_sent(
-            email_type="payment_reminder",
-            recipient_email=reservation.customer.email,
-            subject=subject,
-            sent_by=request.user,
+        send_payment_reminder(
             reservation=reservation,
+            checkout_url=checkout_url,
+            stage="manual",
+            sent_by=request.user,
+            automated=False,
         )
-
-        # Log communication attempt against any open payment_chase task
-        try:
-            from ops.models import OperationalTask
-            from ops.services import log_communication
-            payment_task = OperationalTask.objects.filter(
-                task_type=OperationalTask.TaskType.PAYMENT_CHASE,
-                reservation=reservation,
-                status__in=list(OperationalTask.OPEN_STATUSES),
-            ).first()
-            if payment_task:
-                log_communication(
-                    task=payment_task,
-                    channel="email",
-                    outcome="sent",
-                    user=request.user,
-                    contact_value=reservation.customer.email,
-                    notes=f"Payment reminder email sent (${reservation.amount_owed} owed)",
-                )
-        except Exception as e:
-            logger.warning(f"Failed to log comm for payment reminder: {e}")
 
         return JsonResponse({"success": True, "email": reservation.customer.email})
 
     except Exception as e:
         logger.exception(f"Error sending payment reminder: {e}")
         return JsonResponse({"success": False, "error": str(e)})
-
-
-def send_payment_reminder(reservation, checkout_url):
-    """
-    Send a payment reminder email to the customer with a checkout link.
-    """
-    logger.info(f"Preparing to send payment reminder for reservation {reservation.uuid}")
-
-    def _send_email():
-        try:
-            context = {
-                "reservation": reservation,
-                "checkout_url": checkout_url,
-            }
-
-            subject = f"Action Required: Finalize Your Grayson Towncar Reservation #{reservation.id}"
-            from_email = "reservations@graysontowncar.com"
-            to = [reservation.customer.email]
-            html_content = render_to_string("users/payment_reminder_email.html", context)
-
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-
-            logger.info(f"Payment reminder sent for reservation {reservation.uuid} to {reservation.customer.email}")
-
-        except Exception as e:
-            logger.exception(f"Error sending payment reminder for reservation {reservation.uuid}: {e}")
-            raise
-
-    _send_email_with_retry(_send_email, max_retries=3)
 
 
 def send_refund_request_notification(refund_request_or_reservation):

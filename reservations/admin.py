@@ -906,6 +906,11 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
         "payment_status_display",
         "uuid",
         "profit_percentage",
+        "unpaid_first_reminder_sent_at",
+        "unpaid_second_reminder_sent_at",
+        "unpaid_three_day_warning_sent_at",
+        "unpaid_final_warning_sent_at",
+        "unpaid_auto_cancel_eligible_at",
     )
 
     # ── queryset with annotations and optimizations
@@ -952,6 +957,8 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
         CommissionStatusFilter,
         ReservationSourceFilter,
         ("travel_agent", admin.RelatedOnlyFieldListFilter),
+        "unpaid_auto_reminder_hold",
+        "unpaid_duplicate_suspected",
     )
     search_fields = (
         "customer__first_name",
@@ -970,7 +977,44 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
         "mark_as_completed",
         "mark_as_cancelled",
         "update_profit_calculations",
+        "place_reminder_hold",
+        "lift_reminder_hold",
+        "clear_duplicate_suspected_flag",
     ]
+
+    # ── Unpaid reminder admin actions ─────────────────────────────────
+
+    @admin.action(description="Place reminder hold (skip automated reminders)")
+    def place_reminder_hold(self, request, queryset):
+        updated = queryset.update(
+            unpaid_auto_reminder_hold=True,
+            unpaid_auto_reminder_hold_reason="Held via admin action",
+        )
+        self.message_user(
+            request,
+            f"Placed reminder hold on {updated} reservation(s). "
+            "Automated reminders will skip these until the hold is lifted.",
+        )
+
+    @admin.action(description="Lift reminder hold")
+    def lift_reminder_hold(self, request, queryset):
+        updated = queryset.update(
+            unpaid_auto_reminder_hold=False,
+            unpaid_auto_reminder_hold_reason="",
+        )
+        self.message_user(
+            request,
+            f"Lifted reminder hold on {updated} reservation(s).",
+        )
+
+    @admin.action(description="Clear duplicate-suspected flag")
+    def clear_duplicate_suspected_flag(self, request, queryset):
+        updated = queryset.update(unpaid_duplicate_suspected=False)
+        self.message_user(
+            request,
+            f"Cleared duplicate-suspected flag on {updated} reservation(s). "
+            "Reminders may resume on the next scheduler cycle.",
+        )
 
     def save_model(self, request, obj, form, change):
         """
@@ -1037,6 +1081,22 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
                     "travel_agent",
                     "commission_amount",
                     "commission_paid",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Unpaid Reminders",
+            {
+                "fields": (
+                    "unpaid_auto_reminder_hold",
+                    "unpaid_auto_reminder_hold_reason",
+                    "unpaid_duplicate_suspected",
+                    "unpaid_first_reminder_sent_at",
+                    "unpaid_second_reminder_sent_at",
+                    "unpaid_three_day_warning_sent_at",
+                    "unpaid_final_warning_sent_at",
+                    "unpaid_auto_cancel_eligible_at",
                 ),
                 "classes": ("collapse",),
             },

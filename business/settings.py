@@ -230,6 +230,11 @@ TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
 GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
 
+# Base URL used when building absolute links from background contexts
+# (no incoming request). Used by flight-verification emails and the unpaid
+# payment-reminder engine to produce Stripe checkout links.
+SITE_BASE_URL = os.environ.get("SITE_BASE_URL", "https://www.graysontowncar.com").rstrip("/")
+
 # Scheduled tasks are handled by ghl_integration.scheduler (background thread).
 # No Celery required — the scheduler runs batch_send_unsent_leads and
 # process_follow_up_batch every 30 minutes automatically.

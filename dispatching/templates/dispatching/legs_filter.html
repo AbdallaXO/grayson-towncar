@@ -950,7 +950,14 @@
                           </div>
                           {% if leg.flight_information.status %}
                             <div class="small mb-1">
-                              <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{% if leg.flight_information.status == 'Not Found' %}⚠️ {% endif %}{{ leg.flight_information.status }}</span>
+                              {% if leg.flight_information.status == 'Not Found' %}
+                                <span class="badge bg-danger text-white">⚠️ Wrong / Missing Flight</span>
+                                <div class="text-danger small mt-1" style="line-height:1.35;">
+                                  This flight number doesn't match an Orlando arrival. Verify with the guest or correct the number.
+                                </div>
+                              {% else %}
+                                <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{{ leg.flight_information.status }}</span>
+                              {% endif %}
                             </div>
                           {% endif %}
 
@@ -1016,6 +1023,28 @@
                                       title="Set leg pickup time to flight arrival time">
                                 <i class="bi bi-clock-history"></i> Match flight time
                               </button>
+                            {% endif %}
+                            {% if leg.flight_information.status == 'Not Found' %}
+                              {% if leg.flight_verification_email_sent_at %}
+                                <span class="badge bg-success-subtle text-success-emphasis flight-verify-sent-badge"
+                                      data-leg-id="{{ leg.id }}"
+                                      title="Verification email sent {{ leg.flight_verification_email_sent_at|date:'D, M j g:i A' }} — awaiting guest response.">
+                                  <i class="bi bi-check-circle-fill me-1"></i>Email sent {{ leg.flight_verification_email_sent_at|timesince }} ago
+                                </span>
+                                {% if leg.hours_since_verify_email >= 48 %}
+                                  <button class="btn btn-sm btn-outline-warning flight-verify-persistent-btn"
+                                          data-leg-id="{{ leg.id }}"
+                                          title="Resend the verification email (last sent over 48h ago).">
+                                    <i class="bi bi-arrow-clockwise"></i> Resend
+                                  </button>
+                                {% endif %}
+                              {% else %}
+                                <button class="btn btn-sm btn-warning flight-verify-persistent-btn"
+                                        data-leg-id="{{ leg.id }}"
+                                        title="Email the guest a link to confirm or correct their flight number">
+                                  <i class="bi bi-envelope-fill"></i> Verify w/ Guest
+                                </button>
+                              {% endif %}
                             {% endif %}
                           </div>
 
@@ -2285,6 +2314,7 @@
                               }, 2000);
                           } else {
                               const errMsg = data.error || 'Unknown error';
+                              const canVerify = !!data.verifiable;
                               // Show warning icon on the button
                               this.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i>';
                               // Red highlight on row
@@ -2294,7 +2324,7 @@
                                   row.style.backgroundColor = '#f8d7da';
                                   setTimeout(() => { row.style.backgroundColor = ''; }, 3000);
                               }
-                              // Add persistent error badge
+                              // Add persistent error badge (click to see full message)
                               const badge = document.createElement('span');
                               badge.className = 'flight-refresh-error badge bg-danger ms-1';
                               badge.style.cursor = 'pointer';
@@ -2303,6 +2333,63 @@
                               badge.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>';
                               badge.addEventListener('click', () => alert('Flight refresh error:\n' + errMsg));
                               this.parentElement.appendChild(badge);
+
+                              // If the failure is something a guest can fix
+                              // (wrong/missing flight, wrong airport), offer the
+                              // verify-with-guest email inline. Skipped for
+                              // transient errors like rate limits, and skipped
+                              // when the persistent template-rendered button
+                              // already exists on this row (no duplicates).
+                              const hasPersistent = !!this.parentElement.querySelector('.flight-verify-persistent-btn');
+                              if (canVerify && !hasPersistent) {
+                                  const vbtn = document.createElement('button');
+                                  vbtn.type = 'button';
+                                  vbtn.className = 'btn btn-sm btn-warning ms-1 flight-verify-inline-btn';
+                                  vbtn.style.fontSize = '0.75rem';
+                                  vbtn.dataset.legId = legId;
+                                  vbtn.title = 'Email the guest to confirm or correct their flight';
+                                  vbtn.innerHTML = '<i class="bi bi-envelope"></i> Verify w/ Guest';
+                                  vbtn.addEventListener('click', function() {
+                                      if (!confirm('Email this guest a self-service link to confirm their flight?')) return;
+                                      const b = this;
+                                      const orig = b.innerHTML;
+                                      b.disabled = true;
+                                      b.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Sending…';
+                                      fetch("{% url 'send_flight_verification_email' %}", {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                                          body: JSON.stringify({ leg_id: parseInt(b.dataset.legId, 10) })
+                                      }).then(r => r.json()).then(function(resp) {
+                                          if (resp.success) {
+                                              var badge = document.createElement('span');
+                                              badge.className = 'badge bg-success-subtle text-success-emphasis flight-verify-sent-badge';
+                                              badge.dataset.legId = b.dataset.legId;
+                                              badge.title = 'Email sent — awaiting guest response.';
+                                              badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Email sent just now';
+                                              if (b.parentNode) {
+                                                  b.parentNode.replaceChild(badge, b);
+                                              } else {
+                                                  b.classList.remove('btn-outline-warning');
+                                                  b.classList.add('btn-success');
+                                                  b.innerHTML = '<i class="bi bi-check-circle"></i> Email sent';
+                                              }
+                                              if (typeof frrShowToast === 'function') {
+                                                  frrShowToast('Verification email sent to ' + (resp.recipient || 'the guest') + '.', 'success');
+                                              }
+                                          } else {
+                                              b.disabled = false;
+                                              b.innerHTML = orig;
+                                              alert(resp.error || 'Could not send verification email.');
+                                          }
+                                      }).catch(function(err) {
+                                          b.disabled = false;
+                                          b.innerHTML = orig;
+                                          alert('Error: ' + err.message);
+                                      });
+                                  });
+                                  this.parentElement.appendChild(vbtn);
+                              }
+
                               // Reset button after delay
                               setTimeout(() => {
                                   this.disabled = false;
@@ -2316,6 +2403,51 @@
                           this.disabled = false;
                           this.innerHTML = originalHTML;
                       });
+              });
+          });
+
+          // Persistent "Verify with Guest" button — shown on the row whenever
+          // the flight's stored status is "Not Found" (wrong/missing flight).
+          // Fires the same email endpoint as the bulk-refresh modal.
+          document.querySelectorAll('.flight-verify-persistent-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const b = this;
+                  if (!confirm('Email this guest a self-service link to confirm their flight?')) return;
+                  const originalHTML = b.innerHTML;
+                  b.disabled = true;
+                  b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+                  fetch("{% url 'send_flight_verification_email' %}", {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                      body: JSON.stringify({ leg_id: parseInt(legId, 10) })
+                  }).then(r => r.json()).then(function(resp) {
+                      if (resp.success) {
+                          var badge = document.createElement('span');
+                          badge.className = 'badge bg-success-subtle text-success-emphasis flight-verify-sent-badge';
+                          badge.dataset.legId = legId;
+                          badge.title = 'Email sent — awaiting guest response.';
+                          badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Email sent just now';
+                          if (b.parentNode) {
+                              b.parentNode.replaceChild(badge, b);
+                          } else {
+                              b.classList.remove('btn-warning');
+                              b.classList.add('btn-success');
+                              b.innerHTML = '<i class="bi bi-check-circle"></i> Email sent';
+                          }
+                          if (typeof frrShowToast === 'function') {
+                              frrShowToast('Verification email sent to ' + (resp.recipient || 'the guest') + '.', 'success');
+                          }
+                      } else {
+                          b.disabled = false;
+                          b.innerHTML = originalHTML;
+                          alert(resp.error || 'Could not send verification email.');
+                      }
+                  }).catch(function(err) {
+                      b.disabled = false;
+                      b.innerHTML = originalHTML;
+                      alert('Error: ' + err.message);
+                  });
               });
           });
 
@@ -2409,6 +2541,26 @@
               return ident || '—';
           }
 
+          // Coarse "time since" formatter — matches Django's |timesince filter
+          // closely enough for a "Email sent X ago" badge. Accepts an ISO string.
+          function frrTimeSince(isoString) {
+              if (!isoString) return '';
+              var then = new Date(isoString);
+              if (isNaN(then.getTime())) return '';
+              var seconds = Math.max(0, (Date.now() - then.getTime()) / 1000);
+              if (seconds < 60) return 'just now';
+              var minutes = Math.floor(seconds / 60);
+              if (minutes < 60) return minutes + ' min';
+              var hours = Math.floor(minutes / 60);
+              if (hours < 24) return hours + 'h';
+              var days = Math.floor(hours / 24);
+              if (days < 7) return days + 'd';
+              var weeks = Math.floor(days / 7);
+              if (weeks < 5) return weeks + 'w';
+              var months = Math.floor(days / 30);
+              return months + 'mo';
+          }
+
           function frrBadge(row) {
               var sev = row.severity || 'success';
               var labelMap = { success: 'OK', warning: 'Needs Review', manual: 'Manual Action', danger: 'Missing' };
@@ -2435,6 +2587,23 @@
               var matchBtn = canMatch
                   ? '<button class="btn btn-sm btn-outline-success frr-match-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-clock-history"></i> Match Pickup</button>'
                   : '';
+              // "Verify with Guest" — only useful when AeroAPI couldn't find the flight.
+              // Sends a friendly self-service email asking the guest to confirm or correct
+              // their airline + flight number (e.g. they may have given us the first leg of a connection).
+              // If we've already sent the email and the guest hasn't acted yet, show a badge
+              // instead of re-offering the button — and only surface a Resend after 48h.
+              var verifyBtn = '';
+              if (row.status === 'missing') {
+                  if (row.verify_email_sent_at) {
+                      var sentAgo = frrTimeSince(row.verify_email_sent_at);
+                      verifyBtn = '<span class="badge bg-success-subtle text-success-emphasis frr-verify-sent-badge" title="Email sent — awaiting guest response."><i class="bi bi-check-circle-fill me-1"></i>Email sent ' + frrEscape(sentAgo) + ' ago</span>';
+                      if ((row.verify_email_hours_since || 0) >= 48) {
+                          verifyBtn += ' <button class="btn btn-sm btn-outline-warning frr-verify-btn" data-leg-id="' + row.leg_id + '" title="Resend the verification email (last sent over 48h ago)."><i class="bi bi-arrow-clockwise"></i> Resend</button>';
+                      }
+                  } else {
+                      verifyBtn = '<button class="btn btn-sm btn-outline-warning frr-verify-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-envelope"></i> Verify with Guest</button>';
+                  }
+              }
               var reviewedBtn = '<button class="btn btn-sm btn-outline-secondary frr-reviewed-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-check2"></i> Mark Reviewed</button>';
 
               return ''
@@ -2457,6 +2626,7 @@
                   +   '<div class="frr-actions">'
                   +     '<a class="btn btn-sm btn-outline-primary" href="' + frrEscape(resUrl) + '" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Open Reservation</a>'
                   +     '<a class="btn btn-sm btn-outline-secondary" href="' + frrEscape(editUrl) + '" target="_blank"><i class="bi bi-pencil"></i> Edit Flight</a>'
+                  +     verifyBtn
                   +     matchBtn
                   +     reviewedBtn
                   +   '</div>'
@@ -2579,6 +2749,44 @@
                               } else {
                                   b.disabled = false; b.innerHTML = orig;
                                   frrShowToast(data.error || 'Could not update pickup time.', 'error');
+                              }
+                          }).catch(function(err){
+                              b.disabled = false; b.innerHTML = orig;
+                              frrShowToast('Error: ' + err.message, 'error');
+                          });
+                      });
+                  });
+                  rowsContainer.querySelectorAll('.frr-verify-btn').forEach(function(btn) {
+                      btn.addEventListener('click', function() {
+                          var legId = this.dataset.legId;
+                          var b = this;
+                          if (!confirm('Email this guest a self-service link to confirm their flight?')) {
+                              return;
+                          }
+                          b.disabled = true;
+                          var orig = b.innerHTML;
+                          b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending…';
+                          fetch("{% url 'send_flight_verification_email' %}", {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                              body: JSON.stringify({ leg_id: parseInt(legId, 10) })
+                          }).then(r => r.json()).then(function(data) {
+                              if (data.success) {
+                                  var badge = document.createElement('span');
+                                  badge.className = 'badge bg-success-subtle text-success-emphasis frr-verify-sent-badge';
+                                  badge.title = 'Email sent — awaiting guest response.';
+                                  badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Email sent just now';
+                                  if (b.parentNode) {
+                                      b.parentNode.replaceChild(badge, b);
+                                  } else {
+                                      b.innerHTML = '<i class="bi bi-check-circle"></i> Email sent';
+                                      b.classList.remove('btn-outline-warning');
+                                      b.classList.add('btn-success');
+                                  }
+                                  frrShowToast('Verification email sent to ' + (data.recipient || 'the guest') + '.', 'success');
+                              } else {
+                                  b.disabled = false; b.innerHTML = orig;
+                                  frrShowToast(data.error || 'Could not send verification email.', 'error');
                               }
                           }).catch(function(err){
                               b.disabled = false; b.innerHTML = orig;

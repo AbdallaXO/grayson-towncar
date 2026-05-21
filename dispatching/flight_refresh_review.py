@@ -297,6 +297,19 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
     except Exception:
         mismatch_for_row = None
 
+    # Surface the verify-email "last sent" state so the modal can render
+    # "Email sent X ago" instead of re-offering the verify button when the
+    # guest hasn't acted yet.
+    verify_sent_at = getattr(leg, "flight_verification_email_sent_at", None)
+    if verify_sent_at is not None:
+        hours_since_verify = max(
+            0.0, (timezone.now() - verify_sent_at).total_seconds() / 3600
+        )
+        verify_sent_at_iso = verify_sent_at.isoformat()
+    else:
+        hours_since_verify = None
+        verify_sent_at_iso = None
+
     return {
         "leg_id": leg.id,
         "reservation_id": leg.reservation_id,
@@ -322,6 +335,8 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
         "assigned_driver": _driver_name(leg),
         "reservation_url": _reservation_url(leg),
         "edit_url": _edit_url(leg),
+        "verify_email_sent_at": verify_sent_at_iso,
+        "verify_email_hours_since": hours_since_verify,
     }
 
 

@@ -251,10 +251,25 @@ def generate_ops_tasks():
     closed += _auto_close_resolved_tasks()
     reopened += _reopen_snoozed_tasks()
 
+    # Send automated unpaid-reservation reminder emails and flag T-2h cases
+    # for manual cancellation review. Runs after _scan_unpaid_reservations so
+    # the PAYMENT_CHASE task exists when the engine attaches CommunicationAttempt
+    # rows to it.
+    _process_unpaid_reminders()
+
     # Auto-escalation disabled — staff are responsible for their own tasks.
     # Escalation engine (ops/escalation.py) still exists if re-enabled later.
 
     return {"created": created, "closed": closed, "reopened": reopened, "escalated": 0}
+
+
+def _process_unpaid_reminders():
+    """Run the automated unpaid-reservation reminder pipeline."""
+    try:
+        from ops.unpaid_reminders import UnpaidReminderEngine
+        UnpaidReminderEngine().process()
+    except Exception as exc:
+        logger.error(f"Unpaid reminder engine error: {exc}", exc_info=True)
 
 
 # ── Flight mismatch scanner ─────────────────────────────────────────────────

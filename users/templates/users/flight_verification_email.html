@@ -1,0 +1,196 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" style="-webkit-text-size-adjust: none !important;">
+<head>
+  <title>Please confirm your flight — Grayson Towncar</title>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" content="" />
+  <meta content="target-densitydpi=device-dpi" name="viewport" />
+  <meta content="true" name="HandheldFriendly" />
+  <meta content="width=device-width" name="viewport" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+    u + #body a { color: inherit; text-decoration: none; font-size: inherit; font-family: inherit; font-weight: inherit; line-height: inherit; }
+
+    @media screen and (max-width: 620px) {
+      .main-table  { width: 100% !important; }
+      .content-pad { padding: 32px 24px 40px !important; }
+      .header-pad  { padding: 40px 24px 36px !important; }
+      .footer-pad  { padding: 32px 24px !important; }
+    }
+  </style>
+</head>
+<body id="body" style="margin:0;padding:0;background-color:#EFEFED;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#EFEFED;">
+  <tr>
+    <td align="center" style="padding:32px 0 48px;">
+
+      <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse;">
+
+      <!-- ─── HEADER ─── -->
+      <tr><td style="background-color:#0C1B33;border-radius:4px 4px 0 0;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="header-pad" style="padding:44px 52px 38px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                <tr>
+                  <td>
+                    <div style="width:36px;height:2px;background-color:#C89B3C;margin-bottom:16px;"></div>
+                    <h1 style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;font-weight:600;letter-spacing:0.12em;color:#FFFFFF;text-transform:uppercase;">Grayson Towncar</h1>
+                  </td>
+                  <td align="right" valign="top">
+                    <div style="display:inline-block;border:1px solid rgba(200,155,60,0.4);padding:9px 16px;text-align:center;">
+                      <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#C89B3C;">Action Needed</p>
+                      {% if reservation %}<p style="margin:4px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:500;color:#FFFFFF;">#50{{ reservation.id }}</p>{% endif %}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="height:1px;background-color:rgba(255,255,255,0.1);margin:24px 0;"></div>
+
+              <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:400;font-style:italic;color:#E8E4DC;line-height:1.5;">A quick check on your flight,<br><span style="color:#C89B3C;">{{ customer_first_name }}.</span></p>
+              <p style="margin:10px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:300;color:#9AAABB;line-height:1.7;">{% if pickup_date %}Pickup booked for {{ pickup_date|date:'l, F j' }}{% if pickup_time %} · {{ pickup_time|time:'g:i A' }}{% endif %}{% endif %}</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- ─── BODY ─── -->
+      <tr><td style="background-color:#FFFFFF;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="content-pad" style="padding:42px 52px 16px;">
+
+              <p style="margin:0 0 14px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                Hi {{ customer_first_name }} — your
+                {% if is_return %}pickup for your return flight{% else %}airport pickup{% endif %}
+                is {{ pickup_when_phrase }}, and we're starting to track your flight. Right now our system
+                <strong>can't find the flight on your reservation</strong>
+                {% if is_arrival %}for your arrival{% endif %}.
+              </p>
+
+              <p style="margin:0 0 10px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                That's usually one of a few things:
+              </p>
+              <ul style="margin:0 0 22px;padding:0 0 0 22px;font-family:'DM Sans',Arial,sans-serif;font-size:14.5px;color:#1A1A2E;line-height:1.65;">
+                <li style="margin-bottom:6px;">the flight number is off by a digit or two,</li>
+                <li style="margin-bottom:6px;">the airline may have changed the flight since you booked,</li>
+                <li style="margin-bottom:6px;">the booking <em>confirmation number</em> was entered in place of the flight number, or</li>
+                <li>the reservation has the airline of an <em>earlier leg of a connection</em> rather than the final flight landing in Orlando.</li>
+              </ul>
+
+              <p style="margin:0 0 22px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                A 30-second confirmation from you keeps your driver lined up perfectly.
+              </p>
+
+              <!-- What we have on file -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#F5F3EE;border-left:3px solid #C89B3C;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:18px 22px;">
+                    <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#9AAABB;">What we have on file</p>
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:17px;font-weight:500;color:#1A1A2E;line-height:1.4;">{{ booked_label }}</p>
+                    {% if is_arrival and pickup_location %}
+                      <p style="margin:6px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:400;color:#5C6878;line-height:1.5;">Arriving at: {{ pickup_location }}</p>
+                    {% elif is_return and dropoff_location %}
+                      <p style="margin:6px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:400;color:#5C6878;line-height:1.5;">Departing from: {{ dropoff_location }}</p>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Connection callout (only for arrivals) -->
+              {% if is_arrival %}
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#FFF8EC;border:1px solid #F0DDA8;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:500;color:#7A5C12;line-height:1.55;">
+                      ✈ <strong>Connecting through another city?</strong> Please give us the
+                      <strong>final flight number landing in Orlando</strong> (MCO or Sanford / SFB),
+                      not the first leg out of your home airport. That's the flight we track for your pickup time.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                The quickest way to confirm:
+              </p>
+
+              <!-- Primary CTA: self-service link -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:18px;">
+                <tr>
+                  <td align="center">
+                    <a href="{{ verify_url }}"
+                       style="display:inline-block;background-color:#0C1B33;color:#FFFFFF;text-decoration:none;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;padding:16px 36px;border:1px solid #0C1B33;">
+                      Confirm my flight →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 26px;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:400;color:#5C6878;line-height:1.6;text-align:center;">
+                Opens a one-page form — no login required. Takes about 30 seconds.
+              </p>
+
+              <!-- OR divider -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:22px;">
+                <tr>
+                  <td style="border-bottom:1px solid #E8E4DC;font-size:0;line-height:0;">&nbsp;</td>
+                  <td style="padding:0 14px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#9AAABB;white-space:nowrap;">Or simply reply</td>
+                  <td style="border-bottom:1px solid #E8E4DC;font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 26px;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                Just hit Reply to this email with your airline and flight number — for example,
+                <em>"Delta 1442"</em> or <em>"Southwest 3187."</em> We'll update your booking and
+                you're all set.
+              </p>
+
+              <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                Thanks for the quick assist —
+              </p>
+              <p style="margin:0 0 4px;font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;font-weight:600;font-style:italic;color:#0C1B33;">The Grayson Towncar team</p>
+              <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:300;color:#9AAABB;">Reservations · {{ reply_to }}</p>
+
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- ─── FOOTER ─── -->
+      <tr><td style="background-color:#F5F3EE;border-radius:0 0 4px 4px;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="footer-pad" style="padding:24px 52px 28px;text-align:center;">
+              <p style="margin:0 0 4px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:400;color:#5C6878;line-height:1.6;">
+                You're receiving this because of an active Grayson Towncar reservation.
+              </p>
+              <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:400;color:#9AAABB;line-height:1.6;">
+                Grayson Towncar · Orlando, FL · graysontowncar.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

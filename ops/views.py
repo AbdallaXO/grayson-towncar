@@ -1118,6 +1118,9 @@ def _build_flight_verify_context(task):
     trip_type = leg.get_trip_type() if hasattr(leg, "get_trip_type") else ""
     is_arrival = trip_type == "arrival"
 
+    verify_sent_at = getattr(leg, "flight_verification_email_sent_at", None)
+    verify_hours_since = leg.hours_since_verify_email if verify_sent_at else None
+
     return {
         "fv_mismatch": mismatch_info,
         "fv_scheduled_str": scheduled_str,
@@ -1133,6 +1136,8 @@ def _build_flight_verify_context(task):
         "fv_is_arrival": is_arrival,
         "fv_pickup_date_str": str(pickup_date),
         "fv_trip_type": trip_type,
+        "fv_verify_email_sent_at": verify_sent_at,
+        "fv_verify_email_hours_since": verify_hours_since,
         "is_flight_verify": True,
     }
 

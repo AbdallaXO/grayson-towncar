@@ -322,6 +322,38 @@ class Reservation(models.Model):
         help_text="True when this reservation has a stop or detail needing dispatcher pricing review before charging",
     )
 
+    # ── Automated unpaid-reminder bookkeeping ──
+    # Per-stage sent_at timestamps make the scheduler idempotent: the queryset
+    # filters WHERE ..._sent_at IS NULL for each stage, so a re-run never
+    # double-sends. See ops.unpaid_reminders.UnpaidReminderEngine.
+    unpaid_first_reminder_sent_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+    )
+    unpaid_second_reminder_sent_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+    )
+    unpaid_three_day_warning_sent_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+    )
+    unpaid_final_warning_sent_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+    )
+    unpaid_auto_cancel_eligible_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Set when the reservation crosses pickup-2h still unpaid. v1 surfaces this for manual review; future versions may auto-cancel from this signal.",
+    )
+    unpaid_auto_reminder_hold = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Staff override — when True, the automated reminder pipeline skips this reservation entirely.",
+    )
+    unpaid_auto_reminder_hold_reason = models.CharField(
+        max_length=255, blank=True, default="",
+    )
+    unpaid_duplicate_suspected = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Set by the duplicate guard in the reminder engine. Clears when staff resolves via /duplicate-reservations/.",
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=["customer"]),
@@ -473,6 +505,23 @@ class Reservation(models.Model):
         Cached to avoid N+1 queries when accessed multiple times
         """
         return list(self.payments.all())
+
+    @cached_property
+    def first_pickup_dt(self):
+        """
+        Timezone-aware datetime of the first non-cancelled leg's pickup.
+        Returns None if no active leg exists. Mirrors the ordering used by
+        ops.tasks._scan_unpaid_reservations and dispatching.duplicate_reservations.
+        """
+        leg = (
+            self.legs.exclude(status="cancelled")
+            .order_by("pickup_date", "pickup_time")
+            .first()
+        )
+        if not leg or not leg.pickup_date or not leg.pickup_time:
+            return None
+        naive = timezone.datetime.combine(leg.pickup_date, leg.pickup_time)
+        return timezone.make_aware(naive, timezone.get_current_timezone())
 
     @cached_property
     def total_paid(self):
@@ -981,6 +1030,15 @@ class Leg(models.Model):
         blank=True,
         help_text="When next-day confirmation SMS was sent (Twilio)",
     )
+    flight_verification_email_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the self-service flight verification email was last sent "
+            "to the guest. Cleared when the guest acts on the link so a fresh "
+            "verification cycle can start if needed."
+        ),
+    )
     confirmation_sms_override = models.TextField(
         blank=True,
         default="",
@@ -1020,6 +1078,14 @@ class Leg(models.Model):
         if self.passenger_count is not None:
             return self.passenger_count
         return self.reservation.passenger_count if self.reservation_id else 1
+
+    @property
+    def hours_since_verify_email(self):
+        """Hours since flight_verification_email_sent_at, or None if never sent."""
+        if not self.flight_verification_email_sent_at:
+            return None
+        delta = timezone.now() - self.flight_verification_email_sent_at
+        return delta.total_seconds() / 3600
 
     @property
     def effective_luggage_count(self):

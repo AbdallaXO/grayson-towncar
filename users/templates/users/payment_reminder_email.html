@@ -90,7 +90,17 @@
                   <!-- Main Heading -->
                   <tr>
                     <td>
-                      <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#222222; font-weight:700; text-align:center;">Action Required: Finalize Your Reservation</h1>
+                      {% if reminder_stage == "three_day" %}
+                        <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#222222; font-weight:700; text-align:center;">3 Days Until Your Pickup — Payment Needed</h1>
+                      {% elif reminder_stage == "final" %}
+                        <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#C0392B; font-weight:700; text-align:center;">Final Reminder: Complete Payment</h1>
+                      {% elif reminder_stage == "second" %}
+                        <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#222222; font-weight:700; text-align:center;">Reminder: Your Reservation Is Still Unpaid</h1>
+                      {% elif reminder_stage == "first" %}
+                        <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#222222; font-weight:700; text-align:center;">Finalize Your Reservation</h1>
+                      {% else %}
+                        <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#222222; font-weight:700; text-align:center;">Action Required: Finalize Your Reservation</h1>
+                      {% endif %}
                     </td>
                   </tr>
                   <tr>
@@ -103,12 +113,43 @@
                       <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
                         Hi {{ reservation.customer.first_name }},
                       </p>
-                      <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
-                        This is Grayson Towncar reaching out about your upcoming reservation. We still have your booking on file, but we haven't received payment yet.
-                      </p>
-                      <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
-                        <strong>Do you still need this trip?</strong> If so, please click the button below to complete your payment and secure your reservation. If we don't hear from you, we may need to cancel your booking <strong>24&ndash;48 hours before your pickup time</strong>.
-                      </p>
+
+                      {% if reminder_stage == "first" %}
+                        <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          This is Grayson Towncar. We noticed your reservation has not been finalized yet. You can securely complete your payment using the button below.
+                        </p>
+                        <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          Once payment is completed, your reservation will be confirmed. Please let us know if you have any questions.
+                        </p>
+                      {% elif reminder_stage == "second" %}
+                        <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          This is Grayson Towncar. Just following up on your reservation &mdash; it still looks like the payment has not been completed.
+                        </p>
+                        <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          You can finalize it securely using the button below. Please let us know if you need any help.
+                        </p>
+                      {% elif reminder_stage == "three_day" %}
+                        <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          This is Grayson Towncar. We&rsquo;re following up because your upcoming reservation has not been finalized yet. Please complete payment using the button below.
+                        </p>
+                        <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          To keep our schedule accurate, unpaid reservations must be finalized at least <strong>24 hours before pickup</strong>. If payment is not completed by then, the reservation may be canceled.
+                        </p>
+                      {% elif reminder_stage == "final" %}
+                        <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          This is Grayson Towncar. <strong>This is a final reminder</strong> that your reservation is still unpaid and has not been finalized.
+                        </p>
+                        <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          Please complete payment using the button below. If payment is not completed soon, the reservation may be canceled to keep our schedule accurate.
+                        </p>
+                      {% else %}
+                        <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          This is Grayson Towncar reaching out about your upcoming reservation. We still have your booking on file, but we haven't received payment yet.
+                        </p>
+                        <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                          <strong>Do you still need this trip?</strong> If so, please click the button below to complete your payment and secure your reservation. If we don't hear from you, we may need to cancel your booking <strong>24&ndash;48 hours before your pickup time</strong>.
+                        </p>
+                      {% endif %}
                     </td>
                   </tr>
 

@@ -14,8 +14,12 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
-# Orlando-area airports we serve (MCO = Orlando Intl, SFB = Orlando Sanford / Allegiant etc.)
-ORLANDO_AIRPORT_CODES = ("MCO", "SFB")
+# Airports we serve ground transportation for. Used to identify which flight
+# in an AeroAPI response is the customer's relevant leg.
+#   MCO = Orlando International (major hub)
+#   SFB = Orlando Sanford (Allegiant, Avelo, Breeze, Sun Country)
+#   LAL = Lakeland Linder (occasional)
+ORLANDO_AIRPORT_CODES = ("MCO", "SFB", "LAL")
 
 
 class AeroAPIService:
@@ -107,19 +111,19 @@ class AeroAPIService:
         date_start = target.isoformat()
         date_end = (target + timedelta(days=2)).isoformat()
 
-        # Build query params — filter by airline + flight_number + airport
+        # Build query params — filter by airline + flight_number only.
+        # We deliberately do NOT add a destination/origin filter: airline +
+        # flight_number + date is already unique, and the AeroAPI param
+        # accepts only one airport code. Filtering by MCO alone would drop
+        # carriers like Allegiant that operate out of SFB (or LAL).
+        # Direction is enforced downstream when we match against
+        # ORLANDO_AIRPORT_CODES in _parse_scheduled_data.
         params = {
             'airline': airline,
             'flight_number': flight_number,
             'include_codeshares': 'false',
             'max_pages': 1,
         }
-
-        # For arrivals, filter by destination; for departures, filter by origin
-        if trip_type == 'arrival':
-            params['destination'] = 'MCO'
-        elif trip_type == 'return':
-            params['origin'] = 'MCO'
 
         try:
             url = f"{self.base_url}/schedules/{date_start}/{date_end}"
@@ -165,23 +169,81 @@ class AeroAPIService:
                 except Exception:
                     return None
 
-            # Sort all results by departure date ascending so deterministic
-            on_target = [s for s in scheduled_flights if _depart_date_eastern(s) == target]
+            def _airport_code(value):
+                """Normalize a schedule's origin/destination to a bare IATA code (KMCO → MCO)."""
+                code = (value or '').strip().upper()
+                if len(code) == 4 and code.startswith('K'):
+                    code = code[1:]
+                return code
+
+            def _orlando_match(sched):
+                """
+                True iff this scheduled flight touches MCO/SFB/LAL in the direction
+                that matches the leg's trip_type. For arrivals we require destination,
+                for returns we require origin, for unknown trip types either side works.
+                """
+                orig = _airport_code(sched.get('origin_iata') or sched.get('origin'))
+                dest = _airport_code(sched.get('destination_iata') or sched.get('destination'))
+                if trip_type == 'arrival':
+                    return dest in ORLANDO_AIRPORT_CODES
+                if trip_type == 'return':
+                    return orig in ORLANDO_AIRPORT_CODES
+                return dest in ORLANDO_AIRPORT_CODES or orig in ORLANDO_AIRPORT_CODES
+
+            # Drop any non-Orlando results first — AeroAPI's /schedules/ endpoint
+            # returns every flight matching airline+number across the date window,
+            # which can include unrelated routes (e.g. AA5921 ROA→CLT shares the
+            # number with an MCO arrival on a different day). Saving one of those
+            # to a leg would produce phantom flight data.
+            orlando_flights = [s for s in scheduled_flights if _orlando_match(s)]
+            if not orlando_flights:
+                # Build a list of where this flight number actually operates, so
+                # the dispatcher knows *why* it was rejected (almost always: the
+                # guest booked under a wrong/old flight number). Cap the list to
+                # avoid huge messages for connecting carriers.
+                found_pairs = []
+                seen_pair = set()
+                for s in scheduled_flights:
+                    orig = _airport_code(s.get('origin_iata') or s.get('origin'))
+                    dest = _airport_code(s.get('destination_iata') or s.get('destination'))
+                    if not orig and not dest:
+                        continue
+                    key = f"{orig}|{dest}"
+                    if key in seen_pair:
+                        continue
+                    seen_pair.add(key)
+                    found_pairs.append(f"{orig or '?'} → {dest or '?'}")
+                    if len(found_pairs) >= 3:
+                        break
+                routes_str = ", ".join(found_pairs) if found_pairs else "another route"
+                msg = (
+                    f"{flight_ident} exists, but it flies {routes_str} — "
+                    f"not Orlando (MCO/SFB). The reservation likely has the wrong flight number."
+                )
+                logger.warning(
+                    f"Schedules: {flight_ident} returned {len(scheduled_flights)} result(s), "
+                    f"none touch MCO/SFB/LAL for trip_type={trip_type}. Routes: {routes_str}"
+                )
+                return {'error': msg, 'status': 'not_orlando'}
+
+            # Within the Orlando set, prefer the one that departs on the target
+            # Eastern date; fall back to the soonest later flight; last resort
+            # the first match. Same logic as before, just on the filtered list.
+            on_target = [s for s in orlando_flights if _depart_date_eastern(s) == target]
             if on_target:
                 best = on_target[0]
-                logger.info(f"Schedules: selected flight departing {target} Eastern (of {len(scheduled_flights)} results)")
+                logger.info(f"Schedules: selected Orlando flight departing {target} Eastern (of {len(orlando_flights)} Orlando results)")
             else:
-                # Nothing departs on target date — pick the soonest flight after target
                 after_target = sorted(
-                    [s for s in scheduled_flights if (_depart_date_eastern(s) or date.min) > target],
+                    [s for s in orlando_flights if (_depart_date_eastern(s) or date.min) > target],
                     key=lambda s: _depart_date_eastern(s) or date.max,
                 )
                 if after_target:
                     best = after_target[0]
-                    logger.warning(f"Schedules: no flight departing {target} Eastern, using next available: {_depart_date_eastern(best)}")
+                    logger.warning(f"Schedules: no Orlando flight departing {target} Eastern, using next available: {_depart_date_eastern(best)}")
                 else:
-                    best = scheduled_flights[0]
-                    logger.warning(f"Schedules: falling back to first result for {flight_ident}")
+                    best = orlando_flights[0]
+                    logger.warning(f"Schedules: falling back to first Orlando result for {flight_ident}")
 
             return self._parse_scheduled_data(best, trip_type=trip_type)
 

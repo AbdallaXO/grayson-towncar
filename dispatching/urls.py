@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import flight_verify_views
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 
@@ -79,6 +80,21 @@ urlpatterns = [
     path("match-all-leg-times-to-flight/", views.match_all_leg_times_to_flight, name="match_all_leg_times_to_flight"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path("dismiss-flight-review/", views.dismiss_flight_review, name="dismiss_flight_review"),
+    path(
+        "send-flight-verification-email/",
+        flight_verify_views.send_flight_verification_email_ajax,
+        name="send_flight_verification_email",
+    ),
+    path(
+        "verify-flight/<str:token>/",
+        flight_verify_views.flight_verification_public,
+        name="flight_verification_public",
+    ),
+    path(
+        "verify-flight/<str:token>/check/",
+        flight_verify_views.flight_verification_check,
+        name="flight_verification_check",
+    ),
     path("confirmations/", views.confirmations_view, name="confirmations"),
     path("confirmations/save-override/", views.save_confirmation_override, name="save_confirmation_override"),
     path(

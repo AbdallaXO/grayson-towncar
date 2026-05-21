@@ -2096,6 +2096,25 @@ body {
         {% if is_flight_verify %}
         <!-- ═══ Flight Verify Panel ═══ -->
 
+        {% if fv_verify_email_sent_at %}
+        <div class="ops-card" style="border-color: var(--ops-green); background: rgba(46, 204, 113, .05);">
+          <div class="ops-card-body" style="display: flex; align-items: center; gap: .65rem;">
+            <i class="bi bi-envelope-check-fill" style="color: var(--ops-green); font-size: 1.1rem;"></i>
+            <div style="flex: 1;">
+              <div style="font-weight: 600;">Verification email sent to guest</div>
+              <div class="text-muted" style="font-size: .82rem;">
+                {{ fv_verify_email_sent_at|timesince }} ago — {{ fv_verify_email_sent_at|date:"D, M j g:i A" }}.
+                {% if fv_verify_email_hours_since >= 48 %}
+                  No response in over 48h — consider calling the guest or resending.
+                {% else %}
+                  Awaiting guest response.
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         <!-- Flight Mismatch Summary -->
         <div class="ops-card">
           <div class="ops-card-head">

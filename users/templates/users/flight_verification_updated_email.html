@@ -1,0 +1,158 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" style="-webkit-text-size-adjust: none !important;">
+<head>
+  <title>Flight confirmed — Grayson Towncar</title>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" content="" />
+  <meta content="target-densitydpi=device-dpi" name="viewport" />
+  <meta content="true" name="HandheldFriendly" />
+  <meta content="width=device-width" name="viewport" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    @media screen and (max-width: 620px) {
+      .main-table  { width: 100% !important; }
+      .content-pad { padding: 32px 24px 40px !important; }
+      .header-pad  { padding: 40px 24px 36px !important; }
+      .footer-pad  { padding: 32px 24px !important; }
+    }
+  </style>
+</head>
+<body id="body" style="margin:0;padding:0;background-color:#EFEFED;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#EFEFED;">
+  <tr>
+    <td align="center" style="padding:32px 0 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse;">
+
+      <!-- ─── HEADER ─── -->
+      <tr><td style="background-color:#0C1B33;border-radius:4px 4px 0 0;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="header-pad" style="padding:44px 52px 38px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                <tr>
+                  <td>
+                    <div style="width:36px;height:2px;background-color:#C89B3C;margin-bottom:16px;"></div>
+                    <h1 style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;font-weight:600;letter-spacing:0.12em;color:#FFFFFF;text-transform:uppercase;">Grayson Towncar</h1>
+                  </td>
+                  <td align="right" valign="top">
+                    <div style="display:inline-block;border:1px solid rgba(120,200,140,0.5);padding:9px 16px;text-align:center;background:rgba(46,125,50,0.15);">
+                      <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#A8D8B0;">✓ Confirmed</p>
+                      {% if reservation %}<p style="margin:4px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:500;color:#FFFFFF;">#50{{ reservation.id }}</p>{% endif %}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="height:1px;background-color:rgba(255,255,255,0.1);margin:24px 0;"></div>
+
+              <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:400;font-style:italic;color:#E8E4DC;line-height:1.5;">All set, <span style="color:#C89B3C;">{{ customer_first_name }}.</span></p>
+              <p style="margin:10px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:300;color:#9AAABB;line-height:1.7;">{% if pickup_date %}Pickup {{ pickup_date|date:'l, F j' }}{% if pickup_time %} · {{ pickup_time|time:'g:i A' }}{% endif %}{% endif %}</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- ─── BODY ─── -->
+      <tr><td style="background-color:#FFFFFF;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="content-pad" style="padding:42px 52px 36px;">
+
+              <p style="margin:0 0 24px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                Thanks for confirming your flight — we've updated your reservation. Here's a quick recap of what we have on file now.
+              </p>
+
+              <!-- Updated flight summary card -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#F5F3EE;border-left:3px solid #C89B3C;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:20px 22px;">
+                    <p style="margin:0 0 8px;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#9AAABB;">Updated Flight</p>
+                    <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;color:#0C1B33;line-height:1.2;">{{ new_flight_label }}</p>
+                    {% if old_flight_label and old_flight_label != new_flight_label and old_flight_label != "(none on file)" %}
+                      <p style="margin:8px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#5C6878;">Previously had on file: <span style="text-decoration:line-through;">{{ old_flight_label }}</span></p>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+
+              {% if pickup_adjusted %}
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#EAF5EB;border:1px solid #BFDDC1;margin-bottom:22px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:13.5px;color:#2E5C30;line-height:1.55;">
+                      <strong>Pickup time adjusted</strong> — moved from {{ old_pickup_time_str }} to <strong>{{ new_pickup_time_str }}</strong> to line up with the new flight.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              {% elif flight_arrives_different_date %}
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#FFF8EC;border:1px solid #F0DDA8;margin-bottom:22px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:13.5px;color:#7A5C12;line-height:1.55;">
+                      <strong>Heads up</strong> — the new flight arrives a different day than your original pickup. A dispatcher will reach out shortly to confirm the new pickup time.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <!-- Pickup recap -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#0C1B33;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:14px 20px;">
+                    <p style="margin:0 0 4px;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Pickup</p>
+                    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                      <tr>
+                        <td valign="middle" style="padding-right:14px;">
+                          <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:600;color:#FFFFFF;line-height:1.2;">{{ pickup_date|date:'l, F j' }}</p>
+                        </td>
+                        <td valign="middle" align="right" style="white-space:nowrap;">
+                          <div style="background-color:#C89B3C;padding:6px 14px;display:inline-block;">
+                            <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#0C1B33;letter-spacing:0.03em;">{% if pickup_adjusted %}{{ new_pickup_time_str }}{% elif pickup_time %}{{ pickup_time|time:'g:i A' }}{% else %}TBD{% endif %}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                Safe travels — and if anything else changes with your flight, just hit reply to this email and we'll take care of it.
+              </p>
+
+              <p style="margin:18px 0 4px;font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;font-weight:600;font-style:italic;color:#0C1B33;">The Grayson Towncar team</p>
+
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- ─── FOOTER ─── -->
+      <tr><td style="background-color:#F5F3EE;border-radius:0 0 4px 4px;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="footer-pad" style="padding:24px 52px 28px;text-align:center;">
+              <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:400;color:#9AAABB;line-height:1.6;">
+                Grayson Towncar · Orlando, FL · graysontowncar.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
