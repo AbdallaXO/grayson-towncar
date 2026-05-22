@@ -1178,7 +1178,10 @@
             </h5>
             {% if reservation.refund_requested_at %}
               <p class="mb-1">
-                <strong>Requested:</strong> {{ reservation.refund_requested_at|date:"F d, Y g:i A" }} by {{ reservation.refund_requested_by.get_full_name|default:reservation.refund_requested_by.username }}
+                <strong>Requested:</strong> {{ reservation.refund_requested_at|date:"F d, Y g:i A" }}
+                {% if reservation.refund_requested_by %}
+                  by {{ reservation.refund_requested_by.get_full_name|default:reservation.refund_requested_by.username }}
+                {% endif %}
               </p>
             {% endif %}
             {% if reservation.refund_reason %}
@@ -1193,7 +1196,10 @@
             {% endif %}
             {% if reservation.refund_processed_at %}
               <p class="mb-0">
-                <strong>Processed:</strong> {{ reservation.refund_processed_at|date:"F d, Y g:i A" }} by {{ reservation.refund_processed_by.get_full_name|default:reservation.refund_processed_by.username }}
+                <strong>Processed:</strong> {{ reservation.refund_processed_at|date:"F d, Y g:i A" }}
+                {% if reservation.refund_processed_by %}
+                  by {{ reservation.refund_processed_by.get_full_name|default:reservation.refund_processed_by.username }}
+                {% endif %}
               </p>
             {% endif %}
             {% if reservation.refund_notes %}
@@ -1343,7 +1349,7 @@
                   {% for reminder in payment_reminders_sent %}
                   <div class="d-flex align-items-center text-muted small mb-1">
                     <i class="bi bi-envelope-check text-warning me-2"></i>
-                    <span>Payment Reminder Sent by <strong>{{ reminder.sent_by.first_name|default:reminder.sent_by.username }}</strong> on {{ reminder.sent_at|date:"M d, Y" }} @ {{ reminder.sent_at|date:"g:i A" }}</span>
+                    <span>Payment Reminder Sent by <strong>{% if reminder.sent_by %}{{ reminder.sent_by.first_name|default:reminder.sent_by.username }}{% else %}System{% endif %}</strong> on {{ reminder.sent_at|date:"M d, Y" }} @ {{ reminder.sent_at|date:"g:i A" }}</span>
                   </div>
                   {% endfor %}
                 </div>
