@@ -222,10 +222,13 @@
   .am-paginator-jump input:focus { outline: none; border-color: var(--gt-gold); background: #fff; }
 
   /* === Entity row (cleaner, single-row layout) === */
+  /* overflow: visible so the per-row "More actions" dropdown can extend past
+     the entity card without being clipped. border-radius: inherit on the
+     head element keeps the hover background clipped to the rounded corners. */
   .am-entity {
     background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
     margin-bottom: 8px; transition: border-color .15s ease, box-shadow .15s ease;
-    overflow: hidden;
+    overflow: visible;
   }
   .am-entity:hover { border-color: #d3d7e0; box-shadow: var(--gt-shadow-sm); }
   .am-entity.paid {
@@ -235,6 +238,7 @@
   .am-entity-head {
     padding: 14px 16px; cursor: pointer;
     display: flex; align-items: center; gap: 14px;
+    border-radius: inherit;
   }
   .am-entity-head:hover { background: var(--gt-surface-2); }
 
@@ -2073,7 +2077,9 @@ function openReviewModal() {
     tbody.appendChild(tr);
   }
   document.getElementById('reviewPayTotal').textContent = '$' + total.toFixed(2);
-  document.getElementById('reviewPayConfirmLabel').textContent = `Confirm — Mark ${bulkSelection.size} Paid`;
+  // Note: the confirm-button label span is (re)created by the btn.innerHTML
+  // assignment below — don't touch it here, since submitReviewPayouts()
+  // replaces the button's innerHTML on submit, which deletes the span.
   document.getElementById('reviewPayResults').hidden = true;
   document.getElementById('reviewPayResults').innerHTML = '';
   document.getElementById('reviewBulkMethod').value = '';
