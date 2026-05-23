@@ -197,60 +197,26 @@ class TravelAgent(models.Model):
         return bool(self.effective_payment_method) and bool(self.effective_payment_info)
 
     def calculate_unpaid_commissions(self):
-        """Calculate unpaid commissions based on commission_rate without saving."""
-        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
-        from reservations.models import Reservation
-        import logging
+        """Sum of commission amounts that are currently SAFE TO PAY (Ready bucket).
 
-        logger = logging.getLogger(__name__)
-
-        # Calculate the sum of unpaid commissions from completed reservations
-        # This applies the agent's commission rate to each reservation base_price only
-        # (not additional fees or gratuity)
-        unpaid_reservations = Reservation.objects.filter(
-            travel_agent=self, commission_paid=False, status="completed"
-        )
-
-        logger.info(
-            f"Found {unpaid_reservations.count()} unpaid completed reservations for agent {self}"
-        )
-
-        unpaid_commissions = (
-            unpaid_reservations.annotate(
-                calculated_commission=ExpressionWrapper(
-                    F("base_price") * (self.commission_rate / 100),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
-            ).aggregate(total=Sum("calculated_commission"))["total"]
-            or 0
-        )
-
-        logger.info(
-            f"Calculated unpaid commissions for agent {self}: ${unpaid_commissions}"
-        )
-
-        return unpaid_commissions
+        Delegates to users.eligibility -- so the queue, the preview, and the
+        actual pay action all agree on what counts as "owed". A reservation only
+        contributes if eligibility says READY: customer paid us, no refunds, not
+        cancelled, and either status=completed OR the final leg date + grace
+        period has passed.
+        """
+        from users.eligibility import sum_ready
+        return sum_ready(self)
 
     def calculate_pending_commissions(self):
-        """Calculate pending commissions based on commission_rate without saving."""
-        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
-        from reservations.models import Reservation
+        """Sum of commission amounts currently in the PENDING bucket.
 
-        # Calculate pending commissions (confirmed but not completed)
-        # Commission is calculated on base_price only, not additional fees or gratuity
-        pending_commissions = (
-            Reservation.objects.filter(travel_agent=self, status="confirmed")
-            .annotate(
-                calculated_commission=ExpressionWrapper(
-                    F("base_price") * (self.commission_rate / 100),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
-            )
-            .aggregate(total=Sum("calculated_commission"))["total"]
-            or 0
-        )
-
-        return pending_commissions
+        Pending = future trips and trips still inside the post-leg grace window.
+        Does NOT include trips that are stuck in review or excluded -- those are
+        surfaced separately so they don't quietly inflate the "pending" KPI.
+        """
+        from users.eligibility import sum_pending
+        return sum_pending(self)
 
     def update_unpaid_commissions(self):
         """Calculate and update the unpaid commissions for this agent."""
@@ -312,60 +278,50 @@ class TravelAgent(models.Model):
 
     def process_commission_payment(self, create_agency_payout=True):
         """
-        Process payment for all unpaid commissions.
-        Enhanced with better notes generation.
+        Process payment for all currently-Ready commissions.
+
+        Uses users.eligibility.ready_reservations as the single source of truth
+        for what to include -- the same helper that the queue UI and previews
+        use. This guarantees the operator can never accidentally pay something
+        that the queue marked as Needs Review or Excluded (refunded, unpaid,
+        cancelled, etc.) by clicking Pay Now.
 
         Args:
             create_agency_payout (bool): Whether to create an agency payout if agent belongs to an agency
         """
-        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
         from django.utils import timezone
         from django.db import transaction
-        from reservations.models import Reservation
+        from users.eligibility import ready_reservations
 
         with transaction.atomic():
-            # Get all unpaid completed reservations
-            unpaid_reservations = Reservation.objects.filter(
-                travel_agent=self, commission_paid=False, status="completed"
-            )
+            # Pull every Ready reservation + its computed commission in one pass.
+            # Keep the (reservation, EligibilityResult) tuples so we can use the
+            # already-computed commission decimal instead of recalculating.
+            ready_items = list(ready_reservations(self))
 
-            if unpaid_reservations.exists():
-                # IMPORTANT: Recalculate commission amounts for each reservation
-                # We recalculate here (not using stored commission_amount) to ensure accuracy
-                # Commission is calculated on base_price only, not additional fees or gratuity
-                reservations_with_commission = unpaid_reservations.annotate(
-                    calculated_commission=ExpressionWrapper(
-                        F("base_price") * (self.commission_rate / 100),
-                        output_field=DecimalField(max_digits=10, decimal_places=2),
-                    )
-                )
+            if ready_items:
+                commission_total = sum((r.commission for _, r in ready_items), Decimal("0"))
+                ready_reservation_objs = [res for res, _ in ready_items]
+                ready_reservation_ids = [res.id for res in ready_reservation_objs]
 
-                # Calculate total commission from recalculated values
-                # This ensures we're using base_price, not total_price (which includes fees/gratuity)
-                commission_total = sum(
-                    r.calculated_commission for r in reservations_with_commission
-                )
-
-                # Get date range based on actual service dates (pickup dates) and current date
-                # Find the earliest pickup date among all legs of unpaid reservations
+                # Period start = earliest pickup_date across legs of all paid reservations.
+                # Period end = today (the day this payout was processed).
                 earliest_pickup_date = None
-                for reservation in unpaid_reservations:
+                for reservation in ready_reservation_objs:
                     for leg in reservation.legs.all():
-                        if earliest_pickup_date is None or leg.pickup_date < earliest_pickup_date:
+                        if leg.pickup_date and (earliest_pickup_date is None or leg.pickup_date < earliest_pickup_date):
                             earliest_pickup_date = leg.pickup_date
-                
-                period_start = earliest_pickup_date if earliest_pickup_date else timezone.localtime(timezone.now()).date()
-                period_end = timezone.localtime(timezone.now()).date()  # Current date when processing payout
 
-                # Build detailed reservation summary for notes
-                # Note: calculated_commission is based on base_price only (not additional fees/gratuity)
+                period_start = earliest_pickup_date if earliest_pickup_date else timezone.localtime(timezone.now()).date()
+                period_end = timezone.localtime(timezone.now()).date()
+
+                # Build detailed reservation summary for notes.
                 reservation_details = []
-                for res in reservations_with_commission:
+                for res, result in ready_items:
                     reservation_details.append(
-                        f"#{res.id} - {res.customer} (Base: ${res.base_price:.2f}, Total: ${res.total_price:.2f} -> Commission: ${res.calculated_commission:.2f})"
+                        f"#{res.id} - {res.customer} (Base: ${res.base_price:.2f}, Total: ${res.total_price:.2f} -> Commission: ${result.commission:.2f})"
                     )
 
-                # Create comprehensive notes
                 agent_payout_notes = [
                     f"DIRECT AGENT PAYOUT",
                     f"Agent: {self.agent_name or self.user.username} ({self.user.email})",
@@ -380,7 +336,6 @@ class TravelAgent(models.Model):
                     "-" * 40,
                 ]
 
-                # Add reservation details (limit to first 15 to avoid overly long notes)
                 display_reservations = reservation_details[:15]
                 agent_payout_notes.extend(display_reservations)
 
@@ -391,25 +346,24 @@ class TravelAgent(models.Model):
 
                 notes_text = "\n".join(agent_payout_notes)
 
-                # Create agent payout record with detailed notes
                 agent_payout = CommissionPayout.objects.create(
                     agent=self,
-                    agency=self.agency,  # This will be set automatically if agent has agency
+                    agency=self.agency,
                     total_amount=commission_total,
                     payout_period_start=period_start,
                     payout_period_end=period_end,
                     notes=notes_text,
                 )
 
-                # Add reservations to payout
-                agent_payout.reservations.set(unpaid_reservations)
+                agent_payout.reservations.set(ready_reservation_ids)
 
-                # Mark reservations as paid and store the calculated commission
-                for reservation in reservations_with_commission:
-                    reservation.commission_amount = reservation.calculated_commission
-                    reservation.commission_paid = True
-                    reservation.commission_paid_at = timezone.now()
-                    reservation.save(
+                # Mark each paid reservation: persist the actually-paid commission
+                # (could differ from stored commission_amount if rate changed since booking).
+                for res, result in ready_items:
+                    res.commission_amount = result.commission
+                    res.commission_paid = True
+                    res.commission_paid_at = timezone.now()
+                    res.save(
                         update_fields=[
                             "commission_amount",
                             "commission_paid",
@@ -667,154 +621,66 @@ class Agency(models.Model):
         }
 
     def process_agency_commission_payment(self):
-        """Process payment for all unpaid commissions from all agents in the agency."""
-        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+        """Process payment for all currently-Ready commissions from every agent in the agency.
+
+        Delegates per-agent work to TravelAgent.process_commission_payment so the
+        eligibility logic lives in exactly one place (users.eligibility). This
+        function only does the agency-level orchestration: aggregating per-agent
+        payouts into one AgencyCommissionPayout, building the summary notes, and
+        bumping the agency-level total_paid_commission once.
+        """
         from django.utils import timezone
         from django.db import transaction
         from reservations.models import Reservation
         from decimal import Decimal
 
         with transaction.atomic():
-            # Get all agents in the agency with unpaid commissions
-            agents = self.agents.filter(
-                unpaid_commissions__gt=0, agency_handles_payment=True
-            )
+            # All agents who route through the agency. We can't pre-filter on
+            # unpaid_commissions__gt=0 because that stat may be stale relative
+            # to the live eligibility helper -- let the helper decide per agent.
+            agents = self.agents.filter(agency_handles_payment=True).select_related("user")
 
-            if not agents.exists():
-                return None, 0
-
-            # Track all processed payouts and total amount
             processed_payouts = []
             total_amount = Decimal("0")
             earliest_date = None
             latest_date = None
-
-            # Track details for comprehensive notes
-            agent_details = []
             total_reservations = 0
+            agent_details = []
 
-            # Process each agent's commissions
             for agent in agents:
-                # Get all unpaid completed reservations for this agent
-                unpaid_reservations = Reservation.objects.filter(
-                    travel_agent=agent, commission_paid=False, status="completed"
+                # Run the per-agent processor with create_agency_payout=False so it
+                # doesn't try to spawn its own AgencyCommissionPayout -- we make
+                # the combined one ourselves below.
+                agent_payout, agent_commission_total, _ = agent.process_commission_payment(
+                    create_agency_payout=False
                 )
+                if not agent_payout or agent_commission_total <= 0:
+                    continue
 
-                if unpaid_reservations.exists():
-                    # IMPORTANT: Recalculate commission amounts for each reservation
-                    # We recalculate here (not using stored commission_amount) to ensure accuracy
-                    # Commission is calculated on base_price only, not additional fees or gratuity
-                    reservations_with_commission = unpaid_reservations.annotate(
-                        calculated_commission=ExpressionWrapper(
-                            F("base_price") * (agent.commission_rate / 100),
-                            output_field=DecimalField(max_digits=10, decimal_places=2),
-                        )
-                    )
+                processed_payouts.append(agent_payout)
+                total_amount += agent_commission_total
+                total_reservations += agent_payout.reservations.count()
 
-                    # Calculate total commission from recalculated values
-                    # This ensures we're using base_price, not total_price (which includes fees/gratuity)
-                    agent_commission_total = sum(
-                        r.calculated_commission for r in reservations_with_commission
-                    )
+                # Pull the period range from the agent payout the per-agent
+                # processor just stamped (uses the same pickup-date logic).
+                if earliest_date is None or agent_payout.payout_period_start < earliest_date:
+                    earliest_date = agent_payout.payout_period_start
+                if latest_date is None or agent_payout.payout_period_end > latest_date:
+                    latest_date = agent_payout.payout_period_end
 
-                    if agent_commission_total > 0:
-                        # Get date range for this agent's reservations based on pickup dates
-                        agent_earliest_pickup_date = None
-                        for reservation in unpaid_reservations:
-                            for leg in reservation.legs.all():
-                                if agent_earliest_pickup_date is None or leg.pickup_date < agent_earliest_pickup_date:
-                                    agent_earliest_pickup_date = leg.pickup_date
-                        
-                        agent_earliest_date = agent_earliest_pickup_date if agent_earliest_pickup_date else timezone.localtime(timezone.now()).date()
-                        agent_latest_date = timezone.localtime(timezone.now()).date()  # Current date when processing payout
-
-                        # Update overall date range
-                        if earliest_date is None or agent_earliest_date < earliest_date:
-                            earliest_date = agent_earliest_date
-                        if latest_date is None or agent_latest_date > latest_date:
-                            latest_date = agent_latest_date
-
-                        # Collect reservation details for notes
-                        reservation_ids = list(
-                            unpaid_reservations.values_list("id", flat=True)
-                        )
-                        reservation_count = len(reservation_ids)
-                        total_reservations += reservation_count
-
-                        # Build detailed notes for individual agent payout
-                        # Note: calculated_commission is based on base_price only (not additional fees/gratuity)
-                        agent_reservation_details = []
-                        for res in reservations_with_commission:
-                            agent_reservation_details.append(
-                                f"ID #{res.id} For {res.customer.get_full_name()} - (Base: ${res.base_price:.2f}, Total: ${res.total_price:.2f} -> Commission: ${res.calculated_commission:.2f})"
-                            )
-
-                        individual_agent_notes = (
-                            f"Agent: {agent.agent_name or agent.user.username}\n"
-                            f"Reservations ({reservation_count}): {', '.join(agent_reservation_details[:10])}"
-                            f"{'...' if reservation_count > 10 else ''}\n"
-                            f"Period: {agent_earliest_date} to {agent_latest_date}\n"
-                            f"Total Commission: ${agent_commission_total:.2f}\n"
-                            f"Processed as part of agency payout to {self.name}"
-                        )
-
-                        # Create individual agent payout with detailed notes
-                        agent_payout = CommissionPayout.objects.create(
-                            agent=agent,
-                            agency=self,
-                            total_amount=agent_commission_total,
-                            payout_period_start=agent_earliest_date,
-                            payout_period_end=agent_latest_date,
-                            notes=individual_agent_notes,
-                        )
-
-                        # Add reservations to payout
-                        agent_payout.reservations.set(unpaid_reservations)
-
-                        # Mark reservations as paid
-                        for reservation in reservations_with_commission:
-                            reservation.commission_amount = (
-                                reservation.calculated_commission
-                            )
-                            reservation.commission_paid = True
-                            reservation.commission_paid_at = timezone.now()
-                            reservation.save(
-                                update_fields=[
-                                    "commission_amount",
-                                    "commission_paid",
-                                    "commission_paid_at",
-                                ]
-                            )
-
-                        # Update agent totals
-                        agent.unpaid_commissions = 0
-                        agent.last_payment_date = timezone.now()
-                        agent.save(
-                            update_fields=["unpaid_commissions", "last_payment_date"]
-                        )
-
-                        # Sync the agent's total_paid_commission with their actual payouts
-                        agent.sync_paid_commission()
-
-                        processed_payouts.append(agent_payout)
-                        total_amount += agent_commission_total
-
-                        # Store agent details for agency payout notes
-                        agent_details.append(
-                            {
-                                "name": agent.agent_name or agent.user.username,
-                                "email": agent.user.email,
-                                "commission_rate": agent.commission_rate,
-                                "reservation_count": reservation_count,
-                                "reservation_ids": reservation_ids[
-                                    :5
-                                ],  # First 5 IDs for summary
-                                "total_reservations": reservation_count,
-                                "amount": agent_commission_total,
-                                "period_start": agent_earliest_date,
-                                "period_end": agent_latest_date,
-                            }
-                        )
+                agent_details.append({
+                    "name": agent.agent_name or agent.user.username,
+                    "email": agent.user.email,
+                    "commission_rate": agent.commission_rate,
+                    "reservation_count": agent_payout.reservations.count(),
+                    "reservation_ids": list(
+                        agent_payout.reservations.values_list("id", flat=True)[:5]
+                    ),
+                    "total_reservations": agent_payout.reservations.count(),
+                    "amount": agent_commission_total,
+                    "period_start": agent_payout.payout_period_start,
+                    "period_end": agent_payout.payout_period_end,
+                })
 
             if processed_payouts:
                 # Build comprehensive agency payout notes

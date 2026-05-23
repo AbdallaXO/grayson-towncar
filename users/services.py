@@ -201,13 +201,19 @@ def process_bulk_payouts(items, *, sent_by):
 
             elif kind == "agency":
                 agency = Agency.objects.get(id=obj_id)
-                owing_agents = agency.agents.filter(
-                    unpaid_commissions__gt=0, agency_handles_payment=True
-                ).count()
+                # Live eligibility check -- don't trust the cached
+                # unpaid_commissions stat. A stale stat could either incorrectly
+                # block a payout that has Ready items, or claim there are items
+                # when eligibility actually says nothing's Ready.
+                from users.eligibility import sum_ready
+                owing_agents = sum(
+                    1 for a in agency.agents.filter(agency_handles_payment=True)
+                    if sum_ready(a) > 0
+                )
                 if owing_agents == 0:
                     results.append({
                         "ok": False, "type": "agency", "id": obj_id, "name": agency.name,
-                        "error": "No unpaid commissions in this agency.",
+                        "error": "No commissions ready to pay in this agency.",
                     })
                     continue
                 recipient_email = None
@@ -243,36 +249,32 @@ def process_bulk_payouts(items, *, sent_by):
 
 def preview_agent_payout(agent):
     """
-    Read-only preview of what payout would include.
-    Returns dict with reservations, total, period info.
+    Read-only preview of what an agent payout would include RIGHT NOW.
+
+    Uses users.eligibility.ready_reservations so the preview is a perfect
+    mirror of what process_commission_payment would actually pay -- never
+    showing reservations that the queue marks as Review/Excluded.
     """
-    from reservations.models import Reservation
+    from users.eligibility import ready_reservations
 
-    unpaid = list(
-        Reservation.objects.filter(
-            travel_agent=agent, commission_paid=False, status="completed"
-        ).select_related(
-            "customer", "rate__route__origin", "rate__route__destination"
-        ).prefetch_related("legs").order_by("-created_at")
-    )
+    ready_items = list(ready_reservations(agent))
 
-    if not unpaid:
-        return {"reservations": [], "total": Decimal("0"), "count": 0}
+    if not ready_items:
+        return {"reservations": [], "total": "0.00", "count": 0}
 
     reservations_data = []
     total = Decimal("0")
     earliest_pickup = None
 
-    for res in unpaid:
-        commission = res.base_price * (agent.commission_rate / 100)
-        total += commission
+    for res, result in ready_items:
+        total += result.commission
 
         route = ""
         if res.rate and res.rate.route:
             route = f"{res.rate.route.origin} to {res.rate.route.destination}"
 
         for leg in res.legs.all():
-            if earliest_pickup is None or leg.pickup_date < earliest_pickup:
+            if leg.pickup_date and (earliest_pickup is None or leg.pickup_date < earliest_pickup):
                 earliest_pickup = leg.pickup_date
 
         reservations_data.append({
@@ -281,7 +283,7 @@ def preview_agent_payout(agent):
             "route": route,
             "base_price": str(res.base_price),
             "total_price": str(res.total_price),
-            "commission": str(commission.quantize(Decimal("0.01"))),
+            "commission": str(result.commission),
             "date": res.created_at.strftime("%b %d, %Y"),
         })
 
@@ -296,14 +298,18 @@ def preview_agent_payout(agent):
 
 def preview_agency_payout(agency):
     """
-    Read-only preview of agency payout with per-agent breakdown.
-    Returns dict with agents list, each containing reservations and subtotal.
-    """
-    from reservations.models import Reservation
+    Read-only preview of an agency payout with per-agent breakdown.
 
-    agents = agency.agents.filter(
-        unpaid_commissions__gt=0, agency_handles_payment=True
-    ).select_related("user")
+    Only includes agents who currently have at least one Ready reservation --
+    pulls live via the eligibility helper rather than trusting the cached
+    unpaid_commissions stat (which can drift as time passes).
+    """
+    from users.eligibility import ready_reservations
+
+    # Don't pre-filter on the cached unpaid_commissions stat -- it can be
+    # stale (e.g. a trip just crossed its grace threshold an hour ago and the
+    # stat hasn't been recalculated yet).
+    agents = agency.agents.filter(agency_handles_payment=True).select_related("user")
 
     if not agents.exists():
         return {"agents": [], "total": "0.00", "count": 0}
@@ -313,21 +319,15 @@ def preview_agency_payout(agency):
     total_reservations = 0
 
     for agent in agents:
-        unpaid = Reservation.objects.filter(
-            travel_agent=agent, commission_paid=False, status="completed"
-        ).select_related(
-            "customer", "rate__route__origin", "rate__route__destination"
-        ).order_by("-created_at")
-
-        if not unpaid.exists():
+        ready_items = list(ready_reservations(agent))
+        if not ready_items:
             continue
 
         agent_total = Decimal("0")
         res_data = []
 
-        for res in unpaid:
-            commission = res.base_price * (agent.commission_rate / 100)
-            agent_total += commission
+        for res, result in ready_items:
+            agent_total += result.commission
 
             route = ""
             if res.rate and res.rate.route:
@@ -338,7 +338,7 @@ def preview_agency_payout(agency):
                 "customer": res.customer.get_full_name(),
                 "route": route,
                 "base_price": str(res.base_price),
-                "commission": str(commission.quantize(Decimal("0.01"))),
+                "commission": str(result.commission),
                 "date": res.created_at.strftime("%b %d, %Y"),
             })
 

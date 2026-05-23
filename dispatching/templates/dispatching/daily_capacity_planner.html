@@ -3055,6 +3055,9 @@
             if (slot.is_paid === false) {
                 html += '<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span> ';
             }
+            if (slot.store_stop) {
+                html += '<span class="badge" style="font-size:0.55rem;padding:0.1rem 0.3rem;background:#2e7d32;color:#fff;" title="Publix grocery stop"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span> ';
+            }
             html += label;
             if (slot.cleared_time) {
                 let durStr = '';

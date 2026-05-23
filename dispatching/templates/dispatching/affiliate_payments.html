@@ -1709,7 +1709,7 @@ function toggleExpand(headerEl) {
 function renderInlinePreview(type, data) {
   if (type === 'agent') {
     if (!data.reservations || data.reservations.length === 0) {
-      return '<p class="text-muted px-3 py-2">No unpaid completed reservations.</p>';
+      return '<p class="text-muted px-3 py-2">Nothing ready to pay right now.</p>';
     }
     let html = '<table class="table table-sm preview-table mb-0"><thead><tr class="table-light">';
     html += '<th>Res #</th><th>Customer</th><th>Route</th><th>Base Price</th><th>Commission</th><th>Date</th>';
@@ -1724,7 +1724,7 @@ function renderInlinePreview(type, data) {
   } else {
     // Agency
     if (!data.agents || data.agents.length === 0) {
-      return '<p class="text-muted px-3 py-2">No agents with unpaid completed reservations.</p>';
+      return '<p class="text-muted px-3 py-2">No agents with ready-to-pay commissions.</p>';
     }
     let html = '<table class="table table-sm preview-table mb-0"><thead><tr class="table-light">';
     html += '<th>Agent</th><th>Rate</th><th>Reservations</th><th>Subtotal</th>';

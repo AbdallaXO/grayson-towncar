@@ -370,6 +370,29 @@
       .frr-update-row .frr-delta.frr-delta-manual { background: #ede4ff; color: #4527a0; }
       .frr-update-row .frr-delta.frr-delta-danger { background: #ffe1e1; color: #842029; }
 
+      /* Comparison row reused inside the Flight Refresh Review modal so each
+         flagged leg shows current pickup → flight-based pickup with a delta
+         badge — same visual language as the Match All modal. */
+      .frr-row .frr-compare {
+          display: inline-flex; align-items: center; gap: 8px;
+          margin-top: 4px; padding: 4px 8px; font-size: 0.92rem;
+          font-variant-numeric: tabular-nums;
+          background: rgba(255,255,255,0.6);
+          border-radius: 6px;
+      }
+      .frr-row .frr-compare .frr-old { color: #6c757d; text-decoration: line-through; }
+      .frr-row .frr-compare .frr-arrow { color: #6c757d; }
+      .frr-row .frr-compare .frr-new { font-weight: 700; color: #1f1f1f; }
+      .frr-row .frr-compare .frr-delta {
+          font-size: 0.72rem; padding: 2px 7px; border-radius: 10px;
+          background: #fff3cd; color: #664d03; font-weight: 600;
+      }
+      .frr-row .frr-compare .frr-delta.frr-delta-manual { background: #ede4ff; color: #4527a0; }
+      .frr-row .frr-compare .frr-delta.frr-delta-danger { background: #ffe1e1; color: #842029; }
+      .frr-row .frr-compare .frr-delta.frr-delta-ok     { background: #d1e7dd; color: #0a3622; }
+      .frr-row .frr-compare.frr-compare-missing .frr-old { text-decoration: none; }
+      .frr-row .frr-compare.frr-compare-missing .frr-new { color: #6c757d; font-weight: 500; font-style: italic; }
+
   </style>
 {% endblock extra_css %}
 
@@ -1014,7 +1037,7 @@
                             </button>
                             <button class="btn btn-sm btn-outline-primary refresh-flight-btn"
                                     data-leg-id="{{ leg.id }}"
-                                    title="Refresh flight data from AeroAPI">
+                                    title="Refresh this flight">
                               <i class="bi bi-arrow-clockwise"></i>
                             </button>
                             {% if leg.get_trip_type == 'arrival' and leg.flight_information %}
@@ -2569,21 +2592,65 @@
               return '<span class="badge ' + classMap[sev] + '"><i class="bi ' + iconMap[sev] + ' me-1"></i>' + labelMap[sev] + '</span>';
           }
 
+          // Extract just the clock portion ("08:15 AM") from a "YYYY-MM-DD 08:15 AM"
+          // style string. Returns the original if it doesn't look like a datetime.
+          function frrTimePart(s) {
+              if (!s) return '';
+              var parts = String(s).split(' ');
+              return parts.length >= 2 ? parts.slice(-2).join(' ') : s;
+          }
+
           function frrRowHtml(row) {
               var resUrl = row.reservation_url || '#';
               var editUrl = row.edit_url || '#';
-              var mismatch = (row.mismatch_minutes != null)
-                  ? ' · <span class="text-muted">' + row.mismatch_minutes + ' min ' + (row.mismatch_direction || '') + '</span>'
-                  : '';
-              var times = '';
-              if (row.new_arrival_time || row.old_arrival_time) {
-                  times = 'Flight arr ' + frrEscape(row.new_arrival_time || '—');
-                  if (row.old_arrival_time && row.old_arrival_time !== row.new_arrival_time) {
-                      times += ' <span class="text-muted">(was ' + frrEscape(row.old_arrival_time) + ')</span>';
-                  }
-              }
               var driver = row.assigned_driver ? ' · Driver: ' + frrEscape(row.assigned_driver) : '';
               var canMatch = (row.status !== 'missing') && row.new_arrival_time;
+
+              // Comparison row: current pickup → flight-based pickup + delta badge.
+              // Mirrors the Match All Flight Times modal so dispatchers see one
+              // consistent visual language. Three shapes:
+              //   - mismatch: "9:00 AM → 8:15 AM  [45 min early]"
+              //   - matched:  "9:00 AM ✓ [matches flight]"
+              //   - missing:  "9:00 AM → Flight not found"
+              var compareHtml = '';
+              if (row.status === 'missing') {
+                  compareHtml = ''
+                      + '<div class="frr-compare frr-compare-missing">'
+                      +   '<span class="frr-old">' + frrEscape(row.pickup_time || '—') + '</span>'
+                      +   '<span class="frr-arrow"><i class="bi bi-arrow-right"></i></span>'
+                      +   '<span class="frr-new">Flight not found</span>'
+                      + '</div>';
+              } else if (row.new_arrival_time) {
+                  var newTime = frrTimePart(row.new_arrival_time);
+                  var hasMismatch = (row.mismatch_minutes != null && row.mismatch_minutes > 0);
+                  if (hasMismatch) {
+                      var deltaCls = (row.status === 'manual_action')
+                          ? 'frr-delta frr-delta-manual'
+                          : ((row.mismatch_minutes >= 120) ? 'frr-delta frr-delta-danger' : 'frr-delta');
+                      var deltaTxt = row.mismatch_minutes + ' min ' + (row.mismatch_direction || '');
+                      compareHtml = ''
+                          + '<div class="frr-compare">'
+                          +   '<span class="frr-old">' + frrEscape(row.pickup_time || '—') + '</span>'
+                          +   '<span class="frr-arrow"><i class="bi bi-arrow-right"></i></span>'
+                          +   '<span class="frr-new">' + frrEscape(newTime) + '</span>'
+                          +   '<span class="' + deltaCls + '">' + frrEscape(deltaTxt) + '</span>'
+                          + '</div>';
+                  } else {
+                      // Matched — keep the same shape (badge slot) but show OK styling.
+                      compareHtml = ''
+                          + '<div class="frr-compare">'
+                          +   '<span class="frr-new" style="text-decoration:none;">' + frrEscape(row.pickup_time || '—') + '</span>'
+                          +   '<span class="frr-delta frr-delta-ok"><i class="bi bi-check2"></i> matches flight</span>'
+                          + '</div>';
+                  }
+              } else if (row.pickup_time) {
+                  // No new_arrival_time but not missing — just show pickup.
+                  compareHtml = ''
+                      + '<div class="frr-compare">'
+                      +   '<span class="frr-new" style="text-decoration:none;">' + frrEscape(row.pickup_time) + '</span>'
+                      + '</div>';
+              }
+
               var matchBtn = canMatch
                   ? '<button class="btn btn-sm btn-outline-success frr-match-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-clock-history"></i> Match Pickup</button>'
                   : '';
@@ -2613,16 +2680,11 @@
                   +     '<strong>#' + frrEscape(row.reservation_id) + '</strong>'
                   +     '<span>' + frrEscape(row.guest_name) + '</span>'
                   +     '<span class="text-muted">' + frrEscape(frrFlightLabel(row)) + (row.airline ? ' · ' + frrEscape(row.airline) : '') + '</span>'
-                  +     mismatch
                   +   '</div>'
-                  +   '<div class="frr-meta">'
-                  +     'Pickup ' + frrEscape(row.pickup_time || '—') + ' · ' + times + driver
-                  +   '</div>'
+                  +   compareHtml
                   +   '<div class="frr-meta text-muted">'
-                  +     frrEscape(row.pickup_location || '') + ' → ' + frrEscape(row.dropoff_location || '')
+                  +     '<i class="bi bi-geo-alt me-1"></i>' + frrEscape(row.pickup_location || '') + ' → ' + frrEscape(row.dropoff_location || '') + driver
                   +   '</div>'
-                  +   (row.issue_label ? '<div class="frr-action"><i class="bi bi-info-circle me-1"></i>' + frrEscape(row.issue_label) + '</div>' : '')
-                  +   (row.recommended_action ? '<div class="frr-action text-primary">→ ' + frrEscape(row.recommended_action) + '</div>' : '')
                   +   '<div class="frr-actions">'
                   +     '<a class="btn btn-sm btn-outline-primary" href="' + frrEscape(resUrl) + '" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Open Reservation</a>'
                   +     '<a class="btn btn-sm btn-outline-secondary" href="' + frrEscape(editUrl) + '" target="_blank"><i class="bi bi-pencil"></i> Edit Flight</a>'
@@ -2898,8 +2960,9 @@
                   // Main callout — always shown
                   var calloutHtml = ''
                       + '<div class="frr-callout">'
-                      +   '<strong><i class="bi bi-telephone-fill me-1"></i>Before sending confirmations:</strong> '
-                      +   'call each guest to verify their flight info. Match-All will overwrite pickup times based on the latest AeroAPI data — wrong flight numbers or out-of-date entries will set the wrong pickup time.'
+                      +   '<strong><i class="bi bi-telephone-fill me-1"></i>Heads up:</strong> '
+                      +   'if a pickup time below looks way off from what the guest expected, give them a quick call before applying. '
+                      +   'For late-night or after-midnight flights especially, double-check with the guest which day they’re actually flying — it’s easy for those to land on the wrong date.'
                       + '</div>';
 
                   // Extra red callout when the refresh flagged risky rows
@@ -2913,7 +2976,7 @@
                       riskyHtml = ''
                           + '<div class="frr-callout frr-callout-danger">'
                           +   '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>' + risky.length + ' flight(s) need manual attention:</strong> '
-                          +   frrEscape(ids + more) + '. These pickup times will still be overwritten unless you cancel and resolve them first.'
+                          +   frrEscape(ids + more) + '. Match All will set the pickup time to the flight time for these too.'
                           + '</div>';
                   }
 

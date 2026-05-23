@@ -389,6 +389,22 @@ def flight_verification_check(request, token):
         )
 
     iata_code = normalize_airline(raw_airline)
+    # Guard: normalize_airline returns the bare input string when it can't
+    # match a known airline (typos like "Alliegant"). Real IATA codes are
+    # 2-3 alphanumeric chars; anything else means we'd send garbage to
+    # AeroAPI and get a 400. Surface a clear error to the user instead.
+    if not iata_code or len(iata_code) > 3 or not iata_code.isalnum():
+        return JsonResponse(
+            {
+                "success": False,
+                "error": (
+                    f"Airline \"{raw_airline}\" isn't recognized. "
+                    "Try the full name (e.g. \"Allegiant\", \"Delta\") "
+                    "or the IATA code (e.g. \"G4\", \"DL\")."
+                ),
+            },
+            status=400,
+        )
     airline_display = get_airline_display_name(iata_code) or iata_code or raw_airline
     fa_code = get_flightaware_code(iata_code) or iata_code
     flight_ident = f"{fa_code}{flight_digits}"

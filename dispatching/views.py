@@ -9049,7 +9049,12 @@ def smart_schedule_builder(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
     from datetime import datetime as dt
-    from dispatching.scheduler import build_driver_schedules, build_smart_schedule
+    from dispatching.scheduler import (
+        build_driver_schedules,
+        build_smart_schedule,
+        get_driver_vehicle_type,
+        get_compatible_vehicle_types,
+    )
     from drivers.models import Driver as DriverModel
 
     # Parse parameters
@@ -9159,9 +9164,11 @@ def smart_schedule_builder(request):
             slot_data['carseats'] = ", ".join(cs_parts)
             slot_data['is_paid'] = res.payment_status == 'paid'
             slot_data['reservation_uuid'] = str(res.uuid) if res.uuid else ''
+            slot_data['store_stop'] = bool(res.store_stop)
         else:
             slot_data['is_paid'] = True
             slot_data['reservation_uuid'] = ''
+            slot_data['store_stop'] = False
         # Add timing details for new slots
         if slot.leg_id in timing_details:
             td = timing_details[slot.leg_id]
@@ -9178,11 +9185,24 @@ def smart_schedule_builder(request):
             }
         schedule_data.append(slot_data)
 
-    # Build alternatives: unassigned legs NOT in the built schedule
+    # Build alternatives: unassigned legs NOT in the built schedule.
+    # Filter by vehicle compatibility so an SUV-only driver doesn't see Van
+    # legs in the swap panel. When the driver has no resolved vehicle type
+    # for the day (affiliate / unscheduled), skip filtering so the panel
+    # stays permissive.
+    driver_vtype = get_driver_vehicle_type(driver.id, target_date)
+    compatible_vtypes = (
+        set(get_compatible_vehicle_types(driver_vtype)) if driver_vtype else None
+    )
     alternatives = []
     for leg_alt in available_legs:
         if leg_alt.id in scheduled_leg_ids or leg_alt.id in excluded_leg_ids:
             continue
+        # Hide vehicle-incompatible legs (same rule as build_smart_schedule)
+        if compatible_vtypes is not None:
+            alt_vtype = leg_alt.effective_vehicle_type
+            if alt_vtype and alt_vtype not in compatible_vtypes:
+                continue
         res = leg_alt.reservation
         veh = res.vehicle if res else None
         alt_cs = []
@@ -11959,48 +11979,63 @@ def affiliate_payments(request):
     )
 
     # ---------- AGENTS: per-agent Subqueries (avoid JOIN explosion + huge GROUP BY) ----------
-    # Previously these were JOIN-aggregates (Sum/Min/Count over reservations) which forced a
-    # GROUP BY across every TravelAgent+User+Agency column. With many reservations that produced
-    # a huge intermediate row set per page render. Correlated subqueries keep the outer SELECT
-    # flat and let the DB use the reservations indexes per agent.
+    # SQL-level approximation of the Ready bucket from users.eligibility. We pick
+    # a SUPERSET of Ready so no eligible agent is hidden -- the per-page Python
+    # recalculation (_agent_live_unpaid) then provides the exact displayed amount.
+    # Rules baked in here (matching get_commission_eligibility):
+    #   commission_paid=False  -> not yet paid
+    #   total_refunded=0       -> no refund (partial would go to Review)
+    #   status != cancelled    -> not a hard-excluded reservation
+    #   AND (status=completed  OR any non-cancelled leg is older than the grace window)
+    # The leg-date OR fixes the original "stuck pending forever" bug where a dispatcher
+    # forgot to click one leg completed; once a non-cancelled leg's pickup_date is at
+    # least 1 day in the past, the reservation surfaces here.
+    # NOTE: we intentionally do NOT require is_paid=True. The is_paid flag is set
+    # only by Stripe payment signals; travel-agent bookings are typically settled
+    # off-platform (invoiced/cash), so requiring it would silently empty the queue.
+    leg_cutoff_date = (today_local - timedelta(hours=24)).date()
+    res_eligible_q = (
+        Q(commission_paid=False)
+        & Q(total_refunded=0)
+        & ~Q(status="cancelled")
+    )
+    # An old non-cancelled leg exists -- EXISTS subquery on Leg so we don't JOIN.
+    old_leg_exists = Exists(
+        Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
+        .exclude(status="cancelled")
+    )
+    status_or_old_leg_q = Q(status="completed")  # the OR-with-old-leg branch is added via annotation below
+
+    agent_unpaid_base = Reservation.objects.filter(
+        travel_agent=OuterRef("pk")
+    ).filter(res_eligible_q).annotate(_old_leg=old_leg_exists).filter(
+        Q(status="completed") | Q(_old_leg=True)
+    )
+
     agent_unpaid_subquery = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent=OuterRef("pk"),
-        )
+        agent_unpaid_base
         .annotate(calc=res_commission_expr)
         .values("travel_agent")
         .annotate(total=Sum("calc"))
         .values("total")
     )
     agent_oldest_subquery = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent=OuterRef("pk"),
-        )
+        agent_unpaid_base
         .values("travel_agent")
         .annotate(o=Min("created_at"))
         .values("o")
     )
     agent_res_count_subquery = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent=OuterRef("pk"),
-        )
+        agent_unpaid_base
         .values("travel_agent")
         .annotate(c=Count("id"))
         .values("c")
     )
 
     # has_unpaid: cheap EXISTS used to short-circuit the WHERE for "show owing" filters.
-    # Without this, Postgres has to compute the full SUM subquery for every agent just to
-    # check if it's > 0. EXISTS hits the partial unpaid-completed index and returns at the
-    # first matching reservation, so per-agent filter cost is O(1) index probe.
-    agent_has_unpaid_subquery = Reservation.objects.filter(
-        travel_agent=OuterRef("pk"),
-        commission_paid=False,
-        status="completed",
-    )
+    # Uses the same Ready-candidate filter so stuck-pending reservations DO mark an
+    # agent as owing (the bug fix).
+    agent_has_unpaid_subquery = agent_unpaid_base
 
     agents_qs_base = (
         TravelAgent.objects.filter(is_active=True)
@@ -12029,13 +12064,22 @@ def affiliate_payments(request):
         agency__isnull=False, agency_handles_payment=True
     )
 
-    # ---------- AGENCIES: subqueries scoped to agency_handles_payment=True children ----------
+    # ---------- AGENCIES: same Ready-candidate filter, scoped through agency_handles_payment ----------
+    # Agency-level EXISTS subquery for legs. We re-declare against the outer Reservation
+    # row (not the agency PK) so the subquery joins correctly when scoped via agents.
+    old_leg_exists_for_agency = Exists(
+        Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
+        .exclude(status="cancelled")
+    )
+    agency_unpaid_base = Reservation.objects.filter(
+        travel_agent__agency=OuterRef("pk"),
+        travel_agent__agency_handles_payment=True,
+    ).filter(res_eligible_q).annotate(_old_leg=old_leg_exists_for_agency).filter(
+        Q(status="completed") | Q(_old_leg=True)
+    )
+
     agency_unpaid_subquery = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent__agency=OuterRef("pk"),
-            travel_agent__agency_handles_payment=True,
-        )
+        agency_unpaid_base
         .annotate(
             calc_commission=ExpressionWrapper(
                 F("base_price") * F("travel_agent__commission_rate") / Value(Decimal("100.00")),
@@ -12047,35 +12091,36 @@ def affiliate_payments(request):
         .values("total")
     )
     agency_oldest_subquery = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent__agency=OuterRef("pk"),
-            travel_agent__agency_handles_payment=True,
-        )
+        agency_unpaid_base
         .values("travel_agent__agency")
         .annotate(o=Min("created_at"))
         .values("o")
     )
     agency_res_count_subquery = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent__agency=OuterRef("pk"),
-            travel_agent__agency_handles_payment=True,
-        )
+        agency_unpaid_base
         .values("travel_agent__agency")
         .annotate(c=Count("id"))
         .values("c")
     )
 
-    # Count of agents within the agency who currently have any unpaid completed reservation.
-    # Implemented as a Subquery (instead of Count("agents", filter=...) which forces a
-    # JOIN across agencies × agents × reservations and blows up the GROUP BY).
+    # Count of agents within the agency with any Ready-candidate reservation.
+    # Uses the new eligibility filter so stuck-pending reservations correctly
+    # count their agent as "owing".
     agency_owing_agent_count_subquery = (
         TravelAgent.objects.filter(
             agency=OuterRef("pk"),
             agency_handles_payment=True,
-            reservations__commission_paid=False,
-            reservations__status="completed",
+        )
+        .filter(
+            Exists(
+                Reservation.objects.filter(travel_agent=OuterRef("pk"))
+                .filter(res_eligible_q)
+                .annotate(_old_leg=Exists(
+                    Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
+                    .exclude(status="cancelled")
+                ))
+                .filter(Q(status="completed") | Q(_old_leg=True))
+            )
         )
         .values("agency")
         .annotate(c=Count("id", distinct=True))
@@ -12089,12 +12134,7 @@ def affiliate_payments(request):
     )
 
     # Cheap EXISTS used to filter agencies before the expensive SUM/COUNT subqueries run.
-    agency_has_unpaid_subquery = Reservation.objects.filter(
-        commission_paid=False,
-        status="completed",
-        travel_agent__agency=OuterRef("pk"),
-        travel_agent__agency_handles_payment=True,
-    )
+    agency_has_unpaid_subquery = agency_unpaid_base
 
     agencies_qs_base = (
         Agency.objects.filter(is_active=True)
@@ -12117,22 +12157,29 @@ def affiliate_payments(request):
 
     # ---------- Global KPIs (aggregate directly from Reservation to avoid
     #               summing an already-aggregated annotation) ----------
+    # Use the same Ready-candidate filter so KPIs match the per-agent display.
+    _kpi_old_leg = Exists(
+        Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
+        .exclude(status="cancelled")
+    )
     direct_res_qs = (
-        Reservation.objects.filter(
-            commission_paid=False, status="completed",
-            travel_agent__is_active=True,
-        )
+        Reservation.objects.filter(travel_agent__is_active=True)
+        .filter(res_eligible_q)
+        .annotate(_old_leg=_kpi_old_leg)
+        .filter(Q(status="completed") | Q(_old_leg=True))
         .filter(Q(travel_agent__agency__isnull=True) | Q(travel_agent__agency_handles_payment=False))
         .annotate(calc=res_commission_expr)
     )
     agency_res_qs = (
         Reservation.objects.filter(
-            commission_paid=False, status="completed",
             travel_agent__is_active=True,
             travel_agent__agency__isnull=False,
             travel_agent__agency_handles_payment=True,
             travel_agent__agency__is_active=True,
         )
+        .filter(res_eligible_q)
+        .annotate(_old_leg=_kpi_old_leg)
+        .filter(Q(status="completed") | Q(_old_leg=True))
         .annotate(calc=res_commission_expr)
     )
 
@@ -12333,8 +12380,21 @@ def affiliate_payments(request):
 
     # ---------- Per-row enrichment (status flags, paid_today, overdue days) ----------
     def _enrich_payee(payee, amount_field):
-        amount = getattr(payee, amount_field, None) or Decimal("0")
-        payee.display_amount = amount.quantize(Decimal("0.01"))
+        # The SQL annotation (live_unpaid / unpaid_total) is a SUPERSET of the
+        # Ready bucket -- it includes some pending reservations whose service
+        # date is close to the grace boundary. Recompute the exact Ready total
+        # in Python so the operator sees the same amount that "Pay Now" will
+        # actually transfer.
+        if isinstance(payee, TravelAgent):
+            display = _agent_live_unpaid(payee)
+        else:
+            # Agency: sum each child agent's Ready amount.
+            display = sum(
+                (_agent_live_unpaid(a) for a in payee.agents.filter(agency_handles_payment=True)),
+                Decimal("0"),
+            ).quantize(Decimal("0.01"))
+        payee.display_amount = display
+        amount = display
         # Overdue
         oldest = getattr(payee, "oldest_unpaid", None)
         if oldest:
@@ -13287,16 +13347,47 @@ def quote_calculator_api(request):
 
 
 def _agent_live_unpaid(agent):
-    """Calculate unpaid commission for an agent in pure Python (decimal-safe)."""
-    from reservations.models import Reservation as _R
-    rate = (agent.commission_rate or Decimal("0")) / Decimal("100")
-    qs = _R.objects.filter(
-        travel_agent=agent, commission_paid=False, status="completed"
-    ).only("base_price")
-    return sum(
-        ((r.base_price or Decimal("0")) * rate for r in qs),
-        Decimal("0"),
-    ).quantize(Decimal("0.01"))
+    """Live unpaid commission (Ready bucket only) for one agent.
+
+    Delegates to users.eligibility.sum_ready so the displayed amount agrees
+    with what process_commission_payment would actually pay. Catches the
+    "stuck pending" case (leg never marked completed but service date is
+    safely in the past) that the old SQL filter missed.
+    """
+    from users.eligibility import sum_ready
+    return sum_ready(agent)
+
+
+def _agent_bucket_summary(agent):
+    """Per-bucket totals/counts for the agent detail page.
+
+    Returns a dict with keys ready, review, pending, excluded -- each value is
+    a dict {amount, count, items} where items is a short list of preview rows
+    so the template can render the reason line per reservation without re-running
+    the eligibility check.
+    """
+    from users.eligibility import bucket_agent_reservations, STATUS_READY, STATUS_REVIEW, STATUS_PENDING, STATUS_EXCLUDED
+
+    buckets = bucket_agent_reservations(agent)
+    summary = {}
+    for key in (STATUS_READY, STATUS_REVIEW, STATUS_PENDING, STATUS_EXCLUDED):
+        items = buckets.get(key, [])
+        amount = sum((r.commission for _, r in items), Decimal("0")).quantize(Decimal("0.01"))
+        summary[key] = {
+            "amount": amount,
+            "count": len(items),
+            "items": [
+                {
+                    "reservation": res,
+                    "reason": result.reason,
+                    "reason_code": result.reason_code,
+                    "commission": result.commission,
+                    "last_leg_at": result.last_leg_at,
+                }
+                for res, result in items
+            ],
+        }
+    return summary
 
 
 def _agent_lifetime_stats(agent):
@@ -13566,6 +13657,12 @@ def admin_travel_agent_detail(request, pk):
     # Pending payment breakdown (reuses the same service the AJAX preview uses)
     pending_preview = svc_preview_agent_payout(agent)
 
+    # Per-bucket summary so the detail page can show Ready / Needs Review /
+    # Pending / Excluded counts with the per-reservation reason from the
+    # centralized eligibility helper. This is what makes "why is this stuck?"
+    # answerable without digging through DB rows.
+    bucket_summary = _agent_bucket_summary(agent)
+
     # Paginated commission payouts
     payouts_qs = (
         CommissionPayout.objects.filter(agent=agent)
@@ -13597,6 +13694,7 @@ def admin_travel_agent_detail(request, pk):
         "all_agencies": all_agencies,
         "pending_preview": pending_preview,
         "can_pay_directly": can_pay_directly,
+        "bucket_summary": bucket_summary,
     }
     return render(request, "dispatching/travel_agent_detail.html", context)
 

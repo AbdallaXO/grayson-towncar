@@ -380,13 +380,21 @@ def normalize_airline(airline_input):
     # First, try exact match
     if airline in airline_mapping:
         return airline_mapping[airline]
-    
+
+    # Allegiant fuzzy match — any input containing "ALLEGI" is Allegiant.
+    # Catches "Allegi", "Allegiant", "Allegiant Air", "Allegiant Airlines",
+    # "Allegiant Travel", etc. Misspellings that drop the "ALLEGI" prefix
+    # (e.g. "Alliegant") fall through to the get_flight_ident() IATA guard
+    # so they don't reach AeroAPI as garbage idents.
+    if 'ALLEGI' in airline:
+        return 'G4'
+
     # Check if input contains a known IATA code (2 characters)
     # This handles cases like "jet blue b6" or "southwest wn"
     # Look for 2-letter codes at the end or standalone
     code_pattern = r'\b([A-Z]{2})\b'
     codes_found = re.findall(code_pattern, airline)
-    
+
     for code in codes_found:
         if code in airline_mapping.values():
             return code

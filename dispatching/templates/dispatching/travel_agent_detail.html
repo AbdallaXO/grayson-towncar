@@ -37,6 +37,37 @@
   }
   .pay-via-agency-notice a { color: #8a6d10; font-weight: 700; text-decoration: underline; }
 
+  /* Bucket summary — shows where each unpaid reservation sits in the queue */
+  .bucket-panel { border: 1px solid var(--gt-border); border-radius: var(--gt-radius); background: #fff; margin-bottom: 18px; }
+  .bucket-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--gt-border); border-radius: var(--gt-radius); overflow: hidden; }
+  .bucket-card { background: #fff; padding: 14px 16px; }
+  .bucket-card .bc-label { font-size: .68rem; text-transform: uppercase; letter-spacing: 1.1px; color: var(--gt-muted); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .bucket-card .bc-amount { font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 500; margin-top: 4px; }
+  .bucket-card .bc-count { font-size: .8rem; color: var(--gt-muted); margin-top: 2px; }
+  .bucket-card.ready    .bc-label { color: #1f7a3a; }
+  .bucket-card.ready    .bc-amount { color: #1f7a3a; }
+  .bucket-card.review   .bc-label { color: #b58000; }
+  .bucket-card.review   .bc-amount { color: #b58000; }
+  .bucket-card.pending  .bc-label { color: #4a5b73; }
+  .bucket-card.pending  .bc-amount { color: #4a5b73; }
+  .bucket-card.excluded .bc-label { color: var(--gt-muted); }
+  .bucket-card.excluded .bc-amount { color: var(--gt-muted); }
+  .bucket-card.ready    { border-top: 3px solid #1f7a3a; }
+  .bucket-card.review   { border-top: 3px solid #e3a51a; }
+  .bucket-card.pending  { border-top: 3px solid #6c83a3; }
+  .bucket-card.excluded { border-top: 3px solid #c5c5c5; }
+  .bucket-details { padding: 12px 18px 18px; border-top: 1px solid var(--gt-border); }
+  .bucket-details details + details { margin-top: 8px; }
+  .bucket-details summary { cursor: pointer; font-size: .82rem; font-weight: 600; color: var(--gt-text); padding: 6px 0; user-select: none; }
+  .bucket-details summary:hover { color: var(--gt-gold); }
+  .bucket-row { display: grid; grid-template-columns: 70px 1fr 1fr auto; gap: 12px; align-items: center; padding: 6px 12px; font-size: .82rem; border-bottom: 1px dashed var(--gt-border); }
+  .bucket-row:last-child { border-bottom: 0; }
+  .bucket-row .br-reason { font-size: .78rem; color: var(--gt-muted); }
+  .bucket-row .br-amount { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+  @media (max-width: 720px) {
+    .bucket-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
   /* Payment hero card */
   .pay-hero {
     background: #fff; border: 1px solid var(--gt-border);
@@ -275,14 +306,85 @@
         </div>
       </div>
 
+      <!-- Commission queue buckets -->
+      {% if bucket_summary %}
+      <div class="bucket-panel">
+        <div class="bucket-grid">
+          <div class="bucket-card ready">
+            <div class="bc-label"><i class="bi bi-check2-circle"></i> Ready to Pay</div>
+            <div class="bc-amount">${{ bucket_summary.ready.amount|floatformat:2|intcomma }}</div>
+            <div class="bc-count">{{ bucket_summary.ready.count }} reservation{{ bucket_summary.ready.count|pluralize }}</div>
+          </div>
+          <div class="bucket-card review">
+            <div class="bc-label"><i class="bi bi-exclamation-triangle"></i> Needs Review</div>
+            <div class="bc-amount">${{ bucket_summary.review.amount|floatformat:2|intcomma }}</div>
+            <div class="bc-count">{{ bucket_summary.review.count }} reservation{{ bucket_summary.review.count|pluralize }}</div>
+          </div>
+          <div class="bucket-card pending">
+            <div class="bc-label"><i class="bi bi-hourglass-split"></i> Pending</div>
+            <div class="bc-amount">${{ bucket_summary.pending.amount|floatformat:2|intcomma }}</div>
+            <div class="bc-count">{{ bucket_summary.pending.count }} future / in grace</div>
+          </div>
+          <div class="bucket-card excluded">
+            <div class="bc-label"><i class="bi bi-x-circle"></i> Excluded</div>
+            <div class="bc-amount">${{ bucket_summary.excluded.amount|floatformat:2|intcomma }}</div>
+            <div class="bc-count">{{ bucket_summary.excluded.count }} not payable</div>
+          </div>
+        </div>
+        {% if bucket_summary.review.count or bucket_summary.pending.count or bucket_summary.excluded.count %}
+        <div class="bucket-details">
+          {% if bucket_summary.review.count %}
+          <details>
+            <summary>Needs Review ({{ bucket_summary.review.count }}) &mdash; click to expand</summary>
+            {% for item in bucket_summary.review.items %}
+            <div class="bucket-row">
+              <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
+              <span>{{ item.reservation.customer }}</span>
+              <span class="br-reason">{{ item.reason }}</span>
+              <span class="br-amount">${{ item.commission|floatformat:2 }}</span>
+            </div>
+            {% endfor %}
+          </details>
+          {% endif %}
+          {% if bucket_summary.pending.count %}
+          <details>
+            <summary>Pending ({{ bucket_summary.pending.count }}) &mdash; click to expand</summary>
+            {% for item in bucket_summary.pending.items %}
+            <div class="bucket-row">
+              <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
+              <span>{{ item.reservation.customer }}</span>
+              <span class="br-reason">{{ item.reason }}{% if item.last_leg_at %} &middot; final leg {{ item.last_leg_at|date:"M j, g:i A" }}{% endif %}</span>
+              <span class="br-amount">${{ item.commission|floatformat:2 }}</span>
+            </div>
+            {% endfor %}
+          </details>
+          {% endif %}
+          {% if bucket_summary.excluded.count %}
+          <details>
+            <summary>Excluded ({{ bucket_summary.excluded.count }}) &mdash; click to expand</summary>
+            {% for item in bucket_summary.excluded.items %}
+            <div class="bucket-row">
+              <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
+              <span>{{ item.reservation.customer }}</span>
+              <span class="br-reason">{{ item.reason }}</span>
+              <span class="br-amount">&mdash;</span>
+            </div>
+            {% endfor %}
+          </details>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <!-- Pending Payment -->
       <div class="tap-panel pending-pay-panel">
         <div class="pending-pay-head">
           <div>
-            <div class="label">Pending Payment</div>
+            <div class="label">Ready to Pay</div>
             <div class="amount">${{ live_unpaid|floatformat:2|intcomma }}</div>
             {% if pending_preview.count %}
-              <div class="tap-sub">{{ pending_preview.count }} unpaid completed reservation{{ pending_preview.count|pluralize }} &middot; period {{ pending_preview.period_start }} → {{ pending_preview.period_end }}</div>
+              <div class="tap-sub">{{ pending_preview.count }} ready-to-pay reservation{{ pending_preview.count|pluralize }} &middot; period {{ pending_preview.period_start }} → {{ pending_preview.period_end }}</div>
             {% endif %}
           </div>
           <div>
@@ -328,7 +430,7 @@
         {% else %}
           <div class="pending-pay-empty">
             <i class="bi bi-check-circle-fill"></i>
-            All caught up &mdash; no unpaid completed reservations.
+            All caught up &mdash; nothing ready to pay right now.
           </div>
         {% endif %}
       </div>

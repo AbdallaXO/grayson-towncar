@@ -2038,6 +2038,12 @@ class Flight(models.Model):
             from .utils import normalize_airline, get_flightaware_code
             # Normalize airline to IATA code (already normalized in save, but double-check)
             iata_code = normalize_airline(self.airline)
+            # Guard: if normalize_airline didn't recognize the input, it returns the
+            # bare uppercased string. Sending that to AeroAPI produces malformed idents
+            # like "ALLIEGANT2942" → 400 Bad Request. Real IATA codes are 2-3
+            # alphanumeric chars; anything else means we don't know the airline.
+            if not iata_code or len(iata_code) > 3 or not iata_code.isalnum():
+                return self.flight_iata or None
             # Convert IATA code to FlightAware code for API calls
             flightaware_code = get_flightaware_code(iata_code)
             # Remove non-alphanumeric from flight number
