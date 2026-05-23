@@ -463,6 +463,70 @@ class IdempotencyAndDryRunTests(_ReminderFixtureMixin, TestCase):
         mock_send.assert_called_once()
         self.assertEqual(mock_send.call_args.kwargs["stage"], STAGE_FINAL)
 
+    def test_adjacent_stages_throttled_within_min_gap(self):
+        """
+        Regression: a reservation that crosses 24h-to-pickup between two
+        scheduler cycles must not receive both the three-day and final
+        reminders back-to-back. The min-gap guard skips the second send.
+        """
+        now = _aware(datetime(2026, 6, 1, 12, 0))
+        booking = now - timedelta(days=10)
+        # 23h to pickup → STAGE_FINAL window
+        pickup = now + timedelta(hours=23)
+        res = self._reservation(created_at=booking, pickup_dt=pickup)
+        # Three-day reminder was sent 30 min ago (previous scheduler cycle,
+        # when ttp was ~23h30m + 30m = 24h ish — i.e. crossed the boundary).
+        Reservation.objects.filter(pk=res.pk).update(
+            unpaid_three_day_warning_sent_at=now - timedelta(minutes=30),
+        )
+        res.refresh_from_db()
+
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res)
+
+        self.assertEqual(action, "skipped:recent_auto_reminder")
+        mock_send.assert_not_called()
+        res.refresh_from_db()
+        self.assertIsNone(res.unpaid_final_warning_sent_at)
+
+    def test_final_fires_after_min_gap_elapses(self):
+        """After the min-gap, the final reminder fires normally."""
+        now = _aware(datetime(2026, 6, 1, 12, 0))
+        booking = now - timedelta(days=10)
+        pickup = now + timedelta(hours=18)
+        res = self._reservation(created_at=booking, pickup_dt=pickup)
+        # Three-day reminder was sent 7h ago — past the 6h gap.
+        Reservation.objects.filter(pk=res.pk).update(
+            unpaid_three_day_warning_sent_at=now - timedelta(hours=7),
+        )
+        res.refresh_from_db()
+
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res)
+
+        self.assertEqual(action, f"sent:{STAGE_FINAL}")
+        mock_send.assert_called_once()
+
+    def test_auto_cancel_flag_not_blocked_by_min_gap(self):
+        """T-2h escalation flags a task — no email — so the gap shouldn't apply."""
+        now = _aware(datetime(2026, 6, 1, 12, 0))
+        booking = now - timedelta(days=10)
+        pickup = now + timedelta(minutes=90)
+        res = self._reservation(created_at=booking, pickup_dt=pickup)
+        # Final reminder sent 10 min ago — well inside the gap.
+        Reservation.objects.filter(pk=res.pk).update(
+            unpaid_final_warning_sent_at=now - timedelta(minutes=10),
+        )
+        res.refresh_from_db()
+
+        with patch(SEND_PATH) as mock_send:
+            action = UnpaidReminderEngine(now=now).process_one(res)
+
+        self.assertEqual(action, "flagged")
+        mock_send.assert_not_called()
+        res.refresh_from_db()
+        self.assertIsNotNone(res.unpaid_auto_cancel_eligible_at)
+
     def test_dry_run_no_email_no_writes(self):
         now = _aware(datetime(2026, 6, 1, 12, 0))
         booking = now - timedelta(hours=3)

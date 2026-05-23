@@ -16,6 +16,12 @@ Idempotency: every stage has a dedicated ``unpaid_*_sent_at`` timestamp on
 Reservation. The queryset filters those for IS NULL and the timestamp is set
 only after a successful synchronous send, so retries cannot double-send.
 
+Adjacency throttle: the three-day and final stage windows are adjacent at
+ttp=24h. Without a guard, a reservation crossing 24h-to-pickup between two
+scheduler cycles would receive both reminders ~30 min apart. The engine
+enforces ``MIN_GAP_BETWEEN_AUTO_REMINDERS_HOURS`` between consecutive email
+stages on the same reservation; the auto-cancel flag (no email) is exempt.
+
 Toggles:
 - EXCLUDE_TRAVEL_AGENT: flip to False to start sending reminders to
   travel-agent bookings as well. Lives at module top so the change is a
@@ -49,6 +55,12 @@ logger = logging.getLogger(__name__)
 
 EXCLUDE_TRAVEL_AGENT = True
 RECENT_STAFF_CONTACT_HOURS = 6
+
+# Minimum hours between two automated reminder emails to the same reservation.
+# The three-day and final-24h stage windows are adjacent at ttp=24h, so without
+# this guard a reservation crossing 24h-to-pickup between two scheduler cycles
+# would get both emails ~30 min apart (spammy).
+MIN_GAP_BETWEEN_AUTO_REMINDERS_HOURS = 6
 
 
 # ── Stage definitions ───────────────────────────────────────────────────────
@@ -257,9 +269,29 @@ class UnpaidReminderEngine:
             self._flag_for_auto_cancel(reservation)
             return "flagged"
 
-        # Email stage
+        # Email stage — but throttle adjacent-window stages (e.g. three_day →
+        # final) so a reservation crossing 24h-to-pickup between two cycles
+        # doesn't get two reminders 30 minutes apart.
+        last_auto = self._last_auto_reminder_at(reservation)
+        if last_auto is not None and (
+            self.now - last_auto
+            < timedelta(hours=MIN_GAP_BETWEEN_AUTO_REMINDERS_HOURS)
+        ):
+            return self._skip(reservation, "recent_auto_reminder")
+
         self._send_stage_email(reservation, stage)
         return f"sent:{stage}"
+
+    def _last_auto_reminder_at(self, reservation: Reservation):
+        """Most recent ``unpaid_*_sent_at`` across all stages, or None."""
+        timestamps = [
+            reservation.unpaid_first_reminder_sent_at,
+            reservation.unpaid_second_reminder_sent_at,
+            reservation.unpaid_three_day_warning_sent_at,
+            reservation.unpaid_final_warning_sent_at,
+        ]
+        sent = [t for t in timestamps if t is not None]
+        return max(sent) if sent else None
 
     def _pick_stage(self, reservation: Reservation, pickup_dt) -> str | None:
         """
