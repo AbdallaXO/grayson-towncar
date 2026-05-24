@@ -143,6 +143,7 @@
           <th class="tap-col-agency">Agency</th>
           <th class="tap-col-pays" title="If checked, the agency receives the commission instead of the agent">Agency pays</th>
           <th class="tap-col-pmethod">Payment</th>
+          <th class="tap-col-agency-name">Agency name</th>
           <th class="tap-col-rate text-end">Rate</th>
           <th class="text-end">Reservations</th>
           <th class="text-end">Unpaid Comm.</th>
@@ -199,6 +200,13 @@
               <span class="tap-pill tap-pill-muted"><i class="bi bi-exclamation-circle"></i> Not set</span>
             {% endif %}
           </td>
+          <td class="tap-col-agency-name">
+            {% if row.agent.agency %}
+              <span class="tap-agency-tag" title="{{ row.agent.agency.name }}"><i class="bi bi-building"></i> {{ row.agent.agency.name }}</span>
+            {% else %}
+              <span class="tap-pill tap-pill-muted">Independent</span>
+            {% endif %}
+          </td>
           <td class="tap-col-rate text-end">
             <input type="number"
                    class="tap-inline-rate"
@@ -232,7 +240,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="10">
+          <td colspan="11">
             <div class="tap-empty">
               <i class="bi bi-person-badge"></i>
               No agents match your filters.

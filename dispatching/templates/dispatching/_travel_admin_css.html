@@ -116,6 +116,33 @@ Visual language matches affiliate_payments.html.
 .tap-pill-info     { background: rgba(52,152,219,.12); color: var(--gt-blue); }
 .tap-pill-muted    { background: var(--gt-surface);    color: var(--gt-muted); }
 
+.tap-agency-tag {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .8rem; color: var(--gt-dark);
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tap-agency-tag i { color: var(--gt-muted); font-size: .85em; }
+
+.tap-head-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: .55rem;
+}
+.tap-head-item {
+  padding: .55rem 0;
+  border-bottom: 1px dashed var(--gt-border);
+  min-width: 0;  /* allow children to shrink/ellipsis inside flex/grid parents */
+}
+.tap-head-item:last-child { border-bottom: none; padding-bottom: 0; }
+.tap-head-item:first-child { padding-top: 0; }
+.tap-head-name {
+  font-size: .85rem; font-weight: 600; color: var(--gt-dark);
+  overflow-wrap: anywhere; word-break: break-word;
+}
+.tap-head-email {
+  font-size: .75rem; color: var(--gt-muted); margin-top: .15rem;
+  overflow-wrap: anywhere; word-break: break-word;
+}
+
 .tap-money {
   font-family: 'JetBrains Mono', monospace; font-weight: 500; font-size: .9rem;
 }

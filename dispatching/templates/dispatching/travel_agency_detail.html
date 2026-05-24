@@ -438,12 +438,20 @@
           <h6>Agency Heads</h6>
         </div>
         <div class="tap-panel-body">
-          {% for head in agency.heads.all %}
-          <div class="tap-detail-row">
-            <div class="tap-detail-label">{{ head.get_full_name|default:head.username }}</div>
-            <div class="tap-detail-value tap-sub">{{ head.email }}</div>
-          </div>
-          {% endfor %}
+          <ul class="tap-head-list">
+            {% for head in agency.heads.all %}
+            <li class="tap-head-item">
+              {% with full_name=head.get_full_name %}
+                {% if full_name and full_name != head.email %}
+                  <div class="tap-head-name">{{ full_name }}</div>
+                  {% if head.email %}<div class="tap-head-email">{{ head.email }}</div>{% endif %}
+                {% else %}
+                  <div class="tap-head-name">{{ head.email|default:head.username }}</div>
+                {% endif %}
+              {% endwith %}
+            </li>
+            {% endfor %}
+          </ul>
         </div>
       </div>
       {% endif %}
