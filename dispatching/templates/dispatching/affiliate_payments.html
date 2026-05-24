@@ -1248,8 +1248,6 @@
               {% endif %}
             </div>
             {% if agent.agency_name and not agent.agency %}
-              {# Free-text agency typed at signup. Surfaces so operators can
-                 spot independents who should be linked to an Agency record. #}
               <div class="am-entity-typed-agency" title="Agency name typed by the agent at signup (not linked to an Agency record)">
                 <i class="bi bi-building"></i>{{ agent.agency_name }}
               </div>
