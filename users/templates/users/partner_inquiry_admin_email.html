@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>New Partner Inquiry</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.55;
+            color: #1f2937;
+            max-width: 620px;
+            margin: 0 auto;
+            padding: 24px;
+            background: #f7f7f9;
+        }
+        .header {
+            background: linear-gradient(135deg, #091428, #122548);
+            color: #fff;
+            padding: 22px 26px;
+            border-radius: 10px 10px 0 0;
+        }
+        .header .eyebrow {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #F09711;
+            font-weight: 700;
+        }
+        .header h1 {
+            margin: 6px 0 0;
+            font-size: 22px;
+            font-weight: 600;
+        }
+        .content {
+            background: #fff;
+            padding: 22px 26px;
+            border: 1px solid #e5e7eb;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+        }
+        .row {
+            display: flex;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f1f3;
+            font-size: 14px;
+        }
+        .row:last-of-type { border-bottom: none; }
+        .row .label {
+            width: 170px;
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            flex-shrink: 0;
+        }
+        .row .value { color: #111827; word-break: break-word; }
+        .row .value a { color: #1d4ed8; text-decoration: none; }
+        .pill {
+            display: inline-block;
+            padding: 2px 10px;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .notes-block {
+            margin-top: 14px;
+            padding: 14px 16px;
+            background: #f9fafb;
+            border-left: 3px solid #F09711;
+            border-radius: 4px;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .actions {
+            margin-top: 22px;
+            text-align: center;
+        }
+        .btn {
+            display: inline-block;
+            padding: 11px 22px;
+            background: #091428;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .footer {
+            margin-top: 18px;
+            font-size: 12px;
+            color: #9ca3af;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="eyebrow">Partner Program</div>
+        <h1>New partner inquiry <span class="pill" style="background:#fff;color:#091428;margin-left:6px;">#{{ inquiry.id }}</span></h1>
+    </div>
+    <div class="content">
+        <div class="row">
+            <div class="label">Name</div>
+            <div class="value">{{ inquiry.name }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Email</div>
+            <div class="value"><a href="mailto:{{ inquiry.email }}">{{ inquiry.email }}</a></div>
+        </div>
+        <div class="row">
+            <div class="label">Phone</div>
+            <div class="value"><a href="tel:{{ inquiry.phone_number }}">{{ inquiry.phone_number }}</a></div>
+        </div>
+        <div class="row">
+            <div class="label">Preferred contact</div>
+            <div class="value">{{ inquiry.get_preferred_contact_display }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Agency</div>
+            <div class="value">{{ inquiry.agency_name }}</div>
+        </div>
+        {% if inquiry.agency_website %}
+        <div class="row">
+            <div class="label">Agency website</div>
+            <div class="value"><a href="{{ inquiry.agency_website }}" target="_blank" rel="noopener">{{ inquiry.agency_website }}</a></div>
+        </div>
+        {% endif %}
+        <div class="row">
+            <div class="label">Heard about us via</div>
+            <div class="value">{{ inquiry.get_referral_source_display }}</div>
+        </div>
+        <div class="row">
+            <div class="label">Submitted</div>
+            <div class="value">{{ inquiry.created_at|date:"M j, Y g:i A" }}</div>
+        </div>
+
+        {% if inquiry.additional_info %}
+        <div class="notes-block">{{ inquiry.additional_info }}</div>
+        {% endif %}
+
+        <div class="actions">
+            <a href="{{ admin_url }}" class="btn">Open in admin</a>
+        </div>
+    </div>
+    <div class="footer">
+        You&rsquo;re getting this because a new partner inquiry was submitted at graysontowncar.com/partner. Status is <strong>Pending</strong>; mark it Contacted in the admin to track follow-up.
+    </div>
+</body>
+</html>

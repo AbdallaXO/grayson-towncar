@@ -14,7 +14,12 @@ from .models import (
     Agency,
     AgencyCommissionPayout,  # Added Agency and AgencyCommissionPayout
 )
-from .emails import thankyou_email, agent_register_email
+from .emails import (
+    thankyou_email,
+    agent_register_email,
+    partner_inquiry_thankyou_email,
+    partner_inquiry_admin_notification,
+)
 # HubSpot integration removed - no longer using create_or_find_travel_agent
 # from reservations.models import Reservation # Import if other signals need it
 
@@ -47,16 +52,58 @@ def set_contacted_timestamp(sender, instance, **kwargs):
         pass
 
 
-@receiver(post_save, sender=PartnerForm)
+@receiver(pre_save, sender=PartnerForm)
+def set_partner_contacted_timestamp(sender, instance, **kwargs):
+    """Stamp contacted_at the first time a partner inquiry flips to 'contacted'.
+
+    Mirrors the ContactUsForm pattern: timestamp only set on the transition
+    pending -> contacted so subsequent edits don't overwrite the original
+    follow-up time. Status flips away from contacted are not cleared (kept
+    for historical reference).
+    """
+    if instance.status != "contacted":
+        return
+    if instance.pk:
+        try:
+            old = PartnerForm.objects.get(pk=instance.pk)
+            if old.status != "contacted" and not instance.contacted_at:
+                instance.contacted_at = timezone.now()
+        except PartnerForm.DoesNotExist:
+            instance.contacted_at = instance.contacted_at or timezone.now()
+    else:
+        instance.contacted_at = instance.contacted_at or timezone.now()
+
+
 @receiver(post_save, sender=ContactUsForm)
-def handle_form_submission(sender, instance, created, **kwargs):
-    """Send email confirmation when a form is submitted"""
+def handle_contact_form_submission(sender, instance, created, **kwargs):
+    """Thank-you email for the customer who submitted the contact form."""
     if created:
         try:
-            logger.info(f"Sending email to {instance} from {sender.__name__}")
+            logger.info(f"Sending contact thank-you to {instance.email}")
             thankyou_email(instance)
         except Exception as e:
-            logger.error(f"Error sending email for {sender.__name__}: {e}")
+            logger.error(f"Error sending contact thank-you: {e}")
+
+
+@receiver(post_save, sender=PartnerForm)
+def handle_partner_form_submission(sender, instance, created, **kwargs):
+    """On new partner inquiry: thank-you to the submitter + admin notification.
+
+    Previously this routed through the generic thankyou_email() which renders
+    users/thankyou_email.html — a template that doesn't exist, so nothing
+    was ever sent. Replaced with two dedicated handlers so partner inquiries
+    actually surface to staff instead of sitting silently in the DB.
+    """
+    if not created:
+        return
+    try:
+        partner_inquiry_thankyou_email(instance)
+    except Exception as e:
+        logger.error(f"Error sending partner inquiry thank-you: {e}")
+    try:
+        partner_inquiry_admin_notification(instance)
+    except Exception as e:
+        logger.error(f"Error sending partner inquiry admin notification: {e}")
 
 
 # HubSpot integration removed - no longer creating HubSpot contacts for travel agents

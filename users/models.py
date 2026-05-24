@@ -36,6 +36,12 @@ class PartnerForm(models.Model):
         ("conference", "Industry Conference"),
         ("other", "Other"),
     ]
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("contacted", "Contacted"),
+        ("converted", "Converted"),
+        ("closed", "Closed"),
+    ]
     name = models.CharField(max_length=100)
     email = models.EmailField()
     phone_number = models.CharField(max_length=15)
@@ -48,7 +54,21 @@ class PartnerForm(models.Model):
         max_length=60, choices=REFERRAL_SOURCES, default="other"
     )
     additional_info = models.TextField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True,
+    )
+    contacted_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Timestamp when this inquiry was marked as contacted.",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Internal notes from staff about this partner inquiry.",
+    )
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"{self.name} - {self.agency_name}"

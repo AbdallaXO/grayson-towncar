@@ -35,7 +35,94 @@ logger = logging.getLogger(__name__)
 # SIMPLE MODEL REGISTRATIONS
 # =============================================
 
-admin.site.register([UserProfile, PartnerForm, NewsLetter])
+admin.site.register([UserProfile, NewsLetter])
+
+
+@admin.register(PartnerForm)
+class PartnerFormAdmin(admin.ModelAdmin):
+    """Triage UI for partner inquiries: same shape as ContactUsFormAdmin."""
+
+    list_display = [
+        "id",
+        "name",
+        "agency_name",
+        "email",
+        "phone_number",
+        "preferred_contact",
+        "referral_source",
+        "status",
+        "status_display",
+        "contacted_at",
+        "created_at",
+    ]
+    list_filter = ["status", "referral_source", "preferred_contact", "created_at", "contacted_at"]
+    search_fields = ["name", "email", "phone_number", "agency_name", "agency_website", "additional_info", "notes"]
+    list_editable = ["status"]
+    list_per_page = 50
+    readonly_fields = ["created_at", "contacted_at"]
+    date_hierarchy = "created_at"
+
+    fieldsets = (
+        ("Contact Information", {
+            "fields": ("name", "email", "phone_number", "preferred_contact"),
+        }),
+        ("Agency", {
+            "fields": ("agency_name", "agency_website", "referral_source"),
+        }),
+        ("Message", {
+            "fields": ("additional_info",),
+        }),
+        ("Triage", {
+            "fields": ("status", "contacted_at", "notes"),
+        }),
+        ("System Information", {
+            "fields": ("created_at",),
+            "classes": ("collapse",),
+        }),
+    )
+
+    def status_display(self, obj):
+        colors = {
+            "pending": "#b45309",   # amber
+            "contacted": "#1d4ed8", # blue
+            "converted": "#047857", # green
+            "closed": "#6b7280",    # gray
+        }
+        color = colors.get(obj.status, "#6b7280")
+        return format_html(
+            '<span style="color: {}; font-weight: 600;">{}</span>',
+            color, obj.get_status_display(),
+        )
+    status_display.short_description = "Status"
+
+    actions = ["mark_as_contacted", "mark_as_converted", "mark_as_closed", "mark_as_pending"]
+
+    def mark_as_contacted(self, request, queryset):
+        now = timezone.now()
+        updated = 0
+        for form in queryset:
+            form.status = "contacted"
+            if not form.contacted_at:
+                form.contacted_at = now
+            form.save()
+            updated += 1
+        self.message_user(request, f"Marked {updated} inquiry(ies) as contacted.", messages.SUCCESS)
+    mark_as_contacted.short_description = "Mark selected as contacted"
+
+    def mark_as_converted(self, request, queryset):
+        updated = queryset.update(status="converted")
+        self.message_user(request, f"Marked {updated} inquiry(ies) as converted.", messages.SUCCESS)
+    mark_as_converted.short_description = "Mark selected as converted"
+
+    def mark_as_closed(self, request, queryset):
+        updated = queryset.update(status="closed")
+        self.message_user(request, f"Marked {updated} inquiry(ies) as closed.", messages.SUCCESS)
+    mark_as_closed.short_description = "Mark selected as closed"
+
+    def mark_as_pending(self, request, queryset):
+        updated = queryset.update(status="pending")
+        self.message_user(request, f"Marked {updated} inquiry(ies) as pending.", messages.SUCCESS)
+    mark_as_pending.short_description = "Mark selected as pending"
 
 
 # =============================================

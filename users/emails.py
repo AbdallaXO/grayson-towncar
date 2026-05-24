@@ -565,11 +565,20 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email, sent_b
 
 def thankyou_email(instance):
     """
-    Sends a thank you email to the customer after they submit a contact form.
-    Uses background thread to avoid blocking the request.
+    Branded thank-you email for ContactUsForm submitters.
+
+    ContactUsForm uses first_name/last_name (no .name); we fall back via
+    getattr so a future model with a single name field still works.
     """
     try:
-        context = {"name": instance.name, "email": instance.email}
+        display_name = (
+            getattr(instance, "name", None)
+            or " ".join(p for p in [
+                getattr(instance, "first_name", "") or "",
+                getattr(instance, "last_name", "") or "",
+            ] if p).strip()
+        )
+        context = {"name": display_name, "email": instance.email}
         subject = "Thank you for contacting Grayson Towncar!"
         from_email = "reservations@graysontowncar.com"
         to = [instance.email]
@@ -585,6 +594,64 @@ def thankyou_email(instance):
 
     except Exception as e:
         logger.error(f"Error sending thank you email: {e}")
+
+
+def partner_inquiry_thankyou_email(instance):
+    """
+    Sends a branded "we received your partner inquiry" email to the submitter.
+    Uses the existing partner_contact_email.html template (Tabular-built).
+    """
+    try:
+        context = {
+            "name": instance.name,
+            "email": instance.email,
+            "agency_name": instance.agency_name,
+        }
+        subject = "We received your partner inquiry — Grayson Towncar"
+        from_email = "reservations@graysontowncar.com"
+        to = [instance.email]
+        html_content = render_to_string("users/partner_contact_email.html", context)
+
+        def _send_email():
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            logger.info(f"Partner inquiry thank-you sent to {instance.email}")
+
+        _send_email_with_retry(_send_email, max_retries=3)
+
+    except Exception as e:
+        logger.error(f"Error sending partner inquiry thank-you email: {e}")
+
+
+def partner_inquiry_admin_notification(instance):
+    """
+    Notify staff that a new partner inquiry was submitted, so it doesn't sit
+    silently in the DB. Sent to admin@graysontowncar.com (same inbox used by
+    refund-request notifications).
+    """
+    try:
+        context = {
+            "inquiry": instance,
+            # Best-effort deep link into the Django admin change page so a
+            # staff member can open it from the email with one click.
+            "admin_url": f"https://www.graysontowncar.com/admin/users/partnerform/{instance.pk}/change/",
+        }
+        subject = f"New partner inquiry: {instance.name} ({instance.agency_name})"
+        from_email = "reservations@graysontowncar.com"
+        to = ["admin@graysontowncar.com"]
+        html_content = render_to_string("users/partner_inquiry_admin_email.html", context)
+
+        def _send_email():
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            logger.info(f"Partner inquiry admin notification sent for #{instance.pk}")
+
+        _send_email_with_retry(_send_email, max_retries=3)
+
+    except Exception as e:
+        logger.error(f"Error sending partner inquiry admin notification: {e}")
 
 
 def send_agent_commission_statement(agent, payout, recipient_email, sent_by=None):
