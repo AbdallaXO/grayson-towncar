@@ -46,6 +46,7 @@ class PartnerFormAdmin(admin.ModelAdmin):
         "id",
         "name",
         "agency_name",
+        "agency_size",
         "email",
         "phone_number",
         "preferred_contact",
@@ -55,7 +56,7 @@ class PartnerFormAdmin(admin.ModelAdmin):
         "contacted_at",
         "created_at",
     ]
-    list_filter = ["status", "referral_source", "preferred_contact", "created_at", "contacted_at"]
+    list_filter = ["status", "agency_size", "referral_source", "preferred_contact", "created_at", "contacted_at"]
     search_fields = ["name", "email", "phone_number", "agency_name", "agency_website", "additional_info", "notes"]
     list_editable = ["status"]
     list_per_page = 50
@@ -67,7 +68,7 @@ class PartnerFormAdmin(admin.ModelAdmin):
             "fields": ("name", "email", "phone_number", "preferred_contact"),
         }),
         ("Agency", {
-            "fields": ("agency_name", "agency_website", "referral_source"),
+            "fields": ("agency_name", "agency_website", "agency_size", "referral_source"),
         }),
         ("Message", {
             "fields": ("additional_info",),

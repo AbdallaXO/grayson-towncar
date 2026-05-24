@@ -130,6 +130,12 @@
             <div class="value"><a href="{{ inquiry.agency_website }}" target="_blank" rel="noopener">{{ inquiry.agency_website }}</a></div>
         </div>
         {% endif %}
+        {% if inquiry.agency_size %}
+        <div class="row">
+            <div class="label">Agency size</div>
+            <div class="value">{{ inquiry.get_agency_size_display }}</div>
+        </div>
+        {% endif %}
         <div class="row">
             <div class="label">Heard about us via</div>
             <div class="value">{{ inquiry.get_referral_source_display }}</div>

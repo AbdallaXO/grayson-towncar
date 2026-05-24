@@ -42,6 +42,13 @@ class PartnerForm(models.Model):
         ("converted", "Converted"),
         ("closed", "Closed"),
     ]
+    AGENCY_SIZE_CHOICES = [
+        ("solo", "Just me (solo agent)"),
+        ("2-5", "2–5 agents"),
+        ("6-20", "6–20 agents"),
+        ("21-50", "21–50 agents"),
+        ("50+", "50+ agents"),
+    ]
     name = models.CharField(max_length=100)
     email = models.EmailField()
     phone_number = models.CharField(max_length=15)
@@ -50,6 +57,10 @@ class PartnerForm(models.Model):
     )
     agency_name = models.CharField(max_length=200)
     agency_website = models.CharField(max_length=200, blank=True, null=True)
+    agency_size = models.CharField(
+        max_length=10, choices=AGENCY_SIZE_CHOICES, blank=True,
+        help_text="Roughly how many travel agents work at this agency.",
+    )
     referral_source = models.CharField(
         max_length=60, choices=REFERRAL_SOURCES, default="other"
     )

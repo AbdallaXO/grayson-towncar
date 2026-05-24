@@ -54,6 +54,7 @@ class PartnerFormSubmission(forms.ModelForm):
             "preferred_contact",
             "agency_name",
             "agency_website",
+            "agency_size",
             "referral_source",
             "additional_info",
         ]
@@ -98,6 +99,12 @@ class PartnerFormSubmission(forms.ModelForm):
                     "placeholder": "Agency Website",
                 }
             ),
+            "agency_size": forms.Select(
+                attrs={
+                    "class": "form-select",
+                    "id": "agency-size",
+                }
+            ),
             "referral_source": forms.RadioSelect(
                 attrs={
                     "class": "form-check-input",
@@ -119,6 +126,7 @@ class PartnerFormSubmission(forms.ModelForm):
             "preferred_contact": "Preferred Contact Method",
             "agency_name": "Agency Name",
             "agency_website": "Agency Website",
+            "agency_size": "How Many Agents in Your Agency?",
             "referral_source": "How Did You Hear About Us?",
             "additional_info": "Additional Information",
         }
