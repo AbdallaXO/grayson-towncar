@@ -274,6 +274,13 @@
     font-size: .78rem; color: var(--gt-muted); align-items: center;
   }
   .am-entity-meta .dot { width: 3px; height: 3px; background: var(--gt-border); border-radius: 50%; }
+  .am-entity-typed-agency {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: .78rem; color: var(--gt-dark);
+    margin: 2px 0 4px;
+    font-style: italic;
+  }
+  .am-entity-typed-agency i { color: var(--gt-muted); font-size: .85em; font-style: normal; }
   .am-chip {
     display: inline-flex; align-items: center; gap: 4px;
     background: var(--gt-surface); border: 1px solid var(--gt-border-soft);
@@ -1240,6 +1247,13 @@
                 <span class="am-chip never"><i class="bi bi-exclamation-circle"></i>Never paid</span>
               {% endif %}
             </div>
+            {% if agent.agency_name and not agent.agency %}
+              {# Free-text agency typed at signup. Surfaces so operators can
+                 spot independents who should be linked to an Agency record. #}
+              <div class="am-entity-typed-agency" title="Agency name typed by the agent at signup (not linked to an Agency record)">
+                <i class="bi bi-building"></i>{{ agent.agency_name }}
+              </div>
+            {% endif %}
             <div class="am-entity-meta">
               <span>
                 {% if agent.agency %}<i class="bi bi-building me-1"></i>{{ agent.agency.name }}{% else %}<i class="bi bi-person-walking me-1"></i>Independent{% endif %}
