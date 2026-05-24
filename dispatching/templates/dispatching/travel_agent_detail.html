@@ -366,7 +366,16 @@
             <div class="bucket-row">
               <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
               <span>{{ item.reservation.customer }}</span>
-              <span class="br-reason">{{ item.reason }}</span>
+              <span class="br-reason">
+                {{ item.reason }}
+                {% if item.reason_code == "manually_excluded" %}
+                  <button type="button" class="btn btn-link btn-sm p-0 ms-2 commission-restore-btn"
+                          data-res-id="{{ item.reservation.id }}"
+                          title="Restore this reservation to the commission queue">
+                    Restore
+                  </button>
+                {% endif %}
+              </span>
               <span class="br-amount">&mdash;</span>
             </div>
             {% endfor %}

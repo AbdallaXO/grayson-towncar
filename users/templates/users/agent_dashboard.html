@@ -270,16 +270,39 @@
                           <td>
                             <div class="cell-commission">
                               <span class="commission-amount">${{ reservation.commission_amount|floatformat:2 }}</span>
-                              <span class="commission-status {% if reservation.commission_paid %}paid{% elif reservation.status == 'completed' %}awaiting{% elif reservation.status == 'confirmed' %}pending{% else %}na{% endif %}">
+                              <span class="commission-status {% if reservation.commission_paid %}paid{% elif reservation.commission_excluded %}excluded{% elif reservation.status == 'completed' %}awaiting{% elif reservation.status == 'confirmed' %}pending{% else %}na{% endif %}">
                                 {% if reservation.commission_paid %}Paid
+                                {% elif reservation.commission_excluded %}Personal trip
                                 {% elif reservation.status == 'completed' %}Awaiting
                                 {% elif reservation.status == 'confirmed' %}Pending
                                 {% else %}—{% endif %}
                               </span>
+                              {% if reservation.commission_excluded and reservation.commission_exclusion_reason %}
+                                <small class="commission-exclusion-reason text-muted d-block">{{ reservation.commission_exclusion_reason }}</small>
+                              {% endif %}
                             </div>
                           </td>
                           <td>
-                            <a href="{% url 'agent_reservation_detail' reservation.uuid %}" class="btn-view">View</a>
+                            <div class="row-actions">
+                              <a href="{% url 'agent_reservation_detail' reservation.uuid %}" class="btn-view">View</a>
+                              {% if not reservation.commission_paid %}
+                                {% if reservation.commission_excluded %}
+                                  <button type="button" class="btn-row-action btn-row-restore"
+                                          data-action-url="{% url 'agent_mark_personal_trip' reservation.uuid %}"
+                                          data-mode="restore"
+                                          title="Restore this reservation to your commission queue">
+                                    <i class="fas fa-undo"></i> Restore
+                                  </button>
+                                {% else %}
+                                  <button type="button" class="btn-row-action btn-row-exclude"
+                                          data-action-url="{% url 'agent_mark_personal_trip' reservation.uuid %}"
+                                          data-mode="exclude"
+                                          title="Only use for personal trips where you received a discount — full-price personal trips still earn commission">
+                                    <i class="fas fa-user-slash"></i> Personal
+                                  </button>
+                                {% endif %}
+                              {% endif %}
+                            </div>
                           </td>
                         </tr>
                       {% endfor %}
@@ -1022,6 +1045,39 @@
     .commission-status.paid { color: var(--color-success); }
     .commission-status.awaiting { color: var(--color-warning); }
     .commission-status.pending { color: var(--color-info); }
+    .commission-status.excluded { color: #6b7280; font-style: italic; }
+    .commission-exclusion-reason {
+      font-size: 0.7rem;
+      margin-top: 2px;
+      line-height: 1.2;
+    }
+
+    .row-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: stretch;
+    }
+    .btn-row-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      border-radius: 4px;
+      border: 1px solid var(--color-border);
+      background: var(--color-white);
+      color: var(--color-text-muted, #6b7280);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .15s;
+    }
+    .btn-row-action:hover { background: #f9fafb; color: var(--color-text); }
+    .btn-row-action[disabled] { opacity: .6; cursor: not-allowed; }
+    .btn-row-exclude:hover { color: #b45309; border-color: #fcd34d; }
+    .btn-row-restore:hover { color: #047857; border-color: #6ee7b7; }
 
     .btn-view {
       display: inline-block;
@@ -1456,6 +1512,56 @@
         return new bootstrap.Tooltip(el)
       })
     })
+
+    // Per-row "Personal trip" / "Restore" buttons.
+    // exclude mode: confirms first, since this removes a commission the agent
+    // would otherwise earn. The confirm message explicitly calls out the
+    // "only if you got a discount" rule the operator asked for.
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.btn-row-action');
+      if (!btn) return;
+      e.preventDefault();
+      const mode = btn.dataset.mode;
+      const url = btn.dataset.actionUrl;
+      if (!url) return;
+
+      let reason = '';
+      if (mode === 'exclude') {
+        const confirmed = window.confirm(
+          'Mark this reservation as a personal trip?\n\n' +
+          'Only do this if you received a discount on this trip. ' +
+          'Full-price personal trips still earn commission.\n\n' +
+          'This will remove it from your commission queue.'
+        );
+        if (!confirmed) return;
+        reason = window.prompt('Optional note (shown to staff):', 'Personal trip — discounted') || '';
+      } else if (mode === 'restore') {
+        if (!window.confirm('Restore this reservation to your commission queue?')) return;
+      }
+
+      btn.disabled = true;
+      const fd = new FormData();
+      fd.append('action', mode);
+      if (reason) fd.append('reason', reason);
+      fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+      fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(data => {
+          if (!data.success) {
+            alert(data.error || 'Failed to update reservation.');
+            btn.disabled = false;
+            return;
+          }
+          // Simple reload — the row's commission cell, totals, and metric cards
+          // all need to re-render, and the server already has the truth.
+          window.location.reload();
+        })
+        .catch(() => {
+          alert('Network error.');
+          btn.disabled = false;
+        });
+    });
   </script>
 {% endblock %}
 

@@ -6,6 +6,7 @@ and agency operations including commission tracking and payouts.
 """
 
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -21,6 +22,7 @@ from django.utils import timezone
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
 from django.http import Http404, HttpResponse, JsonResponse
+import json
 import logging
 
 from reservations.models import Reservation, Leg
@@ -575,6 +577,85 @@ def agent_reservation_detail(request, uuid):
     except TravelAgent.DoesNotExist:
         messages.error(request, "You are not registered as a travel agent.")
         return redirect("register_agent")
+
+
+@agent_required
+def agent_mark_personal_trip(request, uuid):
+    """Agent self-serve: flag own reservation as a personal/non-commissionable trip.
+
+    POST only. Body (form-encoded or JSON):
+      action = "exclude" | "restore"
+      reason = optional free-text label (shown verbatim in the Excluded bucket)
+
+    Guardrails:
+      - Reservation must belong to the requesting agent.
+      - Refuses if commission has already been paid (must restore via staff).
+    """
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required."}, status=405)
+
+    try:
+        travel_agent = TravelAgent.objects.get(user=request.user)
+    except TravelAgent.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Not registered as a travel agent."}, status=403)
+
+    reservation = get_object_or_404(
+        Reservation, uuid=uuid, travel_agent=travel_agent,
+    )
+
+    if reservation.commission_paid:
+        return JsonResponse({
+            "success": False,
+            "error": "Commission already paid on this reservation — contact support to reverse.",
+        }, status=400)
+
+    # Accept both JSON and form-encoded so the template can use either.
+    if request.content_type == "application/json":
+        try:
+            data = json.loads(request.body or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON."}, status=400)
+    else:
+        data = request.POST
+
+    action = (data.get("action") or "exclude").strip().lower()
+    reason = (data.get("reason") or "").strip()[:255]
+
+    if action == "restore":
+        reservation.commission_excluded = False
+        reservation.commission_exclusion_reason = ""
+        reservation.commission_excluded_at = None
+        reservation.commission_excluded_by = None
+        # Recompute from base_price * agent rate so the stored amount matches
+        # what the eligibility engine would calculate.
+        if reservation.base_price is not None and travel_agent.commission_rate:
+            rate = travel_agent.commission_rate / Decimal("100")
+            reservation.commission_amount = (reservation.base_price * rate).quantize(Decimal("0.01"))
+        else:
+            reservation.commission_amount = Decimal("0")
+    else:
+        reservation.commission_excluded = True
+        # Default label makes the agent intent explicit in the Excluded bucket.
+        reservation.commission_exclusion_reason = reason or "Personal trip — agent-flagged"
+        reservation.commission_excluded_at = timezone.now()
+        reservation.commission_excluded_by = request.user
+        # Zero the stored commission so the agent dashboard, lifetime stats,
+        # and any other consumer reading commission_amount directly see $0.
+        reservation.commission_amount = Decimal("0")
+
+    reservation.save(update_fields=[
+        "commission_excluded",
+        "commission_exclusion_reason",
+        "commission_excluded_at",
+        "commission_excluded_by",
+        "commission_amount",
+    ])
+    return JsonResponse({
+        "success": True,
+        "reservation_id": reservation.id,
+        "excluded": reservation.commission_excluded,
+        "reason": reservation.commission_exclusion_reason,
+    })
 
 
 @agent_required

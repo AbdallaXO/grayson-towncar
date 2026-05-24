@@ -224,8 +224,12 @@
   /* === Entity row (cleaner, single-row layout) === */
   /* overflow: visible so the per-row "More actions" dropdown can extend past
      the entity card without being clipped. border-radius: inherit on the
-     head element keeps the hover background clipped to the rounded corners. */
+     head element keeps the hover background clipped to the rounded corners.
+     position: relative is required for the z-index bump below to take effect
+     when the dropdown is open — without it the next card paints over the
+     dropdown's lower items. */
   .am-entity {
+    position: relative;
     background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
     margin-bottom: 8px; transition: border-color .15s ease, box-shadow .15s ease;
     overflow: visible;
@@ -355,11 +359,15 @@
   }
   .am-actions .dropdown-menu {
     border: 1px solid var(--gt-border); box-shadow: var(--gt-shadow-md);
-    border-radius: var(--gt-radius-sm); padding: 4px; z-index: 1050;
+    border-radius: var(--gt-radius-sm); padding: 4px;
+    /* Sit above sibling .am-entity cards (which can each be a stacking
+       context due to the fadeUp transform) when the menu drops below the
+       card boundary into the next card's area. */
+    z-index: 1055;
   }
-  /* .am-entity's fadeUp animation leaves a lingering transform, which creates
-     a stacking context. Without raising z-index when the dropdown is open, the
-     next row paints over the menu and clips items below the first. */
+  /* Raise the *containing* card too, so its descendants (including the
+     dropdown) draw above any sibling card. Requires .am-entity to be
+     position: relative — see the rule above. */
   .am-entity:has(.dropdown-menu.show) { z-index: 100; }
   .am-actions .dropdown-item {
     border-radius: var(--gt-radius-sm); font-size: .85rem; padding: .5rem .8rem;
@@ -1682,6 +1690,7 @@ const URLS = {
   // Template URL for jumping to a reservation from the expanded preview;
   // the `0` placeholder is swapped for the real id at click time.
   reservationDetail: '{% url "reservation_details" 0 %}',
+  excludeReservation: '{% url "toggle_reservation_commission_exclusion" %}',
 };
 
 // Track pending payment for confirm modal
@@ -1770,19 +1779,22 @@ function renderInlinePreview(type, data) {
       return '<p class="text-muted px-3 py-2">Nothing ready to pay right now.</p>';
     }
     let html = '<table class="table table-sm preview-table mb-0"><thead><tr class="table-light">';
-    html += '<th>Res #</th><th>Customer</th><th>Route</th><th>Base Price</th><th>Commission</th><th>Date</th>';
+    html += '<th>Res #</th><th>Customer</th><th>Route</th><th>Base Price</th><th>Commission</th><th>Date</th><th></th>';
     html += '</tr></thead><tbody>';
     data.reservations.forEach(r => {
       // reservation_details looks up by UUID, not by integer pk, so the URL must
       // use r.uuid even though we still display the shorter numeric id as link text.
       const lookup = r.uuid || r.id;
       const resUrl = URLS.reservationDetail.replace('/0/', `/${lookup}/`);
-      html += `<tr><td><a href="${resUrl}" target="_blank" rel="noopener" class="res-link">#${r.id}</a></td>`;
+      html += `<tr data-res-id="${r.id}"><td><a href="${resUrl}" target="_blank" rel="noopener" class="res-link">#${r.id}</a></td>`;
       html += `<td>${r.customer}</td><td>${r.route}</td>`;
-      html += `<td>$${r.base_price}</td><td class="text-success fw-bold">$${r.commission}</td><td>${r.date}</td></tr>`;
+      html += `<td>$${r.base_price}</td><td class="text-success fw-bold">$${r.commission}</td><td>${r.date}</td>`;
+      html += `<td class="text-end"><button type="button" class="btn btn-link btn-sm p-0 text-muted preview-row-exclude" `;
+      html += `title="Exclude from commission (e.g. personal trip)" onclick="excludeReservationFromCommission(${r.id}, this)">`;
+      html += `<i class="bi bi-slash-circle"></i></button></td></tr>`;
     });
     html += `</tbody><tfoot><tr class="table-light"><td colspan="4" class="text-end fw-bold">Total:</td>`;
-    html += `<td class="text-success fw-bold">$${data.total}</td><td></td></tr></tfoot></table>`;
+    html += `<td class="text-success fw-bold">$${data.total}</td><td colspan="2"></td></tr></tfoot></table>`;
     return html;
   } else {
     // Agency
@@ -1801,6 +1813,53 @@ function renderInlinePreview(type, data) {
     html += `<td class="text-success fw-bold">$${data.total}</td></tr></tfoot></table>`;
     return html;
   }
+}
+
+function excludeReservationFromCommission(resId, btnEl) {
+  // Used by the per-row "exclude" icon in the agent preview table. Asks for a
+  // reason (defaulting to "Personal trip — non-commissionable"), POSTs to the
+  // toggle endpoint, and on success removes the row from view so the operator
+  // sees the queue update immediately. The full payout total isn't recomputed
+  // client-side — the next page refresh shows the corrected amount, which is
+  // accurate enough for an operator action that's already explicit.
+  const defaultReason = 'Personal trip — non-commissionable';
+  const reason = window.prompt(
+    'Exclude this reservation from commission?\n\nReason (shown to the agent in their Excluded bucket):',
+    defaultReason,
+  );
+  if (reason === null) return;  // cancelled
+
+  btnEl.disabled = true;
+  fetch(URLS.excludeReservation, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': CSRF_TOKEN,
+    },
+    body: JSON.stringify({
+      reservation_id: resId,
+      exclude: true,
+      reason: (reason || '').trim() || defaultReason,
+    }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) {
+        alert(data.error || 'Failed to exclude reservation.');
+        btnEl.disabled = false;
+        return;
+      }
+      const row = btnEl.closest('tr');
+      if (row) {
+        row.style.transition = 'opacity .2s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 200);
+      }
+    })
+    .catch(() => {
+      alert('Network error while excluding reservation.');
+      btnEl.disabled = false;
+    });
 }
 
 function showPreview(type, id, name) {

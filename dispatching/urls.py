@@ -324,6 +324,11 @@ urlpatterns = [
         views.process_bulk_payout_view,
         name="process_bulk_payout",
     ),
+    path(
+        "affiliate-payments/exclude-reservation/",
+        views.toggle_reservation_commission_exclusion,
+        name="toggle_reservation_commission_exclusion",
+    ),
     # Travel Agent / Agency management (admin)
     path(
         "travel-agents/",

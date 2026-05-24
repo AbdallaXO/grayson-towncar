@@ -58,6 +58,7 @@ REASON_FUTURE_TRIP = "future_trip"
 REASON_WITHIN_GRACE = "within_grace"
 REASON_AUTO_READY_STALE = "auto_ready_stale_completion"
 REASON_NO_LEG_DATE = "no_leg_date"
+REASON_MANUALLY_EXCLUDED = "manually_excluded"
 
 # Default grace period: 24h after the final non-cancelled leg's pickup datetime.
 DEFAULT_GRACE_HOURS = 24
@@ -139,13 +140,14 @@ def get_commission_eligibility(reservation, *, now=None, grace_hours=DEFAULT_GRA
 
       1. No travel agent / no commissionable amount  -> Excluded
       2. Commission already paid                     -> Paid
-      3. Reservation cancelled                       -> Excluded
-      4. Fully refunded                              -> Excluded
-      5. Partial refund                              -> Needs Review
-      6. status == "completed" (fast path)           -> Ready
-      7. No usable leg date                          -> Needs Review
-      8. Last leg date + grace still in the future   -> Pending
-      9. Past the grace window                       -> Ready (auto, fixes the
+      3. Manually excluded (personal trip etc.)      -> Excluded
+      4. Reservation cancelled                       -> Excluded
+      5. Fully refunded                              -> Excluded
+      6. Partial refund                              -> Needs Review
+      7. status == "completed" (fast path)           -> Ready
+      8. No usable leg date                          -> Needs Review
+      9. Last leg date + grace still in the future   -> Pending
+     10. Past the grace window                       -> Ready (auto, fixes the
                                                         "forgot to click completed" bug)
     """
     now = now or timezone.now()
@@ -166,6 +168,17 @@ def get_commission_eligibility(reservation, *, now=None, grace_hours=DEFAULT_GRA
             STATUS_PAID, REASON_ALREADY_PAID,
             "Commission already paid",
             commission=Decimal("0"),  # already counted in total_paid_commission, not owed
+        )
+
+    if getattr(reservation, "commission_excluded", False):
+        # Manual flag set by staff or the agent (e.g. personal/discounted trip).
+        # Surface the operator-supplied reason verbatim so the Excluded bucket
+        # tells the agent exactly why their commission disappeared.
+        reason_text = (reservation.commission_exclusion_reason or "").strip()
+        label = reason_text or "Marked non-commissionable (personal trip)"
+        return EligibilityResult(
+            STATUS_EXCLUDED, REASON_MANUALLY_EXCLUDED, label,
+            commission=Decimal("0"),
         )
 
     if reservation.status == "cancelled":

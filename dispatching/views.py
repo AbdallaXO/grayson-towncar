@@ -12006,6 +12006,16 @@ def affiliate_payments(request, section_lock=None):
         Q(commission_paid=False)
         & Q(total_refunded=0)
         & ~Q(status="cancelled")
+        # Manually excluded (personal trips etc.) — mirrors the Python
+        # eligibility engine so SQL-driven "has_unpaid" and the displayed
+        # ready total agree. Without this, an agent whose only open
+        # reservation has been excluded still shows under "Owing only"
+        # with $0.00, because SQL counts the row but Python returns $0.
+        & Q(commission_excluded=False)
+        # No commissionable base price — mirrors get_commission_eligibility's
+        # REASON_NO_COMMISSIONABLE_AMOUNT exclusion. Catches comped/freebie
+        # reservations that would otherwise mark an agent as owing $0.
+        & Q(base_price__gt=0)
     )
     # An old non-cancelled leg exists -- EXISTS subquery on Leg so we don't JOIN.
     old_leg_exists = Exists(
@@ -12506,6 +12516,50 @@ def affiliate_payments(request, section_lock=None):
     for agency in visible_agencies:
         _enrich_payee(agency, "unpaid_total")
         agency.child_agents = children_by_agency.get(agency.id, [])
+
+    # ---------- Re-sort visible page by the *displayed* amount ----------
+    # SQL sorts by live_unpaid (a SUPERSET of Ready), but we render the
+    # Python-recomputed display_amount. When those diverge (e.g. a reservation
+    # in the 24h grace window inflates live_unpaid but is excluded from Ready),
+    # the on-screen order looks wrong. Re-sort the visible page here so the
+    # rendered amounts are monotonic per the operator's chosen direction.
+    # We only re-sort when amount is in the sort chain — other keys (name,
+    # date, overdue, reservations) come straight from SQL columns that always
+    # match what's rendered, so they don't need this correction.
+    amount_pair = next(((k, d) for k, d in sort_pairs if k == "amount"), None)
+    if amount_pair is not None:
+        amount_desc = amount_pair[1]
+        # Stable secondary keys mirror the SQL multi-sort chain so ties still
+        # break by whatever the operator added (date, name, etc.). We walk the
+        # chain in reverse and apply each key as a stable sort layer.
+        def _key_for(payee, key):
+            if key == "amount":
+                return payee.display_amount or Decimal("0")
+            if key == "date":
+                v = getattr(payee, "last_payment_date", None) or getattr(payee, "last_paid_at", None)
+                # None sorts last on desc, first on asc — match _order_term semantics.
+                return v or (datetime.min.replace(tzinfo=timezone.get_current_timezone()))
+            if key == "overdue":
+                return getattr(payee, "oldest_unpaid", None) or (datetime.min.replace(tzinfo=timezone.get_current_timezone()))
+            if key == "reservations":
+                return getattr(payee, "unpaid_res_count", 0) or 0
+            if key == "name":
+                return (getattr(payee, "agent_name", "") or "").lower()
+            return 0
+        for key, desc in reversed(sort_pairs):
+            page_agents.sort(key=lambda p, k=key: _key_for(p, k), reverse=desc)
+        # Reflect the new order in the paginator's object_list so anything
+        # downstream (Pay Today scoring, etc.) sees the same sequence.
+        agents_page_obj.object_list = page_agents
+
+    # Agencies use only the primary sort key (their UI doesn't expose
+    # multi-sort), and their displayed total is summed in Python from their
+    # children's display_amount — so the same SQL/Python divergence applies.
+    if sort_pairs and sort_pairs[0][0] == "amount":
+        visible_agencies.sort(
+            key=lambda a: a.display_amount or Decimal("0"),
+            reverse=sort_pairs[0][1],
+        )
 
     # ---------- Pay Today: curated recommended queue ----------
     # Reuse the already-loaded visible_agencies and agents_page_obj instead of
@@ -13016,6 +13070,84 @@ def process_bulk_payout_view(request):
         "processed": processed,
         "failed": failed,
         "items": results,
+    })
+
+
+def _recompute_commission_amount(reservation):
+    """Recompute commission_amount = base_price * rate, with rounding to 2dp.
+
+    Returns Decimal("0") when there's no agent or no base price. Used when
+    un-excluding a reservation, so the stored amount matches what the
+    eligibility engine would calculate from the current agent rate.
+    """
+    agent = reservation.travel_agent
+    if agent is None or reservation.base_price is None:
+        return Decimal("0")
+    rate = (agent.commission_rate or Decimal("0")) / Decimal("100")
+    return (reservation.base_price * rate).quantize(Decimal("0.01"))
+
+
+@staff_member_required
+@require_POST
+def toggle_reservation_commission_exclusion(request):
+    """Mark a reservation as non-commissionable (or restore it).
+
+    Body (JSON):
+      { "reservation_id": int, "exclude": bool, "reason": str? }
+
+    When `exclude` is true, the reservation drops into the agent's Excluded
+    bucket via `get_commission_eligibility`. When false, the flag is cleared
+    and the reservation flows back through the normal pipeline. The reason
+    string is shown verbatim in the Excluded bucket so the agent knows why.
+    """
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON."}, status=400)
+
+    res_id = data.get("reservation_id")
+    if not res_id:
+        return JsonResponse({"success": False, "error": "Missing reservation_id."}, status=400)
+
+    exclude = bool(data.get("exclude", True))
+    reason = (data.get("reason") or "").strip()[:255]
+
+    reservation = get_object_or_404(Reservation, id=res_id)
+    if reservation.commission_paid:
+        return JsonResponse({
+            "success": False,
+            "error": "Commission already paid — cannot change exclusion.",
+        }, status=400)
+
+    if exclude:
+        reservation.commission_excluded = True
+        reservation.commission_exclusion_reason = reason or "Personal trip — non-commissionable"
+        reservation.commission_excluded_at = timezone.now()
+        reservation.commission_excluded_by = request.user
+        # Zero the stored commission so dashboards, lifetime stats, and any
+        # downstream consumer that reads commission_amount directly see $0.
+        reservation.commission_amount = Decimal("0")
+    else:
+        reservation.commission_excluded = False
+        reservation.commission_exclusion_reason = ""
+        reservation.commission_excluded_at = None
+        reservation.commission_excluded_by = None
+        # Recompute from current rate when un-excluding so the stored amount
+        # matches what the eligibility engine would calculate.
+        reservation.commission_amount = _recompute_commission_amount(reservation)
+
+    reservation.save(update_fields=[
+        "commission_excluded",
+        "commission_exclusion_reason",
+        "commission_excluded_at",
+        "commission_excluded_by",
+        "commission_amount",
+    ])
+    return JsonResponse({
+        "success": True,
+        "reservation_id": reservation.id,
+        "excluded": reservation.commission_excluded,
+        "reason": reservation.commission_exclusion_reason,
     })
 
 

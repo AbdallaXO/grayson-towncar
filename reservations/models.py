@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from .constants import (
@@ -123,6 +124,28 @@ class Reservation(models.Model):
     )
     commission_paid = models.BooleanField(default=False)
     commission_paid_at = models.DateTimeField(null=True, blank=True)
+    # Manual exclusion: used for personal/discounted trips an agent books for
+    # themselves. Set to True and the eligibility engine drops the reservation
+    # into the Excluded bucket regardless of trip status. Reversible.
+    commission_excluded = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Manually excluded from commission (e.g. personal trip with discount).",
+    )
+    commission_exclusion_reason = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Why this reservation was excluded from commission (shown in the Excluded bucket).",
+    )
+    commission_excluded_at = models.DateTimeField(null=True, blank=True)
+    commission_excluded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="commission_exclusions",
+        help_text="User who flagged this reservation as non-commissionable.",
+    )
     total_driver_payments = models.DecimalField(
         max_digits=10,
         decimal_places=2,
