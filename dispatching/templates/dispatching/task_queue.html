@@ -1018,6 +1018,427 @@ body {
 .ops-toast.show { transform: translateY(0); opacity: 1; }
 .ops-toast.toast-success { background: var(--ops-green); }
 .ops-toast.toast-error { background: var(--ops-red); }
+
+/* ═══════════════════════════════════════════════════════════
+   COMMAND CENTER — Summary cards, Lanes, Next Up, Search
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Summary cards row ── */
+.ops-summary {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: .65rem;
+  padding: .9rem 1.5rem .25rem;
+  background: var(--ops-bg);
+}
+.ops-sumcard {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: .65rem .85rem;
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: all .12s;
+  position: relative;
+  overflow: hidden;
+}
+.ops-sumcard:hover {
+  border-color: var(--ops-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.04);
+  color: inherit;
+}
+.ops-sumcard.is-active {
+  border-color: var(--ops-blue);
+  box-shadow: 0 0 0 1px var(--ops-blue) inset;
+}
+.ops-sumcard .sc-label {
+  font-family: var(--ops-mono);
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--ops-text-muted);
+}
+.ops-sumcard .sc-val {
+  font-family: var(--ops-sans);
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ops-white);
+}
+.ops-sumcard .sc-hint {
+  font-size: .65rem;
+  color: var(--ops-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ops-sumcard.tone-danger .sc-val   { color: var(--ops-red); }
+.ops-sumcard.tone-danger { border-color: rgba(220,38,38,.25); background: linear-gradient(180deg, #fff 0%, #fef2f2 100%); }
+.ops-sumcard.tone-amber .sc-val    { color: var(--ops-amber); }
+.ops-sumcard.tone-amber { border-color: rgba(217,119,6,.25); background: linear-gradient(180deg, #fff 0%, #fffbeb 100%); }
+.ops-sumcard.tone-blue .sc-val     { color: var(--ops-blue); }
+.ops-sumcard.tone-green .sc-val    { color: var(--ops-green); }
+.ops-sumcard.tone-purple .sc-val   { color: var(--ops-purple); }
+.ops-sumcard.tone-cyan .sc-val     { color: var(--ops-cyan); }
+
+@media (max-width: 1100px) {
+  .ops-summary { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 640px) {
+  .ops-summary { grid-template-columns: repeat(2, 1fr); padding: .75rem 1rem .25rem; }
+  .ops-sumcard .sc-val { font-size: 1.3rem; }
+}
+
+/* ── Search input ── */
+.ops-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .3rem .55rem;
+  border-radius: 5px;
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+}
+.ops-search i { color: var(--ops-text-muted); font-size: .8rem; }
+.ops-search input {
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: .78rem;
+  flex: 1;
+  color: var(--ops-text);
+}
+.ops-search input::placeholder { color: var(--ops-text-muted); }
+
+/* ── Lane tabs ── */
+.ops-lanes {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 1.5rem;
+  background: var(--ops-surface);
+  border-bottom: 1px solid var(--ops-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.ops-lanes::-webkit-scrollbar { display: none; }
+.ops-lane {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem 1rem;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--ops-text-dim);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  transition: all .12s;
+}
+.ops-lane:hover {
+  color: var(--ops-white);
+  background: var(--ops-surface-2);
+}
+.ops-lane.is-active {
+  color: var(--ops-white);
+  border-bottom-color: var(--ops-blue);
+  background: var(--ops-surface);
+}
+.ops-lane .lane-count {
+  font-family: var(--ops-mono);
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .12rem .45rem;
+  border-radius: 10px;
+  background: var(--ops-surface-3);
+  color: var(--ops-text-dim);
+  min-width: 24px;
+  text-align: center;
+}
+.ops-lane.is-active .lane-count {
+  background: var(--ops-blue);
+  color: #fff;
+}
+.ops-lane.lane-unclaimed.is-active .lane-count { background: var(--ops-amber); }
+.ops-lane.lane-future.is-active .lane-count { background: var(--ops-cyan); }
+.ops-lane.lane-waiting.is-active .lane-count { background: #6b7280; }
+.ops-lane.lane-completed.is-active .lane-count { background: var(--ops-green); }
+.ops-lane .lane-hint {
+  font-size: .6rem;
+  font-weight: 500;
+  color: var(--ops-text-muted);
+  letter-spacing: .02em;
+}
+
+/* ── Next Up hero card ── */
+.next-up {
+  margin: 1rem 1.5rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border: 1px solid var(--ops-border);
+  border-left: 4px solid var(--ops-blue);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.next-up.tone-critical { border-left-color: var(--ops-red); background: linear-gradient(135deg, #fff 0%, #fef2f2 100%); }
+.next-up.tone-high     { border-left-color: var(--ops-amber); background: linear-gradient(135deg, #fff 0%, #fffbeb 100%); }
+.next-up.tone-mine     { border-left-color: var(--ops-green); background: linear-gradient(135deg, #fff 0%, #ecfdf5 100%); }
+.nu-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--ops-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: var(--ops-text-dim);
+}
+.next-up.tone-critical .nu-icon { background: rgba(220,38,38,.1); color: var(--ops-red); }
+.next-up.tone-high .nu-icon     { background: rgba(217,119,6,.1); color: var(--ops-amber); }
+.next-up.tone-mine .nu-icon     { background: rgba(5,150,105,.1); color: var(--ops-green); }
+.nu-body { min-width: 0; }
+.nu-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-family: var(--ops-mono);
+  font-size: .6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--ops-text-muted);
+  margin-bottom: .25rem;
+}
+.nu-eyebrow .nu-eyebrow-tag {
+  background: var(--ops-blue);
+  color: #fff;
+  padding: .1rem .45rem;
+  border-radius: 3px;
+  font-weight: 700;
+}
+.next-up.tone-critical .nu-eyebrow-tag { background: var(--ops-red); }
+.next-up.tone-high .nu-eyebrow-tag     { background: var(--ops-amber); }
+.next-up.tone-mine .nu-eyebrow-tag     { background: var(--ops-green); }
+.nu-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ops-white);
+  margin: 0 0 .25rem;
+  text-decoration: none;
+  display: block;
+}
+.nu-title:hover { color: var(--ops-blue); }
+.nu-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .9rem;
+  font-size: .75rem;
+  color: var(--ops-text-dim);
+}
+.nu-meta a { color: var(--ops-text); text-decoration: none; font-weight: 500; }
+.nu-meta a:hover { color: var(--ops-blue); }
+.nu-meta .nu-overdue { color: #b91c1c; font-weight: 600; }
+.nu-actions {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+.nu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .55rem 1rem;
+  border-radius: 7px;
+  font-size: .82rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.nu-btn.btn-primary { background: var(--ops-blue); color: #fff; border-color: var(--ops-blue); }
+.nu-btn.btn-primary:hover { background: #1d4ed8; }
+.nu-btn.btn-success { background: var(--ops-green); color: #fff; border-color: var(--ops-green); }
+.nu-btn.btn-success:hover { background: #047857; }
+.nu-btn.btn-ghost { background: var(--ops-surface); color: var(--ops-text); border-color: var(--ops-border); }
+.nu-btn.btn-ghost:hover { background: var(--ops-surface-2); color: var(--ops-blue); }
+
+@media (max-width: 640px) {
+  .next-up { grid-template-columns: 1fr; }
+  .nu-actions { justify-content: flex-end; }
+}
+
+/* ── Labeled action buttons (queue rows) ── */
+.ops-act-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .35rem .55rem;
+  height: 28px;
+  border-radius: 5px;
+  border: 1px solid var(--ops-border);
+  background: var(--ops-surface);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--ops-text-dim);
+  cursor: pointer;
+  transition: all .12s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ops-act-lbl i { font-size: .8rem; }
+.ops-act-lbl:hover { background: var(--ops-surface-3); color: var(--ops-text); }
+.ops-act-lbl.lbl-claim { color: var(--ops-blue); border-color: #bfdbfe; background: #eff6ff; }
+.ops-act-lbl.lbl-claim:hover { background: #dbeafe; border-color: var(--ops-blue); }
+.ops-act-lbl.lbl-done { color: var(--ops-green); border-color: #a7f3d0; background: #ecfdf5; }
+.ops-act-lbl.lbl-done:hover { background: #d1fae5; border-color: var(--ops-green); }
+.ops-act-lbl.lbl-release { color: var(--ops-amber); border-color: #fed7aa; background: #fffbeb; }
+.ops-act-lbl.lbl-release:hover { background: #fef3c7; border-color: var(--ops-amber); }
+.ops-act-lbl.lbl-open { color: var(--ops-text); border-color: var(--ops-border-lt); }
+
+/* Snooze split button */
+.snooze-wrap-new { position: relative; display: inline-block; }
+.snooze-pop-new {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  z-index: 200;
+  padding: .25rem 0;
+}
+.snooze-pop-new.open { display: block; }
+.snooze-pop-new .snz-opt {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .7rem;
+  font-size: .72rem;
+  color: var(--ops-text);
+  cursor: pointer;
+  font-family: var(--ops-sans);
+  font-weight: 500;
+}
+.snooze-pop-new .snz-opt:hover { background: var(--ops-surface-2); color: var(--ops-blue); }
+.snooze-pop-new .snz-opt i { color: var(--ops-text-muted); font-size: .72rem; }
+
+/* Reservation-linked chip — visible signal that task is tied to a trip */
+.ops-res-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .1rem .4rem;
+  border-radius: 3px;
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.ops-res-chip:hover { background: #e0e7ff; color: #3730a3; }
+
+/* ── Completed today rows ── */
+.completed-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: .6rem;
+  padding: .55rem 1rem;
+  border-bottom: 1px solid var(--ops-border);
+  background: var(--ops-surface);
+}
+.completed-row:hover { background: var(--ops-surface-2); }
+.completed-row .cr-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: var(--ops-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .9rem;
+}
+.completed-row .cr-title {
+  font-size: .78rem;
+  color: var(--ops-text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.completed-row .cr-title:hover { color: var(--ops-blue); }
+.completed-row .cr-meta {
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  color: var(--ops-text-muted);
+  white-space: nowrap;
+}
+.completed-row .cr-meta strong { color: var(--ops-text-dim); font-weight: 600; }
+
+/* ── Empty state per lane ── */
+.lane-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3.5rem 2rem;
+  text-align: center;
+}
+.lane-empty .le-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--ops-surface-2);
+  border: 1px solid var(--ops-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: var(--ops-text-muted);
+  margin-bottom: .85rem;
+}
+.lane-empty h5 {
+  font-weight: 700;
+  font-size: .9rem;
+  color: var(--ops-white);
+  margin: 0 0 .25rem;
+}
+.lane-empty p {
+  font-size: .78rem;
+  color: var(--ops-text-dim);
+  margin: 0;
+  max-width: 380px;
+}
+.lane-empty .le-btn {
+  margin-top: .85rem;
+}
 </style>
 {% endblock %}
 
@@ -1032,17 +1453,17 @@ body {
         <div class="ops-logo-icon"><i class="bi bi-broadcast"></i></div>
         <div>
           <h1>Ops Control</h1>
-          <div class="ops-subtitle">{{ total_open }} active &middot; priority queue</div>
+          <div class="ops-subtitle">{{ total_open }} open &middot; {{ unclaimed_count }} unclaimed &middot; {{ mine_count }} mine</div>
         </div>
       </div>
       <div class="ops-header-actions">
         <button class="ops-btn-create" data-bs-toggle="modal" data-bs-target="#createTaskModal">
-          <i class="bi bi-plus-lg"></i> New Task
+          <i class="bi bi-plus-lg"></i> New Task <span class="ops-kbd" style="margin-left:.4rem">N</span>
         </button>
       </div>
     </div>
 
-    <!-- ── Instrument Panel ── -->
+    <!-- ── Instrument Panel (per-type counts) ── -->
     <div class="ops-instruments">
       <a href="{% url 'task_queue' %}"
          class="ops-gauge {% if not type_filter and not overdue_only %}active{% endif %}">
@@ -1050,7 +1471,7 @@ body {
         <span class="g-label">Total</span>
       </a>
       {% for type_value, type_label in task_types %}
-      <a href="?type={{ type_value }}"
+      <a href="?type={{ type_value }}{% if active_lane != 'unclaimed' %}&lane={{ active_lane }}{% endif %}"
          class="ops-gauge {% if type_filter == type_value %}active{% endif %} {% if type_value == 'payment_chase' %}gauge-amber{% endif %}">
         <span class="g-val">{{ type_counts|get_item:type_value|default:"0" }}</span>
         <span class="g-label">{{ type_label }}</span>
@@ -1066,238 +1487,360 @@ body {
     </div>
   </div>
 
-  <!-- ═══ Filter Bar ═══ -->
+  <!-- ═══ Summary Cards ═══ -->
+  <div class="ops-summary">
+    <a class="ops-sumcard" href="?lane=unclaimed{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      <span class="sc-label">Total Open</span>
+      <span class="sc-val">{{ total_open }}</span>
+      <span class="sc-hint">All active work</span>
+    </a>
+    <a class="ops-sumcard tone-amber {% if active_lane == 'unclaimed' %}is-active{% endif %}"
+       href="?lane=unclaimed{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      <span class="sc-label">Unclaimed</span>
+      <span class="sc-val">{{ unclaimed_count }}</span>
+      <span class="sc-hint">Open queue — grab one</span>
+    </a>
+    <a class="ops-sumcard tone-green {% if active_lane == 'mine' %}is-active{% endif %}"
+       href="?lane=mine{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      <span class="sc-label">Mine</span>
+      <span class="sc-val">{{ mine_count }}</span>
+      <span class="sc-hint">Your active tasks</span>
+    </a>
+    <a class="ops-sumcard tone-cyan {% if active_lane == 'future' %}is-active{% endif %}"
+       href="?lane=future{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      <span class="sc-label">Future Blockers</span>
+      <span class="sc-val">{{ future_blockers_count }}</span>
+      <span class="sc-hint">Issues on upcoming trips</span>
+    </a>
+    <a class="ops-sumcard {% if active_lane == 'waiting' %}is-active{% endif %}"
+       href="?lane=waiting{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      <span class="sc-label">Waiting</span>
+      <span class="sc-val">{{ waiting_count }}</span>
+      <span class="sc-hint">Snoozed or blocked</span>
+    </a>
+    <a class="ops-sumcard tone-danger" href="?overdue=1{% if active_lane != 'unclaimed' %}&lane={{ active_lane }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}">
+      <span class="sc-label">Overdue</span>
+      <span class="sc-val">{{ overdue_count }}</span>
+      <span class="sc-hint">Past their due time</span>
+    </a>
+    <a class="ops-sumcard tone-green {% if active_lane == 'completed' %}is-active{% endif %}"
+       href="?lane=completed">
+      <span class="sc-label">Completed Today</span>
+      <span class="sc-val">{{ completed_today_count }}</span>
+      <span class="sc-hint">Today's wins</span>
+    </a>
+  </div>
+
+  <!-- ═══ Filter Bar (search + type + overdue) ═══ -->
   <form method="get" class="ops-filters">
+    <input type="hidden" name="lane" value="{{ active_lane }}">
     <div class="ops-live-dot"></div>
-    <span class="ops-filter-label">Filters</span>
-    <div class="ops-filter-sep"></div>
+    <div class="ops-search">
+      <i class="bi bi-search"></i>
+      <input type="text" name="q" value="{{ search_q }}" placeholder="Search name, title, R# or L#…" autocomplete="off">
+    </div>
     <select name="type" class="ops-filter-select">
       <option value="">All Types</option>
       {% for type_value, type_label in task_types %}
       <option value="{{ type_value }}" {% if type_filter == type_value %}selected{% endif %}>{{ type_label }}</option>
       {% endfor %}
     </select>
-    <select name="assignee" class="ops-filter-select">
-      <option value="">All Staff</option>
-      <option value="me" {% if assignee_filter == 'me' %}selected{% endif %}>My Tasks</option>
-      <option value="unassigned" {% if assignee_filter == 'unassigned' %}selected{% endif %}>Unassigned</option>
-    </select>
     <label class="ops-filter-check">
       <input type="checkbox" name="overdue" value="1" {% if overdue_only %}checked{% endif %}>
       Overdue only
     </label>
     <div style="margin-left: auto; display: flex; gap: .35rem;">
-      <button type="submit" class="ops-filter-btn primary"><i class="bi bi-search" style="font-size: .68rem;"></i> Filter</button>
-      <a href="{% url 'task_queue' %}" class="ops-filter-btn">Reset</a>
+      <button type="submit" class="ops-filter-btn primary"><i class="bi bi-funnel" style="font-size:.68rem;"></i> Apply</button>
+      <a href="{% url 'task_queue' %}?lane={{ active_lane }}" class="ops-filter-btn">Reset</a>
     </div>
   </form>
 
-  <!-- ═══ My Active Tasks ═══ -->
-  {% if my_active %}
-  <div class="my-active-section">
-    <div class="my-active-header">
-      <i class="bi bi-lightning-charge-fill"></i>
-      <span class="mah-label">Your Active Tasks</span>
-      <span class="mah-count">{{ my_active|length }}</span>
-    </div>
-    {% for task in my_active %}
-    <div class="my-active-row" id="my-task-row-{{ task.id }}">
-      <div class="ma-edge {% if task.priority == 1 %}urg-critical{% elif task.priority == 2 %}urg-high{% elif task.priority == 3 %}urg-medium{% else %}urg-low{% endif %}"></div>
-      <div class="ma-icon">
-        <i class="{{ task.type_icon }}"></i>
+  {# ═══ Next Up — single anchor card ═══ #}
+  {% if next_up %}
+  {% with task=next_up %}
+  <div class="next-up {% if task.assigned_to_id == request.user.id %}tone-mine{% elif task.priority == 1 %}tone-critical{% elif task.priority == 2 %}tone-high{% endif %}">
+    <div class="nu-icon"><i class="{{ task.type_icon }}"></i></div>
+    <div class="nu-body">
+      <div class="nu-eyebrow">
+        <span class="nu-eyebrow-tag">
+          {% if task.assigned_to_id == request.user.id %}Finish this first{% else %}Next up · {{ task.get_priority_display }}{% endif %}
+        </span>
+        <span>{{ task.get_task_type_display }}</span>
+        {% if task.is_overdue %}<span class="nu-overdue">· {{ task.due_at|timesince }} overdue</span>{% endif %}
       </div>
-      <div class="ma-body">
-        <div class="ma-title-line">
-          <a href="{% url 'task_detail' task.id %}" class="ma-title">{{ task.title }}</a>
-          <span class="ma-urgency-tag {% if task.priority == 1 %}urg-critical{% elif task.priority == 2 %}urg-high{% elif task.priority == 3 %}urg-medium{% else %}urg-low{% endif %}">
-            {% if task.priority == 1 %}<i class="bi bi-exclamation-triangle-fill"></i> Critical{% elif task.priority == 2 %}<i class="bi bi-arrow-up-circle-fill"></i> High{% elif task.priority == 3 %}Medium{% else %}Low{% endif %}
-          </span>
-          {% if task.is_overdue %}<span class="ma-overdue-tag"><i class="bi bi-clock-fill"></i> {{ task.due_at|timesince }} overdue</span>{% endif %}
-        </div>
-        <div class="ma-meta">
-          {% if task.leg %}
-          <span>
-            <i class="bi bi-person-fill" style="font-size:.6rem;"></i>
-            <a href="{% url 'reservation_details' task.leg.reservation.uuid %}">{{ task.leg.reservation.customer.get_full_name|truncatewords:3 }}</a>
-          </span>
-          <span>L{{ task.leg.id }} &middot; {{ task.leg.pickup_date|date:"M j" }}</span>
-          {% elif task.reservation %}
-          <span>
-            <a href="{% url 'reservation_details' task.reservation.uuid %}">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
-          </span>
-          {% endif %}
-          <span class="{% if task.is_overdue %}meta-overdue{% else %}meta-due{% endif %}">
-            <i class="bi bi-clock{% if task.is_overdue %}-fill{% endif %}" style="font-size:.6rem;"></i>
-            {% if task.is_overdue %}{{ task.due_at|timesince }} ago{% else %}due {{ task.due_at|date:"g:iA"|lower }}{% endif %}
-          </span>
-          <span>{{ task.get_task_type_display }}</span>
-        </div>
-      </div>
-      <div class="ma-actions">
-        <a href="{% url 'task_detail' task.id %}" class="ma-act" title="Open"><i class="bi bi-arrow-right"></i></a>
-        <button class="ma-act ma-complete btn-task-action" data-action="complete" data-task-id="{{ task.id }}" title="Complete"><i class="bi bi-check-lg"></i></button>
+      <a href="{% url 'task_detail' task.id %}" class="nu-title">{{ task.title }}</a>
+      <div class="nu-meta">
+        {% if task.leg %}
+          {% with res=task.leg.reservation %}
+          <span><i class="bi bi-person-fill"></i> <a href="{% url 'reservation_details' res.uuid %}">{{ res.customer.get_full_name }}</a></span>
+          <span><i class="bi bi-calendar-event"></i> {{ task.leg.pickup_date|date:"D, M j" }} {{ task.leg.pickup_time|time:"g:iA"|lower }}</span>
+          <span><i class="bi bi-geo-alt"></i> {{ task.leg.pickup_location|truncatewords:5 }} → {{ task.leg.dropoff_location|truncatewords:5 }}</span>
+          <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}">R{{ res.id }} · L{{ task.leg.id }}</a>
+          {% endwith %}
+        {% elif task.reservation %}
+          <span><i class="bi bi-person-fill"></i> <a href="{% url 'reservation_details' task.reservation.uuid %}">{{ task.reservation.customer.get_full_name }}</a></span>
+          <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}">R{{ task.reservation.id }}</a>
+        {% elif task.lead %}
+          <span><i class="bi bi-person-lines-fill"></i> {{ task.lead.first_name }} {{ task.lead.last_name }}</span>
+        {% elif task.contact_form %}
+          <span><i class="bi bi-envelope-paper"></i> {{ task.contact_form.first_name }} {{ task.contact_form.last_name }}</span>
+        {% endif %}
+        <span><i class="bi bi-clock"></i>
+          {% if task.is_overdue %}<span class="nu-overdue">{{ task.due_at|timesince }} ago</span>
+          {% else %}due {{ task.due_at|date:"g:iA"|lower }}{% endif %}
+        </span>
       </div>
     </div>
-    {% endfor %}
+    <div class="nu-actions">
+      {% if task.assigned_to_id == request.user.id %}
+        <button class="nu-btn btn-success btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
+          <i class="bi bi-check-lg"></i> Complete
+        </button>
+        <a class="nu-btn btn-ghost" href="{% url 'task_detail' task.id %}">Open <i class="bi bi-arrow-right"></i></a>
+      {% else %}
+        <button class="nu-btn btn-primary btn-task-action" data-action="claim" data-task-id="{{ task.id }}">
+          <i class="bi bi-person-check"></i> Claim
+        </button>
+        <a class="nu-btn btn-ghost" href="{% url 'task_detail' task.id %}">Open <i class="bi bi-arrow-right"></i></a>
+      {% endif %}
+    </div>
   </div>
+  {% endwith %}
   {% endif %}
 
-  <!-- ═══ Task List — grouped by priority ═══ -->
+  <!-- ═══ Lane Tabs ═══ -->
+  <div class="ops-lanes">
+    {% for lane in lane_meta %}
+    <a class="ops-lane lane-{{ lane.key }} {% if active_lane == lane.key %}is-active{% endif %}"
+       href="?lane={{ lane.key }}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}{% if overdue_only %}&overdue=1{% endif %}">
+      {{ lane.label }}
+      <span class="lane-count">{{ lane.count }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- ═══ Active lane content ═══ -->
   <div class="ops-task-list">
-    {% for group in priority_groups %}
-    {% if group.tasks %}
-    <div class="priority-group priority-group-{{ group.key }}">
 
-      {# ── Priority Zone Header ── #}
-      <div class="ops-zone-header zone-{{ group.key }}">
-        <div class="ops-zone-dot"></div>
-        <span class="ops-zone-label">{{ group.label }}</span>
-        <span class="ops-zone-count">{{ group.tasks|length }}</span>
-        <span class="ops-zone-spacer"></span>
-        <span class="ops-zone-hint">{{ group.hint }}</span>
-      </div>
-
-      {# ── Task Rows ── #}
-      {% for task in group.tasks %}
-      <div id="task-row-{{ task.id }}"
-           class="ops-row {% if task.status == 'snoozed' %}row-snoozed{% endif %}"
-           data-task-id="{{ task.id }}">
-
-        {# Priority edge #}
-        <div class="ops-row-edge {% if task.priority == 1 %}edge-critical{% elif task.priority == 2 %}edge-high{% elif task.priority == 3 %}edge-medium{% else %}edge-low{% endif %}"></div>
-
-        {# Type icon #}
-        <div class="ops-row-icon {% if task.task_type == 'payment_chase' %}icon-payment{% elif task.task_type == 'flight_verify' %}icon-flight{% elif task.task_type == 'driver_conflict' %}icon-conflict{% elif task.task_type == 'driver_assign' %}icon-driver{% elif task.task_type == 'contact_form' %}icon-confirm{% else %}icon-manual{% endif %}">
-          <i class="{{ task.type_icon }}"></i>
-        </div>
-
-        {# Body #}
-        <div class="ops-row-body">
-          <div class="ops-row-info">
-            <div class="ops-row-title-line">
-              <a href="{% url 'task_detail' task.id %}" class="ops-row-title">{{ task.title }}</a>
-              {# Status badges #}
-              {% if task.status == 'escalated' %}<span class="ops-status-badge status-escalated"><i class="bi bi-arrow-up-circle-fill"></i> ESC</span>{% endif %}
-              {% if task.status == 'in_progress' %}<span class="ops-status-badge status-in-progress"><i class="bi bi-play-fill"></i> ACTIVE</span>{% endif %}
-              {% if task.status == 'snoozed' %}<span class="ops-status-badge status-snoozed"><i class="bi bi-moon-fill"></i> ZZZ</span>{% endif %}
-              {% if task.is_overdue %}<span class="ops-tag tag-overdue"><i class="bi bi-clock-fill"></i> LATE</span>{% endif %}
-              {% if task.blocked_by and task.blocked_by.is_open %}<span class="ops-tag tag-dependency"><i class="bi bi-link-45deg"></i> DEP</span>{% endif %}
-            </div>
-
-            <div class="ops-row-meta">
-              {# Customer / Lead #}
-              {% if task.leg %}
-              <span class="ops-meta">
-                <i class="bi bi-person-fill"></i>
-                <a href="{% url 'reservation_details' task.leg.reservation.uuid %}">
-                  {{ task.leg.reservation.customer.get_full_name|truncatewords:3 }}
-                </a>
-              </span>
-              <span class="ops-meta meta-mono">L{{ task.leg.id }} &middot; {{ task.leg.pickup_date|date:"M j" }}</span>
-              {% elif task.reservation %}
-              <span class="ops-meta">
-                <i class="bi bi-person-fill"></i>
-                <a href="{% url 'reservation_details' task.reservation.uuid %}">
-                  {{ task.reservation.customer.get_full_name|truncatewords:3 }}
-                </a>
-              </span>
-              <span class="ops-meta meta-mono">R{{ task.reservation.id }}</span>
-              {% elif task.lead %}
-              <span class="ops-meta">
-                <i class="bi bi-person-lines-fill"></i>
-                {{ task.lead.first_name }} {{ task.lead.last_name }}
-              </span>
-              {% elif task.contact_form %}
-              <span class="ops-meta">
-                <i class="bi bi-envelope-paper"></i>
-                {{ task.contact_form.first_name }} {{ task.contact_form.last_name }}
-              </span>
-              {% endif %}
-
-              {# Task type label #}
-              <span class="ops-meta meta-mono">{{ task.get_task_type_display }}</span>
-
-              {# Due time #}
-              <span class="ops-meta meta-mono {% if task.is_overdue %}meta-overdue{% endif %}">
-                <i class="bi bi-clock{% if task.is_overdue %}-fill{% endif %}"></i>
-                {% if task.is_overdue %}{{ task.due_at|timesince }} ago{% else %}{{ task.due_at|date:"g:iA"|lower }}{% endif %}
-              </span>
-
-              {# Attempts #}
-              {% if task.attempts > 0 %}
-              <span class="ops-meta meta-mono">
-                {{ task.attempts }}/{{ task.max_attempts }}
-              </span>
-              {% endif %}
-
-              {# Assignee #}
-              {% if task.assigned_to %}
-              <span class="ops-assignee">
-                <i class="bi bi-person-check-fill"></i>
-                {{ task.assigned_to.first_name|default:task.assigned_to.username }}
-                {% if task.assigned_at %}<small style="opacity:.55;margin-left:4px">{{ task.assigned_at|date:"M j, g:iA"|lower }}</small>{% endif %}
-              </span>
-              {% else %}
-              <span class="ops-assignee unassigned">
-                <i class="bi bi-person-dash"></i>
-                —
-              </span>
-              {% endif %}
-
-              {# Snooze until #}
-              {% if task.status == 'snoozed' and task.snoozed_until %}
-              <span class="ops-meta meta-mono">
-                <i class="bi bi-moon"></i> {{ task.snoozed_until|date:"g:iA"|lower }}
-              </span>
-              {% endif %}
-            </div>
+  {% if active_lane == 'completed' %}
+    {# ─ Completed today — flat reverse-chronological list ─ #}
+    {% if completed_today %}
+      {% for task in completed_today %}
+      <div class="completed-row">
+        <div class="cr-check"><i class="bi bi-check-lg"></i></div>
+        <div style="min-width:0; display:flex; flex-direction:column; gap:.15rem;">
+          <a class="cr-title" href="{% url 'task_detail' task.id %}">{{ task.title }}</a>
+          <div class="cr-meta">
+            <strong>{{ task.get_task_type_display }}</strong>
+            {% if task.resolved_by %} · {{ task.resolved_by.first_name|default:task.resolved_by.username }}{% endif %}
+            · {{ task.resolved_at|date:"g:iA"|lower }}
+            {% if task.leg %} · L{{ task.leg.id }} {{ task.leg.reservation.customer.get_full_name }}
+            {% elif task.reservation %} · R{{ task.reservation.id }} {{ task.reservation.customer.get_full_name }}
+            {% endif %}
           </div>
         </div>
-
-        {# Actions #}
-        <div class="ops-row-actions">
-          {% if not task.assigned_to or task.assigned_to != request.user %}
-          <button class="ops-act a-claim btn-task-action" data-action="claim" data-task-id="{{ task.id }}" title="Claim">
-            <i class="bi bi-person-check"></i>
-          </button>
-          {% endif %}
-          <div class="q-assign-wrap">
-            <button class="ops-act a-assign btn-assign-toggle" data-task-id="{{ task.id }}" title="Assign To">
-              <i class="bi bi-person-plus"></i>
-            </button>
-            <div class="q-assign-pop" data-task-id="{{ task.id }}">
-              <div class="q-assign-opt {% if not task.assigned_to %}current{% endif %}" data-user-id="" data-task-id="{{ task.id }}">
-                <i class="bi bi-person-dash"></i> Unassigned
-              </div>
-              <div class="q-assign-sep"></div>
-              {% for staff in ops_staff %}
-              <div class="q-assign-opt {% if task.assigned_to_id == staff.id %}current{% endif %}" data-user-id="{{ staff.id }}" data-task-id="{{ task.id }}">
-                <i class="bi bi-person-fill"></i> {{ staff.first_name|default:staff.username }}
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          <button class="ops-act a-done btn-task-action" data-action="complete" data-task-id="{{ task.id }}" title="Complete">
-            <i class="bi bi-check-lg"></i>
-          </button>
-          <button class="ops-act a-comm btn-log-comm" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}" title="Log comm">
-            <i class="bi bi-telephone"></i>
-          </button>
-          <button class="ops-act a-cancel btn-task-action" data-action="cancel" data-task-id="{{ task.id }}" title="Dismiss">
-            <i class="bi bi-x-lg"></i>
-          </button>
-        </div>
+        <a class="ops-act-lbl lbl-open" href="{% url 'task_detail' task.id %}"><i class="bi bi-arrow-right"></i> Open</a>
       </div>
       {% endfor %}
-    </div>
-    {% endif %}
-    {% empty %}
-      <div class="ops-empty">
-        <div class="ops-empty-icon"><i class="bi bi-check-lg"></i></div>
-        <h5>All clear</h5>
-        <p>No active tasks in the queue. New tasks will appear automatically.</p>
+    {% else %}
+      <div class="lane-empty">
+        <div class="le-icon"><i class="bi bi-trophy"></i></div>
+        <h5>No tasks completed yet today</h5>
+        <p>Once you finish a task, it'll show up here as the day's progress log.</p>
       </div>
-    {% endfor %}
+    {% endif %}
+
+  {% else %}
+    {# ─ Open-task lanes — priority-grouped rows ─ #}
+    {% if priority_groups %}
+      {% for group in priority_groups %}
+      <div class="priority-group priority-group-{{ group.key }}">
+        <div class="ops-zone-header zone-{{ group.key }}">
+          <div class="ops-zone-dot"></div>
+          <span class="ops-zone-label">{{ group.label }}</span>
+          <span class="ops-zone-count">{{ group.tasks|length }}</span>
+          <span class="ops-zone-spacer"></span>
+          <span class="ops-zone-hint">{{ group.hint }}</span>
+        </div>
+
+        {% for task in group.tasks %}
+        <div id="task-row-{{ task.id }}"
+             class="ops-row {% if task.status == 'snoozed' %}row-snoozed{% endif %}"
+             data-task-id="{{ task.id }}">
+
+          <div class="ops-row-edge {% if task.priority == 1 %}edge-critical{% elif task.priority == 2 %}edge-high{% elif task.priority == 3 %}edge-medium{% else %}edge-low{% endif %}"></div>
+
+          <div class="ops-row-icon {% if task.task_type == 'payment_chase' %}icon-payment{% elif task.task_type == 'flight_verify' %}icon-flight{% elif task.task_type == 'driver_conflict' %}icon-conflict{% elif task.task_type == 'driver_assign' %}icon-driver{% elif task.task_type == 'contact_form' %}icon-confirm{% else %}icon-manual{% endif %}">
+            <i class="{{ task.type_icon }}"></i>
+          </div>
+
+          <div class="ops-row-body">
+            <div class="ops-row-info">
+              <div class="ops-row-title-line">
+                <a href="{% url 'task_detail' task.id %}" class="ops-row-title">{{ task.title }}</a>
+                {% if task.status == 'escalated' %}<span class="ops-status-badge status-escalated"><i class="bi bi-arrow-up-circle-fill"></i> ESC</span>{% endif %}
+                {% if task.status == 'in_progress' %}<span class="ops-status-badge status-in-progress"><i class="bi bi-play-fill"></i> ACTIVE</span>{% endif %}
+                {% if task.status == 'snoozed' %}<span class="ops-status-badge status-snoozed"><i class="bi bi-moon-fill"></i> SNOOZED</span>{% endif %}
+                {% if task.is_overdue %}<span class="ops-tag tag-overdue"><i class="bi bi-clock-fill"></i> LATE</span>{% endif %}
+                {% if task.blocked_by and task.blocked_by.is_open %}<span class="ops-tag tag-dependency"><i class="bi bi-link-45deg"></i> WAITING ON</span>{% endif %}
+              </div>
+
+              <div class="ops-row-meta">
+                {% if task.leg %}
+                  {% with res=task.leg.reservation %}
+                  <span class="ops-meta">
+                    <i class="bi bi-person-fill"></i>
+                    <a href="{% url 'reservation_details' res.uuid %}">{{ res.customer.get_full_name|truncatewords:3 }}</a>
+                  </span>
+                  <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}" title="Open reservation">
+                    <i class="bi bi-link-45deg"></i>R{{ res.id }} · L{{ task.leg.id }}
+                  </a>
+                  <span class="ops-meta meta-mono">{{ task.leg.pickup_date|date:"M j" }} {{ task.leg.pickup_time|time:"g:iA"|lower }}</span>
+                  {% endwith %}
+                {% elif task.reservation %}
+                  <span class="ops-meta">
+                    <i class="bi bi-person-fill"></i>
+                    <a href="{% url 'reservation_details' task.reservation.uuid %}">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
+                  </span>
+                  <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}" title="Open reservation">
+                    <i class="bi bi-link-45deg"></i>R{{ task.reservation.id }}
+                  </a>
+                {% elif task.lead %}
+                  <span class="ops-meta">
+                    <i class="bi bi-person-lines-fill"></i>
+                    {{ task.lead.first_name }} {{ task.lead.last_name }}
+                  </span>
+                {% elif task.contact_form %}
+                  <span class="ops-meta">
+                    <i class="bi bi-envelope-paper"></i>
+                    {{ task.contact_form.first_name }} {{ task.contact_form.last_name }}
+                  </span>
+                {% endif %}
+
+                <span class="ops-meta meta-mono">{{ task.get_task_type_display }}</span>
+
+                <span class="ops-meta meta-mono {% if task.is_overdue %}meta-overdue{% endif %}">
+                  <i class="bi bi-clock{% if task.is_overdue %}-fill{% endif %}"></i>
+                  {% if task.is_overdue %}{{ task.due_at|timesince }} ago{% else %}{{ task.due_at|date:"g:iA"|lower }}{% endif %}
+                </span>
+
+                {% if task.attempts > 0 %}
+                <span class="ops-meta meta-mono" title="Contact attempts">
+                  <i class="bi bi-telephone"></i> {{ task.attempts }}/{{ task.max_attempts }}
+                </span>
+                {% endif %}
+
+                {% if task.assigned_to %}
+                <span class="ops-assignee">
+                  <i class="bi bi-person-check-fill"></i>
+                  {{ task.assigned_to.first_name|default:task.assigned_to.username }}
+                </span>
+                {% else %}
+                <span class="ops-assignee unassigned">
+                  <i class="bi bi-person-dash"></i> Unclaimed
+                </span>
+                {% endif %}
+
+                {% if task.status == 'snoozed' and task.snoozed_until %}
+                <span class="ops-meta meta-mono">
+                  <i class="bi bi-moon"></i> until {{ task.snoozed_until|date:"M j g:iA"|lower }}
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {# Labeled action buttons — context-aware #}
+          <div class="ops-row-actions">
+            {% if not task.assigned_to %}
+              <button class="ops-act-lbl lbl-claim btn-task-action" data-action="claim" data-task-id="{{ task.id }}">
+                <i class="bi bi-person-check"></i> Claim
+              </button>
+            {% elif task.assigned_to_id == request.user.id %}
+              <button class="ops-act-lbl lbl-done btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
+                <i class="bi bi-check-lg"></i> Complete
+              </button>
+              <button class="ops-act-lbl lbl-release btn-task-action" data-action="release" data-task-id="{{ task.id }}" title="Release back to queue">
+                <i class="bi bi-arrow-counterclockwise"></i> Release
+              </button>
+            {% else %}
+              <span class="ops-act-lbl" style="cursor:default" title="Claimed by {{ task.assigned_to.first_name|default:task.assigned_to.username }}">
+                <i class="bi bi-person-fill-check"></i> {{ task.assigned_to.first_name|default:task.assigned_to.username }}
+              </span>
+            {% endif %}
+
+            <button class="ops-act-lbl btn-log-comm" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}" title="Log call/SMS/email">
+              <i class="bi bi-telephone"></i>
+            </button>
+
+            <div class="snooze-wrap-new">
+              <button class="ops-act-lbl btn-snooze-toggle" data-task-id="{{ task.id }}" title="Snooze">
+                <i class="bi bi-moon"></i>
+              </button>
+              <div class="snooze-pop-new" data-task-id="{{ task.id }}">
+                <div class="snz-opt" data-duration="1h" data-task-id="{{ task.id }}"><i class="bi bi-clock"></i> 1 hour</div>
+                <div class="snz-opt" data-duration="4h" data-task-id="{{ task.id }}"><i class="bi bi-clock-history"></i> 4 hours</div>
+                <div class="snz-opt" data-duration="tomorrow" data-task-id="{{ task.id }}"><i class="bi bi-sunrise"></i> Tomorrow 9 AM</div>
+              </div>
+            </div>
+
+            <div class="q-assign-wrap">
+              <button class="ops-act-lbl btn-assign-toggle" data-task-id="{{ task.id }}" title="Reassign">
+                <i class="bi bi-person-plus"></i>
+              </button>
+              <div class="q-assign-pop" data-task-id="{{ task.id }}">
+                <div class="q-assign-opt {% if not task.assigned_to %}current{% endif %}" data-user-id="" data-task-id="{{ task.id }}">
+                  <i class="bi bi-person-dash"></i> Unassigned
+                </div>
+                <div class="q-assign-sep"></div>
+                {% for staff in ops_staff %}
+                <div class="q-assign-opt {% if task.assigned_to_id == staff.id %}current{% endif %}" data-user-id="{{ staff.id }}" data-task-id="{{ task.id }}">
+                  <i class="bi bi-person-fill"></i> {{ staff.first_name|default:staff.username }}
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <button class="ops-act-lbl btn-task-action" data-action="cancel" data-task-id="{{ task.id }}" title="Dismiss task">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="lane-empty">
+        {% if active_lane == 'unclaimed' %}
+          <div class="le-icon"><i class="bi bi-inbox"></i></div>
+          <h5>{% if search_q or type_filter or overdue_only %}No matches{% else %}Inbox zero{% endif %}</h5>
+          <p>{% if search_q or type_filter or overdue_only %}Try clearing your filters.{% else %}Nothing waiting for a teammate to grab. The scanner will queue new work automatically as it appears.{% endif %}</p>
+        {% elif active_lane == 'mine' %}
+          <div class="le-icon"><i class="bi bi-cup-hot"></i></div>
+          <h5>You haven't claimed anything</h5>
+          <p>Open the Unclaimed lane and grab the next task — or start with the Next Up card.</p>
+          <a class="ops-act-lbl lbl-claim le-btn" href="?lane=unclaimed"><i class="bi bi-arrow-right"></i> See Unclaimed</a>
+        {% elif active_lane == 'others' %}
+          <div class="le-icon"><i class="bi bi-people"></i></div>
+          <h5>Nobody else is mid-task</h5>
+          <p>No teammates currently have a task in progress.</p>
+        {% elif active_lane == 'waiting' %}
+          <div class="le-icon"><i class="bi bi-moon"></i></div>
+          <h5>Nothing snoozed or blocked</h5>
+          <p>Snoozed tasks reappear automatically. Blocked tasks show here while their dependency is open.</p>
+        {% elif active_lane == 'future' %}
+          <div class="le-icon"><i class="bi bi-calendar-check"></i></div>
+          <h5>No upcoming-trip blockers</h5>
+          <p>Future reservations look clean: payments collected, flights matched, drivers assigned.</p>
+        {% else %}
+          <div class="le-icon"><i class="bi bi-check-lg"></i></div>
+          <h5>All clear</h5>
+          <p>No active tasks in this lane right now.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+
   </div>
 
   <!-- ═══ Log Communication Modal ═══ -->
@@ -1351,6 +1894,30 @@ body {
     </div>
   </div>
 
+  <!-- ═══ Complete Task Modal (inline notes) ═══ -->
+  <div class="modal fade" id="completeTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title mb-0"><i class="bi bi-check-circle me-2"></i>Complete Task</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3" style="font-size: .82rem; color: var(--ops-text);" id="completeTaskTitle"></p>
+          <input type="hidden" id="completeTaskId">
+          <label class="form-label">Resolution notes (optional)</label>
+          <textarea id="completeNotes" class="form-control" rows="3" placeholder="What did you do? Helps the next person if it comes back up."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" id="btnSubmitComplete">
+            <i class="bi bi-check me-1"></i>Mark Complete
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ Create Task Modal ═══ -->
   <div class="modal fade" id="createTaskModal" tabindex="-1">
     <div class="modal-dialog">
@@ -1364,27 +1931,39 @@ body {
             <label class="form-label">Title</label>
             <input type="text" id="newTaskTitle" class="form-control" placeholder="What needs to be done?">
           </div>
-          <div class="mb-3">
-            <label class="form-label">Priority</label>
-            <select id="newTaskPriority" class="form-select">
-              <option value="1">Critical</option>
-              <option value="2">High</option>
-              <option value="3" selected>Medium</option>
-              <option value="4">Low</option>
-            </select>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label">Type</label>
+              <select id="newTaskType" class="form-select">
+                {% for tv, tl in task_types %}
+                <option value="{{ tv }}" {% if tv == 'manual' %}selected{% endif %}>{{ tl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Priority</label>
+              <select id="newTaskPriority" class="form-select">
+                <option value="1">Critical</option>
+                <option value="2">High</option>
+                <option value="3" selected>Medium</option>
+                <option value="4">Low</option>
+              </select>
+            </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Assign To</label>
-            <select id="newTaskAssignee" class="form-select">
-              <option value="">Unassigned</option>
-              {% for staff in ops_staff %}
-              <option value="{{ staff.id }}">{{ staff.first_name|default:staff.username }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Due</label>
-            <input type="datetime-local" id="newTaskDueAt" class="form-control">
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label">Assign To</label>
+              <select id="newTaskAssignee" class="form-select">
+                <option value="">Unclaimed (leave in queue)</option>
+                {% for staff in ops_staff %}
+                <option value="{{ staff.id }}">{{ staff.first_name|default:staff.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Due</label>
+              <input type="datetime-local" id="newTaskDueAt" class="form-control">
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Description</label>
@@ -1409,6 +1988,17 @@ body {
 <script>
 const CSRF = '{{ csrf_token }}';
 
+const TASK_URLS = {
+  claim:    '{% url "task_claim" %}',
+  complete: '{% url "task_complete" %}',
+  cancel:   '{% url "task_cancel" %}',
+  release:  '{% url "task_release" %}',
+  snooze:   '{% url "task_snooze" %}',
+  assign:   '{% url "task_assign" %}',
+  logComm:  '{% url "task_log_comm" %}',
+  create:   '{% url "task_create_manual" %}',
+};
+
 /* ── Toast ── */
 function showToast(msg, type = 'success') {
   const t = document.getElementById('opsToast');
@@ -1417,67 +2007,126 @@ function showToast(msg, type = 'success') {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-/* ── Task Actions ── */
-function taskAction(action, taskId, extra = {}) {
-  const urls = {
-    claim: '{% url "task_claim" %}',
-    complete: '{% url "task_complete" %}',
-    cancel: '{% url "task_cancel" %}',
-  };
-  fetch(urls[action], {
+/* ── Generic POST helper ── */
+function postJSON(url, body) {
+  return fetch(url, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify({task_id: taskId, ...extra}),
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      const row = document.getElementById('task-row-' + taskId);
-      if (row) {
-        row.style.transition = 'all .3s cubic-bezier(.4,0,.2,1)';
-        row.style.opacity = '0';
-        row.style.transform = 'translateX(30px)';
-        row.style.maxHeight = row.offsetHeight + 'px';
-        setTimeout(() => {
-          row.style.maxHeight = '0';
-          row.style.minHeight = '0';
-          row.style.padding = '0';
-          row.style.borderBottom = 'none';
-          row.style.overflow = 'hidden';
-        }, 150);
-        const labels = {claim: 'Claimed', complete: 'Completed', cancel: 'Dismissed'};
-        showToast(labels[action] || 'Done');
-        setTimeout(() => location.reload(), 800);
-      } else {
-        location.reload();
-      }
-    } else {
-      showToast('Error: ' + (data.error || 'Unknown'), 'error');
-    }
-  })
-  .catch(err => showToast('Network error', 'error'));
+    body: JSON.stringify(body || {}),
+  }).then(r => r.json());
 }
 
-/* ── Action Buttons ── */
+/* ── Smooth row removal then reload ── */
+function dismissRow(taskId, label) {
+  const row = document.getElementById('task-row-' + taskId);
+  if (row) {
+    row.style.transition = 'all .25s cubic-bezier(.4,0,.2,1)';
+    row.style.opacity = '0';
+    row.style.transform = 'translateX(24px)';
+    setTimeout(() => {
+      row.style.maxHeight = '0';
+      row.style.minHeight = '0';
+      row.style.padding = '0';
+      row.style.borderBottom = 'none';
+      row.style.overflow = 'hidden';
+    }, 150);
+  }
+  showToast(label);
+  setTimeout(() => location.reload(), 700);
+}
+
+/* ── Action button wiring (claim, complete, cancel, release) ── */
 document.querySelectorAll('.btn-task-action').forEach(btn => {
   btn.addEventListener('click', function(e) {
     e.preventDefault();
     e.stopPropagation();
     const action = this.dataset.action;
     const taskId = this.dataset.taskId;
-    const extra = {};
-    if (action === 'cancel' && !confirm('Dismiss this task?')) return;
-    if (action === 'complete') extra.notes = prompt('Resolution notes (optional):') || '';
-    taskAction(action, taskId, extra);
+
+    // Complete uses an inline modal so notes are easier to write
+    if (action === 'complete') {
+      document.getElementById('completeTaskId').value = taskId;
+      const titleEl = document.querySelector(`#task-row-${taskId} .ops-row-title, .nu-title`);
+      document.getElementById('completeTaskTitle').textContent =
+        this.closest('.next-up')
+          ? (this.closest('.next-up').querySelector('.nu-title')?.textContent || '')
+          : (document.querySelector(`#task-row-${taskId} .ops-row-title`)?.textContent || '');
+      document.getElementById('completeNotes').value = '';
+      new bootstrap.Modal(document.getElementById('completeTaskModal')).show();
+      return;
+    }
+
+    if (action === 'cancel' && !confirm('Dismiss this task? It will be marked cancelled.')) return;
+    if (action === 'release' && !confirm('Release this task back to the unclaimed queue?')) return;
+
+    const url = TASK_URLS[action];
+    if (!url) return;
+
+    postJSON(url, {task_id: taskId})
+      .then(data => {
+        if (data.success) {
+          const labels = {
+            claim: 'Claimed — it is now yours',
+            cancel: 'Dismissed',
+            release: 'Released back to the queue',
+          };
+          dismissRow(taskId, labels[action] || 'Done');
+        } else {
+          showToast('Error: ' + (data.error || 'Unknown'), 'error');
+        }
+      })
+      .catch(() => showToast('Network error', 'error'));
   });
 });
 
-/* ── Assign To Dropdown ── */
+/* ── Complete-task modal submit ── */
+document.getElementById('btnSubmitComplete')?.addEventListener('click', function() {
+  const taskId = document.getElementById('completeTaskId').value;
+  const notes = document.getElementById('completeNotes').value;
+  postJSON(TASK_URLS.complete, {task_id: parseInt(taskId), notes: notes})
+    .then(data => {
+      if (data.success) {
+        bootstrap.Modal.getInstance(document.getElementById('completeTaskModal'))?.hide();
+        dismissRow(taskId, 'Completed');
+      } else {
+        showToast('Error: ' + (data.error || 'Unknown'), 'error');
+      }
+    })
+    .catch(() => showToast('Network error', 'error'));
+});
+
+/* ── Snooze dropdown ── */
+document.querySelectorAll('.btn-snooze-toggle').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const pop = this.nextElementSibling;
+    document.querySelectorAll('.snooze-pop-new.open').forEach(m => { if (m !== pop) m.classList.remove('open'); });
+    document.querySelectorAll('.q-assign-pop.open').forEach(m => m.classList.remove('open'));
+    pop.classList.toggle('open');
+  });
+});
+document.querySelectorAll('.snooze-pop-new .snz-opt').forEach(opt => {
+  opt.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const taskId = this.dataset.taskId;
+    const duration = this.dataset.duration;
+    this.closest('.snooze-pop-new').classList.remove('open');
+    postJSON(TASK_URLS.snooze, {task_id: parseInt(taskId), duration: duration})
+      .then(data => {
+        if (data.success) dismissRow(taskId, 'Snoozed');
+        else showToast('Error: ' + (data.error || 'Unknown'), 'error');
+      })
+      .catch(() => showToast('Network error', 'error'));
+  });
+});
+
+/* ── Assign-to dropdown ── */
 document.querySelectorAll('.btn-assign-toggle').forEach(btn => {
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
     const pop = this.nextElementSibling;
     document.querySelectorAll('.q-assign-pop.open').forEach(m => { if (m !== pop) m.classList.remove('open'); });
+    document.querySelectorAll('.snooze-pop-new.open').forEach(m => m.classList.remove('open'));
     pop.classList.toggle('open');
   });
 });
@@ -1487,38 +2136,36 @@ document.querySelectorAll('.q-assign-opt').forEach(opt => {
     const userId = this.dataset.userId;
     const taskId = this.dataset.taskId;
     this.closest('.q-assign-pop').classList.remove('open');
-    fetch('{% url "task_assign" %}', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({task_id: parseInt(taskId), user_id: userId || null}),
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success) {
-        showToast(data.assigned_to ? 'Assigned to ' + data.assigned_to : 'Unassigned');
-        setTimeout(() => location.reload(), 600);
-      } else {
-        showToast('Error: ' + (data.error || 'Unknown'), 'error');
-      }
-    })
-    .catch(err => showToast('Network error', 'error'));
+    postJSON(TASK_URLS.assign, {task_id: parseInt(taskId), user_id: userId || null})
+      .then(data => {
+        if (data.success) {
+          showToast(data.assigned_to ? 'Assigned to ' + data.assigned_to : 'Unassigned');
+          setTimeout(() => location.reload(), 600);
+        } else {
+          showToast('Error: ' + (data.error || 'Unknown'), 'error');
+        }
+      })
+      .catch(() => showToast('Network error', 'error'));
   });
 });
+
+/* Click-anywhere closes open popovers */
 document.addEventListener('click', () => {
   document.querySelectorAll('.q-assign-pop.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.snooze-pop-new.open').forEach(m => m.classList.remove('open'));
 });
 
-/* ── Log Communication Modal ── */
+/* ── Log communication modal ── */
 document.querySelectorAll('.btn-log-comm').forEach(btn => {
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
     document.getElementById('commTaskId').value = this.dataset.taskId;
-    document.getElementById('commTaskTitle').textContent = this.dataset.taskTitle;
+    document.getElementById('commTaskTitle').textContent = this.dataset.taskTitle || '';
     new bootstrap.Modal(document.getElementById('logCommModal')).show();
   });
 });
 
-document.getElementById('btnSubmitComm').addEventListener('click', function() {
+document.getElementById('btnSubmitComm')?.addEventListener('click', function() {
   const data = {
     task_id: parseInt(document.getElementById('commTaskId').value),
     channel: document.getElementById('commChannel').value,
@@ -1526,67 +2173,66 @@ document.getElementById('btnSubmitComm').addEventListener('click', function() {
     notes: document.getElementById('commNotes').value,
     contact_value: document.getElementById('commContactValue').value,
   };
-  fetch('{% url "task_log_comm" %}', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify(data),
-  })
-  .then(r => r.json())
-  .then(result => {
-    if (result.success) {
-      bootstrap.Modal.getInstance(document.getElementById('logCommModal'))?.hide();
-      showToast('Communication logged');
-      setTimeout(() => location.reload(), 600);
-    } else {
-      showToast('Error: ' + (result.error || 'Unknown'), 'error');
-    }
-  })
-  .catch(err => showToast('Network error', 'error'));
+  postJSON(TASK_URLS.logComm, data)
+    .then(result => {
+      if (result.success) {
+        bootstrap.Modal.getInstance(document.getElementById('logCommModal'))?.hide();
+        showToast('Communication logged');
+        setTimeout(() => location.reload(), 600);
+      } else {
+        showToast('Error: ' + (result.error || 'Unknown'), 'error');
+      }
+    })
+    .catch(() => showToast('Network error', 'error'));
 });
 
-/* ── Create Task ── */
-document.getElementById('btnCreateTask').addEventListener('click', function() {
+/* ── Create task ── */
+document.getElementById('btnCreateTask')?.addEventListener('click', function() {
   const assigneeVal = document.getElementById('newTaskAssignee').value;
   const dueVal = document.getElementById('newTaskDueAt').value;
   const data = {
     title: document.getElementById('newTaskTitle').value,
+    task_type: document.getElementById('newTaskType').value,
     priority: parseInt(document.getElementById('newTaskPriority').value),
     description: document.getElementById('newTaskDescription').value,
     assigned_to: assigneeVal ? parseInt(assigneeVal) : null,
   };
-  if (dueVal) {
-    data.due_at = new Date(dueVal).toISOString();
-  }
+  if (dueVal) data.due_at = new Date(dueVal).toISOString();
   if (!data.title.trim()) { showToast('Title is required', 'error'); return; }
-  fetch('{% url "task_create_manual" %}', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify(data),
-  })
-  .then(r => r.json())
-  .then(result => {
-    if (result.success) {
-      bootstrap.Modal.getInstance(document.getElementById('createTaskModal'))?.hide();
-      showToast('Task created');
-      setTimeout(() => location.reload(), 600);
-    } else {
-      showToast('Error: ' + (result.error || 'Unknown'), 'error');
-    }
-  })
-  .catch(err => showToast('Network error', 'error'));
+  postJSON(TASK_URLS.create, data)
+    .then(result => {
+      if (result.success) {
+        bootstrap.Modal.getInstance(document.getElementById('createTaskModal'))?.hide();
+        showToast('Task created');
+        setTimeout(() => location.reload(), 600);
+      } else {
+        showToast('Error: ' + (result.error || 'Unknown'), 'error');
+      }
+    })
+    .catch(() => showToast('Network error', 'error'));
 });
 
-/* ── Keyboard Shortcuts ── */
+/* ── Keyboard shortcuts ── */
 document.addEventListener('keydown', function(e) {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
   if (e.key === 'n' || e.key === 'N') {
     e.preventDefault();
     new bootstrap.Modal(document.getElementById('createTaskModal')).show();
-  }
-  if (e.key === 'r' || e.key === 'R') {
+  } else if (e.key === 'r' || e.key === 'R') {
     e.preventDefault();
     location.reload();
-  }
+  } else if (e.key === '/') {
+    e.preventDefault();
+    const s = document.querySelector('.ops-search input');
+    if (s) s.focus();
+  } else if (e.key === '1') { location.href = '?lane=unclaimed'; }
+  else if (e.key === '2') { location.href = '?lane=mine'; }
+  else if (e.key === '3') { location.href = '?lane=future'; }
+  else if (e.key === '4') { location.href = '?lane=waiting'; }
+  else if (e.key === '5') { location.href = '?lane=completed'; }
 });
 </script>
 {% endblock %}

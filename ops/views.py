@@ -4,7 +4,7 @@ Views for the operational task queue and related API endpoints.
 
 import json
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime
 from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -36,72 +36,158 @@ def _is_staff(user):
 @user_passes_test(_is_staff, login_url="login")
 def task_queue_view(request):
     """
-    Main staff task queue — shows all open operational tasks sorted by priority.
-    Supports filtering by task_type, assigned_to, and status.
+    Operations command center — shared work queue with claim-based workflow.
+
+    Renders five lanes (Unclaimed, Mine, Others, Waiting, Future Blockers)
+    plus a Completed-Today section and a "Next Up" anchor card. All lanes
+    share one query and one in-memory partitioning pass to keep queries flat.
+
+    Query params:
+      lane=unclaimed|mine|others|waiting|future|completed  (default: unclaimed)
+      type=<task_type>
+      q=<search>     # title / description / customer name / R<id> / L<id>
+      overdue=1
     """
-    # Parse filters
-    type_filter = request.GET.get("type", "")
-    assignee_filter = request.GET.get("assignee", "")
-    status_filter = request.GET.get("status", "")
+    from django.db.models import Count, Q
+
+    type_filter = (request.GET.get("type") or "").strip()
+    lane = (request.GET.get("lane") or "unclaimed").strip()
+    search_q = (request.GET.get("q") or "").strip()
     overdue_only = request.GET.get("overdue") == "1"
 
+    now = timezone.now()
     today = timezone.localdate()
 
-    tasks = OperationalTask.objects.filter(
-        status__in=["pending", "in_progress", "escalated", "snoozed"],
-    ).exclude(
-        # Hide driver assignment tasks for past pickup dates
-        task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
-        leg__pickup_date__lt=today,
-    ).select_related(
-        "reservation",
-        "reservation__customer",
-        "leg",
-        "leg__reservation",
-        "leg__reservation__customer",
-        "leg__flight_information",
-        "lead",
-        "contact_form",
-        "assigned_to",
-        "blocked_by",
-    ).order_by("priority", "due_at")
+    # ── Single base queryset for everything that's open ─────────────────────
+    open_statuses = list(OperationalTask.OPEN_STATUSES)
+
+    base_qs = (
+        OperationalTask.objects.filter(status__in=open_statuses)
+        .exclude(
+            # Past-date driver_assign tasks are noise (the auto-closer kills
+            # them on the next cycle, but hide them from the UI immediately).
+            task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
+            leg__pickup_date__lt=today,
+        )
+        .select_related(
+            "reservation",
+            "reservation__customer",
+            "leg",
+            "leg__reservation",
+            "leg__reservation__customer",
+            "leg__flight_information",
+            "lead",
+            "contact_form",
+            "assigned_to",
+            "blocked_by",
+        )
+        .order_by("priority", "due_at")
+    )
 
     if type_filter:
-        tasks = tasks.filter(task_type=type_filter)
-    if assignee_filter == "me":
-        tasks = tasks.filter(assigned_to=request.user)
-    elif assignee_filter == "unassigned":
-        tasks = tasks.filter(assigned_to__isnull=True)
-    if status_filter:
-        tasks = tasks.filter(status=status_filter)
+        base_qs = base_qs.filter(task_type=type_filter)
     if overdue_only:
-        tasks = tasks.filter(due_at__lt=timezone.now())
+        base_qs = base_qs.filter(due_at__lt=now)
+    if search_q:
+        # Match title, description, customer first/last, and Rxx / Lxx tokens
+        q = Q(title__icontains=search_q) | Q(description__icontains=search_q)
+        q |= Q(reservation__customer__first_name__icontains=search_q)
+        q |= Q(reservation__customer__last_name__icontains=search_q)
+        q |= Q(leg__reservation__customer__first_name__icontains=search_q)
+        q |= Q(leg__reservation__customer__last_name__icontains=search_q)
+        digits = "".join(ch for ch in search_q if ch.isdigit())
+        if digits:
+            try:
+                num = int(digits)
+                q |= Q(reservation_id=num) | Q(leg_id=num) | Q(leg__reservation_id=num)
+            except (ValueError, OverflowError):
+                pass
+        base_qs = base_qs.filter(q).distinct()
 
-    now = timezone.now()
+    all_open = list(base_qs)
 
-    # Summary counts (unfiltered, for the summary bar)
-    from django.db.models import Count
+    # ── Partition into lanes ────────────────────────────────────────────────
+    user_id = request.user.id
+    unclaimed, mine, others, waiting, future_blockers = [], [], [], [], []
 
-    summary_qs = OperationalTask.objects.filter(
-        status__in=["pending", "in_progress", "escalated"],
+    for t in all_open:
+        # Waiting takes priority over other classifications — a snoozed or
+        # blocked task is intentionally parked, regardless of who owns it.
+        is_waiting = (
+            t.status == OperationalTask.Status.SNOOZED
+            or (t.blocked_by_id and t.blocked_by and t.blocked_by.is_open)
+        )
+        if is_waiting:
+            waiting.append(t)
+            continue
+
+        # Future schedule blockers — an open task on a leg booked for a
+        # future date. These are the "schedule-risk" items the owner asked
+        # for. Same-day items belong in the main lanes.
+        leg_date = t.leg.pickup_date if t.leg_id and t.leg else None
+        if not leg_date and t.reservation_id and t.reservation:
+            # Reservation-only tasks (e.g. payment_chase) — use earliest
+            # upcoming leg from prefetched metadata if present.
+            meta_pickup = (t.metadata or {}).get("earliest_pickup")
+            if meta_pickup:
+                try:
+                    from datetime import date as _date
+                    leg_date = _date.fromisoformat(meta_pickup)
+                except (ValueError, TypeError):
+                    leg_date = None
+        is_future = leg_date and leg_date > today
+        if is_future:
+            future_blockers.append(t)
+
+        # Ownership lanes (a task can be in both future_blockers AND one of
+        # the ownership lanes — they're orthogonal views).
+        if t.assigned_to_id is None:
+            unclaimed.append(t)
+        elif t.assigned_to_id == user_id:
+            mine.append(t)
+        else:
+            others.append(t)
+
+    # ── Completed today ────────────────────────────────────────────────────
+    # Local-day range so "today" matches the dispatcher's clock, not UTC.
+    local_today = timezone.localtime(now).date()
+    tz_local = timezone.get_current_timezone()
+    day_start = timezone.make_aware(
+        datetime.combine(local_today, datetime.min.time()), tz_local
     )
-    type_counts = dict(
-        summary_qs.values_list("task_type").annotate(c=Count("id")).values_list("task_type", "c")
+    completed_today_qs = (
+        OperationalTask.objects.filter(
+            status=OperationalTask.Status.COMPLETED,
+            resolved_at__gte=day_start,
+        )
+        .select_related(
+            "reservation",
+            "reservation__customer",
+            "leg",
+            "leg__reservation",
+            "leg__reservation__customer",
+            "resolved_by",
+        )
+        .order_by("-resolved_at")
     )
-    total_open = sum(type_counts.values())
-    overdue_count = summary_qs.filter(due_at__lt=now).count()
+    completed_today = list(completed_today_qs[:30])
+    completed_today_count = completed_today_qs.count()
 
-    # Split out the current user's active (claimed/in-progress) tasks
-    task_list = list(tasks)
-    my_active = [
-        t for t in task_list
-        if t.assigned_to_id == request.user.id
-        and t.status in ("in_progress", "pending")
-    ]
-    my_active_ids = {t.id for t in my_active}
-    remaining_tasks = [t for t in task_list if t.id not in my_active_ids]
+    # ── Lane selection for the active tab ──────────────────────────────────
+    lane_tasks = {
+        "unclaimed": unclaimed,
+        "mine": mine,
+        "others": others,
+        "waiting": waiting,
+        "future": future_blockers,
+        "completed": completed_today,
+    }
+    if lane not in lane_tasks:
+        lane = "unclaimed"
+    active_tasks = lane_tasks[lane]
 
-    # Build priority-grouped task list for the template
+    # Group the active lane by priority — keeps the visual hierarchy that
+    # already works on the queue but applied to a single lane at a time.
     priority_config = [
         (1, "critical", "Critical", "Needs immediate action"),
         (2, "high", "High", "Address within a few hours"),
@@ -109,16 +195,42 @@ def task_queue_view(request):
         (4, "low", "Low", "When time permits"),
     ]
     priority_groups = []
-    for pval, key, label, hint in priority_config:
-        group_tasks = [t for t in remaining_tasks if t.priority == pval]
-        group_tasks.sort(key=lambda t: t.task_type)
-        priority_groups.append({
-            "priority": pval,
-            "key": key,
-            "label": label,
-            "hint": hint,
-            "tasks": group_tasks,
-        })
+    if lane != "completed":
+        for pval, key, label, hint in priority_config:
+            group_tasks = [t for t in active_tasks if t.priority == pval]
+            if not group_tasks:
+                continue
+            group_tasks.sort(key=lambda t: (t.due_at, t.task_type))
+            priority_groups.append({
+                "priority": pval,
+                "key": key,
+                "label": label,
+                "hint": hint,
+                "tasks": group_tasks,
+            })
+
+    # ── "Next Up" anchor: the single most-urgent unclaimed task ─────────────
+    # If the user already has active tasks, anchor on their most-urgent one
+    # instead so the page tells them to finish what they started before
+    # claiming more.
+    next_up = None
+    if mine:
+        next_up = mine[0]  # already priority-sorted
+    elif unclaimed:
+        next_up = unclaimed[0]
+
+    # ── Summary counts (global, not filtered by type/search) ────────────────
+    summary_qs = OperationalTask.objects.filter(status__in=open_statuses).exclude(
+        task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
+        leg__pickup_date__lt=today,
+    )
+    type_counts = dict(
+        summary_qs.values_list("task_type")
+        .annotate(c=Count("id"))
+        .values_list("task_type", "c")
+    )
+    total_open = sum(type_counts.values())
+    overdue_count = summary_qs.filter(due_at__lt=now).count()
 
     ops_staff = list(
         User.objects.filter(is_staff=True, is_active=True)
@@ -126,19 +238,44 @@ def task_queue_view(request):
         .values("id", "first_name", "username")
     )
 
+    lane_meta = [
+        {"key": "unclaimed", "label": "Unclaimed", "count": len(unclaimed),
+         "hint": "Open work — grab one"},
+        {"key": "mine", "label": "Mine", "count": len(mine),
+         "hint": "Tasks you've claimed"},
+        {"key": "others", "label": "Others", "count": len(others),
+         "hint": "Claimed by teammates"},
+        {"key": "waiting", "label": "Waiting", "count": len(waiting),
+         "hint": "Snoozed or blocked"},
+        {"key": "future", "label": "Future Blockers", "count": len(future_blockers),
+         "hint": "Issues on upcoming trips"},
+        {"key": "completed", "label": "Completed Today", "count": completed_today_count,
+         "hint": "Today's wins"},
+    ]
+
     context = {
-        "tasks": task_list,
-        "my_active": my_active,
+        "active_lane": lane,
+        "lane_meta": lane_meta,
         "priority_groups": priority_groups,
+        "active_tasks": active_tasks,
+        "completed_today": completed_today,
+        "completed_today_count": completed_today_count,
+        "next_up": next_up,
         "now": now,
+        "today": today,
         "type_filter": type_filter,
-        "assignee_filter": assignee_filter,
-        "status_filter": status_filter,
+        "search_q": search_q,
         "overdue_only": overdue_only,
         "type_counts": type_counts,
         "total_open": total_open,
         "overdue_count": overdue_count,
+        "unclaimed_count": len(unclaimed),
+        "mine_count": len(mine),
+        "others_count": len(others),
+        "waiting_count": len(waiting),
+        "future_blockers_count": len(future_blockers),
         "task_types": OperationalTask.TaskType.choices,
+        "priorities": OperationalTask.Priority.choices,
         "ops_staff": ops_staff,
     }
     return render(request, "dispatching/task_queue.html", context)
@@ -325,6 +462,51 @@ def task_cancel(request):
 @login_required(login_url="login")
 @user_passes_test(_is_staff, login_url="login")
 @require_POST
+def task_release(request):
+    """
+    Release a claimed task back to the unclaimed queue.
+    Clears assigned_to and returns status to PENDING so another staff member can claim it.
+    """
+    try:
+        data = json.loads(request.body)
+        task_id = data.get("task_id")
+        reason = data.get("reason", "")
+    except (json.JSONDecodeError, AttributeError):
+        task_id = request.POST.get("task_id")
+        reason = request.POST.get("reason", "")
+
+    task = get_object_or_404(OperationalTask, id=task_id)
+
+    if not task.is_open:
+        return JsonResponse({"success": False, "error": "Task is not open"})
+
+    previous_assignee = task.assigned_to
+    task.assigned_to = None
+    task.assigned_at = None
+    if task.status == OperationalTask.Status.IN_PROGRESS:
+        task.status = OperationalTask.Status.PENDING
+    task.save(update_fields=["assigned_to", "assigned_at", "status", "updated_at"])
+
+    StaffActivity.objects.create(
+        user=request.user,
+        action_type=StaffActivity.ActionType.TASK_ASSIGNED,
+        task=task,
+        metadata={
+            "released_from": (
+                previous_assignee.first_name or previous_assignee.username
+                if previous_assignee else None
+            ),
+            "reason": reason,
+            "released": True,
+        },
+    )
+
+    return JsonResponse({"success": True, "task_id": task.id})
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+@require_POST
 def contact_form_update_status(request):
     """Update a contact form's status (contacted/closed) and optionally close its task."""
     from users.models import ContactUsForm
@@ -442,6 +624,13 @@ def task_create_manual(request):
     priority = int(data.get("priority", OperationalTask.Priority.MEDIUM))
     description = data.get("description", "")
 
+    # Manual tasks default to MANUAL but staff can pick any operational type
+    # so the task lands in the right typed lane (e.g. payment_chase for a
+    # one-off "remind this guest to pay" task).
+    requested_type = (data.get("task_type") or OperationalTask.TaskType.MANUAL).strip()
+    valid_types = {choice[0] for choice in OperationalTask.TaskType.choices}
+    task_type = requested_type if requested_type in valid_types else OperationalTask.TaskType.MANUAL
+
     # Parse due_at or default to end of today
     due_at_str = data.get("due_at")
     if due_at_str:
@@ -457,7 +646,7 @@ def task_create_manual(request):
         due_at = today_eod
 
     task = create_task(
-        task_type=OperationalTask.TaskType.MANUAL,
+        task_type=task_type,
         title=title,
         due_at=due_at,
         priority=priority,

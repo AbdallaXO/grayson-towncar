@@ -383,6 +383,7 @@ urlpatterns = [
     path("task-queue/snooze/", ops_views.task_snooze, name="task_snooze"),
     path("task-queue/assign/", ops_views.task_assign, name="task_assign"),
     path("task-queue/cancel/", ops_views.task_cancel, name="task_cancel"),
+    path("task-queue/release/", ops_views.task_release, name="task_release"),
     path("task-queue/log-comm/", ops_views.task_log_comm, name="task_log_comm"),
     path("task-queue/create/", ops_views.task_create_manual, name="task_create_manual"),
     path("task-queue/contact-form/update-status/", ops_views.contact_form_update_status, name="contact_form_update_status"),
