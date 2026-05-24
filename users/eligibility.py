@@ -271,6 +271,36 @@ def sum_ready(agent, *, now=None, grace_hours=DEFAULT_GRACE_HOURS) -> Decimal:
     return total.quantize(Decimal("0.01"))
 
 
+def bulk_ready_totals(agent_ids, *, now=None, grace_hours=DEFAULT_GRACE_HOURS):
+    """Ready-bucket totals for many agents in one query pair.
+
+    Semantically identical to calling sum_ready(agent) for each id, but issues
+    one Reservation query + one legs prefetch for the whole set instead of 2*N.
+    Used by the affiliate-payments page to avoid an N+1 across the visible page.
+
+    Returns {agent_id: Decimal} for every id passed in (zero when no ready
+    reservations exist), so callers can index without KeyError.
+    """
+    from collections import defaultdict
+    from reservations.models import Reservation
+
+    agent_ids = list(agent_ids)
+    if not agent_ids:
+        return {}
+    totals = defaultdict(lambda: Decimal("0"))
+    qs = (
+        Reservation.objects.filter(travel_agent_id__in=agent_ids)
+        .exclude(commission_paid=True)
+        .select_related("travel_agent")
+        .prefetch_related("legs")
+    )
+    for res in qs:
+        result = get_commission_eligibility(res, now=now, grace_hours=grace_hours)
+        if result.status == STATUS_READY:
+            totals[res.travel_agent_id] += result.commission
+    return {aid: totals.get(aid, Decimal("0")).quantize(Decimal("0.01")) for aid in agent_ids}
+
+
 def sum_pending(agent, *, now=None, grace_hours=DEFAULT_GRACE_HOURS) -> Decimal:
     """Sum of commission amounts in the Pending bucket -- future trips and grace-window holds."""
     total = Decimal("0")

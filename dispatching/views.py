@@ -11930,12 +11930,17 @@ from users.services import (
 
 
 @staff_member_required
-def affiliate_payments(request):
+def affiliate_payments(request, section_lock=None):
     """Commission ops command center.
 
     Single hub view: KPIs across all owing payees, KPI breakdown by payment method,
     six tab sections (Pay Today / Agencies / Direct Agents / Missing Info / Overdue / History),
     plus the AJAX preview + bulk-mark-paid actions.
+
+    `section_lock` is set by dedicated URLs (`affiliate_payments_agents`,
+    `affiliate_payments_agencies`, `affiliate_payments_history`) so each
+    entity type has its own bookmarkable URL. When unset, the legacy URL
+    falls back to the `?section=` querystring with `pay_today` as default.
     """
     from django.db.models import F, ExpressionWrapper, DecimalField, Value
     from django.db.models.functions import Coalesce as CoalesceFunc
@@ -11943,9 +11948,12 @@ def affiliate_payments(request):
 
     # ---------- Filters ----------
     VALID_SECTIONS = {"pay_today", "agencies", "agents", "missing", "overdue", "history"}
-    section = request.GET.get("section", "pay_today")
-    if section not in VALID_SECTIONS:
-        section = "pay_today"
+    if section_lock in VALID_SECTIONS:
+        section = section_lock
+    else:
+        section = request.GET.get("section", "pay_today")
+        if section not in VALID_SECTIONS:
+            section = "pay_today"
 
     search = request.GET.get("q", "").strip()
     show = request.GET.get("show", "owing")  # owing | all
@@ -12352,23 +12360,64 @@ def affiliate_payments(request):
         agencies_qs = agencies_qs.none()
     # pay_today: show both, but cap (handled below in pagination).
 
-    # Sorting
-    if sort == "amount":
-        agencies_qs = agencies_qs.order_by("-unpaid_total", "name")
-        direct_agents_qs = direct_agents_qs.order_by("-live_unpaid", "agent_name")
-    elif sort == "name":
-        agencies_qs = agencies_qs.order_by("name")
-        direct_agents_qs = direct_agents_qs.order_by("agent_name")
-    elif sort == "date":
-        agencies_qs = agencies_qs.order_by(F("last_paid_at").asc(nulls_first=True), "name")
-        direct_agents_qs = direct_agents_qs.order_by(
-            F("last_payment_date").asc(nulls_first=True), "agent_name"
-        )
-    elif sort == "overdue":
-        agencies_qs = agencies_qs.order_by(F("oldest_unpaid").asc(nulls_last=True), "name")
-        direct_agents_qs = direct_agents_qs.order_by(
-            F("oldest_unpaid").asc(nulls_last=True), "agent_name"
-        )
+    # ---------- Sorting ----------
+    # `sort` is a comma-separated list of `key:direction` pairs (e.g.
+    # "amount:desc,overdue:asc"). Direct agents apply every key as a stable
+    # tiebreaker chain; agencies use only the first key since their UI doesn't
+    # expose multi-sort. The legacy single-value form (e.g. ?sort=amount) is
+    # still accepted and defaults to descending.
+    AGENT_SORT_FIELDS = {
+        "amount": "live_unpaid",
+        "name": "agent_name",
+        "date": "last_payment_date",
+        "overdue": "oldest_unpaid",
+        "reservations": "unpaid_res_count",
+    }
+    AGENCY_SORT_FIELDS = {
+        "amount": "unpaid_total",
+        "name": "name",
+        "date": "last_paid_at",
+        "overdue": "oldest_unpaid",
+        "reservations": "unpaid_res_count",
+    }
+
+    def _parse_sort_pairs(raw):
+        out, seen = [], set()
+        for chunk in (raw or "").split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            if ":" in chunk:
+                key, direction = chunk.split(":", 1)
+            else:
+                key, direction = chunk, "desc"
+            key = key.strip().lower()
+            if key in seen or key not in AGENT_SORT_FIELDS:
+                continue
+            seen.add(key)
+            out.append((key, direction.strip().lower() == "desc"))
+        return out or [("amount", True)]
+
+    sort_pairs = _parse_sort_pairs(sort)
+
+    def _order_term(field_name, descending):
+        # Per-field null handling matches the prior single-key behavior so
+        # ordering doesn't change for users who haven't opted into multi-sort.
+        f = F(field_name)
+        if field_name in ("last_payment_date", "last_paid_at"):
+            return f.desc(nulls_last=True) if descending else f.asc(nulls_first=True)
+        if field_name == "oldest_unpaid":
+            return f.desc(nulls_last=True) if descending else f.asc(nulls_last=True)
+        return f.desc() if descending else f.asc()
+
+    agent_order_terms = [_order_term(AGENT_SORT_FIELDS[k], desc) for k, desc in sort_pairs]
+    agent_order_terms.append(F("agent_name").asc())  # stable final tiebreaker
+    direct_agents_qs = direct_agents_qs.order_by(*agent_order_terms)
+
+    first_key, first_desc = sort_pairs[0]
+    agencies_qs = agencies_qs.order_by(
+        _order_term(AGENCY_SORT_FIELDS[first_key], first_desc), "name"
+    )
 
     # ---------- Pagination for direct agents ----------
     agents_paginator = Paginator(direct_agents_qs, per_page)
@@ -12378,19 +12427,45 @@ def affiliate_payments(request):
     except (PageNotAnInteger, EmptyPage):
         agents_page_obj = agents_paginator.page(1)
 
+    # ---------- Materialize visible payees + bulk-compute Ready totals ----------
+    # The SQL annotation (live_unpaid / unpaid_total) is a SUPERSET of the
+    # Ready bucket -- it includes some pending reservations whose service
+    # date is close to the grace boundary. We recompute the exact Ready
+    # total in Python so the operator sees the same amount that "Pay Now"
+    # will actually transfer. Doing this in bulk for every visible agent +
+    # agency child in a single query pair avoids the N+1 that made this
+    # page slow (one Reservation+legs fetch per agent per page-load).
+    from users.eligibility import bulk_ready_totals
+
+    page_agents = list(agents_page_obj)
+    visible_agencies = list(agencies_qs)
+
+    children_by_agency = {a.id: [] for a in visible_agencies}
+    visible_children = []
+    if visible_agencies:
+        agency_ids = [a.id for a in visible_agencies]
+        visible_children = list(
+            agency_handled_agents_base.filter(agency_id__in=agency_ids, has_unpaid=True)
+            .order_by("-live_unpaid")
+        )
+        for child in visible_children:
+            children_by_agency.setdefault(child.agency_id, []).append(child)
+
+    ready_agent_ids = {a.id for a in page_agents}
+    ready_agent_ids.update(c.id for c in visible_children)
+    ready_by_agent_id = bulk_ready_totals(ready_agent_ids)
+
     # ---------- Per-row enrichment (status flags, paid_today, overdue days) ----------
     def _enrich_payee(payee, amount_field):
-        # The SQL annotation (live_unpaid / unpaid_total) is a SUPERSET of the
-        # Ready bucket -- it includes some pending reservations whose service
-        # date is close to the grace boundary. Recompute the exact Ready total
-        # in Python so the operator sees the same amount that "Pay Now" will
-        # actually transfer.
         if isinstance(payee, TravelAgent):
-            display = _agent_live_unpaid(payee)
+            display = ready_by_agent_id.get(payee.id, Decimal("0"))
         else:
-            # Agency: sum each child agent's Ready amount.
+            # Agency total = sum of its visible children's Ready totals. Children
+            # filtered to has_unpaid=True are the only non-zero contributors, so
+            # iterating just those (instead of re-querying payee.agents.filter)
+            # gives the same number with no extra query.
             display = sum(
-                (_agent_live_unpaid(a) for a in payee.agents.filter(agency_handles_payment=True)),
+                (ready_by_agent_id.get(c.id, Decimal("0")) for c in children_by_agency.get(payee.id, [])),
                 Decimal("0"),
             ).quantize(Decimal("0.01"))
         payee.display_amount = display
@@ -12405,10 +12480,7 @@ def affiliate_payments(request):
             payee.overdue_days = 0
             payee.is_overdue = False
         # Missing info
-        if isinstance(payee, TravelAgent):
-            payee.is_missing_info = bool(amount) and not payee.payment_info_complete
-        else:
-            payee.is_missing_info = bool(amount) and not payee.payment_info_complete
+        payee.is_missing_info = bool(amount) and not payee.payment_info_complete
         # Paid today
         last_paid = getattr(payee, "last_paid_at", None) or getattr(payee, "last_payment_date", None)
         payee.paid_today = bool(last_paid and timezone.localtime(last_paid).date() == today)
@@ -12425,26 +12497,15 @@ def affiliate_payments(request):
             payee.status_label = "ready"
 
     page_total_unpaid = Decimal("0")
-    for agent in agents_page_obj:
+    for agent in page_agents:
         _enrich_payee(agent, "live_unpaid")
         page_total_unpaid += agent.display_amount
 
-    # ---------- Agency expandable body: prefetch child agents with live_unpaid annotated ----------
-    visible_agencies = list(agencies_qs)
-    if visible_agencies:
-        agency_ids = [a.id for a in visible_agencies]
-        children_qs = (
-            agency_handled_agents_base.filter(agency_id__in=agency_ids, has_unpaid=True)
-            .order_by("-live_unpaid")
-        )
-        # Group children by agency_id in a dict so the template never re-queries.
-        children_by_agency = {aid: [] for aid in agency_ids}
-        for child in children_qs:
-            _enrich_payee(child, "live_unpaid")
-            children_by_agency.setdefault(child.agency_id, []).append(child)
-        for agency in visible_agencies:
-            _enrich_payee(agency, "unpaid_total")
-            agency.child_agents = children_by_agency.get(agency.id, [])
+    for child in visible_children:
+        _enrich_payee(child, "live_unpaid")
+    for agency in visible_agencies:
+        _enrich_payee(agency, "unpaid_total")
+        agency.child_agents = children_by_agency.get(agency.id, [])
 
     # ---------- Pay Today: curated recommended queue ----------
     # Reuse the already-loaded visible_agencies and agents_page_obj instead of

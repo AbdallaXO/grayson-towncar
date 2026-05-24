@@ -282,6 +282,24 @@ urlpatterns = [
         name="affiliate_payments",
     ),
     path(
+        "affiliate-payments/agents/",
+        views.affiliate_payments,
+        {"section_lock": "agents"},
+        name="affiliate_payments_agents",
+    ),
+    path(
+        "affiliate-payments/agencies/",
+        views.affiliate_payments,
+        {"section_lock": "agencies"},
+        name="affiliate_payments_agencies",
+    ),
+    path(
+        "affiliate-payments/history/",
+        views.affiliate_payments,
+        {"section_lock": "history"},
+        name="affiliate_payments_history",
+    ),
+    path(
         "affiliate-payments/process-agent/",
         views.process_agent_payout_view,
         name="process_agent_payout",

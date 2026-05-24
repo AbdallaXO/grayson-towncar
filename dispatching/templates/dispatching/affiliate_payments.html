@@ -357,6 +357,10 @@
     border: 1px solid var(--gt-border); box-shadow: var(--gt-shadow-md);
     border-radius: var(--gt-radius-sm); padding: 4px; z-index: 1050;
   }
+  /* .am-entity's fadeUp animation leaves a lingering transform, which creates
+     a stacking context. Without raising z-index when the dropdown is open, the
+     next row paints over the menu and clips items below the first. */
+  .am-entity:has(.dropdown-menu.show) { z-index: 100; }
   .am-actions .dropdown-item {
     border-radius: var(--gt-radius-sm); font-size: .85rem; padding: .5rem .8rem;
   }
@@ -389,6 +393,12 @@
     padding: 8px 10px; border-bottom: 1px solid var(--gt-border);
   }
   .preview-table td { padding: 9px 10px; border-bottom: 1px solid var(--gt-border-soft); }
+  .preview-table .res-link {
+    color: var(--gt-dark); font-weight: 600; text-decoration: none;
+    border-bottom: 1px dashed var(--gt-border);
+    transition: color .15s, border-color .15s;
+  }
+  .preview-table .res-link:hover { color: var(--gt-gold); border-bottom-color: var(--gt-gold); }
 
   /* === Payout history tables === */
   .am-card {
@@ -562,6 +572,43 @@
     font-size: .82rem; color: var(--gt-text); width: 84px; outline: none;
   }
   .am-min-amount:focus-within { border-color: var(--gt-gold); background: #fff; }
+
+  /* === Sort chips (click=primary, shift+click=secondary) ===
+     Replaces the single-key <select>. Direct agents honor every key; agencies
+     use only the first one. Visual cues: arrow shows direction, "²" marks
+     the secondary key. */
+  .am-sort-chips {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px; border-radius: var(--gt-radius-sm);
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+    flex-wrap: wrap;
+  }
+  .am-sort-label {
+    font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: var(--gt-muted); margin-right: 2px;
+  }
+  .am-sort-chip {
+    border: 1px solid transparent; background: transparent;
+    padding: .3rem .65rem; border-radius: var(--gt-radius-sm);
+    font-size: .8rem; color: var(--gt-muted); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: background .12s, color .12s, border-color .12s;
+    user-select: none; position: relative;
+  }
+  .am-sort-chip:hover { color: var(--gt-dark); background: #fff; }
+  .am-sort-chip.is-primary {
+    background: var(--gt-dark); color: #fff; border-color: var(--gt-dark);
+    font-weight: 600;
+  }
+  .am-sort-chip.is-secondary {
+    background: #fff; color: var(--gt-dark);
+    border-color: var(--gt-gold); font-weight: 500;
+  }
+  .am-sort-chip .am-sort-arrow { font-size: .9rem; line-height: 1; }
+  .am-sort-chip .am-sort-rank {
+    font-size: .6rem; font-weight: 700; opacity: .75;
+    margin-left: 2px;
+  }
 
   /* Status badges on entity rows */
   .status-badge {
@@ -849,35 +896,38 @@
   </div>
   {% endif %}
 
-  <!-- Sticky Section Nav (URL-driven tabs) -->
+  <!-- Sticky Section Nav: entity tabs (Agencies / Direct Agents / History) get
+       their own dedicated URLs so each is bookmarkable; cross-cutting filters
+       (Pay Today / Missing / Overdue) point to the legacy URL with ?section= so
+       they can span both entity types. -->
   <nav class="am-section-nav" id="amSectionNav">
     <div class="am-section-nav-inner">
-      <a href="?section=pay_today{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
+      <a href="{% url 'affiliate_payments' %}?section=pay_today{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
          class="am-tab am-tab-primary {% if section == 'pay_today' %}active{% endif %}">
         <i class="bi bi-star-fill"></i>Pay Today
         <span class="count">{{ pay_today_count }}</span>
       </a>
-      <a href="?section=agencies{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
+      <a href="{% url 'affiliate_payments_agencies' %}{% if search or pay_method %}?{% endif %}{% if search %}q={{ search }}{% endif %}{% if search and pay_method %}&{% endif %}{% if pay_method %}pay_method={{ pay_method }}{% endif %}"
          class="am-tab {% if section == 'agencies' %}active{% endif %}">
         <i class="bi bi-building"></i>Agencies
         <span class="count">{{ total_owing_agencies }}</span>
       </a>
-      <a href="?section=agents{% if search %}&q={{ search }}{% endif %}{% if pay_method %}&pay_method={{ pay_method }}{% endif %}"
+      <a href="{% url 'affiliate_payments_agents' %}{% if search or pay_method %}?{% endif %}{% if search %}q={{ search }}{% endif %}{% if search and pay_method %}&{% endif %}{% if pay_method %}pay_method={{ pay_method }}{% endif %}"
          class="am-tab {% if section == 'agents' %}active{% endif %}">
         <i class="bi bi-person"></i>Direct Agents
         <span class="count">{{ total_owing_agents }}</span>
       </a>
-      <a href="?section=missing{% if search %}&q={{ search }}{% endif %}"
+      <a href="{% url 'affiliate_payments' %}?section=missing{% if search %}&q={{ search }}{% endif %}"
          class="am-tab am-tab-warn {% if section == 'missing' %}active{% endif %}">
         <i class="bi bi-exclamation-triangle"></i>Missing Info
         <span class="count">{{ missing_info_count }}</span>
       </a>
-      <a href="?section=overdue{% if search %}&q={{ search }}{% endif %}"
+      <a href="{% url 'affiliate_payments' %}?section=overdue{% if search %}&q={{ search }}{% endif %}"
          class="am-tab am-tab-danger {% if section == 'overdue' %}active{% endif %}">
         <i class="bi bi-clock-history"></i>Overdue
         <span class="count">{{ overdue_count }}</span>
       </a>
-      <a href="?section=history" class="am-tab {% if section == 'history' %}active{% endif %}">
+      <a href="{% url 'affiliate_payments_history' %}" class="am-tab {% if section == 'history' %}active{% endif %}">
         <i class="bi bi-archive"></i>History
         <span class="count">{{ total_payouts }}</span>
       </a>
@@ -912,12 +962,17 @@
         <span class="am-min-amount-prefix">$</span>
         <input type="number" name="min_amount" min="0" step="1" value="{% if min_amount %}{{ min_amount|floatformat:0 }}{% endif %}" placeholder="Min">
       </div>
-      <select name="sort" title="Sort">
-        <option value="amount" {% if sort == "amount" %}selected{% endif %}>Sort: Amount</option>
-        <option value="overdue" {% if sort == "overdue" %}selected{% endif %}>Sort: Oldest unpaid</option>
-        <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
-        <option value="date" {% if sort == "date" %}selected{% endif %}>Sort: Last paid</option>
-      </select>
+      {# Sort chips: click = primary sort, shift+click = secondary tiebreaker. Encoded into the hidden input as `amount:desc,overdue:asc`. The view applies all keys for direct agents and the first key for agencies. #}
+      <input type="hidden" name="sort" id="sortHidden" value="{{ sort }}">
+      <div class="am-sort-chips" id="amSortChips" data-sort="{{ sort }}"
+           title="Click to sort. Shift+click to add a secondary sort.">
+        <span class="am-sort-label">Sort:</span>
+        <button type="button" class="am-sort-chip" data-key="amount">Amount</button>
+        <button type="button" class="am-sort-chip" data-key="overdue">Oldest unpaid</button>
+        <button type="button" class="am-sort-chip" data-key="name">Name</button>
+        <button type="button" class="am-sort-chip" data-key="date">Last paid</button>
+        <button type="button" class="am-sort-chip" data-key="reservations">Reservations</button>
+      </div>
       <select name="per_page" title="Rows per page" onchange="this.form.submit()">
         <option value="25" {% if per_page == 25 %}selected{% endif %}>25/page</option>
         <option value="50" {% if per_page == 50 %}selected{% endif %}>50/page</option>
@@ -1624,6 +1679,9 @@ const URLS = {
   processAgency: '{% url "process_agency_payout" %}',
   sendAgentStatement: '/users/commission-payout/__ID__/send-statement/',
   sendAgencyStatement: '/users/agency_commission_payout/__ID__/send-statement/',
+  // Template URL for jumping to a reservation from the expanded preview;
+  // the `0` placeholder is swapped for the real id at click time.
+  reservationDetail: '{% url "reservation_details" 0 %}',
 };
 
 // Track pending payment for confirm modal
@@ -1715,7 +1773,12 @@ function renderInlinePreview(type, data) {
     html += '<th>Res #</th><th>Customer</th><th>Route</th><th>Base Price</th><th>Commission</th><th>Date</th>';
     html += '</tr></thead><tbody>';
     data.reservations.forEach(r => {
-      html += `<tr><td>#${r.id}</td><td>${r.customer}</td><td>${r.route}</td>`;
+      // reservation_details looks up by UUID, not by integer pk, so the URL must
+      // use r.uuid even though we still display the shorter numeric id as link text.
+      const lookup = r.uuid || r.id;
+      const resUrl = URLS.reservationDetail.replace('/0/', `/${lookup}/`);
+      html += `<tr><td><a href="${resUrl}" target="_blank" rel="noopener" class="res-link">#${r.id}</a></td>`;
+      html += `<td>${r.customer}</td><td>${r.route}</td>`;
       html += `<td>$${r.base_price}</td><td class="text-success fw-bold">$${r.commission}</td><td>${r.date}</td></tr>`;
     });
     html += `</tbody><tfoot><tr class="table-light"><td colspan="4" class="text-end fw-bold">Total:</td>`;
@@ -1957,6 +2020,92 @@ function updateSummaryStats() {
   }
   document.addEventListener('scroll', updateNavState, { passive: true });
   updateNavState();
+})();
+
+// === Multi-sort chips ===
+// Click an inactive chip = append to the sort chain (becomes secondary, tertiary, etc).
+// Click an active chip = toggle its direction.
+// Alt/Option+click an active chip = remove it from the chain.
+// Shift+click any chip = make it primary (moves to position 0).
+// State serialized as `key:desc,key2:asc` into #sortHidden, then the filter form submits.
+(function () {
+  const wrap = document.getElementById('amSortChips');
+  const hidden = document.getElementById('sortHidden');
+  if (!wrap || !hidden) return;
+  const DEFAULT_DESC = new Set(['amount', 'reservations']);
+
+  function parse(raw) {
+    const out = [];
+    (raw || '').split(',').forEach(chunk => {
+      const s = chunk.trim();
+      if (!s) return;
+      const [k, d] = s.split(':');
+      const key = (k || '').trim().toLowerCase();
+      if (!key) return;
+      out.push([key, (d || 'desc').trim().toLowerCase() === 'desc']);
+    });
+    return out;
+  }
+  function encode(pairs) {
+    return pairs.map(([k, d]) => `${k}:${d ? 'desc' : 'asc'}`).join(',');
+  }
+  function render(pairs) {
+    wrap.querySelectorAll('.am-sort-chip').forEach(chip => {
+      chip.classList.remove('is-primary', 'is-secondary');
+      chip.querySelectorAll('.am-sort-arrow, .am-sort-rank').forEach(n => n.remove());
+    });
+    pairs.forEach(([key, desc], idx) => {
+      const chip = wrap.querySelector(`.am-sort-chip[data-key="${key}"]`);
+      if (!chip) return;
+      chip.classList.add(idx === 0 ? 'is-primary' : 'is-secondary');
+      const arrow = document.createElement('span');
+      arrow.className = 'am-sort-arrow';
+      arrow.textContent = desc ? '↓' : '↑';
+      chip.appendChild(arrow);
+      if (pairs.length > 1) {
+        const rank = document.createElement('span');
+        rank.className = 'am-sort-rank';
+        rank.textContent = String(idx + 1);
+        chip.appendChild(rank);
+      }
+    });
+  }
+
+  let pairs = parse(hidden.value);
+  if (!pairs.length) pairs = [['amount', true]];
+  render(pairs);
+
+  wrap.addEventListener('click', e => {
+    const chip = e.target.closest('.am-sort-chip');
+    if (!chip) return;
+    e.preventDefault();
+    const key = chip.dataset.key;
+    const idx = pairs.findIndex(p => p[0] === key);
+    const isActive = idx !== -1;
+
+    if (e.altKey && isActive) {
+      // Remove from the chain.
+      pairs.splice(idx, 1);
+      if (!pairs.length) pairs = [['amount', true]];
+    } else if (e.shiftKey) {
+      // Promote (or insert) at position 0.
+      const dir = isActive ? pairs[idx][1] : DEFAULT_DESC.has(key);
+      if (isActive) pairs.splice(idx, 1);
+      pairs.unshift([key, dir]);
+    } else if (isActive) {
+      // Toggle direction on the existing entry.
+      pairs[idx][1] = !pairs[idx][1];
+    } else {
+      // Append as the next key.
+      pairs.push([key, DEFAULT_DESC.has(key)]);
+    }
+
+    hidden.value = encode(pairs);
+    render(pairs);
+    // Submit the surrounding filter form so the URL and list update together.
+    const form = hidden.closest('form');
+    if (form) form.submit();
+  });
 })();
 
 // ============================================================
