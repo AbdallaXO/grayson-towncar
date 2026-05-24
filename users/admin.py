@@ -40,28 +40,30 @@ admin.site.register([UserProfile, NewsLetter])
 
 @admin.register(PartnerForm)
 class PartnerFormAdmin(admin.ModelAdmin):
-    """Triage UI for partner inquiries: same shape as ContactUsFormAdmin."""
+    """Triage UI for partner inquiries.
+
+    Designed for fast triage: 6 columns where each cell stacks the most
+    useful info (full date + relative time for "Submitted", name + email +
+    phone for "Contact", agency name + size pill + website for "Agency",
+    color-coded editable status, relative time since "Last touch").
+    """
 
     list_display = [
-        "id",
-        "name",
-        "agency_name",
-        "agency_size",
-        "email",
-        "phone_number",
-        "preferred_contact",
+        "submitted_at",
+        "contact_block",
+        "agency_block",
         "referral_source",
         "status",
-        "status_display",
-        "contacted_at",
-        "created_at",
+        "last_touch",
     ]
+    list_display_links = ("contact_block",)
     list_filter = ["status", "agency_size", "referral_source", "preferred_contact", "created_at", "contacted_at"]
     search_fields = ["name", "email", "phone_number", "agency_name", "agency_website", "additional_info", "notes"]
     list_editable = ["status"]
     list_per_page = 50
     readonly_fields = ["created_at", "contacted_at"]
     date_hierarchy = "created_at"
+    save_on_top = True
 
     fieldsets = (
         ("Contact Information", {
@@ -82,19 +84,112 @@ class PartnerFormAdmin(admin.ModelAdmin):
         }),
     )
 
-    def status_display(self, obj):
-        colors = {
-            "pending": "#b45309",   # amber
-            "contacted": "#1d4ed8", # blue
-            "converted": "#047857", # green
-            "closed": "#6b7280",    # gray
-        }
-        color = colors.get(obj.status, "#6b7280")
-        return format_html(
-            '<span style="color: {}; font-weight: 600;">{}</span>',
-            color, obj.get_status_display(),
+    # ---------- Custom list-display columns ----------
+
+    def submitted_at(self, obj):
+        """Absolute timestamp + relative ("2 days ago"), with a NEW pill for <24h."""
+        if not obj.created_at:
+            return "—"
+        local = timezone.localtime(obj.created_at)
+        abs_str = local.strftime("%b %-d, %Y · %-I:%M %p")
+        delta = timezone.now() - obj.created_at
+        rel = _humanize_delta(delta)
+        is_new = delta.total_seconds() < 24 * 3600
+        new_pill = (
+            '<span style="background:#fef3c7;color:#92400e;font-size:10px;'
+            'font-weight:700;padding:1px 6px;border-radius:999px;margin-left:6px;'
+            'letter-spacing:.5px;">NEW</span>'
+            if is_new else ""
         )
-    status_display.short_description = "Status"
+        return format_html(
+            '<div style="white-space:nowrap;">'
+            '<div style="font-weight:600;color:#111;">{}{}</div>'
+            '<div style="color:#6b7280;font-size:11px;margin-top:2px;">{} ago</div>'
+            '</div>',
+            abs_str, mark_safe(new_pill), rel,
+        )
+    submitted_at.short_description = "Submitted"
+    submitted_at.admin_order_field = "created_at"
+
+    def contact_block(self, obj):
+        """Name + email (mailto) + phone (tel) stacked."""
+        email_link = format_html(
+            '<a href="mailto:{}" style="color:#1d4ed8;text-decoration:none;">{}</a>',
+            obj.email, obj.email,
+        ) if obj.email else ""
+        phone_link = format_html(
+            '<a href="tel:{}" style="color:#374151;text-decoration:none;">{}</a>',
+            obj.phone_number, obj.phone_number,
+        ) if obj.phone_number else ""
+        method_pill = format_html(
+            '<span style="font-size:10px;background:#eef2ff;color:#3730a3;'
+            'padding:1px 6px;border-radius:999px;margin-left:6px;'
+            'text-transform:uppercase;letter-spacing:.4px;">{}</span>',
+            obj.get_preferred_contact_display(),
+        ) if obj.preferred_contact else ""
+        return format_html(
+            '<div style="line-height:1.4;min-width:220px;">'
+            '<div style="font-weight:700;color:#111;">{}</div>'
+            '<div style="font-size:12px;">{}</div>'
+            '<div style="font-size:12px;color:#6b7280;">{}{}</div>'
+            '</div>',
+            obj.name or "(no name)", email_link, phone_link, method_pill,
+        )
+    contact_block.short_description = "Contact"
+    contact_block.admin_order_field = "name"
+
+    def agency_block(self, obj):
+        """Agency name + size pill + website link (if present)."""
+        size_pill = ""
+        if obj.agency_size:
+            size_pill = format_html(
+                '<span style="background:#f3f4f6;color:#374151;font-size:10px;'
+                'font-weight:600;padding:1px 7px;border-radius:999px;'
+                'margin-left:6px;letter-spacing:.3px;">{}</span>',
+                obj.get_agency_size_display(),
+            )
+        website = ""
+        if obj.agency_website:
+            href = obj.agency_website
+            if not href.startswith(("http://", "https://")):
+                href = "https://" + href
+            website = format_html(
+                '<div style="font-size:11px;margin-top:2px;">'
+                '<a href="{}" target="_blank" rel="noopener" style="color:#1d4ed8;text-decoration:none;">↗ {}</a>'
+                '</div>',
+                href, obj.agency_website,
+            )
+        return format_html(
+            '<div style="line-height:1.4;min-width:180px;">'
+            '<div style="font-weight:600;color:#111;">{}{}</div>'
+            '{}'
+            '</div>',
+            obj.agency_name or "—", size_pill, website,
+        )
+    agency_block.short_description = "Agency"
+    agency_block.admin_order_field = "agency_name"
+
+    def last_touch(self, obj):
+        """Relative time since contacted_at, or 'Not contacted' pill."""
+        if obj.status == "pending" or not obj.contacted_at:
+            return format_html(
+                '<span style="background:#fee2e2;color:#991b1b;font-size:11px;'
+                'font-weight:600;padding:3px 10px;border-radius:999px;">Not contacted</span>'
+            )
+        delta = timezone.now() - obj.contacted_at
+        rel = _humanize_delta(delta)
+        local = timezone.localtime(obj.contacted_at).strftime("%b %-d, %Y")
+        return format_html(
+            '<div style="white-space:nowrap;">'
+            '<div style="font-size:12px;color:#111;font-weight:600;">{} ago</div>'
+            '<div style="font-size:11px;color:#6b7280;">{}</div>'
+            '</div>',
+            rel, local,
+        )
+    last_touch.short_description = "Last touch"
+    last_touch.admin_order_field = "contacted_at"
+
+    # ---------- Bulk actions ----------
 
     actions = ["mark_as_contacted", "mark_as_converted", "mark_as_closed", "mark_as_pending"]
 
@@ -124,6 +219,30 @@ class PartnerFormAdmin(admin.ModelAdmin):
         updated = queryset.update(status="pending")
         self.message_user(request, f"Marked {updated} inquiry(ies) as pending.", messages.SUCCESS)
     mark_as_pending.short_description = "Mark selected as pending"
+
+
+def _humanize_delta(delta):
+    """Compact relative time: '3m', '4h', '2d', '3w', '5mo', '2y'."""
+    secs = int(delta.total_seconds())
+    if secs < 60:
+        return f"{secs}s"
+    mins = secs // 60
+    if mins < 60:
+        return f"{mins} min{'s' if mins != 1 else ''}"
+    hours = mins // 60
+    if hours < 24:
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    days = hours // 24
+    if days < 7:
+        return f"{days} day{'s' if days != 1 else ''}"
+    if days < 30:
+        weeks = days // 7
+        return f"{weeks} week{'s' if weeks != 1 else ''}"
+    if days < 365:
+        months = days // 30
+        return f"{months} month{'s' if months != 1 else ''}"
+    years = days // 365
+    return f"{years} year{'s' if years != 1 else ''}"
 
 
 # =============================================
