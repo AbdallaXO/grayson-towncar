@@ -12001,7 +12001,6 @@ def affiliate_payments(request, section_lock=None):
     # NOTE: we intentionally do NOT require is_paid=True. The is_paid flag is set
     # only by Stripe payment signals; travel-agent bookings are typically settled
     # off-platform (invoiced/cash), so requiring it would silently empty the queue.
-    leg_cutoff_date = (today_local - timedelta(hours=24)).date()
     res_eligible_q = (
         Q(commission_paid=False)
         & Q(total_refunded=0)
@@ -12017,17 +12016,44 @@ def affiliate_payments(request, section_lock=None):
         # reservations that would otherwise mark an agent as owing $0.
         & Q(base_price__gt=0)
     )
-    # An old non-cancelled leg exists -- EXISTS subquery on Leg so we don't JOIN.
-    old_leg_exists = Exists(
-        Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
-        .exclude(status="cancelled")
+    # Precise 24h grace window matching users.eligibility._last_leg_datetime.
+    # A "recent" non-cancelled leg = pickup_datetime within the last 24h. The
+    # Python engine treats any reservation with a recent leg as still in the
+    # grace bucket (pending, $0 Ready). We mirror that here so SQL has_unpaid
+    # doesn't surface agents whose only "unpaid" reservation hasn't cleared
+    # the grace window yet (the bug: $0.00 agents under "Owing only").
+    #
+    # Date-only check would over-include reservations with a leg yesterday
+    # late at night (e.g. 11pm), which are still well within the 24h grace
+    # at 8am the next morning.
+    grace_cutoff_dt = timezone.localtime(timezone.now()) - timedelta(hours=24)
+    grace_cutoff_date = grace_cutoff_dt.date()
+    grace_cutoff_time = grace_cutoff_dt.time()
+    recent_leg_q = (
+        Q(pickup_date__gt=grace_cutoff_date)
+        | (Q(pickup_date=grace_cutoff_date) & Q(pickup_time__gte=grace_cutoff_time))
     )
-    status_or_old_leg_q = Q(status="completed")  # the OR-with-old-leg branch is added via annotation below
+    recent_leg_exists = Exists(
+        Leg.objects.filter(reservation=OuterRef("pk"))
+        .exclude(status="cancelled")
+        .filter(recent_leg_q)
+    )
+    # At least one non-cancelled leg exists at all (so we can distinguish
+    # "no legs" — which Python flags REVIEW, not Ready — from "all legs in
+    # the past more than 24h ago" — which IS Ready).
+    any_leg_exists = Exists(
+        Leg.objects.filter(reservation=OuterRef("pk")).exclude(status="cancelled")
+    )
 
+    # Ready candidate: status='completed' (fast path) OR
+    # (has any non-cancelled leg) AND (no non-cancelled leg in last 24h).
     agent_unpaid_base = Reservation.objects.filter(
         travel_agent=OuterRef("pk")
-    ).filter(res_eligible_q).annotate(_old_leg=old_leg_exists).filter(
-        Q(status="completed") | Q(_old_leg=True)
+    ).filter(res_eligible_q).annotate(
+        _any_leg=any_leg_exists,
+        _recent_leg=recent_leg_exists,
+    ).filter(
+        Q(status="completed") | (Q(_any_leg=True) & Q(_recent_leg=False))
     )
 
     agent_unpaid_subquery = (
@@ -12083,17 +12109,17 @@ def affiliate_payments(request, section_lock=None):
     )
 
     # ---------- AGENCIES: same Ready-candidate filter, scoped through agency_handles_payment ----------
-    # Agency-level EXISTS subquery for legs. We re-declare against the outer Reservation
-    # row (not the agency PK) so the subquery joins correctly when scoped via agents.
-    old_leg_exists_for_agency = Exists(
-        Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
-        .exclude(status="cancelled")
-    )
+    # Agency-level subquery: same eligibility + same precise grace window.
+    # Re-declared against the outer Reservation row so it joins correctly
+    # when scoped through travel_agent__agency.
     agency_unpaid_base = Reservation.objects.filter(
         travel_agent__agency=OuterRef("pk"),
         travel_agent__agency_handles_payment=True,
-    ).filter(res_eligible_q).annotate(_old_leg=old_leg_exists_for_agency).filter(
-        Q(status="completed") | Q(_old_leg=True)
+    ).filter(res_eligible_q).annotate(
+        _any_leg=any_leg_exists,
+        _recent_leg=recent_leg_exists,
+    ).filter(
+        Q(status="completed") | (Q(_any_leg=True) & Q(_recent_leg=False))
     )
 
     agency_unpaid_subquery = (
@@ -12133,11 +12159,11 @@ def affiliate_payments(request, section_lock=None):
             Exists(
                 Reservation.objects.filter(travel_agent=OuterRef("pk"))
                 .filter(res_eligible_q)
-                .annotate(_old_leg=Exists(
-                    Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
-                    .exclude(status="cancelled")
-                ))
-                .filter(Q(status="completed") | Q(_old_leg=True))
+                .annotate(
+                    _any_leg=any_leg_exists,
+                    _recent_leg=recent_leg_exists,
+                )
+                .filter(Q(status="completed") | (Q(_any_leg=True) & Q(_recent_leg=False)))
             )
         )
         .values("agency")
@@ -12176,15 +12202,11 @@ def affiliate_payments(request, section_lock=None):
     # ---------- Global KPIs (aggregate directly from Reservation to avoid
     #               summing an already-aggregated annotation) ----------
     # Use the same Ready-candidate filter so KPIs match the per-agent display.
-    _kpi_old_leg = Exists(
-        Leg.objects.filter(reservation=OuterRef("pk"), pickup_date__lte=leg_cutoff_date)
-        .exclude(status="cancelled")
-    )
     direct_res_qs = (
         Reservation.objects.filter(travel_agent__is_active=True)
         .filter(res_eligible_q)
-        .annotate(_old_leg=_kpi_old_leg)
-        .filter(Q(status="completed") | Q(_old_leg=True))
+        .annotate(_any_leg=any_leg_exists, _recent_leg=recent_leg_exists)
+        .filter(Q(status="completed") | (Q(_any_leg=True) & Q(_recent_leg=False)))
         .filter(Q(travel_agent__agency__isnull=True) | Q(travel_agent__agency_handles_payment=False))
         .annotate(calc=res_commission_expr)
     )
@@ -12196,8 +12218,8 @@ def affiliate_payments(request, section_lock=None):
             travel_agent__agency__is_active=True,
         )
         .filter(res_eligible_q)
-        .annotate(_old_leg=_kpi_old_leg)
-        .filter(Q(status="completed") | Q(_old_leg=True))
+        .annotate(_any_leg=any_leg_exists, _recent_leg=recent_leg_exists)
+        .filter(Q(status="completed") | (Q(_any_leg=True) & Q(_recent_leg=False)))
         .annotate(calc=res_commission_expr)
     )
 
