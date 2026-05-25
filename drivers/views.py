@@ -270,8 +270,13 @@ def schedule(request):
             driver=driver,
             pickup_date__gte=today,
             pickup_date__lte=next_week,
-            status__in=["in-progress", "confirmed", "on-the-way", "picked-up", "on-location"],
         )
+        # Show every status the leg might be in EXCEPT terminal ones.
+        # Whitelisting active statuses hid trips whose state was set outside
+        # the DRIVER_STATUS choices (e.g. legacy "pending" rows) and is_null,
+        # which is why the weekly schedule was empty while the date-search
+        # view (which has no status filter) still showed them.
+        .exclude(status__in=["completed", "cancelled"])
         .exclude(reservation__status="cancelled")
         .order_by("pickup_date", "pickup_time")
     )
@@ -1451,6 +1456,7 @@ def refresh_flight_data(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Driver self-serve TIME-OFF REQUESTS
