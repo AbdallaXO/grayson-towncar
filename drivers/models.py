@@ -324,6 +324,12 @@ class DriverDateOverride(models.Model):
         ("flexible",            "Flexible (override off-day)"),
         ("note_only",           "Note only"),
     ]
+    STATUS_CHOICES = [
+        ("approved", "Approved"),
+        ("pending",  "Pending review"),
+        ("denied",   "Denied"),
+        ("cancelled","Cancelled by driver"),
+    ]
 
     driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="date_overrides")
     date = models.DateField(help_text="First day this exception applies.")
@@ -356,6 +362,28 @@ class DriverDateOverride(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Approval workflow. Dispatcher/founder-created rows default to "approved"
+    # so existing data and admin behavior are unchanged. Driver self-service
+    # submissions land as "pending" and only affect availability once approved.
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default="approved",
+        help_text="Approval state. Only 'approved' rows affect schedule availability."
+    )
+    submitted_by_driver = models.BooleanField(
+        default=False,
+        help_text="True when the driver submitted this themselves via the driver portal."
+    )
+    decided_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="decided_driver_overrides",
+        help_text="Founder/dispatcher who approved or denied this request."
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    denial_reason = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Shown to the driver when their request is denied."
+    )
+
     class Meta:
         ordering = ["date", "driver"]
 
@@ -364,6 +392,10 @@ class DriverDateOverride(models.Model):
         # (admin filters, auto-assigner cascade) keep working.
         self.is_available = self.exception_type != "off"
         super().save(*args, **kwargs)
+
+    @property
+    def is_pending(self):
+        return self.status == "pending"
 
     def applies_on(self, target_date):
         if self.end_date is None:

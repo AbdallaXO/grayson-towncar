@@ -18,6 +18,9 @@
         <a href="{% url 'completed_trips' %}" class="gt-nav-link">
           <i class="bi bi-check2-circle me-1"></i>Completed
         </a>
+        <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-nav-link">
+          <i class="bi bi-calendar-x me-1"></i>Time Off
+        </a>
         <button id="gt-theme-toggle" class="gt-nav-link" style="border:none;cursor:pointer;padding:6px 10px;"
                 title="Toggle dark mode" aria-label="Toggle dark mode">
           <i class="bi bi-moon-fill" id="gt-theme-icon"></i>
@@ -48,6 +51,9 @@
         </a>
         <a href="{% url 'completed_trips' %}" class="gt-nav-link-mobile">
           <i class="bi bi-check2-circle me-2"></i>Completed Trips
+        </a>
+        <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-calendar-x me-2"></i>Time Off Requests
         </a>
       </div>
     </div>

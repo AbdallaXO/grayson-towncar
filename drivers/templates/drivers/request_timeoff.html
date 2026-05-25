@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "drivers/_driver_head.html" %}
+    <title>Request Time Off — Grayson Towncar</title>
+  </head>
+
+  <body>
+    {% include "drivers/navbar.html" %}
+
+    <div class="container-fluid" style="max-width:720px; padding:16px 12px;">
+
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h1 style="font-size:1.375rem;font-weight:700;margin:0;letter-spacing:-0.02em;">Time you can't work</h1>
+        <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-btn gt-btn-ghost gt-btn-sm">
+          <i class="bi bi-clock-history me-1"></i> My Requests
+        </a>
+      </div>
+
+      <p style="color:var(--gt-text-secondary); font-size:0.875rem; line-height:1.5; margin:0 0 14px;">
+       If you need to request anytime off or any hours for a day you cant work please use this here instead of texting Ab or Ray. Texts get buried; this lands in the system, we'll
+        confirm it, and it shows on the schedule so you don't get scheduled over.
+      </p>
+
+      {% if messages %}
+        {% for m in messages %}
+          <div class="gt-card mb-2" style="padding:10px 14px;border-left:3px solid {% if m.tags == 'error' %}var(--gt-red){% else %}var(--gt-green){% endif %};font-size:0.875rem;">
+            {{ m }}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post" class="gt-card" style="padding:18px;">
+        {% csrf_token %}
+
+        <!-- Kind toggle -->
+        <div class="mb-3">
+          <div class="gt-label">What kind of time off?</div>
+          <div class="d-flex gap-2" role="group" id="kindGroup">
+            <label class="gt-btn gt-btn-outline flex-fill" style="cursor:pointer;" data-kind-label="full_day">
+              <input type="radio" name="kind" value="full_day" checked style="display:none;">
+              <i class="bi bi-calendar-x me-1"></i> Whole day(s)
+            </label>
+            <label class="gt-btn gt-btn-outline flex-fill" style="cursor:pointer;" data-kind-label="partial_day">
+              <input type="radio" name="kind" value="partial_day" style="display:none;">
+              <i class="bi bi-clock me-1"></i> Part of a day
+            </label>
+          </div>
+        </div>
+
+        <!-- Dates -->
+        <div class="row g-2 mb-3">
+          <div class="col-12 col-md-6">
+            <div class="gt-label" for="start_date">Start date</div>
+            <input type="date" name="start_date" id="start_date" class="gt-input" required
+                   min="{{ today|date:'Y-m-d' }}">
+          </div>
+          <div class="col-12 col-md-6" id="endDateWrap">
+            <div class="gt-label" for="end_date">End date <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span></div>
+            <input type="date" name="end_date" id="end_date" class="gt-input"
+                   min="{{ today|date:'Y-m-d' }}">
+          </div>
+        </div>
+
+        <!-- Partial-day time window (hidden by default) -->
+        <div class="row g-2 mb-3" id="partialWrap" style="display:none;">
+          <div class="col-6">
+            <div class="gt-label" for="start_time">From</div>
+            <input type="time" name="start_time" id="start_time" class="gt-input">
+          </div>
+          <div class="col-6">
+            <div class="gt-label" for="end_time">To</div>
+            <input type="time" name="end_time" id="end_time" class="gt-input">
+          </div>
+          <div class="col-12" style="font-size:0.75rem;color:var(--gt-text-secondary);margin-top:-2px;">
+            Partial-day requests are single-day only.
+          </div>
+        </div>
+
+        <!-- Reason -->
+        <div class="mb-3">
+          <div class="gt-label" for="reason">Reason</div>
+          <select name="reason" id="reason" class="gt-select">
+            <option value="day_off">Day off</option>
+            <option value="vacation">Vacation</option>
+            <option value="sick">Sick</option>
+            <option value="appointment">Appointment</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-3">
+          <div class="gt-label" for="notes">Notes <span style="font-weight:400;color:var(--gt-text-secondary);">(optional)</span></div>
+          <textarea name="notes" id="notes" class="gt-input" rows="2" maxlength="200"
+                    placeholder="Anything we should know"></textarea>
+        </div>
+
+        <div style="font-size:0.75rem;color:var(--gt-text-secondary);margin-bottom:12px;">
+          <i class="bi bi-info-circle me-1"></i>
+          Once you send it, check back on <a href="{% url 'driver_my_timeoff_requests' %}" style="color:inherit;text-decoration:underline;">My Requests</a> to see when it's been confirmed.
+        </div>
+
+        <button type="submit" class="gt-btn gt-btn-primary gt-btn-block">
+          <i class="bi bi-send me-1"></i> Send it
+        </button>
+      </form>
+    </div>
+
+    <script>
+      // Visual selection state for the kind radio + show/hide partial-day fields
+      (function() {
+        const labels = document.querySelectorAll('#kindGroup label[data-kind-label]');
+        const endDateWrap = document.getElementById('endDateWrap');
+        const partialWrap = document.getElementById('partialWrap');
+        const startTime = document.getElementById('start_time');
+        const endTime = document.getElementById('end_time');
+
+        function applyKind(kind) {
+          labels.forEach(l => {
+            const active = l.dataset.kindLabel === kind;
+            l.classList.toggle('gt-btn-dark', active);
+            l.classList.toggle('gt-btn-outline', !active);
+          });
+          if (kind === 'partial_day') {
+            partialWrap.style.display = '';
+            endDateWrap.style.display = 'none';
+            document.getElementById('end_date').value = '';
+            startTime.required = true; endTime.required = true;
+          } else {
+            partialWrap.style.display = 'none';
+            endDateWrap.style.display = '';
+            startTime.required = false; endTime.required = false;
+          }
+        }
+
+        labels.forEach(l => {
+          l.addEventListener('click', () => {
+            const input = l.querySelector('input[type=radio]');
+            input.checked = true;
+            applyKind(input.value);
+          });
+        });
+        applyKind('full_day');
+      })();
+    </script>
+  </body>
+</html>

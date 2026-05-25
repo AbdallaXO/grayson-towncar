@@ -407,4 +407,8 @@ urlpatterns = [
     # Quote Calculator
     path("quote-calculator/", views.quote_calculator, name="quote_calculator"),
     path("quote-calculator/calculate/", views.quote_calculator_api, name="quote_calculator_api"),
+    # Driver time-off request review
+    path("time-off-requests/", views.dispatcher_timeoff_requests, name="dispatcher_timeoff_requests"),
+    path("time-off-requests/<int:override_id>/approve/", views.approve_timeoff_request, name="approve_timeoff_request"),
+    path("time-off-requests/<int:override_id>/deny/", views.deny_timeoff_request, name="deny_timeoff_request"),
 ]

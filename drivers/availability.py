@@ -115,7 +115,13 @@ def resolve_effective_availability(driver, target_date):
 
     Returns a dict (see plan or callers for keys). Always returns a dict — never None."""
     base = _weekly_or_defaults(driver, target_date)
-    exception = _pick_active_exception(list(driver.date_overrides.all()), target_date)
+    # Only approved overrides affect the schedule. Pending driver-submitted
+    # requests must be explicitly approved (or auto-approved by dispatcher
+    # creating them) before they take effect.
+    exception = _pick_active_exception(
+        list(driver.date_overrides.filter(status="approved")),
+        target_date,
+    )
 
     eff = {
         "is_available":    base["is_available"],

@@ -986,8 +986,8 @@ class FleetVehicleAdmin(admin.ModelAdmin):
 
 @admin.register(DriverDateOverride)
 class DriverDateOverrideAdmin(admin.ModelAdmin):
-    list_display = ["driver", "date", "end_date", "exception_type", "start_time", "end_time", "reason", "notes", "created_by"]
-    list_filter = ["exception_type", "reason", "driver"]
+    list_display = ["driver", "date", "end_date", "exception_type", "status", "start_time", "end_time", "reason", "notes", "created_by"]
+    list_filter = ["status", "exception_type", "reason", "submitted_by_driver", "driver"]
     search_fields = [
         "driver__profile__first_name",
         "driver__profile__last_name",
@@ -995,7 +995,7 @@ class DriverDateOverrideAdmin(admin.ModelAdmin):
     ]
     date_hierarchy = "date"
     autocomplete_fields = ["driver"]
-    readonly_fields = ["created_at", "updated_at"]
+    readonly_fields = ["created_at", "updated_at", "decided_at"]
 
     def save_model(self, request, obj, form, change):
         if not change and not obj.created_by_id:

@@ -84,4 +84,8 @@ urlpatterns = [
         views.report_location,
         name="driver_report_location",
     ),
+    # Time-off requests (driver self-serve)
+    path("time-off/", views.my_timeoff_requests, name="driver_my_timeoff_requests"),
+    path("time-off/new/", views.request_timeoff, name="driver_request_timeoff"),
+    path("time-off/<int:override_id>/cancel/", views.cancel_timeoff, name="driver_cancel_timeoff"),
 ]

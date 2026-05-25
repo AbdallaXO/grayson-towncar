@@ -123,6 +123,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "ops.context_processors.pending_task_count",
+                "drivers.context_processors.pending_timeoff_count",
             ],
         },
     },
@@ -225,6 +226,15 @@ GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
 TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
+
+# Founders who get SMS alerts on every new driver time-off request.
+# Env override (comma-separated) takes precedence so prod doesn't need a code change.
+TIMEOFF_NOTIFY_PHONES = [
+    p.strip() for p in os.environ.get(
+        "TIMEOFF_NOTIFY_PHONES",
+        "+14078200072,+14076339901",
+    ).split(",") if p.strip()
+]
 
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")

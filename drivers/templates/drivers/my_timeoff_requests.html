@@ -1,0 +1,69 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "drivers/_driver_head.html" %}
+    <title>My Time-Off Requests — Grayson Towncar</title>
+  </head>
+
+  <body>
+    {% include "drivers/navbar.html" %}
+
+    <div class="container-fluid" style="max-width:860px; padding:16px 12px;">
+
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h1 style="font-size:1.375rem;font-weight:700;margin:0;letter-spacing:-0.02em;">My Requests</h1>
+        <a href="{% url 'driver_request_timeoff' %}" class="gt-btn gt-btn-primary gt-btn-sm">
+          <i class="bi bi-plus-lg me-1"></i> New request
+        </a>
+      </div>
+
+      <p style="color:var(--gt-text-secondary); font-size:0.875rem; line-height:1.5; margin:0 0 14px;">
+        Everything you've sent in — pending, confirmed, or in the past. Need a new day or some
+        hours off? Hit <strong>New request</strong> and it goes straight to dispatch.
+      </p>
+
+      {% if messages %}
+        {% for m in messages %}
+          <div class="gt-card mb-2" style="padding:10px 14px;border-left:3px solid {% if m.tags == 'error' %}var(--gt-red){% else %}var(--gt-green){% endif %};font-size:0.875rem;">
+            {{ m }}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      {% if overrides %}
+        <div class="d-flex flex-column gap-2">
+          {% for o in overrides %}
+            {% if o.status == 'approved' %}
+              {% with color='var(--gt-green)' bg='#ecfdf5' label='Approved' icon='check-circle-fill' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% endwith %}
+            {% elif o.status == 'pending' %}
+              {% with color='var(--gt-yellow)' bg='#fffbeb' label='Pending review' icon='hourglass-split' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% endwith %}
+            {% elif o.status == 'denied' %}
+              {% with color='var(--gt-red)' bg='#fef2f2' label='Denied' icon='x-circle-fill' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% endwith %}
+            {% elif o.status == 'cancelled' %}
+              {% with color='var(--gt-text-secondary)' bg='#f9fafb' label='Cancelled' icon='dash-circle' %}
+              {% include "drivers/_timeoff_row.html" with o=o color=color bg=bg label=label icon=icon %}
+              {% endwith %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="gt-card" style="padding:32px;text-align:center;color:var(--gt-text-secondary);">
+          <i class="bi bi-calendar-x" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
+          Nothing here yet — next time you've got something coming up, drop it here instead of texting.
+          <div style="margin-top:14px;">
+            <a href="{% url 'driver_request_timeoff' %}" class="gt-btn gt-btn-primary gt-btn-sm">
+              Send your first one
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </body>
+</html>

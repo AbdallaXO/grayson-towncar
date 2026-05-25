@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404, render, redirect
-from .models import Driver, DriverPayment, LegPayment, DriverPayoutAdjustment
+from .models import Driver, DriverPayment, LegPayment, DriverPayoutAdjustment, DriverDateOverride
 from datetime import datetime, timedelta
 from reservations.models import Leg, LegStatus
 from django.contrib.auth.decorators import login_required
@@ -1451,3 +1451,145 @@ def refresh_flight_data(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+# ──────────────────────────────────────────────────────────────────────
+# Driver self-serve TIME-OFF REQUESTS
+# Drivers submit pending DriverDateOverride rows; founders approve/deny
+# from the dispatcher portal. Only approved rows affect availability
+# (filter lives in drivers.availability.resolve_effective_availability).
+# ──────────────────────────────────────────────────────────────────────
+
+def _parse_date(s):
+    """YYYY-MM-DD → date or None."""
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _parse_time(s):
+    """HH:MM (24h) → time or None."""
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s.strip(), "%H:%M").time()
+    except ValueError:
+        return None
+
+
+@login_required(login_url="login")
+def request_timeoff(request):
+    """GET: render the request form. POST: create a pending DriverDateOverride."""
+    driver = get_object_or_404(Driver, profile=request.user)
+    today = timezone.localdate()
+
+    if request.method == "POST":
+        kind = request.POST.get("kind", "full_day")
+        start_date = _parse_date(request.POST.get("start_date"))
+        end_date_raw = request.POST.get("end_date", "").strip()
+        end_date = _parse_date(end_date_raw) if end_date_raw else None
+        reason = request.POST.get("reason", "day_off")
+        notes = request.POST.get("notes", "").strip()[:200]
+
+        if not start_date:
+            messages.error(request, "Please pick a start date.")
+            return redirect("driver_request_timeoff")
+        if start_date < today:
+            messages.error(request, "Time-off requests must start today or later.")
+            return redirect("driver_request_timeoff")
+
+        if kind == "partial_day":
+            # Partial-day requests are single-day only (v1). end_date is ignored.
+            start_time = _parse_time(request.POST.get("start_time"))
+            end_time = _parse_time(request.POST.get("end_time"))
+            if not start_time or not end_time:
+                messages.error(request, "Please provide both a start and end time for a partial-day request.")
+                return redirect("driver_request_timeoff")
+            if end_time <= start_time:
+                messages.error(request, "End time must be after start time.")
+                return redirect("driver_request_timeoff")
+            override = DriverDateOverride.objects.create(
+                driver=driver,
+                date=start_date,
+                end_date=None,
+                exception_type="unavailable_window",
+                start_time=start_time,
+                end_time=end_time,
+                reason=reason,
+                notes=notes,
+                status="pending",
+                submitted_by_driver=True,
+                created_by=request.user,
+            )
+        else:
+            # Full-day off, single day or range
+            if end_date and end_date < start_date:
+                messages.error(request, "End date must be on or after start date.")
+                return redirect("driver_request_timeoff")
+            override = DriverDateOverride.objects.create(
+                driver=driver,
+                date=start_date,
+                end_date=end_date if (end_date and end_date != start_date) else None,
+                exception_type="off",
+                reason=reason,
+                notes=notes,
+                status="pending",
+                submitted_by_driver=True,
+                created_by=request.user,
+            )
+
+        # Fire-and-forget founder SMS. Notification failure should never
+        # block the request itself — the row is the source of truth.
+        try:
+            from drivers.timeoff_notifications import notify_founders_of_new_request
+            notify_founders_of_new_request(override)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Founder notify failed for override %s", override.id)
+
+        from drivers.context_processors import invalidate_pending_timeoff_count
+        invalidate_pending_timeoff_count()
+
+        messages.success(request, "Time-off request submitted. You'll be notified once it's reviewed.")
+        return redirect("driver_my_timeoff_requests")
+
+    # GET — render the form
+    return render(
+        request,
+        "drivers/request_timeoff.html",
+        {"driver": driver, "today": today},
+    )
+
+
+@login_required(login_url="login")
+def my_timeoff_requests(request):
+    """List the driver's own time-off requests, newest first."""
+    driver = get_object_or_404(Driver, profile=request.user)
+    today = timezone.localdate()
+    overrides = list(
+        driver.date_overrides
+        .select_related("decided_by")
+        .order_by("-date", "-id")[:50]
+    )
+    return render(
+        request,
+        "drivers/my_timeoff_requests.html",
+        {"driver": driver, "today": today, "overrides": overrides},
+    )
+
+
+@login_required(login_url="login")
+@require_POST
+def cancel_timeoff(request, override_id):
+    """Driver cancels their own pending request."""
+    driver = get_object_or_404(Driver, profile=request.user)
+    override = get_object_or_404(DriverDateOverride, id=override_id, driver=driver)
+    if override.status != "pending":
+        messages.error(request, "Only pending requests can be cancelled.")
+    else:
+        override.status = "cancelled"
+        override.save(update_fields=["status", "updated_at"])
+        messages.success(request, "Request cancelled.")
+    return redirect("driver_my_timeoff_requests")

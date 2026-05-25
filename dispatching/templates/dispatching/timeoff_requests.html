@@ -1,0 +1,465 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Time-Off Requests | Grayson Dispatch{% endblock %}
+
+{% block extra_css %}
+<style>
+  :root {
+    --to-gold: #C9A227;
+    --to-dark: #0d1117;
+    --to-ink: #0f172a;
+    --to-ink-2: #475569;
+    --to-ink-3: #94a3b8;
+    --to-rule: #e6e8eb;
+    --to-mono: 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo, Consolas, ui-monospace, monospace;
+  }
+
+  body { background: #f6f7f9; }
+
+  /* ── Header ── */
+  .to-header {
+    background: linear-gradient(135deg, var(--to-dark) 0%, #161b22 100%);
+    padding: 1.75rem 0 1.25rem;
+    margin-top: -1rem;
+    margin-bottom: 1.5rem;
+    color: #fff;
+  }
+  .to-header h1 {
+    font-size: 1.5rem; font-weight: 700; margin: 0;
+    letter-spacing: -0.02em; color: #fff;
+  }
+  .to-header h1 .bi { color: var(--to-gold); margin-right: 0.5rem; }
+  .to-header .to-sub {
+    color: rgba(255,255,255,0.65); font-size: 0.875rem;
+    margin-top: 0.35rem; max-width: 640px;
+  }
+  .to-stat-strip {
+    display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;
+  }
+  .to-stat {
+    display: inline-flex; align-items: baseline; gap: 0.4rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 7px;
+    padding: 0.4rem 0.7rem;
+  }
+  .to-stat .to-stat-num {
+    font-family: var(--to-mono);
+    font-size: 1rem; font-weight: 700; color: #fff;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .to-stat .to-stat-label {
+    font-size: 0.65rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.55);
+  }
+  .to-stat.to-stat-pending .to-stat-num { color: var(--to-gold); }
+
+  /* ── Page container ── */
+  .to-page { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
+
+  /* ── Section labels ── */
+  .to-section-title {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--to-ink-2);
+    margin: 1.5rem 0 0.6rem;
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .to-section-title::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--to-rule);
+  }
+  .to-section-title .to-section-count {
+    font-family: var(--to-mono);
+    font-size: 0.65rem; font-weight: 700;
+    padding: 1px 7px; border-radius: 999px;
+    background: #f1f3f5; color: var(--to-ink-2);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .to-section-title.is-pending .to-section-count {
+    background: #fffbeb; color: #b45309;
+    border: 1px solid #fde68a;
+  }
+
+  /* ── Request card ── */
+  .to-card {
+    background: #fff;
+    border: 1px solid var(--to-rule);
+    border-radius: 10px;
+    padding: 14px 16px 14px 18px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: start;
+    position: relative;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .to-card:hover { box-shadow: 0 2px 8px -2px rgba(15,23,42,0.06); }
+  .to-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: -1px; bottom: -1px;
+    width: 4px;
+    border-radius: 10px 0 0 10px;
+    background: var(--to-ink-3);
+  }
+  .to-card.to-pending::before  { background: linear-gradient(180deg, #fbbf24, #f59e0b); }
+  .to-card.to-pending          { background: linear-gradient(180deg, #fff 0%, #fffcf2 100%); border-color: #fde68a; }
+  .to-card.to-approved::before { background: #10b981; }
+  .to-card.to-denied::before   { background: #ef4444; }
+  .to-card.to-cancelled::before{ background: #cbd5e1; }
+
+  .to-driver {
+    font-size: 0.95rem; font-weight: 650;
+    color: var(--to-ink); line-height: 1.2;
+    display: flex; align-items: center; gap: 0.55rem;
+    flex-wrap: wrap;
+  }
+  .to-driver-phone {
+    font-family: var(--to-mono);
+    font-size: 0.72rem; font-weight: 500;
+    color: var(--to-ink-2); text-decoration: none;
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    padding: 1px 7px; border-radius: 4px;
+    background: #f8f9fa;
+    border: 1px solid var(--to-rule);
+    transition: background .12s ease;
+  }
+  .to-driver-phone:hover { background: var(--to-dark); color: var(--to-gold); border-color: var(--to-dark); }
+  .to-driver-phone .bi { font-size: 0.68rem; opacity: 0.7; }
+
+  .to-when {
+    font-family: var(--to-mono);
+    font-size: 0.92rem; font-weight: 600;
+    color: var(--to-ink);
+    margin-top: 0.4rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .to-when .to-when-suffix {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-weight: 500; color: var(--to-ink-2);
+    font-size: 0.82rem;
+  }
+
+  .to-conflict-pill {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px;
+    background: #fef2f2; color: #b91c1c;
+    border: 1px solid #fecaca;
+  }
+  .to-conflict-pill .bi { font-size: 0.68rem; }
+
+  .to-meta-row {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 0.55rem; margin-top: 0.55rem;
+    font-size: 0.72rem; color: var(--to-ink-2);
+  }
+  .to-reason {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-size: 0.65rem; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px;
+    background: #eff6ff; color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+  }
+  .to-meta-divider { color: var(--to-ink-3); }
+  .to-submitted {
+    font-family: var(--to-mono); font-variant-numeric: tabular-nums;
+    font-size: 0.7rem;
+  }
+
+  .to-note {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-left: 3px solid var(--to-ink-3);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--to-ink);
+    font-style: italic;
+    line-height: 1.4;
+  }
+  .to-note::before { content: '"'; opacity: 0.4; margin-right: 1px; }
+  .to-note::after { content: '"'; opacity: 0.4; margin-left: 1px; }
+
+  /* ── Actions ── */
+  .to-actions {
+    display: flex; flex-direction: column;
+    gap: 6px; min-width: 220px;
+  }
+  .to-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.35rem;
+    padding: 8px 14px; font-size: 0.82rem; font-weight: 600;
+    border-radius: 7px; border: 1px solid transparent;
+    cursor: pointer; width: 100%;
+    transition: background .12s ease, color .12s ease, border-color .12s ease, transform .12s ease;
+    font-family: inherit;
+  }
+  .to-btn:active { transform: translateY(1px); }
+  .to-btn-approve {
+    background: #10b981; color: #fff;
+    box-shadow: 0 1px 0 rgba(6,95,70,0.15);
+  }
+  .to-btn-approve:hover { background: #059669; }
+  .to-btn-approve .bi { font-size: 0.9rem; }
+
+  .to-deny-group {
+    display: flex; gap: 4px;
+    align-items: stretch;
+  }
+  .to-deny-input {
+    flex: 1; min-width: 0;
+    padding: 7px 10px; font-size: 0.78rem;
+    border: 1px solid #fecaca; border-radius: 6px;
+    background: #fff;
+    font-family: inherit;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .to-deny-input::placeholder { color: #fca5a5; }
+  .to-deny-input:focus {
+    outline: none; border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239,68,68,0.12);
+  }
+  .to-btn-deny {
+    flex-shrink: 0;
+    background: #fff; color: #b91c1c;
+    border-color: #fecaca;
+    padding: 7px 12px;
+  }
+  .to-btn-deny:hover { background: #fef2f2; border-color: #ef4444; }
+
+  /* ── Empty / decided ── */
+  .to-empty {
+    text-align: center;
+    padding: 36px 20px;
+    background: #fff;
+    border: 1px dashed var(--to-rule);
+    border-radius: 10px;
+    color: var(--to-ink-2);
+    font-size: 0.9rem;
+  }
+  .to-empty .to-empty-icon {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: #ecfdf5;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-bottom: 10px;
+    color: #10b981; font-size: 1.25rem;
+  }
+
+  .to-status-tag {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.62rem; font-weight: 800;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px;
+    font-family: var(--to-mono);
+  }
+  .to-status-tag.is-approved { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+  .to-status-tag.is-denied   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .to-status-tag.is-cancelled{ background: #f1f3f5; color: #64748b; border: 1px solid #e5e7eb; }
+  .to-status-tag .bi { font-size: 0.7rem; }
+
+  .to-denial-reason {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    border-radius: 4px;
+    font-size: 0.78rem; color: #991b1b;
+  }
+  .to-denial-reason strong { font-weight: 700; }
+
+  .to-decided-by {
+    font-family: var(--to-mono);
+    font-size: 0.68rem; color: var(--to-ink-3);
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Decided card is more compact than pending ── */
+  .to-card.to-approved,
+  .to-card.to-denied,
+  .to-card.to-cancelled {
+    grid-template-columns: 1fr;
+    padding: 11px 14px 11px 16px;
+  }
+
+  /* ── Messages ── */
+  .alert {
+    border-radius: 7px;
+    border: 1px solid var(--to-rule);
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+  }
+  .alert-success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+  .alert-danger  { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+
+  @media (max-width: 640px) {
+    .to-card.to-pending {
+      grid-template-columns: 1fr;
+    }
+    .to-actions { min-width: 0; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<!-- Header -->
+<div class="to-header">
+  <div class="to-page">
+    <h1><i class="bi bi-calendar-x"></i>Driver Time-Off Requests</h1>
+    <div class="to-sub">
+      Driver-submitted requests. Approved time off automatically syncs to the
+      planner, board, and any driver assignment UI.
+    </div>
+    <div class="to-stat-strip">
+      <div class="to-stat to-stat-pending">
+        <span class="to-stat-num">{{ pending|length }}</span>
+        <span class="to-stat-label">Pending review</span>
+      </div>
+      {% if recent %}
+      <div class="to-stat">
+        <span class="to-stat-num">{{ recent|length }}</span>
+        <span class="to-stat-label">Recently decided</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="to-page">
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}success{% endif %} mb-2">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="to-section-title is-pending">
+    <i class="bi bi-hourglass-split"></i> Pending review
+    <span class="to-section-count">{{ pending|length }}</span>
+  </div>
+
+  {% if pending %}
+    {% for o in pending %}
+      <div class="to-card to-pending" id="to-{{ o.id }}">
+        <div>
+          <div class="to-driver">
+            {{ o.driver }}
+            {% if o.driver.phone_number %}
+              <a href="tel:{{ o.driver.phone_number }}" class="to-driver-phone" title="Call driver">
+                <i class="bi bi-telephone-fill"></i>{{ o.driver.phone_number }}
+              </a>
+            {% endif %}
+          </div>
+          <div class="to-when">
+            {{ o.date_range_display }}
+            {% if o.exception_type == 'unavailable_window' %}
+              <span class="to-when-suffix">{{ o.start_time|time:"g:i A" }} – {{ o.end_time|time:"g:i A" }}</span>
+            {% elif o.exception_type == 'off' %}
+              <span class="to-when-suffix">all day</span>
+            {% endif %}
+            {% if o.conflict_count %}
+              <span class="to-conflict-pill" title="Trips currently assigned to this driver in this window">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                {{ o.conflict_count }} trip{{ o.conflict_count|pluralize }} assigned
+              </span>
+            {% endif %}
+          </div>
+          <div class="to-meta-row">
+            <span class="to-reason">{{ o.get_reason_display }}</span>
+            <span class="to-meta-divider">&middot;</span>
+            <span class="to-submitted">submitted {{ o.created_at|date:"M j, g:i A" }}</span>
+          </div>
+          {% if o.notes %}<div class="to-note">{{ o.notes }}</div>{% endif %}
+        </div>
+
+        <div class="to-actions">
+          <form method="post" action="{% url 'approve_timeoff_request' o.id %}" style="margin:0;">
+            {% csrf_token %}
+            <button type="submit" class="to-btn to-btn-approve">
+              <i class="bi bi-check2"></i> Approve
+            </button>
+          </form>
+          <form method="post" action="{% url 'deny_timeoff_request' o.id %}" style="margin:0;"
+                onsubmit="return confirm('Deny this request?');">
+            {% csrf_token %}
+            <div class="to-deny-group">
+              <input type="text" name="denial_reason" class="to-deny-input"
+                     placeholder="Reason (optional)" maxlength="200">
+              <button type="submit" class="to-btn to-btn-deny" title="Deny request">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="to-empty">
+      <div class="to-empty-icon"><i class="bi bi-check2-circle"></i></div>
+      All caught up &mdash; no pending requests.
+    </div>
+  {% endif %}
+
+  {% if recent %}
+    <div class="to-section-title">
+      <i class="bi bi-clock-history"></i> Recently decided
+      <span class="to-section-count">{{ recent|length }}</span>
+    </div>
+    {% for o in recent %}
+      <div class="to-card to-{{ o.status }}">
+        <div>
+          <div class="to-driver">
+            {{ o.driver }}
+            {% if o.status == 'approved' %}
+              <span class="to-status-tag is-approved"><i class="bi bi-check-circle-fill"></i> Approved</span>
+            {% elif o.status == 'denied' %}
+              <span class="to-status-tag is-denied"><i class="bi bi-x-circle-fill"></i> Denied</span>
+            {% elif o.status == 'cancelled' %}
+              <span class="to-status-tag is-cancelled"><i class="bi bi-dash-circle"></i> Cancelled</span>
+            {% endif %}
+          </div>
+          <div class="to-when">
+            {{ o.date_range_display }}
+            {% if o.exception_type == 'unavailable_window' %}
+              <span class="to-when-suffix">{{ o.start_time|time:"g:i A" }} – {{ o.end_time|time:"g:i A" }}</span>
+            {% elif o.exception_type == 'off' %}
+              <span class="to-when-suffix">all day</span>
+            {% endif %}
+          </div>
+          {% if o.reason %}
+          <div class="to-meta-row">
+            <span class="to-reason">{{ o.get_reason_display }}</span>
+          </div>
+          {% endif %}
+          {% if o.status == 'denied' and o.denial_reason %}
+            <div class="to-denial-reason"><strong>Denial reason:</strong> {{ o.denial_reason }}</div>
+          {% endif %}
+          {% if o.decided_by %}
+            <div class="to-decided-by">
+              {{ o.decided_by.username }} &middot; {{ o.decided_at|date:"M j, g:i A" }}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

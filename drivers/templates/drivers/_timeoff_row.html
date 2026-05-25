@@ -1,0 +1,41 @@
+{# Single time-off request card. Expects: o, color, bg, label, icon #}
+<div class="gt-card" style="padding:14px 16px;border-left:4px solid {{ color }};background:{{ bg }};">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <div style="font-size:0.95rem;font-weight:600;">
+        {{ o.date_range_display }}
+        {% if o.exception_type == 'unavailable_window' %}
+          <span style="font-weight:500;color:var(--gt-text-secondary);font-size:0.85rem;">
+            ({{ o.start_time|time:"g:i A" }} – {{ o.end_time|time:"g:i A" }})
+          </span>
+        {% elif o.exception_type == 'off' %}
+          <span style="font-weight:500;color:var(--gt-text-secondary);font-size:0.85rem;">(all day)</span>
+        {% endif %}
+      </div>
+      <div style="font-size:0.78rem;color:var(--gt-text-secondary);margin-top:2px;">
+        <i class="bi bi-{{ icon }} me-1" style="color:{{ color }};"></i>
+        <strong style="color:{{ color }};">{{ label }}</strong>
+        {% if o.reason %} &middot; {{ o.get_reason_display }}{% endif %}
+        {% if o.decided_at %} &middot; reviewed {{ o.decided_at|date:"M j" }}{% endif %}
+      </div>
+      {% if o.notes %}
+        <div style="font-size:0.8rem;color:var(--gt-text);margin-top:6px;font-style:italic;">"{{ o.notes }}"</div>
+      {% endif %}
+      {% if o.status == 'denied' and o.denial_reason %}
+        <div style="font-size:0.8rem;color:var(--gt-red);margin-top:6px;">
+          <strong>Dispatch said:</strong> {{ o.denial_reason }}
+        </div>
+      {% endif %}
+    </div>
+
+    {% if o.status == 'pending' %}
+      <form method="post" action="{% url 'driver_cancel_timeoff' o.id %}" style="margin:0;"
+            onsubmit="return confirm('Cancel this request?');">
+        {% csrf_token %}
+        <button type="submit" class="gt-btn gt-btn-ghost gt-btn-sm">
+          <i class="bi bi-x-lg"></i> Cancel
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>

@@ -14438,3 +14438,116 @@ def accrual_revenue_txt(request):
     response["Content-Disposition"] = f'attachment; filename="{fname}"'
     return response
 
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Time-off request review (founder/dispatcher side).
+# Companion to drivers.views.request_timeoff. The data model is
+# DriverDateOverride with status in {pending, approved, denied, cancelled}.
+# ──────────────────────────────────────────────────────────────────────
+
+@login_required(login_url="login")
+def dispatcher_timeoff_requests(request):
+    """Founder queue: pending requests up top, then recently-decided ones."""
+    from drivers.models import DriverDateOverride
+    from reservations.models import Leg
+
+    if not request.user.is_staff:
+        return redirect("home")
+
+    pending = list(
+        DriverDateOverride.objects
+        .filter(status="pending")
+        .select_related("driver", "driver__profile", "created_by")
+        .order_by("date", "id")
+    )
+    # Conflict count per pending request: trips already assigned to that
+    # driver in the requested window. Soft signal — founder still decides.
+    for o in pending:
+        start = o.date
+        end = o.end_date or o.date
+        o.conflict_count = (
+            Leg.objects
+            .filter(driver=o.driver, pickup_date__gte=start, pickup_date__lte=end)
+            .exclude(reservation__status="cancelled")
+            .count()
+        )
+
+    recent = list(
+        DriverDateOverride.objects
+        .filter(status__in=["approved", "denied"], submitted_by_driver=True)
+        .select_related("driver", "driver__profile", "decided_by")
+        .order_by("-decided_at")[:20]
+    )
+
+    return render(
+        request,
+        "dispatching/timeoff_requests.html",
+        {"pending": pending, "recent": recent},
+    )
+
+
+@login_required(login_url="login")
+@require_POST
+def approve_timeoff_request(request, override_id):
+    from django.utils import timezone as _tz
+    from drivers.models import DriverDateOverride
+    from drivers.context_processors import invalidate_pending_timeoff_count
+    from drivers.timeoff_notifications import notify_driver_of_decision
+
+    if not request.user.is_staff:
+        return redirect("home")
+
+    override = get_object_or_404(DriverDateOverride, id=override_id)
+    if override.status != "pending":
+        messages.error(request, "Only pending requests can be approved.")
+        return redirect("dispatcher_timeoff_requests")
+
+    override.status = "approved"
+    override.decided_by = request.user
+    override.decided_at = _tz.now()
+    override.save(update_fields=["status", "decided_by", "decided_at", "updated_at"])
+
+    try:
+        notify_driver_of_decision(override)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Driver notify failed for override %s", override.id)
+
+    invalidate_pending_timeoff_count()
+    messages.success(request, f"Approved time off for {override.driver}.")
+    return redirect("dispatcher_timeoff_requests")
+
+
+@login_required(login_url="login")
+@require_POST
+def deny_timeoff_request(request, override_id):
+    from django.utils import timezone as _tz
+    from drivers.models import DriverDateOverride
+    from drivers.context_processors import invalidate_pending_timeoff_count
+    from drivers.timeoff_notifications import notify_driver_of_decision
+
+    if not request.user.is_staff:
+        return redirect("home")
+
+    override = get_object_or_404(DriverDateOverride, id=override_id)
+    if override.status != "pending":
+        messages.error(request, "Only pending requests can be denied.")
+        return redirect("dispatcher_timeoff_requests")
+
+    reason = (request.POST.get("denial_reason") or "").strip()[:200]
+    override.status = "denied"
+    override.denial_reason = reason
+    override.decided_by = request.user
+    override.decided_at = _tz.now()
+    override.save(update_fields=["status", "denial_reason", "decided_by", "decided_at", "updated_at"])
+
+    try:
+        notify_driver_of_decision(override)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Driver notify failed for override %s", override.id)
+
+    invalidate_pending_timeoff_count()
+    messages.success(request, f"Denied time off for {override.driver}.")
+    return redirect("dispatcher_timeoff_requests")
