@@ -182,6 +182,11 @@ cython_debug/
 
 # Visual Studio Code config
 .vscode/
+*.code-workspace
 
 /staticfiles/
 .claude/worktrees/
+
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
