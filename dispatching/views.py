@@ -229,8 +229,12 @@ def index(request):
         _assignment = assignment_map.get(_driver.id)
         # Driver availability for this date — combines weekly + date overrides
         _ld_eff = _driver.get_effective_availability(selected_date)
-        _is_off = not _ld_eff["is_available"]
-        # If driver has a vehicle assigned today, treat them as working regardless of schedule
+        # Underlying schedule state — preserved so the UI can flag override-working drivers
+        _was_scheduled_off = not _ld_eff["is_available"]
+        _is_off = _was_scheduled_off
+        # If driver has a vehicle assigned today, treat them as working regardless of schedule.
+        # _is_off flips to False, but _was_scheduled_off retains the original signal so the
+        # card can warn dispatch that this person was supposed to be off.
         if _is_off and _assignment and _assignment.vehicle_id:
             _is_off = False
         _ld_is_avail = _ld_eff["is_available"]
@@ -260,6 +264,7 @@ def index(request):
             "driver": _driver,
             "assignment": _assignment,
             "is_off_today": _is_off,
+            "was_scheduled_off": _was_scheduled_off,
             "shift_display": _ld_shift_disp,
             "shift_type": _ld_stype,
             "shift_start": _ld_sh,
@@ -279,7 +284,11 @@ def index(request):
             "has_exception": _ld_eff["has_exception"],
         })
     def _inhouse_vehicle_sort_key(row):
-        # Off-today drivers sink to bottom; within each group: assigned first, then by vehicle#/name
+        # Off-today drivers sink to bottom; within each group: numeric vehicle#s
+        # first (sorted numerically), then non-numeric (sorted lexicographically),
+        # then unassigned (sorted by driver name).
+        # All tuple positions must use comparable types — mixing int and str
+        # in the same slot blows up Python's tuple comparison.
         off_bucket = 2 if row.get("is_off_today") else 0
         assignment = row.get("assignment")
         vehicle_number = None
@@ -287,11 +296,10 @@ def index(request):
             vehicle_number = assignment.vehicle.vehicle_number.lstrip("#").strip()
         if vehicle_number:
             try:
-                vehicle_number = int(vehicle_number)
+                return (off_bucket, 0, int(vehicle_number), "")
             except ValueError:
-                pass
-            return (off_bucket, vehicle_number)
-        return (off_bucket + 1, str(row["driver"]))
+                return (off_bucket, 1, 0, vehicle_number)
+        return (off_bucket + 1, 2, 0, str(row["driver"]))
 
     inhouse_driver_rows.sort(key=_inhouse_vehicle_sort_key)
 
@@ -2385,15 +2393,15 @@ def copy_vehicle_assignments(request):
         .prefetch_related("driver__weekly_schedule", "driver__date_overrides")
     )
 
-    # Build driver list with off-day status
-    target_dow = target_date.weekday()
+    # Build driver list with off-day status.
+    # IMPORTANT: use get_effective_availability so date_overrides (time-off
+    # requests, vacation, sick, etc.) are honored — not just the recurring
+    # weekly_schedule. Otherwise drivers who requested today off get checked
+    # by default in the copy modal and silently inherit a vehicle.
     drivers_list = []
     for a in prev_assignments:
-        is_off = False
-        for entry in a.driver.weekly_schedule.all():
-            if entry.day_of_week == target_dow:
-                is_off = not entry.is_available
-                break
+        eff = a.driver.get_effective_availability(target_date)
+        is_off = not eff["is_available"]
         vnum = a.vehicle.vehicle_number if a.vehicle else ''
         vtype = str(a.vehicle.vehicle_type) if a.vehicle and a.vehicle.vehicle_type else ''
         drivers_list.append({
@@ -8112,8 +8120,12 @@ def capacity_planner(request):
         # Driver availability for this date — combines weekly + active exception
         _va_eff = d.get_effective_availability(selected_date)
         _va_is_avail = _va_eff["is_available"]
-        _is_off = not _va_is_avail
-        # If driver has a vehicle assigned today, treat them as working regardless of schedule
+        # Underlying schedule state — preserved so the UI can flag override-working drivers
+        _was_scheduled_off = not _va_is_avail
+        _is_off = _was_scheduled_off
+        # If driver has a vehicle assigned today, treat them as working regardless of schedule.
+        # _is_off flips to False, but _was_scheduled_off retains the original signal so the
+        # card can warn dispatch that this person was supposed to be off.
         if _is_off and _assignment and _assignment.vehicle_id:
             _is_off = False
         _va_sh, _va_eh, _va_pref, _va_flex = (
@@ -8143,6 +8155,7 @@ def capacity_planner(request):
             "driver": d,
             "assignment": _assignment,
             "is_off_today": _is_off,
+            "was_scheduled_off": _was_scheduled_off,
             "leg_count": _planner_leg_counts.get(d.id, 0),
             "shift_display": _va_shift_disp,
             "shift_type": _va_stype,
@@ -10487,52 +10500,54 @@ def manage_driver_date_overrides(request):
 @login_required(login_url="login")
 def inhouse_schedule(request):
     """
-    In-house driver availability manager.
-    Shows each driver's weekly schedule (days + hours) and lets staff edit inline.
-    Vehicle assignments for a specific date are handled on the Legs Dashboard.
+    In-house driver schedule manager — V1 Heatmap design.
+
+    Layout: dark page header (week selector), coverage strip, exceptions ribbon,
+    filter row, driver × day grid, side drawer (Default / Exceptions / About /
+    History) overlay for per-driver editing.
+
+    Editing flows through the existing /save-driver-weekly-schedules/ and
+    /driver-date-overrides/ JSON endpoints.
     """
     if not request.user.is_staff:
         messages.error(request, "Permission denied.")
         return redirect("legs_list")
 
+    import hashlib as _hashlib
+    import json as _json
+    from datetime import date as _date_type
+
     DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    DAY_FULL  = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    COVERAGE_TARGET = 14
+
+    # Map the project's shift_type enum onto the design's shift-type palette.
+    # Project enum: morning / midday / evening / night / split / full_day / custom
+    # Design palette buckets: morning, midday, evening, night, split, flex, set
+    DESIGN_BUCKET = {
+        "morning":  "morning",
+        "midday":   "midday",
+        "evening":  "evening",
+        "night":    "night",
+        "split":    "split",
+        "full_day": "flex",     # full_day flexible == design's "flex"
+        "custom":   "set",      # custom hours fall into "set hours"
+    }
 
     def _fmt_hour(h):
-        """Return a short human-readable hour label like 2a, 12p, 11p."""
+        """Return a short label like 2a, 12p, 11p."""
+        if h is None:
+            return ""
         if h == 0:  return "12a"
         if h < 12:  return f"{h}a"
         if h == 12: return "12p"
         return f"{h - 12}p"
 
     def _fmt_hour_long(h):
-        """Return a full select-option label like '12 AM', '2 AM', '5 PM'."""
         if h == 0:  return "12 AM"
         if h < 12:  return f"{h} AM"
         if h == 12: return "12 PM"
         return f"{h - 12} PM"
-
-    today = timezone.localdate()
-
-    # All 24 hour choices for the time selects
-    hour_choices = [{"value": h, "label": _fmt_hour_long(h)} for h in range(24)]
-
-    inhouse_drivers = (
-        Driver.objects.filter(driver_type="inhouse")
-        .select_related("profile")
-        .prefetch_related("weekly_schedule", "date_overrides")
-        .order_by("profile__first_name", "profile__last_name", "profile__username")
-    )
-
-    SHIFT_PILL = {
-        "morning":  "AM",
-        "midday":   "Mid",
-        "evening":  "PM",
-        "night":    "Night",
-        "split":    "Split",
-        "full_day": "Flexible",
-        "custom":   "",
-    }
-    EXC_TYPE_LABELS = dict(DriverDateOverride.EXCEPTION_TYPE_CHOICES)
 
     def _fmt_time_short(t):
         if t is None:
@@ -10540,34 +10555,104 @@ def inhouse_schedule(request):
         h, m = t.hour, t.minute
         if m == 0:
             return _fmt_hour(h)
-        # 4:30p
         suffix = "a" if h < 12 else "p"
         h12 = 12 if h % 12 == 0 else h % 12
         return f"{h12}:{m:02d}{suffix}"
 
-    def _exception_label(o):
-        """Short label for the upcoming-exception list, e.g. 'Off', 'Until 4p', 'Window 8a-2p'."""
+    # Stable per-driver avatar color (the design assumes drivers have a
+    # `color` field; we derive one from the driver id so it's consistent
+    # across renders without a schema change).
+    AVATAR_PALETTE = [
+        "#C9A227", "#9B7BC4", "#7BAEC4", "#C47B95", "#E89B5C", "#5CB8E8",
+        "#7BC49B", "#E8C95C", "#B85CE8", "#5CE89B", "#E85C95", "#5CE8E0",
+        "#E8855C", "#9BE85C", "#5C95E8", "#E8A85C",
+    ]
+    def _color_for(driver):
+        h = int(_hashlib.md5(str(driver.id).encode()).hexdigest()[:8], 16)
+        return AVATAR_PALETTE[h % len(AVATAR_PALETTE)]
+
+    today = timezone.localdate()
+
+    # ── as-of date (drives the week range shown in the header subtitle
+    # and which dates the cell exception ring overlay applies to) ──
+    as_of = None
+    date_param = request.GET.get("date")
+    if date_param:
+        try:
+            as_of = _date_type.fromisoformat(date_param)
+        except (ValueError, TypeError):
+            as_of = None
+    if as_of is None:
+        as_of = today
+
+    monday = as_of - timedelta(days=as_of.weekday())
+    week_dates = [monday + timedelta(days=i) for i in range(7)]
+    next_week_iso = (monday + timedelta(days=7)).isoformat()
+
+    hour_choices = [{"value": h, "label": _fmt_hour_long(h)} for h in range(24)]
+
+    inhouse_drivers = list(
+        Driver.objects.filter(driver_type="inhouse")
+        .select_related("profile")
+        .prefetch_related("weekly_schedule", "date_overrides")
+        .order_by("profile__first_name", "profile__last_name", "profile__username")
+    )
+
+    EXC_TYPE_LABELS = dict(DriverDateOverride.EXCEPTION_TYPE_CHOICES)
+    REASON_LABELS = dict(DriverDateOverride.REASON_CHOICES)
+
+    def _exception_short(o):
         et = o.exception_type
-        if et == "off":
-            return "Off"
-        if et == "available_until":
-            return f"Until {_fmt_time_short(o.end_time)}" if o.end_time else "Until ?"
-        if et == "available_after":
-            return f"After {_fmt_time_short(o.start_time)}" if o.start_time else "After ?"
-        if et == "available_window":
-            return f"Window {_fmt_time_short(o.start_time)}-{_fmt_time_short(o.end_time)}"
-        if et == "unavailable_window":
-            return f"Block {_fmt_time_short(o.start_time)}-{_fmt_time_short(o.end_time)}"
-        if et == "flexible":
-            return "Flexible"
-        if et == "note_only":
-            return "Note"
+        if et == "off":                 return "Off"
+        if et == "available_until":     return f"Until {_fmt_time_short(o.end_time)}" if o.end_time else "Until ?"
+        if et == "available_after":     return f"After {_fmt_time_short(o.start_time)}" if o.start_time else "After ?"
+        if et == "available_window":    return f"Window {_fmt_time_short(o.start_time)}-{_fmt_time_short(o.end_time)}"
+        if et == "unavailable_window":  return f"Block {_fmt_time_short(o.start_time)}-{_fmt_time_short(o.end_time)}"
+        if et == "flexible":            return "Flexible"
+        if et == "note_only":           return "Note"
         return EXC_TYPE_LABELS.get(et, et)
 
+    def _exception_design_type(o):
+        """Map override → design exception-type palette: partial / pto / leave / swap / note."""
+        if o.reason == "vacation":  return "pto"
+        if o.reason == "sick":      return "leave"
+        if o.exception_type == "off":
+            # Multi-day off requests are PTO-tone, single-day are leave-tone.
+            return "pto" if (o.end_date and o.end_date != o.date) else "leave"
+        if o.exception_type == "note_only":
+            return "swap"
+        # available_until / after / window / unavailable_window / flexible all
+        # mean "the driver is partly available" — partial-day tone.
+        return "partial"
+
+    def _exception_bucket_label(design_type):
+        return {
+            "partial": "Partial",
+            "pto":     "PTO",
+            "leave":   "Leave",
+            "swap":    "Note",
+        }.get(design_type, design_type.upper())
+
+    # Bucket helper — design surfaces today / next 7 / next 30 / all upcoming.
+    def _in_bucket(start_d, end_d, bucket):
+        end_d = end_d or start_d
+        diff_start = (start_d - today).days
+        diff_end   = (end_d   - today).days
+        if bucket == "today":  return diff_start <= 0 and diff_end >= 0
+        if bucket == "week":   return diff_end >= 0 and diff_start <= 6
+        if bucket == "month":  return diff_end >= 0 and diff_start <= 30
+        if bucket == "all":    return diff_end >= 0
+        return True
+
+    # ── per-driver row data ──
     driver_rows = []
+    all_exceptions = []   # flat list for the ribbon
+
     for driver in inhouse_drivers:
-        weekly_map = {entry.day_of_week: entry for entry in driver.weekly_schedule.all()}
+        weekly_map = {e.day_of_week: e for e in driver.weekly_schedule.all()}
         days = []
+        working_days = 0
+        total_hours = 0
         for day_idx in range(7):
             entry = weekly_map.get(day_idx)
             sh = entry.start_hour if entry else driver.default_start_hour
@@ -10575,74 +10660,300 @@ def inhouse_schedule(request):
             avail = entry.is_available if entry else True
             pref  = entry.preference   if entry else driver.default_preference
             flex  = entry.flexible if entry else driver.default_flexible
-            stype = entry.shift_type if entry else driver.default_shift_type
+            stype = entry.shift_type if entry else (driver.default_shift_type or "full_day")
             pshift = entry.preferred_shift if entry else driver.default_preferred_shift
             mhrs  = entry.max_hours if entry else driver.default_max_hours
             snotes = entry.scheduling_notes if entry else ""
 
-            # Build pill label based on shift type
-            if not avail:
-                pill_label = "Off"
-            elif stype == "full_day":
-                pill_label = "Flexible"
-            elif stype in SHIFT_PILL:
-                _prefix = SHIFT_PILL[stype]
-                pill_label = f"{_prefix} {_fmt_hour(sh)}-{_fmt_hour(eh)}".strip()
-            else:
-                pill_label = f"{_fmt_hour(sh)}-{_fmt_hour(eh)}"
+            design_bucket = "off" if not avail else DESIGN_BUCKET.get(stype, "flex")
 
-            if avail and mhrs:
-                pill_label += f" ({int(mhrs)}h)"
+            if avail:
+                working_days += 1
+                if stype == "full_day":
+                    total_hours += float(mhrs) if mhrs else 10  # flex assumed ~10h
+                else:
+                    span = (eh - sh) if eh > sh else (24 - sh) + eh
+                    total_hours += span
+
+            if not avail:
+                hours_label = ""
+                shift_label = "Off"
+            elif stype == "full_day":
+                hours_label = "open / flex"
+                shift_label = "Flexible"
+            else:
+                hours_label = f"{_fmt_hour(sh)} → {_fmt_hour(eh)}"
+                shift_label = {
+                    "morning": "AM", "midday": "MID", "evening": "PM",
+                    "night": "NIGHT", "split": "SPLIT", "custom": "SET",
+                }.get(stype, stype.upper())
 
             days.append({
-                "day_idx":    day_idx,
-                "day_name":   DAY_NAMES[day_idx],
+                "day_idx":     day_idx,
+                "day_name":    DAY_NAMES[day_idx],
                 "is_available": avail,
-                "shift_type": stype,
-                "start_hour": sh,
-                "end_hour":   eh,
-                "flexible":   flex,
-                "max_hours":  float(mhrs) if mhrs else None,
+                "is_off":      not avail,
+                "shift_type":  stype,
+                "design_bucket": design_bucket,   # off / morning / midday / evening / night / split / flex / set
+                "start_hour":  sh,
+                "end_hour":    eh,
+                "flexible":    flex,
+                "locked":      not flex,
+                "max_hours":   float(mhrs) if mhrs else None,
                 "preferred_shift": pshift,
-                "preference": pref,
+                "preference":  pref,
                 "scheduling_notes": snotes,
-                "pill_label": pill_label,
+                "hours_label": hours_label,
+                "shift_label": shift_label,
             })
 
-        # Upcoming exceptions (single-day today/future or ranges that haven't ended)
-        upcoming_overrides = []
+        # Per-driver exceptions (kept on the row + appended to the global list).
+        driver_excs = []
         for o in driver.date_overrides.all():
             applies_future = (o.end_date or o.date) >= today
             if not applies_future:
+                continue   # ribbon shows future-only; past lives in the drawer
+            design_type = _exception_design_type(o)
+            ex = {
+                "id":            o.id,
+                "driver_id":     driver.id,
+                "date":          o.date.strftime("%Y-%m-%d"),
+                "end_date":      o.end_date.strftime("%Y-%m-%d") if o.end_date else "",
+                "date_short":    o.date.strftime("%b %-d"),
+                "end_date_short": o.end_date.strftime("%b %-d") if o.end_date else "",
+                "date_display":  o.date_range_display,
+                "exception_type": o.exception_type,
+                "exception_type_label": EXC_TYPE_LABELS.get(o.exception_type, o.exception_type),
+                "exception_short": _exception_short(o),
+                "design_type":   design_type,
+                "design_label":  _exception_bucket_label(design_type),
+                "start_time":    o.start_time.strftime("%H:%M") if o.start_time else "",
+                "end_time":      o.end_time.strftime("%H:%M")   if o.end_time   else "",
+                "reason":        o.reason,
+                "reason_label":  REASON_LABELS.get(o.reason, o.reason),
+                "notes":         o.notes,
+                "_start":        o.date,
+                "_end":          o.end_date or o.date,
+            }
+            driver_excs.append(ex)
+
+        driver_excs.sort(key=lambda x: (x["_start"], x["_end"]))
+        upcoming_count = sum(1 for e in driver_excs if _in_bucket(e["_start"], e["_end"], "all"))
+        next7_count    = sum(1 for e in driver_excs if _in_bucket(e["_start"], e["_end"], "week"))
+
+        # Per-row, per-day exception lookup (only checks the visible week so
+        # we can paint the cell ring without scanning every override client-side).
+        per_day_exc = [None] * 7
+        for ex in driver_excs:
+            for i, d in enumerate(week_dates):
+                if ex["_start"] <= d <= ex["_end"]:
+                    per_day_exc[i] = ex
+        for i, day in enumerate(days):
+            day["exception"] = per_day_exc[i]
+
+        # Past exceptions live only in the drawer; serialize them too.
+        past_excs = []
+        for o in driver.date_overrides.all():
+            applies_future = (o.end_date or o.date) >= today
+            if applies_future:
                 continue
-            upcoming_overrides.append({
+            design_type = _exception_design_type(o)
+            past_excs.append({
                 "id": o.id,
+                "driver_id": driver.id,
                 "date": o.date.strftime("%Y-%m-%d"),
                 "end_date": o.end_date.strftime("%Y-%m-%d") if o.end_date else "",
                 "date_display": o.date_range_display,
                 "exception_type": o.exception_type,
                 "exception_type_label": EXC_TYPE_LABELS.get(o.exception_type, o.exception_type),
-                "exception_short": _exception_label(o),
-                "start_time": o.start_time.strftime("%H:%M") if o.start_time else "",
-                "end_time":   o.end_time.strftime("%H:%M")   if o.end_time   else "",
+                "exception_short": _exception_short(o),
+                "design_type": design_type,
+                "design_label": _exception_bucket_label(design_type),
                 "reason": o.reason,
-                "reason_label": dict(DriverDateOverride.REASON_CHOICES).get(o.reason, o.reason),
+                "reason_label": REASON_LABELS.get(o.reason, o.reason),
                 "notes": o.notes,
             })
-        upcoming_overrides.sort(key=lambda x: x["date"])
+        past_excs.sort(key=lambda x: x["date"], reverse=True)
 
-        driver_rows.append({"driver": driver, "days": days, "upcoming_overrides": upcoming_overrides})
+        all_exceptions.extend(driver_excs)
+
+        # Strip the internal date objects before serializing for JS.
+        for e in driver_excs:
+            e.pop("_start", None)
+            e.pop("_end", None)
+
+        # Stub schedule version timeline (no DB-backed history yet — surface a
+        # single 'Current' marker so the History tab is non-empty without
+        # claiming false provenance).
+        versions = [{
+            "effective_from": "May 01, 2026",
+            "note":           "Current schedule",
+            "planned":        False,
+            "current":        True,
+            "change":         None,
+        }]
+
+        # Flag/avatar color, drawer-friendly meta
+        first_name = (driver.profile.first_name or "").strip()
+        last_name  = (driver.profile.last_name or "").strip()
+        display_name = f"{first_name} {last_name}".strip() or driver.profile.username
+        initials = ((first_name[:1] + last_name[:1]) or display_name[:2]).upper()
+        avatar_color = _color_for(driver)
+
+        driver_rows.append({
+            "driver":         driver,
+            "id":             driver.id,
+            "name":           display_name,
+            "initials":       initials,
+            "color":          avatar_color,
+            "phone":          driver.phone_number or "",
+            "notes":          driver.notes or "",
+            "days":           days,
+            "exceptions":     driver_excs,
+            "past_exceptions": past_excs,
+            "exc_count":      len(driver_excs),
+            "next7_count":    next7_count,
+            "working_days":   working_days,
+            "total_hours":    int(round(total_hours)),
+            "versions":       versions,
+            "version_count":  len(versions),
+            "next_change":    None,           # stubbed — no planned-change model
+            "search_key":     display_name.lower(),
+        })
+
+    # ── coverage rollup per day ──
+    SHIFT_BUCKETS = ["morning", "midday", "evening", "night", "split", "flex", "set"]
+    coverage = []
+    for i in range(7):
+        buckets = {k: 0 for k in SHIFT_BUCKETS}
+        working = 0
+        for row in driver_rows:
+            day = row["days"][i]
+            if day["is_off"]:
+                continue
+            working += 1
+            buckets[day["design_bucket"]] = buckets.get(day["design_bucket"], 0) + 1
+        delta = working - COVERAGE_TARGET
+        if working >= COVERAGE_TARGET:
+            tone = "good"
+        elif working >= COVERAGE_TARGET - 2:
+            tone = "warn"
+        else:
+            tone = "crit"
+        # Stacked-bar segments (width as % of working).
+        segments = []
+        for k in SHIFT_BUCKETS:
+            v = buckets[k]
+            if v <= 0:
+                continue
+            segments.append({
+                "key": k,
+                "count": v,
+                "pct": round((v / working) * 100, 2) if working else 0,
+            })
+        # Up to 4 breakdown chips, biggest first.
+        chips = sorted(segments, key=lambda s: -s["count"])[:4]
+        coverage.append({
+            "day_idx":  i,
+            "day_name": DAY_NAMES[i],
+            "date":     week_dates[i],
+            "date_short": week_dates[i].strftime("%b %-d"),
+            "is_weekend": i >= 5,
+            "is_today": week_dates[i] == today,
+            "working":  working,
+            "total":    len(driver_rows),
+            "delta":    delta,
+            "delta_sign": "+" if delta >= 0 else "",
+            "tone":     tone,
+            "segments": segments,
+            "chips":    chips,
+        })
+
+    # ── ribbon counts (across all drivers' upcoming exceptions) ──
+    def _bucket_for(ex_list, bucket):
+        return [e for e in ex_list if _in_bucket(_date_type.fromisoformat(e["date"]),
+                                                  _date_type.fromisoformat(e["end_date"]) if e["end_date"] else _date_type.fromisoformat(e["date"]),
+                                                  bucket)]
+    bucket_counts = {
+        "today": len(_bucket_for(all_exceptions, "today")),
+        "week":  len(_bucket_for(all_exceptions, "week")),
+        "month": len(_bucket_for(all_exceptions, "month")),
+        "all":   len(all_exceptions),
+    }
+    # Sort ribbon entries by start date, attach driver display info.
+    drivers_by_id = {r["id"]: r for r in driver_rows}
+    ribbon = []
+    for e in sorted(all_exceptions, key=lambda x: x["date"]):
+        r = drivers_by_id[e["driver_id"]]
+        item = dict(e)
+        item["driver_name"] = r["name"]
+        item["driver_initials"] = r["initials"]
+        item["driver_color"] = r["color"]
+        ribbon.append(item)
+
+    # Serializable driver payload for the drawer (avoids re-rendering on every
+    # drawer open — the page bundles all drivers up front).
+    drivers_payload = []
+    for r in driver_rows:
+        drivers_payload.append({
+            "id":            r["id"],
+            "name":          r["name"],
+            "initials":      r["initials"],
+            "color":         r["color"],
+            "phone":         r["phone"],
+            "notes":         r["notes"],
+            "working_days":  r["working_days"],
+            "total_hours":   r["total_hours"],
+            "version_count": r["version_count"],
+            "next_change":   r["next_change"],
+            "days":          [{
+                "day_idx":     d["day_idx"],
+                "day_name":    d["day_name"],
+                "is_available": d["is_available"],
+                "shift_type":  d["shift_type"],
+                "design_bucket": d["design_bucket"],
+                "start_hour":  d["start_hour"],
+                "end_hour":    d["end_hour"],
+                "flexible":    d["flexible"],
+                "max_hours":   d["max_hours"],
+                "preferred_shift": d["preferred_shift"],
+                "preference":  d["preference"],
+                "scheduling_notes": d["scheduling_notes"],
+                "hours_label": d["hours_label"],
+                "shift_label": d["shift_label"],
+            } for d in r["days"]],
+            "exceptions":    r["exceptions"],
+            "past_exceptions": r["past_exceptions"],
+            "exc_count":     r["exc_count"],
+            "versions":      r["versions"],
+        })
 
     context = {
-        "driver_rows": driver_rows,
-        "hour_choices": hour_choices,
-        "shift_type_choices": DriverWeeklySchedule.SHIFT_TYPE_CHOICES,
+        "driver_rows":         driver_rows,
+        "drivers_payload_json": _json.dumps(drivers_payload),
+        "coverage":            coverage,
+        "coverage_target":     COVERAGE_TARGET,
+        "ribbon":              ribbon,
+        "ribbon_json":         _json.dumps(ribbon),
+        "bucket_counts":       bucket_counts,
+        "day_names":           DAY_NAMES,
+        "day_full":            DAY_FULL,
+        "week_dates":          week_dates,
+        "week_start":          monday,
+        "week_end":            week_dates[6],
+        "as_of":               as_of,
+        "as_of_iso":           as_of.isoformat(),
+        "today_iso":           today.isoformat(),
+        "next_week_iso":       next_week_iso,
+        "is_this_week":        monday <= today <= week_dates[6],
+        "hour_choices":        hour_choices,
+        "shift_type_choices":  DriverWeeklySchedule.SHIFT_TYPE_CHOICES,
         "preferred_shift_choices": DriverWeeklySchedule.PREFERRED_SHIFT_CHOICES,
-        "preference_choices": DriverWeeklySchedule.PREFERENCE_CHOICES,
+        "preference_choices":  DriverWeeklySchedule.PREFERENCE_CHOICES,
         "day_off_reason_choices": DriverDateOverride.REASON_CHOICES,
         "exception_type_choices": DriverDateOverride.EXCEPTION_TYPE_CHOICES,
-        "today": today,
-        "today_legs_url": f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
+        "today":               today,
+        "today_legs_url":      f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
     }
     return render(request, "dispatching/inhouse_schedule.html", context)
 

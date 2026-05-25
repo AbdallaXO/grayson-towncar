@@ -3,1031 +3,1492 @@
 
 {% block title %}In-House Driver Schedules{% endblock %}
 
+{% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+{% endblock %}
+
 {% block extra_css %}
 <style>
-  :root {
-    --gold: #C9A227;
-    --dark: #0d1117;
-    --dark-secondary: #161b22;
+  /* ── V1 Heatmap (light) tokens ───────────────────────────────────── */
+  .sm {
+    --page: #F4F1E8;
+    --surface: #FFFFFF;
+    --surface2: #FAF7EE;
+    --surface3: #F1ECDF;
+    --nav-top: #0d1117;
+    --nav-top-text: #F8F6F0;
+    --hairline: rgba(13,17,23,0.08);
+    --hairline2: rgba(13,17,23,0.14);
+    --text: #0d1117;
+    --text2: #5C5749;
+    --text3: #8B8470;
+    --gold: #A8861B;
+    --gold-strong: #8C6F12;
+    --gold-soft: rgba(168,134,27,0.10);
+    --gold-line: rgba(168,134,27,0.32);
+    --good: #2F8E5A;
+    --warn: #B57B1F;
+    --warn-soft: rgba(181,123,31,0.10);
+    --crit: #B5413F;
+    --info: #2F6FB5;
+    --info-soft: rgba(47,111,181,0.08);
+    background: var(--page);
+    color: var(--text);
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-feature-settings: 'tnum' 1;
+    letter-spacing: 0.005em;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .sm *, .sm *::before, .sm *::after { box-sizing: border-box; }
+  body.schedule-mgr-page { background: #F4F1E8; }
+  body.schedule-mgr-page > main, body.schedule-mgr-page main { padding: 0 !important; }
+
+  .sm-display { font-family: 'Playfair Display', Georgia, serif; font-weight: 600; letter-spacing: -0.02em; }
+  .sm-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-feature-settings: 'tnum' 1; }
+  .sm-eyebrow {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--gold);
   }
 
-  .sched-header {
-    background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
-    padding: 1.5rem 0 1.25rem;
-    margin-top: -1rem;
-    margin-bottom: 1.5rem;
-  }
-  .sched-header h1 { color: #fff; font-size: 1.4rem; font-weight: 700; }
-  .sched-header .lead { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+  /* ── shift-type palette ──────────────────────────────────────────── */
+  .sm-shift-morning { --fg:#9C5A14; --bg:rgba(232,168,92,0.16);  --accent:#E08A2A; }
+  .sm-shift-midday  { --fg:#7E6512; --bg:rgba(232,201,92,0.18);  --accent:#D4A91D; }
+  .sm-shift-evening { --fg:#5A3F8C; --bg:rgba(155,123,196,0.16); --accent:#7B5BB0; }
+  .sm-shift-night   { --fg:#1f2e6e; --bg:rgba(92,123,232,0.14);  --accent:#4860C8; }
+  .sm-shift-split   { --fg:#1d5b75; --bg:rgba(123,174,196,0.18); --accent:#4B8FA8; }
+  .sm-shift-flex    { --fg:#1F6B45; --bg:rgba(123,196,155,0.16); --accent:#4DA678; }
+  .sm-shift-set     { --fg:#7a5f1a; --bg:rgba(201,162,39,0.10);  --accent:#C9A227; }
+  .sm-shift-off     { --fg:#8B8470; --bg:transparent;             --accent:#C9C1AA; }
 
-  .driver-card {
-    border: 1px solid #e5e7eb;
+  /* ── exception-type palette ─────────────────────────────────────── */
+  .sm-exc-partial { --efg:#B57B1F; --esoft:rgba(181,123,31,0.12); --ering:rgba(181,123,31,0.45); }
+  .sm-exc-pto     { --efg:#2F6FB5; --esoft:rgba(47,111,181,0.10); --ering:rgba(47,111,181,0.40); }
+  .sm-exc-leave   { --efg:#B5413F; --esoft:rgba(181,65,63,0.10);  --ering:rgba(181,65,63,0.40); }
+  .sm-exc-swap    { --efg:#5A3F8C; --esoft:rgba(123,91,176,0.12); --ering:rgba(123,91,176,0.45); }
+
+  /* ── buttons ────────────────────────────────────────────────────── */
+  .sm-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px; border-radius: 6px;
+    border: 1px solid var(--hairline2); background: var(--surface);
+    color: var(--text); font-family: inherit; font-size: 12px; font-weight: 500;
+    letter-spacing: 0.01em; cursor: pointer; white-space: nowrap;
+    transition: all .15s ease; text-decoration: none;
+  }
+  .sm-btn:hover { background: var(--surface3); border-color: var(--gold-line); color: var(--text); }
+  .sm-btn-gold {
+    background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
+    color: #0d1117 !important; border-color: transparent; font-weight: 600;
+  }
+  .sm-btn-gold:hover {
+    box-shadow: 0 4px 16px rgba(201,162,39,0.30);
+    transform: translateY(-1px);
+    background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
+    color: #0d1117;
+  }
+  .sm-btn-dark {
+    background: rgba(255,255,255,0.06); color: #fff;
+    border-color: rgba(255,255,255,0.16);
+  }
+  .sm-btn-dark:hover { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.28); }
+  .sm-btn-dark.is-active {
+    background: rgba(201,162,39,0.18); color: #E8D5B7;
+    border-color: rgba(201,162,39,0.42);
+  }
+
+  /* ── dark page header ───────────────────────────────────────────── */
+  .sm-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 24px; padding: 14px 24px;
+    background: var(--nav-top); color: var(--nav-top-text);
+  }
+  .sm-header-left { display: flex; align-items: center; gap: 18px; min-width: 0; }
+  .sm-brand-mark {
+    width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto;
+    background: linear-gradient(135deg, #C9A227 0%, #E8D5B7 50%, #C9A227 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #0d1117; font-family: 'Playfair Display', serif;
+    font-size: 17px; font-weight: 700;
+  }
+  .sm-brand-text { line-height: 1.05; }
+  .sm-brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 16px; color: #fff; }
+  .sm-brand-eyebrow {
+    font-size: 10px; color: rgba(255,255,255,0.55);
+    letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;
+  }
+  .sm-header-divider {
+    width: 1px; height: 28px; background: rgba(255,255,255,0.12); flex: 0 0 auto;
+  }
+  .sm-page-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 20px; color: #fff; line-height: 1.05; }
+  .sm-page-subtitle {
+    font-size: 11.5px; color: rgba(255,255,255,0.55); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sm-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  /* ── content rhythm ─────────────────────────────────────────────── */
+  .sm-body { padding: 14px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── coverage strip ─────────────────────────────────────────────── */
+  .sm-cov {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 12px; overflow: hidden;
+  }
+  .sm-cov-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--hairline);
+    flex-wrap: wrap;
+  }
+  .sm-cov-target { font-size: 11.5px; color: var(--text3); }
+  .sm-cov-target b { color: var(--text); font-weight: 700; }
+  .sm-cov-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .sm-cov-legend-item {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 600; color: var(--text3);
+  }
+  .sm-cov-legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
+  .sm-cov-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 1px; background: var(--hairline);
+  }
+  .sm-cov-cell {
+    background: var(--surface); padding: 12px 16px; position: relative;
+    min-width: 0;
+  }
+  .sm-cov-cell.is-weekend { background: var(--surface2); }
+  .sm-cov-cell.is-today { box-shadow: inset 0 -3px 0 var(--gold); }
+  .sm-cov-top {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .sm-cov-day {
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text2);
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sm-cov-cell.is-today .sm-cov-day { color: var(--gold); }
+  .sm-cov-today-mark {
+    margin-left: 6px; font-size: 9px; padding: 0;
+    color: var(--gold); letter-spacing: 0.08em;
+    font-weight: 600; text-transform: lowercase;
+  }
+  .sm-cov-delta { font-size: 10.5px; font-weight: 700; flex: 0 0 auto; }
+  .sm-cov-delta.is-good { color: var(--good); }
+  .sm-cov-delta.is-crit { color: var(--crit); }
+  .sm-cov-number-row { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
+  .sm-cov-number { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 34px; line-height: 1; letter-spacing: -0.02em; }
+  .sm-cov-number.is-good { color: var(--good); }
+  .sm-cov-number.is-warn { color: var(--warn); }
+  .sm-cov-number.is-crit { color: var(--crit); }
+  .sm-cov-of { font-size: 11px; color: var(--text3); }
+  .sm-cov-bar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; margin-top: 8px; background: var(--hairline); }
+  .sm-cov-bar > div { height: 100%; }
+  .sm-cov-chips { display: flex; gap: 8px; margin-top: 6px; font-size: 10px; color: var(--text3); flex-wrap: wrap; }
+  .sm-cov-chip { display: inline-flex; align-items: center; gap: 3px; }
+  .sm-cov-chip .swatch { width: 5px; height: 5px; border-radius: 1px; }
+  .sm-cov-chip .num { color: var(--text2); font-weight: 700; }
+
+  /* ── exceptions ribbon ──────────────────────────────────────────── */
+  .sm-rib {
+    background: var(--surface); border: 1px solid var(--hairline);
     border-radius: 10px;
-    background: #fff;
-    margin-bottom: 0.55rem;
-    overflow: hidden;
-    transition: box-shadow .15s;
   }
-  .driver-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
-  .driver-card.has-unsaved { border-color: #fbbf24; }
-
-  .driver-summary {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 1rem;
+  .sm-rib-head {
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px;
     flex-wrap: wrap;
   }
-
-  .driver-name-block { min-width: 180px; flex-shrink: 0; }
-  .driver-name { font-weight: 600; font-size: 0.95rem; }
-  .driver-meta { font-size: 0.72rem; color: #6b7280; }
-  .driver-meta i { margin-right: 0.2rem; }
-
-  .day-strip { display: flex; gap: 0.3rem; flex-wrap: wrap; flex: 1; min-width: 0; }
-
-  /* Weekend separator */
-  .day-strip .wk-sep {
-    width: 1px;
-    background: #d1d5db;
-    margin: 0.15rem 0.1rem;
-    flex-shrink: 0;
+  .sm-rib.is-open .sm-rib-head { border-bottom: 1px solid var(--hairline); }
+  .sm-rib-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 8px; margin-left: -4px;
+    background: transparent; border: 0; cursor: pointer; border-radius: 6px;
+    color: var(--warn); font: inherit;
   }
-
-  .day-pill {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    border-radius: 7px;
-    padding: 0.2rem 0.5rem;
-    font-size: 0.72rem;
-    min-width: 52px;
-    line-height: 1.3;
-    border: 1px solid transparent;
-  }
-  .day-pill .pill-label { font-weight: 700; }
-  .day-pill .pill-hours { font-size: 0.63rem; white-space: nowrap; }
-
-  /* Shift-type colors */
-  .day-pill.shift-morning  { background:#fff7ed; border-color:#fdba74; color:#9a3412; }
-  .day-pill.shift-morning .pill-hours { color:#ea580c; }
-  .day-pill.shift-midday   { background:#fefce8; border-color:#fde047; color:#854d0e; }
-  .day-pill.shift-midday .pill-hours { color:#ca8a04; }
-  .day-pill.shift-evening  { background:#f5f3ff; border-color:#c4b5fd; color:#5b21b6; }
-  .day-pill.shift-evening .pill-hours { color:#7c3aed; }
-  .day-pill.shift-night    { background:#1e293b; border-color:#475569; color:#e2e8f0; }
-  .day-pill.shift-night .pill-hours { color:#94a3b8; }
-  .day-pill.shift-split    { background:#eff6ff; border-color:#93c5fd; color:#1e40af; }
-  .day-pill.shift-split .pill-hours { color:#2563eb; }
-  .day-pill.shift-full_day { background:#ecfdf5; border-color:#6ee7b7; color:#065f46; }
-  .day-pill.shift-full_day .pill-hours { color:#059669; }
-  .day-pill.shift-custom   { background:#f0fdf4; border-color:#a7f3d0; color:#166534; }
-  .day-pill.shift-custom .pill-hours { color:#16a34a; }
-  .day-pill.off            { background:#f3f4f6; border-color:#d1d5db; color:#9ca3af; }
-  .day-pill.off .pill-label { font-weight: 600; }
-
-  .pill-flex-icon { font-size: 0.55rem; opacity: 0.7; }
-  /* Exception (day-off / partial-day) section */
-  .dayoff-section { border-top: 1px solid #e5e7eb; padding-top: 0.6rem; }
-  .dayoff-list { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.4rem; }
-  .dayoff-item {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.25rem 0.5rem; border: 1px solid; border-radius: 6px; font-size: 0.78rem;
-  }
-  .dayoff-item.exc-off            { background: #fef2f2; border-color: #fecaca; }
-  .dayoff-item.exc-off            .dayoff-date { color: #991b1b; }
-  .dayoff-item.exc-flexible       { background: #ecfdf5; border-color: #a7f3d0; }
-  .dayoff-item.exc-flexible       .dayoff-date { color: #065f46; }
-  .dayoff-item.exc-note_only      { background: #f9fafb; border-color: #e5e7eb; }
-  .dayoff-item.exc-note_only      .dayoff-date { color: #374151; }
-  .dayoff-item.exc-available_until,
-  .dayoff-item.exc-available_after,
-  .dayoff-item.exc-available_window,
-  .dayoff-item.exc-unavailable_window { background: #fffbeb; border-color: #fde68a; }
-  .dayoff-item.exc-available_until    .dayoff-date,
-  .dayoff-item.exc-available_after    .dayoff-date,
-  .dayoff-item.exc-available_window   .dayoff-date,
-  .dayoff-item.exc-unavailable_window .dayoff-date { color: #92400e; }
-  .dayoff-date { font-weight: 600; }
-  .dayoff-type {
-    font-size: 0.66rem; padding: 1px 5px; border-radius: 3px; font-weight: 700;
-    background: rgba(0,0,0,0.06); color: #374151; letter-spacing: 0.02em;
-    text-transform: uppercase;
-  }
-  .dayoff-reason { font-size: 0.7rem; padding: 1px 5px; border-radius: 3px; font-weight: 600;
-                   background: rgba(0,0,0,0.05); color: #4b5563; }
-  .dayoff-notes { font-size: 0.72rem; color: #6b7280; font-style: italic; }
-  .dayoff-remove {
-    margin-left: auto; background: none; border: none; color: #dc2626;
-    font-size: 1rem; font-weight: 700; cursor: pointer; line-height: 1; padding: 0 4px;
-  }
-  .dayoff-remove:hover { color: #991b1b; }
-  .dayoff-empty { font-size: 0.75rem; font-style: italic; }
-  .exc-form-row {
-    display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;
-    margin-top: 0.35rem;
-  }
-  .exc-form-row .form-control-sm,
-  .exc-form-row .form-select-sm { font-size: 0.78rem; padding: 0.2rem 0.4rem; }
-  .exc-form-row label { font-size: 0.68rem; color: #6b7280; margin: 0 0.1rem 0 0.2rem; font-weight: 600; }
-  .exc-form-row .exc-time-block { display: none; align-items: center; gap: 0.25rem; }
-  .exc-form-row .exc-time-block.show { display: inline-flex; }
-
-  .pill-pref-shift {
-    font-size: 0.52rem; font-weight: 600; color: #6366f1;
-    margin-top: -1px; letter-spacing: 0.02em;
-  }
-
-  .btn-edit-driver { margin-left: auto; white-space: nowrap; flex-shrink: 0; position: relative; }
-  .unsaved-dot {
-    display: none;
-    position: absolute;
-    top: -3px; right: -3px;
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #fbbf24;
-    border: 1px solid #fff;
-  }
-  .driver-card.has-unsaved .unsaved-dot { display: block; }
-
-  /* Edit form */
-  .driver-edit-form {
-    display: none;
-    background: #f9fafb;
-    border-top: 1px solid #e5e7eb;
-    padding: 0.85rem 1rem 0.75rem;
-  }
-  .driver-edit-form.open { display: block; }
-
-  .edit-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.65rem;
-    flex-wrap: wrap;
-  }
-  .edit-toolbar .fw-semibold { flex: 1; }
-
-  .day-edit-row {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid #f0f0f0;
-    flex-wrap: wrap;
-  }
-  .day-edit-row:last-of-type { border-bottom: none; }
-  .day-edit-row.weekend-sep { border-top: 2px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.55rem; }
-
-  .day-label-col { width: 34px; font-weight: 600; font-size: 0.82rem; color: #374151; flex-shrink: 0; }
-
-  .avail-switch { min-width: 58px; }
-
-  .shift-type-col select { width: 110px; }
-
-  .time-selects { display: flex; align-items: center; gap: 0.25rem; }
-  .time-selects select, .pref-col select, .shift-type-col select, .maxhrs-col input {
-    font-size: 0.78rem;
-    padding: 0.18rem 0.3rem;
-    border-radius: 5px;
-    border: 1px solid #d1d5db;
-    background: #fff;
-  }
-  .time-selects .sep { color: #9ca3af; font-size: 0.78rem; }
-  .time-selects select.invalid { border-color: #dc2626; background: #fef2f2; }
-
-  .flex-switch { min-width: 55px; }
-  .flex-switch .form-check-label { font-size: 0.72rem; }
-
-  .maxhrs-col input { width: 52px; text-align: center; }
-  .maxhrs-col label { font-size: 0.68rem; color: #6b7280; white-space: nowrap; }
-
-  .day-edit-row.day-off .shift-type-col,
-  .day-edit-row.day-off .time-selects,
-  .day-edit-row.day-off .flex-switch,
-  .day-edit-row.day-off .maxhrs-col,
-  .day-edit-row.day-off .pref-col { opacity: .3; pointer-events: none; }
-
-  /* Disabled selects for non-custom shift types */
-  .time-selects select:disabled,
-  .flex-switch input:disabled {
-    background: #f3f4f6;
-    color: #9ca3af;
-    cursor: not-allowed;
-  }
-
-  .edit-save-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding-top: 0.6rem;
-    margin-top: 0.5rem;
-    border-top: 1px solid #e5e7eb;
-  }
-
-  .validation-error {
-    font-size: 0.72rem;
-    color: #dc2626;
-    margin-top: 0.15rem;
-  }
-
-  /* Legend */
-  .shift-legend {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
-    padding: 0.5rem 0.75rem;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    font-size: 0.72rem;
-  }
-  .shift-legend .legend-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-  .legend-swatch {
+  .sm-rib-chevron {
     width: 10px; height: 10px;
-    border-radius: 3px;
-    border: 1px solid rgba(0,0,0,0.15);
-    flex-shrink: 0;
+    transform: rotate(-90deg); transition: transform .15s ease; flex: 0 0 auto;
+  }
+  .sm-rib.is-open .sm-rib-chevron { transform: rotate(0deg); }
+  .sm-rib-eyebrow { color: var(--warn); }
+  .sm-rib-meta { font-size: 11px; color: var(--text3); font-weight: 500; }
+  .sm-rib-chips { display: none; gap: 6px; flex-wrap: wrap; }
+  .sm-rib.is-open .sm-rib-chips { display: flex; }
+  .sm-rib-chip {
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--hairline2); background: var(--surface);
+    color: var(--text2); font-family: inherit; font-size: 11.5px; font-weight: 700;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    letter-spacing: 0.02em;
+  }
+  .sm-rib-chip.is-active { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+  .sm-rib-chip .badge-num {
+    font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 999px;
+    background: var(--hairline); color: var(--text2);
+  }
+  .sm-rib-chip.is-active .badge-num { background: var(--warn); color: #fff; }
+  .sm-rib-hint { display: none; margin-left: auto; font-size: 11px; color: var(--text3); }
+  .sm-rib.is-open .sm-rib-hint { display: inline; }
+  .sm-rib-body { display: none; padding: 10px 14px; gap: 8px; flex-wrap: wrap; }
+  .sm-rib.is-open .sm-rib-body { display: flex; }
+  .sm-rib-empty { display: none; padding: 10px 14px; font-size: 12px; color: var(--text3); font-style: italic; }
+  .sm-rib.is-open.is-empty .sm-rib-empty { display: block; }
+  .sm-rib.is-open.is-empty .sm-rib-body { display: none; }
+  .sm-rib-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 10px 5px 6px; border-radius: 999px;
+    background: var(--esoft); border: 1px solid var(--ering);
+    cursor: pointer; font: inherit; color: var(--text);
+  }
+  .sm-rib-pill .driver-name { font-size: 12px; font-weight: 700; }
+  .sm-rib-pill .type-label {
+    font-size: 9.5px; font-weight: 800; color: var(--efg);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .sm-rib-pill .date-range {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text2);
+  }
+  .sm-rib-pill .reason { font-size: 11px; color: var(--text3); }
+
+  /* ── avatar ─────────────────────────────────────────────────────── */
+  .sm-avatar {
+    border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    color: #0d1117; font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+    flex: 0 0 auto;
+  }
+
+  /* ── filter row ─────────────────────────────────────────────────── */
+  .sm-filters { display: flex; align-items: center; gap: 6px; padding: 2px 0; flex-wrap: wrap; }
+  .sm-tab {
+    padding: 6px 10px; border: 0; background: transparent; color: var(--text2);
+    font-family: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    border-radius: 6px; transition: all .15s; letter-spacing: 0.01em;
+  }
+  .sm-tab:hover { background: var(--surface3); }
+  .sm-tab.is-active { color: var(--gold-strong); background: var(--gold-soft); }
+  .sm-search {
+    margin-left: 14px; display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--hairline2);
+    border-radius: 6px; padding: 6px 10px; min-width: 240px;
+  }
+  .sm-search input {
+    background: transparent; border: 0; outline: none;
+    font: inherit; font-size: 12px; color: var(--text); flex: 1; min-width: 0;
+  }
+  .sm-counter { margin-left: auto; font-size: 11px; color: var(--text3); }
+
+  /* ── grid ───────────────────────────────────────────────────────── */
+  .sm-grid-card {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;
+    flex: 1; min-height: 400px;
+  }
+  .sm-grid-head, .sm-grid-row {
+    display: grid; grid-template-columns: 260px repeat(7, 1fr) 76px;
+    gap: 8px; padding: 8px 16px; align-items: center;
+  }
+  .sm-grid-head {
+    padding: 10px 16px; background: var(--surface2);
+    border-bottom: 1px solid var(--hairline);
+  }
+  .sm-grid-head > div {
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--text3); text-align: center;
+  }
+  .sm-grid-head > div:first-child { text-align: left; }
+  .sm-grid-scroll { flex: 1; overflow-y: auto; }
+  .sm-grid-scroll { scrollbar-width: thin; scrollbar-color: rgba(13,17,23,0.18) transparent; }
+  .sm-grid-scroll::-webkit-scrollbar { width: 8px; }
+  .sm-grid-scroll::-webkit-scrollbar-track { background: transparent; }
+  .sm-grid-scroll::-webkit-scrollbar-thumb { background: rgba(13,17,23,0.14); border-radius: 4px; }
+  .sm-grid-scroll::-webkit-scrollbar-thumb:hover { background: rgba(13,17,23,0.24); }
+
+  .sm-grid-row {
+    border-bottom: 1px solid var(--hairline); cursor: pointer; position: relative;
+  }
+  .sm-grid-row:nth-child(even) { background: var(--surface2); }
+  .sm-grid-row.is-open { background: var(--gold-soft); }
+
+  .sm-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .sm-id-text { min-width: 0; flex: 1; }
+  .sm-id-name-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .sm-id-name {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;
+  }
+  .sm-id-badge {
+    font-size: 9px; font-weight: 800; color: #fff; padding: 1px 5px;
+    border-radius: 999px; letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .sm-id-badge.is-warn { background: var(--warn); }
+  .sm-id-badge.is-neutral { background: var(--text3); }
+  .sm-id-stats {
+    font-size: 10.5px; color: var(--text3); display: flex; align-items: center;
+    gap: 7px; margin-top: 1px;
+  }
+  .sm-id-stats .sep { opacity: .4; }
+  .sm-id-stats .working {
+    font-weight: 700;
+  }
+  .sm-id-stats .working.is-good { color: var(--good); }
+  .sm-id-stats .working.is-warn { color: var(--warn); }
+  .sm-id-stats .working.is-crit { color: var(--crit); }
+  .sm-id-stats .hrs { color: var(--text2); }
+
+  .sm-cell {
+    position: relative; border-radius: 8px; padding: 7px 9px;
+    border: 1px solid var(--hairline); background: var(--surface);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    display: flex; flex-direction: column; justify-content: space-between;
+    min-height: 54px; color: var(--fg);
+    min-width: 0;
+  }
+  .sm-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13,17,23,0.08); z-index: 2; }
+  .sm-cell.is-off {
+    background: repeating-linear-gradient(135deg,
+      var(--surface), var(--surface) 6px,
+      var(--page) 6px, var(--page) 12px);
+    border-color: var(--hairline); color: var(--text3);
+  }
+  .sm-cell.is-working {
+    background: var(--bg);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .sm-cell.has-flex { border-style: dashed; }
+  .sm-cell .stripe-top {
+    position: absolute; left: 0; right: 0; top: 0; height: 3px;
+    border-radius: 8px 8px 0 0; background: var(--accent);
+  }
+  .sm-cell.locked::after {
+    content: ''; position: absolute; top: 5px; right: 5px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .7;
+  }
+  .sm-cell .cell-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .sm-cell .day {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; opacity: .55; color: var(--text3);
+  }
+  .sm-cell .maxh { font-size: 8.5px; color: var(--warn); font-weight: 700; }
+  .sm-cell .hrs {
+    font-size: 12px; font-weight: 700;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .sm-cell .type {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.10em;
+    text-transform: uppercase; opacity: .85;
+  }
+
+  .sm-row-actions {
+    display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+    opacity: 0; transition: opacity .12s;
+  }
+  .sm-grid-row:hover .sm-row-actions { opacity: 1; }
+  .sm-row-actions .sm-btn {
+    padding: 4px 8px; font-size: 10.5px; color: var(--warn);
+    border-color: rgba(181,123,31,0.27); background: var(--warn-soft);
+  }
+  .sm-row-actions .sm-btn:hover { background: rgba(181,123,31,0.18); border-color: var(--warn); }
+
+  .sm-empty {
+    padding: 30px; text-align: center; color: var(--text3);
+    font-size: 13px; font-style: italic;
+  }
+
+  /* ── drawer ─────────────────────────────────────────────────────── */
+  .sm-backdrop {
+    position: fixed; inset: 0; background: rgba(13,17,23,0.20);
+    z-index: 1040; display: none;
+  }
+  .sm-backdrop.is-open { display: block; }
+  .sm-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 92vw;
+    background: var(--surface); border-left: 1px solid var(--hairline2);
+    box-shadow: -24px 0 60px rgba(13,17,23,0.18);
+    z-index: 1050; display: none; flex-direction: column;
+  }
+  .sm-drawer.is-open { display: flex; animation: smDrawerIn .25s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes smDrawerIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .sm-drawer-head {
+    padding: 18px 22px; border-bottom: 1px solid var(--hairline);
+    background: var(--surface2);
+  }
+  .sm-drawer-head-row { display: flex; align-items: flex-start; gap: 14px; }
+  .sm-drawer-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: var(--text); }
+  .sm-drawer-meta {
+    font-size: 11.5px; color: var(--text2); margin-top: 4px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .sm-drawer-meta .sep { opacity: .4; }
+  .sm-drawer-meta .working.is-good { color: var(--good); font-weight: 700; }
+  .sm-drawer-meta .working.is-warn { color: var(--warn); font-weight: 700; }
+  .sm-drawer-meta .working.is-crit { color: var(--crit); font-weight: 700; }
+  .sm-drawer-close {
+    background: transparent; border: 0; color: var(--text3); cursor: pointer;
+    font-size: 20px; padding: 0 4px; line-height: 1; flex: 0 0 auto;
+  }
+  .sm-drawer-tabs {
+    display: flex; padding: 0 22px; border-bottom: 1px solid var(--hairline); gap: 4px;
+  }
+  .sm-drawer-tab {
+    padding: 10px 12px; border: 0; background: transparent; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700; color: var(--text2);
+    border-bottom: 2px solid transparent;
+    display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px;
+  }
+  .sm-drawer-tab.is-active { color: var(--gold); border-bottom-color: var(--gold); }
+  .sm-drawer-tab .count {
+    font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px;
+    background: var(--hairline); color: var(--text2);
+  }
+  .sm-drawer-tab.is-active .count { background: var(--gold-soft); color: var(--gold); }
+  .sm-drawer-body {
+    flex: 1; overflow-y: auto; padding: 18px 22px;
+    scrollbar-width: thin; scrollbar-color: rgba(13,17,23,0.18) transparent;
+  }
+  .sm-drawer-body::-webkit-scrollbar { width: 8px; }
+  .sm-drawer-body::-webkit-scrollbar-thumb { background: rgba(13,17,23,0.14); border-radius: 4px; }
+  .sm-drawer-foot {
+    padding: 12px 22px; border-top: 1px solid var(--hairline);
+    background: var(--surface2); display: flex; justify-content: flex-end; gap: 8px;
+  }
+
+  /* drawer · schedule tab */
+  .sm-active-ver {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--hairline);
+    border-radius: 8px; margin-bottom: 14px;
+  }
+  .sm-active-ver .label { font-size: 12.5px; color: var(--text); margin-top: 2px; font-weight: 600; }
+  .sm-active-ver .label .note { color: var(--text3); font-weight: 400; }
+
+  .sm-weekly {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 8px; overflow: hidden;
+  }
+  .sm-weekly-head, .sm-weekly-row {
+    display: grid;
+    grid-template-columns: 76px 1fr 122px 60px 24px;
+    gap: 8px; padding: 9px 12px;
+    border-bottom: 1px solid var(--hairline); align-items: center;
+  }
+  .sm-weekly-head {
+    padding: 8px 12px; font-size: 9.5px; font-weight: 800;
+    letter-spacing: 0.16em; color: var(--text3); text-transform: uppercase;
+  }
+  .sm-weekly-row:last-of-type { border-bottom: 0; }
+  .sm-weekly-toggle {
+    width: 26px; height: 14px; background: var(--hairline2);
+    border-radius: 8px; position: relative; display: inline-block;
+    cursor: pointer; flex: 0 0 auto; transition: background .15s;
+  }
+  .sm-weekly-toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: left .15s;
+  }
+  .sm-weekly-toggle.is-on { background: var(--gold); }
+  .sm-weekly-toggle.is-on::after { left: 14px; }
+  .sm-weekly-row .day-name { font-size: 12px; color: var(--text); font-weight: 700; }
+  .sm-weekly-row .day-name.is-off { color: var(--text3); }
+  .sm-weekly-row .hrs {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px; color: var(--text);
+  }
+  .sm-weekly-row .hrs.is-off { color: var(--text3); }
+  .sm-weekly-row select, .sm-weekly-row input {
+    width: 100%; padding: 4px 6px; border: 1px solid var(--hairline2);
+    border-radius: 5px; background: var(--surface); font: inherit;
+    font-size: 11.5px; color: var(--text); outline: none;
+  }
+  .sm-weekly-row select:focus, .sm-weekly-row input:focus { border-color: var(--gold-line); }
+  .sm-weekly-foot { padding: 8px 12px; display: flex; gap: 6px; }
+
+  .sm-callout {
+    margin-top: 16px; padding: 12px;
+    background: var(--gold-soft); border: 1px solid var(--gold-line);
+    border-radius: 8px;
+  }
+  .sm-callout-eyebrow { color: var(--gold-strong); margin-bottom: 8px; }
+  .sm-callout label {
+    display: flex; align-items: flex-start; gap: 8px;
+    cursor: pointer; padding: 4px 0;
+  }
+  .sm-callout label input { margin-top: 3px; accent-color: var(--gold); }
+  .sm-callout .opt-title { font-size: 12px; color: var(--text); font-weight: 700; }
+  .sm-callout .opt-body { font-size: 11px; color: var(--text3); margin-top: 2px; line-height: 1.45; }
+  .sm-callout .opt-body .warn { color: var(--crit); font-weight: 600; }
+
+  /* drawer · exceptions tab */
+  .sm-exc-add {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 14px; margin-bottom: 16px;
+  }
+  .sm-exc-add .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sm-exc-add .full { grid-column: 1 / 3; }
+  .sm-exc-add .field-label {
+    font-size: 10.5px; font-weight: 700; color: var(--text3);
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 3px;
+  }
+  .sm-input {
+    width: 100%; padding: 8px 10px; background: var(--surface);
+    border: 1px solid var(--hairline2); border-radius: 6px;
+    color: var(--text); font-size: 12px; font-family: inherit; outline: none;
+  }
+  .sm-input:focus { border-color: var(--gold-line); }
+
+  .sm-exc-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; background: var(--esoft); border: 1px solid var(--ering);
+    border-radius: 8px; margin-bottom: 6px;
+  }
+  .sm-exc-row .head {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sm-exc-row .type-label {
+    font-size: 10px; font-weight: 800; color: var(--efg);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .sm-exc-row .range {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px; color: var(--text); font-weight: 600;
+  }
+  .sm-exc-row .reason { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .sm-exc-row .del {
+    padding: 2px 6px; font-size: 16px; line-height: 1; color: var(--text3);
+    background: transparent; border: 0; cursor: pointer;
+  }
+
+  /* drawer · about tab */
+  .sm-field-row {
+    display: grid; grid-template-columns: 140px 1fr; padding: 6px 0;
+    border-bottom: 1px solid var(--hairline); font-size: 12px;
+  }
+  .sm-field-row .label { color: var(--text3); font-weight: 600; }
+  .sm-field-row .value { color: var(--text); }
+
+  /* drawer · history tab */
+  .sm-history { position: relative; padding-left: 20px; }
+  .sm-history-rail {
+    position: absolute; left: 5px; top: 6px; bottom: 6px;
+    width: 2px; background: var(--hairline2);
+  }
+  .sm-history-item { position: relative; margin-bottom: 16px; }
+  .sm-history-dot {
+    position: absolute; left: -19px; top: 5px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--gold); border: 2px solid var(--surface);
+  }
+  .sm-history-item.is-past .sm-history-dot { background: var(--text3); }
+  .sm-history-item.is-planned .sm-history-dot { background: var(--info); }
+  .sm-history-date { font-size: 12px; font-weight: 700; color: var(--text); }
+  .sm-history-tag {
+    margin-left: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+  }
+  .sm-history-tag.is-current { color: var(--gold); }
+  .sm-history-tag.is-planned { color: var(--info); }
+  .sm-history-note { font-size: 11.5px; color: var(--text2); margin-top: 2px; }
+  .sm-history-add-dot {
+    position: absolute; left: -19px; top: 5px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: transparent; border: 2px dashed var(--hairline2);
+  }
+
+  /* responsive: stack things on small screens */
+  @media (max-width: 1100px) {
+    .sm-grid-head, .sm-grid-row {
+      grid-template-columns: 200px repeat(7, minmax(72px, 1fr)) 60px;
+    }
+    .sm-grid-card { overflow-x: auto; }
+  }
+  @media (max-width: 820px) {
+    .sm-header { flex-direction: column; align-items: stretch; gap: 12px; }
+    .sm-header-right { flex-wrap: wrap; }
+    .sm-cov-grid { grid-template-columns: repeat(2, 1fr); }
+    .sm-grid-head, .sm-grid-row { min-width: 920px; }
   }
 </style>
 {% endblock %}
+
+{% block body_class %}schedule-mgr-page{% endblock %}
+
+{% block footer %}{% endblock %}
 
 {% block content %}
 {% block navbar %}{% endblock %}
 {% include "dispatching/dispatcher_navbar.html" %}
 
-<!-- Header -->
-<div class="sched-header">
-  <div class="container-fluid" style="max-width: 1060px;">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <div>
-        <h1 class="mb-0"><i class="bi bi-pencil-square me-2"></i>In-House Driver Schedules</h1>
-        <p class="lead mb-0 mt-1">
-          Weekly availability &mdash; shift types, hours, and trip preferences.
-          <strong>{{ driver_rows|length }}</strong> driver{{ driver_rows|length|pluralize }}.
-        </p>
-      </div>
-      <div class="d-flex gap-2">
-        <a href="{% url 'driver_schedules_dashboard' %}" class="btn btn-sm btn-outline-light">
-          <i class="bi bi-calendar-week me-1"></i>View Dashboard
-        </a>
-        <a href="{{ today_legs_url }}" class="btn btn-sm btn-outline-light">
-          <i class="bi bi-list-check me-1"></i>Legs Dashboard
-        </a>
+<div class="sm">
+  <!-- ───────────── Dark page header ───────────── -->
+  <header class="sm-header">
+    <div class="sm-header-left">
+      <div class="sm-page-title-wrap">
+        <div class="sm-page-title">In-House Driver Schedules</div>
+        <div class="sm-page-subtitle">Recurring weekly defaults · click a driver to edit</div>
       </div>
     </div>
-  </div>
-</div>
+    <div class="sm-header-right">
+      <a href="{% url 'driver_schedules_dashboard' %}" class="sm-btn sm-btn-dark" title="Coverage dashboard">
+        <i class="bi bi-calendar-week"></i> Dashboard
+      </a>
+    </div>
+  </header>
 
-<div class="container-fluid py-0" style="max-width:1060px;">
+  <div class="sm-body">
 
-  <!-- Shift type legend -->
-  <div class="shift-legend">
-    <span class="fw-semibold text-muted me-1">Shift types:</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#fff7ed;border-color:#fdba74;"></span> Morning</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#fefce8;border-color:#fde047;"></span> Midday</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#f5f3ff;border-color:#c4b5fd;"></span> Evening</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#1e293b;border-color:#475569;"></span> Night</span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#eff6ff;border-color:#93c5fd;"></span> Split AM/PM</span>
-    <span class="legend-item" title="No fixed start/end. Schedule any physically possible time.">
-      <span class="legend-swatch" style="background:#ecfdf5;border-color:#6ee7b7;"></span> Flexible
-    </span>
-    <span class="legend-item"><span class="legend-swatch" style="background:#f0fdf4;border-color:#a7f3d0;"></span> Set Hours</span>
-    <span class="ms-2 text-muted"><i class="bi bi-unlock"></i> = flexible &nbsp; <i class="bi bi-lock-fill"></i> = hard limits</span>
-  </div>
-
-  <!-- Driver cards -->
-  {% for row in driver_rows %}
-  <div class="driver-card" id="card-{{ row.driver.id }}"
-       data-default-start="{{ row.driver.default_start_hour }}"
-       data-default-end="{{ row.driver.default_end_hour }}"
-       data-default-pref="{{ row.driver.default_preference }}"
-       data-default-shift-type="{{ row.driver.default_shift_type }}"
-       data-default-max-hours="{{ row.driver.default_max_hours|default_if_none:'' }}"
-       data-default-flexible="{{ row.driver.default_flexible|yesno:'true,false' }}"
-       data-default-preferred-shift="{{ row.driver.default_preferred_shift }}">
-
-    <!-- Summary (always visible) -->
-    <div class="driver-summary">
-      <div class="driver-name-block">
-        <div class="driver-name">{{ row.driver }}</div>
-        <div class="driver-meta">
-          <i class="bi bi-truck"></i>{{ row.driver.get_vehicle_display }}
+    <!-- ───────────── Coverage strip ───────────── -->
+    <section class="sm-cov">
+      <div class="sm-cov-head">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="sm-eyebrow">Coverage from recurring defaults</span>
+          <span class="sm-cov-target">Target <b>{{ coverage_target }}</b> / day</span>
         </div>
-        {% if row.driver.phone_number %}
-          <div class="driver-meta">
-            <i class="bi bi-telephone"></i>{{ row.driver.phone_number }}
-          </div>
-        {% endif %}
-        {% if row.driver.notes %}
-          <div class="driver-meta live-notes-display" style="font-style:italic;">
-            <i class="bi bi-sticky"></i>{{ row.driver.notes|truncatechars:60 }}
-          </div>
-        {% endif %}
+        <div class="sm-cov-legend">
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#E08A2A;"></span>Morning</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#D4A91D;"></span>Midday</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#7B5BB0;"></span>Evening</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#4860C8;"></span>Night</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#4B8FA8;"></span>Split</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#4DA678;"></span>Flexible</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C9A227;"></span>Set Hours</span>
+        </div>
       </div>
-
-      <div class="day-strip" id="strip-{{ row.driver.id }}">
-        {% for day in row.days %}
-          {% if day.day_idx == 5 %}<div class="wk-sep"></div>{% endif %}
-          {% if day.is_available %}
-            <span class="day-pill shift-{{ day.shift_type }} {% if day.day_idx >= 5 %}weekend{% endif %}">
-              <span class="pill-label">{{ day.day_name }}</span>
-              <span class="pill-hours">
-                {{ day.pill_label }}
-                {% if day.flexible %}<i class="bi bi-unlock pill-flex-icon" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill pill-flex-icon" title="Hard limits"></i>{% endif %}
+      <div class="sm-cov-grid">
+        {% for c in coverage %}
+        <div class="sm-cov-cell {% if c.is_weekend %}is-weekend{% endif %} {% if c.is_today %}is-today{% endif %}">
+          <div class="sm-cov-top">
+            <div class="sm-cov-day">
+              {% if c.day_idx == 0 %}MONDAY
+              {% elif c.day_idx == 1 %}TUESDAY
+              {% elif c.day_idx == 2 %}WEDNESDAY
+              {% elif c.day_idx == 3 %}THURSDAY
+              {% elif c.day_idx == 4 %}FRIDAY
+              {% elif c.day_idx == 5 %}SATURDAY
+              {% elif c.day_idx == 6 %}SUNDAY
+              {% endif %}
+              {% if c.is_today %}<span class="sm-cov-today-mark">today</span>{% endif %}
+            </div>
+            <span class="sm-cov-delta {% if c.delta >= 0 %}is-good{% else %}is-crit{% endif %}">
+              {{ c.delta_sign }}{{ c.delta }}
+            </span>
+          </div>
+          <div class="sm-cov-number-row">
+            <span class="sm-cov-number is-{{ c.tone }}">{{ c.working }}</span>
+            <span class="sm-cov-of">of {{ c.total }}</span>
+          </div>
+          <div class="sm-cov-bar">
+            {% for s in c.segments %}
+              <div title="{{ s.count }} {{ s.key }}" style="width:{{ s.pct }}%; background:var(--accent); --accent:
+                {% if s.key == 'morning' %}#E08A2A
+                {% elif s.key == 'midday' %}#D4A91D
+                {% elif s.key == 'evening' %}#7B5BB0
+                {% elif s.key == 'night' %}#4860C8
+                {% elif s.key == 'split' %}#4B8FA8
+                {% elif s.key == 'flex' %}#4DA678
+                {% elif s.key == 'set' %}#C9A227
+                {% else %}#C9C1AA{% endif %};"></div>
+            {% endfor %}
+          </div>
+          <div class="sm-cov-chips">
+            {% for chip in c.chips %}
+              <span class="sm-cov-chip">
+                <span class="swatch" style="background:
+                  {% if chip.key == 'morning' %}#E08A2A
+                  {% elif chip.key == 'midday' %}#D4A91D
+                  {% elif chip.key == 'evening' %}#7B5BB0
+                  {% elif chip.key == 'night' %}#4860C8
+                  {% elif chip.key == 'split' %}#4B8FA8
+                  {% elif chip.key == 'flex' %}#4DA678
+                  {% elif chip.key == 'set' %}#C9A227
+                  {% else %}#C9C1AA{% endif %};"></span>
+                <span class="num">{{ chip.count }}</span> {{ chip.key }}
               </span>
-              {% if day.preferred_shift %}<span class="pill-pref-shift">Pref {{ day.preferred_shift|title }}</span>{% endif %}
-            </span>
-          {% else %}
-            <span class="day-pill off {% if day.day_idx >= 5 %}weekend{% endif %}">
-              <span class="pill-label">{{ day.day_name }}</span>
-              <span class="pill-hours">Off</span>
-            </span>
-          {% endif %}
+            {% endfor %}
+          </div>
+        </div>
         {% endfor %}
       </div>
+    </section>
 
-      <button class="btn btn-sm btn-outline-primary btn-edit-driver"
-              data-driver-id="{{ row.driver.id }}"
-              onclick="toggleEdit({{ row.driver.id }})">
-        <i class="bi bi-pencil me-1"></i>Edit
-        <span class="unsaved-dot"></span>
-      </button>
+    <!-- ───────────── Exceptions ribbon ───────────── -->
+    <section class="sm-rib {% if ribbon|length == 0 %}is-empty{% endif %}" id="smRibbon" data-filter="week">
+      <div class="sm-rib-head">
+        <button type="button" class="sm-rib-toggle" id="smRibToggle">
+          <svg class="sm-rib-chevron" viewBox="0 0 10 10">
+            <path d="M2 3l3 3 3-3" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M6 1.5L11 10H1L6 1.5zM6 5.5v2M6 8.5v.1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="sm-eyebrow sm-rib-eyebrow">Exceptions</span>
+          <span class="sm-rib-meta">
+            {{ bucket_counts.week }} this week · {{ bucket_counts.month }} next 30 days
+          </span>
+        </button>
+        <div class="sm-rib-chips" id="smRibChips">
+          <button type="button" class="sm-rib-chip" data-bucket="today">Today <span class="badge-num">{{ bucket_counts.today }}</span></button>
+          <button type="button" class="sm-rib-chip is-active" data-bucket="week">Next 7 days <span class="badge-num">{{ bucket_counts.week }}</span></button>
+          <button type="button" class="sm-rib-chip" data-bucket="month">Next 30 days <span class="badge-num">{{ bucket_counts.month }}</span></button>
+          <button type="button" class="sm-rib-chip" data-bucket="all">All upcoming <span class="badge-num">{{ bucket_counts.all }}</span></button>
+        </div>
+        <span class="sm-rib-hint">Click an exception to open that driver's drawer.</span>
+      </div>
+      <div class="sm-rib-body" id="smRibBody"></div>
+      <div class="sm-rib-empty">No exceptions in this window. Add one inline on any driver row.</div>
+    </section>
+
+    <!-- ───────────── Filter row ───────────── -->
+    <div class="sm-filters">
+      <span class="sm-eyebrow" style="color:var(--text3); margin-right:6px;">Show</span>
+      <button type="button" class="sm-tab is-active" data-bucket="all">{{ driver_rows|length }} drivers</button>
+      <button type="button" class="sm-tab" data-bucket="scheduled">Scheduled</button>
+      <button type="button" class="sm-tab" data-bucket="off">Fully off</button>
+      <button type="button" class="sm-tab" data-bucket="has-exc">Has exceptions</button>
+      <div class="sm-search">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="5" cy="5" r="3.5"/><path d="M8 8l3 3" stroke-linecap="round"/>
+        </svg>
+        <input type="search" id="smSearch" placeholder="Find driver…" autocomplete="off" />
+      </div>
+      <div class="sm-counter">
+        <span id="smCount">{{ driver_rows|length }}</span> of {{ driver_rows|length }} drivers
+      </div>
     </div>
 
-    <!-- Inline edit form -->
-    <div class="driver-edit-form" id="edit-{{ row.driver.id }}">
-      <div class="edit-toolbar">
-        <div class="fw-semibold small text-muted text-uppercase" style="letter-spacing:.5px;">
-          <i class="bi bi-calendar3 me-1"></i>Schedule for {{ row.driver }}
-        </div>
-        <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem;"
-                onclick="copyMondayToWeekdays({{ row.driver.id }})" title="Copy Monday settings to Tue-Fri">
-          <i class="bi bi-clipboard me-1"></i>Copy Mon &rarr; Weekdays
-        </button>
-        <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem;"
-                onclick="resetToDefaults({{ row.driver.id }})" title="Reset all days to driver defaults">
-          <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Defaults
-        </button>
+    <!-- ───────────── Driver grid ───────────── -->
+    <section class="sm-grid-card">
+      <div class="sm-grid-head">
+        <div>Driver · default schedule</div>
+        {% for d in day_names %}<div>{{ d|upper }}</div>{% endfor %}
+        <div></div>
       </div>
-
-      <!-- Column headers -->
-      <div class="d-flex gap-1 mb-1 px-0" style="font-size:0.65rem;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">
-        <span style="width:34px;"></span>
-        <span style="min-width:58px;"></span>
-        <span style="width:110px;">Shift Type</span>
-        <span style="width:190px;">Hours</span>
-        <span style="min-width:55px;">Flex</span>
-        <span style="width:52px;">Max Hrs</span>
-        <span style="width:105px;">Pref Shift</span>
-        <span>Trip Pref</span>
-      </div>
-
-      {% for day in row.days %}
-      <div class="day-edit-row {% if not day.is_available %}day-off{% endif %} {% if day.day_idx == 5 %}weekend-sep{% endif %}"
-           id="erow-{{ row.driver.id }}-{{ day.day_idx }}">
-
-        <div class="day-label-col">{{ day.day_name }}</div>
-
-        <div class="avail-switch">
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input"
-                   type="checkbox"
-                   id="avail-{{ row.driver.id }}-{{ day.day_idx }}"
-                   data-driver="{{ row.driver.id }}"
-                   data-day="{{ day.day_idx }}"
-                   onchange="onAvailChange(this)"
-                   {% if day.is_available %}checked{% endif %}>
-            <label class="form-check-label small"
-                   for="avail-{{ row.driver.id }}-{{ day.day_idx }}">
-              {% if day.is_available %}On{% else %}Off{% endif %}
-            </label>
-          </div>
-        </div>
-
-        <div class="shift-type-col">
-          <select id="shift-{{ row.driver.id }}-{{ day.day_idx }}"
-                  onchange="onShiftTypeChange({{ row.driver.id }}, {{ day.day_idx }})">
-            {% for val, label in shift_type_choices %}
-              <option value="{{ val }}" {% if val == day.shift_type %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="time-selects">
-          <select id="start-{{ row.driver.id }}-{{ day.day_idx }}"
-                  onchange="markDirty({{ row.driver.id }})"
-                  {% if day.shift_type != 'custom' %}disabled{% endif %}>
-            {% for hc in hour_choices %}
-              <option value="{{ hc.value }}"
-                      {% if hc.value == day.start_hour %}selected{% endif %}>
-                {{ hc.label }}
-              </option>
-            {% endfor %}
-          </select>
-          <span class="sep">to</span>
-          <select id="end-{{ row.driver.id }}-{{ day.day_idx }}"
-                  onchange="markDirty({{ row.driver.id }})"
-                  {% if day.shift_type != 'custom' %}disabled{% endif %}>
-            {% for hc in hour_choices %}
-              <option value="{{ hc.value }}"
-                      {% if hc.value == day.end_hour %}selected{% endif %}>
-                {{ hc.label }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="flex-switch">
-          <div class="form-check form-switch mb-0">
-            <input class="form-check-input"
-                   type="checkbox"
-                   id="flex-{{ row.driver.id }}-{{ day.day_idx }}"
-                   onchange="markDirty({{ row.driver.id }})"
-                   {% if day.flexible %}checked{% endif %}
-                   {% if day.shift_type != 'custom' %}disabled{% endif %}>
-            <label class="form-check-label small"
-                   for="flex-{{ row.driver.id }}-{{ day.day_idx }}"
-                   style="font-size:0.72rem;">
-              Flex
-            </label>
-          </div>
-        </div>
-
-        <div class="maxhrs-col">
-          <input type="number" id="maxhrs-{{ row.driver.id }}-{{ day.day_idx }}"
-                 min="1" max="18" step="0.5"
-                 placeholder="--"
-                 value="{% if day.max_hours %}{{ day.max_hours }}{% endif %}"
-                 onchange="markDirty({{ row.driver.id }})">
-        </div>
-
-        <div class="pref-col">
-          <select id="prefshift-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})" style="width:105px;">
-            {% for val, label in preferred_shift_choices %}
-              <option value="{{ val }}" {% if val == day.preferred_shift %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="pref-col">
-          <select id="pref-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})">
-            {% for val, label in preference_choices %}
-              <option value="{{ val }}" {% if val == day.preference %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-      </div>
-      {% endfor %}
-
-      <!-- Notes -->
-      <div class="mt-3">
-        <label class="form-label small fw-semibold text-muted mb-1"
-               for="notes-{{ row.driver.id }}">
-          <i class="bi bi-sticky me-1"></i>Internal Notes
-        </label>
-        <textarea class="form-control form-control-sm"
-                  id="notes-{{ row.driver.id }}"
-                  rows="2"
-                  oninput="markDirty({{ row.driver.id }})"
-                  placeholder="e.g. Prefers airport runs, has a backup SUV, contact before 6 AM...">{{ row.driver.notes|default:"" }}</textarea>
-      </div>
-
-      <!-- Availability Exceptions: days off, partial-day limits, range requests -->
-      <div class="mt-3 dayoff-section">
-        <label class="form-label small fw-semibold text-muted mb-1">
-          <i class="bi bi-calendar-x me-1"></i>Availability Exceptions
-          <span class="text-muted" style="font-weight:400;font-size:0.7rem;">
-            &mdash; one-time off requests, partial-day limits, or notes
-          </span>
-        </label>
-        <div class="dayoff-list" id="dayoff-list-{{ row.driver.id }}">
-          {% for ov in row.upcoming_overrides %}
-            <div class="dayoff-item exc-{{ ov.exception_type }}" id="dayoff-{{ ov.id }}">
-              <span class="dayoff-date">{{ ov.date_display }}</span>
-              <span class="dayoff-type">{{ ov.exception_short }}</span>
-              {% if ov.exception_type == 'off' %}<span class="dayoff-reason">{{ ov.reason_label }}</span>{% endif %}
-              {% if ov.notes %}<span class="dayoff-notes">{{ ov.notes }}</span>{% endif %}
-              <button class="dayoff-remove" onclick="removeDayOff({{ ov.id }}, {{ row.driver.id }})" title="Remove">&times;</button>
+      <div class="sm-grid-scroll" id="smGridBody">
+        {% for r in driver_rows %}
+          <div class="sm-grid-row"
+               data-driver-id="{{ r.id }}"
+               data-search-key="{{ r.search_key }}"
+               data-working="{{ r.working_days }}"
+               data-exc-count="{{ r.exc_count }}">
+            <div class="sm-id">
+              <span class="sm-avatar" style="width:32px; height:32px; font-size:11px;
+                  background: linear-gradient(135deg, {{ r.color }}, {{ r.color }}AA);">{{ r.initials }}</span>
+              <div class="sm-id-text">
+                <div class="sm-id-name-row">
+                  <span class="sm-id-name">{{ r.name }}</span>
+                  {% if r.exc_count > 0 %}
+                    <span class="sm-id-badge {% if r.next7_count > 0 %}is-warn{% else %}is-neutral{% endif %}">
+                      {{ r.exc_count }} EXC
+                    </span>
+                  {% endif %}
+                </div>
+                <div class="sm-id-stats">
+                  <span><span class="working {% if r.working_days >= 5 %}is-good{% elif r.working_days >= 2 %}is-warn{% else %}is-crit{% endif %}">{{ r.working_days }}</span>/7&nbsp;d</span>
+                  <span class="sep">·</span>
+                  <span class="hrs sm-mono">{{ r.total_hours }}h</span>
+                </div>
+              </div>
             </div>
-          {% empty %}
-            <div class="dayoff-empty text-muted">No upcoming exceptions</div>
-          {% endfor %}
-        </div>
 
-        <div class="exc-form-row">
-          <label>From</label>
-          <input type="date" id="dayoff-date-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;">
-          <label>To</label>
-          <input type="date" id="dayoff-end-date-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;" placeholder="(same)">
-          <label>Type</label>
-          <select id="dayoff-type-{{ row.driver.id }}" class="form-select form-select-sm" style="width:175px;"
-                  onchange="onExcTypeChange({{ row.driver.id }})">
-            {% for val, label in exception_type_choices %}
-              <option value="{{ val }}">{{ label }}</option>
+            {% for day in r.days %}
+              <div class="sm-cell sm-shift-{{ day.design_bucket }}
+                {% if day.is_off %}is-off{% else %}is-working{% endif %}
+                {% if not day.is_off and day.flexible %}has-flex{% endif %}
+                {% if day.locked and not day.is_off %}locked{% endif %}">
+                {% if not day.is_off %}<div class="stripe-top"></div>{% endif %}
+                <div class="cell-head">
+                  <span class="day">{{ day.day_name|upper }}</span>
+                  {% if day.max_hours %}<span class="maxh">≤{{ day.max_hours|floatformat:"-1" }}h</span>{% endif %}
+                </div>
+                {% if day.is_off %}
+                  <div class="type">Off</div>
+                {% else %}
+                  <div class="hrs">{{ day.hours_label }}</div>
+                  <div class="type">{{ day.shift_label }}{% if day.locked %} · LOCK{% endif %}</div>
+                {% endif %}
+              </div>
             {% endfor %}
-          </select>
 
-          <span class="exc-time-block" id="exc-time-{{ row.driver.id }}">
-            <label>Start</label>
-            <input type="time" id="dayoff-start-time-{{ row.driver.id }}" class="form-control form-control-sm" style="width:110px;" step="900">
-            <label>End</label>
-            <input type="time" id="dayoff-end-time-{{ row.driver.id }}" class="form-control form-control-sm" style="width:110px;" step="900">
-          </span>
-        </div>
-        <div class="exc-form-row">
-          <label>Reason</label>
-          <select id="dayoff-reason-{{ row.driver.id }}" class="form-select form-select-sm" style="width:130px;">
-            {% for val, label in day_off_reason_choices %}
-              <option value="{{ val }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-          <input type="text" id="dayoff-notes-{{ row.driver.id }}" class="form-control form-control-sm" style="flex:1;min-width:160px;"
-                 placeholder='e.g. "Family trip", "Doctor appt", "Must finish by 4 PM"'>
-          <button class="btn btn-sm btn-outline-danger" onclick="addDayOff({{ row.driver.id }})">
-            <i class="bi bi-plus me-1"></i>Add Exception
-          </button>
-        </div>
+            <div class="sm-row-actions">
+              <button type="button" class="sm-btn sm-row-exc-btn" data-driver-id="{{ r.id }}" title="Add exception">+ Exc</button>
+            </div>
+          </div>
+        {% endfor %}
+        <div class="sm-empty" id="smGridEmpty" style="display:none;">No drivers match your filters.</div>
       </div>
-
-      <div class="edit-save-bar">
-        <button class="btn btn-sm btn-primary"
-                onclick="saveDriver({{ row.driver.id }})">
-          <i class="bi bi-check2 me-1"></i>Save
-        </button>
-        <button class="btn btn-sm btn-outline-secondary"
-                onclick="toggleEdit({{ row.driver.id }}, true)">
-          Cancel
-        </button>
-        <span class="small ms-1" id="status-{{ row.driver.id }}"></span>
-      </div>
-    </div>
-
+    </section>
   </div>
-  {% empty %}
-  <div class="text-center text-muted py-5">
-    <i class="bi bi-people display-5 d-block mb-3 opacity-25"></i>
-    No in-house drivers found.
-  </div>
-  {% endfor %}
-
 </div>
-{% endblock %}
 
-{% block newsletter %}{% endblock %}
-{% block footer %}{% endblock %}
+<!-- ───────────── Drawer ───────────── -->
+<div class="sm-backdrop" id="smBackdrop"></div>
+<aside class="sm-drawer sm" id="smDrawer" aria-hidden="true">
+  <header class="sm-drawer-head">
+    <div class="sm-drawer-head-row">
+      <span class="sm-avatar" id="smDrawerAvatar" style="width:52px; height:52px; font-size:18px;"></span>
+      <div style="flex:1; min-width:0;">
+        <div class="sm-drawer-name" id="smDrawerName">—</div>
+        <div class="sm-drawer-meta" id="smDrawerMeta"></div>
+      </div>
+      <button type="button" class="sm-drawer-close" id="smDrawerClose" aria-label="Close">×</button>
+    </div>
+  </header>
+  <nav class="sm-drawer-tabs" id="smDrawerTabs">
+    <button type="button" class="sm-drawer-tab is-active" data-tab="schedule">Default schedule</button>
+    <button type="button" class="sm-drawer-tab" data-tab="exceptions">Exceptions <span class="count" id="smCountExc">0</span></button>
+    <button type="button" class="sm-drawer-tab" data-tab="about">About</button>
+    <button type="button" class="sm-drawer-tab" data-tab="history">History <span class="count" id="smCountHist">1</span></button>
+  </nav>
+  <div class="sm-drawer-body" id="smDrawerBody"></div>
+  <footer class="sm-drawer-foot">
+    <button type="button" class="sm-btn" id="smDrawerCancel">Close</button>
+    <button type="button" class="sm-btn sm-btn-gold" id="smDrawerSave">Save changes</button>
+  </footer>
+</aside>
+
+{# bundle data for the drawer #}
+{{ drivers_payload_json|json_script:"sm-drivers-data" }}
+{{ ribbon_json|json_script:"sm-ribbon-data" }}
+{% endblock %}
 
 {% block extra_js %}
 <script>
-(function () {
-  const CSRF     = '{{ csrf_token }}';
-  const SAVE_URL = '{% url "save_driver_weekly_schedules" %}';
-  const DAYS     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+(function() {
+  'use strict';
 
-  const SHIFT_DEFAULTS = {
-    morning:  { start: 4,  end: 14, flexible: false },
-    midday:   { start: 10, end: 18, flexible: false },
-    evening:  { start: 14, end: 23, flexible: false },
-    night:    { start: 20, end: 23, flexible: false },
-    split:    { start: 4,  end: 23, flexible: true  },
-    full_day: { start: 4,  end: 23, flexible: true  },
+  // ── data ──────────────────────────────────────────────────────────
+  function readJsonScript(id) {
+    var el = document.getElementById(id);
+    if (!el) return null;
+    var raw = el.textContent || '';
+    try {
+      // Django's json_script wraps the value as a JSON string of the original
+      // JSON, so we parse twice when the source was already a string.
+      var first = JSON.parse(raw);
+      return (typeof first === 'string') ? JSON.parse(first) : first;
+    } catch (e) {
+      console.warn('Failed to parse', id, e);
+      return null;
+    }
+  }
+  var DRIVERS = readJsonScript('sm-drivers-data') || [];
+  var RIBBON  = readJsonScript('sm-ribbon-data')  || [];
+  var DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var SHIFT_BUCKET_FROM_TYPE = {
+    morning: 'morning', midday: 'midday', evening: 'evening',
+    night: 'night', split: 'split', full_day: 'flex', custom: 'set',
   };
-
-  const SHIFT_PILL_LABELS = {
-    morning: 'AM', midday: 'Mid', evening: 'PM', night: 'Night',
-    split: 'Split', full_day: 'Flexible', custom: '',
-  };
-
-  const SHIFT_CSS = {
-    morning: 'shift-morning', midday: 'shift-midday', evening: 'shift-evening',
-    night: 'shift-night', split: 'shift-split', full_day: 'shift-full_day',
-    custom: 'shift-custom',
-  };
+  var SHIFT_TYPE_OPTIONS = [
+    ['full_day', 'Flexible'], ['morning', 'Morning'], ['midday', 'Midday'],
+    ['evening', 'Evening'], ['night', 'Night'], ['split', 'Split AM/PM'],
+    ['custom', 'Custom Hours'],
+  ];
+  var EXC_TYPE_OPTIONS = [
+    { value: 'off',                 label: 'Off (full day)',    design: 'leave' },
+    { value: 'available_until',     label: 'Available until',   design: 'partial' },
+    { value: 'available_after',     label: 'Available after',   design: 'partial' },
+    { value: 'available_window',    label: 'Window',            design: 'partial' },
+    { value: 'unavailable_window',  label: 'Block window',      design: 'partial' },
+    { value: 'flexible',            label: 'Flexible',          design: 'partial' },
+    { value: 'note_only',           label: 'Note only',         design: 'swap' },
+  ];
+  var REASON_OPTIONS = [
+    ['day_off', 'Day Off'], ['vacation', 'Vacation'],
+    ['sick', 'Sick'], ['appointment', 'Appointment'], ['other', 'Other'],
+  ];
 
   function fmtHour(h) {
-    h = parseInt(h, 10);
-    if (h === 0)  return '12a';
-    if (h < 12)   return h + 'a';
+    if (h == null) return '';
+    if (h === 0) return '12a';
+    if (h < 12) return h + 'a';
     if (h === 12) return '12p';
     return (h - 12) + 'p';
   }
-
-  window.markDirty = function(driverId) {
-    const card = document.getElementById('card-' + driverId);
-    if (card) card.classList.add('has-unsaved');
-  };
-
-  function clearDirty(driverId) {
-    const card = document.getElementById('card-' + driverId);
-    if (card) card.classList.remove('has-unsaved');
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function csrfHeaders() {
+    return { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') };
   }
 
-  window.toggleEdit = function (driverId, forceClose) {
-    const form = document.getElementById('edit-' + driverId);
-    const btn  = document.querySelector('[data-driver-id="' + driverId + '"]');
-    const open = form.classList.contains('open');
-    if (forceClose || open) {
-      form.classList.remove('open');
-      btn.innerHTML = '<i class="bi bi-pencil me-1"></i>Edit<span class="unsaved-dot"></span>';
-      btn.className = btn.className.replace('btn-primary', 'btn-outline-primary');
-      if (forceClose) clearDirty(driverId);
-    } else {
-      form.classList.add('open');
-      btn.innerHTML = '<i class="bi bi-x me-1"></i>Close<span class="unsaved-dot"></span>';
-      btn.className = btn.className.replace('btn-outline-primary', 'btn-primary');
-    }
-  };
+  // ── grid filter + search ─────────────────────────────────────────
+  var gridBody = document.getElementById('smGridBody');
+  var search   = document.getElementById('smSearch');
+  var counter  = document.getElementById('smCount');
+  var emptyMsg = document.getElementById('smGridEmpty');
+  var bucketActive = 'all';
 
-  window.onShiftTypeChange = function(driverId, dayIdx) {
-    const shiftSel = document.getElementById('shift-' + driverId + '-' + dayIdx);
-    const startSel = document.getElementById('start-' + driverId + '-' + dayIdx);
-    const endSel   = document.getElementById('end-'   + driverId + '-' + dayIdx);
-    const flexCb   = document.getElementById('flex-'  + driverId + '-' + dayIdx);
-    const stype    = shiftSel.value;
-
-    if (stype === 'custom') {
-      startSel.disabled = false;
-      endSel.disabled = false;
-      flexCb.disabled = false;
-    } else {
-      const defaults = SHIFT_DEFAULTS[stype];
-      if (defaults) {
-        startSel.value = defaults.start;
-        endSel.value = defaults.end;
-        flexCb.checked = defaults.flexible;
+  function applyFilters() {
+    var q = (search.value || '').trim().toLowerCase();
+    var visible = 0;
+    var total = 0;
+    var rows = gridBody.querySelectorAll('.sm-grid-row');
+    rows.forEach(function(row) {
+      total++;
+      var key = row.getAttribute('data-search-key') || '';
+      var working = parseInt(row.getAttribute('data-working') || '0', 10);
+      var excCount = parseInt(row.getAttribute('data-exc-count') || '0', 10);
+      var match = !q || key.indexOf(q) !== -1;
+      if (match) {
+        if (bucketActive === 'scheduled') match = working > 0;
+        else if (bucketActive === 'off')   match = working === 0;
+        else if (bucketActive === 'has-exc') match = excCount > 0;
       }
-      startSel.disabled = true;
-      endSel.disabled = true;
-      flexCb.disabled = true;
-    }
-    markDirty(driverId);
-  };
-
-  window.onAvailChange = function (cb) {
-    const driverId = cb.dataset.driver;
-    const row   = document.getElementById('erow-' + driverId + '-' + cb.dataset.day);
-    const label = cb.nextElementSibling;
-    if (cb.checked) {
-      row.classList.remove('day-off');
-      label.textContent = 'On';
-    } else {
-      row.classList.add('day-off');
-      label.textContent = 'Off';
-    }
-    markDirty(driverId);
-  };
-
-  // Validation: end > start when available
-  function validate(driverId) {
-    let valid = true;
-    document.querySelectorAll('#edit-' + driverId + ' .invalid').forEach(el => el.classList.remove('invalid'));
-    document.querySelectorAll('#edit-' + driverId + ' .validation-error').forEach(el => el.remove());
-
-    for (let d = 0; d < 7; d++) {
-      const avail = document.getElementById('avail-' + driverId + '-' + d);
-      if (!avail || !avail.checked) continue;
-      const startSel = document.getElementById('start-' + driverId + '-' + d);
-      const endSel = document.getElementById('end-' + driverId + '-' + d);
-      const sh = parseInt(startSel.value, 10);
-      const eh = parseInt(endSel.value, 10);
-      if (eh <= sh) {
-        endSel.classList.add('invalid');
-        const row = document.getElementById('erow-' + driverId + '-' + d);
-        const err = document.createElement('div');
-        err.className = 'validation-error';
-        err.textContent = 'End hour must be after start hour';
-        row.appendChild(err);
-        valid = false;
-      }
-    }
-    return valid;
+      row.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    counter.textContent = visible;
+    emptyMsg.style.display = (visible === 0 && total > 0) ? 'block' : 'none';
   }
-
-  window.saveDriver = function (driverId) {
-    if (!validate(driverId)) return;
-
-    const statusEl = document.getElementById('status-' + driverId);
-    statusEl.innerHTML = '<span class="text-muted">Saving&#8230;</span>';
-
-    const weekly = {};
-    for (let d = 0; d < 7; d++) {
-      const avail = document.getElementById('avail-' + driverId + '-' + d);
-      if (!avail) continue;
-      const mhVal = document.getElementById('maxhrs-' + driverId + '-' + d).value;
-      weekly[d] = {
-        is_available: avail.checked,
-        shift_type:   document.getElementById('shift-'  + driverId + '-' + d).value,
-        start_hour:   parseInt(document.getElementById('start-' + driverId + '-' + d).value, 10),
-        end_hour:     parseInt(document.getElementById('end-'   + driverId + '-' + d).value, 10),
-        flexible:     document.getElementById('flex-'   + driverId + '-' + d).checked,
-        max_hours:    mhVal ? parseFloat(mhVal) : null,
-        preferred_shift: document.getElementById('prefshift-' + driverId + '-' + d).value,
-        preference:   document.getElementById('pref-'   + driverId + '-' + d).value,
-      };
-    }
-
-    const notesEl = document.getElementById('notes-' + driverId);
-    const notes = notesEl ? notesEl.value : '';
-
-    fetch(SAVE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({ drivers: [{ id: driverId, weekly: weekly, notes: notes }] }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Saved</span>';
-          clearDirty(driverId);
-          refreshStrip(driverId, weekly, notes);
-          setTimeout(() => { statusEl.innerHTML = ''; toggleEdit(driverId, true); }, 1400);
-        } else {
-          statusEl.innerHTML = '<span class="text-danger">Error: ' + (data.error || 'Failed') + '</span>';
-        }
-      })
-      .catch(() => { statusEl.innerHTML = '<span class="text-danger">Network error</span>'; });
-  };
-
-  window.copyMondayToWeekdays = function(driverId) {
-    const monAvail = document.getElementById('avail-' + driverId + '-0');
-    const monShift = document.getElementById('shift-' + driverId + '-0');
-    const monStart = document.getElementById('start-' + driverId + '-0');
-    const monEnd   = document.getElementById('end-'   + driverId + '-0');
-    const monFlex  = document.getElementById('flex-'  + driverId + '-0');
-    const monMax   = document.getElementById('maxhrs-'+ driverId + '-0');
-    const monPShift = document.getElementById('prefshift-' + driverId + '-0');
-    const monPref  = document.getElementById('pref-'  + driverId + '-0');
-    if (!monAvail) return;
-
-    for (let d = 1; d <= 4; d++) {
-      const avail = document.getElementById('avail-' + driverId + '-' + d);
-      const shift = document.getElementById('shift-' + driverId + '-' + d);
-      const start = document.getElementById('start-' + driverId + '-' + d);
-      const end   = document.getElementById('end-'   + driverId + '-' + d);
-      const flex  = document.getElementById('flex-'  + driverId + '-' + d);
-      const max   = document.getElementById('maxhrs-'+ driverId + '-' + d);
-      const pshift = document.getElementById('prefshift-' + driverId + '-' + d);
-      const pref  = document.getElementById('pref-'  + driverId + '-' + d);
-      if (!avail) continue;
-
-      avail.checked = monAvail.checked;
-      shift.value = monShift.value;
-      start.value = monStart.value;
-      start.disabled = monStart.disabled;
-      end.value = monEnd.value;
-      end.disabled = monEnd.disabled;
-      flex.checked = monFlex.checked;
-      flex.disabled = monFlex.disabled;
-      max.value = monMax.value;
-      pshift.value = monPShift.value;
-      pref.value = monPref.value;
-      onAvailChange(avail);
-    }
-    markDirty(driverId);
-  };
-
-  window.resetToDefaults = function(driverId) {
-    const card = document.getElementById('card-' + driverId);
-    const defStart = parseInt(card.dataset.defaultStart, 10);
-    const defEnd   = parseInt(card.dataset.defaultEnd, 10);
-    const defPref  = card.dataset.defaultPref || '';
-    const defShift = card.dataset.defaultShiftType || 'full_day';
-    const defMax   = card.dataset.defaultMaxHours || '';
-    const defFlex  = card.dataset.defaultFlexible === 'true';
-    const defPShift = card.dataset.defaultPreferredShift || '';
-
-    for (let d = 0; d < 7; d++) {
-      const avail = document.getElementById('avail-' + driverId + '-' + d);
-      const shift = document.getElementById('shift-' + driverId + '-' + d);
-      const start = document.getElementById('start-' + driverId + '-' + d);
-      const end   = document.getElementById('end-'   + driverId + '-' + d);
-      const flex  = document.getElementById('flex-'  + driverId + '-' + d);
-      const max   = document.getElementById('maxhrs-'+ driverId + '-' + d);
-      const pshift = document.getElementById('prefshift-' + driverId + '-' + d);
-      const pref  = document.getElementById('pref-'  + driverId + '-' + d);
-      if (!avail) continue;
-
-      avail.checked = true;
-      shift.value = defShift;
-      max.value = defMax;
-      pshift.value = defPShift;
-      pref.value = defPref;
-
-      // Apply shift type defaults or driver defaults for custom
-      if (defShift === 'custom') {
-        start.value = defStart;
-        end.value = defEnd;
-        flex.checked = defFlex;
-        start.disabled = false;
-        end.disabled = false;
-        flex.disabled = false;
-      } else {
-        const sd = SHIFT_DEFAULTS[defShift];
-        if (sd) {
-          start.value = sd.start;
-          end.value = sd.end;
-          flex.checked = sd.flexible;
-        }
-        start.disabled = true;
-        end.disabled = true;
-        flex.disabled = true;
-      }
-      onAvailChange(avail);
-    }
-    markDirty(driverId);
-  };
-
-  function buildPillLabel(stype, sh, eh, maxHours) {
-    let label;
-    if (stype === 'full_day') {
-      label = 'Flexible';
-    } else {
-      const prefix = SHIFT_PILL_LABELS[stype] || '';
-      label = (prefix ? prefix + ' ' : '') + fmtHour(sh) + '-' + fmtHour(eh);
-    }
-    if (maxHours) label += ' (' + Math.round(maxHours) + 'h)';
-    return label;
-  }
-
-  function refreshStrip(driverId, weekly, notes) {
-    const strip = document.getElementById('strip-' + driverId);
-    if (!strip) return;
-    // Update notes display
-    const card = document.getElementById('card-' + driverId);
-    if (card) {
-      let notesDiv = card.querySelector('.live-notes-display');
-      if (notes && notes.trim()) {
-        const short = notes.trim().length > 60 ? notes.trim().substring(0, 60) + '...' : notes.trim();
-        if (notesDiv) {
-          notesDiv.innerHTML = '<i class="bi bi-sticky me-1"></i>' + short;
-        } else {
-          const nameBlock = card.querySelector('.driver-name-block');
-          if (nameBlock) {
-            const newDiv = document.createElement('div');
-            newDiv.className = 'driver-meta live-notes-display';
-            newDiv.style.fontStyle = 'italic';
-            newDiv.innerHTML = '<i class="bi bi-sticky me-1"></i>' + short;
-            nameBlock.appendChild(newDiv);
-          }
-        }
-      } else if (notesDiv) {
-        notesDiv.remove();
-      }
-    }
-    let html = '';
-    for (let d = 0; d < 7; d++) {
-      const w = weekly[d];
-      if (!w) continue;
-      if (d === 5) html += '<div class="wk-sep"></div>';
-      const wkCls = d >= 5 ? ' weekend' : '';
-      if (w.is_available) {
-        const stype = w.shift_type || 'full_day';
-        const css = SHIFT_CSS[stype] || 'shift-custom';
-        const lbl = buildPillLabel(stype, w.start_hour, w.end_hour, w.max_hours);
-        const flexIcon = w.flexible
-          ? '<i class="bi bi-unlock pill-flex-icon" title="Flexible"></i>'
-          : '<i class="bi bi-lock-fill pill-flex-icon" title="Hard limits"></i>';
-        const PS_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night'};
-        const psHtml = w.preferred_shift && PS_LABELS[w.preferred_shift]
-          ? `<span class="pill-pref-shift">Pref ${PS_LABELS[w.preferred_shift]}</span>` : '';
-        html += `<span class="day-pill ${css}${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">${lbl} ${flexIcon}</span>${psHtml}</span>`;
-      } else {
-        html += `<span class="day-pill off${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">Off</span></span>`;
-      }
-    }
-    strip.innerHTML = html;
-  }
-  const DAYOFF_URL = '{% url "manage_driver_date_overrides" %}';
-
-  // Which exception types need a time window picker
-  const EXC_NEEDS_TIME = {
-    available_until:    { start: false, end: true  },
-    available_after:    { start: true,  end: false },
-    available_window:   { start: true,  end: true  },
-    unavailable_window: { start: true,  end: true  },
-  };
-
-  window.onExcTypeChange = function(driverId) {
-    const sel = document.getElementById('dayoff-type-' + driverId);
-    const block = document.getElementById('exc-time-' + driverId);
-    if (!sel || !block) return;
-    const cfg = EXC_NEEDS_TIME[sel.value];
-    if (cfg) {
-      block.classList.add('show');
-      const startInput = document.getElementById('dayoff-start-time-' + driverId);
-      const endInput   = document.getElementById('dayoff-end-time-'   + driverId);
-      startInput.disabled = !cfg.start;
-      endInput.disabled   = !cfg.end;
-      // For UX, blank disabled values
-      if (!cfg.start) startInput.value = '';
-      if (!cfg.end)   endInput.value   = '';
-    } else {
-      block.classList.remove('show');
-    }
-  };
-
-  function buildExceptionShort(et, st, en) {
-    function ft(s) {
-      if (!s) return '?';
-      const [h, m] = s.split(':').map(Number);
-      const suffix = h < 12 ? 'a' : 'p';
-      const h12 = h % 12 === 0 ? 12 : h % 12;
-      return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2,'0')}${suffix}`;
-    }
-    if (et === 'off')                 return 'Off';
-    if (et === 'flexible')            return 'Flexible';
-    if (et === 'note_only')           return 'Note';
-    if (et === 'available_until')     return 'Until ' + ft(en);
-    if (et === 'available_after')     return 'After ' + ft(st);
-    if (et === 'available_window')    return 'Window ' + ft(st) + '-' + ft(en);
-    if (et === 'unavailable_window')  return 'Block '  + ft(st) + '-' + ft(en);
-    return et;
-  }
-
-  window.addDayOff = function(driverId) {
-    const dateEl     = document.getElementById('dayoff-date-' + driverId);
-    const endDateEl  = document.getElementById('dayoff-end-date-' + driverId);
-    const typeEl     = document.getElementById('dayoff-type-' + driverId);
-    const reasonEl   = document.getElementById('dayoff-reason-' + driverId);
-    const notesEl    = document.getElementById('dayoff-notes-' + driverId);
-    const startTimeEl = document.getElementById('dayoff-start-time-' + driverId);
-    const endTimeEl   = document.getElementById('dayoff-end-time-'   + driverId);
-    if (!dateEl.value) { dateEl.focus(); return; }
-
-    const payload = {
-      action: 'add', driver_id: driverId,
-      date: dateEl.value,
-      end_date: endDateEl.value || null,
-      exception_type: typeEl.value,
-      start_time: startTimeEl && startTimeEl.value ? startTimeEl.value : null,
-      end_time:   endTimeEl   && endTimeEl.value   ? endTimeEl.value   : null,
-      reason: reasonEl.value,
-      notes: notesEl.value,
-    };
-
-    fetch(DAYOFF_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify(payload),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.success) { alert('Error: ' + (data.error || 'Failed')); return; }
-        const ov = data.override;
-        const list = document.getElementById('dayoff-list-' + driverId);
-        const empty = list.querySelector('.dayoff-empty');
-        if (empty) empty.remove();
-        const REASON_LABELS = {day_off:'Day Off',vacation:'Vacation',sick:'Sick',appointment:'Appointment',other:'Other'};
-        const shortLbl = buildExceptionShort(ov.exception_type, ov.start_time, ov.end_time);
-        let html = `<div class="dayoff-item exc-${ov.exception_type}" id="dayoff-${ov.id}">`;
-        html += `<span class="dayoff-date">${ov.date_range_display}</span>`;
-        html += `<span class="dayoff-type">${shortLbl}</span>`;
-        if (ov.exception_type === 'off') {
-          html += `<span class="dayoff-reason">${REASON_LABELS[ov.reason] || ov.reason}</span>`;
-        }
-        if (ov.notes) html += `<span class="dayoff-notes">${ov.notes}</span>`;
-        html += `<button class="dayoff-remove" onclick="removeDayOff(${ov.id}, ${driverId})" title="Remove">&times;</button>`;
-        html += '</div>';
-        list.insertAdjacentHTML('beforeend', html);
-        dateEl.value = '';
-        endDateEl.value = '';
-        notesEl.value = '';
-        if (startTimeEl) startTimeEl.value = '';
-        if (endTimeEl) endTimeEl.value = '';
-      })
-      .catch(() => alert('Network error'));
-  };
-
-  window.removeDayOff = function(overrideId, driverId) {
-    fetch(DAYOFF_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({ action: 'delete', id: overrideId }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          const el = document.getElementById('dayoff-' + overrideId);
-          if (el) el.remove();
-          const list = document.getElementById('dayoff-list-' + driverId);
-          if (list && !list.querySelector('.dayoff-item')) {
-            list.innerHTML = '<div class="dayoff-empty text-muted">No upcoming exceptions</div>';
-          }
-        }
-      });
-  };
-
-  // Initialize time-block visibility for all driver cards on first load
-  document.querySelectorAll('[id^="dayoff-type-"]').forEach(sel => {
-    const id = sel.id.replace('dayoff-type-', '');
-    onExcTypeChange(id);
+  search.addEventListener('input', applyFilters);
+  document.querySelectorAll('.sm-filters .sm-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.sm-filters .sm-tab').forEach(function(t) { t.classList.remove('is-active'); });
+      tab.classList.add('is-active');
+      bucketActive = tab.getAttribute('data-bucket');
+      applyFilters();
+    });
   });
+
+  // ── ribbon (collapse + chip filter) ──────────────────────────────
+  var ribbon = document.getElementById('smRibbon');
+  var ribBody = document.getElementById('smRibBody');
+  var ribToggle = document.getElementById('smRibToggle');
+
+  function ribbonInBucket(item, bucket) {
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var start = new Date(item.date + 'T00:00:00');
+    var end = item.end_date ? new Date(item.end_date + 'T00:00:00') : start;
+    var msDay = 86400000;
+    var diffStart = Math.round((start - today) / msDay);
+    var diffEnd   = Math.round((end   - today) / msDay);
+    if (bucket === 'today') return diffStart <= 0 && diffEnd >= 0;
+    if (bucket === 'week')  return diffEnd >= 0 && diffStart <= 6;
+    if (bucket === 'month') return diffEnd >= 0 && diffStart <= 30;
+    if (bucket === 'all')   return diffEnd >= 0;
+    return true;
+  }
+  function renderRibbon() {
+    var bucket = ribbon.getAttribute('data-filter') || 'week';
+    var items = RIBBON.filter(function(i) { return ribbonInBucket(i, bucket); });
+    if (items.length === 0) {
+      ribbon.classList.add('is-empty');
+      ribBody.innerHTML = '';
+      return;
+    }
+    ribbon.classList.remove('is-empty');
+    ribBody.innerHTML = items.map(function(e) {
+      var dateRange = e.end_date && e.end_date !== e.date
+        ? e.date_short + ' → ' + e.end_date_short
+        : e.date_short;
+      return '' +
+        '<button type="button" class="sm-rib-pill sm-exc-' + e.design_type + '" data-driver-id="' + e.driver_id + '">' +
+          '<span class="sm-avatar" style="width:20px; height:20px; font-size:8px; background: linear-gradient(135deg, ' + e.driver_color + ', ' + e.driver_color + 'AA);">' + escapeHtml(e.driver_initials) + '</span>' +
+          '<span class="driver-name">' + escapeHtml(e.driver_name) + '</span>' +
+          '<span class="date-range">' + escapeHtml(dateRange) + '</span>' +
+          (e.exception_short ? '<span class="reason">· ' + escapeHtml(e.exception_short) + '</span>' : '') +
+          (e.notes ? '<span class="reason">· ' + escapeHtml(e.notes) + '</span>' : '') +
+        '</button>';
+    }).join('');
+  }
+  ribToggle.addEventListener('click', function() {
+    ribbon.classList.toggle('is-open');
+    if (ribbon.classList.contains('is-open')) renderRibbon();
+  });
+  document.querySelectorAll('.sm-rib-chip').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+      e.stopPropagation();
+      document.querySelectorAll('.sm-rib-chip').forEach(function(c) { c.classList.remove('is-active'); });
+      chip.classList.add('is-active');
+      ribbon.setAttribute('data-filter', chip.getAttribute('data-bucket'));
+      renderRibbon();
+    });
+  });
+  ribBody.addEventListener('click', function(ev) {
+    var pill = ev.target.closest('.sm-rib-pill');
+    if (pill) openDrawer(pill.getAttribute('data-driver-id'), 'exceptions');
+  });
+
+  // ── drawer ───────────────────────────────────────────────────────
+  var drawer    = document.getElementById('smDrawer');
+  var backdrop  = document.getElementById('smBackdrop');
+  var drawerBody = document.getElementById('smDrawerBody');
+  var drawerAvatar = document.getElementById('smDrawerAvatar');
+  var drawerName = document.getElementById('smDrawerName');
+  var drawerMeta = document.getElementById('smDrawerMeta');
+  var drawerCountExc = document.getElementById('smCountExc');
+  var drawerCountHist = document.getElementById('smCountHist');
+  var drawerSave = document.getElementById('smDrawerSave');
+  var drawerTabs = document.getElementById('smDrawerTabs');
+  var currentDriver = null;
+  var currentTab = 'schedule';
+  var draftWeek = null;        // working copy of the driver's days
+  var draftVersionMode = 'update';
+
+  function findDriver(id) {
+    id = parseInt(id, 10);
+    return DRIVERS.find(function(d) { return d.id === id; }) || null;
+  }
+
+  function openDrawer(driverId, tab) {
+    var dr = findDriver(driverId);
+    if (!dr) return;
+    currentDriver = dr;
+    currentTab = tab || 'schedule';
+    draftWeek = JSON.parse(JSON.stringify(dr.days));
+    draftVersionMode = 'update';
+    // Reflect selected row.
+    document.querySelectorAll('.sm-grid-row').forEach(function(r) {
+      r.classList.toggle('is-open', parseInt(r.getAttribute('data-driver-id'), 10) === dr.id);
+    });
+    // Header.
+    drawerAvatar.style.background = 'linear-gradient(135deg, ' + dr.color + ', ' + dr.color + 'AA)';
+    drawerAvatar.textContent = dr.initials;
+    drawerName.textContent = dr.name;
+    drawerMeta.innerHTML = '' +
+      (dr.phone
+        ? '<span><i class="bi bi-telephone" style="font-size:10px;"></i> ' + escapeHtml(dr.phone) + '</span>'
+        : '<span style="color:var(--text3); font-style:italic;">No phone on file</span>') +
+      '<span class="sep">·</span>' +
+      '<span><span class="working ' +
+        (dr.working_days >= 5 ? 'is-good' : dr.working_days >= 2 ? 'is-warn' : 'is-crit') +
+        '">' + dr.working_days + '</span>/7 d · <span class="sm-mono">' + dr.total_hours + 'h/wk</span></span>' +
+      '<span class="sep">·</span>' +
+      '<span style="color:var(--text3);">In-house · color ' + dr.color + '</span>';
+    drawerCountExc.textContent = dr.exc_count || 0;
+    drawerCountHist.textContent = (dr.versions || []).length || 1;
+    // Tabs.
+    document.querySelectorAll('.sm-drawer-tab').forEach(function(t) {
+      t.classList.toggle('is-active', t.getAttribute('data-tab') === currentTab);
+    });
+    renderDrawerBody();
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer() {
+    drawer.classList.remove('is-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('is-open');
+    document.body.style.overflow = '';
+    document.querySelectorAll('.sm-grid-row.is-open').forEach(function(r) { r.classList.remove('is-open'); });
+    currentDriver = null;
+    draftWeek = null;
+  }
+  backdrop.addEventListener('click', closeDrawer);
+  document.getElementById('smDrawerClose').addEventListener('click', closeDrawer);
+  document.getElementById('smDrawerCancel').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && drawer.classList.contains('is-open')) closeDrawer();
+  });
+
+  drawerTabs.addEventListener('click', function(e) {
+    var t = e.target.closest('.sm-drawer-tab');
+    if (!t) return;
+    currentTab = t.getAttribute('data-tab');
+    document.querySelectorAll('.sm-drawer-tab').forEach(function(x) {
+      x.classList.toggle('is-active', x === t);
+    });
+    renderDrawerBody();
+  });
+
+  function renderDrawerBody() {
+    if (!currentDriver) return;
+    if (currentTab === 'schedule')   drawerBody.innerHTML = renderScheduleTab();
+    else if (currentTab === 'exceptions') drawerBody.innerHTML = renderExceptionsTab();
+    else if (currentTab === 'about')      drawerBody.innerHTML = renderAboutTab();
+    else if (currentTab === 'history')    drawerBody.innerHTML = renderHistoryTab();
+    bindDrawerBody();
+  }
+
+  // ── schedule tab ─────────────────────────────────────────────────
+  function renderScheduleTab() {
+    var rows = draftWeek.map(function(day, i) {
+      var hoursDisplay = day.is_available
+        ? (day.shift_type === 'full_day' ? 'open / flex' : fmtHour(day.start_hour) + ' → ' + fmtHour(day.end_hour))
+        : '—';
+      var typeOptions = SHIFT_TYPE_OPTIONS.map(function(opt) {
+        return '<option value="' + opt[0] + '"' + (day.shift_type === opt[0] ? ' selected' : '') + '>' + opt[1] + '</option>';
+      }).join('');
+      var maxAttr = day.max_hours ? day.max_hours : '';
+      return '' +
+        '<div class="sm-weekly-row" data-day-idx="' + i + '">' +
+          '<span style="display:flex; align-items:center; gap:6px;">' +
+            '<span class="sm-weekly-toggle ' + (day.is_available ? 'is-on' : '') + '" data-action="toggle-day"></span>' +
+            '<span class="day-name ' + (day.is_available ? '' : 'is-off') + '">' + DAY_NAMES[i] + '</span>' +
+          '</span>' +
+          '<span class="hrs ' + (day.is_available ? '' : 'is-off') + '" data-role="hours-display">' + hoursDisplay + '</span>' +
+          '<select data-action="shift-type" ' + (day.is_available ? '' : 'disabled') + '>' + typeOptions + '</select>' +
+          '<input type="number" min="0" max="24" step="0.5" placeholder="—" value="' + maxAttr + '" data-action="max-hours" ' + (day.is_available ? '' : 'disabled') + ' />' +
+          '<span></span>' +
+        '</div>';
+    }).join('');
+
+    return '' +
+      '<div class="sm-active-ver">' +
+        '<div>' +
+          '<div class="sm-eyebrow" style="color:var(--text3); font-size:9.5px;">Active schedule version</div>' +
+          '<div class="label">Effective from <span class="sm-mono">May 01, 2026</span> ' +
+            '<span class="note">· Current schedule</span></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:8px;">Weekly default</div>' +
+      '<div class="sm-weekly">' +
+        '<div class="sm-weekly-head">' +
+          '<div>Day</div><div>Hours</div><div>Shift</div><div>Max</div><div></div>' +
+        '</div>' +
+        rows +
+        '<div class="sm-weekly-foot">' +
+          '<button type="button" class="sm-btn" data-action="hours-prompt" data-info="Edit start/end hours via shift type — set Custom for custom windows.">📋 Copy Mon → Fri</button>' +
+          '<button type="button" class="sm-btn" data-action="reset">Reset row</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sm-callout">' +
+        '<div class="sm-eyebrow sm-callout-eyebrow">When you save…</div>' +
+        '<label>' +
+          '<input type="radio" name="vermode" value="update" ' + (draftVersionMode === 'update' ? 'checked' : '') + ' />' +
+          '<div>' +
+            '<div class="opt-title">Update current version</div>' +
+            '<div class="opt-body">Edits the schedule effective from <span class="sm-mono">May 01, 2026</span>. ' +
+              'Use for fixing a typo. <span class="warn">Rewrites historical reads.</span></div>' +
+          '</div>' +
+        '</label>' +
+        '<label>' +
+          '<input type="radio" name="vermode" value="new" ' + (draftVersionMode === 'new' ? 'checked' : '') + ' />' +
+          '<div style="flex:1;">' +
+            '<div class="opt-title">Start a new version</div>' +
+            '<div class="opt-body">Closes the current version and starts a new one. Past payroll / dispatch reads stay intact. ' +
+              '<span style="color:var(--text3); font-style:italic;">(Versioning model not yet wired — this option saves the same way for now.)</span></div>' +
+            (draftVersionMode === 'new'
+              ? '<div style="display:flex; align-items:center; gap:8px; margin-top:8px;">' +
+                  '<span style="font-size:11px; color:var(--text2);">Effective from</span>' +
+                  '<input type="date" class="sm-input" style="width:150px; padding:5px 8px; font-size:11.5px;" value="" />' +
+                '</div>'
+              : '') +
+          '</div>' +
+        '</label>' +
+      '</div>';
+  }
+
+  // ── exceptions tab ───────────────────────────────────────────────
+  function renderExceptionsTab() {
+    var excTypeOpts = EXC_TYPE_OPTIONS.map(function(o) {
+      return '<option value="' + o.value + '">' + o.label + '</option>';
+    }).join('');
+    var reasonOpts = REASON_OPTIONS.map(function(r) {
+      return '<option value="' + r[0] + '">' + r[1] + '</option>';
+    }).join('');
+
+    var today = new Date();
+    var todayIso = today.toISOString().slice(0, 10);
+
+    var addCard = '' +
+      '<div class="sm-exc-add" id="smExcAddCard">' +
+        '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:10px;">Add exception</div>' +
+        '<div class="grid">' +
+          '<div>' +
+            '<div class="field-label">From</div>' +
+            '<input type="date" class="sm-input" data-field="date" value="' + todayIso + '" />' +
+          '</div>' +
+          '<div>' +
+            '<div class="field-label">To <span style="font-weight:500; opacity:.6;">(optional)</span></div>' +
+            '<input type="date" class="sm-input" data-field="end_date" />' +
+          '</div>' +
+          '<div class="full">' +
+            '<div class="field-label">Type</div>' +
+            '<div style="display:flex; gap:8px;">' +
+              '<select class="sm-input" data-field="exception_type" style="flex:1;">' + excTypeOpts + '</select>' +
+              '<select class="sm-input" data-field="reason" style="flex:1;">' + reasonOpts + '</select>' +
+            '</div>' +
+            '<div style="display:flex; gap:8px; margin-top:8px;" id="smExcTimeRow">' +
+              '<input type="time" class="sm-input" data-field="start_time" placeholder="Start time" />' +
+              '<input type="time" class="sm-input" data-field="end_time" placeholder="End time" />' +
+            '</div>' +
+          '</div>' +
+          '<div class="full">' +
+            '<div class="field-label">Reason / note</div>' +
+            '<input type="text" class="sm-input" data-field="notes" placeholder=\'e.g. "Doctor appt", "Off until 4 PM", "Annual PTO"\' />' +
+          '</div>' +
+          '<button type="button" class="sm-btn sm-btn-gold full" style="justify-content:center; font-size:12px;" id="smExcAddBtn">+ Add exception</button>' +
+        '</div>' +
+        '<div class="sm-exc-error" id="smExcErr" style="display:none; color:var(--crit); font-size:11.5px; margin-top:8px;"></div>' +
+      '</div>';
+
+    var upcoming = (currentDriver.exceptions || []);
+    var past = (currentDriver.past_exceptions || []);
+    var upcomingHtml = upcoming.length === 0 ? '' :
+      '<div style="margin-bottom:18px;">' +
+        '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:6px;">Upcoming / active · ' + upcoming.length + '</div>' +
+        upcoming.map(renderExcRow).join('') +
+      '</div>';
+    var pastHtml = past.length === 0 ? '' :
+      '<div style="margin-bottom:18px;">' +
+        '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:6px;">Past · ' + past.length + '</div>' +
+        past.map(renderExcRow).join('') +
+      '</div>';
+    var emptyHtml = (upcoming.length === 0 && past.length === 0)
+      ? '<div style="font-size:12px; color:var(--text3); font-style:italic; padding:8px 0;">No exceptions on file. Use the form above to add one.</div>'
+      : '';
+
+    return addCard + upcomingHtml + pastHtml + emptyHtml;
+  }
+  function renderExcRow(e) {
+    return '' +
+      '<div class="sm-exc-row sm-exc-' + e.design_type + '" data-exc-id="' + e.id + '">' +
+        '<div style="flex:1;">' +
+          '<div class="head">' +
+            '<span class="range">' + escapeHtml(e.date_display || e.date) + '</span>' +
+          '</div>' +
+          '<div class="reason">' + escapeHtml(e.exception_short || '') +
+            (e.notes ? ' · ' + escapeHtml(e.notes) : '') + '</div>' +
+        '</div>' +
+        '<button type="button" class="del" data-action="del-exc" data-exc-id="' + e.id + '" title="Delete">×</button>' +
+      '</div>';
+  }
+
+  // ── about tab ────────────────────────────────────────────────────
+  function renderAboutTab() {
+    var dr = currentDriver;
+    return '' +
+      '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:8px;">Contact</div>' +
+      fieldRow('Phone', dr.phone || '—') +
+      fieldRow('Driver type', 'In-house') +
+      fieldRow('Total scheduled', dr.working_days + ' / 7 days · ' + dr.total_hours + 'h / week') +
+      '<div class="sm-eyebrow" style="color:var(--text3); margin-top:18px; margin-bottom:8px;">Internal notes</div>' +
+      '<textarea class="sm-input" id="smAboutNotes" placeholder=\'e.g. "Prefers airport runs, contact before 6 AM…"\' style="min-height:80px; resize:vertical;">' +
+        escapeHtml(dr.notes || '') +
+      '</textarea>' +
+      '<div style="font-size:11px; color:var(--text3); margin-top:6px; font-style:italic;">' +
+        'Notes save when you press "Save changes".' +
+      '</div>';
+  }
+  function fieldRow(label, value) {
+    return '<div class="sm-field-row"><div class="label">' + escapeHtml(label) + '</div><div class="value">' + escapeHtml(value) + '</div></div>';
+  }
+
+  // ── history tab ──────────────────────────────────────────────────
+  function renderHistoryTab() {
+    var versions = currentDriver.versions || [];
+    var items = versions.map(function(v, i) {
+      var cls = v.planned ? 'is-planned' : (i === 0 ? '' : 'is-past');
+      var tag = v.planned ? '<span class="sm-history-tag is-planned">PLANNED</span>' :
+                (i === 0 ? '<span class="sm-history-tag is-current">CURRENT</span>' : '');
+      return '' +
+        '<div class="sm-history-item ' + cls + '">' +
+          '<span class="sm-history-dot"></span>' +
+          '<div class="sm-history-date">' + escapeHtml(v.effective_from) + ' ' + tag + '</div>' +
+          (v.note ? '<div class="sm-history-note">' + escapeHtml(v.note) + '</div>' : '') +
+          (v.change ? '<div class="sm-mono" style="font-size:11px; color:var(--text3); margin-top:3px;">' +
+            escapeHtml(v.change.from) + ' → ' + escapeHtml(v.change.to) + '</div>' : '') +
+        '</div>';
+    }).join('');
+    return '' +
+      '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:8px;">Schedule version history</div>' +
+      '<div class="sm-history">' +
+        '<div class="sm-history-rail"></div>' +
+        items +
+        '<div style="position:relative;">' +
+          '<span class="sm-history-add-dot"></span>' +
+          '<button type="button" class="sm-btn" disabled title="Coming soon — needs schedule-versions model" style="font-size:11px; opacity:.55;">+ Plan a future schedule change</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ── drawer body event delegation ─────────────────────────────────
+  function bindDrawerBody() {
+    if (currentTab === 'schedule') bindScheduleTab();
+    else if (currentTab === 'exceptions') bindExceptionsTab();
+  }
+  function bindScheduleTab() {
+    drawerBody.querySelectorAll('.sm-weekly-row').forEach(function(row) {
+      var idx = parseInt(row.getAttribute('data-day-idx'), 10);
+      var toggle = row.querySelector('[data-action="toggle-day"]');
+      var shiftSel = row.querySelector('[data-action="shift-type"]');
+      var maxIn   = row.querySelector('[data-action="max-hours"]');
+      toggle.addEventListener('click', function() {
+        draftWeek[idx].is_available = !draftWeek[idx].is_available;
+        // Reset to defaults when re-enabling so the row picks sane hours.
+        if (draftWeek[idx].is_available && (draftWeek[idx].start_hour == null || draftWeek[idx].end_hour == null)) {
+          draftWeek[idx].start_hour = 6;
+          draftWeek[idx].end_hour = 23;
+          draftWeek[idx].shift_type = 'full_day';
+        }
+        renderDrawerBody();
+      });
+      shiftSel.addEventListener('change', function() {
+        draftWeek[idx].shift_type = shiftSel.value;
+        draftWeek[idx].design_bucket = SHIFT_BUCKET_FROM_TYPE[shiftSel.value] || 'flex';
+        // Apply opinionated defaults for canonical shifts.
+        var presets = {
+          morning: [6, 14], midday: [9, 17], evening: [14, 22],
+          night:   [20, 4], split: [6, 22], full_day: [6, 23], custom: null,
+        };
+        var p = presets[shiftSel.value];
+        if (p) { draftWeek[idx].start_hour = p[0]; draftWeek[idx].end_hour = p[1]; }
+        draftWeek[idx].flexible = (shiftSel.value === 'full_day');
+        renderDrawerBody();
+      });
+      maxIn.addEventListener('input', function() {
+        var v = parseFloat(maxIn.value);
+        draftWeek[idx].max_hours = isFinite(v) && v > 0 ? v : null;
+      });
+    });
+    drawerBody.querySelectorAll('input[name="vermode"]').forEach(function(r) {
+      r.addEventListener('change', function() {
+        draftVersionMode = r.value;
+        renderDrawerBody();
+      });
+    });
+    var resetBtn = drawerBody.querySelector('[data-action="reset"]');
+    if (resetBtn) resetBtn.addEventListener('click', function() {
+      draftWeek = JSON.parse(JSON.stringify(currentDriver.days));
+      renderDrawerBody();
+    });
+  }
+  function bindExceptionsTab() {
+    var card = document.getElementById('smExcAddCard');
+    if (!card) return;
+    var typeSelect = card.querySelector('[data-field="exception_type"]');
+    var startTime = card.querySelector('[data-field="start_time"]');
+    var endTime = card.querySelector('[data-field="end_time"]');
+
+    function syncTimeRow() {
+      var v = typeSelect.value;
+      var needStart = (v === 'available_after' || v === 'available_window' || v === 'unavailable_window');
+      var needEnd   = (v === 'available_until' || v === 'available_window' || v === 'unavailable_window');
+      startTime.disabled = !needStart;
+      endTime.disabled = !needEnd;
+      startTime.style.opacity = needStart ? '1' : '.4';
+      endTime.style.opacity = needEnd ? '1' : '.4';
+    }
+    typeSelect.addEventListener('change', syncTimeRow);
+    syncTimeRow();
+
+    document.getElementById('smExcAddBtn').addEventListener('click', function() {
+      var get = function(f) { return card.querySelector('[data-field="' + f + '"]').value; };
+      var payload = {
+        action: 'add',
+        driver_id: currentDriver.id,
+        date: get('date'),
+        end_date: get('end_date') || null,
+        exception_type: get('exception_type'),
+        reason: get('reason'),
+        notes: get('notes'),
+        start_time: get('start_time') || null,
+        end_time: get('end_time') || null,
+      };
+      var err = document.getElementById('smExcErr');
+      err.style.display = 'none';
+      if (!payload.date) { err.textContent = 'From date is required.'; err.style.display = 'block'; return; }
+      fetch('{% url "manage_driver_date_overrides" %}', {
+        method: 'POST',
+        headers: csrfHeaders(),
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      }).then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success) {
+            err.textContent = data.error || 'Could not save exception.';
+            err.style.display = 'block';
+            return;
+          }
+          // Optimistic refresh — reload the page so server-rendered grid +
+          // ribbon stay authoritative.
+          window.location.reload();
+        })
+        .catch(function() {
+          err.textContent = 'Network error.';
+          err.style.display = 'block';
+        });
+    });
+
+    drawerBody.querySelectorAll('[data-action="del-exc"]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (!confirm('Delete this exception?')) return;
+        fetch('{% url "manage_driver_date_overrides" %}', {
+          method: 'POST',
+          headers: csrfHeaders(),
+          credentials: 'same-origin',
+          body: JSON.stringify({ action: 'delete', id: parseInt(btn.getAttribute('data-exc-id'), 10) }),
+        }).then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.success) window.location.reload();
+            else alert(data.error || 'Could not delete.');
+          });
+      });
+    });
+  }
+
+  // ── save (schedule + notes) ──────────────────────────────────────
+  drawerSave.addEventListener('click', function() {
+    if (!currentDriver) return;
+    var weeklyPayload = {};
+    draftWeek.forEach(function(d, i) {
+      weeklyPayload[i] = {
+        is_available:     d.is_available,
+        shift_type:       d.shift_type || 'full_day',
+        start_hour:       d.start_hour != null ? d.start_hour : 6,
+        end_hour:         d.end_hour   != null ? d.end_hour   : 23,
+        flexible:         (d.shift_type || 'full_day') === 'full_day',
+        max_hours:        d.max_hours || null,
+        preferred_shift:  d.preferred_shift || '',
+        preference:       d.preference || '',
+        scheduling_notes: d.scheduling_notes || '',
+      };
+    });
+    var notesEl = document.getElementById('smAboutNotes');
+    var payload = {
+      drivers: [{
+        id: currentDriver.id,
+        default_start_hour: 6,
+        default_end_hour: 23,
+        default_flexible: true,
+        default_shift_type: 'full_day',
+        default_max_hours: null,
+        default_preferred_shift: '',
+        default_preference: '',
+        notes: notesEl ? notesEl.value : (currentDriver.notes || ''),
+        weekly: weeklyPayload,
+      }],
+    };
+    drawerSave.disabled = true;
+    drawerSave.textContent = 'Saving…';
+    fetch('{% url "save_driver_weekly_schedules" %}', {
+      method: 'POST',
+      headers: csrfHeaders(),
+      credentials: 'same-origin',
+      body: JSON.stringify(payload),
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) window.location.reload();
+        else { alert(data.error || 'Save failed.'); drawerSave.disabled = false; drawerSave.textContent = 'Save changes'; }
+      })
+      .catch(function() { alert('Network error.'); drawerSave.disabled = false; drawerSave.textContent = 'Save changes'; });
+  });
+
+  // ── grid row interactions ────────────────────────────────────────
+  gridBody.addEventListener('click', function(e) {
+    var addBtn = e.target.closest('.sm-row-exc-btn');
+    if (addBtn) {
+      e.stopPropagation();
+      openDrawer(addBtn.getAttribute('data-driver-id'), 'exceptions');
+      return;
+    }
+    var row = e.target.closest('.sm-grid-row');
+    if (row) openDrawer(row.getAttribute('data-driver-id'), 'schedule');
+  });
+
+  // initial render
+  applyFilters();
 })();
 </script>
 {% endblock %}

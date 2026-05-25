@@ -737,14 +737,19 @@
             <!-- Driver slots (drop targets) -->
             <div class="va-drivers-grid px-3 py-2" id="vaDriverGrid">
               {% for row in inhouse_driver_rows %}
-              <div class="va-driver-slot va-status-{{ row.avail_status }} {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}{% if row.avail_status == 'limited' %} va-limited{% endif %}"
+              <div class="va-driver-slot va-status-{{ row.avail_status }} {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}{% if row.avail_status == 'limited' %} va-limited{% endif %}{% if row.was_scheduled_off and not row.is_off_today %} va-off-override{% endif %}"
                    data-driver-id="{{ row.driver.id }}"
                    data-driver-name="{{ row.driver }}"
+                   data-was-scheduled-off="{% if row.was_scheduled_off %}1{% else %}0{% endif %}"
                    data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
                 <div class="va-drv-name">
                   {{ row.driver }}
                   {% if row.is_off_today %}
                   <span class="va-off-badge" title="{{ row.avail_tooltip }}">Off</span>
+                  {% elif row.was_scheduled_off %}
+                  <span class="va-override-warning" title="This driver was scheduled OFF today. Someone clicked 'Work today' to override — double-check this is intentional.">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Scheduled off
+                  </span>
                   {% elif row.avail_status == 'limited' %}
                   <span class="va-limited-badge" title="{{ row.avail_tooltip }}">Limited</span>
                   {% endif %}
@@ -3555,8 +3560,21 @@
               if (!slot) return;
               slot.classList.remove('va-off');
               slot.classList.add('va-empty');
+              slot.classList.add('va-off-override');  // keep the scheduled-off warning visible
               const nameEl = slot.querySelector('.va-drv-name');
-              if (nameEl) { nameEl.style.textDecoration = 'none'; nameEl.style.color = ''; }
+              if (nameEl) {
+                  nameEl.style.textDecoration = 'none';
+                  nameEl.style.color = '';
+                  // Replace the red "Off" badge with the amber "Scheduled off" warning
+                  const offBadge = nameEl.querySelector('.va-off-badge');
+                  if (offBadge) {
+                      const warn = document.createElement('span');
+                      warn.className = 'va-override-warning';
+                      warn.title = "This driver was scheduled OFF today. Someone clicked 'Work today' to override — double-check this is intentional.";
+                      warn.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Scheduled off';
+                      offBadge.replaceWith(warn);
+                  }
+              }
               const vehicleArea = slot.querySelector('.va-drv-vehicle');
               if (vehicleArea) vehicleArea.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
           };
@@ -4303,6 +4321,14 @@
           border-color: #fecaca;
           opacity: .75;
       }
+      /* Override warning — driver was scheduled off but is set to work today.
+         Layered on top of va-has/va-empty so the vehicle state still shows through.
+         Visual signal: amber solid border + 4px amber stripe down the left edge. */
+      .va-driver-slot.va-off-override {
+          border-color: #fb923c !important;
+          border-style: solid !important;
+          box-shadow: inset 4px 0 0 #fb923c, 0 1px 3px rgba(251,146,60,0.12);
+      }
       .va-driver-slot.va-limited {
           border-color: #f59e0b;
           background: #fffbeb;
@@ -4333,6 +4359,16 @@
           color: #b91c1c;
           font-weight: 600;
       }
+      .va-override-warning {
+          display: inline-flex; align-items: center; gap: 3px;
+          font-size: 0.58rem; font-weight: 700; letter-spacing: 0.03em;
+          text-transform: uppercase;
+          color: #9a3412; background: #ffedd5;
+          border: 1px solid #fdba74;
+          padding: 1px 5px; border-radius: 3px;
+          cursor: help;
+      }
+      .va-override-warning .bi { font-size: 0.65rem; }
       .va-limited-badge {
           font-size: 0.6rem;
           padding: 0.1rem 0.35rem;
