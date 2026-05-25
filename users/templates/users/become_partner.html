@@ -1,327 +1,1123 @@
 {% extends 'main.html' %}
 {% load static %}
-{% block title %}
-  Travel Agent Partner Form | Grayson Towncar
-{% endblock title %}
+
+{% block title %}The Partner Program — Grayson Towncar · For Travel Advisors{% endblock title %}
+
 {% block meta_description %}
   <meta name="description"
-        content="Join Grayson Towncar's partner network and offer your clients premium Orlando transportation services. Exclusive benefits for travel agents, hotels, and businesses including competitive rates, dedicated support, and reliable service." />
+        content="A premium Orlando transportation partner program for travel advisors. Private MCO, Disney, Universal, and Port Canaveral transfers — with commission on every completed booking." />
 {% endblock %}
+
+{% block head_extra %}
+  <link rel="preload" as="image" href="{% static 'images/chauffeur-door.jpg' %}" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/partner-landing.css' %}" />
+{% endblock %}
+
+{% block body_class %}ed-page partner-page{% endblock %}
+
+{% block navbar %}{% endblock %}
 {% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
 
 {% block content %}
-  <!-- Become a Partner -->
-  <section class="py-5 bg-custom-light-gold">
-    <div class="container px-4 my-5">
-      <div class="text-center mb-5">
-        <h1 class="fw-lighter display-3">Become a Grayson Towncar Partner</h1>
-        <p class="lead fw-normal text-muted">
-          Join our network of preferred travel agents and offer your clients exceptional transportation in Orlando.
-        </p>
+  <a href="#apply" class="visually-hidden-focusable" style="position:absolute;left:-9999px;top:0;">Skip to application</a>
+
+  <!-- ============================================================ -->
+  <!-- 0. STICKY NAV                                                -->
+  <!-- ============================================================ -->
+  <header class="ed-nav" id="edNav" role="banner">
+    <div class="ed-nav-inner">
+      <a href="/" class="ed-logo ed-link" aria-label="Grayson Towncar — back to main site">
+        <span class="mark">Grayson Towncar</span>
+        <span class="tag">Travel Advisor<br>Program</span>
+      </a>
+
+      <nav class="ed-nav-links" aria-label="Section navigation">
+        <a href="#why">Why partner</a>
+        <a href="#benefits">Benefits</a>
+        <a href="#how">How it works</a>
+        <a href="#commission">Commission</a>
+        <a href="#apply">Apply</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <div class="ed-nav-right">
+        <a href="tel:+14072127190" class="ed-nav-phone">
+          <i class="bi bi-telephone" aria-hidden="true"></i>
+          <span>(407) 212-7190</span>
+        </a>
+        <a href="#apply" class="ed-btn ed-btn-ink ed-nav-cta">
+          <span class="lg-text">Become a Partner</span>
+          <span class="sm-text">Apply</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+
+    <!-- ============================================================ -->
+    <!-- 1. HERO                                                      -->
+    <!-- ============================================================ -->
+    <section class="ed-hero" aria-labelledby="hero-title">
+      <div class="ed-hero-inner">
+        <div class="ed-up">
+          <div class="ed-hero-eyebrow">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="ed-eyebrow">The Partner Program · For Travel Advisors</span>
+          </div>
+
+          <h1 id="hero-title" class="ed-h1">
+            The first door<br>
+            of the vacation.<br>
+            <span class="ed-italic">Held open, every time.</span>
+          </h1>
+
+          <p class="ed-hero-lede">
+            You build the trip. We handle the arrival. Private chauffeured
+            transfers for MCO airport, Disney and Universal resorts, and
+            Port Canaveral cruise terminals — with 10% commission on every
+            completed booking. Your reputation, protected from baggage claim
+            to resort lobby.
+          </p>
+
+          <div class="ed-hero-cta">
+            <a href="#how" class="ed-btn ed-btn-ink">
+              See how it works <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+            <a href="#commission" class="ed-btn ed-btn-ghost">See the commission</a>
+          </div>
+
+          <div class="ed-hero-stats" role="list">
+            <div class="stat" role="listitem">
+              <span class="ico" aria-hidden="true"><i class="bi bi-percent"></i></span>
+              <div class="k">10<span class="unit">%</span></div>
+              <div class="s">Your commission</div>
+              <div class="hint">Paid on every completed ride</div>
+            </div>
+            <div class="stat" role="listitem">
+              <span class="ico" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
+              <div class="k">24<span class="unit">h</span></div>
+              <div class="s">To hear back from us</div>
+              <div class="hint">Reviewed by a real human, not a bot</div>
+            </div>
+            <div class="stat" role="listitem">
+              <span class="ico" aria-hidden="true"><i class="bi bi-coin"></i></span>
+              <div class="k"><span class="unit">$</span>0</div>
+              <div class="s">To apply and join</div>
+              <div class="hint">No fees, no quotas, no minimums</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ed-hero-photo ed-up" style="animation-delay: 120ms;">
+          <div class="frame">
+            <img src="{% static 'images/chauffeur-door.jpg' %}"
+                 alt="A chauffeur holding the door for a guest stepping out of a black SUV"
+                 width="1100" height="1375" loading="eager" />
+            <div class="overlay" aria-hidden="true"></div>
+
+            <div class="corner-mark" aria-hidden="true">
+              <span class="hairline"></span>
+              <span class="label">The Arrival</span>
+            </div>
+
+            <div class="caption">
+              <div class="tag">Inside MCO · Orlando</div>
+              <div class="line">
+                Already inside baggage claim,<br>
+                <span class="ed-italic">before the bags are.</span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="sticker" aria-label="Average guest rating">
+            <div class="rating">
+              4.9<span class="ed-italic">/5</span>
+            </div>
+            <div class="sub">Average guest rating across 1,500+ reviews</div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 2. TRUST WALL                                                -->
+    <!-- ============================================================ -->
+    <section class="ed-trust" aria-label="Partner agencies">
+      <div class="ed-trust-eyebrow">
+        <span class="ed-eyebrow">Advisors who hand us the airport · So they can keep planning the trip</span>
       </div>
 
-      <div class="row gx-5 justify-content-center">
-        <!-- Travel Agent Partnership Benefits Section -->
-        <div class="col-lg-5 mb-4 mb-lg-0">
-          <div class="card border-0 shadow rounded-3">
-            <div class="card-body p-4">
-              <h3 class="fw-normal mb-4">Why Partner with Grayson?</h3>
+      <div class="ed-trust-marquee" aria-hidden="true">
+        <div class="ed-trust-track">
+          {% for n in 'AB' %}
+            <div class="item"><span class="name">Ember &amp; Atlas</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Simple Magic Travel Company</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Cedar Travel Co.</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Keyholder Vacations</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Best Day Ever Vacations</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Maviar Enterprises Corp.</span><span class="pip"></span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
 
-              <div class="d-flex align-items-center mb-4">
-                <div class="bg-warning bg-opacity-50 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center"
-                     style="width: 48px;
-                            height: 48px;
-                            flex: 0 0 48px">
-                  <img src="{% static 'images/shield.webp' %}"
-                       alt="Shield Icon"
-                       style="width: 24px;
-                              height: 24px;
-                              object-fit: cover" />
-                </div>
+
+    <!-- ============================================================ -->
+    <!-- I. WHY PARTNER                                               -->
+    <!-- ============================================================ -->
+    <section id="why" class="ed-why" aria-labelledby="why-title">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">I.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">Why travel advisors choose us</span>
+        </div>
+
+        <div class="ed-why-grid">
+          <div class="ed-up" style="animation-delay: 80ms;">
+            <h2 id="why-title">
+              Transportation is the<br>
+              <span class="ed-italic">first and the last</span><br>
+              impression of a trip.
+            </h2>
+            <div class="ed-rule-gold rule" aria-hidden="true"></div>
+            <p>
+              You spent six weeks building the trip. The dining reservations
+              dropped at six in the morning and you got every one. The
+              fireworks dessert party is paid. The stroller rental company
+              is waiting at the resort. Then the family lands at eleven at
+              night with a toddler who&rsquo;s been crying since Atlanta. They
+              can&rsquo;t find their ride. They text you from the curb. Months
+              of work, undone in twenty minutes.
+            </p>
+            <p>
+              We exist so the chauffeur is already inside baggage claim. Name
+              sign in hand. Car seats installed. Bottled water cold. The
+              arrival feels like part of the trip you planned — because it
+              is. At the end of every vacation, your client remembers two
+              things: the moments you got right, and the moments you
+              couldn&rsquo;t.
+            </p>
+          </div>
+
+          <div class="ed-up" style="animation-delay: 160ms;">
+            <div class="ed-ledger">
+              <div class="row">
+                <div class="num">01</div>
                 <div>
-                  <h4 class="h5 mb-1">
-                    <strong>Trusted Client Care</strong>
-                  </h4>
-                  <p class="text-muted mb-0 small">
-                    Transparent communication and premium service that maintains your agency's reputation
-                  </p>
+                  <div class="title">Protect your reputation.</div>
+                  <div class="body">Suited chauffeurs. Inside-baggage-claim greeting. Vehicles detailed between every ride. What your client sees first reflects on you.</div>
                 </div>
               </div>
-
-              <div class="d-flex align-items-center mb-4">
-                <div class="bg-warning bg-opacity-50 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center"
-                     style="width: 48px;
-                            height: 48px;
-                            flex: 0 0 48px">
-                  <img src="{% static 'images/stage.webp' %}"
-                       alt="Shield Icon"
-                       style="width: 24px;
-                              height: 24px;
-                              object-fit: cover" />
-                </div>
+              <div class="row">
+                <div class="num">02</div>
                 <div>
-                  <h4 class="h5 mb-1">
-                    <strong>High-Earning Commissions</strong>
-                  </h4>
-                  <p class="text-muted mb-0 small">Earn top-tier commissions on all bookings made through our partner portal</p>
+                  <div class="title">Earn on every booking.</div>
+                  <div class="body">A flat 10% commission on every eligible completed transfer. Tracked in a partner dashboard. Paid on a regular cycle, without you chasing a statement.</div>
                 </div>
               </div>
-
-              <div class="d-flex align-items-center mb-4">
-                <div class="bg-warning bg-opacity-50 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center"
-                     style="width: 48px;
-                            height: 48px;
-                            flex: 0 0 48px">
-                  <img src="{% static 'images/offer.webp' %}"
-                       alt="Shield Icon"
-                       style="width: 24px;
-                              height: 24px;
-                              object-fit: cover" />
-                </div>
+              <div class="row">
+                <div class="num">03</div>
                 <div>
-                  <h4 class="h5 mb-1">
-                    <strong>Exclusive Travel Discounts</strong>
-                  </h4>
-                  <p class="text-muted mb-0 small">Exclusive rates for travel agents and their families visiting Orlando</p>
+                  <div class="title">Skip the logistics.</div>
+                  <div class="body">Flight tracking. Car seat installation. Terminal coordination. Delay rebooking. We handle it before your client even knows there was anything to handle.</div>
                 </div>
               </div>
-
-              <div class="d-flex align-items-center mb-4">
-                <div class="bg-warning bg-opacity-50 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center"
-                     style="width: 48px;
-                            height: 48px;
-                            flex: 0 0 48px">
-                  <img src="{% static 'images/promo.webp' %}"
-                       alt="Shield Icon"
-                       style="width: 24px;
-                              height: 24px;
-                              object-fit: cover" />
-                </div>
+              <div class="row">
+                <div class="num">04</div>
                 <div>
-                  <h4 class="h5 mb-1">
-                    <strong>Spotlight on You</strong>
-                  </h4>
-                  <p class="text-muted mb-0 small">We highlight our travel agent partners on our social media and blog</p>
-                </div>
-              </div>
-
-              <div class="d-flex align-items-center mb-4">
-                <div class="bg-warning bg-opacity-50 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center"
-                     style="width: 48px;
-                            height: 48px;
-                            flex: 0 0 48px">
-                  <img src="{% static 'images/247.webp' %}"
-                       alt="Shield Icon"
-                       style="width: 24px;
-                              height: 24px;
-                              object-fit: cover" />
-                </div>
-                <div>
-                  <h4 class="h5 mb-1">
-                    <strong>Always-On Support</strong>
-                  </h4>
-                  <p class="text-muted mb-0 small">Dedicated partner line with round-the-clock assistance for you and your clients</p>
-                </div>
-              </div>
-
-              <!-- Contact Information Section -->
-              <div class="mt-4 pt-3 border-top">
-                <h5 class="fw-bold mb-3">Contact Us</h5>
-                <div class="d-flex align-items-center mb-2">
-                  <img src="{% static 'images/mobile.webp' %}"
-                       alt="Phone Icon"
-                       style="width: 16px;
-                              height: 16px;
-                              object-fit: contain"
-                       class="me-2" />
-                  <a href="tel:+14072127190" class="small text-decoration-none text-black">(407) 212-7190</a>
-                </div>
-
-                <div class="d-flex align-items-center mb-2">
-                  <img src="{% static 'images/email.webp' %}"
-                       alt="Email Icon"
-                       style="width: 16px;
-                              height: 16px;
-                              object-fit: contain"
-                       class="me-2" />
-                  <a href="mailto:reservations@graysontowncar.com"
-                     class="small text-decoration-none text-black">reservations@graysontowncar.com</a>
-                </div>
-
-                <div class="d-flex align-items-center">
-                  <div class="d-flex gap-2">
-                    <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                       target="_blank"
-                       class="text-black">
-                      <img src="{% static 'images/facebook.webp' %}"
-                           alt="Facebook"
-                           style="width: 20px;
-                                  height: 20px;
-                                  object-fit: contain" />
-                    </a>
-                    <a href="https://www.instagram.com/graysontowncar"
-                       target="_blank"
-                       class="text-primary">
-                      <img src="{% static 'images/ig.webp' %}"
-                           alt="Instagram"
-                           style="width: 20px;
-                                  height: 20px;
-                                  object-fit: contain" />
-                    </a>
-                    <a href="https://x.com/GraysonTowncar" target="_blank">
-                      <img src="{% static 'images/twitter.webp' %}"
-                           alt="X"
-                           style="width: 20px;
-                                  height: 20px;
-                                  object-fit: contain" />
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Blog Link Section -->
-              <div class="mt-3 pt-3 border-top">
-                <div class="d-flex align-items-center">
-                  <img src="{% static 'images/blog.webp' %}"
-                       alt="Blog Icon"
-                       style="width: 20px;
-                              height: 20px;
-                              object-fit: contain"
-                       class="me-2" />
-                  <a href="{% url 'blog-list' %}" class="text-decoration-none text-black">Visit our Blog</a>
+                  <div class="title">Speak with humans.</div>
+                  <div class="body">Call our reservations team and someone in Orlando picks up. Real humans. Twenty-four hours a day. No offshore queue, no chat-bot triage.</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+    </section>
 
-        <!-- Partner Application Form -->
-        <div class="col-lg-7">
-          <div class="card border-0 shadow rounded-3">
-            <div class="card-body p-4 p-sm-5">
-              {% if messages %}
-                <div class="messages">
-                  {% for message in messages %}
-                    <div class="alert alert-{% if message.tags == 'success' %}          success          {% elif message.tags == 'error' %}          danger          {% else %}          info          {% endif %} alert-dismissible fade show"
-                         role="alert">
-                      {{ message }}
-                      <button type="button"
-                              class="btn-close"
-                              data-bs-dismiss="alert"
-                              aria-label="Close"></button>
-                    </div>
-                  {% endfor %}
-                </div>
-              {% endif %}
 
-              <form method="post" action="{% url 'partner' %}">
-                {% csrf_token %}
+    <!-- ============================================================ -->
+    <!-- II. BENEFITS                                                 -->
+    <!-- ============================================================ -->
+    <section id="benefits" class="ed-benefits" aria-labelledby="benefits-title">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">II.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">The partner toolkit</span>
+        </div>
 
-                <!-- Personal Information -->
-                <h4 class="mb-4">
-                  <strong>Contact Information</strong>
-                </h4>
+        <div class="ed-benefits-head ed-up" style="animation-delay: 60ms;">
+          <h2 id="benefits-title">
+            Eight details we
+            <span class="ed-italic">never compromise on</span>
+            — so you don&rsquo;t have to.
+          </h2>
+          <p>
+            Every detail below is standard on every partner booking. Not a
+            tier you climb to. Not an upgrade. Not an add-on. The baseline.
+          </p>
+        </div>
 
-                <div class="row mb-3">
-                  <div class="col-12">
-                    <label for="{{ form.name.id_for_label }}" class="form-label">
-                      {{ form.name.label }} <span class="text-danger">*</span>
-                    </label>
-                    {{ form.name }}
-                  </div>
-                </div>
+        <div class="ed-benefits-grid">
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/minivan.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Private vehicles</h3>
+            <p>Black SUVs and sedans. Lincoln Navigators and Suburbans. Your client and their party only — no shared shuttles, no detour stops.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/carseat.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Free car seats</h3>
+            <p>Infant, convertible, and booster seats. Installed and tested before the family clears baggage claim. No fee, on every family booking — because nobody should hand a crying toddler back to mom while a chauffeur fumbles with the latches.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/arrival.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Inside baggage claim</h3>
+            <p>Suited chauffeur waiting inside the terminal with a personalized name sign. Your client never wonders where to go.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/delay.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Flight tracking, 24h out</h3>
+            <p>Flight delayed three hours? We already know. Your client doesn&rsquo;t. We adjust the pickup quietly, before they ever look at their phone — and you never get the text from the curb.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/dollar.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Flat-rate pricing</h3>
+            <p>No surge pricing. No delay fees. The quote your client sees at booking is what we charge — even if the flight lands four hours late.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/chat.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Book however you like</h3>
+            <p>Send clients to your branded referral link, reserve on their behalf in the partner dashboard, or pick up the phone. Commission attributes either way.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/check.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>10% commission, paid clean</h3>
+            <p>Tracked in your dashboard. Reconciled on a regular cycle. Paid without you ever chasing a statement.</p>
+          </article>
+          <article class="ed-benefit-tile">
+            <div class="icon"><img src="{% static 'images/customer.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
+            <h3>Confirmations, on brand</h3>
+            <p>Confirmation emails, arrival updates, and post-trip receipts go to your client. You&rsquo;re copied on every one, so you&rsquo;re never the last to know.</p>
+          </article>
+        </div>
 
-                <div class="row mb-3">
-                  <div class="col-md-6 mb-3 mb-md-0">
-                    <label for="{{ form.email.id_for_label }}" class="form-label">
-                      {{ form.email.label }} <span class="text-danger">*</span>
-                    </label>
-                    {{ form.email }}
-                  </div>
-                  <div class="col-md-6">
-                    <label for="{{ form.phone_number.id_for_label }}" class="form-label">
-                      {{ form.phone_number.label }} <span class="text-danger">*</span>
-                    </label>
-                    {{ form.phone_number }}
-                  </div>
-                </div>
+        <div class="ed-benefits-footnote">
+          † Commission is paid at a flat 10% on every eligible completed reservation.
+          Our reservations team is reachable around the clock for quotes, group
+          bookings, and last-minute requests — including the ones your client
+          called you about ten minutes ago.
+        </div>
+      </div>
+    </section>
 
-                <div class="mb-4">
-                  <label class="form-label">
-                    {{ form.preferred_contact.label }} <span class="text-danger">*</span>
-                  </label>
-                  {% for radio in form.preferred_contact %}
-                    <div class="form-check">
-                      {{ radio.tag }}
-                      <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
-                    </div>
-                  {% endfor %}
-                </div>
 
-                <!-- Agency Information -->
-                <h4 class="mb-4">
-                  <strong>Agency Information</strong>
-                </h4>
+    <!-- ============================================================ -->
+    <!-- III. HOW IT WORKS                                            -->
+    <!-- ============================================================ -->
+    <section id="how" class="ed-how" aria-labelledby="how-title">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">III.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">How the program works</span>
+        </div>
 
-                <div class="row mb-3">
-                  <div class="col-12">
-                    <label for="{{ form.agency_name.id_for_label }}" class="form-label">
-                      {{ form.agency_name.label }} <span class="text-danger">*</span>
-                    </label>
-                    {{ form.agency_name }}
-                  </div>
-                </div>
+        <div class="ed-how-intro ed-up" style="animation-delay: 60ms;">
+          <h2 id="how-title">
+            From application to first commission,
+            <span class="ed-italic">in about a fortnight.</span>
+          </h2>
+          <p>
+            No quotas. No commitments. No interview circus. Apply Tuesday,
+            send your first transfer Thursday, earn on completion. That&rsquo;s
+            the whole story.
+          </p>
+        </div>
 
-                <div class="row mb-3">
-                  <div class="col-12">
-                    <label for="{{ form.agency_website.id_for_label }}" class="form-label">
-                      {{ form.agency_website.label }} (Optional)
-                    </label>
-                    {{ form.agency_website }}
-                  </div>
-                </div>
+        <div class="ed-how-grid-wrap">
+          <div class="ed-how-grid">
+            <div class="ed-how-step pos-tl ed-up">
+              <div class="row">
+                <span class="num">01</span>
+                <span class="hairline" aria-hidden="true"></span>
+                <span class="detail">~1 business day · No upfront cost</span>
+              </div>
+              <h3>Apply in two minutes</h3>
+              <p>Fill out the short application below. We review your details within one business day and email back your onboarding kit — branded referral link, your dedicated partner contact, and the full program terms.</p>
+            </div>
 
-                <div class="row mb-4">
-                  <div class="col-12">
-                    <label for="{{ form.agency_size.id_for_label }}" class="form-label">
-                      {{ form.agency_size.label }}
-                    </label>
-                    {{ form.agency_size }}
-                  </div>
-                </div>
+            <div class="ed-how-step pos-tr ed-up" style="animation-delay: 80ms;">
+              <div class="row">
+                <span class="num">02</span>
+                <span class="hairline" aria-hidden="true"></span>
+                <span class="detail">Phone · Email · Dashboard</span>
+              </div>
+              <h3>Send your first client</h3>
+              <p>Hand off your branded referral link. Book on their behalf in the partner dashboard. Or forward a request to your reservations contact and we&rsquo;ll quote it back inside the hour.</p>
+            </div>
 
-                <div class="mb-4">
-                  <label class="form-label">
-                    {{ form.referral_source.label }} <span class="text-danger">*</span>
-                  </label>
-                  {% for radio in form.referral_source %}
-                    <div class="form-check">
-                      {{ radio.tag }}
-                      <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
-                    </div>
-                  {% endfor %}
-                </div>
+            <div class="ed-how-step pos-bl ed-up" style="animation-delay: 160ms;">
+              <div class="row">
+                <span class="num">03</span>
+                <span class="hairline" aria-hidden="true"></span>
+                <span class="detail">Confirmation · Arrival · Return</span>
+              </div>
+              <h3>Your client gets the arrival</h3>
+              <p>We handle flight tracking, baggage-claim pickup, car seat installation, and the return transfer. The family gets a calm ride straight to the resort lobby. The cruise party gets to the terminal exactly when the boarding window opens. You get the text that says thank you.</p>
+            </div>
 
-                <div class="row mb-4">
-                  <div class="col-12">
-                    <label for="{{ form.additional_info.id_for_label }}" class="form-label">{{ form.additional_info.label }}</label>
-                    {{ form.additional_info }}
-                  </div>
-                </div>
-
-                <div class="d-grid gap-2">
-                  <button type="submit"
-                          class="btn custom-button-bg btn-lg fw-bold text-black rounded-pill">Become a Partner</button>
-                </div>
-
-                <div class="small text-muted mt-3 text-center">
-                  By submitting this form, you'll be joining our network of preferred travel partners. We'll contact you soon.
-                </div>
-              </form>
+            <div class="ed-how-step pos-br ed-up" style="animation-delay: 240ms;">
+              <div class="row">
+                <span class="num">04</span>
+                <span class="hairline" aria-hidden="true"></span>
+                <span class="detail">Transparent · Reconciled · Paid</span>
+              </div>
+              <h3>You earn, on a regular cycle</h3>
+              <p>Once the ride is completed, your 10% commission lands in the pending column. Your dashboard tracks pending, earned, and paid balances in real time. Payouts run on a regular cycle — no statements to chase.</p>
             </div>
           </div>
+        </div>
+
+        <div class="ed-how-cta ed-up" style="animation-delay: 300ms;">
+          <div>
+            <div class="eyebrow">Open for applications</div>
+            <h3>
+              Got a client trip on the calendar?
+              <span class="ed-italic">Let&rsquo;s have it ready before they land.</span>
+            </h3>
+          </div>
+          <a href="#apply" class="ed-btn ed-btn-gold">
+            Apply now <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- IV. COMMISSION                                               -->
+    <!-- ============================================================ -->
+    <section id="commission" class="ed-commission" aria-labelledby="commission-title">
+      <div class="ed-commission-inner">
+        <div class="eyebrow-row ed-up">
+          <span class="chapter">IV.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">The partner commission</span>
+          <span class="rule" aria-hidden="true"></span>
+        </div>
+
+        <h2 id="commission-title" class="ed-up" style="animation-delay: 80ms;">
+          Honest commission,<br>
+          <span class="ed-italic">transparently tracked.</span>
+        </h2>
+
+        <p class="lede ed-up" style="animation-delay: 140ms;">
+          A flat 10% commission on every eligible completed reservation —
+          the same rate from your first booking. No tiers to climb. No
+          quotas to hit. No theatrical negotiation. One rate, paid clean,
+          on a regular cycle.
+        </p>
+
+        <div class="ed-commission-features ed-up" style="animation-delay: 200ms;">
+          <div class="item"><span class="n">01</span><span>Flat 10% on every eligible completed reservation</span></div>
+          <div class="item"><span class="n">02</span><span>Same rate from booking one — no tiers, no quotas, no minimums</span></div>
+          <div class="item"><span class="n">03</span><span>Transparent partner dashboard · pending, earned, paid</span></div>
+          <div class="item"><span class="n">04</span><span>Regular payout cycle · no statement chasing</span></div>
+          <div class="item"><span class="n">05</span><span>Branded referral link · phone &amp; email attribution</span></div>
+          <div class="item"><span class="n">06</span><span>Multi-seat agency rollups for teams up to 500 agents</span></div>
+        </div>
+
+        <div class="cta-row ed-up" style="animation-delay: 260ms;">
+          <a href="#apply" class="ed-btn ed-btn-gold">
+            Apply to the program <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          <a href="mailto:partners@graysontowncar.com" class="ed-btn ed-btn-ghost-light">
+            Talk to the partner team
+          </a>
+        </div>
+
+        <div class="disclaimer ed-up" style="animation-delay: 300ms;">
+          Want to walk through the partner agreement, attribution rules, or
+          payout cycle before applying? We&rsquo;ll sit down with you on the
+          onboarding call — no surprises, no fine print.
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- V. CLIENT EXPERIENCE                                         -->
+    <!-- ============================================================ -->
+    <section class="ed-client" aria-labelledby="client-title">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">V.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">The client experience</span>
+        </div>
+
+        <div class="ed-client-head ed-up" style="animation-delay: 60ms;">
+          <h2 id="client-title">
+            Three moments your client feels —
+            <span class="ed-italic">and tells you about by text.</span>
+          </h2>
+        </div>
+
+        <div class="ed-client-grid">
+          <article class="ed-client-card ed-up">
+            <div class="frame">
+              <img src="{% static 'images/departure.webp' %}" alt="" loading="lazy" />
+              <div class="overlay" aria-hidden="true"></div>
+              <div class="ch"><span class="label">Ch. 01</span><span class="hair"></span></div>
+              <div class="tag">Before the ride</div>
+            </div>
+            <h3>A confirmation that reads like a love letter.</h3>
+            <ul>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Confirmation email copied to you and your client, on brand</span></li>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Flight tracking switched on 24 hours before landing</span></li>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Pickup written for their exact MCO terminal — or cruise port</span></li>
+            </ul>
+          </article>
+
+          <article class="ed-client-card ed-up" style="animation-delay: 100ms;">
+            <div class="frame">
+              <img src="{% static 'images/arrival.webp' %}" alt="" loading="lazy" />
+              <div class="overlay" aria-hidden="true"></div>
+              <div class="ch"><span class="label">Ch. 02</span><span class="hair"></span></div>
+              <div class="tag">At the curb</div>
+            </div>
+            <h3>Suited, smiling, sign in hand.</h3>
+            <ul>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Waiting inside baggage claim, never at the curb</span></li>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Strollers and luggage carried to the vehicle, not rolled</span></li>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Car seats installed by age and weight, exactly as flagged</span></li>
+            </ul>
+          </article>
+
+          <article class="ed-client-card ed-up" style="animation-delay: 200ms;">
+            <div class="frame">
+              <img src="{% static 'images/disney-castle.webp' %}" alt="" loading="lazy" />
+              <div class="overlay" aria-hidden="true"></div>
+              <div class="ch"><span class="label">Ch. 03</span><span class="hair"></span></div>
+              <div class="tag">On the way</div>
+            </div>
+            <h3>The first chapter of their vacation.</h3>
+            <ul>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Climate-controlled cabin, detailed between every ride</span></li>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Chilled bottled water, phone chargers, current magazines</span></li>
+              <li><i class="bi bi-check2" aria-hidden="true"></i><span>Optional Publix stop on the way — favorite for villa and DVC arrivals</span></li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- TESTIMONIAL                                                  -->
+    <!-- ============================================================ -->
+    <section class="ed-testimonial" aria-label="Partner testimonial">
+      <div class="ed-testimonial-inner">
+        <div class="quote-mark ed-up" aria-hidden="true">&ldquo;</div>
+
+        <blockquote class="ed-up" style="animation-delay: 80ms;">
+          Our agency books hundreds of Orlando families a year. Grayson is the
+          only transfer partner we trust on a five-star itinerary — every
+          chauffeur, every car seat, every text update. The arrival sets the
+          tone for the whole trip, and they
+          <span class="ed-italic">never give us a reason to second-guess.</span>
+        </blockquote>
+
+        <div class="attribution ed-up" style="animation-delay: 160ms;">
+          <div class="avatar">
+            <img src="{% static 'images/customer.webp' %}" alt="" loading="lazy" />
+          </div>
+          <div class="who">
+            <div class="name">Sarah Chen</div>
+            <div class="role">VP, Travel Operations · Magical Vacations Co.</div>
+          </div>
+          <span class="divider" aria-hidden="true"></span>
+          <div class="stars" aria-label="5 out of 5 stars">
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- VI. APPLICATION                                              -->
+    <!-- ============================================================ -->
+    <section id="apply" class="ed-apply" aria-labelledby="apply-title">
+      <div class="ed-apply-grid">
+
+        <div class="ed-apply-left ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">VI.</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">The application</span>
+          </div>
+          <h2 id="apply-title">
+            Hand off Orlando.<br>
+            <span class="ed-italic">Keep planning the trip.</span>
+          </h2>
+          <p>
+            Tell us a little about your agency. We&rsquo;ll review and follow
+            up within one business day — onboarding kit, branded referral
+            link, and a twenty-minute welcome call with your dedicated
+            partner contact.
+          </p>
+
+          <div class="ed-reassurance">
+            <div class="row">
+              <span class="icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+              <div>
+                <div class="t">A reply inside one business day</div>
+                <div class="d">Read by a real partner manager, not an inbox bot.</div>
+              </div>
+            </div>
+            <div class="row">
+              <span class="icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
+              <div>
+                <div class="t">Your details stay with us</div>
+                <div class="d">We never sell or share what you send. Ever.</div>
+              </div>
+            </div>
+            <div class="row">
+              <span class="icon"><i class="bi bi-chat-square-text" aria-hidden="true"></i></span>
+              <div>
+                <div class="t">Got a client trip on the calendar?</div>
+                <div class="d">Mention it in the notes — we&rsquo;ll quote it back today.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ed-up" style="animation-delay: 120ms;">
+          <form method="post" action="{% url 'partner' %}" class="ed-apply-card" novalidate>
+            {% csrf_token %}
+
+            <div class="corner-mark" aria-hidden="true">
+              Partner Application <span class="year">· MMXXVI</span>
+            </div>
+
+            {% if form.non_field_errors %}
+              <div class="ed-form-error" role="alert">
+                {{ form.non_field_errors|join:" " }}
+              </div>
+            {% endif %}
+
+            <!-- Group i — Personal -->
+            <div class="ed-field-group">
+              <div class="group-head">
+                <span class="ch">i.</span>
+                <span class="ed-eyebrow">Personal details</span>
+              </div>
+              <div class="ed-field-stack">
+                <label class="ed-field-cell">
+                  <span class="ed-field-label">Full name <span class="req" aria-hidden="true">*</span></span>
+                  <input type="text"
+                         name="name"
+                         id="id_name"
+                         class="ed-field{% if form.name.errors %} has-error{% endif %}"
+                         placeholder="Jamie Rivera"
+                         value="{{ form.name.value|default_if_none:'' }}"
+                         required
+                         autocomplete="name" />
+                  {% for error in form.name.errors %}
+                    <div class="ed-field-error">{{ error }}</div>
+                  {% endfor %}
+                </label>
+              </div>
+            </div>
+
+            <!-- Group ii — Agency -->
+            <div class="ed-field-group">
+              <div class="group-head">
+                <span class="ch">ii.</span>
+                <span class="ed-eyebrow">Agency details</span>
+              </div>
+              <div class="ed-field-stack">
+                <label class="ed-field-cell">
+                  <span class="ed-field-label">Agency name <span class="req" aria-hidden="true">*</span></span>
+                  <input type="text"
+                         name="agency_name"
+                         id="id_agency_name"
+                         class="ed-field{% if form.agency_name.errors %} has-error{% endif %}"
+                         placeholder="Wanderlust Travel Co."
+                         value="{{ form.agency_name.value|default_if_none:'' }}"
+                         required
+                         autocomplete="organization" />
+                  {% for error in form.agency_name.errors %}
+                    <div class="ed-field-error">{{ error }}</div>
+                  {% endfor %}
+                </label>
+
+                <div class="ed-field-row">
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Team size</span>
+                    <select name="agency_size"
+                            id="id_agency_size"
+                            class="ed-field{% if form.agency_size.errors %} has-error{% endif %}">
+                      <option value="" {% if not form.agency_size.value %}selected{% endif %}>Select an option…</option>
+                      {% for value, label in form.fields.agency_size.choices %}
+                        {% if value %}
+                          <option value="{{ value }}" {% if form.agency_size.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endif %}
+                      {% endfor %}
+                    </select>
+                    {% for error in form.agency_size.errors %}
+                      <div class="ed-field-error">{{ error }}</div>
+                    {% endfor %}
+                  </label>
+
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">How did you hear about us?</span>
+                    <select name="referral_source"
+                            id="id_referral_source"
+                            class="ed-field{% if form.referral_source.errors %} has-error{% endif %}">
+                      {% for value, label in form.fields.referral_source.choices %}
+                        <option value="{{ value }}" {% if form.referral_source.value == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                    {% for error in form.referral_source.errors %}
+                      <div class="ed-field-error">{{ error }}</div>
+                    {% endfor %}
+                  </label>
+                </div>
+
+                <label class="ed-field-cell">
+                  <span class="ed-field-label">Agency website <span class="opt">(optional)</span></span>
+                  <input type="url"
+                         name="agency_website"
+                         id="id_agency_website"
+                         class="ed-field{% if form.agency_website.errors %} has-error{% endif %}"
+                         placeholder="https://wanderlust.travel"
+                         value="{{ form.agency_website.value|default_if_none:'' }}"
+                         autocomplete="url" />
+                  {% for error in form.agency_website.errors %}
+                    <div class="ed-field-error">{{ error }}</div>
+                  {% endfor %}
+                </label>
+              </div>
+            </div>
+
+            <!-- Group iii — Contact -->
+            <div class="ed-field-group">
+              <div class="group-head">
+                <span class="ch">iii.</span>
+                <span class="ed-eyebrow">Contact information</span>
+              </div>
+              <div class="ed-field-stack">
+                <div class="ed-field-row">
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Work email <span class="req" aria-hidden="true">*</span></span>
+                    <input type="email"
+                           name="email"
+                           id="id_email"
+                           class="ed-field{% if form.email.errors %} has-error{% endif %}"
+                           placeholder="jamie@agency.com"
+                           value="{{ form.email.value|default_if_none:'' }}"
+                           required
+                           autocomplete="email" />
+                    {% for error in form.email.errors %}
+                      <div class="ed-field-error">{{ error }}</div>
+                    {% endfor %}
+                  </label>
+
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Phone <span class="req" aria-hidden="true">*</span></span>
+                    <input type="tel"
+                           name="phone_number"
+                           id="id_phone_number"
+                           class="ed-field{% if form.phone_number.errors %} has-error{% endif %}"
+                           placeholder="(407) 555-0188"
+                           value="{{ form.phone_number.value|default_if_none:'' }}"
+                           required
+                           autocomplete="tel" />
+                    {% for error in form.phone_number.errors %}
+                      <div class="ed-field-error">{{ error }}</div>
+                    {% endfor %}
+                  </label>
+                </div>
+
+                <fieldset style="border:none; padding:0; margin:0;">
+                  <legend class="ed-field-label" style="padding:0;">Preferred contact method</legend>
+                  <div class="ed-radio-group" role="radiogroup" aria-label="Preferred contact method">
+                    {% for value, label in form.fields.preferred_contact.choices %}
+                      <label class="ed-radio">
+                        <input type="radio"
+                               name="preferred_contact"
+                               value="{{ value }}"
+                               {% if form.preferred_contact.value == value or not form.preferred_contact.value and value == 'email' %}checked{% endif %} />
+                        <span>{{ label }}</span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                  {% for error in form.preferred_contact.errors %}
+                    <div class="ed-field-error">{{ error }}</div>
+                  {% endfor %}
+                </fieldset>
+              </div>
+            </div>
+
+            <!-- Group iv — Notes -->
+            <div class="ed-field-group">
+              <div class="group-head">
+                <span class="ch">iv.</span>
+                <span class="ed-eyebrow">Anything else?</span>
+              </div>
+              <div class="ed-field-stack">
+                <label class="ed-field-cell">
+                  <span class="ed-field-label">Notes <span class="opt">(optional)</span></span>
+                  <textarea name="additional_info"
+                            id="id_additional_info"
+                            class="ed-field{% if form.additional_info.errors %} has-error{% endif %}"
+                            rows="4"
+                            placeholder="Already have a client transfer coming up? Tell us the date, terminal, and party size and we'll be in touch with a quote.">{{ form.additional_info.value|default_if_none:'' }}</textarea>
+                  {% for error in form.additional_info.errors %}
+                    <div class="ed-field-error">{{ error }}</div>
+                  {% endfor %}
+                </label>
+              </div>
+            </div>
+
+            <div class="ed-consent">
+              <label class="agree">
+                <input type="checkbox" name="agree" required />
+                <span>
+                  I&rsquo;m a travel advisor or an agency representative. Please follow
+                  up with onboarding details — we&rsquo;ll never sell or share what I send.
+                </span>
+              </label>
+
+              <button type="submit" class="ed-btn ed-btn-ink ed-submit">
+                Send my application <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </button>
+
+              <div class="ed-apply-footnote">
+                A real human reads every application. Got a client transfer
+                this week? Call (407) 212-7190 and we&rsquo;ll get you a quote now.
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- VII. FAQ                                                     -->
+    <!-- ============================================================ -->
+    <section id="faq" class="ed-faq" aria-labelledby="faq-title">
+      <div class="ed-faq-grid">
+        <div class="ed-faq-left ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">VII.</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Advisor questions</span>
+          </div>
+          <h2 id="faq-title">
+            The questions
+            <span class="ed-italic">we hear most.</span>
+          </h2>
+          <p>
+            Something we didn&rsquo;t cover?
+            <a href="mailto:partners@graysontowncar.com">Email the partner team</a>
+            or call (407) 212-7190 — a real human will pick up.
+          </p>
+        </div>
+
+        <div class="ed-faq-list ed-up" style="animation-delay: 80ms;">
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="true" aria-controls="faq-panel-1">
+              <span class="left">
+                <span class="n">01</span>
+                <span class="text">How much do I earn per booking?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel is-open" id="faq-panel-1" role="region">
+              <div class="inner">A flat 10% on every eligible completed reservation. Same rate for every partner, from your first booking. No tiers to climb. No quotas to hit. No minimum volume. We walk through attribution rules, eligibility, and the payout cycle on your onboarding call.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-2">
+              <span class="left">
+                <span class="n">02</span>
+                <span class="text">Do you cover Disney, Universal, and the cruise ports?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-2" role="region">
+              <div class="inner">All of them. Every Disney World resort gate. Every Universal Orlando hotel. SeaWorld. And every Port Canaveral cruise terminal — Disney, Royal Caribbean, Carnival, MSC, Norwegian. We run these routes daily, so cruise-morning timing is built into the pickup. Missing the boarding window isn&rsquo;t a story we tell.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-3">
+              <span class="left">
+                <span class="n">03</span>
+                <span class="text">My client&rsquo;s traveling with kids — what about car seats?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-3" role="region">
+              <div class="inner">Infant, convertible, and booster seats. Free, on every family booking. Tell us each child&rsquo;s age and weight at booking and the right seat is installed and waiting when the family walks out of baggage claim. No fumbling at the curb.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-4">
+              <span class="left">
+                <span class="n">04</span>
+                <span class="text">Can I book the transfer myself, or does my client have to?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-4" role="region">
+              <div class="inner">Either works. Send them to your branded partner link to book themselves. Reserve on their behalf in your partner dashboard. Or email or call your reservations contact. Phone and email inquiries get attributed to your partner profile by hand — we always confirm attribution before dispatching the trip, so commission never gets lost.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-5">
+              <span class="left">
+                <span class="n">05</span>
+                <span class="text">What does my client actually see — how do they get the confirmation?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-5" role="region">
+              <div class="inner">A polished confirmation email lands in their inbox with pickup details, their chauffeur&rsquo;s name and photo, and a live tracking link. You&rsquo;re copied on every confirmation, arrival notification, and post-trip receipt — on brand, so you stay in the loop without chasing anyone for an update.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-6">
+              <span class="left">
+                <span class="n">06</span>
+                <span class="text">What if my client&rsquo;s flight is delayed three hours?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-6" role="region">
+              <div class="inner">We already know. Flight tracking switches on 24 hours before arrival on every booking. If the flight is delayed, early, or rerouted, we adjust the pickup automatically and notify both you and your client. No re-quotes. No surge pricing on the new arrival time. The flat rate stands.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-7">
+              <span class="left">
+                <span class="n">07</span>
+                <span class="text">We&rsquo;re a 30-advisor agency. Can the whole team join?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-7" role="region">
+              <div class="inner">Yes. We support agencies from solo advisors up to 500-advisor teams. Multi-seat accounts include per-advisor attribution, optional rollup payouts to a single agency account, and a dedicated onboarding manager for teams over fifty.</div>
+            </div>
+          </div>
+
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="faq-panel-8">
+              <span class="left">
+                <span class="n">08</span>
+                <span class="text">What does it cost to join?</span>
+              </span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="faq-panel-8" role="region">
+              <div class="inner">Nothing. No application fee. No membership dues. No minimum booking volume to stay active. Once approved, you send or book client transfers — and earn 10% on every completed ride.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- FINAL CTA                                                    -->
+    <!-- ============================================================ -->
+    <section class="ed-final" aria-labelledby="final-title">
+      <div class="ed-final-inner">
+        <div class="ed-eyebrow ed-up" style="margin-bottom: 24px;">The invitation</div>
+
+        <h2 id="final-title" class="ed-up" style="animation-delay: 80ms;">
+          Become the planner who<br>
+          <span class="ed-italic">never gets a bad arrival call.</span>
+        </h2>
+
+        <p class="lede ed-up" style="animation-delay: 140ms;">
+          Apply today. We&rsquo;ll be in touch within one business day with
+          onboarding details, your branded referral link, and a real human
+          to call when something comes up at midnight.
+        </p>
+
+        <div class="cta-row ed-up" style="animation-delay: 200ms;">
+          <a href="#apply" class="ed-btn ed-btn-ink">
+            Become a Partner <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          <a href="tel:+14072127190" class="ed-btn ed-btn-ghost">
+            <i class="bi bi-telephone" aria-hidden="true"></i> (407) 212-7190
+          </a>
+        </div>
+
+        <div class="service-cap ed-up" style="animation-delay: 260ms;">
+          <span>MCO Airport</span>
+          <span class="sep" aria-hidden="true">·</span>
+          <span>Walt Disney World</span>
+          <span class="sep" aria-hidden="true">·</span>
+          <span>Universal Orlando</span>
+          <span class="sep" aria-hidden="true">·</span>
+          <span>Port Canaveral</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ============================================================ -->
+  <!-- FOOTER                                                       -->
+  <!-- ============================================================ -->
+  <footer class="ed-footer" role="contentinfo">
+    <div class="ed-footer-inner">
+      <div class="ed-footer-grid">
+        <div class="ed-footer-brand">
+          <div class="logotype">
+            <a href="/" class="mark" aria-label="Grayson Towncar — back to main site">Grayson Towncar</a>
+            <span class="tag">Travel Advisor<br>Program</span>
+          </div>
+          <p>
+            Private MCO, Disney, Universal, and Port Canaveral transportation —
+            for travelers and the travel advisors who plan their trips.
+            Orlando, Florida. Established 2010.
+          </p>
+          <div class="socials">
+            <a href="https://www.instagram.com/" aria-label="Instagram"><i class="bi bi-instagram" aria-hidden="true"></i></a>
+            <a href="https://www.facebook.com/profile.php?id=61574468855996" aria-label="Facebook"><i class="bi bi-facebook" aria-hidden="true"></i></a>
+            <a href="https://www.linkedin.com/" aria-label="LinkedIn"><i class="bi bi-linkedin" aria-hidden="true"></i></a>
+            <a href="https://www.youtube.com/" aria-label="YouTube"><i class="bi bi-youtube" aria-hidden="true"></i></a>
+          </div>
+        </div>
+
+        <div class="ed-footer-col">
+          <div class="title">Program</div>
+          <ul>
+            <li><a href="#why">Why partner</a></li>
+            <li><a href="#benefits">Benefits</a></li>
+            <li><a href="#how">How it works</a></li>
+            <li><a href="#commission">Commission</a></li>
+            <li><a href="#apply">Apply now</a></li>
+          </ul>
+        </div>
+
+        <div class="ed-footer-col">
+          <div class="title">Service</div>
+          <ul>
+            <li><a href="/">MCO airport transfers</a></li>
+            <li><a href="/">Disney World transfers</a></li>
+            <li><a href="/">Universal Orlando</a></li>
+            <li><a href="/">Port Canaveral cruise</a></li>
+          </ul>
+        </div>
+
+        <div class="ed-footer-col">
+          <div class="title">Contact</div>
+          <ul>
+            <li><a href="tel:+14072127190">(407) 212-7190</a></li>
+            <li><a href="mailto:partners@graysontowncar.com">partners@graysontowncar.com</a></li>
+            <li><a href="#">Orlando, Florida</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ed-footer-bottom">
+        <div>© 2026 Grayson Towncar Service, LLC · Florida Operating Authority</div>
+        <div class="legal">
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Partner agreement</a>
         </div>
       </div>
     </div>
-  </section>
+  </footer>
+
+  <script>
+    (function () {
+      // -- Sticky nav backdrop on scroll
+      var nav = document.getElementById('edNav');
+      if (nav) {
+        var onScroll = function () {
+          if (window.scrollY > 12) nav.classList.add('is-scrolled');
+          else nav.classList.remove('is-scrolled');
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+
+      // -- FAQ accordion (single-open)
+      var items = document.querySelectorAll('.ed-faq-item');
+      items.forEach(function (item) {
+        var btn   = item.querySelector('.ed-faq-q');
+        var panel = item.querySelector('.ed-faq-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', function () {
+          var isOpen = btn.getAttribute('aria-expanded') === 'true';
+          items.forEach(function (other) {
+            if (other === item) return;
+            var ob = other.querySelector('.ed-faq-q');
+            var op = other.querySelector('.ed-faq-panel');
+            if (ob) ob.setAttribute('aria-expanded', 'false');
+            if (op) op.classList.remove('is-open');
+          });
+          btn.setAttribute('aria-expanded', String(!isOpen));
+          if (!isOpen) panel.classList.add('is-open');
+          else panel.classList.remove('is-open');
+        });
+      });
+
+      // -- Smooth in-page anchor scroll, reduced-motion aware
+      var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          var id = a.getAttribute('href');
+          if (!id || id === '#') return;
+          var target = document.querySelector(id);
+          if (!target) return;
+          e.preventDefault();
+          target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+        });
+      });
+
+      // -- IntersectionObserver-driven reveals (re-trigger when scrolled into view)
+      if ('IntersectionObserver' in window && !reduced) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.style.animationPlayState = 'running';
+              io.unobserve(entry.target);
+            }
+          });
+        }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+        document.querySelectorAll('.ed-up').forEach(function (el) { io.observe(el); });
+      }
+    })();
+  </script>
 {% endblock %}

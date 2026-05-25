@@ -43,7 +43,7 @@ class PartnerForm(models.Model):
         ("closed", "Closed"),
     ]
     AGENCY_SIZE_CHOICES = [
-        ("solo", "Just me (solo agent)"),
+        ("solo", "Solo advisor"),
         ("2-5", "2–5 agents"),
         ("6-20", "6–20 agents"),
         ("21-50", "21–50 agents"),
