@@ -12041,6 +12041,65 @@ def find_swap_suggestions(request):
     })
 
 
+class _SwapInfeasible(Exception):
+    """Raised inside execute_swap's transaction to roll back an infeasible swap."""
+
+
+def _revalidate_swap_feasibility(valid_moves, target_date):
+    """Re-run the FULL feasibility check (Guards A capacity + B turnaround + C window)
+    on the board that WOULD result from applying `valid_moves`. Returns (ok, reason).
+
+    Only drivers that GAIN a leg need checking (removing a leg can't make a driver's
+    remaining legs infeasible). Read-only; mutates only in-memory copies."""
+    from reservations.models import Leg as _Leg
+    from dispatching.scheduler import check_feasibility, build_driver_schedules, estimate_job_end_time
+    from dispatching import feasibility_guards as fg
+
+    move_map = {leg_id: to_driver_id for leg_id, to_driver_id in valid_moves}
+    receiving_driver_ids = set(move_map.values())
+
+    legs = list(
+        _Leg.objects.filter(pickup_date=target_date)
+        .exclude(reservation__status="cancelled").exclude(status="cancelled")
+        .select_related("driver", "reservation", "reservation__vehicle", "vehicle", "flight_information")
+    )
+    legs_by_id = {l.id: l for l in legs}
+    for leg_id in move_map:
+        if leg_id not in legs_by_id:
+            return False, f"leg {leg_id} not found on {target_date}"
+
+    # Apply the moves in memory.
+    drv_objs = {d.id: d for d in Driver.objects.filter(id__in=receiving_driver_ids)}
+    for leg_id, to_did in move_map.items():
+        if to_did not in drv_objs:
+            return False, f"driver {to_did} not found"
+        l = legs_by_id[leg_id]
+        l.driver = drv_objs[to_did]
+        l.driver_id = to_did
+    for l in legs:
+        l._estimated_end_dt = estimate_job_end_time(l, target_date)
+
+    def _cfg_window(did):
+        d = drv_objs.get(did)
+        if not d:
+            return None
+        eff = d.get_effective_availability(target_date)
+        mh = eff.get("max_hours")
+        return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+
+    for did in receiving_driver_ids:
+        drv_legs = [l for l in legs if l.driver_id == did]
+        window = fg.get_effective_window(did, configured=_cfg_window(did))
+        for L in drv_legs:
+            others = [l for l in drv_legs if l.id != L.id]
+            sched = build_driver_schedules(others, [drv_objs[did]], target_date).get(did)
+            feas = check_feasibility(sched, L, target_date, driver_window=window)
+            if not feas.feasible:
+                return False, f"leg {L.id} on driver {did} would be infeasible: {feas.reason}"
+    return True, ""
+
+
 @login_required
 def execute_swap(request):
     """Execute an approved swap — update leg driver assignments in a transaction."""
@@ -12084,6 +12143,11 @@ def execute_swap(request):
     try:
         applied = 0
         with transaction.atomic():
+            # Re-validate the FULL resulting board (Guards A+B+C) before persisting.
+            # If any touched leg would be infeasible, roll back and write nothing.
+            ok, reason = _revalidate_swap_feasibility(valid_moves, target_date)
+            if not ok:
+                raise _SwapInfeasible(reason)
             for leg_id, to_driver_id in valid_moves:
                 leg = Leg.objects.select_for_update().get(id=leg_id)
                 driver = Driver.objects.get(id=to_driver_id)
@@ -12092,6 +12156,8 @@ def execute_swap(request):
                 leg.driver_assigned_at = timezone.now()
                 leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                 applied += 1
+    except _SwapInfeasible as e:
+        return JsonResponse({"success": False, "error": f"Swap rejected — would create an infeasible schedule: {e}"}, status=409)
     except Leg.DoesNotExist:
         return JsonResponse({"success": False, "error": f"Leg {leg_id} not found"}, status=404)
     except Driver.DoesNotExist:

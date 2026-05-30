@@ -171,17 +171,20 @@ def _get_conflicting_slots(
     target_date: date,
     inter_job_buffer: int = None,
     arrival_grace: int = None,
+    driver_window: dict = None,
 ) -> List[Tuple[ScheduleSlot, int]]:
     """
     Find slots that, if individually removed, would make candidate_leg feasible.
 
     Returns list of (slot, buffer_minutes) sorted by buffer descending
-    (highest-buffer removals are easiest to relocate).
+    (highest-buffer removals are easiest to relocate). driver_window is the receiving
+    driver's Guard C context (this schedule's driver).
     """
     results = []
     for slot in schedule.slots:
         modified = _build_modified_schedule(schedule, remove_leg_ids={slot.leg_id})
-        result = check_feasibility(modified, candidate_leg, target_date, inter_job_buffer, arrival_grace=arrival_grace)
+        result = check_feasibility(modified, candidate_leg, target_date, inter_job_buffer, arrival_grace=arrival_grace,
+                                   driver_window=driver_window)
         if result.feasible:
             results.append((slot, result.buffer_minutes))
     results.sort(key=lambda x: x[1], reverse=True)
@@ -285,6 +288,24 @@ def find_swaps(
         if sched.driver_type == "inhouse"
     ]
 
+    # Guard C context: every candidate swap must also respect the receiving driver's
+    # window/clear-by (not just turnaround). Built once, keyed by driver. (Guard A /
+    # capacity was removed — booking-time validation enforces party/luggage/car-seat fit.)
+    from dispatching import feasibility_guards as fg
+    from drivers.models import Driver as _Driver
+    _drv_objs = {d.id: d for d in _Driver.objects.filter(id__in=inhouse_driver_ids)}
+
+    def _cfg_window(did):
+        d = _drv_objs.get(did)
+        if not d:
+            return None
+        eff = d.get_effective_availability(target_date)
+        mh = eff.get("max_hours")
+        return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+
+    _windows = {did: fg.get_effective_window(did, configured=_cfg_window(did)) for did in inhouse_driver_ids}
+
     for depth_limit in range(1, max_depth + 1):
         if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
             hit_time = (_time.time() - start) * 1000 >= time_limit_ms
@@ -308,6 +329,7 @@ def find_swaps(
             start=start,
             max_iterations=max_iterations,
             time_limit_ms=time_limit_ms,
+            windows=_windows,
         )
 
         if solutions:
@@ -344,6 +366,7 @@ def find_swaps(
         diagnostic = _build_diagnostic(
             target_leg, target_vtype, inhouse_schedules,
             inhouse_driver_ids, driver_vtypes, all_legs_by_id, target_date, cfg,
+            windows=_windows,
         )
 
     return SwapSearchResult(
@@ -375,10 +398,12 @@ def _search(
     start: float,
     max_iterations: int,
     time_limit_ms: int,
+    windows: dict = None,
 ):
     """Recursive DFS: try to place leg_to_place on any compatible driver."""
     if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
         return
+    windows = windows or {}
 
     leg_vtype = _get_leg_vtype(leg_to_place)
     current_driver_id = getattr(leg_to_place, "driver_id", None)
@@ -415,8 +440,9 @@ def _search(
         if schedule is None:
             continue
 
-        # ── Try direct placement ──────────────────────────────────
-        feasibility = check_feasibility(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+        # ── Try direct placement (Guards B turnaround + C window) ──
+        feasibility = check_feasibility(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                        driver_window=windows.get(driver_id))
 
         if feasibility.feasible:
             pickup_str = leg_to_place.pickup_time.strftime("%I:%M %p").lstrip("0") if hasattr(leg_to_place.pickup_time, "strftime") else str(leg_to_place.pickup_time)
@@ -456,7 +482,8 @@ def _search(
         if depth_remaining <= 0:
             continue
 
-        conflicting = _get_conflicting_slots(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+        conflicting = _get_conflicting_slots(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                             driver_window=windows.get(driver_id))
 
         for slot, buffer_after_removal in conflicting:
             if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
@@ -514,6 +541,7 @@ def _search(
                 start=start,
                 max_iterations=max_iterations,
                 time_limit_ms=time_limit_ms,
+                windows=windows,
             )
 
             if len(solutions) >= 20:
@@ -529,9 +557,11 @@ def _build_diagnostic(
     all_legs_by_id: Dict[int, object],
     target_date: date,
     cfg,
+    windows: dict = None,
 ) -> List[DriverAttempt]:
     """Build a per-driver diagnostic report showing why no swap was found."""
     report = []
+    windows = windows or {}
     current_driver_id = getattr(target_leg, "driver_id", None)
 
     for driver_id in inhouse_driver_ids:
@@ -565,7 +595,8 @@ def _build_diagnostic(
             continue
 
         # Direct placement
-        feas = check_feasibility(schedule, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+        feas = check_feasibility(schedule, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                 driver_window=windows.get(driver_id))
         attempt.direct_feasible = feas.feasible
         attempt.direct_buffer = feas.buffer_minutes
         attempt.direct_fail_reason = feas.reason if not feas.feasible else None
@@ -574,7 +605,8 @@ def _build_diagnostic(
             # Try displacement for each slot
             for slot in schedule.slots:
                 modified = _build_modified_schedule(schedule, remove_leg_ids={slot.leg_id})
-                mod_feas = check_feasibility(modified, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+                mod_feas = check_feasibility(modified, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                             driver_window=windows.get(driver_id))
                 if mod_feas.feasible:
                     # Could place target here if we remove this leg — can we rehome it?
                     displaced_leg = all_legs_by_id.get(slot.leg_id)
@@ -589,7 +621,8 @@ def _build_diagnostic(
                             other_sched = inhouse_schedules.get(other_did)
                             if other_sched is None:
                                 continue
-                            other_feas = check_feasibility(other_sched, displaced_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+                            other_feas = check_feasibility(other_sched, displaced_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                                           driver_window=windows.get(other_did))
                             if other_feas.feasible:
                                 rehomed = True
                                 break

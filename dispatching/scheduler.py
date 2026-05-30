@@ -615,39 +615,50 @@ def check_feasibility(
     driver_schedule: DriverDaySchedule,
     new_leg,
     target_date: date,
-    inter_job_buffer: int = None,
-    arrival_grace: int = None,
+    inter_job_buffer: int = None,   # deprecated: superseded by context turnaround (Guard B)
+    arrival_grace: int = None,      # deprecated: superseded by DEPLANING_GRACE_MIN (Guard B)
+    driver_window: dict = None,     # Guard C: per-driver window {start,end,max_hours,flexible} (None => skip)
+    deplaning_grace: int = None,    # Guard B override (default feasibility_guards.DEPLANING_GRACE_MIN)
+    safety_pad: int = None,         # Guard B override (default feasibility_guards.SAFETY_PAD_MIN)
 ) -> FeasibilityResult:
     """
     Check whether a driver can fit a new leg into their schedule.
 
     Checks:
-    1. No overlaps with existing jobs
-    2. Enough time after preceding job (drive + buffer)
-    3. Enough time before following job (drive + buffer)
+    1. No overlaps with existing jobs.
+    2/3. Context-dependent turnaround (Guard B) to the preceding and following jobs.
+    4. Guard C — per-driver window (start / clear-by end / max-hours span).
+
+    Guard C only runs when the caller supplies `driver_window` (so other callers keep
+    their behavior). Guard B turnaround applies always. (Guard A / physical-capacity was
+    removed — booking-time validation already enforces party/luggage/car-seat fit.)
     """
     from dispatching.analytics import categorize_location
-
-    if inter_job_buffer is None:
-        inter_job_buffer = INTER_JOB_BUFFER
-
-    if not driver_schedule.slots:
-        return FeasibilityResult(feasible=True, buffer_minutes=999, reason="Available - no jobs yet")
+    from dispatching import feasibility_guards as fg
 
     new_pickup_dt = datetime.combine(target_date, new_leg.pickup_time)
     new_end_dt = estimate_job_end_time(new_leg, target_date)
     new_pickup_cat = categorize_location(new_leg.pickup_location)
     new_dropoff_cat = categorize_location(new_leg.dropoff_location)
+    new_is_arrival = fg.is_airport_arrival(new_leg.get_trip_type(), new_pickup_cat)
 
-    # Airport arrivals: passenger deplanes + collects bags, so driver
-    # can arrive a few minutes after the listed pickup_time.
-    is_airport_arrival = (
-        new_leg.get_trip_type() == 'arrival'
-        and new_pickup_cat in ('MCO Terminal', 'SFB Terminal')
-    )
-    if arrival_grace is None:
-        arrival_grace = ARRIVAL_GRACE_MINUTES
-    arrival_grace = arrival_grace if is_airport_arrival else 0
+    # ── Guard C: per-driver window (start / clear-by / max-hours span) ──
+    if driver_window is not None:
+        if driver_schedule.slots:
+            first_pickup_dt = datetime.combine(
+                target_date, min([s.pickup_time for s in driver_schedule.slots] + [new_leg.pickup_time]))
+            last_end = max([s.estimated_end_time for s in driver_schedule.slots] + [new_end_dt])
+            span_after = (last_end - first_pickup_dt).total_seconds() / 3600
+        else:
+            span_after = (new_end_dt - new_pickup_dt).total_seconds() / 3600
+        ok, reason = fg.window_check(driver_window, new_leg.pickup_time, new_end_dt, span_after,
+                                     target_date=target_date)
+        if not ok:
+            return FeasibilityResult(feasible=False, buffer_minutes=-999,
+                                     reason=f"Outside driver window: {reason}")
+
+    if not driver_schedule.slots:
+        return FeasibilityResult(feasible=True, buffer_minutes=999, reason="Available - no jobs yet")
 
     warnings = []
     sorted_slots = sorted(driver_schedule.slots, key=lambda s: s.pickup_time)
@@ -664,25 +675,16 @@ def check_feasibility(
 
     buffer_minutes = 999
 
-    # Check against preceding slot
+    # Check against preceding slot — context-dependent turnaround (Guard B)
     if preceding:
         reposition = get_drive_time(preceding.dropoff_category, new_pickup_cat)
-        # Airport arrivals: pax deplaning + bags covers within-airport
-        # repositioning + inter-job buffer. BUT only when the driver is
-        # already at the terminal (preceding dropoff is same terminal).
-        # If the driver must drive back from a hotel/resort/port, reposition
-        # time is real and must be counted — grace still replaces inter_job_buffer.
-        if is_airport_arrival and preceding.dropoff_category == new_pickup_cat:
-            effective_reposition = 0
-            effective_buffer = 0
-        elif is_airport_arrival:
-            effective_reposition = reposition
-            effective_buffer = 0  # grace period replaces inter-job buffer
-        else:
-            effective_reposition = reposition
-            effective_buffer = inter_job_buffer
-        earliest_available = preceding.estimated_end_time + timedelta(minutes=effective_reposition + effective_buffer)
-        buffer_minutes = int((new_pickup_dt + timedelta(minutes=arrival_grace) - earliest_available).total_seconds() / 60)
+        req = fg.required_turnaround(
+            reposition, new_is_arrival,
+            same_terminal=(preceding.dropoff_category == new_pickup_cat),
+            deplaning_grace=deplaning_grace, safety_pad=safety_pad,
+        )
+        earliest_available = preceding.estimated_end_time + timedelta(minutes=req)
+        buffer_minutes = int((new_pickup_dt - earliest_available).total_seconds() / 60)
 
         if buffer_minutes < 0:
             end_str = preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')
@@ -690,16 +692,22 @@ def check_feasibility(
                 feasible=False,
                 buffer_minutes=buffer_minutes,
                 reason=f"Needs {abs(buffer_minutes)} more min. Previous job ends ~{end_str}, "
-                       f"+{effective_reposition}min drive +{effective_buffer}min buffer.",
+                       f"+{req}min turnaround required.",
             )
         if buffer_minutes < 15:
             warnings.append(f"Tight: {buffer_minutes}min after previous job")
 
-    # Check against following slot
+    # Check against following slot — context-dependent turnaround (Guard B)
     if following:
         following_pickup_dt = datetime.combine(target_date, following.pickup_time)
+        following_is_arrival = fg.is_airport_arrival(following.trip_type, following.pickup_category)
         reposition = get_drive_time(new_dropoff_cat, following.pickup_category)
-        earliest_for_next = new_end_dt + timedelta(minutes=reposition + inter_job_buffer)
+        req = fg.required_turnaround(
+            reposition, following_is_arrival,
+            same_terminal=(new_dropoff_cat == following.pickup_category),
+            deplaning_grace=deplaning_grace, safety_pad=safety_pad,
+        )
+        earliest_for_next = new_end_dt + timedelta(minutes=req)
         following_buffer = int((following_pickup_dt - earliest_for_next).total_seconds() / 60)
 
         if following_buffer < 0:
@@ -1022,6 +1030,20 @@ def suggest_assignments(
     from dispatching.models import SchedulerSettings
     cfg = SchedulerSettings.get_settings()
 
+    from dispatching import feasibility_guards as fg
+
+    # Guard C — pass the REAL configured window as a fallback so flipping
+    # USE_STUB_WINDOWS=False switches to live windows instead of silently disabling the guard.
+    def _configured_window(did):
+        if driver_hours and did in driver_hours:
+            s, e = driver_hours[did]
+            return {"start": s, "end": e,
+                    "max_hours": (driver_max_hours or {}).get(did),
+                    "flexible": bool(flexible_drivers and did in flexible_drivers)}
+        return None
+    _driver_windows = {did: fg.get_effective_window(did, configured=_configured_window(did))
+                       for did in inhouse_schedules}
+
     suggestions = []
 
     # Sort legs strategically: returns/cruise BEFORE arrivals within each hour.
@@ -1225,7 +1247,8 @@ def suggest_assignments(
                 if leg_vtype not in compatible:
                     continue
 
-            feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+            feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                     driver_window=_driver_windows.get(did))
             if not feas.feasible:
                 continue
 
@@ -1613,6 +1636,14 @@ def build_smart_schedule(
     from dispatching.models import SchedulerSettings
     cfg = SchedulerSettings.get_settings()
 
+    from dispatching import feasibility_guards as fg
+    # Guard C — real configured window (from this builder's start/end params) as the
+    # fallback so USE_STUB_WINDOWS=False switches to live windows, not "no guard".
+    _dwindow = fg.get_effective_window(
+        driver_id,
+        configured={"start": start_hour, "end": end_hour, "max_hours": None, "flexible": False},
+    )
+
     pinned_leg_ids = pinned_leg_ids or []
     excluded_leg_ids = excluded_leg_ids or []
     warnings = []
@@ -1684,7 +1715,8 @@ def build_smart_schedule(
     # Step 1: Insert pinned legs first (they're mandatory)
     pinned_sorted = sorted(pinned_legs, key=lambda l: l.pickup_time)
     for leg in pinned_sorted:
-        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                 driver_window=_dwindow)
         if feas.feasible:
             _add_leg_to_schedule(working, leg, target_date)
             pinned_included.append(leg.id)
@@ -1802,7 +1834,8 @@ def build_smart_schedule(
         if est_end.hour > end_hour + 1:  # allow 1 hour grace for last job
             continue
 
-        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
+        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
+                                 driver_window=_dwindow)
         if not feas.feasible:
             continue
 
