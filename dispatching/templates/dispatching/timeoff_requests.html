@@ -157,6 +157,69 @@
   }
   .to-conflict-pill .bi { font-size: 0.68rem; }
 
+  /* ── duplicate-submission pill ── */
+  .to-dupe-pill {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px;
+    background: #f1f5f9; color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+  .to-dupe-note {
+    margin-top: 6px;
+    font-size: 0.72rem; color: var(--to-ink-3); font-style: italic;
+  }
+
+  /* ── coverage-impact preview ── */
+  .to-impact {
+    margin-top: 10px; padding: 9px 12px; border-radius: 7px;
+    border-left: 3px solid;
+    font-size: 0.78rem; line-height: 1.4;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .to-impact .to-impact-icon {
+    flex: 0 0 auto; font-size: 0.95rem; margin-top: 1px;
+  }
+  .to-impact .to-impact-body { flex: 1; min-width: 0; }
+  .to-impact .to-impact-title {
+    font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 2px;
+  }
+  .to-impact .to-impact-rec {
+    margin-top: 3px; font-size: 0.74rem; color: var(--to-ink-2);
+  }
+  .to-impact.is-critical {
+    background: #fef2f2; border-left-color: #ef4444; color: #991b1b;
+  }
+  .to-impact.is-critical .to-impact-title { color: #b91c1c; }
+  .to-impact.is-understaffed {
+    background: #fff7ed; border-left-color: #f59e0b; color: #92400e;
+  }
+  .to-impact.is-understaffed .to-impact-title { color: #b45309; }
+  .to-impact.is-tight {
+    background: #fffbeb; border-left-color: #fbbf24; color: #92400e;
+  }
+  .to-impact.is-tight .to-impact-title { color: #b45309; }
+  .to-impact.is-no_issue {
+    background: #ecfdf5; border-left-color: #10b981; color: #065f46;
+  }
+  .to-impact.is-no_issue .to-impact-title { color: #047857; }
+
+  /* ── card severity overrides for impactful pendings ── */
+  .to-card.to-pending.impact-critical { border-color: #fecaca; }
+  .to-card.to-pending.impact-critical::before {
+    background: linear-gradient(180deg, #ef4444, #b91c1c);
+  }
+  .to-card.to-pending.impact-understaffed::before {
+    background: linear-gradient(180deg, #f59e0b, #d97706);
+  }
+
+  /* ── stat strip extra tones ── */
+  .to-stat.to-stat-crit .to-stat-num { color: #fca5a5; }
+  .to-stat.to-stat-tight .to-stat-num { color: #fbbf24; }
+  .to-stat.to-stat-dupe .to-stat-num { color: #cbd5e1; }
+
   .to-meta-row {
     display: flex; flex-wrap: wrap; align-items: center;
     gap: 0.55rem; margin-top: 0.55rem;
@@ -329,6 +392,24 @@
         <span class="to-stat-num">{{ pending|length }}</span>
         <span class="to-stat-label">Pending review</span>
       </div>
+      {% if critical_count %}
+      <div class="to-stat to-stat-crit">
+        <span class="to-stat-num">{{ critical_count }}</span>
+        <span class="to-stat-label">Would hurt coverage</span>
+      </div>
+      {% endif %}
+      {% if tight_count %}
+      <div class="to-stat to-stat-tight">
+        <span class="to-stat-num">{{ tight_count }}</span>
+        <span class="to-stat-label">Makes a day tight</span>
+      </div>
+      {% endif %}
+      {% if dupe_count %}
+      <div class="to-stat to-stat-dupe">
+        <span class="to-stat-num">{{ dupe_count }}</span>
+        <span class="to-stat-label">Duplicate submissions</span>
+      </div>
+      {% endif %}
       {% if recent %}
       <div class="to-stat">
         <span class="to-stat-num">{{ recent|length }}</span>
@@ -354,7 +435,7 @@
 
   {% if pending %}
     {% for o in pending %}
-      <div class="to-card to-pending" id="to-{{ o.id }}">
+      <div class="to-card to-pending impact-{{ o.impact.impact_level }}" id="to-{{ o.id }}">
         <div>
           <div class="to-driver">
             {{ o.driver }}
@@ -362,6 +443,11 @@
               <a href="tel:{{ o.driver.phone_number }}" class="to-driver-phone" title="Call driver">
                 <i class="bi bi-telephone-fill"></i>{{ o.driver.phone_number }}
               </a>
+            {% endif %}
+            {% if o.duplicate_count %}
+              <span class="to-dupe-pill" title="{{ o.duplicate_count|add:1 }} identical submissions detected — approving or denying acts on all of them">
+                <i class="bi bi-files"></i> {{ o.duplicate_count|add:1 }}&times; duplicate
+              </span>
             {% endif %}
           </div>
           <div class="to-when">
@@ -384,6 +470,49 @@
             <span class="to-submitted">submitted {{ o.created_at|date:"M j, g:i A" }}</span>
           </div>
           {% if o.notes %}<div class="to-note">{{ o.notes }}</div>{% endif %}
+          {% if o.duplicate_count %}
+            <div class="to-dupe-note">
+              {{ o.duplicate_count }} additional identical submission{{ o.duplicate_count|pluralize }} will be rolled up into this decision.
+            </div>
+          {% endif %}
+
+          {# ── Coverage impact preview from the risk engine ── #}
+          {% if o.impact.impact_level == 'critical' %}
+            <div class="to-impact is-critical">
+              <i class="bi bi-exclamation-octagon-fill to-impact-icon"></i>
+              <div class="to-impact-body">
+                <div class="to-impact-title">⚠ Do not approve as-is</div>
+                <div>{{ o.impact.note }}</div>
+                <div class="to-impact-rec">{{ o.impact.recommended_action }}</div>
+              </div>
+            </div>
+          {% elif o.impact.impact_level == 'understaffed' %}
+            <div class="to-impact is-understaffed">
+              <i class="bi bi-exclamation-triangle-fill to-impact-icon"></i>
+              <div class="to-impact-body">
+                <div class="to-impact-title">Creates understaffing</div>
+                <div>{{ o.impact.note }}</div>
+                <div class="to-impact-rec">{{ o.impact.recommended_action }}</div>
+              </div>
+            </div>
+          {% elif o.impact.impact_level == 'tight' %}
+            <div class="to-impact is-tight">
+              <i class="bi bi-info-circle-fill to-impact-icon"></i>
+              <div class="to-impact-body">
+                <div class="to-impact-title">Approvable but leaves no buffer</div>
+                <div>{{ o.impact.note }}</div>
+                <div class="to-impact-rec">{{ o.impact.recommended_action }}</div>
+              </div>
+            </div>
+          {% elif o.impact.impact_level == 'no_issue' %}
+            <div class="to-impact is-no_issue">
+              <i class="bi bi-check-circle-fill to-impact-icon"></i>
+              <div class="to-impact-body">
+                <div class="to-impact-title">Safe to approve</div>
+                <div>{{ o.impact.note|default:"No coverage issue on the affected day." }}</div>
+              </div>
+            </div>
+          {% endif %}
         </div>
 
         <div class="to-actions">

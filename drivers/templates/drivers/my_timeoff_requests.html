@@ -18,10 +18,25 @@
         </a>
       </div>
 
-      <p style="color:var(--gt-text-secondary); font-size:0.875rem; line-height:1.5; margin:0 0 14px;">
+      <p style="color:var(--gt-text-secondary); font-size:0.875rem; line-height:1.5; margin:0 0 10px;">
         Everything you've sent in — pending, confirmed, or in the past. Need a new day or some
         hours off? Hit <strong>New request</strong> and it goes straight to dispatch.
       </p>
+
+      {% if pending_count or approved_upcoming %}
+        <div class="d-flex gap-2 flex-wrap mb-3">
+          {% if pending_count %}
+            <span class="gt-card" style="padding:6px 12px;font-size:0.8125rem;font-weight:600;border-left:3px solid #f59e0b;background:#fffbeb;color:#92400e;">
+              <i class="bi bi-hourglass-split me-1"></i>{{ pending_count }} pending dispatch review
+            </span>
+          {% endif %}
+          {% if approved_upcoming %}
+            <span class="gt-card" style="padding:6px 12px;font-size:0.8125rem;font-weight:600;border-left:3px solid var(--gt-green);background:#ecfdf5;color:#065f46;">
+              <i class="bi bi-check-circle-fill me-1"></i>{{ approved_upcoming }} upcoming approved
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
 
       {% if messages %}
         {% for m in messages %}

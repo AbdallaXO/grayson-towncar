@@ -36,6 +36,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     show_full_result_count = False  # Prevents Jazzmin from running a second COUNT(*) over the full annotated queryset
     list_display = [
         "driver_name",
+        "active_status",
         "email",
         "phone_number",
         "driver_type_display",
@@ -47,6 +48,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "profit_performance",
     ]
     list_filter = [
+        "is_active",
         "profile__is_active",
         "payment_method",
         "driver_type",
@@ -68,6 +70,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             {
                 "fields": (
                     "profile",
+                    "is_active",
                     "driver_type",
                     "phone_number",
                     "vehicle",
@@ -75,7 +78,10 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "notes",
                     "payment_method",
                     "night_bonus",
-                )
+                ),
+                "description": "Uncheck \"Is active\" to hide a driver from the dispatcher directory "
+                               "(e.g. when they leave the company or go on extended leave). "
+                               "Historical legs and payments stay intact.",
             },
         ),
         (
@@ -201,6 +207,14 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         )
 
     driver_name.short_description = "Name"
+
+    def active_status(self, obj):
+        if obj.is_active:
+            return format_html('<span style="color: #198754; font-weight: bold;">Active</span>')
+        return format_html('<span style="color: #6c757d; font-weight: bold;">Inactive</span>')
+
+    active_status.short_description = "Active"
+    active_status.admin_order_field = "is_active"
 
     def email(self, obj):
         return obj.profile.email

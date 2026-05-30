@@ -16,6 +16,7 @@
         <i class="bi bi-{{ icon }} me-1" style="color:{{ color }};"></i>
         <strong style="color:{{ color }};">{{ label }}</strong>
         {% if o.reason %} &middot; {{ o.get_reason_display }}{% endif %}
+        {% if o.status == 'pending' and o.created_at %} &middot; sent {{ o.created_at|timesince }} ago{% endif %}
         {% if o.decided_at %} &middot; reviewed {{ o.decided_at|date:"M j" }}{% endif %}
       </div>
       {% if o.notes %}

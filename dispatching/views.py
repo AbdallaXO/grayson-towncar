@@ -10473,6 +10473,19 @@ def manage_driver_date_overrides(request):
                     driver = Driver.objects.get(id=driver_id, driver_type="inhouse")
                 except Driver.DoesNotExist:
                     return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+                # Squash accidental double-submits: if an equivalent override
+                # already exists (pending or approved), return it instead of
+                # creating another one.
+                existing = DriverDateOverride.find_duplicate(
+                    driver=driver, date=start_date, end_date=end_date,
+                    exception_type=exception_type,
+                    start_time=start_time, end_time=end_time,
+                )
+                if existing:
+                    return JsonResponse({
+                        "success": True, "created": False, "duplicate": True,
+                        "override": _serialize(existing),
+                    })
                 obj = DriverDateOverride(driver=driver, created_by=request.user)
 
             obj.date = start_date
@@ -10719,8 +10732,8 @@ def inhouse_schedule(request):
                 "driver_id":     driver.id,
                 "date":          o.date.strftime("%Y-%m-%d"),
                 "end_date":      o.end_date.strftime("%Y-%m-%d") if o.end_date else "",
-                "date_short":    o.date.strftime("%b %-d"),
-                "end_date_short": o.end_date.strftime("%b %-d") if o.end_date else "",
+                "date_short":    f"{o.date.strftime('%b')} {o.date.day}",
+                "end_date_short": f"{o.end_date.strftime('%b')} {o.end_date.day}" if o.end_date else "",
                 "date_display":  o.date_range_display,
                 "exception_type": o.exception_type,
                 "exception_type_label": EXC_TYPE_LABELS.get(o.exception_type, o.exception_type),
@@ -10732,6 +10745,8 @@ def inhouse_schedule(request):
                 "reason":        o.reason,
                 "reason_label":  REASON_LABELS.get(o.reason, o.reason),
                 "notes":         o.notes,
+                "status":        o.status,
+                "is_pending":    o.status == "pending",
                 "_start":        o.date,
                 "_end":          o.end_date or o.date,
             }
@@ -10857,7 +10872,7 @@ def inhouse_schedule(request):
             "day_idx":  i,
             "day_name": DAY_NAMES[i],
             "date":     week_dates[i],
-            "date_short": week_dates[i].strftime("%b %-d"),
+            "date_short": f"{week_dates[i].strftime('%b')} {week_dates[i].day}",
             "is_weekend": i >= 5,
             "is_today": week_dates[i] == today,
             "working":  working,
@@ -10868,6 +10883,72 @@ def inhouse_schedule(request):
             "segments": segments,
             "chips":    chips,
         })
+
+    # ── risk engine: per-day risk, action items, gaps, exception impact ──
+    from dispatching.schedule_risk import (
+        compute_week_risk, attach_exception_impacts,
+        build_action_items, build_coverage_gaps,
+        COVERAGE_TARGET_DEFAULT,
+    )
+
+    # Build (driver_id, date) → list-of-override-dicts lookup for the engine.
+    # The existing view strips ``_start``/``_end`` from each exception
+    # dict before this runs, so fall back to the iso strings.
+    overrides_by_driver_date: dict = {}
+    for r in driver_rows:
+        for ex in r["exceptions"]:
+            start = ex.get("_start")
+            end = ex.get("_end") or start
+            if start is None:
+                try:
+                    start = _date_type.fromisoformat(ex.get("date", ""))
+                    end = (_date_type.fromisoformat(ex["end_date"])
+                           if ex.get("end_date") else start)
+                except ValueError:
+                    continue
+            for i, d in enumerate(week_dates):
+                if start <= d <= end:
+                    overrides_by_driver_date.setdefault((r["id"], d), []).append(ex)
+
+    week_risk = compute_week_risk(
+        driver_rows,
+        overrides_by_driver_date,
+        week_dates,
+        target=COVERAGE_TARGET,
+    )
+    day_risks = week_risk["days"]
+
+    # Merge engine output back into the legacy ``coverage`` cells so the
+    # template can render the new badges alongside the existing stacked-bar
+    # layout without a parallel data path.
+    for cov_cell, dr in zip(coverage, day_risks):
+        cov_cell["risk_level"]              = dr["risk_level"]
+        cov_cell["risk_after_pending"]      = dr["risk_after_pending"]
+        cov_cell["survives_one_callout"]    = dr["survives_one_callout"]
+        cov_cell["survivability_label"]     = dr["survivability_label"]
+        cov_cell["off_count"]               = dr["off_count"]
+        cov_cell["pending_off_count"]       = dr["pending_off_count"]
+        cov_cell["flexible_count"]          = dr["flexible_count"]
+        cov_cell["scheduled_after_pending"] = dr["scheduled_after_pending"]
+        cov_cell["delta_after_pending"]     = dr["delta_after_pending"]
+        cov_cell["shift_gaps"]              = dr["shift_gaps"]
+        cov_cell["gaps"]                    = dr["gaps"]
+        cov_cell["recommended_actions"]     = dr["recommended_actions"]
+
+    # Per-exception impact (mutates each ribbon entry's ex["impact"]).
+    exception_impacts = attach_exception_impacts(
+        week_risk, all_exceptions, week_dates, target=COVERAGE_TARGET,
+    )
+    # Decorate impact records with driver display info (used by the action-
+    # items list above the page).
+    drivers_by_id_for_impact = {r["id"]: r for r in driver_rows}
+    for imp in exception_impacts:
+        r = drivers_by_id_for_impact.get(imp["driver_id"])
+        if r:
+            imp["driver_name"] = r["name"]
+
+    action_items = build_action_items(day_risks, exception_impacts)
+    coverage_gaps = build_coverage_gaps(day_risks)
 
     # ── ribbon counts (across all drivers' upcoming exceptions) ──
     def _bucket_for(ex_list, bucket):
@@ -10928,11 +11009,45 @@ def inhouse_schedule(request):
             "versions":      r["versions"],
         })
 
+    # Serializable day-risk payload for the Day Detail drawer (mirrors
+    # ``coverage`` but trimmed to what the JS drawer needs).
+    day_risks_payload = []
+    for dr in day_risks:
+        day_risks_payload.append({
+            "day_idx":              dr["day_idx"],
+            "day_name":             dr["day_name"],
+            "day_name_full":        dr["day_name_full"],
+            "date":                 dr["date"].isoformat(),
+            "date_short":           dr["date_short"],
+            "target":               dr["target"],
+            "scheduled_count":      dr["scheduled_count"],
+            "scheduled_after_pending": dr["scheduled_after_pending"],
+            "off_count":            dr["off_count"],
+            "pending_off_count":    dr["pending_off_count"],
+            "flexible_count":       dr["flexible_count"],
+            "shift_coverage":       dr["shift_coverage"],
+            "delta":                dr["delta"],
+            "delta_label":          dr["delta_label"],
+            "delta_after_pending":  dr["delta_after_pending"],
+            "risk_level":           dr["risk_level"],
+            "risk_after_pending":   dr["risk_after_pending"],
+            "survives_one_callout": dr["survives_one_callout"],
+            "survivability_label":  dr["survivability_label"],
+            "shift_gaps":           dr["shift_gaps"],
+            "gaps":                 dr["gaps"],
+            "recommended_actions":  dr["recommended_actions"],
+        })
+
     context = {
         "driver_rows":         driver_rows,
         "drivers_payload_json": _json.dumps(drivers_payload),
         "coverage":            coverage,
         "coverage_target":     COVERAGE_TARGET,
+        "day_risks":           day_risks,
+        "day_risks_json":      _json.dumps(day_risks_payload),
+        "action_items":        action_items,
+        "coverage_gaps":       coverage_gaps,
+        "exception_impacts":   exception_impacts,
         "ribbon":              ribbon,
         "ribbon_json":         _json.dumps(ribbon),
         "bucket_counts":       bucket_counts,
@@ -14759,21 +14874,54 @@ def accrual_revenue_txt(request):
 
 @login_required(login_url="login")
 def dispatcher_timeoff_requests(request):
-    """Founder queue: pending requests up top, then recently-decided ones."""
-    from drivers.models import DriverDateOverride
+    """Founder queue.
+
+    Pending requests are grouped by (driver, date range, exception type)
+    so accidental double-submissions show as one card with a "n duplicates"
+    pill instead of a wall of identical rows. Each pending card is enriched
+    with a coverage-impact preview from the schedule_risk engine so the
+    dispatcher can see "if approved, Fri drops +2 → 0 (Tight)" before
+    clicking Approve.
+    """
+    from drivers.models import DriverDateOverride, Driver
     from reservations.models import Leg
+    from datetime import date as _date_type, timedelta
+    from dispatching.schedule_risk import (
+        compute_week_risk, compute_exception_impact,
+        COVERAGE_TARGET_DEFAULT,
+    )
 
     if not request.user.is_staff:
         return redirect("home")
 
-    pending = list(
+    pending_qs = (
         DriverDateOverride.objects
         .filter(status="pending")
         .select_related("driver", "driver__profile", "created_by")
         .order_by("date", "id")
     )
-    # Conflict count per pending request: trips already assigned to that
-    # driver in the requested window. Soft signal — founder still decides.
+
+    # ── Group accidental dupes ────────────────────────────────────────
+    # Key by (driver_id, date, end_date, exception_type, start_time, end_time).
+    # Anything matching that key is treated as the same request. We surface
+    # the OLDEST row (lowest id) as the canonical one and stash the rest in
+    # `duplicates` for the approve/deny cascade.
+    groups: dict = {}
+    for o in pending_qs:
+        key = (o.driver_id, o.date, o.end_date, o.exception_type,
+               o.start_time, o.end_time)
+        groups.setdefault(key, []).append(o)
+
+    pending = []
+    for key, rows in groups.items():
+        canonical = rows[0]
+        dupes = rows[1:]
+        canonical.duplicate_ids = [r.id for r in dupes]
+        canonical.duplicate_count = len(dupes)
+        pending.append(canonical)
+
+    # Conflict count per request: trips already assigned to that driver
+    # in the requested window. Soft signal — founder still decides.
     for o in pending:
         start = o.date
         end = o.end_date or o.date
@@ -14784,6 +14932,96 @@ def dispatcher_timeoff_requests(request):
             .count()
         )
 
+    # ── Coverage-impact preview per pending request ────────────────────
+    # We compute risk for the week containing each pending's start date.
+    # Caching by week-start avoids recomputing the whole roster when many
+    # requests fall in the same week.
+    today = timezone.localdate()
+    inhouse_drivers = list(
+        Driver.objects.filter(driver_type="inhouse", is_active=True)
+        .select_related("profile")
+        .prefetch_related("weekly_schedule", "date_overrides")
+    )
+
+    DESIGN_BUCKET = {
+        "morning":  "morning", "midday":   "midday", "evening":  "evening",
+        "night":    "night",   "split":    "split",  "full_day": "flex",
+        "custom":   "set",
+    }
+
+    def _resolve_driver_rows(week_dates):
+        """Build the minimal driver_rows shape the risk engine needs."""
+        rows = []
+        for d in inhouse_drivers:
+            weekly_map = {e.day_of_week: e for e in d.weekly_schedule.all()}
+            days = []
+            for day_idx in range(7):
+                entry = weekly_map.get(day_idx)
+                avail = entry.is_available if entry else True
+                stype = entry.shift_type if entry else (d.default_shift_type or "full_day")
+                flex = entry.flexible if entry else d.default_flexible
+                days.append({
+                    "is_off": not avail,
+                    "design_bucket": "off" if not avail else DESIGN_BUCKET.get(stype, "flex"),
+                    "flexible": bool(flex),
+                })
+            rows.append({"id": d.id, "name": str(d), "days": days})
+        return rows
+
+    def _overrides_for_week(week_dates):
+        """(driver_id, date) → list of override dicts for the engine."""
+        lookup: dict = {}
+        for d in inhouse_drivers:
+            for o in d.date_overrides.all():
+                if o.status not in ("approved", "pending"):
+                    continue
+                start = o.date
+                end = o.end_date or o.date
+                for d_in_week in week_dates:
+                    if start <= d_in_week <= end:
+                        lookup.setdefault((d.id, d_in_week), []).append({
+                            "id": o.id,
+                            "status": o.status,
+                            "exception_type": o.exception_type,
+                        })
+        return lookup
+
+    week_cache: dict = {}
+
+    def _risk_for_date(dt):
+        monday = dt - timedelta(days=dt.weekday())
+        if monday in week_cache:
+            return week_cache[monday]
+        week_dates = [monday + timedelta(days=i) for i in range(7)]
+        rows = _resolve_driver_rows(week_dates)
+        overrides = _overrides_for_week(week_dates)
+        wr = compute_week_risk(rows, overrides, week_dates,
+                               target=COVERAGE_TARGET_DEFAULT)
+        week_cache[monday] = (wr, week_dates)
+        return week_cache[monday]
+
+    IMPACT_RANK = {"critical": 0, "understaffed": 1, "tight": 2, "no_issue": 3}
+
+    for o in pending:
+        wr, week_dates = _risk_for_date(o.date)
+        impact = compute_exception_impact(
+            {
+                "id": o.id, "driver_id": o.driver_id,
+                "date": o.date.isoformat(),
+                "end_date": o.end_date.isoformat() if o.end_date else "",
+                "exception_type": o.exception_type,
+                "status": "pending",
+            },
+            wr["days"], week_dates, wr["driver_states_by_date"],
+            target=COVERAGE_TARGET_DEFAULT,
+        )
+        o.impact = impact
+        o.impact_rank = IMPACT_RANK.get(impact.get("impact_level"), 9)
+
+    # Sort: most impactful (critical → understaffed → tight → no_issue) first,
+    # then by date within the same impact tier.
+    pending.sort(key=lambda o: (o.impact_rank, o.date, o.id))
+
     recent = list(
         DriverDateOverride.objects
         .filter(status__in=["approved", "denied"], submitted_by_driver=True)
@@ -14791,10 +15029,23 @@ def dispatcher_timeoff_requests(request):
         .order_by("-decided_at")[:20]
     )
 
+    # Headline counts for the stat strip.
+    critical_count = sum(1 for o in pending
+                         if o.impact.get("impact_level") in ("critical", "understaffed"))
+    tight_count = sum(1 for o in pending
+                      if o.impact.get("impact_level") == "tight")
+    dupe_count = sum(o.duplicate_count for o in pending)
+
     return render(
         request,
         "dispatching/timeoff_requests.html",
-        {"pending": pending, "recent": recent},
+        {
+            "pending": pending,
+            "recent": recent,
+            "critical_count": critical_count,
+            "tight_count": tight_count,
+            "dupe_count": dupe_count,
+        },
     )
 
 
@@ -14814,10 +15065,19 @@ def approve_timeoff_request(request, override_id):
         messages.error(request, "Only pending requests can be approved.")
         return redirect("dispatcher_timeoff_requests")
 
+    # Cascade approval across any pending duplicates so dispatchers don't
+    # have to click Approve three times on the same accidental triple-submit.
+    dupes = list(override.duplicate_group().filter(status="pending").exclude(id=override.id))
+
     override.status = "approved"
     override.decided_by = request.user
     override.decided_at = _tz.now()
     override.save(update_fields=["status", "decided_by", "decided_at", "updated_at"])
+    for d in dupes:
+        d.status = "approved"
+        d.decided_by = request.user
+        d.decided_at = _tz.now()
+        d.save(update_fields=["status", "decided_by", "decided_at", "updated_at"])
 
     try:
         notify_driver_of_decision(override)
@@ -14826,7 +15086,14 @@ def approve_timeoff_request(request, override_id):
         logging.getLogger(__name__).exception("Driver notify failed for override %s", override.id)
 
     invalidate_pending_timeoff_count()
-    messages.success(request, f"Approved time off for {override.driver}.")
+    if dupes:
+        messages.success(
+            request,
+            f"Approved time off for {override.driver} "
+            f"(rolled up {len(dupes) + 1} duplicate submissions).",
+        )
+    else:
+        messages.success(request, f"Approved time off for {override.driver}.")
     return redirect("dispatcher_timeoff_requests")
 
 
@@ -14847,11 +15114,21 @@ def deny_timeoff_request(request, override_id):
         return redirect("dispatcher_timeoff_requests")
 
     reason = (request.POST.get("denial_reason") or "").strip()[:200]
+
+    # Cascade denial across any pending duplicates.
+    dupes = list(override.duplicate_group().filter(status="pending").exclude(id=override.id))
+
     override.status = "denied"
     override.denial_reason = reason
     override.decided_by = request.user
     override.decided_at = _tz.now()
     override.save(update_fields=["status", "denial_reason", "decided_by", "decided_at", "updated_at"])
+    for d in dupes:
+        d.status = "denied"
+        d.denial_reason = reason
+        d.decided_by = request.user
+        d.decided_at = _tz.now()
+        d.save(update_fields=["status", "denial_reason", "decided_by", "decided_at", "updated_at"])
 
     try:
         notify_driver_of_decision(override)

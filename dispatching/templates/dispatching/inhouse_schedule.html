@@ -1,5 +1,6 @@
 {% extends 'main.html' %}
 {% load static %}
+{% load flight_filters %}
 
 {% block title %}In-House Driver Schedules{% endblock %}
 
@@ -610,6 +611,253 @@
     .sm-cov-grid { grid-template-columns: repeat(2, 1fr); }
     .sm-grid-head, .sm-grid-row { min-width: 920px; }
   }
+
+  /* ── risk palette (shared by banner, coverage, gaps, day drawer) ── */
+  .sm-risk-covered      { --rfg:#1F6B45; --rsoft:rgba(47,142,90,0.10);  --rline:rgba(47,142,90,0.45);  --rdot:#2F8E5A; }
+  .sm-risk-tight        { --rfg:#8C6F12; --rsoft:rgba(181,123,31,0.12); --rline:rgba(181,123,31,0.50); --rdot:#B57B1F; }
+  .sm-risk-understaffed { --rfg:#A8341F; --rsoft:rgba(181,65,63,0.12);  --rline:rgba(181,65,63,0.50);  --rdot:#B5413F; }
+  .sm-risk-critical     { --rfg:#fff;    --rsoft:#B5413F;                --rline:#8C2A28;              --rdot:#fff;    }
+  .sm-risk-no_data      { --rfg:#8B8470; --rsoft:rgba(13,17,23,0.04);   --rline:var(--hairline2);     --rdot:#8B8470; }
+
+  /* ── Action Needed banner ──────────────────────────────────────── */
+  .sm-action {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 12px; overflow: hidden;
+  }
+  .sm-action.has-crit { border-color: var(--crit); box-shadow: 0 0 0 1px rgba(181,65,63,0.18); }
+  .sm-action-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--hairline);
+  }
+  .sm-action-eyebrow { color: var(--crit); }
+  .sm-action.is-empty .sm-action-eyebrow { color: var(--good); }
+  .sm-action-meta { font-size: 11px; color: var(--text3); font-weight: 500; }
+  .sm-action-list { display: flex; flex-direction: column; }
+  .sm-action-row {
+    display: flex; align-items: flex-start; gap: 14px; padding: 12px 18px;
+    border-top: 1px solid var(--hairline); cursor: pointer;
+    transition: background .12s;
+    background: transparent; border-left: 0; border-right: 0; border-bottom: 0;
+    width: 100%; text-align: left; font: inherit; color: inherit;
+    appearance: none;
+  }
+  .sm-action-row:first-child { border-top: 0; }
+  .sm-action-row:hover { background: var(--surface3); }
+  .sm-action-row:focus-visible { outline: 2px solid var(--gold-line); outline-offset: -2px; }
+  .sm-action-sev {
+    flex: 0 0 auto; width: 4px; align-self: stretch; border-radius: 3px;
+    min-height: 28px;
+  }
+  .sm-action-row.sev-crit .sm-action-sev { background: var(--crit); }
+  .sm-action-row.sev-warn .sm-action-sev { background: var(--warn); }
+  .sm-action-row.sev-info .sm-action-sev { background: var(--info); }
+  .sm-action-body { flex: 1; min-width: 0; }
+  .sm-action-title { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.25; }
+  .sm-action-detail { font-size: 11.5px; color: var(--text2); margin-top: 2px; line-height: 1.35; }
+  .sm-action-empty {
+    padding: 14px 16px; font-size: 12.5px; color: var(--text3); font-style: italic;
+    text-align: center;
+  }
+
+  /* ── coverage cell risk overlay (sits on top of existing markup) ─ */
+  .sm-cov-cell {
+    cursor: pointer;
+    transition: background .12s, box-shadow .12s;
+  }
+  .sm-cov-cell:hover { background: var(--surface3); }
+  .sm-cov-risk-bar {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    border-radius: 3px 0 0 3px;
+  }
+  .sm-cov-cell.is-risk-tight        .sm-cov-risk-bar { background: var(--warn); }
+  .sm-cov-cell.is-risk-understaffed .sm-cov-risk-bar { background: var(--crit); }
+  .sm-cov-cell.is-risk-critical     .sm-cov-risk-bar { background: var(--crit); box-shadow: 0 0 0 2px rgba(181,65,63,0.30); }
+  .sm-cov-cell.is-risk-covered      .sm-cov-risk-bar { background: var(--good); }
+  .sm-cov-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 2px 6px; border-radius: 4px;
+    background: var(--rsoft); color: var(--rfg);
+    border: 1px solid var(--rline);
+  }
+  .sm-cov-badge .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--rdot);
+  }
+  .sm-cov-survive {
+    font-size: 10px; color: var(--text3); margin-top: 4px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .sm-cov-survive.is-bad { color: var(--crit); font-weight: 600; }
+  .sm-cov-pending {
+    margin-top: 4px; font-size: 10px; color: var(--warn); font-weight: 600;
+  }
+  .sm-cov-off-line {
+    font-size: 10.5px; color: var(--text3); margin-top: 2px;
+  }
+  .sm-cov-off-line b { color: var(--text2); font-weight: 700; }
+
+  /* ── Coverage Gaps panel ───────────────────────────────────────── */
+  .sm-gaps {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 10px; overflow: hidden;
+  }
+  .sm-gaps-head {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .sm-gaps-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1px; background: var(--hairline);
+  }
+  .sm-gaps-cell {
+    background: var(--surface); padding: 12px 16px; cursor: pointer;
+    transition: background .12s;
+    border: 0; text-align: left; font: inherit; color: inherit;
+    width: 100%; display: block; appearance: none;
+  }
+  .sm-gaps-cell:hover { background: var(--surface3); }
+  .sm-gaps-cell:focus-visible { outline: 2px solid var(--gold-line); outline-offset: -2px; }
+  .sm-gaps-row-head { display: flex; align-items: center; gap: 8px; }
+  .sm-gaps-badge { margin-left: auto; }
+  .sm-gaps-row-head {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .sm-gaps-day {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.10em;
+    text-transform: uppercase; color: var(--text2);
+  }
+  .sm-gaps-bullets {
+    list-style: none; padding: 0; margin: 4px 0 0;
+    font-size: 11.5px; color: var(--text2); line-height: 1.4;
+  }
+  .sm-gaps-bullets li { padding-left: 12px; position: relative; }
+  .sm-gaps-bullets li::before {
+    content: ''; position: absolute; left: 4px; top: 7px;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--rdot);
+  }
+  .sm-gaps-empty {
+    padding: 16px; text-align: center; color: var(--good); font-size: 12.5px;
+  }
+
+  /* ── grid day-column header tone strip ─────────────────────────── */
+  .sm-grid-head { position: relative; }
+  .sm-grid-head > div.is-day-head {
+    cursor: pointer; padding-bottom: 8px;
+    border-bottom: 3px solid transparent;
+    transition: background .12s, border-color .12s;
+  }
+  .sm-grid-head > div.is-day-head:hover { background: var(--surface3); }
+  .sm-grid-head > div.is-day-head.is-risk-tight        { border-bottom-color: var(--warn); }
+  .sm-grid-head > div.is-day-head.is-risk-understaffed { border-bottom-color: var(--crit); }
+  .sm-grid-head > div.is-day-head.is-risk-critical     { border-bottom-color: var(--crit); background: rgba(181,65,63,0.05); }
+  .sm-grid-head > div.is-day-head.is-risk-covered      { border-bottom-color: var(--good); }
+  .sm-grid-head > div.is-day-head .day-risk-mini {
+    display: block; font-size: 9px; font-weight: 700;
+    margin-top: 2px; letter-spacing: 0.04em; text-transform: none;
+    color: var(--text2);
+  }
+  .sm-grid-head > div.is-day-head.is-risk-critical .day-risk-mini,
+  .sm-grid-head > div.is-day-head.is-risk-understaffed .day-risk-mini { color: var(--crit); }
+  .sm-grid-head > div.is-day-head.is-risk-tight .day-risk-mini { color: var(--warn); }
+
+  /* mark grid cells whose driver is fully off on a risky day */
+  .sm-cell.day-is-risky.is-off {
+    background: repeating-linear-gradient(135deg,
+      rgba(181,65,63,0.10), rgba(181,65,63,0.10) 6px,
+      rgba(181,65,63,0.04) 6px, rgba(181,65,63,0.04) 12px);
+    border-color: rgba(181,65,63,0.30);
+  }
+
+  /* ── ribbon pill impact line ──────────────────────────────────── */
+  .sm-rib-pill .impact {
+    font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+    background: var(--rsoft); color: var(--rfg); border: 1px solid var(--rline);
+    letter-spacing: 0.02em; text-transform: uppercase;
+  }
+  .sm-rib-pill .impact-note { font-size: 11px; color: var(--text2); }
+
+  /* ── Day Detail drawer (right side, narrower than driver drawer) ─ */
+  .sm-day-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 92vw;
+    background: var(--surface); border-left: 1px solid var(--hairline2);
+    box-shadow: -24px 0 60px rgba(13,17,23,0.18);
+    z-index: 1060; display: none; flex-direction: column;
+    overflow: hidden;
+  }
+  .sm-day-drawer.is-open { display: flex; animation: smDrawerIn .22s cubic-bezier(.2,.8,.2,1) both; }
+  .sm-day-head {
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--hairline);
+    background: var(--surface2);
+  }
+  .sm-day-eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+                    color: var(--text3); font-weight: 700; }
+  .sm-day-title { font-family: 'Playfair Display', serif; font-weight: 600;
+                  font-size: 22px; line-height: 1.1; color: var(--text); margin-top: 4px; }
+  .sm-day-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  .sm-day-close {
+    position: absolute; top: 12px; right: 14px;
+    background: transparent; border: 0; font-size: 22px; color: var(--text3);
+    cursor: pointer; line-height: 1; padding: 4px 8px;
+  }
+  .sm-day-close:hover { color: var(--text); }
+  .sm-day-body { flex: 1; overflow-y: auto; padding: 16px 22px 24px; }
+  .sm-day-section { margin-bottom: 18px; }
+  .sm-day-section h4 {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--text3); margin: 0 0 8px;
+  }
+  .sm-day-numbers {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .sm-day-num-tile {
+    background: var(--surface2); border: 1px solid var(--hairline);
+    border-radius: 8px; padding: 10px 12px; text-align: center;
+  }
+  .sm-day-num-value {
+    font-family: 'Playfair Display', serif; font-weight: 600; font-size: 26px;
+    line-height: 1; color: var(--text);
+  }
+  .sm-day-num-label {
+    font-size: 9.5px; letter-spacing: 0.10em; text-transform: uppercase;
+    color: var(--text3); font-weight: 700; margin-top: 4px;
+  }
+  .sm-day-survive-line {
+    padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    border: 1px solid var(--rline); background: var(--rsoft); color: var(--rfg);
+  }
+  .sm-day-shifts {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
+    font-size: 11.5px;
+  }
+  .sm-day-shift-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 6px;
+    background: var(--surface2);
+  }
+  .sm-day-shift-row .swatch { width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  .sm-day-shift-row .count { font-weight: 700; color: var(--text); }
+  .sm-day-shift-row.is-empty { border-style: dashed; color: var(--text3); }
+  .sm-day-list { list-style: none; padding: 0; margin: 0; }
+  .sm-day-list li {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; border-bottom: 1px dashed var(--hairline);
+    font-size: 12px;
+  }
+  .sm-day-list li:last-child { border-bottom: 0; }
+  .sm-day-list .role {
+    font-size: 9.5px; padding: 1px 6px; border-radius: 4px;
+    background: var(--surface3); color: var(--text2); font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .sm-day-recs {
+    list-style: none; padding: 0; margin: 0;
+    font-size: 12px; color: var(--text2);
+  }
+  .sm-day-recs li {
+    padding: 6px 10px; border-left: 3px solid var(--gold);
+    background: var(--gold-soft); margin-bottom: 4px; border-radius: 0 4px 4px 0;
+  }
 </style>
 {% endblock %}
 
@@ -639,6 +887,39 @@
 
   <div class="sm-body">
 
+    <!-- ───────────── Action Needed banner ───────────── -->
+    <section class="sm-action {% if action_items|length == 0 %}is-empty{% else %}{% for it in action_items %}{% if it.severity == 'crit' %}has-crit {% endif %}{% endfor %}{% endif %}">
+      <div class="sm-action-head">
+        <span class="sm-eyebrow sm-action-eyebrow">
+          {% if action_items|length == 0 %}All clear this week{% else %}Action needed · {{ action_items|length }}{% endif %}
+        </span>
+        <span class="sm-action-meta">
+          Risk-engine view of {{ week_start|date:"M j" }}&ndash;{{ week_end|date:"M j" }} · target {{ coverage_target }}/day
+        </span>
+      </div>
+      {% if action_items|length == 0 %}
+        <div class="sm-action-empty">
+          No risky days, no understaffing, no pending requests that would create a coverage problem.
+          You can still survive a call-out on every working day this week.
+        </div>
+      {% else %}
+        <div class="sm-action-list">
+          {% for it in action_items %}
+            <button type="button" class="sm-action-row sev-{{ it.severity }}"
+                    {% if it.day_idx is not None %}data-day-idx="{{ it.day_idx }}"{% endif %}
+                    {% if it.exception_id %}data-exception-id="{{ it.exception_id }}"{% endif %}
+                    {% if it.driver_id %}data-driver-id="{{ it.driver_id }}"{% endif %}>
+              <span class="sm-action-sev"></span>
+              <div class="sm-action-body">
+                <div class="sm-action-title">{{ it.title }}</div>
+                <div class="sm-action-detail">{{ it.detail }}</div>
+              </div>
+            </button>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+
     <!-- ───────────── Coverage strip ───────────── -->
     <section class="sm-cov">
       <div class="sm-cov-head">
@@ -658,7 +939,12 @@
       </div>
       <div class="sm-cov-grid">
         {% for c in coverage %}
-        <div class="sm-cov-cell {% if c.is_weekend %}is-weekend{% endif %} {% if c.is_today %}is-today{% endif %}">
+        <div class="sm-cov-cell sm-risk-{{ c.risk_level }} is-risk-{{ c.risk_level }}
+                    {% if c.is_weekend %}is-weekend{% endif %} {% if c.is_today %}is-today{% endif %}"
+             data-day-idx="{{ c.day_idx }}"
+             role="button" tabindex="0"
+             aria-label="Open detail for {{ c.day_name }}">
+          <span class="sm-cov-risk-bar"></span>
           <div class="sm-cov-top">
             <div class="sm-cov-day">
               {% if c.day_idx == 0 %}MONDAY
@@ -671,13 +957,25 @@
               {% endif %}
               {% if c.is_today %}<span class="sm-cov-today-mark">today</span>{% endif %}
             </div>
-            <span class="sm-cov-delta {% if c.delta >= 0 %}is-good{% else %}is-crit{% endif %}">
-              {{ c.delta_sign }}{{ c.delta }}
+            <span class="sm-cov-badge">
+              <span class="dot"></span>
+              {% if c.risk_level == "covered" %}Covered
+              {% elif c.risk_level == "tight" %}Tight
+              {% elif c.risk_level == "understaffed" %}Understaffed
+              {% elif c.risk_level == "critical" %}Critical
+              {% else %}—{% endif %}
             </span>
           </div>
           <div class="sm-cov-number-row">
             <span class="sm-cov-number is-{{ c.tone }}">{{ c.working }}</span>
-            <span class="sm-cov-of">of {{ c.total }}</span>
+            <span class="sm-cov-of">of {{ c.total }} · target {{ coverage_target }}</span>
+            <span class="sm-cov-delta {% if c.delta >= 0 %}is-good{% else %}is-crit{% endif %}" style="margin-left:auto;">
+              {{ c.delta_sign }}{{ c.delta }}
+            </span>
+          </div>
+          <div class="sm-cov-off-line">
+            <b>{{ c.off_count }}</b> off
+            {% if c.flexible_count %}· <b>{{ c.flexible_count }}</b> flex{% endif %}
           </div>
           <div class="sm-cov-bar">
             {% for s in c.segments %}
@@ -692,22 +990,18 @@
                 {% else %}#C9C1AA{% endif %};"></div>
             {% endfor %}
           </div>
-          <div class="sm-cov-chips">
-            {% for chip in c.chips %}
-              <span class="sm-cov-chip">
-                <span class="swatch" style="background:
-                  {% if chip.key == 'morning' %}#E08A2A
-                  {% elif chip.key == 'midday' %}#D4A91D
-                  {% elif chip.key == 'evening' %}#7B5BB0
-                  {% elif chip.key == 'night' %}#4860C8
-                  {% elif chip.key == 'split' %}#4B8FA8
-                  {% elif chip.key == 'flex' %}#4DA678
-                  {% elif chip.key == 'set' %}#C9A227
-                  {% else %}#C9C1AA{% endif %};"></span>
-                <span class="num">{{ chip.count }}</span> {{ chip.key }}
-              </span>
-            {% endfor %}
+          <div class="sm-cov-survive {% if not c.survives_one_callout %}is-bad{% endif %}">
+            {% if c.survives_one_callout %}
+              ✓ Survives 1 call-out
+            {% else %}
+              ⚠ Cannot survive a call-out
+            {% endif %}
           </div>
+          {% if c.pending_off_count %}
+            <div class="sm-cov-pending">
+              {{ c.pending_off_count }} pending — if approved, {{ c.scheduled_after_pending }}/{{ coverage_target }} ({{ c.risk_after_pending }})
+            </div>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
@@ -740,6 +1034,38 @@
       <div class="sm-rib-empty">No exceptions in this window. Add one inline on any driver row.</div>
     </section>
 
+    <!-- ───────────── Coverage Gaps panel ───────────── -->
+    <section class="sm-gaps" id="smGaps">
+      <div class="sm-gaps-head">
+        <span class="sm-eyebrow">Coverage gaps · {{ coverage_gaps|length }} day{{ coverage_gaps|length|pluralize }}</span>
+        <span style="font-size:11px; color:var(--text3); margin-left:auto;">Click a day to open detail</span>
+      </div>
+      {% if coverage_gaps|length == 0 %}
+        <div class="sm-gaps-empty">✓ No coverage gaps this week.</div>
+      {% else %}
+        <div class="sm-gaps-grid">
+          {% for g in coverage_gaps %}
+            <button type="button" class="sm-gaps-cell sm-risk-{{ g.risk_level }}"
+                    data-day-idx="{{ g.day_idx }}">
+              <div class="sm-gaps-row-head">
+                <span class="sm-gaps-day">{{ g.day_name_full }} · {{ g.date_short }}</span>
+                <span class="sm-cov-badge sm-gaps-badge">
+                  <span class="dot"></span>
+                  {% if g.risk_level == "critical" %}Critical
+                  {% elif g.risk_level == "understaffed" %}Understaffed
+                  {% elif g.risk_level == "tight" %}Tight
+                  {% else %}Watch{% endif %}
+                </span>
+              </div>
+              <ul class="sm-gaps-bullets">
+                {% for b in g.bullets %}<li>{{ b }}</li>{% endfor %}
+              </ul>
+            </button>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+
     <!-- ───────────── Filter row ───────────── -->
     <div class="sm-filters">
       <span class="sm-eyebrow" style="color:var(--text3); margin-right:6px;">Show</span>
@@ -762,7 +1088,14 @@
     <section class="sm-grid-card">
       <div class="sm-grid-head">
         <div>Driver · default schedule</div>
-        {% for d in day_names %}<div>{{ d|upper }}</div>{% endfor %}
+        {% for c in coverage %}
+          <div class="is-day-head is-risk-{{ c.risk_level }}"
+               data-day-idx="{{ c.day_idx }}"
+               title="{{ c.day_name }} — {{ c.risk_level }} ({{ c.scheduled_count }}/{{ coverage_target }})">
+            {{ c.day_name|upper }}
+            <span class="day-risk-mini">{{ c.scheduled_count }}/{{ coverage_target }}</span>
+          </div>
+        {% endfor %}
         <div></div>
       </div>
       <div class="sm-grid-scroll" id="smGridBody">
@@ -793,10 +1126,12 @@
             </div>
 
             {% for day in r.days %}
+              {% with coverage|index:forloop.counter0 as cdat %}
               <div class="sm-cell sm-shift-{{ day.design_bucket }}
                 {% if day.is_off %}is-off{% else %}is-working{% endif %}
                 {% if not day.is_off and day.flexible %}has-flex{% endif %}
-                {% if day.locked and not day.is_off %}locked{% endif %}">
+                {% if day.locked and not day.is_off %}locked{% endif %}
+                {% if cdat.risk_level == 'critical' or cdat.risk_level == 'understaffed' %}day-is-risky{% endif %}">
                 {% if not day.is_off %}<div class="stripe-top"></div>{% endif %}
                 <div class="cell-head">
                   <span class="day">{{ day.day_name|upper }}</span>
@@ -809,6 +1144,7 @@
                   <div class="type">{{ day.shift_label }}{% if day.locked %} · LOCK{% endif %}</div>
                 {% endif %}
               </div>
+              {% endwith %}
             {% endfor %}
 
             <div class="sm-row-actions">
@@ -851,6 +1187,18 @@
 {# bundle data for the drawer #}
 {{ drivers_payload_json|json_script:"sm-drivers-data" }}
 {{ ribbon_json|json_script:"sm-ribbon-data" }}
+{{ day_risks_json|json_script:"sm-day-risks-data" }}
+
+<!-- ───────────── Day Detail drawer ───────────── -->
+<aside class="sm-day-drawer sm" id="smDayDrawer" aria-hidden="true">
+  <header class="sm-day-head" style="position:relative;">
+    <button type="button" class="sm-day-close" id="smDayDrawerClose" aria-label="Close">&times;</button>
+    <div class="sm-day-eyebrow" id="smDayEyebrow">Day detail</div>
+    <div class="sm-day-title" id="smDayTitle">—</div>
+    <div class="sm-day-sub" id="smDaySub"></div>
+  </header>
+  <div class="sm-day-body" id="smDayBody"></div>
+</aside>
 {% endblock %}
 
 {% block extra_js %}
@@ -1485,6 +1833,235 @@
     }
     var row = e.target.closest('.sm-grid-row');
     if (row) openDrawer(row.getAttribute('data-driver-id'), 'schedule');
+  });
+
+  // ── Day Detail drawer ────────────────────────────────────────────
+  var DAY_RISKS = readJsonScript('sm-day-risks-data') || [];
+  var dayDrawer = document.getElementById('smDayDrawer');
+  var dayTitle  = document.getElementById('smDayTitle');
+  var daySub    = document.getElementById('smDaySub');
+  var dayEyebrow = document.getElementById('smDayEyebrow');
+  var dayBody   = document.getElementById('smDayBody');
+  var dayClose  = document.getElementById('smDayDrawerClose');
+
+  var SHIFT_LABEL = { morning:'Morning', midday:'Midday', evening:'Evening',
+    night:'Night', split:'Split', flex:'Flexible', set:'Set Hours' };
+  var SHIFT_COLOR = { morning:'#E08A2A', midday:'#D4A91D', evening:'#7B5BB0',
+    night:'#4860C8', split:'#4B8FA8', flex:'#4DA678', set:'#C9A227' };
+  var RISK_LABEL = { covered:'Covered', tight:'Tight',
+    understaffed:'Understaffed', critical:'Critical', no_data:'No data' };
+
+  function riskBadgeHtml(level) {
+    return '<span class="sm-cov-badge sm-risk-' + level + '"><span class="dot"></span>' +
+           (RISK_LABEL[level] || level) + '</span>';
+  }
+
+  function renderDayDrawer(dayIdx) {
+    var d = DAY_RISKS[dayIdx];
+    if (!d) return;
+    dayEyebrow.textContent = 'Day detail · ' + d.day_name_full;
+    dayTitle.textContent = d.day_name_full + ' · ' + d.date_short;
+    var subBits = [];
+    subBits.push(d.scheduled_count + '/' + d.target + ' scheduled');
+    subBits.push((d.delta >= 0 ? '+' : '') + d.delta + ' vs target');
+    subBits.push(riskBadgeHtml(d.risk_level));
+    daySub.innerHTML = subBits.join(' &middot; ');
+
+    // Per-driver exceptions affecting this date
+    var dateIso = d.date;
+    var affectingExcs = RIBBON.filter(function(e) {
+      var s = e.date, en = e.end_date || e.date;
+      return dateIso >= s && dateIso <= en;
+    });
+
+    // Numbers tiles
+    var html = '';
+    html += '<section class="sm-day-section">' +
+      '<div class="sm-day-numbers">' +
+        '<div class="sm-day-num-tile"><div class="sm-day-num-value">' + d.scheduled_count + '</div>' +
+          '<div class="sm-day-num-label">Scheduled</div></div>' +
+        '<div class="sm-day-num-tile"><div class="sm-day-num-value">' + d.off_count + '</div>' +
+          '<div class="sm-day-num-label">Off</div></div>' +
+        '<div class="sm-day-num-tile"><div class="sm-day-num-value">' + d.flexible_count + '</div>' +
+          '<div class="sm-day-num-label">Flexible</div></div>' +
+      '</div></section>';
+
+    // Survivability
+    html += '<section class="sm-day-section">' +
+      '<div class="sm-day-survive-line sm-risk-' +
+        (d.survives_one_callout ? 'covered' : 'critical') + '">' +
+        (d.survives_one_callout ? '✓ ' : '⚠ ') + d.survivability_label +
+      '</div></section>';
+
+    // What-if pending
+    if (d.pending_off_count > 0) {
+      html += '<section class="sm-day-section">' +
+        '<h4>What-if · pending requests</h4>' +
+        '<div class="sm-day-survive-line sm-risk-' + d.risk_after_pending + '">' +
+          d.pending_off_count + ' pending — if all approved: ' +
+          d.scheduled_after_pending + '/' + d.target +
+          ' (' + (RISK_LABEL[d.risk_after_pending] || d.risk_after_pending) + ')' +
+        '</div></section>';
+    }
+
+    // Shift coverage
+    var shiftRows = '';
+    ['morning','midday','evening','night','split','flex','set'].forEach(function(k) {
+      var n = d.shift_coverage[k] || 0;
+      shiftRows +=
+        '<div class="sm-day-shift-row' + (n === 0 ? ' is-empty' : '') + '">' +
+          '<span><span class="swatch" style="background:' + SHIFT_COLOR[k] + ';"></span>' +
+            SHIFT_LABEL[k] + '</span>' +
+          '<span class="count">' + n + '</span>' +
+        '</div>';
+    });
+    html += '<section class="sm-day-section">' +
+      '<h4>Shift coverage</h4>' +
+      '<div class="sm-day-shifts">' + shiftRows + '</div>' +
+      '</section>';
+
+    // Recommended actions
+    if (d.recommended_actions && d.recommended_actions.length) {
+      var recs = d.recommended_actions.map(function(r) {
+        return '<li>' + escapeHtml(r) + '</li>';
+      }).join('');
+      html += '<section class="sm-day-section">' +
+        '<h4>Recommended actions</h4>' +
+        '<ul class="sm-day-recs">' + recs + '</ul></section>';
+    }
+
+    // Affecting exceptions
+    if (affectingExcs.length > 0) {
+      var rows = affectingExcs.map(function(e) {
+        var impact = e.impact || {};
+        var impactLine = impact.note ? '<div style="font-size:11px; color:var(--text2);">' + escapeHtml(impact.note) + '</div>' : '';
+        var statusChip = e.is_pending ? '<span class="role" style="background:var(--warn-soft); color:var(--warn);">PENDING</span>' : '';
+        return '<li>' +
+          '<span class="sm-avatar" style="width:22px; height:22px; font-size:9px; background:linear-gradient(135deg,' + e.driver_color + ',' + e.driver_color + 'AA);">' + escapeHtml(e.driver_initials) + '</span>' +
+          '<div style="flex:1; min-width:0;">' +
+            '<div style="font-weight:700;">' + escapeHtml(e.driver_name) + ' · ' + escapeHtml(e.exception_short || e.exception_type_label) + '</div>' +
+            impactLine +
+          '</div>' +
+          statusChip +
+        '</li>';
+      }).join('');
+      html += '<section class="sm-day-section">' +
+        '<h4>Exceptions affecting this day</h4>' +
+        '<ul class="sm-day-list">' + rows + '</ul></section>';
+    }
+
+    dayBody.innerHTML = html;
+    dayDrawer.classList.add('is-open');
+    backdrop.classList.add('is-open');
+  }
+
+  function closeDayDrawer() {
+    dayDrawer.classList.remove('is-open');
+    if (!drawer.classList.contains('is-open')) backdrop.classList.remove('is-open');
+  }
+  dayClose.addEventListener('click', closeDayDrawer);
+
+  // Coverage strip cells → open day drawer
+  document.querySelectorAll('.sm-cov-cell[data-day-idx]').forEach(function(cell) {
+    cell.addEventListener('click', function() {
+      renderDayDrawer(parseInt(cell.getAttribute('data-day-idx'), 10));
+    });
+    cell.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        renderDayDrawer(parseInt(cell.getAttribute('data-day-idx'), 10));
+      }
+    });
+  });
+
+  // Coverage Gaps panel cells → open day drawer
+  document.querySelectorAll('#smGaps [data-day-idx]').forEach(function(cell) {
+    cell.addEventListener('click', function() {
+      renderDayDrawer(parseInt(cell.getAttribute('data-day-idx'), 10));
+    });
+  });
+
+  // Grid head day columns → open day drawer
+  document.querySelectorAll('.sm-grid-head .is-day-head').forEach(function(cell) {
+    cell.addEventListener('click', function() {
+      renderDayDrawer(parseInt(cell.getAttribute('data-day-idx'), 10));
+    });
+  });
+
+  // Action banner rows → route to day drawer or driver drawer or ribbon
+  document.querySelectorAll('.sm-action-row').forEach(function(row) {
+    row.addEventListener('click', function() {
+      var dayIdx = row.getAttribute('data-day-idx');
+      var driverId = row.getAttribute('data-driver-id');
+      var excId = row.getAttribute('data-exception-id');
+      if (driverId) {
+        openDrawer(driverId, excId ? 'exceptions' : 'schedule');
+      } else if (dayIdx !== null && dayIdx !== '' && dayIdx !== undefined) {
+        renderDayDrawer(parseInt(dayIdx, 10));
+      }
+    });
+  });
+
+  // ── inject impact lines into ribbon pills (re-renders existing pills) ──
+  var _origRenderRibbon = renderRibbon;
+  renderRibbon = function() {
+    _origRenderRibbon();
+    // Walk DOM nodes that were just rendered and append impact info from RIBBON.
+    var pills = ribBody.querySelectorAll('.sm-rib-pill');
+    pills.forEach(function(pill, i) {
+      var driverId = pill.getAttribute('data-driver-id');
+      // Match the corresponding ribbon entry by index within the same filter pass.
+      var bucket = ribbon.getAttribute('data-filter') || 'week';
+      var items = RIBBON.filter(function(it) { return ribbonInBucket(it, bucket); });
+      var e = items[i];
+      if (!e || !e.impact) return;
+      var imp = e.impact;
+      if (imp.impact_level && imp.impact_level !== 'no_issue') {
+        var chip = document.createElement('span');
+        chip.className = 'impact sm-risk-' +
+          (imp.impact_level === 'tight' ? 'tight' :
+           imp.impact_level === 'understaffed' ? 'understaffed' :
+           imp.impact_level === 'critical' ? 'critical' : 'covered');
+        chip.textContent = imp.impact_label;
+        pill.appendChild(chip);
+      }
+      if (e.is_pending) {
+        var p = document.createElement('span');
+        p.className = 'impact-note';
+        p.textContent = '· PENDING';
+        p.style.color = 'var(--warn)';
+        p.style.fontWeight = '700';
+        pill.appendChild(p);
+      }
+      if (imp.note) {
+        var n = document.createElement('span');
+        n.className = 'impact-note';
+        n.textContent = '· ' + imp.note;
+        pill.appendChild(n);
+      }
+    });
+  };
+  // Re-render now so first paint has impact info (ribbon may already be open).
+  if (ribbon.classList.contains('is-open')) renderRibbon();
+
+  // Ribbon also opens by default if there are critical/understaffed pending excs.
+  var hasUrgentPending = RIBBON.some(function(e) {
+    return e.is_pending && e.impact &&
+      (e.impact.impact_level === 'critical' || e.impact.impact_level === 'understaffed');
+  });
+  if (hasUrgentPending && !ribbon.classList.contains('is-open')) {
+    ribbon.classList.add('is-open');
+    renderRibbon();
+  }
+
+  // Make backdrop also close the day drawer (it already closes the driver drawer
+  // via the existing handler).
+  backdrop.addEventListener('click', function() {
+    if (dayDrawer.classList.contains('is-open')) closeDayDrawer();
+  });
+  // Esc closes day drawer too.
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && dayDrawer.classList.contains('is-open')) closeDayDrawer();
   });
 
   // initial render

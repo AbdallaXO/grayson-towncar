@@ -31,7 +31,33 @@
         {% endfor %}
       {% endif %}
 
-      <form method="post" class="gt-card" style="padding:18px;">
+      {% if active_overrides %}
+        <div class="gt-card mb-3" style="padding:12px 14px;border-left:3px solid #f59e0b;background:#fffbeb;">
+          <div style="font-weight:700;font-size:0.875rem;color:#92400e;margin-bottom:6px;">
+            <i class="bi bi-info-circle-fill me-1"></i>
+            You already have {{ active_overrides|length }} active request{{ active_overrides|length|pluralize }}
+          </div>
+          <div style="font-size:0.8125rem;color:#78350f;line-height:1.5;">
+            Submitting again for the same dates won't create a duplicate — we'll just keep the existing one.
+          </div>
+          <ul style="margin:8px 0 0;padding:0 0 0 18px;font-size:0.8125rem;color:#78350f;">
+            {% for o in active_overrides %}
+              <li style="margin-bottom:2px;">
+                <strong>{{ o.date_range_display }}</strong>
+                {% if o.exception_type == 'unavailable_window' %}
+                  ({{ o.start_time|time:"g:i A" }} – {{ o.end_time|time:"g:i A" }})
+                {% elif o.exception_type == 'off' %}
+                  all day
+                {% endif %}
+                — {{ o.get_status_display|lower }}
+                <a href="{% url 'driver_my_timeoff_requests' %}" style="color:inherit;text-decoration:underline;">view</a>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <form method="post" class="gt-card" id="timeoffForm" style="padding:18px;">
         {% csrf_token %}
 
         <!-- Kind toggle -->
@@ -102,11 +128,28 @@
           Once you send it, check back on <a href="{% url 'driver_my_timeoff_requests' %}" style="color:inherit;text-decoration:underline;">My Requests</a> to see when it's been confirmed.
         </div>
 
-        <button type="submit" class="gt-btn gt-btn-primary gt-btn-block">
+        <button type="submit" class="gt-btn gt-btn-primary gt-btn-block" id="timeoffSubmit">
           <i class="bi bi-send me-1"></i> Send it
         </button>
       </form>
     </div>
+
+    <script>
+      // Disable the submit button after the first click so a double-click
+      // or accidental Enter-spam can't post the same form twice.
+      (function() {
+        var form = document.getElementById('timeoffForm');
+        var btn  = document.getElementById('timeoffSubmit');
+        if (!form || !btn) return;
+        form.addEventListener('submit', function() {
+          // setTimeout so the form actually submits before we disable.
+          setTimeout(function() {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Sending…';
+          }, 0);
+        });
+      })();
+    </script>
 
     <script>
       // Visual selection state for the kind radio + show/hide partial-day fields

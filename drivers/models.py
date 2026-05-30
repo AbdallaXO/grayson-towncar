@@ -53,6 +53,10 @@ class Driver(models.Model):
         default="affiliate",
         help_text="Inhouse drivers work for the company and can drive any vehicle. Affiliates are contractors with specific vehicles."
     )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Uncheck to hide this driver from the directory and assignment pickers. Keeps historical legs/payments intact — use this for drivers who no longer work with us or are on extended leave."
+    )
     exclude_from_timing = models.BooleanField(
         default=False,
         help_text="Exclude this driver's completed trips from route timing data. Affiliates are always excluded."
@@ -413,6 +417,53 @@ class DriverDateOverride(models.Model):
     def __str__(self):
         type_label = dict(self.EXCEPTION_TYPE_CHOICES).get(self.exception_type, self.exception_type)
         return f"{self.driver} — {self.date_range_display}: {type_label}"
+
+    @classmethod
+    def find_duplicate(
+        cls, driver, date, end_date, exception_type,
+        start_time=None, end_time=None, exclude_id=None,
+    ):
+        """Return an existing pending/approved override matching the same
+        driver + date window + exception type, or None.
+
+        Used by both the dispatcher and driver-self-serve creation paths to
+        squash accidental double-submissions (the kind that happen when a
+        save button is double-clicked or a form re-POSTs on back/forward).
+        Denied/cancelled rows are ignored so a redo after a denial still
+        works.
+        """
+        qs = cls.objects.filter(
+            driver=driver,
+            date=date,
+            exception_type=exception_type,
+            status__in=("pending", "approved"),
+        )
+        if end_date is None:
+            qs = qs.filter(end_date__isnull=True)
+        else:
+            qs = qs.filter(end_date=end_date)
+        if start_time is not None:
+            qs = qs.filter(start_time=start_time)
+        if end_time is not None:
+            qs = qs.filter(end_time=end_time)
+        if exclude_id:
+            qs = qs.exclude(id=exclude_id)
+        return qs.order_by("id").first()
+
+    def duplicate_group(self):
+        """All non-cancelled-non-denied overrides this row is a duplicate of
+        (including self). Used by the dispatcher queue to display "3 dup
+        submissions" and to cascade approve/deny across the whole batch.
+        """
+        return type(self).objects.filter(
+            driver=self.driver,
+            date=self.date,
+            end_date=self.end_date,
+            exception_type=self.exception_type,
+            start_time=self.start_time,
+            end_time=self.end_time,
+            status__in=("pending", "approved"),
+        ).order_by("id")
 
 
 class FleetVehicle(models.Model):

@@ -675,12 +675,17 @@ def extend(request):
         active_tab = driver_type_filter or "all"
     search_query = request.GET.get("search", "")
     availability_filter = request.GET.get("availability", "")  # "available" or "busy"
-    
+    show_inactive = request.GET.get("show_inactive", "") == "1"
+
     # Get all drivers with related profile data
     drivers = Driver.objects.select_related(
         "profile"
     ).all()
-    
+
+    # Hide inactive drivers (departed / on extended leave) unless the user opts in
+    if not show_inactive:
+        drivers = drivers.filter(is_active=True)
+
     # Apply filters
     if driver_type_filter:
         drivers = drivers.filter(driver_type=driver_type_filter)
@@ -766,12 +771,14 @@ def extend(request):
             driver.next_trip_status = next_leg.status
             driver.today_trip_count = len(driver.todays_legs)
 
-    # Counts for tab pills — these reflect the *type* split across the unfiltered
-    # roster, not the currently filtered list, so the tab labels stay stable as
-    # the user toggles search/availability.
-    all_count_total = Driver.objects.count()
-    inhouse_count_total = Driver.objects.filter(driver_type="inhouse").count()
+    # Counts for tab pills — these reflect the *type* split across the roster
+    # visible under the current "show inactive" state, so tab labels stay
+    # consistent with what the user sees after toggling search/availability.
+    base_count_qs = Driver.objects.all() if show_inactive else Driver.objects.filter(is_active=True)
+    all_count_total = base_count_qs.count()
+    inhouse_count_total = base_count_qs.filter(driver_type="inhouse").count()
     affiliate_count_total = all_count_total - inhouse_count_total
+    inactive_count_total = Driver.objects.filter(is_active=False).count()
 
     context = {
         "drivers": drivers_list,
@@ -787,6 +794,8 @@ def extend(request):
         "all_count_total": all_count_total,
         "inhouse_count_total": inhouse_count_total,
         "affiliate_count_total": affiliate_count_total,
+        "inactive_count_total": inactive_count_total,
+        "show_inactive": show_inactive,
     }
 
     return render(request, "drivers/extend.html", context)
@@ -1516,6 +1525,18 @@ def request_timeoff(request):
             if end_time <= start_time:
                 messages.error(request, "End time must be after start time.")
                 return redirect("driver_request_timeoff")
+            existing = DriverDateOverride.find_duplicate(
+                driver=driver, date=start_date, end_date=None,
+                exception_type="unavailable_window",
+                start_time=start_time, end_time=end_time,
+            )
+            if existing:
+                messages.info(
+                    request,
+                    f"You already have a request for {start_date.strftime('%b %d')} "
+                    f"({existing.get_status_display().lower()}). We didn't create another one.",
+                )
+                return redirect("driver_my_timeoff_requests")
             override = DriverDateOverride.objects.create(
                 driver=driver,
                 date=start_date,
@@ -1534,10 +1555,23 @@ def request_timeoff(request):
             if end_date and end_date < start_date:
                 messages.error(request, "End date must be on or after start date.")
                 return redirect("driver_request_timeoff")
+            effective_end = end_date if (end_date and end_date != start_date) else None
+            existing = DriverDateOverride.find_duplicate(
+                driver=driver, date=start_date, end_date=effective_end,
+                exception_type="off",
+            )
+            if existing:
+                when = existing.date_range_display
+                messages.info(
+                    request,
+                    f"You already have a {existing.get_status_display().lower()} "
+                    f"request for {when}. We didn't create another one.",
+                )
+                return redirect("driver_my_timeoff_requests")
             override = DriverDateOverride.objects.create(
                 driver=driver,
                 date=start_date,
-                end_date=end_date if (end_date and end_date != start_date) else None,
+                end_date=effective_end,
                 exception_type="off",
                 reason=reason,
                 notes=notes,
@@ -1561,11 +1595,27 @@ def request_timeoff(request):
         messages.success(request, "Time-off request submitted. You'll be notified once it's reviewed.")
         return redirect("driver_my_timeoff_requests")
 
-    # GET — render the form
+    # GET — render the form. Surface any active (pending or approved)
+    # requests so the driver doesn't accidentally double-submit; we list
+    # them at the top of the form as live context.
+    active_overrides = list(
+        driver.date_overrides
+        .filter(
+            status__in=("pending", "approved"),
+        )
+        .filter(
+            Q(end_date__isnull=True, date__gte=today) | Q(end_date__gte=today)
+        )
+        .order_by("date")
+    )
     return render(
         request,
         "drivers/request_timeoff.html",
-        {"driver": driver, "today": today},
+        {
+            "driver": driver,
+            "today": today,
+            "active_overrides": active_overrides,
+        },
     )
 
 
@@ -1579,10 +1629,23 @@ def my_timeoff_requests(request):
         .select_related("decided_by")
         .order_by("-date", "-id")[:50]
     )
+    # Counts for the summary line so the driver can see at-a-glance what's
+    # still waiting versus already decided.
+    pending_count = sum(1 for o in overrides if o.status == "pending")
+    approved_upcoming = sum(
+        1 for o in overrides
+        if o.status == "approved" and (o.end_date or o.date) >= today
+    )
     return render(
         request,
         "drivers/my_timeoff_requests.html",
-        {"driver": driver, "today": today, "overrides": overrides},
+        {
+            "driver": driver,
+            "today": today,
+            "overrides": overrides,
+            "pending_count": pending_count,
+            "approved_upcoming": approved_upcoming,
+        },
     )
 
 
