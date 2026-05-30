@@ -298,23 +298,29 @@ def compute_exception_impact(
         if start <= d <= end:
             affected_days.append(week_day_risks[i])
 
+    # The exception's own scheduled-after-pending number already reflects
+    # its hypothetical approval, so we just compare current vs after-pending.
+    is_pending = exception.get("status") in PENDING_STATUSES
+
     if not affected_days:
+        # Keep the same key set as the normal return below so downstream
+        # consumers (build_action_items, templates) never KeyError on an
+        # out-of-week exception.
         return {
+            "is_pending": is_pending,
             "impact_level": "no_issue",
             "impact_label": "Outside this week",
             "affected_day_idxs": [],
             "affected_day_names": [],
             "delta_before": None,
             "delta_after": None,
+            "delta_before_label": None,
+            "delta_after_label": None,
             "risk_before": None,
             "risk_after": None,
             "recommended_action": "",
             "note": "",
         }
-
-    # The exception's own scheduled-after-pending number already reflects
-    # its hypothetical approval, so we just compare current vs after-pending.
-    is_pending = exception.get("status") in PENDING_STATUSES
     is_off_request = exception.get("exception_type") == "off"
 
     # Worst affected day = lowest delta_after_pending among affected.
