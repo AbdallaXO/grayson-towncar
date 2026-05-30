@@ -12077,22 +12077,124 @@ def lead_analytics(request):
     from reservations.models import Lead
     from ghl_integration.models import FollowUpTask, LeadActivity
 
-    # ── Date range ──
+    # ── Date range (rolling days OR calendar-month presets) ──
+    from datetime import datetime as _dt, time as _time, date as _date
+    now = timezone.now()
+    today = timezone.localdate()
+
+    def _aware(d):
+        return timezone.make_aware(_dt.combine(d, _time.min))
+
+    def _month_first(d):
+        return d.replace(day=1)
+
+    def _shift_month(first_of_month, delta):
+        idx = (first_of_month.year * 12 + first_of_month.month - 1) + delta
+        return _date(idx // 12, idx % 12 + 1, 1)
+
+    period = (request.GET.get("period") or "").strip()
     days_param = request.GET.get("days", "30")
-    end_date = timezone.now()
-    if days_param == "all":
+    end_date = now
+    days_back = None          # which rolling tab is active (int) — None for month modes
+    active_period = ""        # which month tab is active
+    period_label = ""
+    prev_label = ""
+    prev_start = prev_end = None
+
+    if period in ("this_month", "last_month"):
+        active_period = period
+        this_first = _month_first(today)
+        if period == "this_month":
+            start_date = _aware(this_first)
+            end_date = now
+            period_label = today.strftime("%B %Y") + " (MTD)"
+            # Compare to the SAME span of last month (month-to-date pace)
+            days_into = (today - this_first).days
+            prev_first = _shift_month(this_first, -1)
+            prev_start = _aware(prev_first)
+            prev_end = _aware(prev_first + timedelta(days=days_into + 1))  # exclusive
+            prev_label = prev_first.strftime("%b %Y") + " (same span)"
+        else:  # last_month — full month
+            lm_first = _shift_month(this_first, -1)
+            start_date = _aware(lm_first)
+            end_date = _aware(this_first)            # exclusive upper bound
+            period_label = lm_first.strftime("%B %Y")
+            pm_first = _shift_month(this_first, -2)
+            prev_start = _aware(pm_first)
+            prev_end = _aware(lm_first)
+            prev_label = pm_first.strftime("%b %Y")
+    elif days_param == "all":
         days_back = "all"
         start_date = None
+        period_label = "All time"
     else:
         days_back = int(days_param)
         start_date = end_date - timedelta(days=days_back)
+        period_label = f"Last {days_back} days"
+        # Compare to the immediately preceding window of equal length
+        prev_end = start_date
+        prev_start = start_date - timedelta(days=days_back)
+        prev_label = f"Previous {days_back} days"
 
     # ── Base queryset ──
     if start_date:
-        leads_qs = Lead.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+        leads_qs = Lead.objects.filter(created_at__gte=start_date, created_at__lt=end_date)
     else:
         leads_qs = Lead.objects.all()
     all_leads = leads_qs.count()
+
+    # ── Period-over-period comparison (headline KPIs) ──
+    def _lead_kpis(qs):
+        a = qs.aggregate(
+            leads_n=Count("id"),
+            conv_n=Count("id", filter=Q(converted=True)),
+            repl_n=Count("id", filter=Q(has_replied=True)),
+            rev_sum=Sum(
+                "converted_reservation__total_price",
+                filter=Q(converted=True, converted_reservation__isnull=False),
+            ),
+        )
+        n = a["leads_n"] or 0
+        conv = a["conv_n"] or 0
+        repl = a["repl_n"] or 0
+        rev = a["rev_sum"] or Decimal("0.00")
+        return {
+            "leads": n,
+            "converted": conv,
+            "conv_rate": round(conv / n * 100, 1) if n else 0,
+            "reply_rate": round(repl / n * 100, 1) if n else 0,
+            "revenue": rev,
+        }
+
+    def _delta(cur, prev):
+        """Percent change cur vs prev; None when there's no prior baseline."""
+        if prev is None:
+            return None
+        cur, prev = float(cur), float(prev)
+        if prev == 0:
+            return {"pct": None, "abs": None, "dir": "up" if cur > 0 else "flat"}
+        ch = (cur - prev) / prev * 100
+        return {
+            "pct": round(ch, 1),
+            "abs": round(abs(ch), 1),
+            "dir": "up" if ch > 0.05 else ("down" if ch < -0.05 else "flat"),
+        }
+
+    cmp_cur = _lead_kpis(leads_qs)
+    if prev_start is not None:
+        prev_qs = Lead.objects.filter(created_at__gte=prev_start, created_at__lt=prev_end)
+        cmp_prev = _lead_kpis(prev_qs)
+        comparison = {
+            "has_prev": True,
+            "prev_label": prev_label,
+            "leads": _delta(cmp_cur["leads"], cmp_prev["leads"]),
+            "conv_rate": _delta(cmp_cur["conv_rate"], cmp_prev["conv_rate"]),
+            "reply_rate": _delta(cmp_cur["reply_rate"], cmp_prev["reply_rate"]),
+            "revenue": _delta(cmp_cur["revenue"], cmp_prev["revenue"]),
+            "prev_kpis": cmp_prev,
+        }
+    else:
+        comparison = {"has_prev": False, "prev_label": "", "prev_kpis": None}
 
     # ── Status funnel ──
     status_counts = dict(
@@ -12280,8 +12382,130 @@ def lead_analytics(request):
         activity_qs = activity_qs.filter(created_at__gte=start_date)
     recent_activity = list(activity_qs[:20])
 
+    # ════════════════════════════════════════════════════════════════
+    # Funnel / sales-leak analytics (milestone-based, not status snapshot)
+    # ════════════════════════════════════════════════════════════════
+    D0 = Decimal("0.00")
+    today = timezone.localdate()
+
+    def _pct(n, d):
+        return round(100.0 * n / d, 1) if d else 0
+
+    # ── 1) True milestone funnel: Created → Contacted → Replied → Converted ──
+    # Uses milestone flags/timestamps, so converted leads still count at every
+    # earlier stage they passed (unlike the terminal `status` column).
+    ms_total = all_leads
+    ms_contacted = leads_qs.filter(
+        Q(initial_sms_sent=True) | Q(initial_email_sent=True)
+    ).count()
+    ms_replied = leads_qs.filter(has_replied=True).count()
+    ms_converted = converted_count
+    milestone_funnel = [
+        {"label": "Leads Created", "count": ms_total, "of_total": 100.0,
+         "dropped": 0, "color": "var(--la-accent)"},
+        {"label": "Contacted", "count": ms_contacted, "of_total": _pct(ms_contacted, ms_total),
+         "dropped": ms_total - ms_contacted, "color": "var(--la-blue)"},
+        {"label": "Replied", "count": ms_replied, "of_total": _pct(ms_replied, ms_total),
+         "dropped": max(0, ms_contacted - ms_replied), "color": "var(--la-amber)"},
+        {"label": "Converted", "count": ms_converted, "of_total": _pct(ms_converted, ms_total),
+         "dropped": 0, "color": "var(--la-green)"},
+    ]
+
+    # ── 2) Speed-to-lead: conversion by time-to-first-contact bucket ──
+    speed_contacted = (
+        leads_qs.filter(initial_sms_sent_at__isnull=False)
+        .annotate(ttf=ExpressionWrapper(
+            F("initial_sms_sent_at") - F("created_at"), output_field=DurationField()))
+        .filter(ttf__gt=timedelta(0))
+    )
+    _sp_defs = [
+        ("≤5 min", timedelta(0), timedelta(minutes=5)),
+        ("5–30 min", timedelta(minutes=5), timedelta(minutes=30)),
+        ("30–60 min", timedelta(minutes=30), timedelta(hours=1)),
+        ("1–6 hrs", timedelta(hours=1), timedelta(hours=6)),
+        ("6–24 hrs", timedelta(hours=6), timedelta(days=1)),
+        (">24 hrs", timedelta(days=1), timedelta(days=3650)),
+    ]
+    # Single aggregate: per-bucket leads + conversions via conditional counts.
+    _sp_agg = {}
+    for i, (name, lo, hi) in enumerate(_sp_defs):
+        cond = Q(ttf__gte=lo, ttf__lt=hi)
+        _sp_agg[f"n{i}"] = Count("id", filter=cond)
+        _sp_agg[f"c{i}"] = Count("id", filter=cond & Q(converted=True))
+    _sp_agg["fast_n"] = Count("id", filter=Q(ttf__lt=timedelta(minutes=30)))
+    _sp_agg["fast_c"] = Count("id", filter=Q(ttf__lt=timedelta(minutes=30), converted=True))
+    _sp_agg["slow_n"] = Count("id", filter=Q(ttf__gte=timedelta(hours=6)))
+    _sp_agg["slow_c"] = Count("id", filter=Q(ttf__gte=timedelta(hours=6), converted=True))
+    _sp = speed_contacted.aggregate(**_sp_agg)
+    speed_data = []
+    for i, (name, lo, hi) in enumerate(_sp_defs):
+        n, c = _sp[f"n{i}"] or 0, _sp[f"c{i}"] or 0
+        speed_data.append({"label": name, "leads": n, "converted": c, "conv_pct": _pct(c, n)})
+    # Fast (<30m) vs slow (≥6h) + revenue at stake if slow matched fast
+    fast_n, fast_c = _sp["fast_n"] or 0, _sp["fast_c"] or 0
+    slow_n, slow_c = _sp["slow_n"] or 0, _sp["slow_c"] or 0
+    speed_fast_conv = _pct(fast_c, fast_n)
+    speed_slow_conv = _pct(slow_c, slow_n)
+    speed_uplift_conv = round(slow_n * max(0.0, speed_fast_conv - speed_slow_conv) / 100.0)
+    speed_uplift_revenue = Decimal(speed_uplift_conv) * (avg_lead_revenue or D0)
+
+    # ── 3) Source quality: leads, conversion %, revenue, revenue/lead ──
+    _has_g = ~Q(gclid__isnull=True) & ~Q(gclid="")
+    _has_f = ~Q(fbclid__isnull=True) & ~Q(fbclid="")
+    _no_click = (Q(gclid__isnull=True) | Q(gclid="")) & (Q(fbclid__isnull=True) | Q(fbclid=""))
+    _has_utm = ~Q(utm_source__isnull=True) & ~Q(utm_source="")
+
+    _src_defs = [
+        ("Google Ads", _has_g),
+        ("Meta Ads", _has_f & ~_has_g),
+        ("Organic / UTM", _no_click & _has_utm),
+        ("Direct", _no_click & ~_has_utm),
+    ]
+    _rev_ok = Q(converted=True, converted_reservation__isnull=False)
+    _src_agg = {}
+    for i, (label, cond) in enumerate(_src_defs):
+        _src_agg[f"n{i}"] = Count("id", filter=cond)
+        _src_agg[f"c{i}"] = Count("id", filter=cond & Q(converted=True))
+        _src_agg[f"r{i}"] = Sum("converted_reservation__total_price", filter=cond & _rev_ok)
+    _sa = leads_qs.aggregate(**_src_agg)
+    source_quality = []
+    for i, (label, cond) in enumerate(_src_defs):
+        n, c = _sa[f"n{i}"] or 0, _sa[f"c{i}"] or 0
+        rev = _sa[f"r{i}"] or D0
+        source_quality.append({
+            "label": label, "leads": n, "conv_pct": _pct(c, n),
+            "revenue": rev, "rev_per_lead": (rev / n) if n else D0,
+        })
+    source_quality.sort(key=lambda r: r["rev_per_lead"], reverse=True)
+
+    # ── 4) Open pipeline value + aging (current state, window-independent) ──
+    _OPEN = ["new", "contacted", "interested", "future_contact"]
+    open_pipe_qs = Lead.objects.filter(
+        status__in=_OPEN, converted=False, pickup_date__gte=today
+    )
+    _pipe_defs = [("Next 3 days", 0, 3), ("4–7 days", 4, 7),
+                  ("8–14 days", 8, 14), ("15–30 days", 15, 30),
+                  ("30+ days", 31, 36500)]
+    _pipe_agg = {"total_n": Count("id"), "total_v": Sum("estimated_price")}
+    for i, (name, lo, hi) in enumerate(_pipe_defs):
+        cond = Q(pickup_date__gte=today + timedelta(days=lo),
+                 pickup_date__lte=today + timedelta(days=hi))
+        _pipe_agg[f"n{i}"] = Count("id", filter=cond)
+        _pipe_agg[f"v{i}"] = Sum("estimated_price", filter=cond)
+    _pa = open_pipe_qs.aggregate(**_pipe_agg)
+    open_pipe_count = _pa["total_n"] or 0
+    open_pipe_value = _pa["total_v"] or D0
+    pipe_buckets = [
+        {"label": name, "leads": _pa[f"n{i}"] or 0, "value": _pa[f"v{i}"] or D0}
+        for i, (name, lo, hi) in enumerate(_pipe_defs)
+    ]
+    pipe_max_value = max([b["value"] for b in pipe_buckets], default=D0) or D0
+
     context = {
         "days_back": days_back,
+        "active_period": active_period,
+        "period_label": period_label,
+        "comparison": comparison,
         "start_date": start_date,
         "end_date": end_date,
         # Top-line metrics
@@ -12335,6 +12559,19 @@ def lead_analytics(request):
         "failed_syncs": failed_syncs,
         # Activity
         "recent_activity": recent_activity,
+        # Funnel / sales-leak analytics
+        "milestone_funnel": milestone_funnel,
+        "speed_data": speed_data,
+        "speed_fast_conv": speed_fast_conv,
+        "speed_slow_conv": speed_slow_conv,
+        "speed_slow_n": slow_n,
+        "speed_uplift_conv": speed_uplift_conv,
+        "speed_uplift_revenue": speed_uplift_revenue,
+        "source_quality": source_quality,
+        "open_pipe_count": open_pipe_count,
+        "open_pipe_value": open_pipe_value,
+        "pipe_buckets": pipe_buckets,
+        "pipe_max_value": pipe_max_value,
     }
     return render(request, "dispatching/lead_analytics.html", context)
 

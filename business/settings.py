@@ -35,7 +35,17 @@ SECRET_KEY = os.environ.get(
 # STORAGE_PATH = CONTENT_DIR
 
 
-DEBUG = False
+# --- Local dev against the LIVE production database, READ-ONLY ---------------
+# Set USE_PROD_RO=1 locally to point Django at the prod Postgres via the
+# dedicated SELECT-only "readonly_local" role. Writes are impossible at the DB
+# level (no write grants + default_transaction_read_only=on), so this is safe
+# for testing/analytics against real data. NEVER set this in production.
+USE_PROD_RO = os.environ.get("USE_PROD_RO") == "1"
+
+# DEBUG stays False in production. Enabled locally only for read-only mode (or
+# explicitly via DJANGO_DEBUG=1) so runserver serves static files and shows
+# tracebacks while you test. Railway never sets these vars, so prod stays False.
+DEBUG = USE_PROD_RO or os.environ.get("DJANGO_DEBUG") == "1"
 
 
 ALLOWED_HOSTS = [
@@ -136,7 +146,50 @@ WSGI_APPLICATION = "business.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 
-if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PGHOST"):
+if USE_PROD_RO:
+    # Local dev pointed at the LIVE prod Postgres via the read-only role.
+    _ro_url = os.environ.get("PROD_RO_DATABASE_URL")
+    if not _ro_url:
+        raise RuntimeError(
+            "USE_PROD_RO=1 but PROD_RO_DATABASE_URL is not set. "
+            "Add the readonly_local connection string to your .env."
+        )
+    # NOTE: use parse(), NOT config(): config() reads the DATABASE_URL env var
+    # first and would silently connect to the WRITE database. parse() uses
+    # exactly the read-only URL we pass.
+    DATABASES = {
+        "default": dj_database_url.parse(
+            _ro_url,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+    # Belt-and-suspenders: force read-only transactions on every connection.
+    # (The DB role already enforces this and holds only SELECT grants.)
+    DATABASES["default"].setdefault("OPTIONS", {})[
+        "options"
+    ] = "-c default_transaction_read_only=on"
+    # DB-backed sessions would write on login / every request (see
+    # SESSION_SAVE_EVERY_REQUEST below). Use signed cookies so the UI stays
+    # browsable without any write hitting the read-only prod DB.
+    SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+    # The default LOGIN_URL (/accounts/login/) 404s here; the real login page
+    # is the "login" route under users/. Cookie sessions log you out on first
+    # switch, so @login_required would otherwise bounce to the broken default.
+    LOGIN_URL = "login"
+    import sys as _sys
+
+    print(
+        "\n"
+        "=========================================================\n"
+        " READ-ONLY PROD MODE: connected to LIVE database\n"
+        f"   host = {DATABASES['default'].get('HOST')}\n"
+        f"   user = {DATABASES['default'].get('USER')}\n"
+        " Writes are blocked at the database. This is real data.\n"
+        "=========================================================\n",
+        file=_sys.stderr,
+    )
+elif os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PGHOST"):
     # Use Railway PostgreSQL via DATABASE_URL
     DATABASES = {
         "default": dj_database_url.config(

@@ -1,89 +1,79 @@
 """
 Revenue & source-attribution KPI helpers.
 
-Single source of truth for the math behind the revenue dashboard. The
-"revenue" definition is **cash-basis** — money actually received during
-the window — with two payment paths:
+Single source of truth for the math behind the revenue dashboard. Revenue
+is **transaction-level cash-basis**: every figure is built from individual
+``payment.Payment`` rows (the row-by-row mirror of Stripe), so the numbers
+reconcile directly against the Stripe dashboard.
 
-  • A reservation contributes to revenue when EITHER:
-        - it has at least one Payment row with status="paid"
-          (the Stripe path; is_paid=True / paid_amount populated), OR
-        - its status is "completed" (the ride happened — operator
-          collected cash, invoice, ACH, or some other means we don't
-          model row-by-row).
+  • A revenue event is one ``Payment`` with status="paid".
 
-  • Revenue amount per reservation:
-        - Stripe-tracked  → paid_amount (net of refunds)
-        - non-Stripe done → total_price (the contracted amount)
+  • Revenue amount per event:
+        net   = amount − refunded_amount   (partial refunds netted out)
+        gross = amount                     (before refunds)
+    Fully-refunded charges carry status="refunded" and are excluded — the
+    +charge and −refund net to zero, so dropping the row is correct.
 
-  • Revenue anchor date (which window the revenue lands in):
-        - Stripe-tracked  → first_paid_at  (when Stripe credited us)
-        - non-Stripe done → earliest non-cancelled leg's pickup_date
-                            (cash-on-pickup is the dominant non-Stripe
-                            pattern — the trip date is when the cash
-                            actually changes hands)
-        - legless edge    → created_at fallback
+  • Revenue anchor date (which window the cash lands in):
+        Payment.created_at — when Stripe actually credited us. A deposit and
+        its later balance are SEPARATE events on their own dates, so a balance
+        collected this month counts this month even if the deposit was earlier.
 
-This is intentionally NOT the accrual report — pickup_date is only used
-as a cash-receipt proxy for non-Stripe trips. Stripe trips still anchor
-on the actual payment-receipt date, even when that's months before the
-trip. If you need accrual semantics (revenue when service was delivered,
-regardless of payment) use the separate `accrual_revenue_report` page.
+Why not read Reservation.paid_amount / first_paid_at? Those denormalized
+columns (a) drift out of sync with the Payment rows, and (b) collapse every
+payment a reservation ever received onto the *first* payment's date — which
+misattributes balance cash to the deposit month. Summing the Payment rows
+directly avoids both problems.
+
+Caveat: trips paid purely in cash with no Payment row are not counted here
+(this is Stripe-reconcilable cash-basis, not total contracted value). Use the
+separate ``accrual_revenue_report`` page for service-delivered (accrual)
+semantics.
+
+Reservation attributes (booking_source, travel_agent, route, vehicle) are
+reached by joining Payment → reservation; per-reservation breakdowns count
+DISTINCT reservations to avoid multiplying a reservation by its payment count.
 """
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db.models import (
-    Avg, Case, Count, DateTimeField, DecimalField, Exists, F, OuterRef, Q,
-    Subquery, Sum, Value, When,
+    Count, DecimalField, F, Sum, Value,
 )
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
-from reservations.models import Leg, Reservation
+from payment.models import Payment
+from reservations.models import Reservation
 
 
 ZERO = Decimal("0.00")
+_DEC = DecimalField(max_digits=12, decimal_places=2)
 
-# Earliest non-cancelled leg's pickup_date — used as the cash-receipt proxy
-# for non-Stripe completed trips, since most are paid at pickup.
-_earliest_active_pickup_subq = (
-    Leg.objects.filter(reservation=OuterRef("pk"))
-    .exclude(status="cancelled")
-    .order_by("pickup_date", "pickup_time")
-    .values("pickup_date")[:1]
-)
+# Net cash for one Payment row: amount minus any partial refund recorded on it.
+_NET = F("amount") - Coalesce("refunded_amount", Value(ZERO), output_field=_DEC)
 
-# Catches round-trip reservations stuck in "confirmed" with one leg already
-# completed (operator updated the leg but not the parent reservation).
-_has_completed_leg_subq = Exists(
-    Leg.objects.filter(reservation=OuterRef("pk"), status="completed")
-)
 
-# Net revenue per row: Stripe = paid_amount (net of refunds); non-Stripe = total_price.
-_REVENUE_AMOUNT_EXPR = Case(
-    When(is_paid=True, then=F("paid_amount")),
-    default=F("total_price"),
-    output_field=DecimalField(max_digits=12, decimal_places=2),
-)
+def _sum_net(field_alias="net"):
+    """Coalesced Sum() of the per-row net cash expression, as a Decimal."""
+    return Coalesce(Sum(_NET), Value(ZERO), output_field=_DEC)
 
-# Gross revenue per row: Stripe = gross_paid (before refunds); non-Stripe = total_price.
-_REVENUE_GROSS_EXPR = Case(
-    When(is_paid=True, then=F("gross_paid")),
-    default=F("total_price"),
-    output_field=DecimalField(max_digits=12, decimal_places=2),
-)
 
-# Cash-basis anchor: when did we actually receive the money?
-# COALESCE returns the first non-NULL value, so for Stripe-paid rows
-# first_paid_at wins (real receipt date), and for cash-only rows the
-# subquery returns the earliest non-cancelled leg pickup_date.
-_REVENUE_ANCHOR_EXPR = Coalesce(
-    "first_paid_at",
-    Subquery(_earliest_active_pickup_subq),
-    "created_at",
-    output_field=DateTimeField(),
-)
+def payment_revenue_qs(start, end):
+    """
+    The transaction-level cash-basis revenue queryset for [start, end).
+    One row per successful Stripe payment, anchored on Payment.created_at.
+    Every other helper builds on this so the revenue definition stays
+    consistent across the whole dashboard.
+
+    Each row is annotated with ``net`` (amount − partial refund).
+    Join to the parent reservation with the ``reservation__…`` path.
+    """
+    return (
+        Payment.objects
+        .filter(status="paid", created_at__gte=start, created_at__lt=end)
+        .annotate(net=_NET)
+    )
 
 
 def resolve_range(start=None, end=None, days: int = 30):
@@ -134,75 +124,43 @@ def _scoped(qs, start, end):
     return qs.filter(created_at__gte=start, created_at__lt=end)
 
 
-def revenue_qs(start, end):
-    """
-    The cash-basis revenue queryset for [start, end). Every other helper
-    in this module builds on top of this — guarantees a consistent
-    definition of 'paid revenue' across the dashboard.
-
-    A reservation contributes when ANY of these is true:
-      - is_paid=True (Stripe path)
-      - status="completed" (whole-trip cash collection)
-      - at least one Leg has status="completed" (partial collection on
-        round-trips where operator hasn't flipped the parent reservation)
-
-    Each row carries:
-      - revenue_amount: net revenue (Decimal)
-      - revenue_gross:  pre-refund gross (Decimal)
-      - revenue_at:     date money was received (DateTime)
-    """
-    return (
-        Reservation.objects
-        .annotate(
-            has_completed_leg=_has_completed_leg_subq,
-            revenue_at=_REVENUE_ANCHOR_EXPR,
-            revenue_amount=_REVENUE_AMOUNT_EXPR,
-            revenue_gross=_REVENUE_GROSS_EXPR,
-        )
-        .filter(
-            Q(is_paid=True) | Q(status="completed") | Q(has_completed_leg=True)
-        )
-        .filter(revenue_at__gte=start, revenue_at__lt=end)
-    )
-
-
 def overview(start, end) -> dict:
     """
-    Headline cards. Volume (Bookings Created) is anchored on created_at;
-    every revenue metric is cash-basis on revenue_at (first_paid_at or
-    created_at fallback for non-Stripe completed trips).
+    Headline cards. 'Bookings Created' is volume anchored on created_at;
+    every revenue figure is transaction-level cash-basis — the sum of paid
+    Payment rows charged in the window (net of partial refunds), anchored on
+    Payment.created_at. 'Bookings Paid' counts DISTINCT reservations that
+    received at least one such payment.
     """
-    qs_created = _scoped(Reservation.objects.all(), start, end)
-    paid_qs = revenue_qs(start, end)
+    pay = payment_revenue_qs(start, end)
 
-    created = qs_created.count()
-    paid = paid_qs.count()
+    created = _scoped(Reservation.objects.all(), start, end).count()
 
-    agg = paid_qs.aggregate(
-        net=Sum("revenue_amount"),
-        gross=Sum("revenue_gross"),
-        # total_refunded is a Stripe-only field; for non-Stripe rows it's 0/null.
-        refunded=Sum("total_refunded"),
-        avg_ticket=Avg("revenue_amount"),
+    agg = pay.aggregate(
+        net=_sum_net(),
+        gross=Coalesce(Sum("amount"), Value(ZERO), output_field=_DEC),
+        refunded=Coalesce(Sum("refunded_amount"), Value(ZERO), output_field=_DEC),
+        txns=Count("id"),
+        reservations=Count("reservation", distinct=True),
     )
-    paid_revenue = agg["net"] or ZERO
-    gross_paid = agg["gross"] or ZERO
-    refunded = agg["refunded"] or ZERO
-    avg_ticket = agg["avg_ticket"] or ZERO
+    paid_revenue = agg["net"]
+    paid_res = agg["reservations"]
+    avg_ticket = (paid_revenue / paid_res) if paid_res else ZERO
+
+    repeat_revenue = pay.filter(
+        reservation__is_repeat_booking=True
+    ).aggregate(s=_sum_net())["s"]
 
     return {
         "bookings_created": created,
-        "bookings_paid": paid,
-        # mixed-cohort rate matching the headline cards
-        "paid_conv_rate": round(_safe_div(paid, created) * 100, 1),
+        "bookings_paid": paid_res,
+        "paid_txns": agg["txns"],
+        "paid_conv_rate": round(_safe_div(paid_res, created) * 100, 1),
         "paid_revenue": paid_revenue,
-        "gross_paid": gross_paid,
-        "refunded": refunded,
+        "gross_paid": agg["gross"],
+        "refunded": agg["refunded"],
         "avg_ticket": avg_ticket,
-        "repeat_revenue": (
-            paid_qs.filter(is_repeat_booking=True)
-            .aggregate(s=Sum("revenue_amount"))["s"] or ZERO
-        ),
+        "repeat_revenue": repeat_revenue,
     }
 
 
@@ -221,18 +179,20 @@ def by_source(start, end):
     by_src_created = {r["booking_source"]: r["created"] for r in created_rows}
 
     paid_rows = (
-        revenue_qs(start, end)
-        .values("booking_source")
+        payment_revenue_qs(start, end)
+        .values("reservation__booking_source")
         .annotate(
-            paid=Count("id"),
-            paid_revenue=Coalesce(
-                Sum("revenue_amount"),
-                ZERO,
-                output_field=DecimalField(max_digits=12, decimal_places=2),
-            ),
+            paid=Count("reservation", distinct=True),
+            paid_revenue=_sum_net(),
         )
     )
-    by_src_paid = {r["booking_source"]: r for r in paid_rows}
+    by_src_paid = {
+        r["reservation__booking_source"]: {
+            "paid": r["paid"],
+            "paid_revenue": r["paid_revenue"],
+        }
+        for r in paid_rows
+    }
 
     all_sources = set(by_src_created) | set(by_src_paid)
     rows = []
@@ -255,85 +215,139 @@ def by_source(start, end):
     return rows
 
 
-def by_travel_agent(start, end, limit: int = 25):
-    """Top travel agents by paid revenue in the window (cash-basis)."""
-    return list(
-        revenue_qs(start, end)
-        .filter(travel_agent__isnull=False)
-        .values(
-            "travel_agent_id",
-            "travel_agent__agent_name",
-            "travel_agent__agency_name",
-        )
-        .annotate(
-            paid_bookings=Count("id"),
-            paid_revenue=Sum("revenue_amount"),
-            commission=Sum("commission_amount"),
-            avg_ticket=Avg("revenue_amount"),
-        )
-        .order_by("-paid_revenue")[:limit]
+def _commission_by_reservation_ids(res_ids):
+    """
+    Commission is a per-reservation amount, so it must be summed over DISTINCT
+    reservations — never over the payment rows (which would multiply a
+    reservation's commission by its number of payments). Returns
+    {travel_agent_id: total_commission}.
+    """
+    return dict(
+        Reservation.objects
+        .filter(id__in=res_ids, travel_agent__isnull=False)
+        .values_list("travel_agent_id")
+        .annotate(c=Sum("commission_amount"))
+        .values_list("travel_agent_id", "c")
     )
 
 
-def travel_agent_totals(start, end) -> dict:
-    """Combined totals across all travel-agent bookings — used for the leaderboard footer."""
-    agg = (
-        revenue_qs(start, end)
-        .filter(travel_agent__isnull=False)
-        .aggregate(
-            paid_bookings=Count("id"),
-            paid_revenue=Sum("revenue_amount"),
-            commission=Sum("commission_amount"),
+def by_travel_agent(start, end, limit: int = 25):
+    """Top travel agents by paid revenue in the window (cash-basis)."""
+    pay = payment_revenue_qs(start, end).filter(
+        reservation__travel_agent__isnull=False
+    )
+    raw = list(
+        pay.values(
+            "reservation__travel_agent_id",
+            "reservation__travel_agent__agent_name",
+            "reservation__travel_agent__agency_name",
         )
+        .annotate(
+            paid_bookings=Count("reservation", distinct=True),
+            paid_revenue=_sum_net(),
+        )
+        .order_by("-paid_revenue")[:limit]
+    )
+    res_ids = list(pay.values_list("reservation_id", flat=True).distinct())
+    comm_by_agent = _commission_by_reservation_ids(res_ids)
+
+    rows = []
+    for r in raw:
+        aid = r["reservation__travel_agent_id"]
+        pb = r["paid_bookings"]
+        pr = r["paid_revenue"] or ZERO
+        rows.append({
+            # keys kept identical to the old shape so the template is untouched
+            "travel_agent_id": aid,
+            "travel_agent__agent_name": r["reservation__travel_agent__agent_name"],
+            "travel_agent__agency_name": r["reservation__travel_agent__agency_name"],
+            "paid_bookings": pb,
+            "paid_revenue": pr,
+            "commission": comm_by_agent.get(aid, ZERO) or ZERO,
+            "avg_ticket": (pr / pb) if pb else ZERO,
+        })
+    return rows
+
+
+def travel_agent_totals(start, end) -> dict:
+    """Combined totals across all travel-agent bookings — leaderboard footer."""
+    pay = payment_revenue_qs(start, end).filter(
+        reservation__travel_agent__isnull=False
+    )
+    agg = pay.aggregate(
+        paid_bookings=Count("reservation", distinct=True),
+        paid_revenue=_sum_net(),
+    )
+    res_ids = list(pay.values_list("reservation_id", flat=True).distinct())
+    commission = (
+        Reservation.objects.filter(id__in=res_ids)
+        .aggregate(c=Sum("commission_amount"))["c"] or ZERO
     )
     return {
         "paid_bookings": agg["paid_bookings"] or 0,
         "paid_revenue": agg["paid_revenue"] or ZERO,
-        "commission": agg["commission"] or ZERO,
+        "commission": commission,
     }
 
 
 def by_route(start, end, limit: int = 15):
     """Top revenue-generating routes (cash-basis)."""
-    return list(
-        revenue_qs(start, end)
+    raw = (
+        payment_revenue_qs(start, end)
         .values(
-            "rate__route__origin__name",
-            "rate__route__destination__name",
+            "reservation__rate__route__origin__name",
+            "reservation__rate__route__destination__name",
         )
         .annotate(
-            paid_bookings=Count("id"),
-            paid_revenue=Sum("revenue_amount"),
+            paid_bookings=Count("reservation", distinct=True),
+            paid_revenue=_sum_net(),
         )
         .order_by("-paid_revenue")[:limit]
     )
+    return [
+        {
+            "rate__route__origin__name": r["reservation__rate__route__origin__name"],
+            "rate__route__destination__name": r["reservation__rate__route__destination__name"],
+            "paid_bookings": r["paid_bookings"],
+            "paid_revenue": r["paid_revenue"] or ZERO,
+        }
+        for r in raw
+    ]
 
 
 def by_vehicle(start, end):
     """Paid revenue by vehicle type (cash-basis)."""
-    return list(
-        revenue_qs(start, end)
-        .values("vehicle__vehicle_type")
+    raw = (
+        payment_revenue_qs(start, end)
+        .values("reservation__vehicle__vehicle_type")
         .annotate(
-            paid_bookings=Count("id"),
-            paid_revenue=Sum("revenue_amount"),
-            avg_ticket=Avg("revenue_amount"),
+            paid_bookings=Count("reservation", distinct=True),
+            paid_revenue=_sum_net(),
         )
         .order_by("-paid_revenue")
     )
+    rows = []
+    for r in raw:
+        pb = r["paid_bookings"]
+        pr = r["paid_revenue"] or ZERO
+        rows.append({
+            "vehicle__vehicle_type": r["reservation__vehicle__vehicle_type"],
+            "paid_bookings": pb,
+            "paid_revenue": pr,
+            "avg_ticket": (pr / pb) if pb else ZERO,
+        })
+    return rows
 
 
 def revenue_trend(start, end):
-    """
-    Daily paid-revenue series. Keyed on revenue_at (cash-basis anchor).
-    """
+    """Daily paid-revenue series, keyed on Payment.created_at (cash-basis)."""
     return list(
-        revenue_qs(start, end)
-        .annotate(day=TruncDate("revenue_at"))
+        payment_revenue_qs(start, end)
+        .annotate(day=TruncDate("created_at"))
         .values("day")
         .annotate(
-            paid_revenue=Sum("revenue_amount"),
-            bookings=Count("id"),
+            paid_revenue=_sum_net(),
+            bookings=Count("reservation", distinct=True),
         )
         .order_by("day")
     )

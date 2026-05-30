@@ -197,7 +197,11 @@
                 <a href="?days=60" class="la-tab {% if days_back == 60 %}active{% endif %}">60d</a>
                 <a href="?days=90" class="la-tab {% if days_back == 90 %}active{% endif %}">90d</a>
                 <a href="?days=all" class="la-tab {% if days_back == 'all' %}active{% endif %}">All</a>
+                <span style="width:1px; background: var(--la-border, #e2e8f0); margin: 0 0.35rem;"></span>
+                <a href="?period=this_month" class="la-tab {% if active_period == 'this_month' %}active{% endif %}">This Month</a>
+                <a href="?period=last_month" class="la-tab {% if active_period == 'last_month' %}active{% endif %}">Last Month</a>
             </div>
+            {% if period_label %}<p style="margin-top:0.5rem; font-size:0.8rem; opacity:0.85;">Showing: <strong>{{ period_label }}</strong>{% if comparison.has_prev %} &middot; compared to {{ comparison.prev_label }}{% endif %}</p>{% endif %}
         </div>
     </div>
 
@@ -209,6 +213,7 @@
                 <div class="la-kpi">
                     <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-accent);"></span>Total Leads</div>
                     <div class="la-kpi-value">{{ all_leads }}</div>
+                    {% if comparison.has_prev %}{% include "dispatching/_kpi_delta.html" with d=comparison.leads prev=comparison.prev_kpis.leads unit="num" prev_label=comparison.prev_label %}{% endif %}
                 </div>
             </div>
             <div class="col-6 col-lg-3">
@@ -216,6 +221,7 @@
                     <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-green);"></span>Conversion Rate</div>
                     <div class="la-kpi-value">{{ conversion_rate }}%</div>
                     <div class="la-kpi-sub">{{ converted_count }} converted</div>
+                    {% if comparison.has_prev %}{% include "dispatching/_kpi_delta.html" with d=comparison.conv_rate prev=comparison.prev_kpis.conv_rate unit="pct" prev_label=comparison.prev_label %}{% endif %}
                 </div>
             </div>
             <div class="col-6 col-lg-3">
@@ -223,6 +229,7 @@
                     <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-amber);"></span>Reply Rate</div>
                     <div class="la-kpi-value">{{ reply_rate }}%</div>
                     <div class="la-kpi-sub">{{ reply_count }} replied</div>
+                    {% if comparison.has_prev %}{% include "dispatching/_kpi_delta.html" with d=comparison.reply_rate prev=comparison.prev_kpis.reply_rate unit="pct" prev_label=comparison.prev_label %}{% endif %}
                 </div>
             </div>
             <div class="col-6 col-lg-3">
@@ -230,8 +237,35 @@
                     <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-blue);"></span>Lead Revenue</div>
                     <div class="la-kpi-value">${{ total_lead_revenue|floatformat:0|intcomma }}</div>
                     <div class="la-kpi-sub">~${{ avg_lead_revenue|floatformat:0|intcomma }} per conversion</div>
+                    {% if comparison.has_prev %}{% include "dispatching/_kpi_delta.html" with d=comparison.revenue prev=comparison.prev_kpis.revenue unit="usd" prev_label=comparison.prev_label %}{% endif %}
                 </div>
             </div>
+        </div>
+
+        <!-- ═══ OPEN PIPELINE ═══ -->
+        <div class="la-card mb-4">
+            <div class="la-card-header">
+                <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-hourglass-split"></i></div>
+                <h3>Open Pipeline <span style="font-weight:400; color: var(--la-text-secondary); font-size:0.82rem;">&mdash; un-converted leads with an upcoming pickup</span></h3>
+            </div>
+            <div class="d-flex flex-wrap align-items-baseline gap-3 mb-3">
+                <div><span style="font-size: 1.6rem; font-weight: 800;">{{ open_pipe_count|intcomma }}</span>
+                    <span style="color: var(--la-text-secondary); font-size: 0.85rem;">open leads</span></div>
+                <div><span style="font-size: 1.6rem; font-weight: 800; color: var(--la-green);">${{ open_pipe_value|floatformat:0|intcomma }}</span>
+                    <span style="color: var(--la-text-secondary); font-size: 0.85rem;">estimated value still in play</span></div>
+            </div>
+            {% for b in pipe_buckets %}
+            <div class="la-funnel-row">
+                <div class="la-funnel-label">{{ b.label }}</div>
+                <div class="la-funnel-track">
+                    <div class="la-funnel-fill" style="width: {% widthratio b.value pipe_max_value 100 %}%; background: {% if forloop.first %}var(--la-red){% elif forloop.counter <= 2 %}var(--la-amber){% else %}var(--la-blue){% endif %};">${{ b.value|floatformat:0|intcomma }}</div>
+                </div>
+                <div class="la-funnel-pct">{{ b.leads|intcomma }} leads</div>
+            </div>
+            {% endfor %}
+            <p style="margin: 0.6rem 0 0; font-size: 0.74rem; color: var(--la-text-secondary);">
+                Sorted by pickup proximity &mdash; the soonest pickups (red/amber) are the most time-sensitive to work.
+            </p>
         </div>
 
         <div class="row g-4">
@@ -243,49 +277,88 @@
                 <div class="la-card">
                     <div class="la-card-header">
                         <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-funnel-fill"></i></div>
-                        <h3>Conversion Funnel</h3>
+                        <h3>Conversion Funnel <span style="font-weight:400; color: var(--la-text-secondary); font-size:0.82rem;">&mdash; milestones</span></h3>
                     </div>
-                    {% with max=all_leads %}
-                    {% if max %}
+                    {% if all_leads %}
+                    {% for s in milestone_funnel %}
                     <div class="la-funnel-row">
-                        <div class="la-funnel-label">New</div>
+                        <div class="la-funnel-label">{{ s.label }}</div>
                         <div class="la-funnel-track">
-                            <div class="la-funnel-fill" style="width: {% widthratio new_count max 100 %}%; background: #94a3b8;">{{ new_count }}</div>
+                            <div class="la-funnel-fill" style="width: {{ s.of_total }}%; background: {{ s.color }};">{{ s.count|intcomma }}</div>
                         </div>
-                        <div class="la-funnel-pct">{% widthratio new_count max 100 %}%</div>
+                        <div class="la-funnel-pct">{{ s.of_total }}%</div>
                     </div>
-                    <div class="la-funnel-row">
-                        <div class="la-funnel-label">Contacted</div>
-                        <div class="la-funnel-track">
-                            <div class="la-funnel-fill" style="width: {% widthratio contacted_count max 100 %}%; background: var(--la-blue);">{{ contacted_count }}</div>
-                        </div>
-                        <div class="la-funnel-pct">{% widthratio contacted_count max 100 %}%</div>
+                    {% if s.dropped %}
+                    <div style="margin: -0.35rem 0 0.4rem 130px; font-size: 0.74rem; color: var(--la-red);">
+                        &#8627; {{ s.dropped|intcomma }} dropped before this stage
                     </div>
-                    <div class="la-funnel-row">
-                        <div class="la-funnel-label">Interested</div>
-                        <div class="la-funnel-track">
-                            <div class="la-funnel-fill" style="width: {% widthratio interested_count max 100 %}%; background: var(--la-amber);">{{ interested_count }}</div>
-                        </div>
-                        <div class="la-funnel-pct">{% widthratio interested_count max 100 %}%</div>
-                    </div>
-                    <div class="la-funnel-row">
-                        <div class="la-funnel-label">Converted</div>
-                        <div class="la-funnel-track">
-                            <div class="la-funnel-fill" style="width: {% widthratio converted_count max 100 %}%; background: var(--la-green);">{{ converted_count }}</div>
-                        </div>
-                        <div class="la-funnel-pct">{% widthratio converted_count max 100 %}%</div>
-                    </div>
-                    <div class="la-funnel-row">
-                        <div class="la-funnel-label">Lost</div>
-                        <div class="la-funnel-track">
-                            <div class="la-funnel-fill" style="width: {% widthratio lost_count max 100 %}%; background: var(--la-red);">{{ lost_count }}</div>
-                        </div>
-                        <div class="la-funnel-pct">{% widthratio lost_count max 100 %}%</div>
-                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    <p style="margin: 0.6rem 0 0; font-size: 0.74rem; color: var(--la-text-secondary);">
+                        Milestone-based: every lead is counted at each stage it actually reached
+                        (a converted lead still counts as contacted). Reply is an engagement signal,
+                        not a required step &mdash; most conversions are direct online bookings.
+                    </p>
                     {% else %}
                     <p class="text-muted mb-0">No leads in this period.</p>
                     {% endif %}
-                    {% endwith %}
+                </div>
+
+                <!-- Speed-to-Lead -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-lightning-charge-fill"></i></div>
+                        <h3>Speed to Lead <span style="font-weight:400; color: var(--la-text-secondary); font-size:0.82rem;">&mdash; conversion by time to first text</span></h3>
+                    </div>
+                    {% if speed_uplift_conv %}
+                    <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 0.75rem 0.9rem; margin-bottom: 1rem; font-size: 0.85rem; color: #9a3412;">
+                        <strong>{{ speed_slow_n|intcomma }}</strong> leads were contacted slowly (&ge;6h) and convert at
+                        <strong>{{ speed_slow_conv }}%</strong> vs <strong>{{ speed_fast_conv }}%</strong> for &lt;30&nbsp;min.
+                        Matching the fast rate &asymp; <strong>+{{ speed_uplift_conv|intcomma }} bookings</strong>
+                        (~${{ speed_uplift_revenue|floatformat:0|intcomma }}) in this window.
+                    </div>
+                    {% endif %}
+                    {% for s in speed_data %}
+                    <div class="la-funnel-row">
+                        <div class="la-funnel-label">{{ s.label }}</div>
+                        <div class="la-funnel-track">
+                            <div class="la-funnel-fill" style="width: {{ s.conv_pct }}%; background: {% if s.conv_pct >= 28 %}var(--la-green){% elif s.conv_pct >= 18 %}var(--la-amber){% else %}var(--la-red){% endif %};">{{ s.conv_pct }}%</div>
+                        </div>
+                        <div class="la-funnel-pct">{{ s.leads|intcomma }} leads</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Source Quality -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-bullseye"></i></div>
+                        <h3>Source Quality <span style="font-weight:400; color: var(--la-text-secondary); font-size:0.82rem;">&mdash; conversion &amp; revenue per lead</span></h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr style="color: var(--la-text-secondary); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em;">
+                                    <th>Source</th>
+                                    <th class="text-end">Leads</th>
+                                    <th class="text-end">Conv %</th>
+                                    <th class="text-end">Revenue</th>
+                                    <th class="text-end">Rev / Lead</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in source_quality %}
+                                <tr>
+                                    <td><strong>{{ s.label }}</strong></td>
+                                    <td class="text-end">{{ s.leads|intcomma }}</td>
+                                    <td class="text-end">{{ s.conv_pct }}%</td>
+                                    <td class="text-end">${{ s.revenue|floatformat:0|intcomma }}</td>
+                                    <td class="text-end"><strong>${{ s.rev_per_lead|floatformat:2|intcomma }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Daily Trend -->

@@ -28,6 +28,21 @@ def _recompute_reservation_paid_state(reservation):
     if reservation is None:
         return
 
+    # Local import to avoid app-loading circularity
+    from reservations.models import Reservation
+
+    Reservation.objects.filter(pk=reservation.pk).update(
+        **compute_paid_state(reservation)
+    )
+
+
+def compute_paid_state(reservation) -> dict:
+    """
+    Pure helper: derive the target paid-state columns for a reservation by
+    aggregating its Payment rows. Returned dict maps 1:1 to the Reservation
+    columns. Shared by the live signal and the backfill command so the two
+    can never diverge.
+    """
     paid_qs = reservation.payments.filter(status="paid")
     gross = paid_qs.aggregate(s=Sum("amount"))["s"] or Decimal("0.00")
     refunded = paid_qs.aggregate(s=Sum("refunded_amount"))["s"] or Decimal("0.00")
@@ -37,16 +52,13 @@ def _recompute_reservation_paid_state(reservation):
         paid_qs.order_by("created_at").values_list("created_at", flat=True).first()
     )
 
-    # Local import to avoid app-loading circularity
-    from reservations.models import Reservation
-
-    Reservation.objects.filter(pk=reservation.pk).update(
-        is_paid=net > 0,
-        paid_amount=net,
-        gross_paid=gross.quantize(Decimal("0.01")),
-        total_refunded=refunded.quantize(Decimal("0.01")),
-        first_paid_at=first_paid_at,
-    )
+    return {
+        "is_paid": net > 0,
+        "paid_amount": net,
+        "gross_paid": gross.quantize(Decimal("0.01")),
+        "total_refunded": refunded.quantize(Decimal("0.01")),
+        "first_paid_at": first_paid_at,
+    }
 
 
 @receiver(post_save, sender=Payment)

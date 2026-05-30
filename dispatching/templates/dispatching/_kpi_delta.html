@@ -1,0 +1,13 @@
+{% comment %}Period-over-period badge. Expects: d (delta dict|None), prev (raw prior value), unit ('num'|'pct'|'usd'), prev_label.{% endcomment %}
+{% load humanize %}
+{% if d %}
+<div style="margin-top: 0.3rem; font-size: 0.74rem; font-weight: 600;">
+    {% if d.pct == None %}<span style="color: var(--la-green);">&#9650; new</span>
+    {% elif d.dir == 'up' %}<span style="color: var(--la-green);">&#9650; {{ d.abs }}%</span>
+    {% elif d.dir == 'down' %}<span style="color: var(--la-red);">&#9660; {{ d.abs }}%</span>
+    {% else %}<span style="color: var(--la-text-secondary);">&ndash; 0%</span>{% endif %}
+    <span style="color: var(--la-text-secondary); font-weight: 400;">vs
+        {% if unit == 'usd' %}${{ prev|floatformat:0|intcomma }}{% elif unit == 'pct' %}{{ prev }}%{% else %}{{ prev|intcomma }}{% endif %}
+        &middot; {{ prev_label }}</span>
+</div>
+{% endif %}
