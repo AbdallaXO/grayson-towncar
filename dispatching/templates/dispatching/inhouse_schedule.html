@@ -152,7 +152,7 @@
   }
   .sm-cov-legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
   .sm-cov-grid {
-    display: grid; grid-template-columns: repeat(7, 1fr);
+    display: grid; grid-template-columns: repeat(var(--cov-cols, 7), 1fr);
     gap: 1px; background: var(--hairline);
   }
   .sm-cov-cell {
@@ -937,8 +937,8 @@
           <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C9A227;"></span>Set Hours</span>
         </div>
       </div>
-      <div class="sm-cov-grid">
-        {% for c in coverage %}
+      <div class="sm-cov-grid" style="--cov-cols: {{ coverage_strip|length }};">
+        {% for c in coverage_strip %}
         <div class="sm-cov-cell sm-risk-{{ c.risk_level }} is-risk-{{ c.risk_level }}
                     {% if c.is_weekend %}is-weekend{% endif %} {% if c.is_today %}is-today{% endif %}"
              data-day-idx="{{ c.day_idx }}"

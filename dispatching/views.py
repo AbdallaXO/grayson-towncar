@@ -10856,7 +10856,7 @@ def inhouse_schedule(request):
     hour_choices = [{"value": h, "label": _fmt_hour_long(h)} for h in range(24)]
 
     inhouse_drivers = list(
-        Driver.objects.filter(driver_type="inhouse")
+        Driver.objects.filter(driver_type="inhouse", is_active=True)
         .select_related("profile")
         .prefetch_related("weekly_schedule", "date_overrides")
         .order_by("profile__first_name", "profile__last_name", "profile__username")
@@ -11126,6 +11126,7 @@ def inhouse_schedule(request):
             "date_short": f"{week_dates[i].strftime('%b')} {week_dates[i].day}",
             "is_weekend": i >= 5,
             "is_today": week_dates[i] == today,
+            "is_past":  week_dates[i] < today,
             "working":  working,
             "total":    len(driver_rows),
             "delta":    delta,
@@ -11199,6 +11200,14 @@ def inhouse_schedule(request):
             imp["driver_name"] = r["name"]
 
     action_items = build_action_items(day_risks, exception_impacts)
+    # Drop alerts for days that have already elapsed. The grid shows the full
+    # current week (Mon–Sun), so e.g. on Saturday the Mon–Fri risk rollups are
+    # past-due and just add noise — keep only today-onward (and any item with
+    # no specific day).
+    action_items = [
+        it for it in action_items
+        if it.get("day_idx") is None or week_dates[it["day_idx"]] >= today
+    ]
     coverage_gaps = build_coverage_gaps(day_risks)
 
     # ── ribbon counts (across all drivers' upcoming exceptions) ──
@@ -11289,10 +11298,16 @@ def inhouse_schedule(request):
             "recommended_actions":  dr["recommended_actions"],
         })
 
+    # Coverage strip shows only today-onward so elapsed days of the current
+    # week don't clutter it. If the whole displayed week is already past (user
+    # navigated backward), fall back to the full week rather than an empty strip.
+    coverage_strip = [c for c in coverage if not c["is_past"]] or coverage
+
     context = {
         "driver_rows":         driver_rows,
         "drivers_payload_json": _json.dumps(drivers_payload),
         "coverage":            coverage,
+        "coverage_strip":      coverage_strip,
         "coverage_target":     COVERAGE_TARGET,
         "day_risks":           day_risks,
         "day_risks_json":      _json.dumps(day_risks_payload),
