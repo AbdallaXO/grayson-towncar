@@ -10196,6 +10196,257 @@ def driver_performance(request):
 
 
 # ============================================================================
+# VEHICLE PROFIT REPORT
+# ============================================================================
+
+def _build_vehicle_profit_report(start_date, end_date, detail_vehicle_id=None):
+    """Aggregate completed-trip profit per physical fleet vehicle.
+
+    A Leg only references a vehicle *type*; the physical car is attributed via
+    the driver's daily vehicle assignment (DriverVehicleAssignment is unique per
+    driver+date), so a leg's car = the vehicle assigned to its driver on its
+    pickup_date. Completed legs whose driver had no fleet assignment that day
+    (e.g. affiliates) fall into an "unassigned" bucket.
+    """
+    from decimal import Decimal
+    from django.db.models import Count
+    from drivers.models import FleetVehicle, DriverVehicleAssignment
+
+    ZERO = Decimal("0.00")
+    CENTS = Decimal("0.01")
+
+    legs = list(
+        Leg.objects.filter(
+            status="completed",
+            pickup_date__gte=start_date,
+            pickup_date__lte=end_date,
+            driver__isnull=False,
+        )
+        .select_related(
+            "driver", "driver__profile",
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "vehicle",
+        )
+        .order_by("-pickup_date", "-pickup_time")
+    )
+
+    # (driver_id, date) -> FleetVehicle, for the same window.
+    assign_map = {
+        (a.driver_id, a.date): a.vehicle
+        for a in DriverVehicleAssignment.objects.filter(
+            date__gte=start_date, date__lte=end_date, vehicle__isnull=False
+        ).select_related("vehicle")
+    }
+
+    # Total leg count per reservation (the revenue-share denominator). Counts ALL
+    # legs of each reservation, not just the completed ones in this window.
+    res_ids = {leg.reservation_id for leg in legs if leg.reservation_id}
+    leg_counts = dict(
+        Leg.objects.filter(reservation_id__in=res_ids)
+        .values("reservation_id")
+        .annotate(c=Count("id"))
+        .values_list("reservation_id", "c")
+    )
+
+    def _revenue_for(leg):
+        """Leg revenue with the same fallback the admin uses: stored revenue_share
+        when present, otherwise reservation total_price / number of legs (so a
+        one-way reservation's single leg gets the full price)."""
+        rs = leg.revenue_share
+        if rs:  # non-null and non-zero
+            return rs
+        res = leg.reservation
+        if res and res.total_price:
+            n = leg_counts.get(leg.reservation_id) or 1
+            return (res.total_price / Decimal(n)).quantize(CENTS)
+        return ZERO
+
+    def _blank(vehicle):
+        return {
+            "vehicle": vehicle,
+            "vehicle_id": vehicle.id if vehicle else None,
+            "label": str(vehicle) if vehicle else "Unassigned / affiliate",
+            "trips": 0,
+            "revenue": ZERO,
+            "driver_pay": ZERO,
+            "profit": ZERO,
+        }
+
+    buckets = {}          # vehicle_id -> aggregate dict
+    unassigned = _blank(None)
+    detail_trips = []
+
+    for leg in legs:
+        vehicle = assign_map.get((leg.driver_id, leg.pickup_date))
+        # Compute revenue and profit from the SAME basis so they always reconcile
+        # (profit = revenue - driver pay). The stored profit_estimate is not used
+        # because it can be out of sync with a stale/null revenue_share.
+        revenue = _revenue_for(leg)
+        driver_pay = leg.total_driver_pay or ZERO
+        profit = (revenue - driver_pay).quantize(CENTS)
+
+        if vehicle is None:
+            agg = unassigned
+        else:
+            agg = buckets.get(vehicle.id)
+            if agg is None:
+                agg = buckets[vehicle.id] = _blank(vehicle)
+        agg["trips"] += 1
+        agg["revenue"] += revenue
+        agg["driver_pay"] += driver_pay
+        agg["profit"] += profit
+
+        if detail_vehicle_id is not None and vehicle is not None and vehicle.id == detail_vehicle_id:
+            customer_name = ""
+            if leg.reservation and leg.reservation.customer:
+                customer_name = leg.reservation.customer.get_full_name()
+            detail_trips.append({
+                "pickup_date": leg.pickup_date,
+                "pickup_time": leg.pickup_time,
+                "customer": customer_name,
+                "pickup_location": leg.pickup_location,
+                "dropoff_location": leg.dropoff_location,
+                "trip_type": leg.get_trip_type(),
+                "driver": leg.driver.profile.get_full_name() if leg.driver and leg.driver.profile else "",
+                "vehicle_type": str(leg.effective_vehicle) if leg.effective_vehicle else "",
+                "revenue": revenue,
+                "driver_pay": driver_pay,
+                "profit": profit,
+                "reservation_uuid": leg.reservation.uuid if leg.reservation else None,
+            })
+
+    def _finalize(agg):
+        rev = agg["revenue"]
+        trips = agg["trips"] or 0
+        agg["margin"] = (agg["profit"] / rev * 100) if rev else None
+        agg["avg_profit"] = (agg["profit"] / trips) if trips else None
+        agg["avg_revenue"] = (rev / trips) if trips else None
+        return agg
+
+    def _veh_sort_key(agg):
+        # Natural sort by vehicle_number ("4" before "10", "004" handled too).
+        num = (agg["vehicle"].vehicle_number or "") if agg["vehicle"] else ""
+        return (0, int(num)) if num.isdigit() else (1, num.lower())
+
+    vehicles = sorted(
+        (_finalize(b) for b in buckets.values()),
+        key=_veh_sort_key,
+    )
+    _finalize(unassigned)
+
+    totals = {
+        "trips": sum(a["trips"] for a in vehicles) + unassigned["trips"],
+        "revenue": sum((a["revenue"] for a in vehicles), ZERO) + unassigned["revenue"],
+        "driver_pay": sum((a["driver_pay"] for a in vehicles), ZERO) + unassigned["driver_pay"],
+        "profit": sum((a["profit"] for a in vehicles), ZERO) + unassigned["profit"],
+    }
+    totals["margin"] = (totals["profit"] / totals["revenue"] * 100) if totals["revenue"] else None
+    totals["avg_profit"] = (totals["profit"] / totals["trips"]) if totals["trips"] else None
+
+    return {
+        "vehicles": vehicles,
+        "unassigned": unassigned,
+        "totals": totals,
+        "detail_trips": detail_trips,
+    }
+
+
+def _parse_report_date_range(request):
+    """Shared date-range parsing for the vehicle profit report (default: last 30 days)."""
+    date_from = request.GET.get("date_from", "")
+    date_to = request.GET.get("date_to", "")
+    if not date_from:
+        date_from = (timezone.localdate() - timedelta(days=30)).strftime("%Y-%m-%d")
+    if not date_to:
+        date_to = timezone.localdate().strftime("%Y-%m-%d")
+    try:
+        start_date = datetime.strptime(date_from, "%Y-%m-%d").date()
+    except ValueError:
+        start_date = timezone.localdate() - timedelta(days=30)
+        date_from = start_date.strftime("%Y-%m-%d")
+    try:
+        end_date = datetime.strptime(date_to, "%Y-%m-%d").date()
+    except ValueError:
+        end_date = timezone.localdate()
+        date_to = end_date.strftime("%Y-%m-%d")
+    return date_from, date_to, start_date, end_date
+
+
+@login_required(login_url="login")
+def vehicle_profit_report(request):
+    """Profit per physical fleet vehicle from completed trips (superuser only)."""
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    from drivers.models import FleetVehicle
+
+    date_from, date_to, start_date, end_date = _parse_report_date_range(request)
+
+    selected_vehicle_id = request.GET.get("vehicle", "")
+    detail_vehicle_id = None
+    selected_vehicle = None
+    if selected_vehicle_id:
+        try:
+            detail_vehicle_id = int(selected_vehicle_id)
+            selected_vehicle = FleetVehicle.objects.filter(id=detail_vehicle_id).first()
+        except (TypeError, ValueError):
+            detail_vehicle_id = None
+
+    report = _build_vehicle_profit_report(start_date, end_date, detail_vehicle_id)
+
+    # Summary stats for the selected vehicle (detail mode).
+    selected_summary = None
+    if selected_vehicle is not None:
+        selected_summary = next(
+            (v for v in report["vehicles"] if v["vehicle_id"] == detail_vehicle_id), None
+        )
+
+    context = {
+        "fleet_vehicles": FleetVehicle.objects.select_related("vehicle_type").all(),
+        "selected_vehicle": selected_vehicle,
+        "selected_vehicle_id": selected_vehicle_id,
+        "selected_summary": selected_summary,
+        "date_from": date_from,
+        "date_to": date_to,
+        "vehicles": report["vehicles"],
+        "unassigned": report["unassigned"],
+        "totals": report["totals"],
+        "detail_trips": report["detail_trips"],
+    }
+    return render(request, "dispatching/vehicle_profit_report.html", context)
+
+
+@login_required(login_url="login")
+def vehicle_profit_report_csv(request):
+    """CSV export of the per-vehicle profit overview (superuser only)."""
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    import csv
+
+    date_from, date_to, start_date, end_date = _parse_report_date_range(request)
+    report = _build_vehicle_profit_report(start_date, end_date)
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="vehicle_profit_{date_from}_to_{date_to}.csv"'
+    )
+    writer = csv.writer(response)
+    writer.writerow(["Vehicle", "Completed Trips", "Revenue", "Driver Pay", "Profit", "Margin %"])
+    for v in report["vehicles"]:
+        margin = f"{v['margin']:.1f}" if v["margin"] is not None else ""
+        writer.writerow([v["label"], v["trips"], v["revenue"], v["driver_pay"], v["profit"], margin])
+    u = report["unassigned"]
+    if u["trips"]:
+        margin = f"{u['margin']:.1f}" if u["margin"] is not None else ""
+        writer.writerow([u["label"], u["trips"], u["revenue"], u["driver_pay"], u["profit"], margin])
+    t = report["totals"]
+    tmargin = f"{t['margin']:.1f}" if t["margin"] is not None else ""
+    writer.writerow(["TOTAL", t["trips"], t["revenue"], t["driver_pay"], t["profit"], tmargin])
+    return response
+
+
+# ============================================================================
 # SCHEDULER SETTINGS API
 # ============================================================================
 

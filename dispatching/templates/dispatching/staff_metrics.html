@@ -6,22 +6,31 @@
 
 {% block extra_css %}
 <style>
-.trend-up { color: #059669; font-size: .7rem; font-weight: 600; margin-left: .25rem; white-space: nowrap; }
-.trend-down { color: #dc2626; font-size: .7rem; font-weight: 600; margin-left: .25rem; white-space: nowrap; }
-.trend-flat { color: #9ca3af; font-size: .7rem; font-weight: 600; margin-left: .25rem; }
-.trend-up i, .trend-down i { font-size: .8rem; vertical-align: middle; }
-/* Daily summary accordion */
-.ds-day { border-bottom: 1px solid #e5e7eb; }
-.ds-day:last-child { border-bottom: none; }
-.ds-day-header {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .55rem .85rem; cursor: pointer; transition: background .1s;
-  font-size: .82rem;
+.sm-header { margin-bottom: 1.5rem; }
+.roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem; }
+.staff-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: .75rem; padding: 1.1rem 1.2rem;
+  text-decoration: none; color: inherit; display: block; transition: box-shadow .12s, transform .12s, border-color .12s;
 }
-.ds-day-header:hover { background: #f9fafb; }
-.ds-day-chevron { color: #9ca3af; font-size: .7rem; width: 16px; text-align: center; }
-.ds-day-date { font-weight: 700; color: #374151; }
-.ds-day-total { margin-left: auto; font-size: .72rem; color: #9ca3af; font-weight: 600; }
+.staff-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.10); transform: translateY(-2px); border-color: #c7d2fe; color: inherit; }
+.staff-card .sc-top { display: flex; align-items: center; gap: .65rem; margin-bottom: .9rem; }
+.staff-card .avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; color: #fff; font-size: 1rem;
+}
+.staff-card .sc-name { font-weight: 800; color: #111827; font-size: 1.02rem; line-height: 1.1; }
+.staff-card .sc-last { font-size: .7rem; color: #9ca3af; font-weight: 600; }
+.staff-card .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem .75rem; }
+.staff-card .stat .v { font-size: 1.05rem; font-weight: 800; color: #1f2937; line-height: 1; }
+.staff-card .stat .v.rev { color: #16a34a; }
+.staff-card .stat .l { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #9ca3af; margin-top: .15rem; }
+.staff-card .sc-cta { margin-top: .9rem; font-size: .78rem; font-weight: 700; color: #4f46e5; }
+.staff-card:hover .sc-cta { text-decoration: underline; }
+.team-strip { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.team-stat { background: #fff; border: 1px solid #e5e7eb; border-radius: .6rem; padding: .7rem 1rem; flex: 1; min-width: 150px; }
+.team-stat .v { font-size: 1.25rem; font-weight: 800; color: #111827; }
+.team-stat .l { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #9ca3af; }
 </style>
 {% endblock %}
 
@@ -30,10 +39,10 @@
   {% include 'dispatching/dispatcher_navbar.html' %}
 
   <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-start sm-header flex-wrap gap-3">
       <div>
-        <h1 class="mb-1 fw-bold"><i class="bi bi-activity me-2"></i>Staff Metrics</h1>
-        <p class="text-muted mb-0">Operational productivity and queue health</p>
+        <h1 class="mb-1 fw-bold"><i class="bi bi-person-vcard me-2"></i>Staff Deep Dive</h1>
+        <p class="text-muted mb-0">Pick a person to see everything they did &mdash; last <span class="fw-bold text-dark">{{ range_days }} days</span></p>
       </div>
       <div class="btn-group btn-group-sm">
         <a href="?range=1" class="btn {% if range_days == 1 %}btn-dark{% else %}btn-outline-dark{% endif %}">Today</a>
@@ -44,712 +53,41 @@
       </div>
     </div>
 
-    <!-- Queue Health KPIs -->
-    <div class="row g-3 mb-4">
-      <div class="col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="display-5 fw-bold text-primary">{{ total_open }}</div>
-            <div class="text-muted small">Open Tasks</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="display-5 fw-bold {% if overdue_count > 0 %}text-danger{% else %}text-success{% endif %}">{{ overdue_count }}</div>
-            <div class="text-muted small">Overdue</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="display-5 fw-bold {% if escalated_count > 0 %}text-warning{% else %}text-success{% endif %}">{{ escalated_count }}</div>
-            <div class="text-muted small">Escalated</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-sm-6 col-lg-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="display-5 fw-bold text-info">
-              {% if avg_response_min != None %}{{ avg_response_min }}m{% else %}&mdash;{% endif %}
-            </div>
-            <div class="text-muted small">Avg Lead Response</div>
-          </div>
-        </div>
-      </div>
+    <div class="team-strip">
+      <div class="team-stat"><div class="v">{{ staff_roster|length }}</div><div class="l">Active Staff</div></div>
+      <div class="team-stat"><div class="v">{{ total_staff_reservations }}</div><div class="l">Reservations</div></div>
+      <div class="team-stat"><div class="v text-success">${{ total_staff_revenue|floatformat:0|intcomma }}</div><div class="l">Revenue Booked</div></div>
+      <div class="team-stat"><div class="v">{{ total_open }}</div><div class="l">Open Tasks Now</div></div>
+      {% if overdue_count %}<div class="team-stat"><div class="v text-danger">{{ overdue_count }}</div><div class="l">Overdue Now</div></div>{% endif %}
     </div>
 
-    <!-- Open Tasks by Type -->
-    <div class="row g-3 mb-4">
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Open Tasks by Type</h6></div>
-          <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Type</th><th class="text-end">Count</th></tr>
-              </thead>
-              <tbody>
-                {% for type_code, label in task_type_labels.items %}
-                  {% with count=queue_by_type|default_if_none:"" %}
-                  <tr>
-                    <td>{{ label }}</td>
-                    <td class="text-end fw-bold">
-                      {% if type_code in queue_by_type %}{{ queue_by_type|dictsort:type_code }}{% endif %}
-                      {% for k, v in queue_by_type.items %}{% if k == type_code %}{{ v }}{% endif %}{% endfor %}
-                    </td>
-                  </tr>
-                  {% endwith %}
-                {% endfor %}
-              </tbody>
-            </table>
+    {% if staff_roster %}
+    <div class="roster-grid">
+      {% for r in staff_roster %}
+      <a class="staff-card" href="{% url 'staff_detail' r.user_id %}?range={{ range_days }}">
+        <div class="sc-top">
+          <div class="avatar" style="background: {% cycle '#6366f1' '#10b981' '#f59e0b' '#ef4444' '#8b5cf6' '#06b6d4' '#ec4899' '#14b8a6' %};">{{ r.name|first|upper }}</div>
+          <div>
+            <div class="sc-name">{{ r.name }}</div>
+            <div class="sc-last">{% if r.last_active %}Last active {{ r.last_active|timesince }} ago{% else %}No recent activity{% endif %}</div>
           </div>
         </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Open Tasks by Priority</h6></div>
-          <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Priority</th><th class="text-end">Count</th></tr>
-              </thead>
-              <tbody>
-                {% for pri_val, pri_label in priority_labels.items %}
-                <tr>
-                  <td>
-                    <span class="badge {% if pri_val == 1 %}bg-danger{% elif pri_val == 2 %}bg-warning text-dark{% elif pri_val == 3 %}bg-primary{% else %}bg-secondary{% endif %}">
-                      {{ pri_label }}
-                    </span>
-                  </td>
-                  <td class="text-end fw-bold">
-                    {% for k, v in queue_by_priority.items %}{% if k == pri_val %}{{ v }}{% endif %}{% endfor %}
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+        <div class="sc-grid">
+          <div class="stat"><div class="v rev">${{ r.revenue|floatformat:0|intcomma }}</div><div class="l">Revenue</div></div>
+          <div class="stat"><div class="v">{{ r.reservations }}</div><div class="l">Bookings</div></div>
+          <div class="stat"><div class="v">{{ r.tasks }}</div><div class="l">Tasks Done</div></div>
+          <div class="stat"><div class="v">{{ r.comms|add:r.emails }}</div><div class="l">Comms + Emails</div></div>
         </div>
-      </div>
+        <div class="sc-cta">View deep dive <i class="bi bi-arrow-right"></i></div>
+      </a>
+      {% endfor %}
     </div>
-
-    <!-- Trend Chart -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white"><h6 class="mb-0">Task Trend ({{ range_days }} days)</h6></div>
-      <div class="card-body">
-        <canvas id="trendChart" height="80"></canvas>
-      </div>
-    </div>
-
-    <div class="row g-3 mb-4">
-      <!-- Staff Completions -->
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Tasks Completed by Staff ({{ range_days }}d)</h6></div>
-          <div class="card-body p-0">
-            {% if staff_completions %}
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Staff</th><th class="text-end">Completed</th></tr>
-              </thead>
-              <tbody>
-                {% for s in staff_completions %}
-                <tr>
-                  <td><a href="{% url 'staff_detail' s.resolved_by__id %}?range={{ range_days }}" class="text-decoration-none">{{ s.name }}</a></td>
-                  <td class="text-end fw-bold">
-                    {{ s.count }}
-                    {% with tkey=s.resolved_by__id|trend_key:"completions" %}{% with t=trends|get_trend:tkey %}{% if t %}
-                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
-                    {% endif %}{% endwith %}{% endwith %}
-                  </td>
-                </tr>
-                {% endfor %}
-                <tr class="table-light">
-                  <td class="text-muted"><em>Auto-closed (system)</em></td>
-                  <td class="text-end">{{ auto_closed_count }}</td>
-                </tr>
-              </tbody>
-            </table>
-            {% else %}
-            <p class="text-muted text-center py-3 mb-0">No tasks completed in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <!-- Communication Volume -->
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Communication Volume ({{ range_days }}d)</h6></div>
-          <div class="card-body p-0">
-            {% if staff_comms %}
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Staff</th><th class="text-end">Calls</th><th class="text-end">SMS</th><th class="text-end">Emails</th><th class="text-end">Total</th></tr>
-              </thead>
-              <tbody>
-                {% for s in staff_comms %}
-                <tr>
-                  <td><a href="{% url 'staff_detail' s.staff_user__id %}?range={{ range_days }}" class="text-decoration-none">{{ s.name }}</a></td>
-                  <td class="text-end">{{ s.calls }}</td>
-                  <td class="text-end">{{ s.sms }}</td>
-                  <td class="text-end">{{ s.emails }}</td>
-                  <td class="text-end fw-bold">
-                    {{ s.total }}
-                    {% with tkey=s.staff_user__id|trend_key:"comms" %}{% with t=trends|get_trend:tkey %}{% if t %}
-                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
-                    {% endif %}{% endwith %}{% endwith %}
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% else %}
-            <p class="text-muted text-center py-3 mb-0">No communications logged in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Emails Sent by Staff -->
-    {% if staff_emails %}
-    <div class="row g-3 mb-4">
-      <div class="col-12">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white"><h6 class="mb-0">Emails Sent by Staff ({{ range_days }}d)</h6></div>
-          <div class="card-body p-0">
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Staff</th><th class="text-end">Confirmations</th><th class="text-end">Payment Reminders</th><th class="text-end">Statements</th><th class="text-end">Total</th></tr>
-              </thead>
-              <tbody>
-                {% for row in staff_emails %}
-                <tr>
-                  <td><a href="{% url 'staff_detail' row.sent_by__id %}?range={{ range_days }}" class="text-decoration-none">{{ row.name }}</a></td>
-                  <td class="text-end">{{ row.confirmations }}</td>
-                  <td class="text-end">{{ row.payment_reminders }}</td>
-                  <td class="text-end">{{ row.statements }}</td>
-                  <td class="text-end fw-bold">
-                    {{ row.total }}
-                    {% with tkey=row.sent_by__id|trend_key:"emails" %}{% with t=trends|get_trend:tkey %}{% if t %}
-                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
-                    {% endif %}{% endwith %}{% endwith %}
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+    <p class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>Revenue &amp; bookings count reservations a staffer created; website self-serve bookings aren't attributed to anyone. Click a card for the full per-person breakdown.</p>
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-people" style="font-size: 2.5rem;"></i>
+      <p class="mt-2 mb-0">No staff activity in the last {{ range_days }} days.</p>
     </div>
     {% endif %}
-
-    <!-- Reservations & Revenue by Staff -->
-    <div class="row g-3 mb-4">
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">Reservations by Staff ({{ range_days }}d)</h6>
-            {% if total_staff_reservations %}
-            <span class="badge bg-primary">{{ total_staff_reservations }} total</span>
-            {% endif %}
-          </div>
-          <div class="card-body p-0">
-            {% if staff_reservations %}
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Staff</th><th class="text-end">Bookings</th><th class="text-end">Revenue</th></tr>
-              </thead>
-              <tbody>
-                {% for s in staff_reservations %}
-                <tr>
-                  <td><a href="{% url 'staff_detail' s.created_by__id %}?range={{ range_days }}" class="text-decoration-none">{{ s.name }}</a></td>
-                  <td class="text-end">
-                    {{ s.count }}
-                    {% with tkey=s.created_by__id|trend_key:"reservations" %}{% with t=trends|get_trend:tkey %}{% if t %}
-                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
-                    {% endif %}{% endwith %}{% endwith %}
-                  </td>
-                  <td class="text-end fw-bold text-success">
-                    ${{ s.revenue|floatformat:0|intcomma }}
-                    {% with tkey=s.created_by__id|trend_key:"revenue" %}{% with t=trends|get_trend:tkey %}{% if t %}
-                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: ${{ t.prior|floatformat:0 }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
-                    {% endif %}{% endwith %}{% endwith %}
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-              <tfoot class="table-light">
-                <tr>
-                  <td class="fw-bold">Total</td>
-                  <td class="text-end fw-bold">{{ total_staff_reservations }}</td>
-                  <td class="text-end fw-bold text-success">${{ total_staff_revenue|floatformat:0|intcomma }}</td>
-                </tr>
-              </tfoot>
-            </table>
-            {% else %}
-            <p class="text-muted text-center py-3 mb-0">No staff-created reservations in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <!-- Revenue KPIs -->
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Revenue Summary ({{ range_days }}d)</h6></div>
-          <div class="card-body">
-            {% if staff_reservations %}
-            <div class="row text-center">
-              <div class="col-4">
-                <div class="fs-3 fw-bold text-success">${{ total_staff_revenue|floatformat:0|intcomma }}</div>
-                <div class="text-muted small">Staff Revenue</div>
-              </div>
-              <div class="col-4">
-                <div class="fs-3 fw-bold text-primary">{{ total_staff_reservations }}</div>
-                <div class="text-muted small">Bookings</div>
-              </div>
-              <div class="col-4">
-                {% if total_staff_reservations %}
-                  {% widthratio total_staff_revenue total_staff_reservations 1 as avg_rev %}
-                  <div class="fs-3 fw-bold text-info">${{ avg_rev|intcomma }}</div>
-                {% else %}
-                  <div class="fs-3 fw-bold text-info">&mdash;</div>
-                {% endif %}
-                <div class="text-muted small">Avg per Booking</div>
-              </div>
-            </div>
-            {% else %}
-            <p class="text-muted text-center mb-0">No staff-created reservations in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="row g-3 mb-4">
-      <!-- Task Type Performance -->
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Completed by Task Type ({{ range_days }}d)</h6></div>
-          <div class="card-body p-0">
-            {% if type_performance %}
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Type</th><th class="text-end">Completed</th><th class="text-end">Avg Attempts</th></tr>
-              </thead>
-              <tbody>
-                {% for tp in type_performance %}
-                <tr>
-                  <td>
-                    {% for k, v in task_type_labels.items %}{% if k == tp.task_type %}{{ v }}{% endif %}{% endfor %}
-                  </td>
-                  <td class="text-end">{{ tp.count }}</td>
-                  <td class="text-end">{{ tp.avg_attempts|floatformat:1 }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% else %}
-            <p class="text-muted text-center py-3 mb-0">No data for this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <!-- Lead Response Times -->
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Lead Response Times ({{ range_days }}d)</h6></div>
-          <div class="card-body">
-            {% if avg_response_min != None %}
-            <div class="row text-center">
-              <div class="col-4">
-                <div class="fs-3 fw-bold text-primary">{{ avg_response_min }}m</div>
-                <div class="text-muted small">Average</div>
-              </div>
-              <div class="col-4">
-                <div class="fs-3 fw-bold text-info">{{ median_response_min }}m</div>
-                <div class="text-muted small">Median</div>
-              </div>
-              <div class="col-4">
-                <div class="fs-3 fw-bold">{{ response_count }}</div>
-                <div class="text-muted small">Leads Contacted</div>
-              </div>
-            </div>
-            {% else %}
-            <p class="text-muted text-center mb-0">No lead response data in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Staff Active Times (Today) -->
-    {% if staff_active_times %}
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white"><h6 class="mb-0">Staff Active Times (Today)</h6></div>
-      <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead class="table-light">
-            <tr><th>Staff</th><th class="text-end">First Active</th><th class="text-end">Last Active</th></tr>
-          </thead>
-          <tbody>
-            {% for uid, row in staff_active_times.items %}
-            <tr>
-              <td><a href="{% url 'staff_detail' uid %}?range={{ range_days }}" class="text-decoration-none">{{ row.name }}</a></td>
-              <td class="text-end"><span class="badge bg-success">{{ row.first_active|date:"g:i A" }}</span></td>
-              <td class="text-end"><span class="badge bg-secondary">{{ row.last_active|date:"g:i A" }}</span></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Daily Staff Summary -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h6 class="mb-0"><i class="bi bi-calendar3 me-1"></i>Daily Staff Summary ({{ range_days }}d)</h6>
-        <span class="text-muted small" id="dailySummaryToggle" style="cursor:pointer;" onclick="toggleAllDays()">Expand All</span>
-      </div>
-      <div class="card-body p-0" id="dailySummaryContainer">
-        <p class="text-muted text-center py-3 mb-0" id="dailySummaryEmpty" style="display:none;">No activity data in this period.</p>
-      </div>
-    </div>
-
-    <!-- AuditLog Actions by Staff & Modifications by Staff -->
-    <div class="row g-3 mb-4">
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Key Actions by Staff ({{ range_days }}d)</h6></div>
-          <div class="card-body p-0">
-            {% if audit_actions %}
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Staff</th><th class="text-end">Driver Assigns</th><th class="text-end">Payments</th><th class="text-end">Status Changes</th><th class="text-end">Total</th></tr>
-              </thead>
-              <tbody>
-                {% for row in audit_actions %}
-                <tr>
-                  <td><a href="{% url 'staff_detail' row.user__id %}?range={{ range_days }}" class="text-decoration-none">{{ row.name }}</a></td>
-                  <td class="text-end">{{ row.driver_assignments }}</td>
-                  <td class="text-end">{{ row.payment_actions }}</td>
-                  <td class="text-end">{{ row.status_changes }}</td>
-                  <td class="text-end fw-bold">{{ row.total_actions }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% else %}
-            <p class="text-muted text-center py-3 mb-0">No audit log actions in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-header bg-white"><h6 class="mb-0">Reservations &amp; Legs Modified ({{ range_days }}d)</h6></div>
-          <div class="card-body p-0">
-            {% if staff_modifications %}
-            <table class="table table-sm mb-0">
-              <thead class="table-light">
-                <tr><th>Staff</th><th class="text-end">Legs Modified</th><th class="text-end">Reservations Modified</th></tr>
-              </thead>
-              <tbody>
-                {% for row in staff_modifications %}
-                <tr>
-                  <td><a href="{% url 'staff_detail' row.user_id %}?range={{ range_days }}" class="text-decoration-none">{{ row.name }}</a></td>
-                  <td class="text-end">{{ row.legs_modified }}</td>
-                  <td class="text-end">{{ row.reservations_modified }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% else %}
-            <p class="text-muted text-center py-3 mb-0">No modifications in this period.</p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Corrections / Overrides -->
-    {% if corrections %}
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h6 class="mb-0"><i class="bi bi-exclamation-triangle text-warning me-1"></i>Corrections &amp; Overrides ({{ range_days }}d)</h6>
-        <span class="badge bg-warning text-dark">{{ corrections|length }}</span>
-      </div>
-      <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead class="table-light">
-            <tr><th>When</th><th>Field</th><th>Original By</th><th>Corrected By</th><th>Old Value</th><th>New Value</th><th>Leg</th></tr>
-          </thead>
-          <tbody>
-            {% for c in corrections %}
-            <tr>
-              <td class="text-nowrap small">{{ c.timestamp|date:"M j, g:i A" }}</td>
-              <td><span class="badge bg-light text-dark">{{ c.field|title }}</span></td>
-              <td>{{ c.original_by }}</td>
-              <td><strong>{{ c.corrected_by }}</strong></td>
-              <td class="small text-muted" style="max-width:150px; word-break:break-word;">{{ c.old|default:"(empty)" }}</td>
-              <td class="small fw-bold" style="max-width:150px; word-break:break-word;">{{ c.new }}</td>
-              <td>
-                {% if c.reservation_id %}
-                <a href="{% url 'reservation_details' c.reservation_id %}" class="text-decoration-none">#{{ c.object_id }}</a>
-                {% else %}
-                #{{ c.object_id }}
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Activity Timeline -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white"><h6 class="mb-0">Activity Timeline ({{ range_days }}d)</h6></div>
-      <div class="card-body">
-        {% if range_activities %}
-        <div class="list-group list-group-flush">
-          {% for act in range_activities %}
-          <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-start">
-            <div>
-              <strong>{{ act.user.first_name|default:act.user.username }}</strong>
-              <span class="text-muted">{{ act.get_action_type_display|lower }}</span>
-              {% if act.task %}
-                <a href="{% url 'task_detail' act.task.id %}" class="text-decoration-none">{{ act.task.title|truncatewords:8 }}</a>
-              {% endif %}
-            </div>
-            <small class="text-muted text-nowrap ms-2">{{ act.created_at|date:"M j, g:i A" }}</small>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <p class="text-muted text-center mb-0">No staff activity in this period.</p>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Page Views Today -->
-    {% if page_views_today %}
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white"><h6 class="mb-0">Page Views Today (dispatching)</h6></div>
-      <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead class="table-light">
-            <tr><th>Staff</th><th class="text-end">Page Views</th></tr>
-          </thead>
-          <tbody>
-            {% for pv in page_views_today %}
-            <tr>
-              <td>{{ pv.name }}</td>
-              <td class="text-end">{{ pv.views }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
   </div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const raw = '{{ trend_json|escapejs }}';
-  if (!raw) return;
-  const data = JSON.parse(raw);
-  if (!data.length) return;
-
-  const ctx = document.getElementById('trendChart');
-  if (!ctx) return;
-
-  new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: data.map(d => {
-        const dt = new Date(d.day + 'T00:00:00');
-        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      }),
-      datasets: [
-        {
-          label: 'Created',
-          data: data.map(d => d.created),
-          borderColor: '#6366f1',
-          backgroundColor: 'rgba(99,102,241,0.06)',
-          fill: true,
-          tension: 0.4,
-          borderWidth: 2,
-          pointRadius: 2,
-        },
-        {
-          label: 'Completed',
-          data: data.map(d => d.completed),
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16,185,129,0.06)',
-          fill: true,
-          tension: 0.4,
-          borderWidth: 2,
-          pointRadius: 2,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      interaction: { intersect: false, mode: 'index' },
-      plugins: { legend: { position: 'top' } },
-      scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1 } },
-      },
-    },
-  });
-
-  // ── Daily Staff Summary Accordion ──
-  const dailyRaw = '{{ daily_summary_json|escapejs }}';
-  const dailyData = dailyRaw ? JSON.parse(dailyRaw) : [];
-  const container = document.getElementById('dailySummaryContainer');
-  const emptyMsg = document.getElementById('dailySummaryEmpty');
-  const rangeDays = {{ range_days }};
-
-  if (!dailyData.length) {
-    if (emptyMsg) emptyMsg.style.display = '';
-  } else {
-    const maxShow = rangeDays > 30 ? 30 : dailyData.length;
-    const expandFirst = rangeDays <= 30;
-
-    dailyData.slice(0, maxShow).forEach(function(day, idx) {
-      const isOpen = expandFirst && idx === 0;
-      const dayEl = document.createElement('div');
-      dayEl.className = 'ds-day';
-
-      // Format date
-      const dt = new Date(day.date + 'T00:00:00');
-      const dateLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-      // Header
-      const header = document.createElement('div');
-      header.className = 'ds-day-header';
-      header.innerHTML = '<span class="ds-day-chevron"><i class="bi bi-chevron-right"></i></span>' +
-        '<span class="ds-day-date">' + dateLabel + '</span>' +
-        '<span class="ds-day-total">' + day.total_actions + ' actions</span>';
-      header.onclick = function() {
-        const body = dayEl.querySelector('.ds-day-body');
-        const chev = header.querySelector('.ds-day-chevron i');
-        if (body.style.display === 'none') {
-          body.style.display = '';
-          chev.className = 'bi bi-chevron-down';
-        } else {
-          body.style.display = 'none';
-          chev.className = 'bi bi-chevron-right';
-        }
-      };
-      dayEl.appendChild(header);
-
-      // Body (table)
-      const body = document.createElement('div');
-      body.className = 'ds-day-body';
-      body.style.display = isOpen ? '' : 'none';
-      if (isOpen) header.querySelector('.ds-day-chevron i').className = 'bi bi-chevron-down';
-
-      let html = '<table class="table table-sm mb-0" style="font-size:.78rem;">' +
-        '<thead class="table-light"><tr>' +
-        '<th>Staff</th><th class="text-end">First In</th><th class="text-end">Last Out</th>' +
-        '<th class="text-end">Res</th><th class="text-end">Revenue</th><th class="text-end">Tasks</th>' +
-        '<th class="text-end">Assigns</th><th class="text-end">Legs</th><th class="text-end">Comms</th><th class="text-end">Emails</th>' +
-        '</tr></thead><tbody>';
-
-      day.staff.forEach(function(s) {
-        const firstIn = s.first_in ? new Date(s.first_in).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
-        const lastOut = s.last_out ? new Date(s.last_out).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
-        const rev = s.revenue ? '$' + Math.round(s.revenue).toLocaleString() : '-';
-        html += '<tr>' +
-          '<td><a href="/dispatching/staff-metrics/' + s.user_id + '/?date=' + day.date + '" class="text-decoration-none">' + s.name + '</a></td>' +
-          '<td class="text-end"><span class="badge bg-success bg-opacity-10 text-success">' + firstIn + '</span></td>' +
-          '<td class="text-end"><span class="badge bg-secondary bg-opacity-10 text-secondary">' + lastOut + '</span></td>' +
-          '<td class="text-end">' + (s.reservations || '-') + '</td>' +
-          '<td class="text-end fw-bold text-success">' + rev + '</td>' +
-          '<td class="text-end">' + (s.tasks || '-') + '</td>' +
-          '<td class="text-end">' + (s.assigns || '-') + '</td>' +
-          '<td class="text-end">' + (s.legs_modified || '-') + '</td>' +
-          '<td class="text-end">' + (s.comms || '-') + '</td>' +
-          '<td class="text-end">' + (s.emails || '-') + '</td>' +
-          '</tr>';
-      });
-      html += '</tbody></table>';
-      body.innerHTML = html;
-      dayEl.appendChild(body);
-      container.appendChild(dayEl);
-    });
-
-    // "Show more" if truncated
-    if (dailyData.length > maxShow) {
-      const more = document.createElement('div');
-      more.className = 'text-center py-2';
-      more.innerHTML = '<button class="btn btn-sm btn-outline-secondary" onclick="this.parentElement.style.display=\'none\'; document.querySelectorAll(\'.ds-day-hidden\').forEach(e=>e.style.display=\'\');">Show ' + (dailyData.length - maxShow) + ' more days</button>';
-      container.appendChild(more);
-      dailyData.slice(maxShow).forEach(function(day) {
-        const dt = new Date(day.date + 'T00:00:00');
-        const dateLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        const dayEl = document.createElement('div');
-        dayEl.className = 'ds-day ds-day-hidden';
-        dayEl.style.display = 'none';
-        const header = document.createElement('div');
-        header.className = 'ds-day-header';
-        header.innerHTML = '<span class="ds-day-chevron"><i class="bi bi-chevron-right"></i></span>' +
-          '<span class="ds-day-date">' + dateLabel + '</span>' +
-          '<span class="ds-day-total">' + day.total_actions + ' actions</span>';
-        header.onclick = function() {
-          const body = dayEl.querySelector('.ds-day-body');
-          const chev = header.querySelector('.ds-day-chevron i');
-          if (body.style.display === 'none') { body.style.display = ''; chev.className = 'bi bi-chevron-down'; }
-          else { body.style.display = 'none'; chev.className = 'bi bi-chevron-right'; }
-        };
-        dayEl.appendChild(header);
-        const body = document.createElement('div');
-        body.className = 'ds-day-body';
-        body.style.display = 'none';
-        let html = '<table class="table table-sm mb-0" style="font-size:.78rem;"><thead class="table-light"><tr><th>Staff</th><th class="text-end">First In</th><th class="text-end">Last Out</th><th class="text-end">Res</th><th class="text-end">Revenue</th><th class="text-end">Tasks</th><th class="text-end">Assigns</th><th class="text-end">Legs</th><th class="text-end">Comms</th><th class="text-end">Emails</th></tr></thead><tbody>';
-        day.staff.forEach(function(s) {
-          const firstIn = s.first_in ? new Date(s.first_in).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
-          const lastOut = s.last_out ? new Date(s.last_out).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
-          const rev = s.revenue ? '$' + Math.round(s.revenue).toLocaleString() : '-';
-          html += '<tr><td><a href="/dispatching/staff-metrics/' + s.user_id + '/?date=' + day.date + '" class="text-decoration-none">' + s.name + '</a></td><td class="text-end"><span class="badge bg-success bg-opacity-10 text-success">' + firstIn + '</span></td><td class="text-end"><span class="badge bg-secondary bg-opacity-10 text-secondary">' + lastOut + '</span></td><td class="text-end">' + (s.reservations || '-') + '</td><td class="text-end fw-bold text-success">' + rev + '</td><td class="text-end">' + (s.tasks || '-') + '</td><td class="text-end">' + (s.assigns || '-') + '</td><td class="text-end">' + (s.legs_modified || '-') + '</td><td class="text-end">' + (s.comms || '-') + '</td><td class="text-end">' + (s.emails || '-') + '</td></tr>';
-        });
-        html += '</tbody></table>';
-        body.innerHTML = html;
-        dayEl.appendChild(body);
-        container.appendChild(dayEl);
-      });
-    }
-  }
-});
-
-function toggleAllDays() {
-  const bodies = document.querySelectorAll('.ds-day-body');
-  const toggle = document.getElementById('dailySummaryToggle');
-  const anyHidden = Array.from(bodies).some(b => b.style.display === 'none');
-  bodies.forEach(function(b) {
-    b.style.display = anyHidden ? '' : 'none';
-    const chev = b.previousElementSibling.querySelector('.ds-day-chevron i');
-    if (chev) chev.className = anyHidden ? 'bi bi-chevron-down' : 'bi bi-chevron-right';
-  });
-  toggle.textContent = anyHidden ? 'Collapse All' : 'Expand All';
-}
-</script>
 {% endblock %}

@@ -2281,9 +2281,41 @@ def staff_metrics_view(request):
             "staff": staff_list,
         })
 
+    # ═══════════════════════════════════════════════════════════════════
+    # CONSOLIDATED ROSTER — one row per staffer, headline stats for the
+    # period. Powers the "pick a person" launcher; each row links to the
+    # per-person deep dive (staff_detail).
+    # ═══════════════════════════════════════════════════════════════════
+    _last_active_by_uid = {}
+    for row in activity_by_day:
+        uid = row["user__id"]
+        la = row["last_active"]
+        if uid not in _last_active_by_uid or (la and la > _last_active_by_uid[uid]):
+            _last_active_by_uid[uid] = la
+
+    roster_uids = (
+        set(_res_by_uid) | set(_completions_by_uid)
+        | set(_comms_by_uid) | set(_emails_by_uid) | set(_last_active_by_uid)
+    )
+    staff_roster = []
+    for uid in roster_uids:
+        res = _res_by_uid.get(uid, {"count": 0, "revenue": Decimal("0")})
+        staff_roster.append({
+            "user_id": uid,
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "reservations": res["count"],
+            "revenue": res["revenue"],
+            "tasks": _completions_by_uid.get(uid, 0),
+            "comms": _comms_by_uid.get(uid, {}).get("total", 0),
+            "emails": _emails_by_uid.get(uid, {}).get("total", 0),
+            "last_active": _last_active_by_uid.get(uid),
+        })
+    staff_roster.sort(key=lambda r: (r["revenue"], r["tasks"], r["comms"]), reverse=True)
+
     context = {
         "range_days": days_back,
         "range_start": range_start,
+        "staff_roster": staff_roster,
         # Queue health
         "total_open": total_open,
         "overdue_count": overdue_count,
@@ -2634,6 +2666,61 @@ def staff_kpis_view(request):
     booking_lookup = {e["user_id"]: e for e in booking_leaderboard}
 
     # ═══════════════════════════════════════════════════════════════════
+    # SECTION 0b — PERIOD-OVER-PERIOD + PRODUCER SCORECARD + EXEC SUMMARY
+    # ═══════════════════════════════════════════════════════════════════
+    def _bookings_window(w_start, w_end):
+        agg = (
+            Reservation.objects.filter(
+                created_at__gte=w_start, created_at__lt=w_end,
+                created_by_id__in=dispatcher_uids,
+            )
+            .values("created_by_id")
+            .annotate(
+                count=Count("id"),
+                revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
+            )
+        )
+        return {r["created_by_id"]: {"count": r["count"], "revenue": float(r["revenue"])} for r in agg}
+
+    # Previous equivalent window, immediately preceding the current one.
+    _window = range_end - range_start
+    prev_bookings = _bookings_window(range_start - _window, range_start)
+
+    def _delta_pct(cur, prev):
+        if prev and prev > 0:
+            return round((cur - prev) / prev * 100, 1)
+        return None
+
+    producer_rows = []
+    for uid, e in booking_lookup.items():
+        prev = prev_bookings.get(uid, {"count": 0, "revenue": 0.0})
+        producer_rows.append({
+            **e,
+            "prev_revenue": round(prev["revenue"], 2),
+            "prev_count": prev["count"],
+            "rev_delta": round(e["total_revenue"] - prev["revenue"], 2),
+            "rev_delta_pct": _delta_pct(e["total_revenue"], prev["revenue"]),
+            "count_delta": e["total_count"] - prev["count"],
+        })
+    producer_rows.sort(key=lambda r: r["total_revenue"], reverse=True)
+
+    team_rev_prev = round(sum(p["revenue"] for p in prev_bookings.values()), 2)
+    team_bk_prev = sum(p["count"] for p in prev_bookings.values())
+    movers = [r for r in producer_rows if r["rev_delta"] > 0]
+    biggest_mover = max(movers, key=lambda r: r["rev_delta"]) if movers else None
+    exec_summary = {
+        "revenue": booking_totals["revenue"],
+        "revenue_prev": team_rev_prev,
+        "revenue_delta_pct": _delta_pct(booking_totals["revenue"], team_rev_prev),
+        "bookings": booking_totals["count"],
+        "bookings_prev": team_bk_prev,
+        "bookings_delta_pct": _delta_pct(booking_totals["count"], team_bk_prev),
+        "avg_deal": round(booking_totals["revenue"] / booking_totals["count"], 2) if booking_totals["count"] else 0,
+        "top_producer": producer_rows[0] if producer_rows else None,
+        "biggest_mover": biggest_mover,
+    }
+
+    # ═══════════════════════════════════════════════════════════════════
     # SECTION 1 — WORKLOAD BALANCE (current snapshot)
     # ═══════════════════════════════════════════════════════════════════
     open_qs = OperationalTask.objects.filter(status__in=list(OperationalTask.OPEN_STATUSES))
@@ -2775,6 +2862,49 @@ def staff_kpis_view(request):
     col_totals = []
     for tc in type_codes:
         col_totals.append(sum(matrix[uid][tc]["count"] for uid in matrix))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECTION 2b — RESPONSIVENESS / SLA (tasks resolved in range)
+    # ═══════════════════════════════════════════════════════════════════
+    resp_agg = (
+        OperationalTask.objects.filter(
+            status="completed",
+            resolved_at__gte=range_start,
+            resolved_at__lt=range_end,
+            resolved_by_id__in=dispatcher_uids,
+        )
+        .values("resolved_by_id")
+        .annotate(
+            resolved=Count("id"),
+            avg_secs=Avg(F("resolved_at") - F("created_at")),
+            on_time=Count("id", filter=Q(resolved_at__lte=F("due_at"))),
+        )
+    )
+    responsiveness_rows = []
+    for row in resp_agg:
+        uid = row["resolved_by_id"]
+        resolved = row["resolved"]
+        avg_secs = row["avg_secs"].total_seconds() if row["avg_secs"] else None
+        on_time = row["on_time"] or 0
+        responsiveness_rows.append({
+            "user_id": uid,
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "resolved": resolved,
+            "avg_label": _fmt_dur(avg_secs),
+            "avg_secs": avg_secs or 0,
+            "on_time": on_time,
+            "late": resolved - on_time,
+            "on_time_pct": round(on_time / resolved * 100) if resolved else 0,
+            "open_overdue": overdue_per_uid.get(uid, 0),
+        })
+    responsiveness_rows.sort(key=lambda r: (-r["resolved"], r["avg_secs"]))
+    _tot_resolved = sum(r["resolved"] for r in responsiveness_rows)
+    _tot_ontime = sum(r["on_time"] for r in responsiveness_rows)
+    responsiveness_team = {
+        "resolved": _tot_resolved,
+        "on_time_pct": round(_tot_ontime / _tot_resolved * 100) if _tot_resolved else 0,
+        "overdue_now": sum(overdue_per_uid.values()),
+    }
 
     # ═══════════════════════════════════════════════════════════════════
     # SECTION 3 — ACTIVE HOURS / IDLE DETECTION (per-day, Eastern local)
@@ -2965,6 +3095,12 @@ def staff_kpis_view(request):
         "range_start_date": start_date.isoformat(),
         "range_end_date": (end_date_excl - timedelta(days=1)).isoformat(),
         "today_iso": today.isoformat(),
+        # Exec summary + producer scorecard (period-over-period)
+        "exec_summary": exec_summary,
+        "producer_rows": producer_rows,
+        # Responsiveness / SLA
+        "responsiveness_rows": responsiveness_rows,
+        "responsiveness_team": responsiveness_team,
         # Section 0 — bookings & revenue (headline)
         "booking_leaderboard": booking_leaderboard,
         "booking_chart_json": json.dumps(booking_chart_payload),

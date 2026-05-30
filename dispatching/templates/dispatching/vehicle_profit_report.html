@@ -1,0 +1,467 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --gold: #C9A227;
+        --dark: #0d1117;
+        --dark-secondary: #161b22;
+        --pos: #1b7f3b;
+        --neg: #c0392b;
+    }
+
+    body { background: #f4f3ef; }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
+        padding: 2rem 0 1.75rem;
+        border-radius: 0 0 1rem 1rem;
+    }
+    .page-header h1, .page-header p { color: #fff; }
+    .page-header p { opacity: 0.75; margin: 0; }
+
+    .filter-panel {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        margin-bottom: 1rem;
+    }
+    .filter-panel label { font-size: 0.78rem; font-weight: 600; color: #6c757d; margin-bottom: 0.15rem; }
+    .filter-panel .form-select, .filter-panel .form-control { font-size: 0.88rem; }
+
+    /* ── Date presets ── */
+    .presets { display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+    .presets .preset {
+        font-size:0.76rem; font-weight:600; color:#555; background:#fff; border:1px solid #e5e2da;
+        border-radius:999px; padding:0.3rem 0.85rem; cursor:pointer; transition:all 0.12s; white-space:nowrap;
+    }
+    .presets .preset:hover { border-color:var(--gold); color:var(--gold); }
+
+    /* ── Summary cards ── */
+    .summary-section { display: flex; gap: 0.75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .stat-card {
+        background: #fff; border-radius: 0.75rem; padding: 1rem 1.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; min-width: 160px; border-top: 3px solid var(--gold);
+    }
+    .stat-card .sc-label {
+        font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+        color: #999; margin-bottom: 0.35rem;
+    }
+    .stat-card .sc-value { font-size: 1.4rem; font-weight: 800; color: var(--dark); line-height: 1.1; }
+    .stat-card .sc-sub { font-size: 0.72rem; color: #999; font-weight: 600; margin-top: 0.2rem; }
+    .stat-card.profit { border-top-color: var(--pos); }
+    .stat-card.profit .sc-value { color: var(--pos); }
+
+    /* ── Table ── */
+    .table-wrap { background: #fff; border-radius: 0.75rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; }
+    .table-wrap .twh {
+        display: flex; align-items: center; justify-content: space-between; gap:0.75rem;
+        padding: 0.85rem 1.1rem; border-bottom: 1px solid #eee; flex-wrap:wrap;
+    }
+    .table-wrap .twh h2 { font-size: 1rem; font-weight: 800; margin: 0; color: var(--dark); }
+    .twh .search-box { position:relative; }
+    .twh .search-box i { position:absolute; left:0.6rem; top:50%; transform:translateY(-50%); color:#bbb; font-size:0.85rem; }
+    .twh .search-box input {
+        font-size:0.82rem; padding:0.35rem 0.6rem 0.35rem 1.8rem; border:1px solid #e5e2da;
+        border-radius:0.5rem; width:200px;
+    }
+    .scroll-x { overflow-x:auto; }
+    .v-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .v-table th {
+        text-align: left; font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
+        letter-spacing: 0.3px; color: #888; padding: 0.65rem 1rem; border-bottom: 2px solid #eee;
+        white-space: nowrap; position:sticky; top:0; background:#fff; z-index:2;
+    }
+    .v-table th.sortable { cursor:pointer; user-select:none; }
+    .v-table th.sortable:hover { color:var(--dark); }
+    .v-table th .caret { opacity:0.35; font-size:0.7rem; }
+    .v-table th.sorted .caret { opacity:1; color:var(--gold); }
+    .v-table th.num, .v-table td.num { text-align: right; }
+    .v-table td { padding: 0.65rem 1rem; border-bottom: 1px solid #f3f3f3; vertical-align: middle; }
+    .v-table tbody tr.clickable { cursor: pointer; transition: background 0.1s; }
+    .v-table tbody tr.clickable:hover { background: #fafaf8; }
+    .v-table .rank { color:#bbb; font-weight:700; font-size:0.8rem; width:34px; }
+    .v-table .veh-name { font-weight: 700; color: var(--dark); }
+    .v-table .veh-sub { font-size: 0.74rem; color: #999; font-weight: 500; }
+    .v-table .money { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .v-table .profit { color: var(--pos); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .v-table .profit.neg { color: var(--neg); }
+    .v-table tbody#unassignedRows td { background: #fcfbf7; color: #8a8a8a; }
+    .v-table tfoot td { padding: 0.8rem 1rem; border-top: 2px solid #e8e5dd; font-weight: 800; color: var(--dark); background:#fff; }
+
+    .pill { display:inline-block; padding: 0.1rem 0.45rem; border-radius: 0.3rem; font-size: 0.72rem; font-weight: 700; }
+    .pill-trips { background:#f0f0f0; color:#555; }
+
+    /* profit-share bar under profit cell */
+    .share-cell { min-width:130px; }
+    .share-wrap { display:flex; align-items:center; gap:0.5rem; justify-content:flex-end; }
+    .share-bar { display:inline-block; width:60px; height:6px; border-radius:4px; background:#eee; overflow:hidden; }
+    .share-bar .fill { display:block; height:100%; background:linear-gradient(90deg,#1b7f3b,#3bbf63); }
+
+    .empty-state { background:#fff; border-radius:0.75rem; padding:3rem; text-align:center; color:#999; }
+
+    /* ── Detail trip table ── */
+    .trip-type {
+        padding: 0.1rem 0.4rem; border-radius:0.25rem; font-weight:700; font-size:0.62rem;
+        text-transform:uppercase; letter-spacing:0.3px; background:#eef; color:#3355aa;
+    }
+    .hidden-row { display:none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<div class="page-header">
+    <div class="container-fluid">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <h1 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.2rem;">
+                    <i class="bi bi-car-front-fill me-2" style="color: var(--gold);"></i>Vehicle Profit
+                </h1>
+                <p>
+                    {% if selected_vehicle %}
+                        {{ selected_vehicle }} — Completed Trip History
+                    {% else %}
+                        Profit per physical vehicle &middot; completed trips only
+                    {% endif %}
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                {% if selected_vehicle %}
+                <a href="?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-light" style="font-size:0.8rem;">
+                    <i class="bi bi-arrow-left me-1"></i>All Vehicles
+                </a>
+                {% else %}
+                <a href="{% url 'vehicle_profit_report_csv' %}?date_from={{ date_from }}&date_to={{ date_to }}"
+                   class="btn btn-sm btn-outline-light" style="font-size:0.8rem;">
+                    <i class="bi bi-download me-1"></i>Export CSV
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid py-3">
+    <div class="filter-panel">
+        <form method="get" id="filterForm" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label>Vehicle</label>
+                <select name="vehicle" class="form-select" onchange="this.form.submit()">
+                    <option value="">All Vehicles (Overview)</option>
+                    {% for fv in fleet_vehicles %}
+                    <option value="{{ fv.id }}" {% if selected_vehicle_id == fv.id|stringformat:"d" %}selected{% endif %}>
+                        {{ fv }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label>From</label>
+                <input type="date" name="date_from" id="dateFrom" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label>To</label>
+                <input type="date" name="date_to" id="dateTo" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-dark"><i class="bi bi-funnel me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="presets">
+        <span class="preset" data-preset="this_month">This month</span>
+        <span class="preset" data-preset="last_month">Last month</span>
+        <span class="preset" data-preset="last_30">Last 30 days</span>
+        <span class="preset" data-preset="last_90">Last 90 days</span>
+        <span class="preset" data-preset="ytd">Year to date</span>
+        <span class="preset" data-preset="last_365">Last 12 months</span>
+        <span class="preset" data-preset="all">All time</span>
+    </div>
+
+    {% if selected_vehicle %}
+    {# ═════════ VEHICLE DETAIL ═════════ #}
+    {% if selected_summary %}
+    <div class="summary-section">
+        <div class="stat-card">
+            <div class="sc-label">Revenue</div>
+            <div class="sc-value">${{ selected_summary.revenue|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Driver Pay</div>
+            <div class="sc-value">${{ selected_summary.driver_pay|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="stat-card profit">
+            <div class="sc-label">Profit</div>
+            <div class="sc-value">${{ selected_summary.profit|floatformat:2|intcomma }}</div>
+            {% if selected_summary.margin is not None %}
+            <div class="sc-sub">{{ selected_summary.margin|floatformat:1 }}% margin
+                {% if selected_summary.avg_profit is not None %}&middot; ${{ selected_summary.avg_profit|floatformat:0|intcomma }}/trip{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Completed Trips</div>
+            <div class="sc-value">{{ selected_summary.trips }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if detail_trips %}
+    <div class="table-wrap">
+        <div class="twh">
+            <h2>Trip History <span class="veh-sub" style="font-weight:600;">({{ detail_trips|length }})</span></h2>
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" id="tripSearch" placeholder="Search customer / route…" onkeyup="filterRows('tripRows','tripSearch')">
+            </div>
+        </div>
+        <div class="scroll-x">
+        <table class="v-table" id="detailTable">
+            <thead>
+                <tr>
+                    <th>Date / Time</th>
+                    <th>Customer</th>
+                    <th>Route</th>
+                    <th>Driver</th>
+                    <th class="num">Revenue</th>
+                    <th class="num">Driver Pay</th>
+                    <th class="num">Profit</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="tripRows">
+                {% for t in detail_trips %}
+                <tr>
+                    <td>
+                        <div class="veh-name" style="font-size:0.85rem;">{{ t.pickup_date|date:"M j, Y" }}</div>
+                        <div class="veh-sub">{{ t.pickup_time|time:"g:i A" }}
+                            {% if t.trip_type %}&middot; <span class="trip-type">{{ t.trip_type }}</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>{{ t.customer|default:"—" }}</td>
+                    <td style="max-width:280px;">
+                        <div style="font-size:0.82rem;">{{ t.pickup_location|default:"—" }}</div>
+                        <div class="veh-sub"><i class="bi bi-arrow-down-short"></i>{{ t.dropoff_location|default:"—" }}</div>
+                    </td>
+                    <td style="font-size:0.84rem;">{{ t.driver|default:"—" }}</td>
+                    <td class="num money">${{ t.revenue|floatformat:2|intcomma }}</td>
+                    <td class="num money">${{ t.driver_pay|floatformat:2|intcomma }}</td>
+                    <td class="num profit {% if t.profit < 0 %}neg{% endif %}">${{ t.profit|floatformat:2|intcomma }}</td>
+                    <td class="num">
+                        {% if t.reservation_uuid %}
+                        <a href="{% url 'reservation_details' t.reservation_uuid %}" target="_blank" rel="noopener"
+                           class="text-decoration-none" style="color:var(--gold);"><i class="bi bi-box-arrow-up-right"></i></a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-inbox" style="font-size:2rem;"></i>
+        <p class="mt-2 mb-0">No completed trips attributed to this vehicle in the selected period.</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    {# ═════════ OVERVIEW ═════════ #}
+    <div class="summary-section">
+        <div class="stat-card">
+            <div class="sc-label">Revenue</div>
+            <div class="sc-value">${{ totals.revenue|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Driver Pay</div>
+            <div class="sc-value">${{ totals.driver_pay|floatformat:2|intcomma }}</div>
+        </div>
+        <div class="stat-card profit">
+            <div class="sc-label">Profit</div>
+            <div class="sc-value">${{ totals.profit|floatformat:2|intcomma }}</div>
+            {% if totals.margin is not None %}<div class="sc-sub">{{ totals.margin|floatformat:1 }}% margin</div>{% endif %}
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Completed Trips</div>
+            <div class="sc-value">{{ totals.trips }}</div>
+            <div class="sc-sub">{{ vehicles|length }} vehicle{{ vehicles|length|pluralize }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Avg Profit / Trip</div>
+            <div class="sc-value">{% if totals.avg_profit is not None %}${{ totals.avg_profit|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+        </div>
+    </div>
+
+    {% if vehicles or unassigned.trips %}
+    <div class="table-wrap">
+        <div class="twh">
+            <h2>Profit by Vehicle</h2>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="veh-sub" style="font-size:0.76rem;color:#999;">{{ date_from }} → {{ date_to }} &middot; click a row for trips</span>
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" id="vehSearch" placeholder="Filter vehicles…" onkeyup="filterRows('vehicleRows','vehSearch')">
+                </div>
+            </div>
+        </div>
+        <div class="scroll-x">
+        <table class="v-table" id="overviewTable">
+            <thead>
+                <tr>
+                    <th class="rank">#</th>
+                    <th class="sortable sorted" data-col="1" data-type="text" data-dir="asc" onclick="sortTable(this)">Vehicle <span class="caret">▴</span></th>
+                    <th class="sortable num" data-col="2" onclick="sortTable(this)">Trips <span class="caret">▾</span></th>
+                    <th class="sortable num" data-col="3" onclick="sortTable(this)">Revenue <span class="caret">▾</span></th>
+                    <th class="sortable num" data-col="4" onclick="sortTable(this)">Driver Pay <span class="caret">▾</span></th>
+                    <th class="sortable num" data-col="5" onclick="sortTable(this)">Avg/Trip <span class="caret">▾</span></th>
+                    <th class="sortable num" data-col="6" onclick="sortTable(this)">Profit <span class="caret">▾</span></th>
+                    <th class="sortable num" data-col="7" onclick="sortTable(this)">Margin <span class="caret">▾</span></th>
+                </tr>
+            </thead>
+            <tbody id="vehicleRows">
+                {% for v in vehicles %}
+                <tr class="clickable"
+                    data-name="{{ v.vehicle.vehicle_number }} {{ v.vehicle.year }} {{ v.vehicle.make }} {{ v.vehicle.model }}"
+                    onclick="window.location='?vehicle={{ v.vehicle_id }}&date_from={{ date_from }}&date_to={{ date_to }}'">
+                    <td class="rank js-rank">{{ forloop.counter }}</td>
+                    <td data-sort="{{ v.vehicle.vehicle_number }}">
+                        <div class="veh-name">{{ v.vehicle.vehicle_number }}</div>
+                        <div class="veh-sub">{{ v.vehicle.year }} {{ v.vehicle.make }} {{ v.vehicle.model }}</div>
+                    </td>
+                    <td class="num" data-sort="{{ v.trips }}"><span class="pill pill-trips">{{ v.trips }}</span></td>
+                    <td class="num money" data-sort="{{ v.revenue|stringformat:'f' }}">${{ v.revenue|floatformat:2|intcomma }}</td>
+                    <td class="num money" data-sort="{{ v.driver_pay|stringformat:'f' }}">${{ v.driver_pay|floatformat:2|intcomma }}</td>
+                    <td class="num money" data-sort="{% if v.avg_profit is not None %}{{ v.avg_profit|stringformat:'f' }}{% else %}0{% endif %}">{% if v.avg_profit is not None %}${{ v.avg_profit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+                    <td class="num share-cell" data-sort="{{ v.profit|stringformat:'f' }}">
+                        <div class="share-wrap">
+                            <span class="profit {% if v.profit < 0 %}neg{% endif %}">${{ v.profit|floatformat:2|intcomma }}</span>
+                            {% if totals.profit and v.profit > 0 %}
+                            <span class="share-bar"><span class="fill" style="width:{% widthratio v.profit totals.profit 100 %}%;"></span></span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="num" data-sort="{% if v.margin is not None %}{{ v.margin|stringformat:'f' }}{% else %}-999{% endif %}">
+                        {% if v.margin is not None %}{{ v.margin|floatformat:1 }}%{% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if unassigned.trips %}
+            <tbody id="unassignedRows">
+                <tr data-name="unassigned affiliate">
+                    <td class="rank"><i class="bi bi-dash-circle" style="color:#ccc;"></i></td>
+                    <td>
+                        <div class="veh-name" style="color:#8a8a8a;">{{ unassigned.label }}</div>
+                        <div class="veh-sub">Completed trips with no fleet vehicle assigned that day</div>
+                    </td>
+                    <td class="num"><span class="pill pill-trips">{{ unassigned.trips }}</span></td>
+                    <td class="num money">${{ unassigned.revenue|floatformat:2|intcomma }}</td>
+                    <td class="num money">${{ unassigned.driver_pay|floatformat:2|intcomma }}</td>
+                    <td class="num money">{% if unassigned.avg_profit is not None %}${{ unassigned.avg_profit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+                    <td class="num money">${{ unassigned.profit|floatformat:2|intcomma }}</td>
+                    <td class="num">{% if unassigned.margin is not None %}{{ unassigned.margin|floatformat:1 }}%{% else %}—{% endif %}</td>
+                </tr>
+            </tbody>
+            {% endif %}
+            <tfoot>
+                <tr>
+                    <td></td>
+                    <td>TOTAL</td>
+                    <td class="num">{{ totals.trips }}</td>
+                    <td class="num">${{ totals.revenue|floatformat:2|intcomma }}</td>
+                    <td class="num">${{ totals.driver_pay|floatformat:2|intcomma }}</td>
+                    <td class="num">{% if totals.avg_profit is not None %}${{ totals.avg_profit|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+                    <td class="num" style="color:var(--pos);">${{ totals.profit|floatformat:2|intcomma }}</td>
+                    <td class="num">{% if totals.margin is not None %}{{ totals.margin|floatformat:1 }}%{% else %}—{% endif %}</td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-inbox" style="font-size:2rem;"></i>
+        <p class="mt-2 mb-0">No completed trips in the selected period.</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+
+<script>
+    // ── Date range presets ──
+    (function () {
+        const fmt = d => d.toISOString().slice(0, 10);
+        const today = new Date();
+        function setRange(from, to) {
+            document.getElementById('dateFrom').value = fmt(from);
+            document.getElementById('dateTo').value = fmt(to);
+            document.getElementById('filterForm').submit();
+        }
+        const handlers = {
+            this_month: () => setRange(new Date(today.getFullYear(), today.getMonth(), 1), today),
+            last_month: () => setRange(
+                new Date(today.getFullYear(), today.getMonth() - 1, 1),
+                new Date(today.getFullYear(), today.getMonth(), 0)),
+            last_30: () => { const f = new Date(today); f.setDate(f.getDate() - 30); setRange(f, today); },
+            last_90: () => { const f = new Date(today); f.setDate(f.getDate() - 90); setRange(f, today); },
+            ytd: () => setRange(new Date(today.getFullYear(), 0, 1), today),
+            last_365: () => { const f = new Date(today); f.setFullYear(f.getFullYear() - 1); setRange(f, today); },
+            all: () => setRange(new Date(2015, 0, 1), today),
+        };
+        document.querySelectorAll('.preset').forEach(btn => {
+            btn.addEventListener('click', () => handlers[btn.dataset.preset]());
+        });
+    })();
+
+    // ── Client-side filter (search) ──
+    function filterRows(tbodyId, inputId) {
+        const q = document.getElementById(inputId).value.toLowerCase();
+        document.querySelectorAll('#' + tbodyId + ' tr').forEach(row => {
+            const hay = (row.dataset.name || row.textContent).toLowerCase();
+            row.classList.toggle('hidden-row', q && !hay.includes(q));
+        });
+    }
+
+    // ── Sortable overview table ──
+    function sortTable(th) {
+        const table = document.getElementById('overviewTable');
+        const tbody = document.getElementById('vehicleRows');
+        const col = parseInt(th.dataset.col, 10);
+        const isText = th.dataset.type === 'text';
+        const dir = th.dataset.dir === 'desc' ? 'asc' : 'desc';
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        rows.sort((a, b) => {
+            const av = a.children[col].dataset.sort ?? a.children[col].textContent.trim();
+            const bv = b.children[col].dataset.sort ?? b.children[col].textContent.trim();
+            let cmp;
+            if (isText) cmp = av.localeCompare(bv, undefined, { numeric: true });
+            else cmp = (parseFloat(av) || 0) - (parseFloat(bv) || 0);
+            return dir === 'asc' ? cmp : -cmp;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+
+        // update header indicators
+        table.querySelectorAll('th.sortable').forEach(h => {
+            h.classList.remove('sorted');
+            h.removeAttribute('data-dir');
+            const c = h.querySelector('.caret'); if (c) c.textContent = '▾';
+        });
+        th.classList.add('sorted');
+        th.dataset.dir = dir;
+        const caret = th.querySelector('.caret'); if (caret) caret.textContent = dir === 'asc' ? '▴' : '▾';
+        // renumber rank cells
+        rows.forEach((r, i) => { const rk = r.querySelector('.js-rank'); if (rk) rk.textContent = i + 1; });
+    }
+</script>
+{% endblock %}
