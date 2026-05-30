@@ -10929,12 +10929,26 @@ def inhouse_schedule(request):
             mhrs  = entry.max_hours if entry else driver.default_max_hours
             snotes = entry.scheduling_notes if entry else ""
 
-            design_bucket = "off" if not avail else DESIGN_BUCKET.get(stype, "flex")
+            # "Open / flexible" only when the day is BOTH full-day AND flagged
+            # flexible. A full_day shift with flexible=False is a fixed window
+            # (e.g. 6a–5p) and must render as such. Mirrors the canonical
+            # resolver in drivers/availability.py (_underlying_label /
+            # _classify_status) — keep the two in sync.
+            is_open_flex = (stype == "full_day" and flex)
+
+            if not avail:
+                design_bucket = "off"
+            elif is_open_flex:
+                design_bucket = "flex"
+            elif stype == "full_day":
+                design_bucket = "set"   # full day, but fixed hours
+            else:
+                design_bucket = DESIGN_BUCKET.get(stype, "flex")
 
             if avail:
                 working_days += 1
-                if stype == "full_day":
-                    total_hours += float(mhrs) if mhrs else 10  # flex assumed ~10h
+                if is_open_flex:
+                    total_hours += float(mhrs) if mhrs else 10  # truly flexible ≈ 10h
                 else:
                     span = (eh - sh) if eh > sh else (24 - sh) + eh
                     total_hours += span
@@ -10942,7 +10956,7 @@ def inhouse_schedule(request):
             if not avail:
                 hours_label = ""
                 shift_label = "Off"
-            elif stype == "full_day":
+            elif is_open_flex:
                 hours_label = "open / flex"
                 shift_label = "Flexible"
             else:
@@ -10950,6 +10964,7 @@ def inhouse_schedule(request):
                 shift_label = {
                     "morning": "AM", "midday": "MID", "evening": "PM",
                     "night": "NIGHT", "split": "SPLIT", "custom": "SET",
+                    "full_day": "SET",   # full day with fixed hours
                 }.get(stype, stype.upper())
 
             days.append({
@@ -11400,7 +11415,7 @@ def driver_schedules_dashboard(request):
     view_mode = request.GET.get("view", "week")
 
     inhouse_drivers = list(
-        Driver.objects.filter(driver_type="inhouse")
+        Driver.objects.filter(driver_type="inhouse", is_active=True)
         .select_related("profile")
         .prefetch_related("weekly_schedule", "date_overrides")
         .order_by("profile__first_name", "profile__last_name")
