@@ -24,13 +24,23 @@ AIRPORT_TERMINALS = ("MCO Terminal", "SFB Terminal")
 # legacy behavior (pickup must be <= end_hour).
 END_HOUR_MODE = "CLEAR_BY"           # {"CLEAR_BY", "LAST_PICKUP"}
 
-# Guard C — "flexible" means flexible on START time, but a driver with a clear-by bound
-# is STILL bound by it (not all-or-nothing). Set False to make flexible bypass the end too.
-FLEXIBLE_RESPECTS_CLEAR_BY = True
+# Guard C — a "flexible" driver works AND finishes anytime (founder rule: flexible = no
+# fixed start and no clear-by). So flexible bypasses BOTH the start and the end/clear-by
+# bound. Set True to revert to the old behavior (flexible respects a clear-by end).
+FLEXIBLE_RESPECTS_CLEAR_BY = False
 
 # Guard B — turnaround tuning (minutes).
-DEPLANING_GRACE_MIN = 20             # pax deplane/collect bags => slack on airport arrival pickups
-SAFETY_PAD_MIN = 10                  # global pad added on top of every turnaround
+# Slack on airport-ARRIVAL pickups. The pickup time is the flight's GATE arrival; the driver only
+# needs to be at baggage claim ~this many minutes after it (they clear the cell-lot/security
+# checkpoint while pax deplane + collect bags, so they meet curbside on time). Founder rule:
+# driver there 10–15 min max after gate; pax curbside 10–20. Set to 15 (top of range) so the
+# engine stops farming legs over phantom 1–15 min "lateness" that never happens in reality.
+DEPLANING_GRACE_MIN = 15
+# Global pad added on top of every turnaround. Set to 0 by founder decision: dispatch
+# monitors/adjusts jobs live, so the engine should allow tight back-to-back turnarounds
+# (a turnaround needs only the real drive time). check_feasibility still WARNS on tight
+# (<15 min) turns and still hard-rejects true overlaps. Raise this to re-introduce slack.
+SAFETY_PAD_MIN = 0
 
 # Guard C — use the observed-history STUB windows below until real windows are configured.
 USE_STUB_WINDOWS = True
@@ -88,16 +98,21 @@ def required_turnaround(reposition_drive_min, next_is_airport_arrival, same_term
     """Minutes required between the previous job's clear time and the next pickup.
 
     Rules:
-      * airport-drop -> airport ARRIVAL at the SAME terminal: ~0 reposition (deplaning is slack)
-      * resort/other -> airport ARRIVAL pickup: real drive time minus deplaning grace
-      * anything -> non-arrival (incl. Port Canaveral): full real drive time each way
+      * airport ARRIVAL pickup: the driver only needs to reach the curb by gate-arrival +
+        deplaning grace (pax are deplaning + collecting bags), so the FULL grace is credited —
+        even for a short same-terminal hop. The result may go NEGATIVE, meaning the pickup can be
+        slightly before the driver clears the previous job (he's already at the airport and the
+        pax aren't out yet). This is what stops the engine farming same-airport turns it wrongly
+        called "impossible" (e.g. drop a return at MCO 1:35, grab a 1:34 MCO arrival — fine).
+      * anything -> non-arrival (incl. Port Canaveral / returns / departures): full real drive
+        time each way, NO grace (the passenger is waiting, the driver must be on time).
       * + a global safety pad on top of every turnaround.
-    `reposition_drive_min` is the category drive time the caller computed.
+    `reposition_drive_min` is the category/live drive time the caller computed.
     """
     dg = DEPLANING_GRACE_MIN if deplaning_grace is None else deplaning_grace
     pad = SAFETY_PAD_MIN if safety_pad is None else safety_pad
     if next_is_airport_arrival:
-        base = 0 if same_terminal else max(0, reposition_drive_min - dg)
+        base = (0 if same_terminal else reposition_drive_min) - dg   # full deplaning credit; may be < 0
     else:
         base = reposition_drive_min
     return base + pad
@@ -122,7 +137,12 @@ def get_effective_window(driver_id, configured=None):
         w = STUB_DRIVER_WINDOWS.get(driver_id)
         if not w:
             return None
-        return {"start": w["start"], "end": w["end"], "max_hours": w["max_hours"], "flexible": False}
+        # Use the observed-history stub for start/end/max, but HONOR the driver's REAL
+        # flexible flag (from the caller's `configured` window) — never hardcode False.
+        # Otherwise flexible drivers were treated as rigid in auto-assign/swaps and late
+        # jobs they could cover (e.g. a 10:24 PM van clearing ~11:46) got farmed.
+        flexible = bool(configured and configured.get("flexible"))
+        return {"start": w["start"], "end": w["end"], "max_hours": w["max_hours"], "flexible": flexible}
     return configured
 
 

@@ -119,7 +119,10 @@ def resolve_effective_availability(driver, target_date):
     # requests must be explicitly approved (or auto-approved by dispatcher
     # creating them) before they take effect.
     exception = _pick_active_exception(
-        list(driver.date_overrides.filter(status="approved")),
+        # Filter the (typically prefetched) date_overrides in Python so the
+        # daily planner doesn't fire one query per driver — .filter() would
+        # bypass the prefetch cache.
+        [o for o in driver.date_overrides.all() if o.status == "approved"],
         target_date,
     )
 

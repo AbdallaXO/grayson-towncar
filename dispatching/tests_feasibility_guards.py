@@ -11,22 +11,28 @@ from dispatching import feasibility_guards as fg
 
 
 class TurnaroundTests(SimpleTestCase):
-    def test_non_arrival_full_drive_plus_pad(self):
-        # anything -> Port (non-arrival): full drive + 10 pad
-        self.assertEqual(fg.required_turnaround(30, next_is_airport_arrival=False, same_terminal=False), 40)
+    def test_non_arrival_full_drive_only(self):
+        # anything -> non-arrival (incl. Port): full drive, pad now 0 (live monitoring)
+        self.assertEqual(fg.required_turnaround(30, next_is_airport_arrival=False, same_terminal=False), 30)
 
     def test_airport_arrival_same_terminal(self):
-        # airport drop -> airport arrival same terminal: ~0 reposition + pad
-        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=True), 10)
+        # same-terminal arrival: 0 reposition, FULL deplaning credit => -grace (driver already at
+        # the airport, pax still deplaning, so pickup can be ~grace min before he clears the prev job)
+        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=True), -15)
 
     def test_airport_arrival_from_resort(self):
-        # resort -> airport arrival: drive - deplaning(20) + pad(10)
-        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=False), 45 - 20 + 10)
+        # resort -> airport arrival: drive - deplaning(15), pad 0
+        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=False), 30)
 
-    def test_airport_arrival_drive_under_grace_floors_zero(self):
-        self.assertEqual(fg.required_turnaround(10, next_is_airport_arrival=True, same_terminal=False), 0 + 10)
+    def test_airport_arrival_deplaning_credit_can_go_negative(self):
+        # short hop to an arrival: full deplaning credit, no floor => can go negative
+        self.assertEqual(fg.required_turnaround(10, next_is_airport_arrival=True, same_terminal=False), -5)
 
-    def test_custom_params(self):
+    def test_safety_pad_default_is_zero(self):
+        self.assertEqual(fg.SAFETY_PAD_MIN, 0)
+
+    def test_custom_params_still_honored(self):
+        # explicit overrides still work (formula: drive - deplaning + pad)
         self.assertEqual(
             fg.required_turnaround(60, next_is_airport_arrival=True, same_terminal=False,
                                    deplaning_grace=30, safety_pad=5),
@@ -65,16 +71,18 @@ class WindowCheckTests(SimpleTestCase):
         ok, _ = fg.window_check(self.W(end=17), time(15, 0), datetime(2026, 5, 1, 17, 0), 2)
         self.assertTrue(ok)
 
-    def test_flexible_still_bound_by_clear_by(self):
-        # FLEXIBLE_RESPECTS_CLEAR_BY default True: flex driver still can't clear past end
-        ok, reason = fg.window_check(self.W(end=17, flexible=True), time(16, 0), datetime(2026, 5, 1, 18, 30), 3)
+    def test_flexible_bypasses_clear_by_by_default(self):
+        # FLEXIBLE_RESPECTS_CLEAR_BY default False: a flexible driver works/finishes anytime,
+        # so clearing past the (nominal) end is allowed.
+        ok, _ = fg.window_check(self.W(end=17, flexible=True), time(16, 0), datetime(2026, 5, 1, 18, 30), 3)
+        self.assertTrue(ok)
+
+    def test_flexible_still_bound_when_frcb_enabled(self):
+        # Explicit override re-imposes the clear-by on a flexible driver.
+        ok, reason = fg.window_check(self.W(end=17, flexible=True), time(16, 0), datetime(2026, 5, 1, 18, 30), 3,
+                                     flexible_respects_clear_by=True)
         self.assertFalse(ok)
         self.assertIn("clear-by", reason)
-
-    def test_flexible_bypasses_end_when_disabled(self):
-        ok, _ = fg.window_check(self.W(end=17, flexible=True), time(16, 0), datetime(2026, 5, 1, 18, 30), 3,
-                                flexible_respects_clear_by=False)
-        self.assertTrue(ok)
 
     def test_last_pickup_mode(self):
         ok, reason = fg.window_check(self.W(end=17), time(18, 0), datetime(2026, 5, 1, 19, 0), 2, mode="LAST_PICKUP")

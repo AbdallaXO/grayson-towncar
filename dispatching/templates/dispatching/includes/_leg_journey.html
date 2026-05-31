@@ -31,7 +31,7 @@
 
 {% for stop in leg.additional_dropoffs %}
   <dt class="col-sm-4">
-    Additional drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+    Additional drop-off{% if leg.additional_dropoffs|length > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
   </dt>
   <dd class="col-sm-8 fw-semibold">
     {{ stop.display_location }}

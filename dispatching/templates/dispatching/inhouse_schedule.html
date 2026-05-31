@@ -152,7 +152,7 @@
   }
   .sm-cov-legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
   .sm-cov-grid {
-    display: grid; grid-template-columns: repeat(7, 1fr);
+    display: grid; grid-template-columns: repeat(var(--cov-cols, 7), 1fr);
     gap: 1px; background: var(--hairline);
   }
   .sm-cov-cell {
@@ -472,8 +472,8 @@
   }
   .sm-weekly-head, .sm-weekly-row {
     display: grid;
-    grid-template-columns: 76px 1fr 122px 60px 24px;
-    gap: 8px; padding: 9px 12px;
+    grid-template-columns: 74px 1fr 1fr 40px 50px;
+    gap: 6px; padding: 9px 12px;
     border-bottom: 1px solid var(--hairline); align-items: center;
   }
   .sm-weekly-head {
@@ -506,6 +506,12 @@
     font-size: 11.5px; color: var(--text); outline: none;
   }
   .sm-weekly-row select:focus, .sm-weekly-row input:focus { border-color: var(--gold-line); }
+  .sm-weekly-row select:disabled, .sm-weekly-row input:disabled { opacity: 0.4; cursor: not-allowed; }
+  .sm-weekly-row .sm-flex-cell { display: flex; justify-content: center; align-items: center; }
+  .sm-weekly-row input[type="checkbox"] {
+    width: 15px; height: 15px; padding: 0; margin: 0;
+    accent-color: var(--gold); cursor: pointer;
+  }
   .sm-weekly-foot { padding: 8px 12px; display: flex; gap: 6px; }
 
   .sm-callout {
@@ -937,8 +943,8 @@
           <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C9A227;"></span>Set Hours</span>
         </div>
       </div>
-      <div class="sm-cov-grid">
-        {% for c in coverage %}
+      <div class="sm-cov-grid" style="--cov-cols: {{ coverage_strip|length }};">
+        {% for c in coverage_strip %}
         <div class="sm-cov-cell sm-risk-{{ c.risk_level }} is-risk-{{ c.risk_level }}
                     {% if c.is_weekend %}is-weekend{% endif %} {% if c.is_today %}is-today{% endif %}"
              data-day-idx="{{ c.day_idx }}"
@@ -1254,6 +1260,14 @@
     if (h === 12) return '12p';
     return (h - 12) + 'p';
   }
+  // <option> list 12a … 11p for the per-day start/end hour pickers.
+  function hourOptions(selected) {
+    var out = '';
+    for (var h = 0; h <= 23; h++) {
+      out += '<option value="' + h + '"' + (h === selected ? ' selected' : '') + '>' + fmtHour(h) + '</option>';
+    }
+    return out;
+  }
   function escapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1461,23 +1475,24 @@
   // ── schedule tab ─────────────────────────────────────────────────
   function renderScheduleTab() {
     var rows = draftWeek.map(function(day, i) {
-      var hoursDisplay = day.is_available
-        ? (day.shift_type === 'full_day' ? 'open / flex' : fmtHour(day.start_hour) + ' → ' + fmtHour(day.end_hour))
-        : '—';
-      var typeOptions = SHIFT_TYPE_OPTIONS.map(function(opt) {
-        return '<option value="' + opt[0] + '"' + (day.shift_type === opt[0] ? ' selected' : '') + '>' + opt[1] + '</option>';
-      }).join('');
+      var off  = !day.is_available;
+      var flex = !!day.flexible;
       var maxAttr = day.max_hours ? day.max_hours : '';
+      // Start/end are editable only when the day is on AND not flexible
+      // (flexible = no hard limits, so the hours don't apply).
+      var timeDisabled = off || flex;
       return '' +
         '<div class="sm-weekly-row" data-day-idx="' + i + '">' +
           '<span style="display:flex; align-items:center; gap:6px;">' +
-            '<span class="sm-weekly-toggle ' + (day.is_available ? 'is-on' : '') + '" data-action="toggle-day"></span>' +
-            '<span class="day-name ' + (day.is_available ? '' : 'is-off') + '">' + DAY_NAMES[i] + '</span>' +
+            '<span class="sm-weekly-toggle ' + (off ? '' : 'is-on') + '" data-action="toggle-day"></span>' +
+            '<span class="day-name ' + (off ? 'is-off' : '') + '">' + DAY_NAMES[i] + '</span>' +
           '</span>' +
-          '<span class="hrs ' + (day.is_available ? '' : 'is-off') + '" data-role="hours-display">' + hoursDisplay + '</span>' +
-          '<select data-action="shift-type" ' + (day.is_available ? '' : 'disabled') + '>' + typeOptions + '</select>' +
-          '<input type="number" min="0" max="24" step="0.5" placeholder="—" value="' + maxAttr + '" data-action="max-hours" ' + (day.is_available ? '' : 'disabled') + ' />' +
-          '<span></span>' +
+          '<select data-action="start-hour" ' + (timeDisabled ? 'disabled' : '') + '>' + hourOptions(day.start_hour) + '</select>' +
+          '<select data-action="end-hour" ' + (timeDisabled ? 'disabled' : '') + '>' + hourOptions(day.end_hour) + '</select>' +
+          '<label class="sm-flex-cell" title="Flexible — no hard start/end limits">' +
+            '<input type="checkbox" data-action="flexible" ' + (flex ? 'checked' : '') + ' ' + (off ? 'disabled' : '') + ' />' +
+          '</label>' +
+          '<input type="number" min="0" max="24" step="0.5" placeholder="—" value="' + maxAttr + '" data-action="max-hours" ' + (off ? 'disabled' : '') + ' />' +
         '</div>';
     }).join('');
 
@@ -1492,11 +1507,11 @@
       '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:8px;">Weekly default</div>' +
       '<div class="sm-weekly">' +
         '<div class="sm-weekly-head">' +
-          '<div>Day</div><div>Hours</div><div>Shift</div><div>Max</div><div></div>' +
+          '<div>Day</div><div>Start</div><div>End</div><div>Flex</div><div>Max</div>' +
         '</div>' +
         rows +
         '<div class="sm-weekly-foot">' +
-          '<button type="button" class="sm-btn" data-action="hours-prompt" data-info="Edit start/end hours via shift type — set Custom for custom windows.">📋 Copy Mon → Fri</button>' +
+          '<button type="button" class="sm-btn" data-action="copy-mon-fri" data-info="Copy Monday\'s hours to Tue–Fri.">📋 Copy Mon → Fri</button>' +
           '<button type="button" class="sm-btn" data-action="reset">Reset row</button>' +
         '</div>' +
       '</div>' +
@@ -1659,36 +1674,53 @@
   function bindScheduleTab() {
     drawerBody.querySelectorAll('.sm-weekly-row').forEach(function(row) {
       var idx = parseInt(row.getAttribute('data-day-idx'), 10);
-      var toggle = row.querySelector('[data-action="toggle-day"]');
-      var shiftSel = row.querySelector('[data-action="shift-type"]');
+      var toggle  = row.querySelector('[data-action="toggle-day"]');
+      var startSel = row.querySelector('[data-action="start-hour"]');
+      var endSel   = row.querySelector('[data-action="end-hour"]');
+      var flexCb   = row.querySelector('[data-action="flexible"]');
       var maxIn   = row.querySelector('[data-action="max-hours"]');
       toggle.addEventListener('click', function() {
-        draftWeek[idx].is_available = !draftWeek[idx].is_available;
-        // Reset to defaults when re-enabling so the row picks sane hours.
-        if (draftWeek[idx].is_available && (draftWeek[idx].start_hour == null || draftWeek[idx].end_hour == null)) {
-          draftWeek[idx].start_hour = 6;
-          draftWeek[idx].end_hour = 23;
-          draftWeek[idx].shift_type = 'full_day';
+        var d = draftWeek[idx];
+        d.is_available = !d.is_available;
+        // On (re)enable, give a sane editable window so the user can adjust it.
+        if (d.is_available && (d.start_hour == null || d.end_hour == null)) {
+          d.start_hour = 6;
+          d.end_hour = 23;
+          d.flexible = false;
         }
+        d.shift_type = d.flexible ? 'full_day' : 'custom';
         renderDrawerBody();
       });
-      shiftSel.addEventListener('change', function() {
-        draftWeek[idx].shift_type = shiftSel.value;
-        draftWeek[idx].design_bucket = SHIFT_BUCKET_FROM_TYPE[shiftSel.value] || 'flex';
-        // Apply opinionated defaults for canonical shifts.
-        var presets = {
-          morning: [6, 14], midday: [9, 17], evening: [14, 22],
-          night:   [20, 4], split: [6, 22], full_day: [6, 23], custom: null,
-        };
-        var p = presets[shiftSel.value];
-        if (p) { draftWeek[idx].start_hour = p[0]; draftWeek[idx].end_hour = p[1]; }
-        draftWeek[idx].flexible = (shiftSel.value === 'full_day');
-        renderDrawerBody();
+      if (startSel) startSel.addEventListener('change', function() {
+        draftWeek[idx].start_hour = parseInt(startSel.value, 10);
+      });
+      if (endSel) endSel.addEventListener('change', function() {
+        draftWeek[idx].end_hour = parseInt(endSel.value, 10);
+      });
+      if (flexCb) flexCb.addEventListener('change', function() {
+        draftWeek[idx].flexible = flexCb.checked;
+        // Keep shift_type in step: flexible → full_day, fixed window → custom.
+        draftWeek[idx].shift_type = flexCb.checked ? 'full_day' : 'custom';
+        renderDrawerBody();   // re-render to enable/disable the start/end pickers
       });
       maxIn.addEventListener('input', function() {
         var v = parseFloat(maxIn.value);
         draftWeek[idx].max_hours = isFinite(v) && v > 0 ? v : null;
       });
+    });
+    // Copy Monday's hours/flex/max to Tue–Fri.
+    var copyBtn = drawerBody.querySelector('[data-action="copy-mon-fri"]');
+    if (copyBtn) copyBtn.addEventListener('click', function() {
+      var mon = draftWeek[0];
+      for (var i = 1; i <= 4; i++) {
+        draftWeek[i].is_available = mon.is_available;
+        draftWeek[i].start_hour   = mon.start_hour;
+        draftWeek[i].end_hour     = mon.end_hour;
+        draftWeek[i].flexible     = mon.flexible;
+        draftWeek[i].shift_type   = mon.shift_type;
+        draftWeek[i].max_hours    = mon.max_hours;
+      }
+      renderDrawerBody();
     });
     drawerBody.querySelectorAll('input[name="vermode"]').forEach(function(r) {
       r.addEventListener('change', function() {
@@ -1783,10 +1815,13 @@
     draftWeek.forEach(function(d, i) {
       weeklyPayload[i] = {
         is_available:     d.is_available,
-        shift_type:       d.shift_type || 'full_day',
+        // Flexible drivers are full_day; everyone else is a fixed (custom)
+        // window. shift_type is derived from the flexible flag, never the
+        // reverse — see drivers/availability.py.
+        shift_type:       d.flexible ? 'full_day' : 'custom',
         start_hour:       d.start_hour != null ? d.start_hour : 6,
         end_hour:         d.end_hour   != null ? d.end_hour   : 23,
-        flexible:         (d.shift_type || 'full_day') === 'full_day',
+        flexible:         !!d.flexible,
         max_hours:        d.max_hours || null,
         preferred_shift:  d.preferred_shift || '',
         preference:       d.preference || '',

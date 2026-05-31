@@ -1517,13 +1517,19 @@ class Leg(models.Model):
         return self._is_airport(pickup_lower)
 
     def _is_airport(self, location_lower):
+        """Airport-terminal test.
+
+        Delegates to the shared dispatching.analytics.is_airport_location detector
+        so trip-type classification and route-timing location buckets always agree.
+        Previously this used a narrow keyword list (mco/sfb/mlb/lal/"international
+        airport") that missed pickups written as "Terminal B", an airline name, or
+        "baggage claim" — they were mislabeled 'other' and lost their dwell
+        allowance. Imported lazily to avoid a models <-> analytics import cycle.
+        """
         if not location_lower:
             return False
-        if any(kw in location_lower for kw in self.CRUISE_PORT_KEYWORDS):
-            return False
-        if any(kw in location_lower for kw in self.HOTEL_INDICATORS):
-            return False
-        return any(kw in location_lower for kw in self.AIRPORT_KEYWORDS)
+        from dispatching.analytics import is_airport_location
+        return is_airport_location(location_lower)
 
     def has_flight_time_mismatch(self, threshold_minutes=30):
         """
@@ -1663,8 +1669,11 @@ class Leg(models.Model):
         (stop_type='dropoff'). The leg's `dropoff_location` CharField is the
         PRIMARY drop-off; these are extras after that one (e.g., second resort)."""
         if self.pk is None:
-            return self.legstop_set.none()
-        return self.legstop_set.filter(stop_type='dropoff').order_by('sequence')
+            return []
+        # Iterate the (typically prefetched) legstop_set in Python so list
+        # views don't fire a query per leg. Meta.ordering = (leg_id, sequence)
+        # keeps these in sequence order.
+        return [s for s in self.legstop_set.all() if s.stop_type == 'dropoff']
 
     @property
     def intermediate_stops(self):
@@ -1673,20 +1682,20 @@ class Leg(models.Model):
         in the vehicle (or briefly disembarks then continues). Anything not
         flagged as a 'dropoff' falls here."""
         if self.pk is None:
-            return self.legstop_set.none()
-        return self.legstop_set.exclude(stop_type='dropoff').order_by('sequence')
+            return []
+        return [s for s in self.legstop_set.all() if s.stop_type != 'dropoff']
 
     @property
     def has_additional_dropoffs(self):
         if self.pk is None:
             return False
-        return self.legstop_set.filter(stop_type='dropoff').exists()
+        return any(s.stop_type == 'dropoff' for s in self.legstop_set.all())
 
     @property
     def has_intermediate_stops(self):
         if self.pk is None:
             return False
-        return self.legstop_set.exclude(stop_type='dropoff').exists()
+        return any(s.stop_type != 'dropoff' for s in self.legstop_set.all())
 
     @property
     def all_stops(self):

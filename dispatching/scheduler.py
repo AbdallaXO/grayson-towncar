@@ -5,6 +5,7 @@ Provides feasibility checking, assignment suggestions, and batching detection
 for optimizing in-house driver coverage.
 """
 
+import os
 from datetime import datetime, timedelta, time, date
 from decimal import Decimal
 from typing import List, Dict, Optional
@@ -69,6 +70,53 @@ DRIVE_TIME_ESTIMATES = {
 }
 
 DEFAULT_DRIVE_TIME = 35  # fallback for unknown routes
+
+# Live-distance fallback. The category table above only knows Orlando landmarks; a stop it
+# can't place (Tampa, a random residential/other address) lands in one of these buckets and
+# would otherwise get the ~35-min guess. For routes touching one of these, pull a real,
+# traffic-aware, 2h-cached Google Maps drive time (drivers.utils.get_drive_time) on the raw
+# addresses instead — so far/unknown rides aren't hallucinated. Known landmarks keep the
+# instant table estimate. Flip USE_LIVE_DISTANCE off to disable entirely.
+# Default True (prod uses live road times); set env USE_LIVE_DISTANCE=0 to disable LOCALLY for
+# instant, fully-offline browsing (category estimates only) — prod default is unchanged.
+USE_LIVE_DISTANCE = os.environ.get("USE_LIVE_DISTANCE", "1") != "0"
+LIVE_DISTANCE_UNKNOWN_CATS = {'Other', 'Residential', 'Other Hotel'}
+# Clusters whose internal spread the category table can't capture: it bills every
+# "Disney Resort -> Disney Resort" hop as one ~20-min average even between the SAME resort
+# (~0) or adjacent ones (~5). For an intra-cluster reposition we use live road distance on
+# the real addresses instead (falls back to the table). This stops the engine over-charging
+# same/near-resort turnarounds and falsely farming the leg.
+INTRA_CLUSTER_LIVE_CATS = {'Disney Resort', 'Universal Resort', 'Port Canaveral Area'}
+
+# Auto pre-farm swap pass: after auto-assign builds the board, try to recover each would-be-
+# FARMED leg in-house by cascading existing assignments (find_swaps), before sending it to an
+# affiliate. The greedy build is single-leg and can't rearrange; this pass can. Guard-safe
+# (find_swaps re-validates feasibility on every move). Flip to False to disable.
+AUTO_PREFARM_SWAP_PASS = True
+
+# Gap-compaction relocation pass: after the board is fully covered, relocate an ALREADY-
+# COVERED leg from a donor driver to a driver with a big internal hole, when doing so heals
+# more gap than it opens — the founder's manual "give David the 6:15 that Roberto holds so his
+# morning isn't one long hole; Roberto just starts later" move. Coverage is preserved (a leg
+# only changes driver, never gets farmed); manual/pinned legs are never moved. Flip to False
+# to disable. See compact_gaps_via_relocation().
+AUTO_GAP_COMPACT_PASS = True
+GAP_COMPACT_MIN_GAP = 120        # only try to fill an internal gap at least this many minutes
+GAP_COMPACT_MIN_NET_GAIN = 60    # require (receiver gap healed − donor gap opened) ≥ this (min)
+GAP_COMPACT_MAX_MOVES = 25       # safety cap on relocations per run (also bounds the hill-climb)
+GAP_COMPACT_PROTECT_DONOR_MAX_JOBS = 3  # never pull a job from a donor with this many jobs or fewer
+                                        # (keep light drivers' work intact — founder's "give Steven more")
+
+# build_smart_schedule optional-fill strategy. False = legacy first-fit (seat the first
+# feasible leg in tier order). True = best-fit (each round seat the highest-SCORING feasible
+# candidate).
+# DEFAULT False: an A/B on real data (2026-05-31) showed best-fit is WORSE — it greedily
+# grabs high-scoring RETURN legs without accounting for the empty deadhead needed to reach
+# each return's pickup, producing a deadhead-heavy, low-utilization day (util 66%->46%).
+# Greedy-on-the-current-score doesn't encode the founder's objective (max jobs, round-trips,
+# min deadhead/gaps). Best-fit only becomes useful once the SCORE penalizes empty
+# repositioning / rewards round-trip continuation. Kept behind this flag for that future work.
+BUILDER_BEST_FIT = False
 
 # Buffer between jobs (repositioning uncertainty + personal break)
 INTER_JOB_BUFFER = 5  # minutes
@@ -408,6 +456,35 @@ def get_drive_time(pickup_category: str, dropoff_category: str,
     )
 
 
+def resolve_drive_minutes(pickup_text, dropoff_text, pickup_category, dropoff_category,
+                          time_cat: str = None, day_cat: str = None) -> int:
+    """Drive minutes between two points.
+
+    For routes where the category map can't place an endpoint (LIVE_DISTANCE_UNKNOWN_CATS —
+    e.g. a Tampa or odd residential address), use a live, traffic-aware, 2h-cached Google
+    Maps drive time on the RAW addresses so far/unknown rides aren't guessed at the ~35-min
+    default. Known Orlando landmarks use the instant category estimate. Falls back to the
+    category estimate if the live lookup is disabled, unavailable, or fails.
+    """
+    # Same exact location => already there, no repositioning drive (offline, deterministic).
+    if pickup_text and dropoff_text and pickup_text.strip().lower() == dropoff_text.strip().lower():
+        return 0
+    if (USE_LIVE_DISTANCE and pickup_text and dropoff_text
+            and (pickup_category in LIVE_DISTANCE_UNKNOWN_CATS
+                 or dropoff_category in LIVE_DISTANCE_UNKNOWN_CATS
+                 # intra-cluster hop the category table can't resolve (same/adjacent resort, etc.)
+                 or (pickup_category == dropoff_category
+                     and pickup_category in INTRA_CLUSTER_LIVE_CATS))):
+        try:
+            from drivers.utils import get_drive_time as _maps_drive_time
+            info = _maps_drive_time(pickup_text, dropoff_text)
+            if info and info.get("duration_seconds"):
+                return max(1, round(info["duration_seconds"] / 60))
+        except Exception:
+            pass  # fall through to the category estimate
+    return get_drive_time(pickup_category, dropoff_category, time_cat, day_cat)
+
+
 def get_airport_dwell_time(pickup_category: str, dropoff_category: str,
                            time_cat: str = None, day_cat: str = None) -> int:
     """
@@ -455,7 +532,7 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str,
             if metric.avg_airport_dwell_time:
                 return metric.avg_airport_dwell_time
 
-    return 45  # Default: 40 min airport dwell (flight land → bags → walk → in car)
+    return 45  # Default: 45 min airport dwell (flight land → bags → walk → in car)
 
 
 PUBLIX_STOP_MINUTES = 25  # Extra time for grocery store stop
@@ -464,25 +541,32 @@ def _get_best_flight_arrival(leg) -> 'datetime | None':
     """
     Return the best available flight arrival datetime for an arrival leg,
     or None if no flight data exists. Uses naive local time.
-    Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway.
+
+    Delegates to dispatching.analytics.best_flight_arrival_local — the SAME anchor
+    used when historical dwell is measured — so the scheduler's clearing clock and
+    the measured dwell start from the identical moment (no gate-vs-runway mismatch).
     """
-    from django.utils import timezone as tz
-    flight = getattr(leg, 'flight_information', None)
-    if not flight:
-        return None
-    flight_dt = (
-        flight.actual_gate_arrival_local
-        or flight.estimated_gate_arrival_local
-        or flight.actual_arrival_local
-        or flight.estimated_arrival_local
-        or flight.scheduled_gate_arrival_local
-        or flight.scheduled_arrival_local
-    )
-    if not flight_dt:
-        return None
-    if tz.is_aware(flight_dt):
-        flight_dt = tz.make_naive(flight_dt, tz.get_current_timezone())
-    return flight_dt
+    from dispatching.analytics import best_flight_arrival_local
+    return best_flight_arrival_local(getattr(leg, 'flight_information', None))
+
+
+def _anchor_flight_dt(flight_dt: datetime, pickup_dt: datetime) -> datetime:
+    """Place the flight's clock time on the calendar day nearest the pickup slot.
+
+    The flight record's DATE can be a red-eye (lands just after midnight, so the
+    real arrival is the next calendar day) or occasionally a stale/oddly-dated
+    value. Rather than blindly combining the flight time with target_date (which
+    forced a 00:30 landing to 00:30 the SAME morning — up to ~24h early, throwing
+    clearing time off and scrambling slot order), pick whichever of
+    prev/same/next day puts the arrival closest to the pickup slot. Keeps
+    within-day delay signal intact while handling the midnight wrap correctly.
+    """
+    t = flight_dt.time()
+    candidates = [
+        datetime.combine(pickup_dt.date() + timedelta(days=d), t)
+        for d in (-1, 0, 1)
+    ]
+    return min(candidates, key=lambda c: abs((c - pickup_dt).total_seconds()))
 
 
 def estimate_job_end_time(leg, target_date: date) -> datetime:
@@ -493,13 +577,16 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
 
     Uses time-of-day and day-type aware metrics for more accurate estimates.
     """
-    from dispatching.analytics import categorize_location, categorize_time_of_day, categorize_day_type
+    from dispatching.analytics import (
+        categorize_location, categorize_day_type, leg_time_of_day_category,
+    )
 
     pickup_cat = categorize_location(leg.pickup_location)
     dropoff_cat = categorize_location(leg.dropoff_location)
-    time_cat = categorize_time_of_day(leg.pickup_time)
+    # Flight-aware time bucket so we read the same bucket the metric was stored under.
+    time_cat = leg_time_of_day_category(leg)
     day_cat = categorize_day_type(target_date)
-    drive_minutes = get_drive_time(pickup_cat, dropoff_cat, time_cat, day_cat)
+    drive_minutes = resolve_drive_minutes(leg.pickup_location, leg.dropoff_location, pickup_cat, dropoff_cat, time_cat, day_cat)
 
     pickup_dt = datetime.combine(target_date, leg.pickup_time)
 
@@ -507,9 +594,9 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
     trip_type = leg.get_trip_type()
     if trip_type == 'arrival':
         flight_dt = _get_best_flight_arrival(leg)
-        # Normalize flight datetime to target_date to avoid date mismatches
-        # in duration calculations (flight data may carry a different date)
-        start_dt = datetime.combine(target_date, flight_dt.time()) if flight_dt else pickup_dt
+        # Anchor the flight time to the calendar day nearest the pickup slot so
+        # red-eyes (landing just after midnight) aren't pulled ~24h early.
+        start_dt = _anchor_flight_dt(flight_dt, pickup_dt) if flight_dt else pickup_dt
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
         store_stop_minutes = 0
         if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
@@ -529,13 +616,15 @@ def get_clearing_breakdown(leg, target_date: date) -> dict:
     Return a detailed breakdown of how clearing time is estimated for a leg.
     Useful for diagnosing incorrect clearing estimates.
     """
-    from dispatching.analytics import categorize_location, categorize_time_of_day, categorize_day_type
+    from dispatching.analytics import (
+        categorize_location, categorize_day_type, leg_time_of_day_category,
+    )
 
     pickup_cat = categorize_location(leg.pickup_location)
     dropoff_cat = categorize_location(leg.dropoff_location)
-    time_cat = categorize_time_of_day(leg.pickup_time)
+    time_cat = leg_time_of_day_category(leg)
     day_cat = categorize_day_type(target_date)
-    drive_minutes = get_drive_time(pickup_cat, dropoff_cat, time_cat, day_cat)
+    drive_minutes = resolve_drive_minutes(leg.pickup_location, leg.dropoff_location, pickup_cat, dropoff_cat, time_cat, day_cat)
     static_drive = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat), DEFAULT_DRIVE_TIME)
 
     pickup_dt = datetime.combine(target_date, leg.pickup_time)
@@ -559,7 +648,7 @@ def get_clearing_breakdown(leg, target_date: date) -> dict:
         if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
             store_stop = PUBLIX_STOP_MINUTES
 
-        start_dt = datetime.combine(target_date, flight_dt.time()) if flight_dt else pickup_dt
+        start_dt = _anchor_flight_dt(flight_dt, pickup_dt) if flight_dt else pickup_dt
         end_dt = start_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop)
 
         breakdown['start_time'] = start_dt.strftime('%I:%M %p').lstrip('0')
@@ -677,7 +766,7 @@ def check_feasibility(
 
     # Check against preceding slot — context-dependent turnaround (Guard B)
     if preceding:
-        reposition = get_drive_time(preceding.dropoff_category, new_pickup_cat)
+        reposition = resolve_drive_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
         req = fg.required_turnaround(
             reposition, new_is_arrival,
             same_terminal=(preceding.dropoff_category == new_pickup_cat),
@@ -701,7 +790,7 @@ def check_feasibility(
     if following:
         following_pickup_dt = datetime.combine(target_date, following.pickup_time)
         following_is_arrival = fg.is_airport_arrival(following.trip_type, following.pickup_category)
-        reposition = get_drive_time(new_dropoff_cat, following.pickup_category)
+        reposition = resolve_drive_minutes(new_leg.dropoff_location, following.pickup_location, new_dropoff_cat, following.pickup_category)
         req = fg.required_turnaround(
             reposition, following_is_arrival,
             same_terminal=(new_dropoff_cat == following.pickup_category),
@@ -1538,6 +1627,270 @@ def suggest_assignments(
     return suggestions
 
 
+def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id,
+                                drivers, drivers_by_id, target_date, dvtypes,
+                                locked_leg_ids=None):
+    """Pre-farm swap pass. After the greedy build, try to pull each would-be-FARMED candidate
+    leg back in-house by cascading existing assignments via find_swaps (which the single-leg
+    greedy can't do). Read-only wrt the DB — operates on an in-memory assignment map.
+
+    Args:
+        final_assignments: {leg_id: driver_id} the build produced (auto + manual). Mutated + returned.
+        candidate_leg_ids: ids of legs eligible for in-house (the auto pool); any not in
+            final_assignments is a farm residual we try to recover.
+        legs_by_id / drivers_by_id: lookups. drivers: list of eligible Driver objects.
+        dvtypes: {driver_id: vehicle_type} (load_all_driver_vtypes).
+        locked_leg_ids: legs that must NOT be relocated (manual / pre-existing assignments);
+            any swap solution that would move one is rejected.
+
+    Returns (final_assignments, recovered_leg_ids).
+    """
+    if not AUTO_PREFARM_SWAP_PASS:
+        return final_assignments, []
+    from dispatching.swap_optimizer import find_swaps
+
+    locked = set(locked_leg_ids or [])
+    # Full in-house board = the proposed assignments PLUS any pre-existing assignment already on
+    # a leg (so driver occupancy is correct). Pre-existing ones are implicitly locked too.
+    def board_map():
+        m = dict(final_assignments)
+        for lid, leg in legs_by_id.items():
+            if lid not in m and getattr(leg, "driver_id", None):
+                m[lid] = leg.driver_id
+                locked.add(lid)
+        return m
+
+    farmed = [legs_by_id[lid] for lid in candidate_leg_ids
+              if lid not in final_assignments and lid in legs_by_id]
+    farmed.sort(key=lambda l: -float(getattr(l, "revenue_share", 0) or 0))  # highest value first
+    recovered = []
+
+    def build_and_run(target):
+        # Temporarily reflect the current board onto the leg objects, build schedules, run find_swaps.
+        saved, ih = {}, []
+        for lid, did in board_map().items():
+            leg = legs_by_id.get(lid); dr = drivers_by_id.get(did)
+            if leg is None or dr is None:
+                continue
+            saved[lid] = (leg.driver, getattr(leg, "driver_id", None))
+            leg.driver = dr; leg.driver_id = did
+            ih.append(leg)
+        sch = build_driver_schedules(ih, drivers, target_date)
+        for s in sch.values():
+            s._date = target_date
+        try:
+            return find_swaps(target, sch, {l.id: l for l in ih}, dvtypes, target_date)
+        finally:
+            for lid, (drv, drvid) in saved.items():
+                legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
+
+    for target in farmed:
+        try:
+            res = build_and_run(target)
+        except Exception:
+            res = None
+        if not (res and getattr(res, "solutions", None)):
+            continue
+        sol = res.solutions[0]
+        if {mv.leg_id for mv in sol.moves} & locked:
+            continue  # never disturb a locked (manual/pre-existing) assignment
+        for mv in sol.moves:
+            final_assignments[mv.leg_id] = mv.to_driver_id
+        final_assignments[target.id] = sol.target_driver_id
+        recovered.append(target.id)
+
+    return final_assignments, recovered
+
+
+def _max_internal_gap_minutes(slots, target_date: date) -> float:
+    """Largest idle gap (minutes) between consecutive jobs in a slot list. 0 if < 2 jobs."""
+    if not slots or len(slots) < 2:
+        return 0
+    ordered = sorted(slots, key=lambda s: s.pickup_time)
+    worst = 0
+    for prev, nxt in zip(ordered, ordered[1:]):
+        gap = (datetime.combine(target_date, nxt.pickup_time) - prev.estimated_end_time).total_seconds() / 60
+        if gap > worst:
+            worst = gap
+    return worst
+
+
+def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
+                                target_date, dvtypes, locked_leg_ids=None):
+    """Gap-compaction pass. Relocate an ALREADY-COVERED leg from a donor driver to a driver
+    with a large internal gap, when doing so heals more gap than it opens — the founder's
+    manual "give David the job sitting in his hole; the other driver just starts later" move.
+
+    Coverage is preserved: a leg only changes driver, never gets farmed. Manual / pinned /
+    pre-existing assignments are locked and never moved. Read-only wrt the DB — mutates and
+    returns the in-memory {leg_id: driver_id} map. Fully deterministic.
+
+    A move of leg L (donor D -> receiver R) is accepted iff ALL hold:
+      * L is not locked, R's vehicle is compatible, and R can feasibly insert L
+        (turnaround + window via check_feasibility — "we are never late" is preserved);
+      * L's pickup lands inside R's SINGLE LARGEST internal gap, which is >= GAP_COMPACT_MIN_GAP;
+      * D is not a protected light driver (> GAP_COMPACT_PROTECT_DONOR_MAX_JOBS jobs); and
+      * receiver_gap_healed - donor_gap_opened >= GAP_COMPACT_MIN_NET_GAIN, where a first/last
+        job opens NO donor gap (D simply starts later / finishes earlier) and a middle job only
+        passes when the hole it opens on D is smaller than the hole it heals on R.
+
+    Founder-calibrated behavior:
+      * each driver is filled at most once — only their biggest hole, then left alone;
+      * light donors (<= GAP_COMPACT_PROTECT_DONOR_MAX_JOBS jobs) are never stripped;
+      * a tier-matched receiver wins over a higher-tier one, so the scarce van is used to fill a
+        small-vehicle job only when no smaller-vehicle driver can take it.
+
+    Deadhead is NOT a gate (per the founder: fill the hole, any deadhead) — it only breaks ties
+    so an on-route fill is preferred. Each round applies the single best move and recomputes;
+    bounded by GAP_COMPACT_MAX_MOVES. Returns (final_assignments, moves) — moves for logging.
+    """
+    if not AUTO_GAP_COMPACT_PASS:
+        return final_assignments, []
+
+    from dispatching.analytics import categorize_location
+    from dispatching.models import SchedulerSettings
+    from dispatching import feasibility_guards as fg
+    cfg = SchedulerSettings.get_settings()
+    ijb = cfg.inter_job_buffer
+    grace = cfg.arrival_grace_minutes
+
+    locked = set(locked_leg_ids or [])
+
+    # Full board = proposed assignments PLUS any pre-existing manual assignment already on a leg
+    # (those are also locked — never relocated, but they DO occupy their driver).
+    board = dict(final_assignments)
+    for lid, leg in legs_by_id.items():
+        if lid not in board and getattr(leg, "driver_id", None):
+            board[lid] = leg.driver_id
+            locked.add(lid)
+
+    # Receiving-driver window context (same construction the swap pass uses).
+    windows = {}
+    for dr in drivers:
+        try:
+            eff = dr.get_effective_availability(target_date)
+            mh = eff.get("max_hours")
+            cfgw = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                    "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+        except Exception:
+            cfgw = None
+        windows[dr.id] = fg.get_effective_window(dr.id, configured=cfgw)
+
+    def build_schedules():
+        """Reflect the current board onto the leg objects, build schedules, then restore."""
+        saved, ih = {}, []
+        for lid, did in board.items():
+            leg = legs_by_id.get(lid); dr = drivers_by_id.get(did)
+            if leg is None or dr is None:
+                continue
+            saved[lid] = (leg.driver, getattr(leg, "driver_id", None))
+            leg.driver = dr; leg.driver_id = did
+            ih.append(leg)
+        try:
+            sch = build_driver_schedules(ih, drivers, target_date)
+        finally:
+            for lid, (drv, drvid) in saved.items():
+                legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
+        return sch
+
+    moves = []
+    received = set()  # a driver is filled at most once — only their biggest hole, then left alone
+    for _ in range(GAP_COMPACT_MAX_MOVES):
+        schedules = build_schedules()
+        # Each driver's current largest internal gap (baseline for the donor-cost comparison).
+        cur_max_gap = {did: _max_internal_gap_minutes(s.slots, target_date)
+                       for did, s in schedules.items()}
+
+        best = None  # (sort_key, leg_id, receiver_id, donor_id, net_gain, deadhead, healed, opened)
+        for rid, rsched in schedules.items():
+            if rid in received:
+                continue
+            slots = sorted(rsched.slots, key=lambda s: s.pickup_time)
+            if len(slots) < 2:
+                continue
+            # Target only this receiver's SINGLE LARGEST internal gap ("just the biggest hole").
+            prev, nxt = max(zip(slots, slots[1:]),
+                            key=lambda pr: (datetime.combine(target_date, pr[1].pickup_time)
+                                            - pr[0].estimated_end_time).total_seconds())
+            nxt_pickup_dt = datetime.combine(target_date, nxt.pickup_time)
+            gap = (nxt_pickup_dt - prev.estimated_end_time).total_seconds() / 60
+            if gap < GAP_COMPACT_MIN_GAP:
+                continue
+            rvtype = dvtypes.get(rid)
+            r_tier = get_vehicle_tier(rvtype) if rvtype else -1
+            # Candidate legs: covered, movable, on a DIFFERENT driver, pickup inside this gap.
+            for lid, did in board.items():
+                if did == rid or lid in locked:
+                    continue
+                leg = legs_by_id.get(lid)
+                if leg is None:
+                    continue
+                # Protect light donors — never strip a driver who already has few jobs.
+                dsched = schedules.get(did)
+                if dsched is None or len(dsched.slots) <= GAP_COMPACT_PROTECT_DONOR_MAX_JOBS:
+                    continue
+                pickup_dt = datetime.combine(target_date, leg.pickup_time)
+                if pickup_dt <= prev.estimated_end_time or pickup_dt >= nxt_pickup_dt:
+                    continue
+                # Vehicle compatibility with the receiver.
+                lvtype = leg.effective_vehicle_type
+                if rvtype and lvtype and str(lvtype) not in get_compatible_vehicle_types(rvtype):
+                    continue
+                # Receiver can feasibly insert L? (turnaround + window; never late)
+                feas = check_feasibility(rsched, leg, target_date, inter_job_buffer=ijb,
+                                         arrival_grace=grace, driver_window=windows.get(rid))
+                if not feas.feasible:
+                    continue
+                # Receiver gap healed = original hole minus its worse remaining half.
+                l_end = estimate_job_end_time(leg, target_date)
+                gap_before = (pickup_dt - prev.estimated_end_time).total_seconds() / 60
+                gap_after = (nxt_pickup_dt - l_end).total_seconds() / 60
+                receiver_gap_healed = gap - max(gap_before, gap_after)
+                if receiver_gap_healed <= 0:
+                    continue
+                # Donor gap opened = increase in donor's largest internal gap once L leaves.
+                donor_after = [s for s in dsched.slots if s.leg_id != lid]
+                donor_gap_opened = max(0, _max_internal_gap_minutes(donor_after, target_date)
+                                       - cur_max_gap.get(did, 0))
+                net_gain = receiver_gap_healed - donor_gap_opened
+                if net_gain < GAP_COMPACT_MIN_NET_GAIN:
+                    continue
+                # Tier waste: how far above the job's vehicle tier this receiver is. Prefer a
+                # tier-matched receiver so the scarce van fills a small job only when nothing
+                # smaller can (founder: "prefer same/lower-tier receivers"). Primary sort term.
+                l_tier = get_vehicle_tier(str(lvtype)) if lvtype else -1
+                tier_waste = (r_tier - l_tier) if (l_tier >= 0 and r_tier > l_tier) else 0
+                # Deadhead added on the receiver (tiebreak only — "any deadhead" is allowed).
+                dh_in = resolve_drive_minutes(prev.dropoff_location, leg.pickup_location,
+                                              prev.dropoff_category, categorize_location(leg.pickup_location))
+                dh_out = resolve_drive_minutes(leg.dropoff_location, nxt.pickup_location,
+                                               categorize_location(leg.dropoff_location), nxt.pickup_category)
+                deadhead = dh_in + dh_out
+                # Prefer pulling a donor's first/last job — the clean "starts later" move.
+                donor_slots = sorted(dsched.slots, key=lambda s: s.pickup_time)
+                is_boundary = lid in (donor_slots[0].leg_id, donor_slots[-1].leg_id)
+                sort_key = (-tier_waste, net_gain, -deadhead, 1 if is_boundary else 0, -lid)
+                if best is None or sort_key > best[0]:
+                    best = (sort_key, lid, rid, did, net_gain, deadhead,
+                            receiver_gap_healed, donor_gap_opened)
+
+        if best is None:
+            break
+        _, lid, rid, did, net_gain, deadhead, healed, opened = best
+        board[lid] = rid
+        final_assignments[lid] = rid
+        locked.add(lid)     # a relocated leg is final for this pass — bounds the hill-climb,
+                            # prevents a leg ping-ponging between two drivers across rounds.
+        received.add(rid)   # fill each driver's biggest hole once, then leave him alone.
+        moves.append({
+            "leg_id": lid, "from_driver_id": did, "to_driver_id": rid,
+            "net_gain_min": round(net_gain), "deadhead_added_min": round(deadhead),
+            "receiver_gap_healed_min": round(healed), "donor_gap_opened_min": round(opened),
+        })
+
+    return final_assignments, moves
+
+
 def find_batching_opportunities(legs, target_date: date) -> List[BatchingOpportunity]:
     """
     Find legs in the same location category within 30 min that could be batched.
@@ -1637,12 +1990,17 @@ def build_smart_schedule(
     cfg = SchedulerSettings.get_settings()
 
     from dispatching import feasibility_guards as fg
-    # Guard C — real configured window (from this builder's start/end params) as the
-    # fallback so USE_STUB_WINDOWS=False switches to live windows, not "no guard".
-    _dwindow = fg.get_effective_window(
-        driver_id,
-        configured={"start": start_hour, "end": end_hour, "max_hours": None, "flexible": False},
-    )
+    from drivers.models import Driver as _Driver
+    from drivers.availability import resolve_effective_availability, is_pickup_within_window
+    # The schedule builder is a MANUAL tool: obey the DISPATCHER's selected from/until
+    # (start_hour/end_hour) as the window — NOT the observed-history stub. Resolve the
+    # driver's REAL availability so a flexible driver (who works/finishes anytime) is not
+    # window-bound, consistent with drivers.availability (the canonical resolver).
+    _drv = (_Driver.objects.filter(id=driver_id)
+            .prefetch_related("weekly_schedule", "date_overrides").first())
+    _eff = resolve_effective_availability(_drv, target_date) if _drv else None
+    _is_flexible = bool(_eff and _eff.get("status") == "flexible")
+    _dwindow = {"start": start_hour, "end": end_hour, "max_hours": None, "flexible": _is_flexible}
 
     pinned_leg_ids = pinned_leg_ids or []
     excluded_leg_ids = excluded_leg_ids or []
@@ -1713,16 +2071,35 @@ def build_smart_schedule(
     pinned_failed = []
 
     # Step 1: Insert pinned legs first (they're mandatory)
+    # A pin is an explicit dispatcher override. Only a PHYSICAL time conflict (Guard B
+    # overlap/turnaround) may drop it — the per-driver window (Guard C) is ADVISORY here,
+    # so we pass driver_window=None and instead surface any window issue as a warning
+    # (founder: "if it extends a driver's time, flag it but still do it").
     pinned_sorted = sorted(pinned_legs, key=lambda l: l.pickup_time)
     for leg in pinned_sorted:
+        t = leg.pickup_time.strftime('%I:%M %p').lstrip('0')
         feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
-                                 driver_window=_dwindow)
+                                 driver_window=None)
         if feas.feasible:
             _add_leg_to_schedule(working, leg, target_date)
             pinned_included.append(leg.id)
+            # Advisory only (leg is kept regardless): flag a pin that sits outside the
+            # driver's REAL availability, or that finishes past the selected end. A
+            # flexible driver works/finishes anytime, so it never gets a window flag.
+            if not _is_flexible:
+                leg_end = estimate_job_end_time(leg, target_date)
+                wok, wreason = (is_pickup_within_window(_eff, leg.pickup_time, dropoff_dt=leg_end)
+                                if _eff is not None else (True, ""))
+                end_sel_dt = datetime.combine(target_date, time(min(end_hour, 23), 0))
+                if not wok:
+                    warnings.append(f"Pinned leg #{leg.id} at {t} kept (override) — {wreason}")
+                elif leg_end > end_sel_dt:
+                    warnings.append(
+                        f"Pinned leg #{leg.id} at {t} kept (override) — finishes "
+                        f"~{leg_end.strftime('%I:%M %p').lstrip('0')}, past your selected {end_hour}:00 end.")
         else:
             pinned_failed.append(leg.id)
-            warnings.append(f"Pinned leg #{leg.id} at {leg.pickup_time.strftime('%I:%M %p').lstrip('0')} doesn't fit: {feas.reason}")
+            warnings.append(f"Pinned leg #{leg.id} at {t} can't fit — time conflict: {feas.reason}")
 
     # Step 2: Fill remaining slots with optional legs, scored by preference
     # Parse preference mode and trip type
@@ -1824,38 +2201,70 @@ def build_smart_schedule(
             return (-tier, leg.pickup_time)
         optional_sorted = sorted(optional_legs, key=_leg_sort_key)
 
-    for leg in optional_sorted:
-        # Check if within time window
+    def _score_candidate(leg):
+        """Feasibility-gated score for a candidate, or None if it can't be seated now.
+        Honors the dispatcher's selected window + finish-by grace, then Guard B feasibility."""
         if not (window_start <= leg.pickup_time <= window_end):
-            continue
-
-        # Check if driver would finish before window end
+            return None
         est_end = estimate_job_end_time(leg, target_date)
         if est_end.hour > end_hour + 1:  # allow 1 hour grace for last job
-            continue
-
+            return None
         feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
                                  driver_window=_dwindow)
         if not feas.feasible:
-            continue
-
+            return None
         # Score this leg (with vehicle tier + scarcity + chain awareness)
         # Pass pref_type for scoring; skip preference scoring in "only" mode (all legs match)
         eligible_others = scarcity_map.get(leg.id, len(all_driver_vtypes))
         chains = chain_map.get(leg.id, 0)
         scoring_pref = pref_type if pref_mode != 'only' else None
-        score = _score_leg_for_smart_schedule(
+        return _score_leg_for_smart_schedule(
             leg, working, feas, scoring_pref, target_date, driver_tier,
-            eligible_others, chains, cfg, reserved_count=reserved_count
-        )
+            eligible_others, chains, cfg, reserved_count=reserved_count)
 
-        if score > 0:
-            _add_leg_to_schedule(working, leg, target_date)
+    if BUILDER_BEST_FIT:
+        # Best-fit: each round score every still-feasible candidate against the CURRENT
+        # schedule and seat the single highest-scoring one, then re-check the rest (so a
+        # high-tier empty-deadhead leg can't be seated ahead of — and block — a
+        # higher-scoring paid leg). Ties keep (-tier, pickup_time) order (we replace only
+        # on a STRICTLY higher score while iterating optional_sorted). One seat/round → terminates.
+        remaining = list(optional_sorted)
+        while remaining:
+            best_leg = None
+            best_score = 0
+            for leg in remaining:
+                score = _score_candidate(leg)
+                if score is not None and score > best_score:
+                    best_score = score
+                    best_leg = leg
+            if best_leg is None:   # nothing feasible scores > 0 → done
+                break
+            _add_leg_to_schedule(working, best_leg, target_date)
+            remaining = [l for l in remaining if l.id != best_leg.id]
+    else:
+        # Legacy first-fit: single pass, seat the first feasible leg with score > 0.
+        for leg in optional_sorted:
+            score = _score_candidate(leg)
+            if score is not None and score > 0:
+                _add_leg_to_schedule(working, leg, target_date)
 
     # Recalculate ALL timing details after schedule is fully built.
     # During greedy insertion, legs aren't added in chronological order,
     # so timing captured at insertion time references wrong preceding jobs.
     slot_timing_details = _recalculate_timing_details(working, target_date, inter_job_buffer=cfg.inter_job_buffer)
+
+    # Safety net: greedy insertion (tier-ordered, not chronological) can occasionally seat
+    # a leg that turns out infeasible once the full day is ordered. The buffers above are
+    # now context-aware (match check_feasibility), so a NEGATIVE one means the driver would
+    # genuinely be late — surface it (don't silently keep it looking fine).
+    for _sl in sorted(working.slots, key=lambda s: s.pickup_time):
+        _d = slot_timing_details.get(_sl.leg_id, {})
+        _b = _d.get('buffer_minutes')
+        if _b is not None and _b < 0:
+            warnings.append(
+                f"⚠ Leg #{_sl.leg_id} at {_sl.pickup_time.strftime('%I:%M %p').lstrip('0')}: "
+                f"driver may be ~{abs(_b)} min late repositioning "
+                f"{_d.get('reposition_from')} → {_d.get('reposition_to')}.")
 
     # Calculate utilization
     total_window_minutes = (end_hour - start_hour) * 60
@@ -1892,13 +2301,15 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, 
     if inter_job_buffer is None:
         inter_job_buffer = INTER_JOB_BUFFER
 
+    from dispatching import feasibility_guards as fg
+
     details_map = {}
     sorted_slots = sorted(schedule.slots, key=lambda s: s.pickup_time)
 
     for i, slot in enumerate(sorted_slots):
         pickup_cat = slot.pickup_category
         dropoff_cat = slot.dropoff_category
-        drive_time = get_drive_time(pickup_cat, dropoff_cat)
+        drive_time = resolve_drive_minutes(slot.pickup_location, slot.dropoff_location, pickup_cat, dropoff_cat)
         est_end = slot.estimated_end_time
 
         details = {
@@ -1919,9 +2330,19 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, 
         else:
             preceding = sorted_slots[i - 1]
             new_pickup_dt = datetime.combine(target_date, slot.pickup_time)
-            repo_drive = get_drive_time(preceding.dropoff_category, pickup_cat)
-            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + inter_job_buffer)
+            repo_drive = resolve_drive_minutes(preceding.dropoff_location, slot.pickup_location, preceding.dropoff_category, pickup_cat)
+            # Use the SAME context-aware turnaround as check_feasibility (Guard B) so the
+            # displayed buffer matches reality: an airport-ARRIVAL pickup earns deplaning
+            # grace (pax are still deplaning), and a same-terminal hop needs ~0 reposition.
+            # (Previously this used a flat repo_drive + buffer with no grace, which made
+            # airport pickups read as "late"/negative even when the schedule was feasible.)
+            cur_is_arrival = fg.is_airport_arrival(slot.trip_type, pickup_cat)
+            same_terminal = (preceding.dropoff_category == pickup_cat)
+            req_turn = fg.required_turnaround(repo_drive, cur_is_arrival, same_terminal=same_terminal)
+            earliest = preceding.estimated_end_time + timedelta(minutes=req_turn)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
+            grace_note = (f" (after {repo_drive}min drive \u2212 {fg.DEPLANING_GRACE_MIN}min deplaning grace)"
+                          if cur_is_arrival and not same_terminal else "")
 
             details['prev_job'] = {
                 'leg_id': preceding.leg_id,
@@ -1931,12 +2352,12 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, 
             details['reposition_from'] = preceding.dropoff_category
             details['reposition_to'] = pickup_cat
             details['reposition_drive_time'] = repo_drive
+            details['required_turnaround'] = max(0, req_turn)  # display: negative = deplaning slack
             details['buffer_minutes'] = buffer
             details['reasoning'] = (
                 f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
                 f"at {preceding.dropoff_category}. "
-                f"Reposition: {preceding.dropoff_category} \u2192 {pickup_cat} ({repo_drive} min) "
-                f"+ {inter_job_buffer} min buffer = {buffer} min spare. "
+                f"Turnaround needed: {max(0, req_turn)} min{grace_note} = {buffer} min spare. "
                 f"Job drive: {pickup_cat} \u2192 {dropoff_cat} ({drive_time} min)"
             )
 
@@ -1952,13 +2373,14 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
     why the algorithm chose this job and spot incorrect drive time estimates.
     """
     from dispatching.analytics import categorize_location
+    from dispatching import feasibility_guards as fg
 
     if inter_job_buffer is None:
         inter_job_buffer = INTER_JOB_BUFFER
 
     new_pickup_cat = categorize_location(new_leg.pickup_location)
     new_dropoff_cat = categorize_location(new_leg.dropoff_location)
-    drive_time = get_drive_time(new_pickup_cat, new_dropoff_cat)
+    drive_time = resolve_drive_minutes(new_leg.pickup_location, new_leg.dropoff_location, new_pickup_cat, new_dropoff_cat)
     est_end = estimate_job_end_time(new_leg, target_date)
 
     details = {
@@ -1984,9 +2406,16 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
                 preceding = slot
 
         if preceding:
-            repo_drive = get_drive_time(preceding.dropoff_category, new_pickup_cat)
-            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + inter_job_buffer)
+            repo_drive = resolve_drive_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
+            # Context-aware turnaround (Guard B) — matches check_feasibility (deplaning
+            # grace for airport arrivals, 0 for same-terminal), not a flat repo + buffer.
+            cur_is_arrival = fg.is_airport_arrival(new_leg.get_trip_type(), new_pickup_cat)
+            same_terminal = (preceding.dropoff_category == new_pickup_cat)
+            req_turn = fg.required_turnaround(repo_drive, cur_is_arrival, same_terminal=same_terminal)
+            earliest = preceding.estimated_end_time + timedelta(minutes=req_turn)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
+            grace_note = (f" (after {repo_drive}min drive − {fg.DEPLANING_GRACE_MIN}min deplaning grace)"
+                          if cur_is_arrival and not same_terminal else "")
 
             details['prev_job'] = {
                 'leg_id': preceding.leg_id,
@@ -1996,12 +2425,12 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
             details['reposition_from'] = preceding.dropoff_category
             details['reposition_to'] = new_pickup_cat
             details['reposition_drive_time'] = repo_drive
+            details['required_turnaround'] = max(0, req_turn)  # display: negative = deplaning slack
             details['buffer_minutes'] = buffer
             details['reasoning'] = (
                 f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
                 f"at {preceding.dropoff_category}. "
-                f"Reposition: {preceding.dropoff_category} → {new_pickup_cat} ({repo_drive} min) "
-                f"+ {inter_job_buffer} min buffer = {buffer} min spare. "
+                f"Turnaround needed: {max(0, req_turn)} min{grace_note} = {buffer} min spare. "
                 f"Job drive: {new_pickup_cat} → {new_dropoff_cat} ({drive_time} min)"
             )
         else:
