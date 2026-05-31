@@ -5,6 +5,9 @@ __pycache__/
 
 # Local scratch / production-derived audit artifacts (never commit)
 /scratch/
+# Local Claude resume/status doc + ad-hoc deployment log dumps (never commit)
+/claude.md
+*logs_last_deployment.json
 
 # C extensions
 *.so
