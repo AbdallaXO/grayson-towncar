@@ -766,8 +766,8 @@ def _build_driver_conflict_context(task):
     )
     from dispatching.analytics import (
         categorize_location,
-        categorize_time_of_day,
         categorize_day_type,
+        leg_time_of_day_category,
     )
 
     schedule = []
@@ -826,7 +826,7 @@ def _build_driver_conflict_context(task):
         from drivers.utils import get_drive_time as google_drive_time
         pickup_cat = categorize_location(leg.pickup_location or "")
         dropoff_cat = categorize_location(leg.dropoff_location or "")
-        time_cat = categorize_time_of_day(leg.pickup_time)
+        time_cat = leg_time_of_day_category(leg)
         day_cat = categorize_day_type(pickup_date)
 
         live_drive = google_drive_time(leg.pickup_location, leg.dropoff_location)
@@ -917,8 +917,8 @@ def _build_driver_conflict_context(task):
             from dispatching.scheduler import get_drive_time
             from dispatching.analytics import (
                 categorize_location,
-                categorize_time_of_day,
                 categorize_day_type,
+                leg_time_of_day_category,
             )
 
             # Determine which leg is first chronologically
@@ -943,7 +943,7 @@ def _build_driver_conflict_context(task):
             else:
                 from_cat = categorize_location(first_leg.dropoff_location or "")
                 to_cat = categorize_location(second_leg.pickup_location or "")
-                time_cat = categorize_time_of_day(first_leg.pickup_time)
+                time_cat = leg_time_of_day_category(first_leg)
                 day_cat = categorize_day_type(pickup_date)
                 travel_minutes = get_drive_time(from_cat, to_cat, time_cat, day_cat)
                 travel_label = f"~{travel_minutes} min"

@@ -76,6 +76,76 @@ def adaptive_max(values: list, fallback_max: int) -> int:
 # LOCATION CATEGORIZATION
 # ============================================================================
 
+# ---------------------------------------------------------------------------
+# Airport-terminal detection — SINGLE SOURCE OF TRUTH.
+# Shared by categorize_location() (route-timing buckets) and Leg.get_trip_type()
+# (arrival/return classification) so the two never disagree. Historically each
+# had its own keyword list, which silently mislabeled airport pickups written as
+# "Terminal B", an airline name, or "baggage claim" — those became trip_type
+# 'other' and lost their dwell allowance.
+# ---------------------------------------------------------------------------
+_AIRPORT_HOTEL_KEYWORDS = [
+    'hyatt regency orlando airport', 'hyatt regency mco', 'hyatt place orlando airport',
+    'marriott orlando airport', 'courtyard orlando airport', 'embassy suites orlando airport',
+    'hampton inn orlando airport', 'holiday inn orlando airport', 'la quinta orlando airport',
+    'springhill suites orlando airport', 'fairfield inn orlando airport',
+    'homewood suites orlando airport', 'hilton garden inn orlando airport',
+    'airport hotel', 'hotel near mco', 'hotel near airport',
+]
+_PORT_KEYWORDS = [
+    'port canaveral', 'canaveral', 'cruise port', 'cruise terminal',
+    'cocoa beach', 'cape canaveral', 'cove terminal', 'cruise ship',
+    'jetty park', 'cocoa', 'brevard',
+]
+_MCO_NAME_KEYWORDS = ['mco', 'orlando international airport', 'orlando airport']
+_MCO_TERMINAL_PHRASES = ['terminal a', 'terminal b', 'terminal c', 'gate ', 'baggage claim']
+_AIRLINE_KEYWORDS = [
+    'spirit airlines', 'jetblue', 'jet blue', 'southwest airlines', 'delta airlines',
+    'united airlines', 'american airlines', 'frontier airlines', 'allegiant',
+    'sun country', 'breeze airways', 'avelo',
+]
+_SFB_KEYWORDS = ['sfb', 'sanford international', 'orlando sanford airport', 'sanford airport', 'sanford intl']
+# Other airports occasionally seen; recognized for trip-type but not given their
+# own drive-time bucket (negligible volume in an Orlando operation).
+_OTHER_AIRPORT_KEYWORDS = ['mlb', 'lal', 'international airport']
+# Hotel-brand words that disambiguate "<brand> near <airport>" as a hotel, not a terminal.
+_HOTEL_DISAMBIG_KEYWORDS = [
+    'hotel', 'inn', 'suites', 'resort', 'lodge', 'marriott', 'hilton', 'hyatt',
+    'sheraton', 'westin', 'doubletree', 'hampton', 'fairfield', 'courtyard',
+    'wyndham', 'embassy', 'renaissance', 'radisson',
+]
+
+
+@lru_cache(maxsize=512)
+def is_airport_location(location_text: str) -> bool:
+    """Return True if the location is an airport TERMINAL (passenger pickup/dropoff).
+
+    Single source of truth shared by categorize_location() and Leg.get_trip_type().
+    Airport-area hotels and cruise ports are explicitly NOT airports.
+    """
+    if not location_text:
+        return False
+    s = location_text.lower()
+    # Airport-area hotels and cruise ports are not terminals.
+    if any(k in s for k in _AIRPORT_HOTEL_KEYWORDS):
+        return False
+    if any(k in s for k in _PORT_KEYWORDS):
+        return False
+    # Named airports / codes (MCO, SFB, MLB, LAL, generic "... international airport").
+    if any(k in s for k in _MCO_NAME_KEYWORDS + _SFB_KEYWORDS + _OTHER_AIRPORT_KEYWORDS):
+        # "<hotel brand> near <airport name>" is a hotel, not a terminal.
+        if any(h in s for h in _HOTEL_DISAMBIG_KEYWORDS):
+            return False
+        return True
+    # Bare "sanford" with airport context.
+    if 'sanford' in s and any(k in s for k in ['airport', 'intl', 'airline']):
+        return True
+    # Terminal/gate/baggage phrasing, or an airline name written as the location.
+    if any(k in s for k in _MCO_TERMINAL_PHRASES + _AIRLINE_KEYWORDS):
+        return True
+    return False
+
+
 @lru_cache(maxsize=512)
 def categorize_location(location_text: str) -> str:
     """
@@ -94,54 +164,28 @@ def categorize_location(location_text: str) -> str:
 
     location_lower = location_text.lower()
 
-    # Airport HOTELS (not terminals) - check first before terminal keywords
-    airport_hotel_keywords = [
-        'hyatt regency orlando airport', 'hyatt regency mco', 'hyatt place orlando airport',
-        'marriott orlando airport', 'courtyard orlando airport', 'embassy suites orlando airport',
-        'hampton inn orlando airport', 'holiday inn orlando airport', 'la quinta orlando airport',
-        'springhill suites orlando airport', 'fairfield inn orlando airport',
-        'homewood suites orlando airport', 'hilton garden inn orlando airport',
-        'airport hotel', 'hotel near mco', 'hotel near airport'
-    ]
-    if any(keyword in location_lower for keyword in airport_hotel_keywords):
+    # Airport-area HOTELS (not terminals) — check first.
+    if any(keyword in location_lower for keyword in _AIRPORT_HOTEL_KEYWORDS):
         return 'Airport Hotel'
 
-    # Port Canaveral & Cocoa Beach Area — check BEFORE MCO terminals
-    # because cruise terminals have "Terminal A/B" which would falsely match MCO
-    port_keywords = [
-        'port canaveral', 'canaveral', 'cruise port', 'cruise terminal',
-        'cocoa beach', 'cape canaveral', 'cove terminal', 'cruise ship',
-        'jetty park', 'cocoa', 'brevard'
-    ]
-    if any(keyword in location_lower for keyword in port_keywords):
+    # Port Canaveral & Cocoa Beach Area — check BEFORE airport terminals because
+    # cruise terminals say "Terminal A/B", which would falsely match MCO.
+    if any(keyword in location_lower for keyword in _PORT_KEYWORDS):
         return 'Port Canaveral Area'
 
-    # Airport TERMINALS (actual pickup/dropoff at terminals)
-    mco_terminal_keywords = ['terminal a', 'terminal b', 'terminal c', 'gate ', 'baggage claim']
-    if any(keyword in location_lower for keyword in mco_terminal_keywords):
-        return 'MCO Terminal'
-    # If "mco" or "orlando international" but NOT an airport hotel
-    if any(keyword in location_lower for keyword in ['mco', 'orlando international airport', 'orlando airport']):
-        # Double check it's not an airport hotel
-        if not any(hotel_kw in location_lower for hotel_kw in ['hotel', 'inn', 'suites', 'resort']):
+    # Airport TERMINALS — uses the SAME detector as Leg.get_trip_type()
+    # (is_airport_location) so trip-type and route-timing buckets never disagree.
+    if is_airport_location(location_text):
+        if any(k in location_lower for k in _SFB_KEYWORDS) or (
+                'sanford' in location_lower
+                and any(k in location_lower for k in ['airport', 'intl', 'airline'])):
+            return 'SFB Terminal'
+        if any(k in location_lower for k in
+               _MCO_NAME_KEYWORDS + _MCO_TERMINAL_PHRASES + _AIRLINE_KEYWORDS):
             return 'MCO Terminal'
-
-    # Airline names (people write "Spirit Airlines" meaning MCO pickup)
-    airline_keywords = [
-        'spirit airlines', 'jetblue', 'jet blue', 'southwest airlines', 'delta airlines',
-        'united airlines', 'american airlines', 'frontier airlines', 'allegiant',
-        'sun country', 'breeze airways', 'avelo'
-    ]
-    if any(keyword in location_lower for keyword in airline_keywords):
-        return 'MCO Terminal'
-
-    # Sanford Airport Terminal
-    sfb_terminal_keywords = ['sfb', 'sanford international', 'orlando sanford airport', 'sanford airport', 'sanford intl']
-    if any(keyword in location_lower for keyword in sfb_terminal_keywords):
-        return 'SFB Terminal'
-    # Catch "sanford" + airport-related context
-    if 'sanford' in location_lower and any(kw in location_lower for kw in ['airport', 'intl', 'airline']):
-        return 'SFB Terminal'
+        # A recognized airport that isn't MCO/SFB (e.g. MLB, LAL, a generic
+        # "international airport") — keep it out of the MCO drive-time bucket.
+        return 'Other'
 
     # Disney properties
     disney_keywords = [
@@ -241,6 +285,53 @@ def categorize_day_type(date_obj) -> str:
 
 
 # ============================================================================
+# FLIGHT ARRIVAL ANCHOR (shared by measurement + scheduler)
+# ============================================================================
+
+def best_flight_arrival_local(flight):
+    """Best available flight arrival time as a naive local datetime, or None.
+
+    Gate-preferred, then runway. SINGLE SOURCE OF TRUTH for the arrival anchor so
+    historical dwell measurement (gate -> picked-up) and the scheduler's clearing
+    estimate start from the *same* moment. Otherwise the scheduler could start from
+    runway while dwell was measured from the later gate time, double-counting the
+    taxi-in gap and over-estimating arrival clears.
+    """
+    if not flight:
+        return None
+    dt = (
+        flight.actual_gate_arrival_local
+        or flight.estimated_gate_arrival_local
+        or flight.actual_arrival_local
+        or flight.estimated_arrival_local
+        or flight.scheduled_gate_arrival_local
+        or flight.scheduled_arrival_local
+    )
+    if not dt:
+        return None
+    if timezone.is_aware(dt):
+        dt = timezone.make_naive(dt, timezone.get_current_timezone())
+    return dt
+
+
+def leg_time_of_day_category(leg) -> str:
+    """Time-of-day bucket for a leg.
+
+    For arrivals with flight data, bucket by the actual/estimated flight arrival
+    clock: a flight delayed from 8 AM to noon is really a midday job, and filing it
+    under its *scheduled* pickup would smear the time-of-day signal the metrics try
+    to learn. Everything else buckets by scheduled pickup time. Used identically on
+    the write side (aggregation) and read side (scheduler lookup) so a leg is always
+    looked up in the same bucket it was stored under.
+    """
+    if leg.get_trip_type() == 'arrival':
+        dt = best_flight_arrival_local(getattr(leg, 'flight_information', None))
+        if dt:
+            return categorize_time_of_day(dt.time())
+    return categorize_time_of_day(leg.pickup_time)
+
+
+# ============================================================================
 # STATUS CHAIN VALIDATION
 # ============================================================================
 
@@ -255,7 +346,7 @@ MIN_PICKUP_TO_COMPLETE = 2   # At least 2 min from picked-up to completed
 
 # Maximum minutes between transitions (catches forgotten status updates)
 MAX_OTW_TO_PICKUP = 180      # 3 hours max from on-the-way to picked-up
-MAX_PICKUP_TO_COMPLETE = MAX_DRIVE_MINUTES  # Reuse the 240 min drive cap
+MAX_PICKUP_TO_COMPLETE = MAX_DRIVE_MINUTES  # Reuse the 3-hour (180 min) drive cap
 
 
 def has_valid_status_chain(leg) -> bool:
@@ -401,14 +492,10 @@ def calculate_airport_dwell_time(leg) -> Optional[int]:
     if not leg.flight_information:
         return None
 
-    flight = leg.flight_information
-
-    # Get best available arrival time (prioritize actual over estimated over scheduled)
-    gate_arrival = (
-        flight.actual_gate_arrival_local
-        or flight.estimated_gate_arrival_local
-        or flight.scheduled_gate_arrival_local
-    )
+    # Best available arrival anchor — SAME helper the scheduler uses, so dwell is
+    # measured from the exact moment the scheduler later starts its clearing clock
+    # (no gate-vs-runway mismatch that would double-count taxi-in time).
+    gate_arrival = best_flight_arrival_local(leg.flight_information)
 
     if not gate_arrival:
         return None
@@ -452,6 +539,11 @@ def calculate_drive_time(leg) -> Optional[int]:
     Calculate minutes from 'picked-up' status to 'completed' status.
     Uses LegStatus history.
 
+    This is OPERATIONAL wall-clock time between two driver taps — it includes any
+    mid-trip stop and the driver's latency in hitting "completed", so it skews
+    slightly long vs pure routing time. adaptive_max() + IQR filtering at
+    aggregation trim the tails; the central bias is accepted as "real" clearing time.
+
     NOTE: Since LegStatus tracking is recent, this may return None for most
     historical legs until more timestamp data accumulates.
 
@@ -494,13 +586,13 @@ def calculate_drive_time(leg) -> Optional[int]:
 
     # Sanity checks:
     # - Must be at least 15 minutes (anything shorter is likely bad data — both marked at once)
-    # - Returns cap at 80 minutes (most are ~30 min, over 80 is definitely inaccurate)
-    # - Other trip types cap at 4 hours (hard cap)
+    # - Single hard cap of MAX_DRIVE_MINUTES for ALL trip types. The old 80-min
+    #   return-only cap silently dropped legitimate long returns (e.g. Port
+    #   Canaveral / Sanford -> MCO in traffic top 80), biasing return buckets short.
+    #   Realistic-but-wrong values are now caught per-route by adaptive_max() + IQR
+    #   at aggregation time instead of a blanket per-trip-type ceiling.
     # - Picked-up should be within reasonable window of scheduled pickup
-    trip_type = leg.get_trip_type()
-    max_drive = 80 if trip_type == 'return' else MAX_DRIVE_MINUTES
-
-    if minutes < 15 or minutes > max_drive:
+    if minutes < 15 or minutes > MAX_DRIVE_MINUTES:
         return None
 
     # Check picked-up happened within reasonable window of scheduled pickup
@@ -578,6 +670,118 @@ def _safe_percentile(data: list, n: int, index: int, min_samples: int) -> Option
     return int(statistics.quantiles(data, n=n)[index])
 
 
+def _empty_metrics() -> Dict:
+    """A fresh metrics dict with every field None and sample_count 0."""
+    return {
+        'avg_airport_dwell_time': None,
+        'median_airport_dwell_time': None,
+        'p75_airport_dwell_time': None,
+        'p90_airport_dwell_time': None,
+        'avg_drive_time': None,
+        'median_drive_time': None,
+        'p75_drive_time': None,
+        'p90_drive_time': None,
+        'avg_total_time': None,
+        'median_total_time': None,
+        'p75_total_time': None,
+        'p90_total_time': None,
+        'sample_count': 0,
+    }
+
+
+def _compute_bucket_metrics(legs_list: list, trip_type: str) -> Dict:
+    """Compute timing stats for a single already-bucketed list of legs.
+
+    SINGLE SOURCE OF TRUTH for the dwell/drive/total aggregation — both the
+    per-bucket calculate_route_timing_metrics() and the bulk
+    update_all_route_timing_metrics() call this so the math can't drift.
+
+    sample_count is the number of legs that actually contributed at least one
+    usable timing value — NOT the raw bucket size. Previously sample_count was
+    len(matching_legs), which counted store-stop skips and legs with no usable
+    status chain, so a bucket could read "25 samples / high confidence" while its
+    numbers came from one real trip. Every downstream confidence gate keys on
+    sample_count >= 5, so this is what makes those gates mean something. (The
+    per-metric percentile fields stay None until their own list is long enough —
+    avg>=1, median>=2, p75>=4, p90>=10 — so thin metrics degrade gracefully even
+    when sample_count is high.)
+    """
+    dwell_times = []
+    drive_times = []
+    total_times = []
+    contributing = 0  # legs that produced >= 1 usable value
+
+    for leg in legs_list:
+        # Skip legs with store stops (e.g. Publix) — the extra stop time would
+        # inflate drive/total and skew the route's timing data.
+        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
+            continue
+
+        dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
+        drive = calculate_drive_time(leg)
+
+        # Hard threshold filter
+        if dwell is not None and (dwell < 0 or dwell > MAX_DWELL_MINUTES):
+            dwell = None
+        if drive is not None and (drive < 0 or drive > MAX_DRIVE_MINUTES):
+            drive = None
+
+        if dwell is not None:
+            dwell_times.append(dwell)
+        if drive is not None:
+            drive_times.append(drive)
+
+        # Total time: dwell + drive for arrivals, drive for others
+        if trip_type == 'arrival' and dwell is not None and drive is not None:
+            total = dwell + drive
+            if total <= MAX_TOTAL_MINUTES:
+                total_times.append(total)
+        elif drive is not None and drive <= MAX_TOTAL_MINUTES:
+            total_times.append(drive)
+
+        if dwell is not None or drive is not None:
+            contributing += 1
+
+    # Adaptive per-route max (tighter than global if enough data)
+    dwell_max = adaptive_max(dwell_times, MAX_DWELL_MINUTES)
+    drive_max = adaptive_max(drive_times, MAX_DRIVE_MINUTES)
+    dwell_times = [v for v in dwell_times if v <= dwell_max]
+    drive_times = [v for v in drive_times if v <= drive_max]
+    total_times = [v for v in total_times if v <= adaptive_max(total_times, MAX_TOTAL_MINUTES)]
+
+    # IQR outlier removal
+    dwell_times = iqr_filter(dwell_times)
+    drive_times = iqr_filter(drive_times)
+    total_times = iqr_filter(total_times)
+
+    # Percentile safety rules: avg>=1, median>=2, p75>=4, p90>=10.
+    result = _empty_metrics()
+    result['sample_count'] = contributing
+
+    if dwell_times:
+        result['avg_airport_dwell_time'] = int(statistics.mean(dwell_times))
+        if len(dwell_times) >= 2:
+            result['median_airport_dwell_time'] = int(statistics.median(dwell_times))
+        result['p75_airport_dwell_time'] = _safe_percentile(dwell_times, 4, 2, 4)
+        result['p90_airport_dwell_time'] = _safe_percentile(dwell_times, 10, 8, 10)
+
+    if drive_times:
+        result['avg_drive_time'] = int(statistics.mean(drive_times))
+        if len(drive_times) >= 2:
+            result['median_drive_time'] = int(statistics.median(drive_times))
+        result['p75_drive_time'] = _safe_percentile(drive_times, 4, 2, 4)
+        result['p90_drive_time'] = _safe_percentile(drive_times, 10, 8, 10)
+
+    if total_times:
+        result['avg_total_time'] = int(statistics.mean(total_times))
+        if len(total_times) >= 2:
+            result['median_total_time'] = int(statistics.median(total_times))
+        result['p75_total_time'] = _safe_percentile(total_times, 4, 2, 4)
+        result['p90_total_time'] = _safe_percentile(total_times, 10, 8, 10)
+
+    return result
+
+
 def calculate_route_timing_metrics(
     trip_type: str,
     pickup_cat: str,
@@ -612,7 +816,9 @@ def calculate_route_timing_metrics(
             exclude_from_analytics=False,
         ).select_related('reservation').prefetch_related('status_history', 'flight_information')
 
-    # Filter by bucket criteria (in-memory)
+    # Filter by bucket criteria (in-memory). Time-of-day uses the flight-aware
+    # bucket (leg_time_of_day_category) so arrivals land in the bucket of their
+    # ACTUAL arrival clock — the same bucket the bulk job and the scheduler use.
     matching_legs = []
     for leg in legs_queryset:
         if leg.get_trip_type() != trip_type:
@@ -621,110 +827,16 @@ def calculate_route_timing_metrics(
             continue
         if categorize_location(leg.dropoff_location) != dropoff_cat:
             continue
-        if categorize_time_of_day(leg.pickup_time) != time_of_day:
+        if leg_time_of_day_category(leg) != time_of_day:
             continue
         if categorize_day_type(leg.pickup_date) != day_type:
             continue
         matching_legs.append(leg)
 
-    empty_result = {
-        'avg_airport_dwell_time': None,
-        'median_airport_dwell_time': None,
-        'p75_airport_dwell_time': None,
-        'p90_airport_dwell_time': None,
-        'avg_drive_time': None,
-        'median_drive_time': None,
-        'p75_drive_time': None,
-        'p90_drive_time': None,
-        'avg_total_time': None,
-        'median_total_time': None,
-        'p75_total_time': None,
-        'p90_total_time': None,
-        'sample_count': 0,
-    }
-
     if not matching_legs:
-        return empty_result
+        return _empty_metrics()
 
-    # Collect raw durations per leg, with outlier filtering
-    dwell_times = []
-    drive_times = []
-    total_times = []
-
-    for leg in matching_legs:
-        # Skip legs with store stops (e.g. Publix) — the extra stop time
-        # would inflate drive/total times and skew route timing data
-        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
-            continue
-
-        dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
-        drive = calculate_drive_time(leg)
-
-        # Hard threshold filter
-        if dwell is not None and (dwell < 0 or dwell > MAX_DWELL_MINUTES):
-            dwell = None
-        if drive is not None and (drive < 0 or drive > MAX_DRIVE_MINUTES):
-            drive = None
-
-        if dwell is not None:
-            dwell_times.append(dwell)
-        if drive is not None:
-            drive_times.append(drive)
-
-        # Total time: dwell + drive for arrivals, drive for others
-        if trip_type == 'arrival' and dwell is not None and drive is not None:
-            total = dwell + drive
-            if total <= MAX_TOTAL_MINUTES:
-                total_times.append(total)
-        elif drive is not None:
-            if drive <= MAX_TOTAL_MINUTES:
-                total_times.append(drive)
-
-    # Adaptive per-route max (tighter than global if enough data)
-    dwell_max = adaptive_max(dwell_times, MAX_DWELL_MINUTES)
-    drive_max = adaptive_max(drive_times, MAX_DRIVE_MINUTES)
-    dwell_times = [v for v in dwell_times if v <= dwell_max]
-    drive_times = [v for v in drive_times if v <= drive_max]
-    total_times = [v for v in total_times if v <= adaptive_max(total_times, MAX_TOTAL_MINUTES)]
-
-    # IQR outlier removal
-    dwell_times = iqr_filter(dwell_times)
-    drive_times = iqr_filter(drive_times)
-    total_times = iqr_filter(total_times)
-
-    # Build result with percentile safety rules:
-    #   len < 1 -> avg = None
-    #   len < 2 -> median/p75/p90 = None
-    #   len < 4 -> p75 = None
-    #   len < 10 -> p90 = None
-    result = dict(empty_result)
-    result['sample_count'] = len(matching_legs)
-
-    # Dwell stats (arrivals only)
-    if dwell_times:
-        result['avg_airport_dwell_time'] = int(statistics.mean(dwell_times))
-        if len(dwell_times) >= 2:
-            result['median_airport_dwell_time'] = int(statistics.median(dwell_times))
-        result['p75_airport_dwell_time'] = _safe_percentile(dwell_times, 4, 2, 4)
-        result['p90_airport_dwell_time'] = _safe_percentile(dwell_times, 10, 8, 10)
-
-    # Drive stats
-    if drive_times:
-        result['avg_drive_time'] = int(statistics.mean(drive_times))
-        if len(drive_times) >= 2:
-            result['median_drive_time'] = int(statistics.median(drive_times))
-        result['p75_drive_time'] = _safe_percentile(drive_times, 4, 2, 4)
-        result['p90_drive_time'] = _safe_percentile(drive_times, 10, 8, 10)
-
-    # Total stats
-    if total_times:
-        result['avg_total_time'] = int(statistics.mean(total_times))
-        if len(total_times) >= 2:
-            result['median_total_time'] = int(statistics.median(total_times))
-        result['p75_total_time'] = _safe_percentile(total_times, 4, 2, 4)
-        result['p90_total_time'] = _safe_percentile(total_times, 10, 8, 10)
-
-    return result
+    return _compute_bucket_metrics(matching_legs, trip_type)
 
 
 def calculate_driver_daily_capacity_for_date(driver, target_date: date) -> Dict:
@@ -942,13 +1054,15 @@ def update_all_route_timing_metrics(recent_days: int = None):
         completed_legs = completed_legs.filter(pickup_date__gte=cutoff)
         print(f"  Filtering to legs from last {recent_days} days (since {cutoff})")
 
-    # Load all legs into memory ONCE, categorize each leg ONCE, group by combination
+    # Load all legs into memory ONCE, categorize each leg ONCE, group by combination.
+    # Time-of-day uses leg_time_of_day_category (flight-aware for arrivals) so a
+    # delayed flight is bucketed by when it ACTUALLY arrived, matching the scheduler.
     grouped_legs = defaultdict(list)
     for leg in completed_legs:
         trip_type = leg.get_trip_type()
         pickup_cat = categorize_location(leg.pickup_location)
         dropoff_cat = categorize_location(leg.dropoff_location)
-        time_cat = categorize_time_of_day(leg.pickup_time)
+        time_cat = leg_time_of_day_category(leg)
         day_cat = categorize_day_type(leg.pickup_date)
 
         key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
@@ -960,89 +1074,10 @@ def update_all_route_timing_metrics(recent_days: int = None):
     metrics_updated = 0
     metrics_skipped = 0
 
-    empty_result = {
-        'avg_airport_dwell_time': None,
-        'median_airport_dwell_time': None,
-        'p75_airport_dwell_time': None,
-        'p90_airport_dwell_time': None,
-        'avg_drive_time': None,
-        'median_drive_time': None,
-        'p75_drive_time': None,
-        'p90_drive_time': None,
-        'avg_total_time': None,
-        'median_total_time': None,
-        'p75_total_time': None,
-        'p90_total_time': None,
-        'sample_count': 0,
-    }
-
     for (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat), legs_list in grouped_legs.items():
-        # Compute timing stats directly from pre-grouped legs
-        dwell_times = []
-        drive_times = []
-        total_times = []
-
-        for leg in legs_list:
-            # Skip legs with store stops — inflated drive times would skew data
-            if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
-                continue
-
-            dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
-            drive = calculate_drive_time(leg)
-
-            if dwell is not None and (dwell < 0 or dwell > MAX_DWELL_MINUTES):
-                dwell = None
-            if drive is not None and (drive < 0 or drive > MAX_DRIVE_MINUTES):
-                drive = None
-
-            if dwell is not None:
-                dwell_times.append(dwell)
-            if drive is not None:
-                drive_times.append(drive)
-
-            if trip_type == 'arrival' and dwell is not None and drive is not None:
-                total = dwell + drive
-                if total <= MAX_TOTAL_MINUTES:
-                    total_times.append(total)
-            elif drive is not None:
-                if drive <= MAX_TOTAL_MINUTES:
-                    total_times.append(drive)
-
-        # Adaptive per-route max (tighter than global if enough data)
-        dwell_max = adaptive_max(dwell_times, MAX_DWELL_MINUTES)
-        drive_max = adaptive_max(drive_times, MAX_DRIVE_MINUTES)
-        dwell_times = [v for v in dwell_times if v <= dwell_max]
-        drive_times = [v for v in drive_times if v <= drive_max]
-        total_times = [v for v in total_times if v <= adaptive_max(total_times, MAX_TOTAL_MINUTES)]
-
-        # IQR outlier removal
-        dwell_times = iqr_filter(dwell_times)
-        drive_times = iqr_filter(drive_times)
-        total_times = iqr_filter(total_times)
-
-        metrics_data = dict(empty_result)
-        metrics_data['sample_count'] = len(legs_list)
-
-        if dwell_times:
-            metrics_data['avg_airport_dwell_time'] = int(statistics.mean(dwell_times))
-            if len(dwell_times) >= 2:
-                metrics_data['median_airport_dwell_time'] = int(statistics.median(dwell_times))
-            metrics_data['p75_airport_dwell_time'] = _safe_percentile(dwell_times, 4, 2, 4)
-            metrics_data['p90_airport_dwell_time'] = _safe_percentile(dwell_times, 10, 8, 10)
-
-        if drive_times:
-            metrics_data['avg_drive_time'] = int(statistics.mean(drive_times))
-            if len(drive_times) >= 2:
-                metrics_data['median_drive_time'] = int(statistics.median(drive_times))
-            metrics_data['p75_drive_time'] = _safe_percentile(drive_times, 4, 2, 4)
-            metrics_data['p90_drive_time'] = _safe_percentile(drive_times, 10, 8, 10)
-
-        if total_times:
-            metrics_data['avg_total_time'] = int(statistics.mean(total_times))
-            if len(total_times) >= 2:
-                metrics_data['median_total_time'] = int(statistics.median(total_times))
-            metrics_data['p75_total_time'] = _safe_percentile(total_times, 4, 2, 4)
-            metrics_data['p90_total_time'] = _safe_percentile(total_times, 10, 8, 10)
+        # Single shared aggregator — same math as calculate_route_timing_metrics().
+        # sample_count reflects legs that produced a usable value, not raw bucket size.
+        metrics_data = _compute_bucket_metrics(legs_list, trip_type)
 
         if metrics_data['sample_count'] == 0:
             metrics_skipped += 1
@@ -1192,7 +1227,7 @@ def update_single_route_timing_metric(leg):
     if leg.driver and (leg.driver.driver_type != 'inhouse' or leg.driver.exclude_from_timing):
         return
 
-    time_cat = categorize_time_of_day(leg.pickup_time)
+    time_cat = leg_time_of_day_category(leg)
     day_cat = categorize_day_type(leg.pickup_date)
 
     # Re-fetch all completed legs for this specific bucket — inhouse only, non-excluded

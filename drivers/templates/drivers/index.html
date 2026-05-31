@@ -137,7 +137,7 @@
                         {% for stop in leg.additional_dropoffs %}
                           <div class="gt-route-point gt-route-dropoff" style="border-left: 3px solid #1b5e20; padding-left: 10px; margin: 4px 0;">
                             <div class="gt-route-label">
-                              Additional Drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+                              Additional Drop-off{% if leg.additional_dropoffs|length > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
                             </div>
                             <div class="d-flex align-items-center gap-1 flex-wrap">
                               <span class="gt-route-address">{{ stop.display_location }}</span>
@@ -450,7 +450,7 @@
                   {% for stop in leg.additional_dropoffs %}
                     <div class="gt-route-point gt-route-dropoff" style="border-left:3px solid #1b5e20;padding-left:10px;margin:6px 0;">
                       <div class="gt-route-label">
-                        Additional Drop-off{% if leg.additional_dropoffs.count > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
+                        Additional Drop-off{% if leg.additional_dropoffs|length > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
                       </div>
                       <div class="gt-route-address">{{ stop.display_location }}</div>
                       {% if stop.notes %}<div class="small text-muted fst-italic">{{ stop.notes }}</div>{% endif %}

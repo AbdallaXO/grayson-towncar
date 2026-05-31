@@ -577,7 +577,9 @@ def index(request):
     _prev_legs = (
         Leg.objects.filter(pickup_date=_prev_day, driver__in=_all_inhouse)
         .exclude(status="cancelled")
-        .select_related("driver")
+        # reservation + flight_information are read by estimate_job_end_time
+        # (store_stop, flight arrival) — pull them in to avoid a .get() per leg.
+        .select_related("driver", "reservation", "flight_information")
         .order_by("driver_id", "-pickup_time")
     )
     for _pl in _prev_legs:
@@ -8291,7 +8293,9 @@ def capacity_planner(request):
     _cp_prev_legs = (
         Leg.objects.filter(pickup_date=_cp_prev_day, driver__in=eligible_drivers)
         .exclude(status="cancelled")
-        .select_related("driver")
+        # reservation + flight_information are read by estimate_job_end_time
+        # (store_stop, flight arrival) — pull them in to avoid a .get() per leg.
+        .select_related("driver", "reservation", "flight_information")
         .order_by("driver_id", "-pickup_time")
     )
     for _cpl in _cp_prev_legs:
@@ -8520,7 +8524,8 @@ def auto_assign_drivers(request):
     if not date_str:
         return JsonResponse({"success": False, "error": "Date required"}, status=400)
     apply_mode = data.get("apply", False)
-    raw_driver_hours = data.get("driver_hours", {})  # {driver_id_str: {start: int, end: int}}
+    raw_driver_hours = data.get("driver_hours", {})  # {driver_id_str: {start: int, end: int, flexible: bool}}
+    raw_build_first = data.get("build_first", [])  # [driver_id, ...] — seed these drivers' full day FIRST
     excluded_leg_ids = data.get("excluded_leg_ids", [])  # legs to skip
     raw_manual = data.get("manual_assignments", {})  # {leg_id_str: driver_id} overrides
     raw_preferences = data.get("driver_preferences", {})  # {driver_id_str: "prefer_arrival"}
@@ -8532,11 +8537,15 @@ def auto_assign_drivers(request):
     from datetime import datetime as dt
     from dispatching.scheduler import (
         build_driver_schedules, suggest_assignments_clustered,
-        ScheduleSlot, estimate_job_end_time,
+        ScheduleSlot, estimate_job_end_time, preload_timing_cache as _preload_cache,
     )
     from dispatching.analytics import categorize_location
     from copy import deepcopy
     from decimal import Decimal
+    # Pre-load the route-timing cache once (1 query) so the build + pre-farm swap + gap-compaction
+    # passes don't each fall back to per-leg RouteTimingMetric DB hits (~1,500 queries → 1).
+    # Mirrors capacity_planner; independent of the USE_LIVE_DISTANCE setting.
+    _preload_cache()
 
     try:
         target_date = dt.strptime(date_str, "%Y-%m-%d").date()
@@ -8566,31 +8575,46 @@ def auto_assign_drivers(request):
         .select_related("profile")
         .prefetch_related("weekly_schedule", "date_overrides")
     )
-    schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
-    # Parse per-driver time windows: {driver_id: (start_hour, end_hour)}
-    # Start with driver availability defaults, then apply frontend overrides
+    # ── Driver availability ──
+    # When the dispatcher uses the Auto-Assign modal it sends `driver_hours` ONLY for the drivers
+    # who are working (ones marked "Off" are omitted) — so the modal is AUTHORITATIVE: any eligible
+    # driver NOT in the payload is treated as OFF and excluded from the candidate pool. Each entry
+    # may carry "flexible": true (driver works anytime — window NOT enforced); otherwise the
+    # Start/End are a HARD window that IS enforced. driver_hours: {driver_id: (start_hour, end_hour)}.
     driver_hours = {}
     flexible_drivers = set()
     driver_max_hours = {}
+    if raw_driver_hours:
+        working_ids = set()
+        for did_str, hours in raw_driver_hours.items():
+            try:
+                did = int(did_str); sh = int(hours["start"]); eh = int(hours["end"])
+            except (ValueError, KeyError, TypeError):
+                continue
+            if did not in eligible_driver_ids:
+                continue
+            working_ids.add(did)
+            driver_hours[did] = (sh, eh)
+            if hours.get("flexible"):
+                flexible_drivers.add(did)        # works anytime; Start/End not enforced
+        inhouse_drivers = [d for d in inhouse_drivers if d.id in working_ids]  # Off drivers excluded
+    else:
+        # No modal payload (e.g. a programmatic call) -> use each driver's saved availability.
+        for d in inhouse_drivers:
+            is_avail, sh, eh, pref, flex = d.get_availability_for_date(target_date)
+            if is_avail:
+                driver_hours[d.id] = (sh, eh)
+                if flex:
+                    flexible_drivers.add(d.id)
+        inhouse_drivers = [d for d in inhouse_drivers if d.id in driver_hours]  # data-off excluded
+
     for d in inhouse_drivers:
-        avail = d.get_availability_for_date(target_date)
-        is_avail, sh, eh, pref, flex = avail
-        if is_avail:
-            driver_hours[d.id] = (sh, eh)
-            if flex:
-                flexible_drivers.add(d.id)
-        # Build max hours from full availability
         full_avail = d.get_full_availability(target_date)
         if full_avail.get("max_hours"):
             driver_max_hours[d.id] = float(full_avail["max_hours"])
 
-    # Frontend overrides take precedence
-    for did_str, hours in raw_driver_hours.items():
-        try:
-            driver_hours[int(did_str)] = (int(hours["start"]), int(hours["end"]))
-        except (ValueError, KeyError, TypeError):
-            continue
+    schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
     # Parse per-driver trip preferences: {driver_id: "prefer_arrival"}
     # Start with driver availability defaults, then apply frontend overrides
@@ -8618,6 +8642,16 @@ def auto_assign_drivers(request):
     legs_by_id = {l.id: l for l in legs}
     drivers_by_id = {d.id: d for d in inhouse_drivers}
 
+    # Vehicle (number + type) per driver for the date — shown in the schedule header.
+    veh_by_driver = {}
+    for _dva in (DriverVehicleAssignment.objects
+                 .filter(date=target_date, driver_id__in=[d.id for d in inhouse_drivers])
+                 .select_related("vehicle", "vehicle__vehicle_type")):
+        if _dva.vehicle:
+            _num = _dva.vehicle.vehicle_number
+            _vt = str(_dva.vehicle.vehicle_type).upper() if _dva.vehicle.vehicle_type else ""
+            veh_by_driver[_dva.driver_id] = f"{_vt} · {_num}" if _vt else (_num or "")
+
     # Get unassigned legs (excluding user-excluded ones)
     excluded_set = set(excluded_leg_ids)
     unassigned = [l for l in legs if not l.driver and l.id not in excluded_set]
@@ -8634,8 +8668,49 @@ def auto_assign_drivers(request):
             if l.reservation and l.reservation.payment_status == 'paid'
         ]
 
+    # ── "Build first" priority seeding ──
+    # Drivers the dispatcher marked "Build first" get their FULL day built BEFORE the general
+    # assignment — mirrors building a fixed driver's day (e.g. Yovanny) by hand and shuffling the
+    # rest around it, so flexible drivers don't out-compete them for legs they could do. Coverage
+    # and feasibility are unchanged (build_smart_schedule gates every leg); this only reserves their
+    # legs first. Most-constrained (narrowest window) priority driver is seeded first.
+    seeded_assignments = {}
+    assign_board = schedules   # board the general assigner sees (gets seeded occupancy below)
+    _priority_ids = [int(x) for x in raw_build_first if str(x).isdigit() and int(x) in driver_hours]
+    _priority_ids.sort(key=lambda did: 24 if did in flexible_drivers else (driver_hours[did][1] - driver_hours[did][0]))
+    if _priority_ids:
+        from dispatching.scheduler import build_smart_schedule
+        _pool = list(auto_unassigned)
+        for did in _priority_ids:
+            sh, eh = driver_hours[did]
+            existing = schedules.get(did)
+            existing_ids = {s.leg_id for s in existing.slots} if existing else set()
+            res = build_smart_schedule(
+                driver_id=did, driver_name=str(drivers_by_id[did]),
+                available_legs=_pool, target_date=target_date,
+                start_hour=sh, end_hour=eh, existing_schedule=existing,
+            )
+            for s in res.get('schedule', []):
+                if s.leg_id not in existing_ids and s.leg_id not in seeded_assignments:
+                    seeded_assignments[s.leg_id] = did
+            _pool = [l for l in _pool if l.id not in seeded_assignments]
+        # Build a SEPARATE board (assign_board) that includes the seeded occupancy so the general
+        # pass sees these drivers as busy. Do NOT mutate `schedules` itself: the preview deepcopies
+        # `schedules` as the pre-existing board and re-adds final_assignments on top, so seeded legs
+        # must live ONLY in final_assignments — else they render twice (the "15 legs" duplication).
+        for lid, did in seeded_assignments.items():
+            lg = legs_by_id.get(lid)
+            if lg is not None:
+                lg.driver = drivers_by_id.get(did); lg.driver_id = did
+        assign_board = build_driver_schedules(legs, inhouse_drivers, target_date)
+        for lid in seeded_assignments:   # restore: seeded are tracked via final_assignments, not leg.driver
+            lg = legs_by_id.get(lid)
+            if lg is not None:
+                lg.driver = None; lg.driver_id = None
+        auto_unassigned = [l for l in auto_unassigned if l.id not in seeded_assignments]
+
     # Run suggestion engine on remaining unassigned legs
-    suggestions = suggest_assignments_clustered(auto_unassigned, schedules, target_date,
+    suggestions = suggest_assignments_clustered(auto_unassigned, assign_board, target_date,
                                                 driver_hours=driver_hours or None,
                                                 driver_preferences=driver_preferences or None,
                                                 flexible_drivers=flexible_drivers or None,
@@ -8653,6 +8728,38 @@ def auto_assign_drivers(request):
     for lid, did in manual_assignments.items():
         if legs_by_id.get(lid) and drivers_by_id.get(did):
             final_assignments[lid] = did
+    # "Build first" seeded legs are part of the final board (and locked from later passes).
+    for lid, did in seeded_assignments.items():
+        final_assignments[lid] = did
+
+    # Manual + seeded assignments are LOCKED — never relocated by the swap / gap passes.
+    locked_ids = set(manual_assignments.keys()) | set(seeded_assignments.keys())
+
+    # ── Auto pre-farm swap pass ──
+    # The greedy build is single-leg and can't rearrange, so it farms legs that a cascade of
+    # existing assignments could absorb. Before finalizing the farm list, try to recover each
+    # would-be-farmed auto leg in-house via find_swaps. Read-only; updates final_assignments
+    # (recovered + any moved legs). Manual + build-first assignments are locked (never relocated).
+    if auto_unassigned:
+        from dispatching.scheduler import recover_residuals_via_swaps, load_all_driver_vtypes
+        final_assignments, _swap_recovered = recover_residuals_via_swaps(
+            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
+            inhouse_drivers, drivers_by_id, target_date,
+            load_all_driver_vtypes(target_date),
+            locked_leg_ids=locked_ids,
+        )
+
+    # ── Gap-compaction relocation pass ──
+    # Coverage is settled above; now compact for quality. If a driver has a big internal hole
+    # and another driver holds a job sitting inside it, relocate that job to fill the hole (the
+    # donor just starts later / finishes earlier) — but only when it heals more gap than it
+    # opens. Manual assignments stay locked (never relocated). Read-only; updates final_assignments.
+    from dispatching.scheduler import compact_gaps_via_relocation, load_all_driver_vtypes
+    final_assignments, _gap_moves = compact_gaps_via_relocation(
+        final_assignments, legs_by_id, inhouse_drivers, drivers_by_id, target_date,
+        load_all_driver_vtypes(target_date),
+        locked_leg_ids=locked_ids,
+    )
 
     assigned_count = len(final_assignments)
     remaining = len(unassigned) - assigned_count
@@ -8747,6 +8854,13 @@ def auto_assign_drivers(request):
 
         first_pickup = schedule.slots[0].pickup_time.strftime("%I:%M %p").lstrip("0")
         last_end = schedule.slots[-1].estimated_end_time.strftime("%I:%M %p").lstrip("0") if schedule.slots[-1].estimated_end_time else ""
+        # Total on-duty span (first pickup -> last clear)
+        _last_dt = schedule.slots[-1].estimated_end_time
+        if _last_dt:
+            _mins = int((_last_dt - dt.combine(target_date, schedule.slots[0].pickup_time)).total_seconds() / 60)
+            hours_label = f"{_mins // 60}h {_mins % 60}m" if _mins % 60 else f"{_mins // 60}h"
+        else:
+            hours_label = ""
 
         slots_data = []
         for slot in schedule.slots:
@@ -8785,6 +8899,8 @@ def auto_assign_drivers(request):
             "total_revenue": float(schedule.total_revenue),
             "first_pickup": first_pickup,
             "last_end": last_end,
+            "hours": hours_label,
+            "vehicle": veh_by_driver.get(schedule.driver_id, ""),
             "slots": slots_data,
         })
 
@@ -9336,6 +9452,7 @@ def route_timing_reference(request):
     from dispatching.scheduler import DRIVE_TIME_ESTIMATES, DEFAULT_DRIVE_TIME
     from dispatching.analytics import (
         categorize_location, categorize_time_of_day, categorize_day_type,
+        leg_time_of_day_category,
         calculate_airport_dwell_time, calculate_drive_time,
         has_valid_status_chain, calculate_gate_to_completed_time,
     )
@@ -9400,7 +9517,7 @@ def route_timing_reference(request):
         if leg.exclude_from_analytics:
             pickup_cat = categorize_location(leg.pickup_location)
             dropoff_cat = categorize_location(leg.dropoff_location)
-            time_cat = categorize_time_of_day(leg.pickup_time)
+            time_cat = leg_time_of_day_category(leg)
             day_cat = categorize_day_type(leg.pickup_date)
             trip_type = leg.get_trip_type()
             has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
@@ -9423,7 +9540,7 @@ def route_timing_reference(request):
             # Categorize the leg so we can always add it to leg_ids
             pickup_cat = categorize_location(leg.pickup_location)
             dropoff_cat = categorize_location(leg.dropoff_location)
-            time_cat = categorize_time_of_day(leg.pickup_time)
+            time_cat = leg_time_of_day_category(leg)
             day_cat = categorize_day_type(leg.pickup_date)
             trip_type = leg.get_trip_type()
             has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
@@ -9449,7 +9566,7 @@ def route_timing_reference(request):
 
         pickup_cat = categorize_location(leg.pickup_location)
         dropoff_cat = categorize_location(leg.dropoff_location)
-        time_cat = categorize_time_of_day(leg.pickup_time)
+        time_cat = leg_time_of_day_category(leg)
         day_cat = categorize_day_type(leg.pickup_date)
         trip_type = leg.get_trip_type()
 
@@ -12071,6 +12188,65 @@ def find_swap_suggestions(request):
     })
 
 
+class _SwapInfeasible(Exception):
+    """Raised inside execute_swap's transaction to roll back an infeasible swap."""
+
+
+def _revalidate_swap_feasibility(valid_moves, target_date):
+    """Re-run the FULL feasibility check (Guards A capacity + B turnaround + C window)
+    on the board that WOULD result from applying `valid_moves`. Returns (ok, reason).
+
+    Only drivers that GAIN a leg need checking (removing a leg can't make a driver's
+    remaining legs infeasible). Read-only; mutates only in-memory copies."""
+    from reservations.models import Leg as _Leg
+    from dispatching.scheduler import check_feasibility, build_driver_schedules, estimate_job_end_time
+    from dispatching import feasibility_guards as fg
+
+    move_map = {leg_id: to_driver_id for leg_id, to_driver_id in valid_moves}
+    receiving_driver_ids = set(move_map.values())
+
+    legs = list(
+        _Leg.objects.filter(pickup_date=target_date)
+        .exclude(reservation__status="cancelled").exclude(status="cancelled")
+        .select_related("driver", "reservation", "reservation__vehicle", "vehicle", "flight_information")
+    )
+    legs_by_id = {l.id: l for l in legs}
+    for leg_id in move_map:
+        if leg_id not in legs_by_id:
+            return False, f"leg {leg_id} not found on {target_date}"
+
+    # Apply the moves in memory.
+    drv_objs = {d.id: d for d in Driver.objects.filter(id__in=receiving_driver_ids)}
+    for leg_id, to_did in move_map.items():
+        if to_did not in drv_objs:
+            return False, f"driver {to_did} not found"
+        l = legs_by_id[leg_id]
+        l.driver = drv_objs[to_did]
+        l.driver_id = to_did
+    for l in legs:
+        l._estimated_end_dt = estimate_job_end_time(l, target_date)
+
+    def _cfg_window(did):
+        d = drv_objs.get(did)
+        if not d:
+            return None
+        eff = d.get_effective_availability(target_date)
+        mh = eff.get("max_hours")
+        return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+
+    for did in receiving_driver_ids:
+        drv_legs = [l for l in legs if l.driver_id == did]
+        window = fg.get_effective_window(did, configured=_cfg_window(did))
+        for L in drv_legs:
+            others = [l for l in drv_legs if l.id != L.id]
+            sched = build_driver_schedules(others, [drv_objs[did]], target_date).get(did)
+            feas = check_feasibility(sched, L, target_date, driver_window=window)
+            if not feas.feasible:
+                return False, f"leg {L.id} on driver {did} would be infeasible: {feas.reason}"
+    return True, ""
+
+
 @login_required
 def execute_swap(request):
     """Execute an approved swap — update leg driver assignments in a transaction."""
@@ -12114,6 +12290,11 @@ def execute_swap(request):
     try:
         applied = 0
         with transaction.atomic():
+            # Re-validate the FULL resulting board (Guards A+B+C) before persisting.
+            # If any touched leg would be infeasible, roll back and write nothing.
+            ok, reason = _revalidate_swap_feasibility(valid_moves, target_date)
+            if not ok:
+                raise _SwapInfeasible(reason)
             for leg_id, to_driver_id in valid_moves:
                 leg = Leg.objects.select_for_update().get(id=leg_id)
                 driver = Driver.objects.get(id=to_driver_id)
@@ -12122,6 +12303,8 @@ def execute_swap(request):
                 leg.driver_assigned_at = timezone.now()
                 leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                 applied += 1
+    except _SwapInfeasible as e:
+        return JsonResponse({"success": False, "error": f"Swap rejected — would create an infeasible schedule: {e}"}, status=409)
     except Leg.DoesNotExist:
         return JsonResponse({"success": False, "error": f"Leg {leg_id} not found"}, status=404)
     except Driver.DoesNotExist:
