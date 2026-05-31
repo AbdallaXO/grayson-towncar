@@ -1202,7 +1202,8 @@ def auto_refresh_flights():
     Auto-refresh arrival flight data from AeroAPI on a tiered schedule:
       - Today: every call (every 30 min via scheduler)
       - Next 2 days: every 4 hours (every 8th cycle)
-      - Days 3-7: once per day (every 48th cycle)
+    Days 3-7 are intentionally NOT auto-refreshed in the background (fetched on
+    demand instead) — see _get_refresh_date_ranges for the reasoning.
 
     Only refreshes arrival legs with flight info. Skips legs with no flight ident.
     Returns summary dict with counts.
@@ -1284,15 +1285,20 @@ def _get_refresh_date_ranges(today):
     # Today: always refresh (every 30 min)
     dates.append(today)
 
-    # Next 2 days: every 8 cycles (every 4 hours)
-    if _cycle_count % 8 == 0 or _cycle_count <= 1:
+    # Next 2 days: every 8 cycles (~every 4 hours). NOTE: deliberately NOT on the
+    # startup cycle. _cycle_count starts at 0 and is bumped to 1 on the first cycle,
+    # so this fires on cycles 8/16/24…, never on a fresh process. The old guard
+    # (`or _cycle_count <= 1`) ran a multi-day serial AeroAPI pull on EVERY
+    # deploy/restart, which saturated the single sync worker and contributed to a
+    # capacity-planner WORKER TIMEOUT (incident 2026-05-31).
+    if _cycle_count % 8 == 0:
         dates.append(today + timedelta(days=1))
         dates.append(today + timedelta(days=2))
 
-    # Days 3-7: every 48 cycles (once per day)
-    if _cycle_count % 48 == 0 or _cycle_count <= 1:
-        for d in range(3, 8):
-            dates.append(today + timedelta(days=d))
+    # Days 3-7 are NO LONGER auto-refreshed in the background. Schedule data that far
+    # out barely changes and is still fetched on demand (a dispatcher opening that
+    # date, or the bulk-refresh button). Dropping this tier removes the serial 5-day
+    # AeroAPI fan-out that ran behind page loads on the single worker.
 
     return dates
 

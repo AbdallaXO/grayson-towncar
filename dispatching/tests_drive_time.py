@@ -24,7 +24,10 @@ class ResolveDriveMinutesTests(TestCase):
 
     def test_unknown_route_uses_live_distance(self):
         # A Tampa address (-> 'Other') triggers the live, traffic-aware Maps lookup.
-        with patch(MAPS, return_value={"duration_seconds": 5400}) as m:  # 90 min
+        # USE_LIVE_DISTANCE defaults OFF in prod (see scheduler.py) — force it on here so
+        # the live branch is exercised regardless of the default.
+        with patch("dispatching.scheduler.USE_LIVE_DISTANCE", True), \
+                patch(MAPS, return_value={"duration_seconds": 5400}) as m:  # 90 min
             mins = resolve_drive_minutes("123 Bayshore Blvd, Tampa FL", "Disney Contemporary",
                                          "Other", "Disney Resort")
         m.assert_called_once()
@@ -32,7 +35,8 @@ class ResolveDriveMinutesTests(TestCase):
 
     def test_unknown_route_falls_back_when_api_fails(self):
         # Maps unavailable/failed -> fall back to the category estimate, never crash.
-        with patch(MAPS, return_value=None) as m:
+        with patch("dispatching.scheduler.USE_LIVE_DISTANCE", True), \
+                patch(MAPS, return_value=None) as m:
             mins = resolve_drive_minutes("123 Somewhere", "456 Elsewhere", "Other", "Residential")
         m.assert_called_once()
         self.assertEqual(mins, get_drive_time("Other", "Residential"))
@@ -45,7 +49,8 @@ class ResolveDriveMinutesTests(TestCase):
 
     def test_other_hotel_endpoint_triggers_live(self):
         # 'Other Hotel' is in the unknown set (a hotel keyword can match a Tampa hotel).
-        with patch(MAPS, return_value={"duration_seconds": 3600}) as m:  # 60 min
+        with patch("dispatching.scheduler.USE_LIVE_DISTANCE", True), \
+                patch(MAPS, return_value={"duration_seconds": 3600}) as m:  # 60 min
             mins = resolve_drive_minutes("MCO", "Some Far Hotel", "MCO Terminal", "Other Hotel")
         m.assert_called_once()
         self.assertEqual(mins, 60)

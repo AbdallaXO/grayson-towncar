@@ -77,9 +77,14 @@ DEFAULT_DRIVE_TIME = 35  # fallback for unknown routes
 # traffic-aware, 2h-cached Google Maps drive time (drivers.utils.get_drive_time) on the raw
 # addresses instead — so far/unknown rides aren't hallucinated. Known landmarks keep the
 # instant table estimate. Flip USE_LIVE_DISTANCE off to disable entirely.
-# Default True (prod uses live road times); set env USE_LIVE_DISTANCE=0 to disable LOCALLY for
-# instant, fully-offline browsing (category estimates only) — prod default is unchanged.
-USE_LIVE_DISTANCE = os.environ.get("USE_LIVE_DISTANCE", "1") != "0"
+# Default OFF (2026-05-31 hotfix). The live lookup is a SYNCHRONOUS Google Distance Matrix HTTP
+# call, and resolve_drive_minutes runs in the per-request render path — the capacity planner and
+# driver dashboard annotate every leg's cleared time on every page load, OUTSIDE the page cache.
+# On the single sync gunicorn worker those serial 5s-timeout calls blocked page loads and
+# contributed to a capacity-planner WORKER TIMEOUT. Until live distance is re-introduced as a
+# precomputed / offline-cached matrix (no in-request network), prod uses the instant category
+# table. Set env USE_LIVE_DISTANCE=1 to re-enable the live path (e.g. offline analysis harnesses).
+USE_LIVE_DISTANCE = os.environ.get("USE_LIVE_DISTANCE", "0") == "1"
 LIVE_DISTANCE_UNKNOWN_CATS = {'Other', 'Residential', 'Other Hotel'}
 # Clusters whose internal spread the category table can't capture: it bills every
 # "Disney Resort -> Disney Resort" hop as one ~20-min average even between the SAME resort
