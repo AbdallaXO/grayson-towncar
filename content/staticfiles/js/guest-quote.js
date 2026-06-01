@@ -523,9 +523,32 @@
             this.showInvalidResult();
           }
 
-          // Fire Meta pixel if available
+          // Set Advanced Matching from the entered contact details. Pass
+          // PLAINTEXT — the pixel hashes with SHA-256 client-side (never
+          // pre-hash here). Improves match quality and clears the "Set up
+          // manual advanced matching" diagnostic in Events Manager.
           if (typeof fbq === 'function') {
-            try { fbq('track', 'Lead'); } catch (e) { /* silent */ }
+            try {
+              fbq('init', '1261740178962298', {
+                em: payload.email || '',
+                ph: (payload.phone || '').replace(/\D/g, ''),
+                fn: payload.first_name || '',
+                ln: payload.last_name || '',
+              });
+            } catch (e) { /* silent */ }
+          }
+
+          // Fire Meta pixel if available. Pass the server's event_id as the
+          // eventID so this browser Lead and the server-side CAPI Lead dedupe
+          // to one event in Meta (instead of double-counting every quote).
+          if (typeof fbq === 'function') {
+            try {
+              if (data.event_id) {
+                fbq('track', 'Lead', {}, { eventID: data.event_id });
+              } else {
+                fbq('track', 'Lead');
+              }
+            } catch (e) { /* silent */ }
           }
 
           // Fire gtag conversion if available

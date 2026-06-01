@@ -74,10 +74,25 @@
           utm_campaign: utm_campaign
       });
       
+      // Advanced Matching — pass PLAINTEXT customer data (this is the
+      // customer's own confirmation page). The pixel hashes it with SHA-256
+      // before sending; improves match quality and clears the "Set up manual
+      // advanced matching" diagnostic. Never pre-hash values passed to init().
+      if (typeof fbq !== 'undefined' && '{{ reservation.customer.email|escapejs }}') {
+          fbq('init', '1261740178962298', {
+              em: '{{ reservation.customer.email|escapejs }}',
+              ph: '{{ reservation.customer.phone_number|escapejs }}',
+              fn: '{{ reservation.customer.first_name|escapejs }}',
+              ln: '{{ reservation.customer.last_name|escapejs }}',
+              zp: '{{ reservation.customer.zipcode|escapejs }}'
+          });
+      }
+
       // Meta Pixel Purchase Event (matches Google Analytics value)
       if (typeof fbq !== 'undefined') {
-          // Use server-generated event_id for deduplication with CAPI
-          const eventId = '{{ purchase_data.event_id|default:"" }}' || ('{{ purchase_data.transaction_id|default:"" }}' + '_' + Date.now());
+          // Stable server-generated event_id shared with the CAPI Purchase so
+          // Meta dedupes them. Must NOT include a timestamp (would break dedup).
+          const eventId = '{{ purchase_data.event_id|default:"" }}' || '{{ purchase_data.transaction_id|default:"" }}';
           
           fbq('track', 'Purchase', {
               content_type: 'product',

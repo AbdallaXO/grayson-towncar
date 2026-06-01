@@ -94,11 +94,20 @@ You can test events directly in Events Manager:
    - `FB_PIXEL_ID` should be exactly: `1261740178962298`
    - No quotes, no spaces
 
-### Events Not Matching?
+### Events Not Matching / Double-Counting?
 
 - Purchase events use `reservation.total_price` (same as Google Analytics)
 - Both Pixel (client-side) and CAPI (server-side) send events
-- Meta deduplicates them automatically using `event_id`
+- Meta deduplicates them using a **stable** `event_id` shared by the browser
+  pixel and every server-side emitter for the same conversion:
+  - **Purchase** → `event_id = <Stripe payment-intent id>` (success page,
+    webhook, and dispatcher charge all use this; no timestamp)
+  - **Lead** → `event_id = "quote_<quote.id>"` (returned by the quote
+    endpoint and passed to `fbq('track','Lead', {}, {eventID})`)
+- ⚠️ Never append a timestamp to `event_id` — different timestamps make the
+  pixel and CAPI copies look like separate events and Meta will count both.
+- In Events Manager, a correctly-deduped event shows **"Processed"** with the
+  count from one source and a **"Deduplicated"** number from the other.
 
 ## What Events Are Being Sent?
 

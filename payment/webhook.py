@@ -223,8 +223,10 @@ def handle_checkout_session(session):
                 _run_in_background(send_reservation_confirmation, reservation)
                 logger.info(f"Confirmation email queued for reservation {reservation_id} (initiated by: {initiated_by})")
                 
-                # Send purchase event to Meta in background thread to avoid blocking webhook response
-                event_id = f"{payment_intent}_{int(time.time())}" if payment_intent else None
+                # Send purchase event to Meta in background thread to avoid blocking webhook response.
+                # Stable event_id (Stripe payment-intent id) — matches the success page + browser
+                # pixel so Meta dedupes all three to ONE Purchase. No timestamp (breaks dedup).
+                event_id = str(payment_intent) if payment_intent else None
                 threading.Thread(
                     target=send_purchase_event,
                     args=(reservation,),

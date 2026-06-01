@@ -439,6 +439,11 @@ class QuoteFormHandlerView(View):
 
                     logger.info(f"Created new quote for existing lead: {existing_lead}")
 
+                    # Shared event_id (per quote submission) so the browser-pixel
+                    # Lead fired by guest-quote.js and this server-side CAPI Lead
+                    # dedupe to ONE event in Meta instead of double-counting.
+                    lead_event_id = f"quote_{quote.id}"
+
                     # Run notifications in background threads to avoid blocking the response
                     from threading import Thread
 
@@ -459,7 +464,7 @@ class QuoteFormHandlerView(View):
 
                         # Send lead event to Meta Conversions API
                         try:
-                            send_lead_event(existing_lead, request)
+                            send_lead_event(existing_lead, request, event_id=lead_event_id)
                             local_logger.info(
                                 "Successfully sent lead event to Meta Conversions API"
                             )
@@ -478,6 +483,7 @@ class QuoteFormHandlerView(View):
                             "success": True,
                             "lead_id": existing_lead.id,
                             "quote_id": quote.id,
+                            "event_id": lead_event_id,
                             "message": "New quote created for existing lead",
                         }
                     )
@@ -551,6 +557,11 @@ class QuoteFormHandlerView(View):
                 # Log the lead creation
                 logger.info(f"New lead created with quote: {lead}")
 
+                # Shared event_id (per quote submission) so the browser-pixel
+                # Lead fired by guest-quote.js and this server-side CAPI Lead
+                # dedupe to ONE event in Meta instead of double-counting.
+                lead_event_id = f"quote_{quote.id}"
+
                 # Run notifications in background threads to avoid blocking the response
                 from threading import Thread
 
@@ -569,7 +580,7 @@ class QuoteFormHandlerView(View):
 
                     # Send lead event to Meta Conversions API
                     try:
-                        send_lead_event(lead, request)
+                        send_lead_event(lead, request, event_id=lead_event_id)
                         local_logger.info("Successfully sent lead event to Meta Conversions API")
                     except Exception as e:
                         local_logger.error(
@@ -582,7 +593,8 @@ class QuoteFormHandlerView(View):
 
                 # Return response immediately (don't wait for notifications)
                 return JsonResponse(
-                    {"success": True, "lead_id": lead.id, "quote_id": quote.id}
+                    {"success": True, "lead_id": lead.id, "quote_id": quote.id,
+                     "event_id": lead_event_id}
                 )
             else:
                 return JsonResponse(

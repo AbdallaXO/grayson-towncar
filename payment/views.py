@@ -145,10 +145,12 @@ def payment_success(request):
 
             # Prepare purchase event data
             transaction_id = stripe_transaction_id or str(reservation.uuid)
-            import time
-            # Generate event_id for Meta deduplication (same format as webhook)
-            event_id = f"{transaction_id}_{int(time.time())}"
-            
+            # Stable event_id (the Stripe payment-intent id) so the browser
+            # pixel, this success-page CAPI call, and the Stripe webhook all
+            # emit the SAME id and Meta deduplicates them to ONE Purchase.
+            # Do NOT append a timestamp — that breaks deduplication.
+            event_id = transaction_id
+
             purchase_data = {
                 "transaction_id": transaction_id,
                 "value": float(reservation.total_price)

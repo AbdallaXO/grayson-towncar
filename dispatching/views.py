@@ -3077,9 +3077,10 @@ def dispatcher_payment_portal(request, reservation_id):
                         _run_in_background(send_reservation_confirmation, reservation, sent_by=request.user)
                         logger.info(f"Confirmation email queued for dispatcher payment on reservation {reservation.uuid}")
 
-                        # Send purchase event to Meta in background (matches webhook.py pattern)
-                        import time as _time
-                        event_id = f"{payment_intent.id}_{int(_time.time())}"
+                        # Send purchase event to Meta in background (matches webhook.py pattern).
+                        # Stable event_id (payment-intent id, no timestamp) so a retried charge
+                        # or a payment_intent.succeeded webhook for the same intent dedupes.
+                        event_id = str(payment_intent.id)
                         _run_in_background(send_purchase_event, reservation, value=None, event_id=event_id)
 
                         messages.success(

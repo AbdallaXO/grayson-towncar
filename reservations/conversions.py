@@ -69,30 +69,58 @@ def send_capi_event(event_name, user_data, custom_data=None, request=None, event
         return None
 
 
+def _augment_user_data(user_data, request):
+    """Add IP, User-Agent and Meta browser cookies (_fbp / _fbc) to user_data.
+
+    These raw (un-hashed) signals are the strongest match keys Meta has, so
+    every event type should send them whenever a request is available. Keys
+    with no value are dropped so we never POST nulls (which lower match
+    quality). Mutates and returns user_data.
+    """
+    if request is None:
+        return {k: v for k, v in user_data.items() if v}
+
+    ua = request.headers.get("User-Agent")
+    if ua:
+        user_data["client_user_agent"] = ua
+    ip = request.META.get("REMOTE_ADDR")
+    if ip:
+        user_data["client_ip_address"] = ip
+
+    cookies = getattr(request, "COOKIES", {}) or {}
+    if cookies.get("_fbp"):
+        user_data["fbp"] = cookies["_fbp"]
+    if cookies.get("_fbc"):
+        user_data["fbc"] = cookies["_fbc"]
+
+    return {k: v for k, v in user_data.items() if v}
+
+
 # Lead event (quote form)
-def send_lead_event(lead, request):
+def send_lead_event(lead, request, event_id=None):
     user_data = {
         "em": hash_data(lead.email),
         "ph": hash_data(lead.phone),
         "fn": hash_data(lead.first_name),
         "ln": hash_data(lead.last_name),
-        "client_ip_address": request.META.get("REMOTE_ADDR"),
+        "external_id": str(lead.id) if getattr(lead, "id", None) else None,
     }
-    return send_capi_event("Lead", user_data, request=request)
+    user_data = _augment_user_data(user_data, request)
+    return send_capi_event("Lead", user_data, request=request, event_id=event_id)
 
 
 # InitiateCheckout event (reservation submission)
-def send_initiate_checkout_event(reservation, request):
+def send_initiate_checkout_event(reservation, request, event_id=None):
     user_data = {
         "em": hash_data(reservation.customer.email),
         "ph": hash_data(reservation.customer.phone_number),
         "fn": hash_data(reservation.customer.first_name),
         "ln": hash_data(reservation.customer.last_name),
         "zp": hash_data(reservation.customer.zipcode),
-        "client_user_agent": request.headers.get("User-Agent"),
-        "client_ip_address": request.META.get("REMOTE_ADDR"),
+        "external_id": str(reservation.id) if getattr(reservation, "id", None) else None,
     }
-    return send_capi_event("InitiateCheckout", user_data, request=request)
+    user_data = _augment_user_data(user_data, request)
+    return send_capi_event("InitiateCheckout", user_data, request=request, event_id=event_id)
 
 
 # Purchase event (payment successful via Stripe webhook)
@@ -118,20 +146,8 @@ def send_purchase_event(reservation, value=None, event_id=None, request=None):
         "zp": hash_data(reservation.customer.zipcode),
         "external_id": str(reservation.id),
     }
-    
-    # Add IP and User-Agent if request is available
-    if request:
-        user_data["client_ip_address"] = request.META.get("REMOTE_ADDR")
-        user_data["client_user_agent"] = request.headers.get("User-Agent")
-        
-        # Extract Facebook cookies for better attribution (_fbp and _fbc)
-        cookies = request.COOKIES
-        if "_fbp" in cookies:
-            user_data["fbp"] = cookies["_fbp"]
-        if "_fbc" in cookies:
-            user_data["fbc"] = cookies["_fbc"]
-    else:
-        user_data["client_ip_address"] = None
+    # IP, User-Agent and _fbp/_fbc cookies (best attribution signals)
+    user_data = _augment_user_data(user_data, request)
 
     custom_data = {
         "currency": "USD", 
