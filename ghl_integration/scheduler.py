@@ -117,6 +117,20 @@ def _run_batch_tasks():
         except Exception as e:
             logger.error(f"detect_lost_leads error: {e}", exc_info=True)
 
+        # 4b. Pre-pickup nudge (every 2 cycles = every hour). Date-anchored
+        #     (pickup-3d) and idempotent via the (lead, step 6) dedup, so the
+        #     hourly cadence absorbs a missed cycle without double-firing.
+        try:
+            from ghl_integration.pre_pickup import send_pre_pickup_nudges
+            result = send_pre_pickup_nudges()
+            if result and (result.get("sent", 0) or result.get("routed_to_human", 0)):
+                logger.info(
+                    f"Pre-pickup nudges: {result.get('sent', 0)} sent, "
+                    f"{result.get('routed_to_human', 0)} routed to human"
+                )
+        except Exception as e:
+            logger.error(f"send_pre_pickup_nudges error: {e}", exc_info=True)
+
     # 5. Alert on dead letter syncs (every 12 cycles = every 6 hours)
     if _cycle_count % 12 == 0:
         try:

@@ -1,0 +1,441 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+:root {
+  --lb-bg:#f3f4f6; --lb-surface:#fff; --lb-border:#e5e7eb; --lb-text:#374151;
+  --lb-dim:#6b7280; --lb-muted:#9ca3af; --lb-head:#1e293b;
+  --lb-green:#059669; --lb-green-bg:#ecfdf5; --lb-amber:#d97706; --lb-amber-bg:#fffbeb;
+  --lb-blue:#2563eb; --lb-blue-bg:#eff6ff; --lb-red:#dc2626; --lb-red-bg:#fef2f2;
+  --lb-slate:#64748b; --lb-slate-bg:#f1f5f9;
+  --lb-sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+body{background:var(--lb-bg)!important;color:var(--lb-text);font-family:var(--lb-sans);}
+.lb-wrap{max-width:1280px;margin:0 auto;padding:0 1rem 4rem;}
+
+/* header */
+.lb-header{background:var(--lb-head);color:#f1f5f9;margin:0 -1rem 1.25rem;padding:1.1rem 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.lb-header h1{font-size:1.15rem;font-weight:700;margin:0;letter-spacing:.2px;}
+.lb-header .sub{color:#94a3b8;font-size:.82rem;margin-top:.15rem;}
+.lb-datenav{display:flex;align-items:center;gap:.4rem;}
+.lb-datenav a,.lb-datenav button{background:#334155;color:#e2e8f0;border:none;border-radius:7px;
+  padding:.4rem .6rem;font-size:.82rem;font-weight:600;text-decoration:none;cursor:pointer;}
+.lb-datenav a:hover{background:#475569;}
+.lb-datenav input[type=date]{background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:7px;
+  padding:.4rem .55rem;font-size:.85rem;font-weight:600;}
+
+/* tiles */
+.lb-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.75rem;margin-bottom:1.5rem;}
+.lb-tile{background:var(--lb-surface);border:1px solid var(--lb-border);border-radius:12px;padding:.9rem 1rem;}
+.lb-tile .n{font-size:1.7rem;font-weight:800;line-height:1;color:#111827;}
+.lb-tile .l{font-size:.72rem;font-weight:600;color:var(--lb-dim);text-transform:uppercase;letter-spacing:.4px;margin-top:.35rem;}
+.lb-tile.hl{background:var(--lb-green-bg);border-color:#a7f3d0;}
+.lb-tile.hl .n{color:var(--lb-green);}
+.lb-tile.money .n{color:var(--lb-blue);}
+
+/* sections */
+.lb-section{background:var(--lb-surface);border:1px solid var(--lb-border);border-radius:14px;
+  overflow:hidden;margin-bottom:1.25rem;}
+.lb-stitle{display:flex;align-items:center;gap:.5rem;padding:.8rem 1.1rem;font-weight:700;font-size:.95rem;
+  border-bottom:1px solid var(--lb-border);}
+.lb-stitle .cnt{margin-left:auto;font-size:.8rem;font-weight:700;color:var(--lb-dim);
+  background:var(--lb-slate-bg);border-radius:20px;padding:.1rem .6rem;}
+.lb-section.safe .lb-stitle{background:var(--lb-green-bg);color:var(--lb-green);}
+.lb-section.active .lb-stitle{background:var(--lb-amber-bg);color:var(--lb-amber);}
+.lb-section.nudged .lb-stitle{background:var(--lb-blue-bg);color:var(--lb-blue);}
+.lb-section.booked .lb-stitle{background:var(--lb-green-bg);color:#065f46;}
+.lb-section.lost .lb-stitle,.lb-section.opted_out .lb-stitle{background:var(--lb-slate-bg);color:var(--lb-slate);}
+
+table.lb-tbl{width:100%;border-collapse:collapse;font-size:.85rem;}
+.lb-tbl th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--lb-muted);
+  font-weight:700;padding:.55rem 1.1rem;border-bottom:1px solid var(--lb-border);}
+.lb-tbl td{padding:.7rem 1.1rem;border-bottom:1px solid #f1f3f5;vertical-align:top;}
+.lb-tbl tr:last-child td{border-bottom:none;}
+.lb-name{font-weight:700;color:#111827;}
+.lb-phone{color:var(--lb-dim);font-size:.8rem;}
+.lb-route{font-weight:600;}
+.lb-meta{color:var(--lb-muted);font-size:.78rem;}
+.lb-price{font-weight:700;color:#111827;white-space:nowrap;}
+.lb-pri{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.4rem;vertical-align:middle;}
+.lb-pri.urgent{background:var(--lb-red);} .lb-pri.high{background:var(--lb-amber);}
+.lb-pri.medium{background:var(--lb-blue);} .lb-pri.low{background:var(--lb-muted);}
+.lb-badge{display:inline-block;font-size:.7rem;font-weight:700;border-radius:6px;padding:.12rem .45rem;white-space:nowrap;}
+.lb-badge.s-new,.lb-badge.s-contacted{background:var(--lb-slate-bg);color:var(--lb-slate);}
+.lb-badge.s-interested{background:var(--lb-amber-bg);color:var(--lb-amber);}
+.lb-badge.s-converted{background:var(--lb-green-bg);color:var(--lb-green);}
+.lb-badge.s-lost,.lb-badge.s-cold{background:var(--lb-red-bg);color:var(--lb-red);}
+.lb-tag{display:inline-block;font-size:.68rem;font-weight:700;border-radius:5px;padding:.1rem .4rem;margin-left:.35rem;}
+.lb-tag.nudged{background:var(--lb-blue-bg);color:var(--lb-blue);}
+.lb-tag.optout{background:var(--lb-red-bg);color:var(--lb-red);}
+
+/* actions */
+.lb-actions{display:flex;gap:.35rem;flex-wrap:wrap;}
+.lb-btn{border:1px solid var(--lb-border);background:#fff;color:var(--lb-text);border-radius:7px;
+  padding:.32rem .6rem;font-size:.76rem;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap;}
+.lb-btn:hover{background:var(--lb-slate-bg);}
+.lb-btn.primary{background:var(--lb-green);border-color:var(--lb-green);color:#fff;}
+.lb-btn.primary:hover{background:#047857;}
+.lb-btn.danger:hover{background:var(--lb-red-bg);color:var(--lb-red);border-color:#fca5a5;}
+.lb-btn[disabled]{opacity:.5;cursor:not-allowed;}
+.lb-note{color:var(--lb-amber);font-size:.74rem;font-weight:600;}
+
+.lb-empty{background:var(--lb-surface);border:1px dashed var(--lb-border);border-radius:14px;
+  padding:3rem 1rem;text-align:center;color:var(--lb-dim);}
+
+.lb-lastmsg{color:#475569;font-size:.78rem;font-style:italic;margin-top:.3rem;max-width:420px;}
+
+/* details modal */
+.lb-modal{position:fixed;inset:0;z-index:1500;background:rgba(15,23,42,.55);
+  display:flex;align-items:flex-start;justify-content:center;padding:3rem 1rem;overflow-y:auto;}
+.lb-modal[hidden]{display:none;}
+.lb-modal-card{background:#fff;border-radius:16px;max-width:640px;width:100%;position:relative;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.lb-modal-x{position:absolute;top:.5rem;right:.8rem;border:none;background:none;font-size:1.7rem;
+  line-height:1;color:var(--lb-muted);cursor:pointer;}
+.lb-modal-x:hover{color:#111827;}
+.lb-mhead{padding:1.2rem 1.4rem .9rem;border-bottom:1px solid var(--lb-border);}
+.lb-mhead h2{font-size:1.15rem;font-weight:800;margin:0 2rem 0 0;color:#111827;}
+.lb-msub{color:var(--lb-dim);font-size:.85rem;margin-top:.25rem;}
+.lb-mgrid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem 1rem;margin-top:.75rem;font-size:.82rem;}
+.lb-mgrid span{color:var(--lb-muted);}
+.lb-mflags{margin-top:.7rem;display:flex;gap:.4rem;flex-wrap:wrap;}
+.lb-fl{font-size:.7rem;font-weight:700;border-radius:5px;padding:.12rem .45rem;background:var(--lb-slate-bg);color:var(--lb-slate);}
+.lb-fl.on{background:var(--lb-amber-bg);color:var(--lb-amber);}
+.lb-fl.optout{background:var(--lb-red-bg);color:var(--lb-red);}
+.lb-mbody{padding:1rem 1.4rem 1.5rem;}
+.lb-mbody h3{font-size:.74rem;text-transform:uppercase;letter-spacing:.4px;color:var(--lb-muted);font-weight:700;margin:0 0 .8rem;}
+.lb-tl{display:flex;flex-direction:column;gap:.6rem;}
+.lb-ev{display:flex;}
+.lb-ev .bubble{border-radius:10px;padding:.45rem .7rem;font-size:.85rem;max-width:84%;}
+.lb-ev.in .bubble{background:var(--lb-slate-bg);color:#1f2937;}
+.lb-ev.out{flex-direction:row-reverse;}
+.lb-ev.out .bubble{background:var(--lb-blue-bg);color:#1e3a8a;}
+.lb-ev.event{justify-content:center;}
+.lb-ev.event .bubble{background:transparent;color:var(--lb-muted);font-size:.78rem;font-style:italic;max-width:100%;}
+.lb-ev .who{font-size:.68rem;font-weight:700;color:var(--lb-muted);margin-bottom:.15rem;}
+.lb-ev .ago{font-size:.68rem;color:var(--lb-muted);margin-top:.2rem;}
+.lb-empty-tl{color:var(--lb-muted);font-size:.85rem;font-style:italic;}
+
+/* offer preview/edit modal */
+.lb-offer-foot{display:flex;justify-content:flex-end;gap:.5rem;padding:.4rem 1.4rem 1.3rem;}
+#lb-offer-text{width:100%;border:1px solid var(--lb-border);border-radius:10px;padding:.7rem .8rem;
+  font-family:var(--lb-sans);font-size:.9rem;line-height:1.5;color:#1f2937;resize:vertical;box-sizing:border-box;}
+#lb-offer-text:focus{outline:2px solid #93c5fd;border-color:#93c5fd;}
+.lb-offer-meta{margin-top:.4rem;font-size:.74rem;color:var(--lb-muted);}
+.lb-btn.primary[disabled]{opacity:.5;cursor:not-allowed;}
+
+#lb-toast{position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%);z-index:2000;
+  background:#111827;color:#fff;padding:.7rem 1.1rem;border-radius:10px;font-size:.85rem;font-weight:600;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s;}
+#lb-toast.show{opacity:1;}
+#lb-toast.err{background:var(--lb-red);}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lb-wrap">
+
+  <div class="lb-header">
+    <div>
+      <h1>Leads Board</h1>
+      <div class="sub">Pickup date {{ target|date:"l, F j, Y" }}</div>
+    </div>
+    <form class="lb-datenav" method="get" action="{% url 'leads_board' %}">
+      <a href="?date={{ prev_date }}" title="Previous day">‹</a>
+      <input type="date" name="date" value="{{ target|date:'Y-m-d' }}" onchange="this.form.submit()">
+      <a href="?date={{ next_date }}" title="Next day">›</a>
+      <a href="?date={{ today_iso }}">Today</a>
+    </form>
+  </div>
+
+  <div class="lb-tiles">
+    <div class="lb-tile"><div class="n">{{ total }}</div><div class="l">Leads this day</div></div>
+    <div class="lb-tile"><div class="n">{{ counts.booked }}</div><div class="l">Booked</div></div>
+    <div class="lb-tile hl"><div class="n">{{ counts.safe }}</div><div class="l">Safe to offer</div></div>
+    <div class="lb-tile"><div class="n">{{ open_opportunities }}</div><div class="l">Open opportunities</div></div>
+    <div class="lb-tile money"><div class="n">${{ potential|floatformat:0 }}</div><div class="l">Potential value</div></div>
+    <div class="lb-tile"><div class="n">{{ counts.active }}</div><div class="l">Active (hands off)</div></div>
+  </div>
+
+  {% if total == 0 %}
+    <div class="lb-empty">No leads with a pickup on this date. Try another day.</div>
+  {% else %}
+    {% for section in sections %}
+    <section class="lb-section {{ section.key }}">
+      <div class="lb-stitle">
+        {{ section.label }}<span class="cnt">{{ section.leads|length }}</span>
+      </div>
+      <table class="lb-tbl">
+        <thead><tr>
+          <th>Lead</th><th>Trip</th><th>Price</th><th>Status</th>
+          <th>Last contact</th><th>Last reply</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+        {% for lead in section.leads %}
+          <tr id="lead-row-{{ lead.id }}">
+            <td>
+              <div class="lb-name"><span class="lb-pri {{ lead.priority }}"></span>{{ lead.first_name }} {{ lead.last_name }}
+                {% if lead.is_nudged %}<span class="lb-tag nudged">nudged</span>{% endif %}
+                {% if lead.sms_opt_out %}<span class="lb-tag optout">opted out</span>{% endif %}
+              </div>
+              <div class="lb-phone">{{ lead.phone|default:"no phone" }}</div>
+            </td>
+            <td>
+              <div class="lb-route">{{ lead.pickup_location|default:"—" }} → {{ lead.dropoff_location|default:"—" }}</div>
+              <div class="lb-meta">{% if lead.vehicle %}{{ lead.vehicle }}{% endif %}{% if lead.segment %} · {{ lead.get_segment_display }}{% endif %}</div>
+              {% if lead.board_bucket == 'active' and lead.last_reply_text %}<div class="lb-lastmsg">💬 “{{ lead.last_reply_text|truncatechars:90 }}”</div>{% endif %}
+            </td>
+            <td class="lb-price">{% if lead.estimated_price %}${{ lead.estimated_price|floatformat:0 }}{% else %}—{% endif %}</td>
+            <td><span class="lb-badge s-{{ lead.status }}">{{ lead.get_status_display }}</span></td>
+            <td class="lb-meta">{% if lead.last_contact_date %}{{ lead.last_contact_date|naturaltime }}{% else %}never{% endif %}</td>
+            <td class="lb-meta">{% if lead.last_reply_at %}{{ lead.last_reply_at|naturaltime }}{% else %}—{% endif %}</td>
+            <td>
+              <div class="lb-actions">
+                {% if section.key == 'safe' %}
+                  <button class="lb-btn primary" data-action="send-nudge" data-lead="{{ lead.id }}" data-name="{{ lead.first_name }} {{ lead.last_name }}" data-offer="{{ lead.offer_label }}">Send offer</button>
+                  <button class="lb-btn" data-action="create-task" data-lead="{{ lead.id }}" data-name="{{ lead.first_name }} {{ lead.last_name }}">Follow-up</button>
+                  <button class="lb-btn danger" data-action="mark-lost" data-lead="{{ lead.id }}" data-name="{{ lead.first_name }} {{ lead.last_name }}">Lost</button>
+                {% elif section.key == 'active' %}
+                  <span class="lb-note">
+                    {% if lead.active_reason == 'replied' %}Replied {{ lead.last_reply_at|naturaltime }}
+                    {% elif lead.active_reason == 'human' %}Flagged for a human
+                    {% elif lead.active_reason == 'recent_out' %}We texted {{ lead.last_contact_date|naturaltime }}
+                    {% elif lead.active_reason == 'sequence' %}Auto-sequence running
+                    {% else %}In conversation{% endif %}
+                  </span>
+                  <button class="lb-btn" data-action="create-task" data-lead="{{ lead.id }}" data-name="{{ lead.first_name }} {{ lead.last_name }}">Follow-up</button>
+                {% elif section.key == 'nudged' %}
+                  <button class="lb-btn" data-action="create-task" data-lead="{{ lead.id }}" data-name="{{ lead.first_name }} {{ lead.last_name }}">Follow-up</button>
+                {% endif %}
+                <button class="lb-btn" data-action="details" data-lead="{{ lead.id }}">Details</button>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endfor %}
+  {% endif %}
+
+</div>
+
+<div id="lb-modal" class="lb-modal" hidden>
+  <div class="lb-modal-card">
+    <button class="lb-modal-x" id="lb-modal-close" aria-label="Close">×</button>
+    <div id="lb-modal-content"></div>
+  </div>
+</div>
+
+<div id="lb-offer" class="lb-modal" hidden>
+  <div class="lb-modal-card">
+    <button class="lb-modal-x" id="lb-offer-close" aria-label="Close">×</button>
+    <div class="lb-mhead">
+      <h2>Send offer</h2>
+      <div class="lb-msub" id="lb-offer-sub">Loading…</div>
+    </div>
+    <div class="lb-mbody">
+      <div id="lb-offer-edit" hidden>
+        <h3>Message — edit before sending</h3>
+        <textarea id="lb-offer-text" rows="5"></textarea>
+        <div class="lb-offer-meta"><span id="lb-offer-chars"></span></div>
+      </div>
+      <p id="lb-offer-note" class="lb-empty-tl" hidden></p>
+    </div>
+    <div class="lb-offer-foot">
+      <button class="lb-btn" id="lb-offer-cancel">Cancel</button>
+      <button class="lb-btn primary" id="lb-offer-send" disabled>Send this text</button>
+    </div>
+  </div>
+</div>
+
+<div id="lb-toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const URLS = {
+  'send-nudge': '{% url "leads_board_send_nudge" %}',
+  'create-task': '{% url "leads_board_create_task" %}',
+  'mark-lost': '{% url "leads_board_mark_lost" %}',
+  'detail': '{% url "leads_board_detail" %}',
+  'offer-preview': '{% url "leads_board_offer_preview" %}',
+};
+
+function toast(msg, isErr){
+  const t = document.getElementById('lb-toast');
+  t.textContent = msg; t.classList.toggle('err', !!isErr); t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 4000);
+}
+function postJSON(url, body){
+  return fetch(url, {method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify(body||{})}).then(r => r.json());
+}
+function esc(s){ const d=document.createElement('div'); d.textContent = (s==null?'':s); return d.innerHTML; }
+
+// ── Action buttons ──
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('button[data-action]');
+  if(!btn || btn.dataset.busy) return;
+  const action = btn.dataset.action, leadId = btn.dataset.lead, name = btn.dataset.name || 'this lead';
+
+  if(action === 'details'){ openDetail(leadId); return; }
+  if(action === 'send-nudge'){ openOffer(leadId, name); return; }
+
+  if(action === 'mark-lost' && !confirm(`Mark ${name} as lost?\n\nThis stops any automated texts to them.`)) return;
+
+  let body = { lead_id: leadId };
+  if(action === 'create-task'){
+    const note = prompt(`Create a follow-up task for ${name} (a human will handle it).\nOptional note:`, '');
+    if(note === null) return;   // cancelled
+    body.note = note;
+  }
+
+  const original = btn.textContent;
+  btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = 'Working…';
+  postJSON(URLS[action], body).then(data => {
+    btn.textContent = data.success ? '✓ Done' : ('✕ ' + (action === 'send-nudge' ? 'Not sent' : 'Failed'));
+    toast(data.message || (data.success ? 'Done' : 'Not done'), !data.success);
+    if(data.success){
+      setTimeout(() => window.location.reload(), 1700);   // reflect the new bucket/counts
+    } else {
+      setTimeout(() => { btn.disabled = false; btn.textContent = original; delete btn.dataset.busy; }, 1800);
+    }
+  }).catch(() => {
+    toast('Network error', true); btn.disabled = false; btn.textContent = original; delete btn.dataset.busy;
+  });
+});
+
+// ── Details modal ──
+const modal = document.getElementById('lb-modal');
+const modalContent = document.getElementById('lb-modal-content');
+function closeModal(){ modal.hidden = true; modalContent.innerHTML = ''; }
+document.getElementById('lb-modal-close').addEventListener('click', closeModal);
+modal.addEventListener('click', e => { if(e.target === modal) closeModal(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+function openDetail(leadId){
+  modal.hidden = false;
+  modalContent.innerHTML = '<div class="lb-mbody"><p class="lb-empty-tl">Loading…</p></div>';
+  fetch(URLS.detail + '?lead_id=' + encodeURIComponent(leadId))
+    .then(r => r.json()).then(renderDetail)
+    .catch(() => { modalContent.innerHTML = '<div class="lb-mbody"><p class="lb-empty-tl">Could not load details.</p></div>'; });
+}
+
+function renderDetail(d){
+  const f = d.flags || {};
+  let flags = '';
+  if(f.opted_out) flags += '<span class="lb-fl optout">opted out</span>';
+  if(f.needs_human) flags += '<span class="lb-fl on">needs human</span>';
+  if(f.sequence_active) flags += '<span class="lb-fl on">sequence running</span>';
+  if(f.replied) flags += '<span class="lb-fl on">replied</span>';
+  if(!flags) flags = '<span class="lb-fl">no flags</span>';
+
+  let tl = '';
+  if(d.timeline && d.timeline.length){
+    for(const e of d.timeline){
+      const who = e.dir === 'in' ? 'Customer' : (e.dir === 'out' ? 'Us' : '');
+      tl += `<div class="lb-ev ${e.dir}"><div>`
+          + `<div class="who">${esc(who)}${who ? ' · ' : ''}${esc(e.label)}</div>`
+          + `<div class="bubble">${esc(e.text)}</div>`
+          + `<div class="ago">${esc(e.ago)}</div></div></div>`;
+    }
+  } else {
+    tl = '<p class="lb-empty-tl">No saved messages yet. (Inbound replies are saved from now on; older threads live in GHL.)</p>';
+  }
+
+  modalContent.innerHTML =
+    `<div class="lb-mhead">
+       <h2>${esc(d.name)}</h2>
+       <div class="lb-msub">${esc(d.route)}</div>
+       <div class="lb-mgrid">
+         <div><span>Phone</span> ${esc(d.phone)}</div>
+         <div><span>Status</span> ${esc(d.status)}</div>
+         <div><span>Pickup</span> ${esc(d.pickup_date)}</div>
+         <div><span>Price</span> ${esc(d.price)}</div>
+         <div><span>Vehicle</span> ${esc(d.vehicle)}</div>
+         <div><span>Segment</span> ${esc(d.segment)}</div>
+         <div><span>Last contact</span> ${esc(d.last_contact)}</div>
+         <div><span>Last reply</span> ${esc(d.last_reply)}</div>
+       </div>
+       <div class="lb-mflags">${flags}</div>
+     </div>
+     <div class="lb-mbody">
+       <h3>Conversation &amp; activity</h3>
+       <div class="lb-tl">${tl}</div>
+     </div>`;
+}
+
+// ── Offer preview / edit modal ──
+const offerModal = document.getElementById('lb-offer');
+const offerSub = document.getElementById('lb-offer-sub');
+const offerEdit = document.getElementById('lb-offer-edit');
+const offerText = document.getElementById('lb-offer-text');
+const offerChars = document.getElementById('lb-offer-chars');
+const offerNote = document.getElementById('lb-offer-note');
+const offerSend = document.getElementById('lb-offer-send');
+let offerLeadId = null;
+
+function closeOffer(){ offerModal.hidden = true; offerLeadId = null; }
+document.getElementById('lb-offer-close').addEventListener('click', closeOffer);
+document.getElementById('lb-offer-cancel').addEventListener('click', closeOffer);
+offerModal.addEventListener('click', e => { if(e.target === offerModal) closeOffer(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !offerModal.hidden) closeOffer(); });
+
+function updateChars(){
+  const n = offerText.value.length;
+  const segs = Math.ceil(n / 160) || 1;
+  offerChars.textContent = `${n} characters · ~${segs} SMS segment${segs > 1 ? 's' : ''}`;
+}
+offerText.addEventListener('input', updateChars);
+
+function openOffer(leadId, name){
+  offerLeadId = leadId;
+  offerModal.hidden = false;
+  offerSub.textContent = 'Loading…';
+  offerEdit.hidden = true; offerNote.hidden = true;
+  offerSend.disabled = true; offerSend.textContent = 'Send this text';
+  fetch(URLS['offer-preview'] + '?lead_id=' + encodeURIComponent(leadId))
+    .then(r => r.json()).then(d => {
+      if(d.sendable){
+        offerSub.textContent = `${d.label} offer to ${d.name} — review, edit, then send. This sends a real SMS now (respects opt-out and the 8am–9pm window).`;
+        offerText.value = d.message;
+        offerEdit.hidden = false; updateChars();
+        offerSend.dataset.mode = 'send'; offerSend.disabled = false; offerSend.textContent = 'Send this text';
+        offerText.focus();
+      } else {
+        offerSub.textContent = d.name;
+        offerNote.textContent = d.note; offerNote.hidden = false;
+        if(d.variant === 'discount'){
+          offerSend.dataset.mode = 'route'; offerSend.disabled = false; offerSend.textContent = 'Create the task';
+        } else {
+          offerSend.disabled = true;
+        }
+      }
+    }).catch(() => { offerSub.textContent = 'Could not load the offer.'; });
+}
+
+offerSend.addEventListener('click', function(){
+  if(!offerLeadId) return;
+  const mode = offerSend.dataset.mode;
+  const body = { lead_id: offerLeadId };
+  if(mode === 'send'){
+    body.message = offerText.value.trim();
+    if(!body.message){ toast('Message is empty', true); return; }
+  }
+  offerSend.disabled = true; offerSend.textContent = 'Working…';
+  postJSON(URLS['send-nudge'], body).then(data => {
+    toast(data.message || (data.success ? 'Done' : 'Not done'), !data.success);
+    if(data.success){ setTimeout(() => window.location.reload(), 1400); }
+    else { offerSend.disabled = false; offerSend.textContent = (mode === 'route' ? 'Create the task' : 'Send this text'); }
+  }).catch(() => { toast('Network error', true); offerSend.disabled = false; offerSend.textContent = 'Send this text'; });
+});
+</script>
+{% endblock %}

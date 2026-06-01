@@ -16,7 +16,7 @@ class SafeFormatDict(defaultdict):
         return f"{{{key}}}"
 
 
-def render_follow_up_message(template_str, lead):
+def render_follow_up_message(template_str, lead, extra=None):
     """
     Render a follow-up message template with lead data.
 
@@ -28,6 +28,10 @@ def render_follow_up_message(template_str, lead):
     - {estimated_price} (formatted as "$125")
     - {vehicle_name}
     - {trip_type_display}
+
+    Pass ``extra`` (a dict of pre-formatted strings) to inject additional
+    placeholders not derived from the lead — e.g. the pre-pickup nudge supplies
+    {booking_link}. ``extra`` values override the built-ins on key collision.
 
     Missing values produce the placeholder name rather than errors.
     """
@@ -65,6 +69,9 @@ def render_follow_up_message(template_str, lead):
         "vehicle_name": vehicle_name,
         "trip_type_display": trip_type_display,
     })
+
+    if extra:
+        values.update(extra)
 
     try:
         return template_str.format_map(values)

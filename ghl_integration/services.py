@@ -619,25 +619,62 @@ class GoHighLevelService:
             # On error, err on the side of caution — don't block sends
             return False
 
+    def _is_opted_out(self, contact_id: str) -> bool:
+        """
+        True if this contact (or any lead sharing its phone) has opted out of SMS.
+
+        Keyed by ``normalized_phone`` so round-trip duplicate leads are all
+        covered, even if they were created with different GHL contact ids. On a
+        query error we fail OPEN (return False) — consistent with
+        ``contact_has_replied``'s posture — so a transient DB hiccup can't halt
+        all outbound. The webhook sets the flag (STOP keyword); this only reads it.
+        """
+        if not contact_id:
+            return False
+        try:
+            lead = (
+                Lead.objects.filter(ghl_contact_id=contact_id)
+                .only("normalized_phone")
+                .first()
+            )
+            if lead and lead.normalized_phone:
+                return Lead.objects.filter(
+                    normalized_phone=lead.normalized_phone, sms_opt_out=True
+                ).exists()
+            # No phone on record — fall back to this contact's own flag.
+            return Lead.objects.filter(
+                ghl_contact_id=contact_id, sms_opt_out=True
+            ).exists()
+        except Exception as e:
+            logger.warning(f"Opt-out check failed for contact {contact_id}: {e}")
+            return False
+
     def send_sms(self, contact_id: str, message: str) -> bool:
         """
         Send an SMS message to a contact in GHL.
-        
+
         Args:
             contact_id: GHL contact ID
             message: SMS message text
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self.api_key or not self.location_id:
             logger.error("GHL API credentials not configured")
             return False
-        
+
         if not contact_id or not message:
             logger.warning("Missing contact_id or message for SMS")
             return False
-        
+
+        # Compliance guard — never deliver SMS to an opted-out number. This is the
+        # SHARED choke point: the initial SMS, the 5-step follow-up sequence, and
+        # the pre-pickup nudge all funnel through here, so one check covers them all.
+        if self._is_opted_out(contact_id):
+            logger.warning(f"Blocked SMS to opted-out contact {contact_id} (sms_opt_out=True)")
+            return False
+
         try:
             url = f"{self.base_url}/conversations/messages"
             

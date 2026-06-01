@@ -3,9 +3,18 @@ from . import views
 from . import flight_verify_views
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
+from ops import leads_board as ops_leads
 
 urlpatterns = [
     path("", views.index, name="dashboard"),
+
+    # Leads board — date-anchored opportunities view
+    path("leads-board/", ops_leads.leads_board_view, name="leads_board"),
+    path("leads-board/detail/", ops_leads.lead_board_detail, name="leads_board_detail"),
+    path("leads-board/offer-preview/", ops_leads.lead_board_offer_preview, name="leads_board_offer_preview"),
+    path("leads-board/send-nudge/", ops_leads.lead_board_send_nudge, name="leads_board_send_nudge"),
+    path("leads-board/create-task/", ops_leads.lead_board_create_task, name="leads_board_create_task"),
+    path("leads-board/mark-lost/", ops_leads.lead_board_mark_lost, name="leads_board_mark_lost"),
     path(
         "legs-dashboard-export/",
         views.export_legs_dashboard_csv,

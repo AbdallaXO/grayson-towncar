@@ -26,19 +26,23 @@ class FollowUpSequence(models.Model):
         ("large_group", "Large Group"),
         ("repeat_customer", "Repeat Customer"),
         ("abandoned_quote", "Abandoned Quote"),
+        # Pre-pickup nudge variants (step 6). These are keyed by offer "variant"
+        # rather than lead segment — see ghl_integration/pre_pickup.py.
+        ("pre_pickup_urgency", "Pre-Pickup Nudge — Urgency"),
+        ("pre_pickup_cruise_urgency", "Pre-Pickup Nudge — Cruise Urgency"),
     ]
 
     step_number = models.PositiveSmallIntegerField(
-        help_text="Step in the sequence (1-5)"
+        help_text="Step in the sequence (1-5 = form follow-up; 6 = pre-pickup nudge)"
     )
     segment = models.CharField(
         max_length=30, choices=SEGMENT_CHOICES, default="general"
     )
     delay_hours = models.PositiveIntegerField(
-        help_text="Hours after Step 1 send for this step (0=immediate, 4, 20, 48, 96)"
+        help_text="Hours after Step 1 send for this step (0=immediate, 4, 20, 48, 96). Unused for the date-anchored step-6 nudge."
     )
     message_template = models.TextField(
-        help_text="SMS body with {first_name}, {pickup_location}, {dropoff_location}, {pickup_date}, {estimated_price}, {vehicle_name} placeholders"
+        help_text="SMS body with {first_name}, {pickup_location}, {dropoff_location}, {pickup_date}, {estimated_price}, {vehicle_name} placeholders. Step-6 nudge templates also support {booking_link}."
     )
     is_active = models.BooleanField(default=True)
 

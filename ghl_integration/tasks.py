@@ -553,6 +553,12 @@ def process_follow_up_batch():
         FollowUpTask.objects.filter(
             status=FollowUpTask.StatusChoices.PENDING,
             scheduled_at__lte=now,
+            # Scope to the canonical 5-step form sequence. The pre-pickup nudge
+            # (step 6, ghl_integration/pre_pickup.py) is a self-contained sender
+            # that writes its own terminal FollowUpTask rows and never leaves a
+            # PENDING step-6 row — this filter is defensive partitioning so the
+            # two engines can never double-handle the same task.
+            step_number__lte=5,
         )
         .order_by("lead__priority", "scheduled_at")
         .values_list("id", flat=True)[:100]

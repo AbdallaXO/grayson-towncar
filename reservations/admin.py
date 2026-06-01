@@ -1830,6 +1830,7 @@ class LeadAdmin(admin.ModelAdmin):
                 ("converted", "converted_at"),
                 ("contact_attempts", "last_contact_date"),
                 "next_follow_up",
+                "pre_pickup_discount",
             )
         }),
         ("Trip Information", {

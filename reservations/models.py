@@ -2318,6 +2318,27 @@ class Lead(models.Model):
     sequence_completed_at = models.DateTimeField(null=True, blank=True)
     needs_human_follow_up = models.BooleanField(default=False, help_text="Flagged for human closer after lead replied")
 
+    # SMS opt-out (TCPA). Set True when the contact replies STOP/UNSUBSCRIBE/etc.
+    # Propagated across ALL leads sharing this phone (normalized_phone) so a
+    # round-trip customer's duplicate leads are all suppressed. The shared GHL
+    # send path (GoHighLevelService.send_sms) hard-blocks any opted-out number,
+    # so this protects the initial SMS, the 5-step sequence, and the nudge alike.
+    sms_opt_out = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Contact opted out of SMS (replied STOP/UNSUBSCRIBE/etc). Blocks all outbound SMS.",
+    )
+
+    # Pre-pickup nudge: a deliberate, backend-set discount (default 0) for the
+    # one-touch SMS fired ~3 days before pickup. Nothing sets this automatically
+    # — staff set it per lead/date. When > 0 the nudge routes the lead to a human
+    # to book with the discount applied manually, because the booking flow has no
+    # coupon/price-override mechanism (only customer-entered Stripe promo codes).
+    pre_pickup_discount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Deliberate discount ($) for the pre-pickup nudge. Default 0. "
+                  "When > 0, the lead is routed to a human to book with the discount applied.",
+    )
+
     # Revenue Attribution
     converted_reservation = models.ForeignKey(
         'Reservation', on_delete=models.SET_NULL, null=True, blank=True,

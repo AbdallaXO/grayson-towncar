@@ -841,6 +841,45 @@ def send_agency_commission_statement(agency, payout, recipient_email, sent_by=No
         return False
 
 
+GENERIC_BOOKING_URL = "https://graysontowncar.com/rates-booking/"
+
+
+def resolve_booking_url(lead, quote=None):
+    """
+    Best-effort direct booking URL for a lead, derived from its current Quote's
+    route + vehicle via a matching ``rates.Rate``. Falls back to the generic
+    booking page when no Rate matches (or there's no current quote).
+
+    Shared by the quote email and the pre-pickup SMS nudge so both link to the
+    same place. Pass ``quote`` to avoid a second query if you already loaded it.
+    """
+    if quote is None:
+        quote = lead.quotes.filter(is_current=True).select_related("vehicle").first()
+
+    if quote and quote.vehicle:
+        try:
+            from rates.models import Rate
+
+            rate = Rate.objects.filter(
+                vehicle=quote.vehicle,
+                route__origin__name__iexact=quote.pickup_location,
+                route__destination__name__iexact=quote.dropoff_location,
+            ).first()
+            if not rate:
+                # Try reversed direction
+                rate = Rate.objects.filter(
+                    vehicle=quote.vehicle,
+                    route__origin__name__iexact=quote.dropoff_location,
+                    route__destination__name__iexact=quote.pickup_location,
+                ).first()
+            if rate:
+                return f"https://graysontowncar.com/book-orlando-transportation/{rate.pk}"
+        except Exception:
+            logger.debug(f"Could not resolve booking rate for lead #{lead.id}")
+
+    return GENERIC_BOOKING_URL
+
+
 def send_lead_quote_email(lead, booking_url=None):
     """
     Send a quote email to a lead. Used as fallback when SMS fails
@@ -868,30 +907,13 @@ def send_lead_quote_email(lead, booking_url=None):
         quote = lead.quotes.filter(is_current=True).select_related("vehicle").first()
 
         # Build a direct booking URL from the quote's route + vehicle
-        if not booking_url and quote and quote.vehicle:
-            try:
-                from rates.models import Rate
-                rate = Rate.objects.filter(
-                    vehicle=quote.vehicle,
-                    route__origin__name__iexact=quote.pickup_location,
-                    route__destination__name__iexact=quote.dropoff_location,
-                ).first()
-                if not rate:
-                    # Try reversed direction
-                    rate = Rate.objects.filter(
-                        vehicle=quote.vehicle,
-                        route__origin__name__iexact=quote.dropoff_location,
-                        route__destination__name__iexact=quote.pickup_location,
-                    ).first()
-                if rate:
-                    booking_url = f"https://graysontowncar.com/book-orlando-transportation/{rate.pk}"
-            except Exception:
-                logger.debug(f"Could not resolve booking rate for lead #{lead.id}")
+        if not booking_url:
+            booking_url = resolve_booking_url(lead, quote=quote)
 
         context = {
             "lead": lead,
             "quote": quote,
-            "booking_url": booking_url or "https://graysontowncar.com/rates-booking/",
+            "booking_url": booking_url or GENERIC_BOOKING_URL,
         }
 
         subject = f"Your Grayson Towncar Quote — {lead.pickup_location or 'Orlando'} to {lead.dropoff_location or 'your destination'}"

@@ -25,6 +25,12 @@ def _normalize_phone_last10(phone):
     return digits[-10:] if len(digits) >= 10 else None
 
 
+# SMS opt-out keywords (carrier-standard). An inbound message whose trimmed body
+# EXACTLY matches one of these (case-insensitive) is treated as an opt-out. Exact
+# match avoids false positives like "please don't cancel my ride".
+OPT_OUT_KEYWORDS = {"STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"}
+
+
 def _find_leads_for_webhook(contact_id, phone=None):
     """
     Find ALL leads matching a GHL contact ID or phone number.
@@ -192,6 +198,60 @@ def ghl_webhook(request):
 
             lead_ids_updated.append(lead.id)
 
+        # ── SMS opt-out (STOP / UNSUBSCRIBE / …) ────────────────────────────
+        # Carrier-standard keywords → suppress all future SMS. Propagate to EVERY
+        # lead sharing this phone (normalized_phone), not just the matched ones,
+        # so a round-trip customer's duplicate leads are all covered. The shared
+        # send path (GoHighLevelService.send_sms) reads this flag and hard-blocks.
+        if message_body and message_body.strip().strip(".!?, ").upper() in OPT_OUT_KEYWORDS:
+            phone_keys = set()
+            if phone:
+                np = Lead.normalize_phone(phone)
+                if np:
+                    phone_keys.add(np)
+            for lead in all_leads:
+                if lead.normalized_phone:
+                    phone_keys.add(lead.normalized_phone)
+            try:
+                if phone_keys:
+                    opted_count = (
+                        Lead.objects.filter(normalized_phone__in=phone_keys)
+                        .exclude(sms_opt_out=True)
+                        .update(sms_opt_out=True)
+                    )
+                elif contact_id:
+                    opted_count = (
+                        Lead.objects.filter(ghl_contact_id=contact_id)
+                        .exclude(sms_opt_out=True)
+                        .update(sms_opt_out=True)
+                    )
+                else:
+                    opted_count = 0
+                logger.warning(
+                    f"SMS opt-out keyword '{message_body.strip()}' from contact "
+                    f"{contact_id} / phone {phone} - flagged {opted_count} lead(s) sms_opt_out"
+                )
+                # Audit trail (compliance): record the opt-out on the primary lead.
+                try:
+                    from ghl_integration.models import LeadActivity
+                    LeadActivity.objects.create(
+                        lead=primary_lead,
+                        activity_type=LeadActivity.ActivityType.STATUS_CHANGE,
+                        description=(
+                            f"SMS opt-out received ('{message_body.strip()[:40]}') — "
+                            f"{opted_count} lead(s) suppressed"
+                        ),
+                        metadata={
+                            "contact_id": contact_id,
+                            "phone_keys": sorted(phone_keys),
+                            "opted_count": opted_count,
+                        },
+                    )
+                except Exception:
+                    pass
+            except Exception as e:
+                logger.error(f"Failed to apply SMS opt-out for contact {contact_id}: {e}")
+
         # Apply lifecycle tags for primary lead (best-effort)
         if primary_lead.ghl_contact_id:
             try:
@@ -219,6 +279,10 @@ def ghl_webhook(request):
                 description=f"SMS reply received: {(message_body or '')[:100]}{sibling_note}",
                 metadata={
                     "contact_id": contact_id,
+                    # Full inbound body persisted (not just a preview) so reply
+                    # history exists locally from now on. message_preview kept for
+                    # backward compatibility with any existing readers.
+                    "message_body": message_body or "",
                     "message_preview": (message_body or "")[:200],
                     "all_lead_ids": lead_ids_updated,
                 },
