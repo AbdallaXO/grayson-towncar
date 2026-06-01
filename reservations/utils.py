@@ -18,6 +18,32 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# After-hours surcharge: flat fee per leg whose pickup falls in the late-night
+# window (10 PM-6 AM). Applied at booking by extra_charges() and reconciled when
+# a flight delay shifts a pickup into/out of the window.
+AFTERHOURS_FEE_AMOUNT = Decimal("20.00")
+AFTERHOURS_START = time(22, 0)  # 10:00 PM inclusive
+AFTERHOURS_END = time(6, 0)     # 6:00 AM exclusive
+
+# Future toggle: when True, a day-of detected after-hours fee is charged +
+# emailed automatically (on the pickup day only) instead of waiting for a
+# dispatcher to click the flag. Ships OFF — founder wants the manual flag first
+# ("not automatic yet and later we can decide"). Flipping this is the single
+# switch that turns the manual one-click action into the auto path.
+AFTERHOURS_AUTO_CHARGE = False
+
+
+def is_afterhours_time(pickup_time):
+    """True if a pickup time falls in the late-night window (>=10 PM or <6 AM)."""
+    if pickup_time is None:
+        return False
+    return pickup_time >= AFTERHOURS_START or pickup_time < AFTERHOURS_END
+
+
+def afterhours_fee_owed(pickup_time):
+    """Return the after-hours fee a leg SHOULD carry for the given pickup time."""
+    return AFTERHOURS_FEE_AMOUNT if is_afterhours_time(pickup_time) else Decimal("0.00")
+
 
 def _run_in_background(func, *args, **kwargs):
     """Run a function in a background daemon thread to avoid blocking the request."""
@@ -511,8 +537,15 @@ def adjust_reservation_for_stop_fee_delta(reservation, fee_delta):
 def extra_charges(reservation):
     total_extra = Decimal(0)
     for leg in reservation.legs.all():
-        if leg.pickup_time >= time(22, 0) or leg.pickup_time < time(6, 0):
-            total_extra += Decimal(20.00)
+        # Stamp the per-leg after-hours marker so a later reconcile pass (when a
+        # flight delay shifts the pickup) knows this $20 is already collected and
+        # does not double-charge. The fee is baked into additional_charges here.
+        desired = afterhours_fee_owed(leg.pickup_time)
+        if (leg.afterhours_fee or Decimal("0.00")) != desired:
+            leg.afterhours_fee = desired
+            leg.save(update_fields=["afterhours_fee"])
+        if desired:
+            total_extra += AFTERHOURS_FEE_AMOUNT
             logger.info(
                 f"Added ${total_extra} on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
             )

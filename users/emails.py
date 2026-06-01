@@ -132,6 +132,51 @@ def send_reservation_confirmation(reservation, sent_by=None):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
+def send_afterhours_fee_notice(reservation, leg, amount, sent_by=None):
+    """Notify the customer that an after-hours service fee was applied because the
+    pickup falls in the late-night window (10 PM-6 AM) — typically after a flight
+    delay moved the arrival past 10 PM. Professional, automated-style notice.
+    Runs in a background thread with retry."""
+    logger.info(
+        f"Preparing to send after-hours fee notice for reservation {reservation.id} leg {leg.id}"
+    )
+    subject = f"Update to your Grayson Towncar reservation #{reservation.id}"
+
+    def _send_email():
+        try:
+            context = {
+                "reservation": reservation,
+                "leg": leg,
+                "amount": amount,
+                "date": timezone.localdate(),
+            }
+            from_email = "reservations@graysontowncar.com"
+            to = [reservation.customer.email]
+            html_content = render_to_string("users/afterhours_fee_notice.html", context)
+
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+
+            logger.info(
+                f"After-hours fee notice sent for reservation {reservation.uuid} leg {leg.id}"
+            )
+            log_email_sent(
+                email_type="afterhours_fee",
+                recipient_email=reservation.customer.email,
+                subject=subject,
+                sent_by=sent_by,
+                reservation=reservation,
+            )
+        except Exception as e:
+            logger.exception(
+                f"Error sending after-hours fee notice for reservation {reservation.uuid}: {e}"
+            )
+            raise
+
+    _send_email_with_retry(_send_email, max_retries=3)
+
+
 def send_reservation_confirmation_custom_recipient(reservation, recipient_email, sender_name=None, sent_by=None):
     """
     Send reservation confirmation email to a custom recipient.

@@ -1,0 +1,152 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.tco-grid { display:grid; grid-template-columns: 1fr; gap:1.25rem; }
+.tco-card { background:#fff; border:1px solid #e5e7eb; border-radius:.9rem; padding:1.25rem 1.35rem; }
+.tco-live-row { display:flex; align-items:center; justify-content:space-between; padding:.6rem 0; border-bottom:1px solid #f1f1f1; gap:1rem; }
+.tco-live-row:last-child { border-bottom:0; }
+.tco-name { font-weight:700; color:#111827; }
+.tco-elapsed { font-variant-numeric:tabular-nums; font-weight:800; color:#111827; }
+.tco-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:.5rem; }
+.tco-dot.in { background:#C9A227; }
+.tco-dot.brk { background:#0dcaf0; }
+.tco-total td { font-weight:800; border-top:2px solid #111827; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+      <div>
+        <h1 class="mb-1 fw-bold"><i class="bi bi-clock-history me-2"></i>Staff Time Clock</h1>
+        <p class="text-muted mb-0">Who's on now, and hours from
+          <span class="fw-bold text-dark">{{ start_date|date:"M j" }}</span> to
+          <span class="fw-bold text-dark">{{ end_date|date:"M j, Y" }}</span></p>
+      </div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="btn-group btn-group-sm">
+          <a href="?range=1" class="btn {% if is_preset_range and range_days == 1 %}btn-dark{% else %}btn-outline-dark{% endif %}">Today</a>
+          <a href="?range=7" class="btn {% if is_preset_range and range_days == 7 %}btn-dark{% else %}btn-outline-dark{% endif %}">7 days</a>
+          <a href="?range=14" class="btn {% if is_preset_range and range_days == 14 %}btn-dark{% else %}btn-outline-dark{% endif %}">14 days</a>
+          <a href="?range=30" class="btn {% if is_preset_range and range_days == 30 %}btn-dark{% else %}btn-outline-dark{% endif %}">30 days</a>
+        </div>
+        <a href="{% url 'timeclock_export_csv' %}{% if export_query %}?{{ export_query }}{% endif %}"
+           class="btn btn-sm btn-success"><i class="bi bi-download me-1"></i>Export CSV</a>
+      </div>
+    </div>
+
+    <form method="get" class="row g-2 align-items-end mb-4" style="max-width:520px;">
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-1">From</label>
+        <input type="date" name="start" value="{{ start_date|date:'Y-m-d' }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-1">To</label>
+        <input type="date" name="end" value="{{ end_date|date:'Y-m-d' }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto"><button class="btn btn-sm btn-dark">Apply</button></div>
+    </form>
+
+    <div class="tco-grid">
+      <!-- Live: on the clock now -->
+      <div class="tco-card">
+        <h6 class="fw-bold text-uppercase text-muted mb-3" style="letter-spacing:.04em;">
+          <i class="bi bi-broadcast me-1"></i>On the clock now
+          <span class="badge bg-dark ms-1">{{ live|length }}</span>
+        </h6>
+        {% for p in live %}
+        <div class="tco-live-row">
+          <div>
+            <span class="tco-dot {% if p.on_break %}brk{% else %}in{% endif %}"></span>
+            <span class="tco-name">{{ p.name }}</span>
+            {% if p.on_break %}
+              <span class="badge bg-info text-dark ms-1">On break</span>
+            {% else %}
+              <span class="badge ms-1" style="background:#C9A227;color:#1a1d21;">Working</span>
+            {% endif %}
+            <span class="text-muted small ms-2">since {{ p.since|time:"g:i A" }}</span>
+          </div>
+          <div class="text-end">
+            <div class="tco-elapsed tco-live-elapsed" data-since-ms="{{ p.since_ms }}">0:00:00</div>
+            <div class="text-muted small">net today: {{ p.net_hm }}</div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-muted text-center py-3">Nobody is clocked in right now.</div>
+        {% endfor %}
+      </div>
+
+      <!-- Report: hours by staff -->
+      <div class="tco-card">
+        <h6 class="fw-bold text-uppercase text-muted mb-3" style="letter-spacing:.04em;">
+          <i class="bi bi-table me-1"></i>Hours by staff
+        </h6>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr class="text-muted small">
+              <th>Staff</th>
+              <th class="text-center">Shifts</th>
+              <th class="text-end">Gross</th>
+              <th class="text-end">Break</th>
+              <th class="text-end">Net (paid)</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              {% for r in rows %}
+              <tr>
+                <td class="fw-semibold">{{ r.name }}</td>
+                <td class="text-center">{{ r.shifts }}</td>
+                <td class="text-end text-muted">{{ r.gross_hm }}</td>
+                <td class="text-end text-muted">{{ r.break_hm }}</td>
+                <td class="text-end fw-bold">{{ r.net_hm }}</td>
+                <td>
+                  {% if r.has_open %}<i class="bi bi-broadcast text-success" title="Has an open shift"></i>{% endif %}
+                  {% if r.has_auto_closed %}<i class="bi bi-exclamation-triangle text-warning" title="Has an auto-closed shift — please verify"></i>{% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="text-muted text-center py-3">No shifts in this range.</td></tr>
+              {% endfor %}
+            </tbody>
+            {% if rows %}
+            <tfoot><tr class="tco-total">
+              <td>Total</td>
+              <td class="text-center">{{ totals.shifts }}</td>
+              <td class="text-end">{{ totals.gross_hm }}</td>
+              <td class="text-end">{{ totals.break_hm }}</td>
+              <td class="text-end">{{ totals.net_hm }}</td>
+              <td></td>
+            </tr></tfoot>
+            {% endif %}
+          </table>
+        </div>
+        <p class="text-muted small mt-2 mb-0">Breaks are unpaid; <b>Net</b> is the payable total. A shift that crosses midnight counts on the day it started (Eastern time).</p>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  function fmt(ms) {
+    let s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  const els = Array.from(document.querySelectorAll('.tco-live-elapsed'));
+  function tick() { els.forEach(el => { el.textContent = fmt(parseInt(el.dataset.sinceMs, 10)); }); }
+  tick();
+  setInterval(tick, 1000);
+  // Refresh the live panel every 60s so new clock-ins/outs appear.
+  setTimeout(function () { window.location.reload(); }, 60000);
+})();
+</script>
+{% endblock %}

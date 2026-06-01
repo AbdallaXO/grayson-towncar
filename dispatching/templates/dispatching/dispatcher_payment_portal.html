@@ -6,76 +6,190 @@
 
 {% block extra_css %}
   <style>
-      .field-hidden {
-          display: none;
-      }
+    .field-hidden { display: none !important; }
+
+    .pay-console { --gold:#C9A227; --gold-dark:#b8911f; --ink:#1a1d21; }
+    .pay-console .pay-eyebrow {
+      font-size:.7rem; letter-spacing:.14em; text-transform:uppercase;
+      color:#9aa0a6; font-weight:700; margin-bottom:.15rem;
+    }
+    .pay-console .pay-title { font-size:1.5rem; font-weight:800; color:var(--ink); margin:0; letter-spacing:-.01em; }
+
+    .pay-console .pay-card {
+      border:0; border-radius:18px; overflow:hidden; background:#fff;
+      box-shadow:0 14px 40px rgba(26,29,33,.10), 0 2px 6px rgba(26,29,33,.05);
+    }
+    .pay-console .pay-card-top { height:4px; background:linear-gradient(90deg,var(--gold),#e6c558 55%,var(--gold)); }
+    .pay-console .pay-head { padding:1.4rem 1.6rem; background:linear-gradient(180deg,#fbfbfc,#fff); border-bottom:1px solid #eef0f2; }
+    .pay-console .pay-body { padding:1.6rem; }
+
+    /* Summary chips */
+    .pay-console .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.65rem; margin-top:1.1rem; }
+    .pay-console .summary-item { background:#f6f7f9; border:1px solid #eef0f2; border-radius:12px; padding:.65rem .8rem; }
+    .pay-console .summary-label { font-size:.66rem; text-transform:uppercase; letter-spacing:.08em; color:#9aa0a6; font-weight:700; margin-bottom:.15rem; }
+    .pay-console .summary-value { font-weight:700; color:var(--ink); font-size:.98rem; line-height:1.2; }
+    .pay-console .summary-value.amount { color:var(--gold-dark); }
+    .pay-console .card-chip { display:inline-flex; align-items:center; gap:.45rem; max-width:100%; }
+    .pay-console .card-chip .brand { background:var(--ink); color:#fff; font-size:.6rem; font-weight:700; padding:.16rem .42rem; border-radius:5px; letter-spacing:.05em; text-transform:uppercase; flex:0 0 auto; }
+    .pay-console .card-chip .brand.link { background:#1a8f5f; }
+    .pay-console .card-chip .digits { letter-spacing:.06em; }
+    .pay-console .card-chip .digits.email { letter-spacing:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.85rem; }
+    .pay-console .card-chip .exp { color:#9aa0a6; font-weight:600; font-size:.82rem; }
+    .pay-console .summary-value .more { font-size:.74rem; color:#9aa0a6; font-weight:600; margin-left:.3rem; }
+
+    /* Field labels */
+    .pay-console .field-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#5b6168; margin-bottom:.45rem; display:block; }
+    .pay-console .form-select, .pay-console .form-control { border-radius:11px; border-color:#dfe2e6; }
+    .pay-console .form-select:focus, .pay-console .form-control:focus { border-color:var(--gold); box-shadow:0 0 0 .2rem rgba(201,162,39,.18); }
+    .pay-console .note { font-size:.8rem; color:#7a8086; margin-top:.4rem; }
+    .pay-console .note .bi, .pay-console .note .fa-info-circle { color:var(--gold); }
+
+    /* Amount with $ prefix */
+    .pay-console .amount-wrap .input-group-text { background:var(--ink); color:var(--gold); font-weight:800; border:0; font-size:1.25rem; border-radius:11px 0 0 11px; padding:0 1rem; }
+    .pay-console .amount-wrap .form-control { font-size:1.6rem; font-weight:800; color:var(--ink); border-left:0; border-radius:0 11px 11px 0; }
+
+    /* Selectable leg cards */
+    .pay-console .leg-option {
+      display:flex; gap:.85rem; align-items:flex-start;
+      border:1.5px solid #e7e9ec; border-radius:13px; padding:.85rem 1rem;
+      margin-bottom:.6rem; cursor:pointer; transition:border-color .15s ease, background .15s ease, box-shadow .15s ease; margin-left:0; margin-right:0;
+    }
+    .pay-console .leg-option:last-child { margin-bottom:0; }
+    .pay-console .leg-option:hover { border-color:var(--gold); background:#fffdf3; }
+    .pay-console .leg-option.selected,
+    .pay-console .leg-option:has(input:checked) {
+      border-color:var(--gold); background:#fdf8e6; box-shadow:0 0 0 1.5px var(--gold) inset;
+    }
+    .pay-console .leg-option .form-check-input { width:1.15em; height:1.15em; margin-top:.15rem; flex:0 0 auto; cursor:pointer; }
+    .pay-console .leg-option .form-check-input:checked { background-color:var(--gold); border-color:var(--gold); }
+    .pay-console .leg-option .form-check-input:focus { border-color:var(--gold); box-shadow:0 0 0 .2rem rgba(201,162,39,.2); }
+    .pay-console .leg-icon { color:var(--gold); font-size:1.05rem; margin-top:.1rem; flex:0 0 auto; }
+    .pay-console .leg-title { font-weight:700; color:var(--ink); line-height:1.2; }
+    .pay-console .leg-sub { font-size:.82rem; color:#7a8086; line-height:1.35; }
+
+    /* Buttons */
+    .pay-console .btn-pay {
+      background:var(--gold); color:var(--ink); font-weight:800; border:0; border-radius:13px;
+      padding:.95rem; letter-spacing:.01em; box-shadow:0 6px 18px rgba(201,162,39,.32); transition:all .15s ease;
+    }
+    .pay-console .btn-pay:hover { background:var(--gold-dark); color:var(--ink); box-shadow:0 10px 26px rgba(201,162,39,.42); transform:translateY(-1px); }
+    .pay-console .btn-pay:active { transform:translateY(0); }
+    .pay-console .btn-cancel { border-radius:13px; padding:.72rem; font-weight:600; border-color:#dfe2e6; color:#5b6168; }
+    .pay-console .btn-cancel:hover { background:#f6f7f9; color:var(--ink); }
+    .pay-console .secure { font-size:.78rem; color:#9aa0a6; }
+    .pay-console .secure .bi { color:#46a35e; }
+
+    /* Driver chip on leg cards */
+    .pay-console .leg-driver { display:inline-flex; align-items:center; font-size:.84rem; font-weight:700; color:var(--ink); background:#eef0f2; border-radius:7px; padding:.16rem .58rem; margin-top:.4rem; }
+    .pay-console .leg-driver .bi { color:var(--gold); }
+    .pay-console .leg-driver.none { color:#9aa0a6; background:#f6f7f9; font-style:italic; font-weight:500; }
+    .pay-console .leg-driver.none .bi { color:#b9bdc2; }
+
+    /* Gratuity quick-pick chips */
+    .pay-console .grat-suggest { margin-top:.7rem; }
+    .pay-console .grat-chips { display:flex; gap:.5rem; flex-wrap:wrap; }
+    .pay-console .grat-chip { flex:1 1 0; min-width:96px; border:1.5px solid #e7e9ec; background:#fff; border-radius:11px; padding:.5rem .6rem; font-weight:800; color:var(--ink); cursor:pointer; transition:all .15s ease; display:flex; flex-direction:column; align-items:center; line-height:1.15; }
+    .pay-console .grat-chip:hover { border-color:var(--gold); background:#fffdf3; }
+    .pay-console .grat-chip.active { border-color:var(--gold); background:#fdf8e6; box-shadow:0 0 0 1.5px var(--gold) inset; }
+    .pay-console .grat-chip .amt { font-size:.78rem; font-weight:600; color:#7a8086; margin-top:.12rem; }
+    .pay-console .grat-chip.active .amt { color:var(--gold-dark); }
+    .pay-console .grat-chip.custom { flex-direction:row; gap:.35rem; justify-content:center; }
+    .pay-console .grat-note { font-size:.82rem; color:#7a8086; margin-top:.55rem; }
+    .pay-console .grat-note strong { color:var(--ink); font-weight:700; }
   </style>
 {% endblock extra_css %}
 
 {% block content %}
-  <div class="container-fluid container-md py-3 py-md-5">
+  <div class="pay-console container-fluid container-md py-3 py-md-5">
     <div class="row">
-      <div class="col-12 col-md-8 offset-md-2">
-        <h2 class="mb-4">Dispatcher Payment Actions</h2>
-        <div class="card">
-          <div class="card-header">
-            Reservation ID: <strong>{{ reservation.id }}</strong> ({{ reservation.uuid }})
-          </div>
-          <div class="card-body">
-            <p>
-              <strong>Customer:</strong> {{ reservation.customer.get_full_name }}
-            </p>
-            <p>
-              <strong>Current Total Price:</strong> ${{ reservation.total_price|stringformat:".2f" }}
-            </p>
-            <p>
-              <strong>Card on File:</strong> {{ reservation.customer.card_brand|title }} ending in {{ reservation.customer.card_last4|default:"None" }} (Exp: {{ reservation.customer.card_exp_month }}/{{ reservation.customer.card_exp_year }})
-            </p>
-            <hr>
+      <div class="col-12 col-md-9 col-lg-7 offset-md-1 offset-lg-2 mx-auto">
+        <div class="pay-card">
+          <div class="pay-card-top"></div>
 
+          <!-- Header -->
+          <div class="pay-head">
+            <div class="pay-eyebrow"><i class="bi bi-credit-card-2-front me-1"></i>Dispatcher Payment</div>
+            <h1 class="pay-title">Payment Actions</h1>
+
+            <div class="summary-grid">
+              <div class="summary-item">
+                <div class="summary-label">Customer</div>
+                <div class="summary-value">{{ reservation.customer.get_full_name|default:"—" }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Reservation</div>
+                <div class="summary-value">#{{ reservation.id }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Current Total</div>
+                <div class="summary-value amount">${{ reservation.total_price|stringformat:".2f" }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">On File</div>
+                <div class="summary-value">
+                  {% if has_saved_cards %}
+                    {% for method in payment_methods %}
+                      {% if forloop.first %}
+                        {% if method.type == 'card' %}
+                          <span class="card-chip">
+                            <span class="brand">{{ method.card.brand|default:"Card" }}</span>
+                            <span class="digits">•••• {{ method.card.last4 }}</span>
+                            {% if method.card.exp_month %}<span class="exp">{{ method.card.exp_month }}/{{ method.card.exp_year }}</span>{% endif %}
+                          </span>
+                        {% elif method.type == 'link' %}
+                          <span class="card-chip">
+                            <span class="brand link">Link</span>
+                            <span class="digits email" title="{{ method.link.email }}">{{ method.link.email|default:"Link account" }}</span>
+                          </span>
+                        {% elif method.type == 'us_bank_account' %}
+                          <span class="card-chip">
+                            <span class="brand">Bank</span>
+                            <span class="digits">•••• {{ method.us_bank_account.last4 }}</span>
+                          </span>
+                        {% else %}
+                          <span class="card-chip"><span class="brand">{{ method.type|title }}</span></span>
+                        {% endif %}
+                      {% endif %}
+                    {% endfor %}
+                    {% if payment_methods|length > 1 %}<span class="more">+{{ payment_methods|length|add:"-1" }} more</span>{% endif %}
+                  {% else %}
+                    <span class="text-muted">None on file</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="pay-body">
             {% if messages %}
               {% for message in messages %}
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                  {{ message }}
-                  <button type="button"
-                          class="btn-close"
-                          data-bs-dismiss="alert"
-                          aria-label="Close"></button>
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
               {% endfor %}
             {% endif %}
 
             <form method="post" id="dispatcherActionForm">
               {% csrf_token %}
+
               <div class="mb-3">
-                <label for="action" class="form-label">
-                  <strong>Select Action:</strong>
-                </label>
+                <label for="action" class="field-label">Select Action</label>
                 <select name="action" id="action" class="form-select form-select-lg" required>
-                  <option value="">-- Please choose --</option>
-                  <option value="make_payment"
-                          {% if selected_action == 'make_payment' %}selected{% endif %}>Make a Payment</option>
-                  <option value="save_card"
-                          {% if selected_action == 'save_card' %}selected{% endif %}>
-                    Save / Update Card on File
-                  </option>
+                  <option value="">— Please choose —</option>
+                  <option value="make_payment" {% if selected_action == 'make_payment' %}selected{% endif %}>Make a Payment</option>
+                  <option value="save_card" {% if selected_action == 'save_card' %}selected{% endif %}>Save / Update Card on File</option>
                   {% if has_saved_cards %}
-                    <option value="use_saved_card"
-                            {% if selected_action == 'use_saved_card' %}selected{% endif %}>
-                      Use Saved Payment Method
-                    </option>
+                    <option value="use_saved_card" {% if selected_action == 'use_saved_card' %}selected{% endif %}>Use Saved Payment Method</option>
                   {% endif %}
                 </select>
               </div>
 
               {% if has_saved_cards %}
                 <div class="mb-3 field-hidden" id="saved_cards_field_group">
-                  <label for="payment_method_id" class="form-label">
-                    <strong>Select Saved Payment Method:</strong>
-                  </label>
-                  <select name="payment_method_id"
-                          id="payment_method_id"
-                          class="form-select form-select-lg">
+                  <label for="payment_method_id" class="field-label">Saved Payment Method</label>
+                  <select name="payment_method_id" id="payment_method_id" class="form-select form-select-lg">
                     {% for method in payment_methods %}
                       <option value="{{ method.id }}">
                         {% if method.type == 'card' %}
@@ -93,39 +207,94 @@
                 </div>
               {% endif %}
 
-              <div class="mb-3 field-hidden" id="amount_field_group">
-                <label for="amount" class="form-label">
-                  <strong>Payment Amount (USD):</strong>
-                </label>
-                <input type="number"
-                       name="amount"
-                       id="amount"
-                       class="form-control form-control-lg"
-                       step="0.01"
-                       min="0.01"
-                       value="{{ entered_amount|default:reservation.total_price|stringformat:'.2f' }}">
-              </div>
-
-              <div class="mb-3 field-hidden" id="description_field_group">
-                <label for="description" class="form-label">
-                  <strong>Receipt Description:</strong>
-                </label>
-                <input type="text"
-                       name="description"
-                       id="description"
-                       class="form-control form-control-lg"
-                       placeholder="Trip Fare for Res ID #50{{ reservation.id }}"
-                       value="{{ entered_description|default:'' }}">
-                <div class="form-text">
-                  <i class="fas fa-info-circle text-info"></i>
-                  Auto-generated description: "Trip Fare for Res ID #50{{ reservation.id }}". You can edit this before proceeding.
+              <div class="mb-3 field-hidden" id="charge_type_field_group">
+                <label for="charge_type" class="field-label">Charge Type</label>
+                <select name="charge_type" id="charge_type" class="form-select form-select-lg">
+                  <option value="additional">Additional Charge</option>
+                  <option value="gratuity">Gratuity (tip)</option>
+                </select>
+                <div class="note">
+                  <i class="bi bi-info-circle-fill me-1"></i>“Gratuity” records the amount as a tip automatically and
+                  routes it to the right driver’s pay — no second edit of the reservation needed.
                 </div>
               </div>
 
-              <button type="submit" class="btn btn-primary btn-lg w-100" id="submit_button">Proceed to Stripe</button>
-              <a href="#"
-                 onclick="window.history.back(); return false;"
-                 class="btn btn-outline-secondary btn-lg w-100 mt-2">Cancel</a>
+              <div class="mb-3 field-hidden" id="additional_subtype_field_group">
+                <label for="additional_subtype" class="field-label">What is this charge for?</label>
+                <select name="additional_subtype" id="additional_subtype" class="form-select form-select-lg">
+                  <option value="extra_stop">Extra Stop</option>
+                  <option value="vehicle_upgrade">Vehicle Upgrade</option>
+                  <option value="afterhour_fee">After-Hour Fee</option>
+                  <option value="other">Other</option>
+                </select>
+                <div class="note"><i class="bi bi-info-circle-fill me-1"></i>Enter the extra amount below — it’s added to the reservation total.</div>
+              </div>
+
+              {% with legs=reservation.legs.all %}
+              {% if legs|length > 1 %}
+              <div class="mb-3 field-hidden" id="gratuity_target_field_group">
+                <label class="field-label">Apply Gratuity To</label>
+                <label class="leg-option">
+                  <input class="form-check-input leg-radio" type="radio" name="gratuity_target" value="whole" checked>
+                  <i class="bi bi-diagram-3-fill leg-icon"></i>
+                  <span>
+                    <span class="leg-title">Reservation as a whole</span><br>
+                    <span class="leg-sub">Split evenly across all legs</span>
+                  </span>
+                </label>
+                {% for leg in legs %}
+                <label class="leg-option">
+                  <input class="form-check-input leg-radio" type="radio" name="gratuity_target" value="{{ leg.id }}">
+                  <i class="bi bi-geo-alt-fill leg-icon"></i>
+                  <span>
+                    <span class="leg-title">{{ leg.pickup_date|date:"M j, Y" }} · {{ leg.pickup_time|time:"g:i A" }}</span><br>
+                    <span class="leg-sub">{{ leg.pickup_location }} → {{ leg.dropoff_location }}</span><br>
+                    {% if leg.driver %}<span class="leg-driver"><i class="bi bi-person-fill me-1"></i>{{ leg.driver }}</span>
+                    {% else %}<span class="leg-driver none"><i class="bi bi-person-dash me-1"></i>No driver yet</span>{% endif %}
+                  </span>
+                </label>
+                {% endfor %}
+                <div class="note">
+                  <i class="bi bi-lightbulb-fill me-1"></i>A tip for one leg goes entirely to that leg’s driver (it won’t be split across the trip).
+                </div>
+              </div>
+              {% endif %}
+              {% endwith %}
+
+              <div class="mb-3 field-hidden amount-wrap" id="amount_field_group">
+                <label for="amount" class="field-label">Payment Amount</label>
+                <div class="input-group input-group-lg">
+                  <span class="input-group-text">$</span>
+                  <input type="number" name="amount" id="amount" class="form-control"
+                         step="0.01" min="0.01" placeholder="0.00"
+                         value="{{ entered_amount|default:reservation.total_price|stringformat:'.2f' }}">
+                </div>
+                <div class="grat-suggest field-hidden" id="gratuity_suggest">
+                  <div class="grat-chips">
+                    <button type="button" class="grat-chip active" data-pct="20">20%<span class="amt"></span></button>
+                    <button type="button" class="grat-chip" data-pct="25">25%<span class="amt"></span></button>
+                    <button type="button" class="grat-chip custom" data-pct="custom"><i class="bi bi-pencil"></i>Custom</button>
+                  </div>
+                  <div class="grat-note" id="grat_note"></div>
+                </div>
+              </div>
+
+              <div class="mb-3 field-hidden" id="description_field_group">
+                <label for="description" class="field-label">Receipt Description</label>
+                <input type="text" name="description" id="description" class="form-control form-control-lg"
+                       placeholder="Trip Fare for Res ID #50{{ reservation.id }}"
+                       value="{{ entered_description|default:'' }}">
+                <div class="note"><i class="bi bi-receipt me-1"></i>Shown to the customer on their receipt. You can edit it before proceeding.</div>
+              </div>
+
+              <button type="submit" class="btn btn-pay btn-lg w-100 mt-2" id="submit_button">
+                <i class="bi bi-lock-fill me-2"></i><span id="submit_button_label">Proceed to Stripe</span>
+              </button>
+              <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary btn-cancel btn-lg w-100 mt-2">Cancel</a>
+
+              <div class="text-center mt-3 secure">
+                <i class="bi bi-shield-lock-fill me-1"></i>Payments are processed securely via Stripe.
+              </div>
             </form>
           </div>
         </div>
@@ -141,7 +310,141 @@
           const descriptionFieldGroup = document.getElementById('description_field_group');
           const descriptionInput = document.getElementById('description');
           const savedCardsFieldGroup = document.getElementById('saved_cards_field_group');
+          const chargeTypeFieldGroup = document.getElementById('charge_type_field_group');
+          const chargeTypeSelect = document.getElementById('charge_type');
+          const gratuityTargetFieldGroup = document.getElementById('gratuity_target_field_group');
           const submitButton = document.getElementById('submit_button');
+          const submitLabel = document.getElementById('submit_button_label');
+
+          const TRIP_DESC = `Trip Fare for Res ID #50{{ reservation.id }}`;
+          const GRATUITY_DESC = `Gratuity for Res ID #50{{ reservation.id }}`;
+
+          // ── Gratuity suggestion (% of fare, or custom) ──
+          const BASE_PRICE = parseFloat("{{ reservation.base_price|stringformat:'.2f' }}")
+                             || parseFloat("{{ reservation.total_price|stringformat:'.2f' }}") || 0;
+          const LEG_COUNT = parseInt("{{ reservation.legs.count }}", 10) || 1;
+          const TOTAL_DEFAULT = "{{ reservation.total_price|stringformat:'.2f' }}";
+          const gratSuggest = document.getElementById('gratuity_suggest');
+          const gratNote = document.getElementById('grat_note');
+          const gratChips = Array.prototype.slice.call(document.querySelectorAll('.grat-chip'));
+          const amountLabel = document.querySelector('label[for="amount"]');
+          let gratPct = 20;  // active gratuity percentage, or the string 'custom'
+
+          // ── Additional-charge sub-types ──
+          const additionalSubtypeFieldGroup = document.getElementById('additional_subtype_field_group');
+          const additionalSubtypeSelect = document.getElementById('additional_subtype');
+          const ADDITIONAL_DESC = {
+              extra_stop: `Extra Stop for Res ID #50{{ reservation.id }}`,
+              vehicle_upgrade: `Vehicle Upgrade for Res ID #50{{ reservation.id }}`,
+              afterhour_fee: `After-Hour Fee for Res ID #50{{ reservation.id }}`,
+              other: `Additional Charge for Res ID #50{{ reservation.id }}`,
+          };
+
+          // The amount box is "auto" (a suggestion) until the dispatcher edits it.
+          let amountAuto = true;
+          function setAmount(value) { amountInput.value = value; amountAuto = true; }
+
+          function isGratuity() { return chargeTypeSelect && chargeTypeSelect.value === 'gratuity'; }
+          function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
+
+          // Base the tip % on the fare; a specific leg gets an even share of it.
+          function gratBase() {
+              const checked = document.querySelector('input[name="gratuity_target"]:checked');
+              if (checked && checked.value !== 'whole') return BASE_PRICE / LEG_COUNT;
+              return BASE_PRICE;
+          }
+
+          function recomputeGrat() {
+              if (!isGratuity()) return;
+              const base = gratBase();
+              gratChips.forEach(function (chip) {
+                  const pct = chip.dataset.pct;
+                  chip.classList.toggle('active', String(gratPct) === pct);
+                  const amtEl = chip.querySelector('.amt');
+                  if (amtEl && pct !== 'custom') amtEl.textContent = money(base * parseFloat(pct) / 100);
+              });
+              if (gratPct !== 'custom') {
+                  const tip = Math.round(base * gratPct) / 100;
+                  setAmount(tip.toFixed(2));
+                  gratNote.innerHTML = '<strong>' + gratPct + '%</strong> of ' + money(base)
+                                     + ' fare = <strong>' + money(tip) + '</strong>';
+              } else {
+                  gratNote.textContent = 'Enter a custom tip amount above.';
+              }
+          }
+
+          gratChips.forEach(function (chip) {
+              chip.addEventListener('click', function () {
+                  const pct = chip.dataset.pct;
+                  if (pct === 'custom') {
+                      gratPct = 'custom';
+                      gratChips.forEach(function (c) { c.classList.toggle('active', c === chip); });
+                      gratNote.textContent = 'Enter a custom tip amount above.';
+                      amountInput.focus();
+                      amountInput.select();
+                  } else {
+                      gratPct = parseFloat(pct);
+                      recomputeGrat();
+                  }
+              });
+          });
+
+          // Any manual edit marks the amount as dispatcher-entered (no more auto-fill).
+          amountInput.addEventListener('input', function () {
+              amountAuto = false;
+              if (isGratuity()) {
+                  gratPct = 'custom';
+                  gratChips.forEach(function (c) { c.classList.toggle('active', c.dataset.pct === 'custom'); });
+                  gratNote.textContent = 'Custom tip amount.';
+              }
+          });
+
+          // Track the last auto-filled description so we only overwrite our own
+          // auto value (never the dispatcher's manual edits).
+          let lastAutoDesc = '';
+          function setAutoDescription(value) {
+              const cur = descriptionInput.value.trim();
+              if (!cur || cur === lastAutoDesc) {
+                  descriptionInput.value = value;
+                  lastAutoDesc = value;
+              }
+          }
+
+          function applyAdditionalSubtype() {
+              const sub = additionalSubtypeSelect ? additionalSubtypeSelect.value : 'other';
+              setAutoDescription(ADDITIONAL_DESC[sub] || ADDITIONAL_DESC.other);
+              // Don't pre-fill the reservation total for an extra charge. After-hour
+              // fee is the one with a known amount, so suggest $20; others start blank.
+              if (amountAuto) setAmount(sub === 'afterhour_fee' ? '20.00' : '');
+          }
+
+          function toggleChargeType() {
+              const grat = isGratuity();
+              amountAuto = true;  // a fresh charge-type pick re-arms the suggestion
+              if (gratuityTargetFieldGroup) gratuityTargetFieldGroup.classList.toggle('field-hidden', !grat);
+              if (gratSuggest) gratSuggest.classList.toggle('field-hidden', !grat);
+              if (additionalSubtypeFieldGroup) additionalSubtypeFieldGroup.classList.toggle('field-hidden', grat);
+              if (amountLabel) amountLabel.textContent = grat ? 'Gratuity Amount' : 'Payment Amount';
+              if (grat) {
+                  setAutoDescription(GRATUITY_DESC);
+                  if (gratPct === 'custom') gratPct = 20;
+                  recomputeGrat();
+              } else {
+                  applyAdditionalSubtype();
+              }
+          }
+
+          // Highlight the selected leg card (fallback for browsers without :has()).
+          function syncLegSelection() {
+              document.querySelectorAll('.leg-option').forEach(function (opt) {
+                  const input = opt.querySelector('input.leg-radio');
+                  opt.classList.toggle('selected', !!(input && input.checked));
+              });
+          }
+          document.querySelectorAll('input.leg-radio').forEach(function (r) {
+              r.addEventListener('change', function () { syncLegSelection(); recomputeGrat(); });
+          });
+          syncLegSelection();
 
           function togglePaymentFields() {
               const selectedAction = actionSelect.value;
@@ -149,43 +452,45 @@
               // Reset display for all fields
               amountFieldGroup.classList.add('field-hidden');
               descriptionFieldGroup.classList.add('field-hidden');
-              if (savedCardsFieldGroup) {
-                  savedCardsFieldGroup.classList.add('field-hidden');
-              }
+              if (savedCardsFieldGroup) savedCardsFieldGroup.classList.add('field-hidden');
+              if (chargeTypeFieldGroup) chargeTypeFieldGroup.classList.add('field-hidden');
+              if (additionalSubtypeFieldGroup) additionalSubtypeFieldGroup.classList.add('field-hidden');
+              if (gratuityTargetFieldGroup) gratuityTargetFieldGroup.classList.add('field-hidden');
+              if (gratSuggest) gratSuggest.classList.add('field-hidden');
+              if (amountLabel) amountLabel.textContent = 'Payment Amount';
 
               // Required fields reset
               amountInput.required = false;
               descriptionInput.required = false;
 
               // Set button text
-              submitButton.textContent = 'Proceed to Stripe';
+              submitLabel.textContent = 'Proceed to Stripe';
 
               if (selectedAction === 'make_payment') {
                   amountFieldGroup.classList.remove('field-hidden');
                   descriptionFieldGroup.classList.remove('field-hidden');
                   amountInput.required = true;
                   descriptionInput.required = true;
-                  // Auto-generate description if field is empty
-                  if (!descriptionInput.value.trim()) {
-                      descriptionInput.value = `Trip Fare for Res ID #50{{ reservation.id }}`;
-                  }
+                  setAmount(TOTAL_DEFAULT);
+                  setAutoDescription(TRIP_DESC);
               } else if (selectedAction === 'use_saved_card') {
+                  // Charge Type is shown FIRST; the amount + its specifics follow.
+                  if (chargeTypeFieldGroup) chargeTypeFieldGroup.classList.remove('field-hidden');
                   amountFieldGroup.classList.remove('field-hidden');
                   descriptionFieldGroup.classList.remove('field-hidden');
                   savedCardsFieldGroup.classList.remove('field-hidden');
                   amountInput.required = true;
                   descriptionInput.required = true;
-                  submitButton.textContent = 'Process Payment';
-                  // Auto-generate description if field is empty
-                  if (!descriptionInput.value.trim()) {
-                      descriptionInput.value = `Trip Fare for Res ID #50{{ reservation.id }}`;
-                  }
+                  submitLabel.textContent = 'Process Payment';
+                  toggleChargeType();
               } else if (selectedAction === 'save_card') {
-                  submitButton.textContent = 'Save Card Details';
+                  submitLabel.textContent = 'Save Card Details';
               }
           }
 
           actionSelect.addEventListener('change', togglePaymentFields);
+          if (chargeTypeSelect) chargeTypeSelect.addEventListener('change', toggleChargeType);
+          if (additionalSubtypeSelect) additionalSubtypeSelect.addEventListener('change', applyAdditionalSubtype);
 
           // Initial state on page load (e.g. if form re-rendered after error)
           togglePaymentFields();

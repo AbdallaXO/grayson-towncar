@@ -30,6 +30,7 @@ class OperationalTask(models.Model):
         DRIVER_ASSIGNMENT = "driver_assign", "Driver Assignment"
         CONFIRMATION_TEXTS = "confirmation_texts", "Confirmation Texts"
         CONTACT_FORM = "contact_form", "Contact Us"
+        AFTERHOURS_FEE = "afterhours_fee", "After-Hours Fee"
         MANUAL = "manual", "Manual Task"
 
     class Status(models.TextChoices):
@@ -219,6 +220,7 @@ class OperationalTask(models.Model):
         TaskType.DRIVER_ASSIGNMENT: "bi-person-plus",
         TaskType.CONFIRMATION_TEXTS: "bi-chat-text-fill",
         TaskType.CONTACT_FORM: "bi-envelope-paper",
+        TaskType.AFTERHOURS_FEE: "bi-moon-stars",
         TaskType.MANUAL: "bi-pencil-square",
     }
 
@@ -229,6 +231,7 @@ class OperationalTask(models.Model):
         TaskType.DRIVER_ASSIGNMENT: "#9b59b6",
         TaskType.CONFIRMATION_TEXTS: "#1abc9c",
         TaskType.CONTACT_FORM: "#2ecc71",
+        TaskType.AFTERHOURS_FEE: "#34495e",
         TaskType.MANUAL: "#7f8c8d",
     }
 
@@ -399,3 +402,274 @@ class EmailLog(models.Model):
 
     def __str__(self):
         return f"{self.get_email_type_display()} → {self.recipient_email} @ {self.sent_at:%Y-%m-%d %H:%M}"
+
+
+class TimeClockShift(models.Model):
+    """
+    One clock-in → clock-out span for an office staff member (dispatcher).
+
+    Open shift = ``clock_out_at IS NULL``. Breaks (``TimeClockBreak`` children)
+    are ALWAYS unpaid, so net worked time = gross span − total break time.
+    The state-machine logic that mutates these rows lives in ``ops/services.py``.
+    """
+
+    class State(models.TextChoices):
+        CLOCKED_OUT = "clocked_out", "Clocked Out"
+        CLOCKED_IN = "clocked_in", "Clocked In"
+        ON_BREAK = "on_break", "On Break"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="timeclock_shifts",
+    )
+    clock_in_at = models.DateTimeField(db_index=True)
+    clock_out_at = models.DateTimeField(
+        null=True, blank=True, help_text="NULL while the shift is open."
+    )
+    note = models.TextField(blank=True)
+    auto_closed = models.BooleanField(
+        default=False,
+        help_text="Closed automatically because it was left open too long.",
+    )
+    edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="edited_timeclock_shifts",
+        help_text="Set when an admin corrects the times.",
+    )
+    edited_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-clock_in_at"]
+        indexes = [
+            models.Index(fields=["user", "-clock_in_at"], name="idx_tcshift_user_time"),
+            # Partial index for the hot "who is currently clocked in" query.
+            models.Index(
+                fields=["clock_out_at"],
+                name="idx_tcshift_open",
+                condition=models.Q(clock_out_at__isnull=True),
+            ),
+        ]
+        constraints = [
+            # DB-level guard: a user can have at most one open shift at a time.
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(clock_out_at__isnull=True),
+                name="uniq_open_shift_per_user",
+            ),
+        ]
+        verbose_name = "Time Clock Shift"
+        verbose_name_plural = "Time Clock Shifts"
+
+    def __str__(self):
+        return f"{self.user} — {self.clock_in_at:%m/%d %H:%M}"
+
+    # ── State ──
+    @property
+    def is_open(self):
+        return self.clock_out_at is None
+
+    @property
+    def open_break(self):
+        """The currently-open break, if any. Uses prefetched ``.breaks`` (no extra query)."""
+        for b in self.breaks.all():
+            if b.break_end_at is None:
+                return b
+        return None
+
+    @property
+    def state(self):
+        if not self.is_open:
+            return self.State.CLOCKED_OUT
+        return self.State.ON_BREAK if self.open_break else self.State.CLOCKED_IN
+
+    # ── Durations — every method accepts an explicit ``now`` so callers/tests can pin time. ──
+    def break_seconds(self, now=None):
+        now = now or timezone.now()
+        total = 0.0
+        for b in self.breaks.all():
+            end = b.break_end_at or now
+            total += max(0.0, (end - b.break_start_at).total_seconds())
+        return total
+
+    def gross_seconds(self, now=None):
+        now = now or timezone.now()
+        end = self.clock_out_at or now
+        return max(0.0, (end - self.clock_in_at).total_seconds())
+
+    def worked_seconds(self, now=None):
+        now = now or timezone.now()
+        return max(0.0, self.gross_seconds(now) - self.break_seconds(now))
+
+    @property
+    def gross_minutes(self):
+        return int(self.gross_seconds() // 60)
+
+    @property
+    def break_minutes(self):
+        return int(self.break_seconds() // 60)
+
+    @property
+    def worked_minutes(self):
+        return int(self.worked_seconds() // 60)
+
+
+class TimeClockBreak(models.Model):
+    """One unpaid break within a shift. Open break = ``break_end_at IS NULL``."""
+
+    shift = models.ForeignKey(
+        TimeClockShift,
+        on_delete=models.CASCADE,
+        related_name="breaks",
+    )
+    break_start_at = models.DateTimeField(db_index=True)
+    break_end_at = models.DateTimeField(
+        null=True, blank=True, help_text="NULL while the break is in progress."
+    )
+    auto_closed = models.BooleanField(
+        default=False,
+        help_text="Closed automatically because the shift was clocked out while on break.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["break_start_at"]
+        indexes = [
+            models.Index(fields=["shift", "break_start_at"], name="idx_tcbreak_shift"),
+        ]
+        constraints = [
+            # A shift can have at most one open break at a time.
+            models.UniqueConstraint(
+                fields=["shift"],
+                condition=models.Q(break_end_at__isnull=True),
+                name="uniq_open_break_per_shift",
+            ),
+        ]
+        verbose_name = "Time Clock Break"
+        verbose_name_plural = "Time Clock Breaks"
+
+    def __str__(self):
+        return f"Break {self.break_start_at:%m/%d %H:%M} (shift #{self.shift_id})"
+
+    @property
+    def is_open(self):
+        return self.break_end_at is None
+
+    @property
+    def minutes(self):
+        end = self.break_end_at or timezone.now()
+        return int(max(0.0, (end - self.break_start_at).total_seconds()) // 60)
+
+
+class StaffWeeklySchedule(models.Model):
+    """
+    A dispatcher's planned recurring hours for one weekday (admin-set, view-only
+    for staff). Mirrors drivers.DriverWeeklySchedule but uses TimeField for
+    half-hour precision. Times are Eastern wall-clock. One row per (user, weekday).
+    """
+
+    DAY_CHOICES = [
+        (0, "Monday"),
+        (1, "Tuesday"),
+        (2, "Wednesday"),
+        (3, "Thursday"),
+        (4, "Friday"),
+        (5, "Saturday"),
+        (6, "Sunday"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="weekly_schedule_rows",
+    )
+    day_of_week = models.IntegerField(choices=DAY_CHOICES)
+    is_working = models.BooleanField(default=True)
+    start_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; null when off.")
+    end_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; null when off.")
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "day_of_week")
+        ordering = ["user", "day_of_week"]
+        indexes = [
+            models.Index(fields=["user", "day_of_week"], name="idx_staffwk_user_day"),
+        ]
+        verbose_name = "Staff Weekly Schedule"
+        verbose_name_plural = "Staff Weekly Schedules"
+
+    def __str__(self):
+        day_name = dict(self.DAY_CHOICES).get(self.day_of_week, "?")
+        if not self.is_working:
+            return f"{self.user} — {day_name}: OFF"
+        return f"{self.user} — {day_name}: {self.start_time:%H:%M}–{self.end_time:%H:%M}"
+
+
+class StaffScheduleOverride(models.Model):
+    """
+    A one-off exception to a dispatcher's weekly schedule (admin-set). Takes
+    priority over the weekly row. Single day, or a range via end_date.
+    Mirrors drivers.DriverDateOverride minus the approval workflow.
+    """
+
+    KIND_CHOICES = [
+        ("off", "Off"),
+        ("custom_hours", "Custom hours"),
+        ("note", "Note only"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="schedule_overrides",
+    )
+    date = models.DateField(help_text="First day this override applies.")
+    end_date = models.DateField(
+        null=True, blank=True, help_text="Last day; blank = single day."
+    )
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES, default="off")
+    start_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; for custom_hours.")
+    end_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; for custom_hours.")
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_staff_overrides",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["date", "user"]
+        indexes = [
+            models.Index(fields=["user", "date"], name="idx_staffov_user_date"),
+            models.Index(fields=["user", "date", "end_date"], name="idx_staffov_range"),
+        ]
+        verbose_name = "Staff Schedule Override"
+        verbose_name_plural = "Staff Schedule Overrides"
+
+    def applies_on(self, target_date):
+        if self.end_date is None:
+            return self.date == target_date
+        return self.date <= target_date <= self.end_date
+
+    @property
+    def date_range_display(self):
+        if self.end_date is None or self.end_date == self.date:
+            return self.date.strftime("%b %d, %Y")
+        if self.date.year == self.end_date.year:
+            return f"{self.date.strftime('%b %d')} – {self.end_date.strftime('%b %d, %Y')}"
+        return f"{self.date.strftime('%b %d, %Y')} – {self.end_date.strftime('%b %d, %Y')}"
+
+    def __str__(self):
+        kind_label = dict(self.KIND_CHOICES).get(self.kind, self.kind)
+        return f"{self.user} — {self.date_range_display}: {kind_label}"

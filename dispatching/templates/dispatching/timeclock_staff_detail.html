@@ -1,0 +1,427 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.tcd-wrap { padding: 1rem 0 3rem; }
+.tcd-card { background:#fff; border:1px solid #e5e7eb; border-radius:.8rem; padding:1.1rem 1.25rem; margin-bottom:1.25rem; }
+.tcd-card h6 { font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:#6b7280; font-size:.72rem; }
+.tcd-table { font-size:.86rem; }
+.tcd-brk { font-size:.78rem; color:#6b7280; }
+.chip { display:inline-block; font-size:.72rem; font-weight:700; padding:.16rem .5rem; border-radius:999px; white-space:nowrap; }
+.chip-on_time { background:#dcfce7; color:#166534; }
+.chip-late_start, .chip-left_early { background:#fef3c7; color:#92400e; }
+.chip-short, .chip-absent { background:#ffe4e6; color:#9f1239; }
+.chip-over, .chip-extra { background:#e0f2fe; color:#075985; }
+.chip-no_schedule { background:#f1f5f9; color:#94a3b8; }
+.wk-row { display:grid; grid-template-columns: 90px 70px 1fr 1fr 1.4fr; gap:.5rem; align-items:center; padding:.35rem 0; border-bottom:1px solid #f1f1f1; }
+.wk-row:last-child { border-bottom:0; }
+.wk-day { font-weight:700; color:#374151; font-size:.85rem; }
+.tcd-toast { position:fixed; bottom:1.25rem; left:50%; transform:translateX(-50%); background:#1a1d21; color:#fff; padding:.6rem 1.1rem; border-radius:.5rem; opacity:0; pointer-events:none; transition:opacity .2s; z-index:2000; font-size:.88rem; }
+.tcd-toast.show { opacity:1; }
+.tcd-toast.t-err { background:#b91c1c; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid tcd-wrap">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+      <div>
+        <a href="{% url 'timeclock_manage' %}" class="text-muted text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All staff</a>
+        <h1 class="mb-0 fw-bold mt-1"><i class="bi bi-person-badge me-2"></i>{{ staff_name }}</h1>
+      </div>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        {% if state == 'clocked_out' %}
+        <button class="btn btn-sm btn-outline-success" id="punchBtn" data-action="punch_in"><i class="bi bi-play-fill me-1"></i>Punch in</button>
+        {% else %}
+        <button class="btn btn-sm btn-outline-dark" id="punchBtn" data-action="punch_out"><i class="bi bi-stop-fill me-1"></i>Punch out</button>
+        {% endif %}
+        <div class="btn-group btn-group-sm">
+          <a href="?range=7" class="btn {% if is_preset_range and range_days == 7 %}btn-dark{% else %}btn-outline-dark{% endif %}">7d</a>
+          <a href="?range=14" class="btn {% if is_preset_range and range_days == 14 %}btn-dark{% else %}btn-outline-dark{% endif %}">14d</a>
+          <a href="?range=30" class="btn {% if is_preset_range and range_days == 30 %}btn-dark{% else %}btn-outline-dark{% endif %}">30d</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Shifts -->
+      <div class="col-lg-7">
+        <div class="tcd-card">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Shifts · {{ start_date|date:"M j" }}–{{ end_date|date:"M j" }}</h6>
+            <button class="btn btn-sm btn-dark" id="addShiftBtn"><i class="bi bi-plus-lg me-1"></i>Add shift</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table tcd-table align-middle mb-0">
+              <thead><tr class="small text-muted"><th>Date</th><th>In</th><th>Out</th><th>Break</th><th>Net</th><th></th><th class="text-end">Edit</th></tr></thead>
+              <tbody>
+                {% for s in shifts %}
+                <tr>
+                  <td>{{ s.clock_in_at|date:"D m/d" }}</td>
+                  <td>{{ s.clock_in_at|time:"g:i A" }}</td>
+                  <td>{% if s.clock_out_at %}{{ s.clock_out_at|time:"g:i A" }}{% else %}<span class="badge bg-warning text-dark">open</span>{% endif %}</td>
+                  <td>{{ s.break_hm }}</td>
+                  <td class="fw-bold">{{ s.net_hm }}</td>
+                  <td>
+                    {% if s.auto_closed %}<i class="bi bi-exclamation-triangle text-warning" title="Auto-closed — verify"></i>{% endif %}
+                    {% if s.edited %}<i class="bi bi-pencil-fill text-info" title="Edited by {{ s.edited_by }}"></i>{% endif %}
+                  </td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary edit-shift" data-id="{{ s.id }}" data-in="{{ s.in_local }}" data-out="{{ s.out_local }}" data-note="{{ s.note }}"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-info add-break" data-shift-id="{{ s.id }}" title="Add break"><i class="bi bi-cup-hot"></i></button>
+                    <button class="btn btn-sm btn-outline-danger del-shift" data-id="{{ s.id }}"><i class="bi bi-trash"></i></button>
+                  </td>
+                </tr>
+                {% for b in s.breaks.all %}
+                <tr class="tcd-brk">
+                  <td></td>
+                  <td colspan="4">↳ break {{ b.break_start_at|time:"g:i A" }} – {% if b.break_end_at %}{{ b.break_end_at|time:"g:i A" }}{% else %}<span class="badge bg-info text-dark">open</span>{% endif %} ({{ b.minutes }}m)</td>
+                  <td></td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary edit-break" data-id="{{ b.id }}" data-start="{{ b.break_start_at|date:'Y-m-d\TH:i' }}" data-end="{{ b.break_end_at|date:'Y-m-d\TH:i' }}"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger del-break" data-id="{{ b.id }}"><i class="bi bi-trash"></i></button>
+                  </td>
+                </tr>
+                {% endfor %}
+                {% empty %}
+                <tr><td colspan="7" class="text-center text-muted py-3">No shifts in this range.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Scheduled vs actual -->
+        <div class="tcd-card">
+          <h6>Scheduled vs actual</h6>
+          <div class="table-responsive">
+            <table class="table tcd-table align-middle mb-0">
+              <thead><tr class="small text-muted"><th>Date</th><th>Scheduled</th><th>Worked</th><th>Status</th></tr></thead>
+              <tbody>
+                {% for v in vs_rows %}
+                <tr>
+                  <td>{{ v.date|date:"D m/d" }}</td>
+                  <td class="text-muted">{{ v.scheduled_label }}</td>
+                  <td>{{ v.actual_label }}</td>
+                  <td><span class="chip chip-{{ v.status }}">{{ v.label }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-3">Nothing to compare in this range.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule editor -->
+      <div class="col-lg-5">
+        <div class="tcd-card">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Weekly schedule</h6>
+            <button class="btn btn-sm btn-dark" id="saveWeeklyBtn">Save schedule</button>
+          </div>
+          <div id="weeklyEditor">
+            {% for w in weekly_editor %}
+            <div class="wk-row" data-dow="{{ w.day_of_week }}">
+              <span class="wk-day">{{ w.day_name }}</span>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input wk-working" type="checkbox" {% if w.is_working %}checked{% endif %}>
+              </div>
+              <input type="time" class="form-control form-control-sm wk-start" value="{{ w.start_time }}" {% if not w.is_working %}disabled{% endif %}>
+              <input type="time" class="form-control form-control-sm wk-end" value="{{ w.end_time }}" {% if not w.is_working %}disabled{% endif %}>
+              <input type="text" class="form-control form-control-sm wk-note" placeholder="note" value="{{ w.note }}">
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="tcd-card">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Date exceptions</h6>
+            <button class="btn btn-sm btn-outline-dark" id="addOverrideBtn"><i class="bi bi-plus-lg me-1"></i>Add</button>
+          </div>
+          <ul class="list-unstyled mb-0" id="overrideList">
+            {% for o in overrides %}
+            <li class="d-flex justify-content-between align-items-center py-1 border-bottom">
+              <span>
+                <span class="fw-semibold">{{ o.date_range_display }}</span>
+                <span class="text-muted small">· {{ o.get_kind_display }}{% if o.kind == 'custom_hours' %} {{ o.start_time|time:"g:i A" }}–{{ o.end_time|time:"g:i A" }}{% endif %}</span>
+                {% if o.note %}<span class="text-muted small d-block">{{ o.note }}</span>{% endif %}
+              </span>
+              <span class="text-nowrap">
+                <button class="btn btn-sm btn-outline-secondary edit-override"
+                        data-id="{{ o.id }}" data-date="{{ o.date|date:'Y-m-d' }}" data-end="{{ o.end_date|date:'Y-m-d' }}"
+                        data-kind="{{ o.kind }}" data-start-time="{{ o.start_time|time:'H:i' }}" data-end-time="{{ o.end_time|time:'H:i' }}" data-note="{{ o.note }}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger del-override" data-id="{{ o.id }}"><i class="bi bi-trash"></i></button>
+              </span>
+            </li>
+            {% empty %}
+            <li class="text-muted small py-2">No upcoming exceptions.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shift modal -->
+  <div class="modal fade" id="shiftModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="shiftModalTitle">Add shift</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="shiftId">
+        <label class="form-label small">Clock in</label>
+        <input type="datetime-local" class="form-control form-control-sm mb-2" id="shiftIn">
+        <label class="form-label small">Clock out</label>
+        <input type="datetime-local" class="form-control form-control-sm mb-2" id="shiftOut">
+        <label class="form-label small">Note</label>
+        <input type="text" class="form-control form-control-sm" id="shiftNote">
+      </div>
+      <div class="modal-footer py-1"><button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-sm btn-dark" id="shiftSave">Save</button></div>
+    </div></div>
+  </div>
+
+  <!-- Break modal -->
+  <div class="modal fade" id="breakModal" tabindex="-1">
+    <div class="modal-dialog modal-sm"><div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="breakModalTitle">Add break</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="breakId"><input type="hidden" id="breakShiftId">
+        <label class="form-label small">Break start</label>
+        <input type="datetime-local" class="form-control form-control-sm mb-2" id="breakStart">
+        <label class="form-label small">Break end</label>
+        <input type="datetime-local" class="form-control form-control-sm" id="breakEnd">
+      </div>
+      <div class="modal-footer py-1"><button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-sm btn-dark" id="breakSave">Save</button></div>
+    </div></div>
+  </div>
+
+  <!-- Override modal -->
+  <div class="modal fade" id="overrideModal" tabindex="-1">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="overrideModalTitle">Add exception</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="ovId">
+        <div class="row g-2">
+          <div class="col"><label class="form-label small">Date</label><input type="date" class="form-control form-control-sm" id="ovDate"></div>
+          <div class="col"><label class="form-label small">End date (optional)</label><input type="date" class="form-control form-control-sm" id="ovEnd"></div>
+        </div>
+        <label class="form-label small mt-2">Type</label>
+        <select class="form-select form-select-sm" id="ovKind">
+          <option value="off">Off</option>
+          <option value="custom_hours">Custom hours</option>
+          <option value="note">Note only</option>
+        </select>
+        <div class="row g-2 mt-1" id="ovTimes" style="display:none;">
+          <div class="col"><label class="form-label small">Start</label><input type="time" class="form-control form-control-sm" id="ovStart"></div>
+          <div class="col"><label class="form-label small">End</label><input type="time" class="form-control form-control-sm" id="ovEndTime"></div>
+        </div>
+        <label class="form-label small mt-2">Note</label>
+        <input type="text" class="form-control form-control-sm" id="ovNote">
+      </div>
+      <div class="modal-footer py-1"><button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-sm btn-dark" id="ovSave">Save</button></div>
+    </div></div>
+  </div>
+
+  <!-- Punch modal (set the time, not just "now") -->
+  <div class="modal fade" id="punchModal" tabindex="-1">
+    <div class="modal-dialog modal-sm"><div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="punchTitle">Punch in</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="punchAction">
+        <label class="form-label small">Time</label>
+        <input type="datetime-local" class="form-control form-control-sm" id="punchAt">
+        <div class="form-text">Defaults to now. Set an earlier time if they forgot.</div>
+      </div>
+      <div class="modal-footer py-1"><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-sm btn-dark" id="punchConfirm">Confirm</button></div>
+    </div></div>
+  </div>
+
+  <div class="tcd-toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const USER_ID = {{ staff_user.id }};
+  const ENTRY_URL = "{% url 'timeclock_entry_action' %}";
+  const SCHED_URL = "{% url 'staff_schedule_action' %}";
+
+  function csrf() {
+    if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
+    const m = document.cookie.match(/(^|; )csrftoken=([^;]+)/); return m ? decodeURIComponent(m[2]) : '';
+  }
+  function toast(msg, ok) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'tcd-toast show' + (ok ? '' : ' t-err');
+    setTimeout(() => t.classList.remove('show'), 2800);
+  }
+  async function post(url, body) {
+    const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf()}, body: JSON.stringify(body) });
+    return resp.json();
+  }
+  async function doAndReload(url, body, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      const data = await post(url, body);
+      if (data.success) { location.reload(); }
+      else { toast(data.error || 'Could not complete that.', false); if (btn) btn.disabled = false; }
+    } catch (e) { toast('Network error.', false); if (btn) btn.disabled = false; }
+  }
+  const modal = (id) => bootstrap.Modal.getOrCreateInstance(document.getElementById(id));
+
+  // Punch (with an editable time, defaulting to now)
+  function nowLocal() {
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  const punch = document.getElementById('punchBtn');
+  if (punch) punch.addEventListener('click', () => {
+    document.getElementById('punchAction').value = punch.dataset.action;
+    document.getElementById('punchAt').value = nowLocal();
+    document.getElementById('punchTitle').textContent = punch.dataset.action === 'punch_in' ? 'Punch in' : 'Punch out';
+    modal('punchModal').show();
+  });
+  const punchConfirm = document.getElementById('punchConfirm');
+  if (punchConfirm) punchConfirm.addEventListener('click', (e) => doAndReload(ENTRY_URL, {
+    action: document.getElementById('punchAction').value, user_id: USER_ID,
+    at: document.getElementById('punchAt').value,
+  }, e.target));
+
+  // Shift add/edit
+  document.getElementById('addShiftBtn').addEventListener('click', () => {
+    document.getElementById('shiftModalTitle').textContent = 'Add shift';
+    document.getElementById('shiftId').value = '';
+    document.getElementById('shiftIn').value = '';
+    document.getElementById('shiftOut').value = '';
+    document.getElementById('shiftNote').value = '';
+    modal('shiftModal').show();
+  });
+  document.querySelectorAll('.edit-shift').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('shiftModalTitle').textContent = 'Edit shift';
+    document.getElementById('shiftId').value = b.dataset.id;
+    document.getElementById('shiftIn').value = b.dataset.in;
+    document.getElementById('shiftOut').value = b.dataset.out;
+    document.getElementById('shiftNote').value = b.dataset.note || '';
+    modal('shiftModal').show();
+  }));
+  document.getElementById('shiftSave').addEventListener('click', (e) => {
+    const id = document.getElementById('shiftId').value;
+    const body = {
+      action: id ? 'edit_shift' : 'add_shift',
+      user_id: USER_ID, shift_id: id || undefined,
+      clock_in_at: document.getElementById('shiftIn').value,
+      clock_out_at: document.getElementById('shiftOut').value,
+      note: document.getElementById('shiftNote').value,
+    };
+    doAndReload(ENTRY_URL, body, e.target);
+  });
+  document.querySelectorAll('.del-shift').forEach(b => b.addEventListener('click', () => {
+    if (confirm('Delete this shift?')) doAndReload(ENTRY_URL, {action:'delete_shift', shift_id: b.dataset.id}, b);
+  }));
+
+  // Breaks
+  document.querySelectorAll('.add-break').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('breakModalTitle').textContent = 'Add break';
+    document.getElementById('breakId').value = '';
+    document.getElementById('breakShiftId').value = b.dataset.shiftId;
+    document.getElementById('breakStart').value = '';
+    document.getElementById('breakEnd').value = '';
+    modal('breakModal').show();
+  }));
+  document.querySelectorAll('.edit-break').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('breakModalTitle').textContent = 'Edit break';
+    document.getElementById('breakId').value = b.dataset.id;
+    document.getElementById('breakShiftId').value = '';
+    document.getElementById('breakStart').value = b.dataset.start;
+    document.getElementById('breakEnd').value = b.dataset.end;
+    modal('breakModal').show();
+  }));
+  document.getElementById('breakSave').addEventListener('click', (e) => {
+    const id = document.getElementById('breakId').value;
+    const body = {
+      action: id ? 'edit_break' : 'add_break',
+      break_id: id || undefined, shift_id: document.getElementById('breakShiftId').value || undefined,
+      break_start_at: document.getElementById('breakStart').value,
+      break_end_at: document.getElementById('breakEnd').value,
+    };
+    doAndReload(ENTRY_URL, body, e.target);
+  });
+  document.querySelectorAll('.del-break').forEach(b => b.addEventListener('click', () => {
+    if (confirm('Delete this break?')) doAndReload(ENTRY_URL, {action:'delete_break', break_id: b.dataset.id}, b);
+  }));
+
+  // Weekly schedule
+  document.querySelectorAll('.wk-working').forEach(cb => cb.addEventListener('change', () => {
+    const row = cb.closest('.wk-row');
+    row.querySelector('.wk-start').disabled = !cb.checked;
+    row.querySelector('.wk-end').disabled = !cb.checked;
+  }));
+  document.getElementById('saveWeeklyBtn').addEventListener('click', (e) => {
+    const weekly = {};
+    document.querySelectorAll('.wk-row').forEach(row => {
+      weekly[row.dataset.dow] = {
+        is_working: row.querySelector('.wk-working').checked,
+        start_time: row.querySelector('.wk-start').value,
+        end_time: row.querySelector('.wk-end').value,
+        note: row.querySelector('.wk-note').value,
+      };
+    });
+    doAndReload(SCHED_URL, {action:'save_weekly', user_id: USER_ID, weekly}, e.target);
+  });
+
+  // Overrides
+  function ovTimesToggle() {
+    document.getElementById('ovTimes').style.display = document.getElementById('ovKind').value === 'custom_hours' ? '' : 'none';
+  }
+  document.getElementById('ovKind').addEventListener('change', ovTimesToggle);
+  document.getElementById('addOverrideBtn').addEventListener('click', () => {
+    document.getElementById('overrideModalTitle').textContent = 'Add exception';
+    document.getElementById('ovId').value = '';
+    document.getElementById('ovDate').value = '';
+    document.getElementById('ovEnd').value = '';
+    document.getElementById('ovKind').value = 'off';
+    document.getElementById('ovStart').value = '';
+    document.getElementById('ovEndTime').value = '';
+    document.getElementById('ovNote').value = '';
+    ovTimesToggle();
+    modal('overrideModal').show();
+  });
+  document.querySelectorAll('.edit-override').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('overrideModalTitle').textContent = 'Edit exception';
+    document.getElementById('ovId').value = b.dataset.id;
+    document.getElementById('ovDate').value = b.dataset.date;
+    document.getElementById('ovEnd').value = b.dataset.end;
+    document.getElementById('ovKind').value = b.dataset.kind;
+    document.getElementById('ovStart').value = b.dataset.startTime;
+    document.getElementById('ovEndTime').value = b.dataset.endTime;
+    document.getElementById('ovNote').value = b.dataset.note || '';
+    ovTimesToggle();
+    modal('overrideModal').show();
+  }));
+  document.getElementById('ovSave').addEventListener('click', (e) => {
+    const id = document.getElementById('ovId').value;
+    const body = {
+      action: id ? 'edit_override' : 'add_override',
+      user_id: USER_ID, id: id || undefined,
+      date: document.getElementById('ovDate').value,
+      end_date: document.getElementById('ovEnd').value,
+      kind: document.getElementById('ovKind').value,
+      start_time: document.getElementById('ovStart').value,
+      end_time: document.getElementById('ovEndTime').value,
+      note: document.getElementById('ovNote').value,
+    };
+    doAndReload(SCHED_URL, body, e.target);
+  });
+  document.querySelectorAll('.del-override').forEach(b => b.addEventListener('click', () => {
+    if (confirm('Delete this exception?')) doAndReload(SCHED_URL, {action:'delete_override', user_id: USER_ID, id: b.dataset.id}, b);
+  }));
+})();
+</script>
+{% endblock %}

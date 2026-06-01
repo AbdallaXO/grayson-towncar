@@ -128,6 +128,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "ops.context_processors.pending_task_count",
+                "ops.context_processors.timeclock_status",
                 "drivers.context_processors.pending_timeoff_count",
             ],
         },

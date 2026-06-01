@@ -1,0 +1,140 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.tcm-wrap { padding: 1rem 0 3rem; }
+.tcm-table { font-size:.9rem; }
+.tcm-name { font-weight:700; color:#111827; }
+.tcm-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:.4rem; }
+.tcm-dot.clocked_in { background:#C9A227; }
+.tcm-dot.on_break { background:#0dcaf0; }
+.tcm-dot.clocked_out { background:#cbd5e1; }
+.chip { display:inline-block; font-size:.72rem; font-weight:700; padding:.18rem .5rem; border-radius:999px; white-space:nowrap; }
+.chip-on_time { background:#dcfce7; color:#166534; }
+.chip-late_start, .chip-left_early { background:#fef3c7; color:#92400e; }
+.chip-short, .chip-absent { background:#ffe4e6; color:#9f1239; }
+.chip-over, .chip-extra { background:#e0f2fe; color:#075985; }
+.chip-no_schedule { background:#f1f5f9; color:#94a3b8; }
+.tcm-toast { position:fixed; bottom:1.25rem; left:50%; transform:translateX(-50%); background:#1a1d21; color:#fff; padding:.6rem 1.1rem; border-radius:.5rem; opacity:0; pointer-events:none; transition:opacity .2s; z-index:2000; font-size:.88rem; }
+.tcm-toast.show { opacity:1; }
+.tcm-toast.t-err { background:#b91c1c; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid tcm-wrap">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+      <div>
+        <h1 class="mb-1 fw-bold"><i class="bi bi-clock-fill me-2"></i>Manage Time Clock</h1>
+        <p class="text-muted mb-0">Punch staff in/out, fix entries, and set schedules.
+          <span class="fw-bold text-dark">{{ on_clock_count }}</span> on the clock now.</p>
+      </div>
+      <a href="{% url 'timeclock_overview' %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-bar-chart-line me-1"></i>Hours report</a>
+    </div>
+
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table tcm-table align-middle mb-0">
+          <thead class="table-light">
+            <tr class="small text-muted">
+              <th>Staff</th><th>Status now</th><th>Scheduled today</th><th>Worked today</th><th>Flag</th><th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td><a class="tcm-name text-decoration-none" href="{% url 'timeclock_staff_detail' r.user.id %}">{{ r.name }}</a></td>
+              <td>
+                <span class="tcm-dot {{ r.state }}"></span>
+                {% if r.state == 'clocked_in' %}Clocked in{% elif r.state == 'on_break' %}On break{% else %}Out{% endif %}
+              </td>
+              <td class="text-muted">{{ r.today_scheduled }}</td>
+              <td class="fw-semibold">{{ r.today_actual }}</td>
+              <td>{% if r.today_quiet %}<span class="text-muted">—</span>{% else %}<span class="chip chip-{{ r.today_status }}">{{ r.today_status_label }}</span>{% endif %}</td>
+              <td class="text-end">
+                {% if r.is_open %}
+                <button class="btn btn-sm btn-outline-dark tc-punch" data-action="punch_out" data-user-id="{{ r.user.id }}" data-name="{{ r.name }}"><i class="bi bi-stop-fill me-1"></i>Punch out</button>
+                {% else %}
+                <button class="btn btn-sm btn-outline-success tc-punch" data-action="punch_in" data-user-id="{{ r.user.id }}" data-name="{{ r.name }}"><i class="bi bi-play-fill me-1"></i>Punch in</button>
+                {% endif %}
+                <a class="btn btn-sm btn-dark" href="{% url 'timeclock_staff_detail' r.user.id %}">Manage</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No office staff found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Punch modal (lets you set the time, not just "now") -->
+  <div class="modal fade" id="punchModal" tabindex="-1">
+    <div class="modal-dialog modal-sm"><div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="punchTitle">Punch in</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="punchUserId"><input type="hidden" id="punchAction">
+        <label class="form-label small">Time</label>
+        <input type="datetime-local" class="form-control form-control-sm" id="punchAt">
+        <div class="form-text">Defaults to now. Set an earlier time if they forgot.</div>
+      </div>
+      <div class="modal-footer py-1"><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-sm btn-dark" id="punchConfirm">Confirm</button></div>
+    </div></div>
+  </div>
+
+  <div class="tcm-toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  function csrf() {
+    if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
+    const m = document.cookie.match(/(^|; )csrftoken=([^;]+)/); return m ? decodeURIComponent(m[2]) : '';
+  }
+  function toast(msg, ok) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'tcm-toast show' + (ok ? '' : ' t-err');
+    setTimeout(() => t.classList.remove('show'), 2600);
+  }
+  const url = "{% url 'timeclock_entry_action' %}";
+  function nowLocal() {
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  // Lazy: bootstrap.js loads AFTER this block in main.html, so only touch
+  // bootstrap on click (by then it's defined).
+  function pModal() { return bootstrap.Modal.getOrCreateInstance(document.getElementById('punchModal')); }
+  document.querySelectorAll('.tc-punch').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('punchAction').value = btn.dataset.action;
+      document.getElementById('punchUserId').value = btn.dataset.userId;
+      document.getElementById('punchAt').value = nowLocal();
+      document.getElementById('punchTitle').textContent =
+        (btn.dataset.action === 'punch_in' ? 'Punch in ' : 'Punch out ') + (btn.dataset.name || '');
+      pModal().show();
+    });
+  });
+  document.getElementById('punchConfirm').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    const body = {
+      action: document.getElementById('punchAction').value,
+      user_id: document.getElementById('punchUserId').value,
+      at: document.getElementById('punchAt').value,
+    };
+    try {
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf()}, body: JSON.stringify(body) });
+      const data = await resp.json();
+      if (data.success) { location.reload(); }
+      else { toast(data.error || 'Could not complete that.', false); e.target.disabled = false; }
+    } catch (err) { toast('Network error.', false); e.target.disabled = false; }
+  });
+})();
+</script>
+{% endblock %}

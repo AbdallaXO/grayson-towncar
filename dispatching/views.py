@@ -393,6 +393,16 @@ def index(request):
             leg.dispatch_flags = []
             leg.dispatch_flag_level = ''
 
+    # After-hours fee owed (delay-aware) per leg + a dashboard count, so a delay
+    # past 10 PM shows an unmissable inline flag the dispatcher can charge in one
+    # click. afterhours_fee_outstanding() returns 0 for already-charged legs
+    # (incl. trips booked late), so those never flag.
+    afterhours_owed_count = 0
+    for leg in legs:
+        leg.afterhours_owed = leg.afterhours_fee_outstanding() > 0
+        if leg.afterhours_owed:
+            afterhours_owed_count += 1
+
     # Pre-load timing cache BEFORE any estimate_job_end_time calls (avoids per-leg DB hits)
     from dispatching.scheduler import estimate_job_end_time, build_driver_schedules, preload_timing_cache as _preload_cache
     _preload_cache()
@@ -729,6 +739,7 @@ def index(request):
         "vehicle_filter": vehicle_filter,
         "vehicle_type_counts": vehicle_type_counts,
         "total_legs": len(legs),
+        "afterhours_owed_count": afterhours_owed_count,
         "total_revenue": total_revenue,
         "driver_coverage": driver_coverage,
         "can_view_revenue": _can_view_rev,
@@ -2610,6 +2621,56 @@ def save_card(request, reservation_id):
 
 
 
+def _add_leg_gratuity(leg, portion):
+    """Add a gratuity portion to a single leg's driver_gratuity, recompute its
+    driver_pay_amount, and record a per-leg note (same '$X.XX Gratuity Included'
+    convention as booking-time extra_charges). Setting driver_gratuity keeps the
+    Leg.save() equal-split from later overwriting this attribution."""
+    portion = Decimal(str(portion)).quantize(Decimal("0.01"))
+    leg.driver_gratuity = (leg.driver_gratuity or Decimal("0.00")) + portion
+    leg.driver_pay_amount = (
+        (leg.driver_base_pay or Decimal("0.00"))
+        + leg.driver_gratuity
+        + (leg.driver_additional or Decimal("0.00"))
+    )
+    update_fields = ["driver_gratuity", "driver_pay_amount"]
+    if portion > 0:
+        note = f"${portion:.2f} Gratuity Included"
+        leg.private_notes = f"{leg.private_notes}\n{note}" if leg.private_notes else note
+        update_fields.append("private_notes")
+    leg.save(update_fields=update_fields)
+
+
+def _apply_gratuity_to_legs(reservation, amount, target):
+    """Attribute a charged customer gratuity to per-leg driver_gratuity so payroll
+    pays the right driver. target='whole' splits evenly across legs (rounding
+    remainder on the last leg); otherwise `target` is a leg id and the whole tip
+    goes to that one leg's driver."""
+    legs = list(reservation.legs.all())
+    if not legs:
+        return
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+
+    if target and target != "whole":
+        try:
+            target_id = int(target)
+        except (TypeError, ValueError):
+            target_id = None
+        chosen = next((l for l in legs if l.id == target_id), None)
+        if chosen is not None:
+            _add_leg_gratuity(chosen, amount)
+            return
+        # Unknown leg id → fall through to an even split (never drop the money).
+
+    # Whole reservation → split evenly; put any rounding remainder on the last leg.
+    share = (amount / Decimal(len(legs))).quantize(Decimal("0.01"))
+    distributed = Decimal("0.00")
+    for i, leg in enumerate(legs):
+        portion = share if i < len(legs) - 1 else (amount - distributed)
+        _add_leg_gratuity(leg, portion)
+        distributed += portion
+
+
 def dispatcher_payment_portal(request, reservation_id):
     """
     A portal for dispatchers to process payments or save cards for reservations.
@@ -2957,27 +3018,60 @@ def dispatcher_payment_portal(request, reservation_id):
                             payment.stripe_payment_method_id = payment_intent.payment_method
                             payment.save()
 
-                        # Automatic total_price adjustment logic:
-                        # If amount owed was $0 (or nearly $0), this is a NEW charge, so add to total_price
-                        # Otherwise, this is a payment toward existing balance, don't add
-                        should_add_to_total = amount_owed_before <= Decimal("0.01")
-
-                        if should_add_to_total:
-                            reservation.total_price += final_amount
-                            logger.info(
-                                f"Auto-added ${final_amount} to reservation total (was ${reservation.total_price - final_amount}, "
-                                f"now ${reservation.total_price}) - detected as new charge"
-                            )
+                        # Charge-type-aware bookkeeping.
+                        charge_type = request.POST.get("charge_type", "additional")
+                        gratuity_target = request.POST.get("gratuity_target", "whole")
 
                         # Update reservation status
                         reservation.status = "confirmed"
 
-                        with transaction.atomic():
+                        if charge_type == "gratuity":
+                            # A tip is always NEW money: record it as gratuity AND
+                            # attribute it to the right leg/driver so payroll is correct
+                            # (a single-leg tip is NOT split across all legs). This
+                            # removes the old two-step "charge then hand-edit gratuity".
+                            reservation.gratuity_amount = (
+                                reservation.gratuity_amount or Decimal("0.00")
+                            ) + final_amount
+                            reservation.total_price = (
+                                reservation.total_price or Decimal("0.00")
+                            ) + final_amount
+                            # Reservation-level customer note (same convention as
+                            # booking-time extra_charges' special_requests note).
+                            _grat_note = f"${final_amount:.2f} Gratuity Included"
+                            reservation.special_requests = (
+                                f"{reservation.special_requests}\n{_grat_note}"
+                                if reservation.special_requests
+                                else _grat_note
+                            )
+                            with transaction.atomic():
+                                reservation.save(
+                                    update_fields=["status", "total_price", "gratuity_amount", "special_requests"]
+                                )
+                                payment.save()
+                                _apply_gratuity_to_legs(
+                                    reservation, final_amount, gratuity_target
+                                )
+                            logger.info(
+                                f"Recorded ${final_amount} gratuity on reservation "
+                                f"{reservation.uuid} (target={gratuity_target})"
+                            )
+                        else:
+                            # Additional charge (existing behavior): add to total only
+                            # if nothing was owed (else it's a payment toward a balance).
+                            should_add_to_total = amount_owed_before <= Decimal("0.01")
                             if should_add_to_total:
-                                reservation.save(update_fields=["status", "total_price"])
-                            else:
-                                reservation.save(update_fields=["status"])
-                            payment.save()
+                                reservation.total_price += final_amount
+                                logger.info(
+                                    f"Auto-added ${final_amount} to reservation total (was ${reservation.total_price - final_amount}, "
+                                    f"now ${reservation.total_price}) - detected as new charge"
+                                )
+                            with transaction.atomic():
+                                if should_add_to_total:
+                                    reservation.save(update_fields=["status", "total_price"])
+                                else:
+                                    reservation.save(update_fields=["status"])
+                                payment.save()
 
                         # Send confirmation email after successful payment (non-blocking)
                         _run_in_background(send_reservation_confirmation, reservation, sent_by=request.user)
@@ -3663,6 +3757,15 @@ def match_leg_time_to_flight(request):
         old_time = leg.pickup_time
         Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
 
+        # After-hours fee: the matched pickup time may now fall in the 10 PM-6 AM
+        # window (flight delayed). Flag it for the dispatcher to review + charge.
+        try:
+            from ops.tasks import flag_afterhours_fee
+            leg.pickup_time = new_time
+            flag_afterhours_fee(leg, new_time)
+        except Exception as e:
+            logger.warning(f"After-hours flag failed for leg {leg.id}: {e}")
+
         # Auto-resolve open tasks for this leg
         from ops.models import OperationalTask, StaffActivity
         from ops.services import close_task
@@ -3772,6 +3875,13 @@ def match_all_leg_times_to_flight(request):
             if leg.pickup_time != new_time:
                 Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
                 updated += 1
+                # After-hours fee: flag if the new pickup is in the late-night window.
+                try:
+                    from ops.tasks import flag_afterhours_fee
+                    leg.pickup_time = new_time
+                    flag_afterhours_fee(leg, new_time)
+                except Exception as e:
+                    logger.warning(f"After-hours flag failed for leg {leg.id}: {e}")
         return JsonResponse({
             "success": True,
             "message": f"Updated {updated} arrival leg(s) to match flight arrival time.",
@@ -3783,6 +3893,214 @@ def match_all_leg_times_to_flight(request):
     except Exception as e:
         logger.error(f"Error matching all leg times: {e}", exc_info=True)
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def charge_afterhours_fee(request, leg_id):
+    """Charge the flat after-hours fee for one leg (dispatcher one-click). JSON."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    leg = get_object_or_404(
+        Leg.objects.select_related("reservation", "reservation__customer"), id=leg_id
+    )
+    result = _charge_afterhours_fee_for_leg(leg, request.user)
+    if result.get("success"):
+        amount = result["amount"]
+        return JsonResponse({
+            "success": True,
+            "message": f"Charged ${amount} after-hours fee and emailed the customer.",
+            "amount": str(amount),
+            "tasks_closed": result.get("tasks_closed", 0),
+        })
+    err = result.get("error", "Charge failed.")
+    low = err.lower()
+    status = 402 if "declined" in low else (502 if "look up" in low else 400)
+    return JsonResponse({"success": False, "error": err}, status=status)
+
+
+def _charge_afterhours_fee_for_leg(leg, user):
+    """Charge the flat after-hours fee for one leg to the card on file, mark the
+    leg, roll the fee into the reservation totals, note it, email the customer,
+    and close the open after-hours task. Returns a result dict (no HttpResponse)
+    so both the single-leg endpoint and the batch "charge all" action reuse it.
+
+    NOTE: this is also the single charge+notify action the future flag-gated auto
+    path (`reservations.utils.AFTERHOURS_AUTO_CHARGE`) would reuse on the day of pickup.
+    """
+    from reservations.utils import (
+        AFTERHOURS_FEE_AMOUNT,
+        adjust_reservation_for_stop_fee_delta,
+    )
+    from users.emails import send_afterhours_fee_notice
+    from ops.models import OperationalTask
+    from ops.services import close_task
+
+    reservation = leg.reservation
+    if reservation is None:
+        return {"success": False, "error": "Leg has no reservation."}
+    customer = reservation.customer
+    amount = AFTERHOURS_FEE_AMOUNT
+
+    # Re-verify the fee is genuinely owed at charge time (delay/flap-aware), so a
+    # stale button or a flight that flapped back out of the window can't charge,
+    # and an already-charged leg is never double-charged.
+    if leg.afterhours_fee_outstanding() <= 0:
+        return {"success": False, "error": "After-hours fee not owed (already charged or no longer in the 10 PM-6 AM window)."}
+
+    try:
+        if getattr(customer, "stripe_customer_id", None):
+            stripe_customer_id = customer.stripe_customer_id
+        else:
+            stripe_customer_id = get_or_create_stripe_customer(reservation).id
+    except Exception as e:
+        logger.error(f"After-hours charge: customer profile resolve failed for res {reservation.id}: {e}")
+        return {"success": False, "error": "Could not resolve the customer's payment profile."}
+
+    try:
+        methods = stripe.PaymentMethod.list(customer=stripe_customer_id)
+    except stripe.error.StripeError as e:
+        logger.error(f"After-hours charge: PM lookup failed for res {reservation.id}: {e}")
+        return {"success": False, "error": "Could not look up saved cards."}
+    if not methods.data:
+        return {"success": False, "error": "No card on file to charge."}
+    payment_method_id = methods.data[0].id
+
+    desc = f"After-Hours Fee - Res #{reservation.id}"
+    try:
+        payment_intent = stripe.PaymentIntent.create(
+            amount=int(amount * 100),
+            currency="usd",
+            customer=stripe_customer_id,
+            payment_method=payment_method_id,
+            off_session=True,
+            confirm=True,
+            description=desc,
+            statement_descriptor_suffix="AfterHours Fee",
+            metadata={
+                "reservation_uuid": str(reservation.uuid),
+                "reservation_id": reservation.id,
+                "leg_id": leg.id,
+                "charge_type": "afterhours_fee",
+                "initiated_by": "dispatcher",
+            },
+            # One after-hours fee per leg: a retry (e.g. after a DB error between
+            # the Stripe success and the local commit) returns the SAME charge
+            # instead of billing the customer twice.
+            idempotency_key=f"afterhours-fee-leg-{leg.id}",
+        )
+    except stripe.error.CardError as e:
+        logger.warning(f"After-hours charge declined for res {reservation.id}: {e}")
+        return {"success": False, "error": f"Card declined: {getattr(e, 'user_message', None) or str(e)}"}
+    except stripe.error.StripeError as e:
+        logger.error(f"After-hours charge error for res {reservation.id}: {e}")
+        return {"success": False, "error": str(e)}
+
+    if payment_intent.status != "succeeded":
+        return {"success": False, "error": f"Payment not completed ({payment_intent.status})."}
+
+    with transaction.atomic():
+        Payment.objects.get_or_create(
+            reservation=reservation,
+            customer=customer,
+            stripe_payment_intent_id=payment_intent.id,
+            defaults={
+                "amount": amount,
+                "description": desc,
+                "payment_type": "pay_now",
+                "status": "paid",
+                "stripe_customer_id": stripe_customer_id,
+                "stripe_payment_method_id": payment_method_id,
+            },
+        )
+        # Mark the leg, note it, and roll the fee into the reservation totals.
+        delta = amount - (leg.afterhours_fee or Decimal("0.00"))
+        leg.afterhours_fee = amount
+        _note = f"${amount:.2f} After-Hours Fee charged"
+        leg.private_notes = f"{leg.private_notes}\n{_note}" if leg.private_notes else _note
+        leg.save(update_fields=["afterhours_fee", "private_notes"])
+        adjust_reservation_for_stop_fee_delta(reservation, delta)
+
+    _run_in_background(send_afterhours_fee_notice, reservation, leg, amount, sent_by=user)
+
+    closed = 0
+    for task in OperationalTask.objects.filter(
+        leg=leg,
+        task_type=OperationalTask.TaskType.AFTERHOURS_FEE,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+    ):
+        close_task(
+            task,
+            resolved_by=user,
+            resolution_notes=f"Charged ${amount} after-hours fee + emailed customer.",
+        )
+        closed += 1
+
+    return {"success": True, "amount": amount, "tasks_closed": closed}
+
+
+@login_required
+@require_POST
+def charge_all_afterhours_fees(request):
+    """Semi-auto "review then charge + email" action: charge the after-hours fee
+    for ALL flagged (owed-but-not-charged) legs on a date. POST JSON:
+    {"date": "YYYY-MM-DD"} or {"leg_ids": [...]}. Re-checks each leg server-side
+    (only charges genuinely-owed legs) so already-charged trips are never touched.
+    Returns a per-leg summary."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        data = {}
+
+    legs_qs = Leg.objects.select_related(
+        "reservation", "reservation__customer", "flight_information"
+    ).exclude(status="cancelled").exclude(reservation__status="cancelled")
+
+    if data.get("leg_ids"):
+        legs_qs = legs_qs.filter(id__in=data["leg_ids"])
+    elif data.get("date"):
+        legs_qs = legs_qs.filter(pickup_date=data["date"])
+    else:
+        return JsonResponse({"success": False, "error": "Provide a date or leg_ids."}, status=400)
+
+    owed = [leg for leg in legs_qs if leg.afterhours_fee_outstanding() > 0]
+
+    # Cap the synchronous Stripe burst on the single worker (each leg = ~2 Stripe
+    # calls; stay well under the 60s gunicorn timeout); report if capped.
+    MAX_BATCH = 12
+    batch, capped = owed[:MAX_BATCH], len(owed) > MAX_BATCH
+
+    charged = 0
+    failed = []
+    for leg in batch:
+        try:
+            res = _charge_afterhours_fee_for_leg(leg, request.user)
+        except Exception as e:
+            # One leg's failure must never abort the whole batch.
+            logger.error(f"After-hours batch: leg {leg.id} raised: {e}", exc_info=True)
+            res = {"success": False, "error": "Unexpected error."}
+        if res.get("success"):
+            charged += 1
+        else:
+            cust = leg.reservation.customer if leg.reservation else None
+            failed.append({
+                "leg_id": leg.id,
+                "customer": cust.get_full_name() if cust else "",
+                "error": res.get("error", "Charge failed."),
+            })
+
+    return JsonResponse({
+        "success": True,
+        "charged": charged,
+        "failed": failed,
+        "total_owed": len(owed),
+        "capped": capped,
+        "message": f"Charged {charged} after-hours fee(s)"
+                   + (f"; {len(failed)} failed" if failed else "")
+                   + ("; more remain — run again" if capped else "") + ".",
+    })
 
 
 @login_required
@@ -3843,11 +4161,16 @@ def save_confirmation_override(request):
     })
 
 
+@login_required(login_url="login")
 def confirmations_view(request):
     """
     Next-day confirmation SMS: preview legs for a date, export CSV, or send texts via Twilio.
     Intended to run after validating flights (Refresh Arrival Flights / Match All Flight Times).
     """
+    # Staff-only: this page exposes customer PII and can send (paid) Twilio SMS.
+    if not request.user.is_staff:
+        return redirect("dashboard")
+
     from django.utils.dateparse import parse_date
     from .confirmation_sms import (
         get_legs_for_confirmation,
@@ -3983,6 +4306,7 @@ def confirmations_view(request):
         rows.append(row)
 
     legs_filter_url = reverse("dashboard") + f"?date={selected_date.isoformat()}"
+    vip_count = sum(1 for r in rows if r.get("is_vip"))
 
     return render(
         request,
@@ -3992,6 +4316,7 @@ def confirmations_view(request):
             "rows": rows,
             "twilio_configured": twilio_configured(),
             "legs_filter_url": legs_filter_url,
+            "vip_count": vip_count,
         },
     )
 

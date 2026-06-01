@@ -1,0 +1,214 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.tc-wrap { max-width: 560px; margin: 1.5rem auto; }
+.tc-card {
+  background:#fff; border:1px solid #e5e7eb; border-radius:1rem; padding:2rem 1.75rem;
+  text-align:center; box-shadow:0 6px 24px rgba(0,0,0,.06);
+}
+.tc-pill {
+  display:inline-flex; align-items:center; gap:.5rem; font-weight:700; font-size:.95rem;
+  padding:.5rem 1.1rem; border-radius:999px; letter-spacing:.02em;
+}
+.tc-pill.out { background:#e5e7eb; color:#374151; }
+.tc-pill.in  { background:#C9A227; color:#1a1d21; }
+.tc-pill.brk { background:#0dcaf0; color:#053b46; }
+.tc-clock {
+  font-size:2.9rem; font-weight:800; font-variant-numeric:tabular-nums; color:#111827;
+  margin:1rem 0 .25rem; letter-spacing:.01em;
+}
+.tc-sub { color:#6b7280; font-size:.85rem; margin-bottom:1.25rem; }
+.tc-actions { display:flex; gap:.6rem; justify-content:center; flex-wrap:wrap; }
+.tc-actions .btn { min-width:140px; font-weight:700; padding:.7rem 1.1rem; }
+.btn-clockin { background:#C9A227; border-color:#C9A227; color:#1a1d21; }
+.btn-clockin:hover { background:#b8911f; border-color:#b8911f; color:#1a1d21; }
+.tc-reminder {
+  background:#fff8e1; border:1px solid #f3e3a3; color:#7a5d00; border-radius:.6rem;
+  padding:.7rem 1rem; font-size:.85rem; margin-bottom:1.25rem;
+}
+.tc-today { font-size:.85rem; color:#374151; margin-top:1.1rem; }
+.tc-today b { color:#111827; }
+.tc-recent { margin: 1.75rem auto 0; max-width: 720px; }
+.tc-recent table { font-size:.85rem; }
+.tc-sched { margin-top:1rem; text-align:left; padding:1.25rem 1.5rem; }
+.tc-sched-label { font-size:1.05rem; color:#111827; }
+.tc-sched-today { margin-bottom:1rem; }
+.tc-weekstrip { display:grid; grid-template-columns:repeat(7,1fr); gap:.4rem; }
+.tc-day { border:1px solid #eef0f2; border-radius:.5rem; padding:.5rem .25rem; text-align:center; background:#fafafa; }
+.tc-day.is-today { border-color:#C9A227; background:#fffdf3; }
+.tc-day-name { font-size:.7rem; font-weight:700; text-transform:uppercase; color:#9ca3af; letter-spacing:.03em; }
+.tc-day-label { font-size:.72rem; font-weight:600; color:#1f2937; margin-top:.25rem; line-height:1.15; }
+.tc-day-label.off { color:#b91c1c; }
+.tc-day-label.none { color:#cbd5e1; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-3">
+    <div class="tc-wrap">
+      <div class="tc-card"
+           id="tc-card"
+           data-action-url="{% url 'timeclock_action' %}"
+           data-state="{{ state }}"
+           data-clockin-ms="{{ clock_in_ms|default:'' }}"
+           data-breakstart-ms="{{ break_start_ms|default:'' }}">
+
+        <span id="tc-pill" class="tc-pill out">
+          <i class="bi bi-clock"></i><span id="tc-pill-label">Clocked Out</span>
+        </span>
+
+        <div class="tc-clock" id="tc-elapsed">0:00:00</div>
+        <div class="tc-sub" id="tc-sub">Not on the clock</div>
+
+        <div class="tc-reminder" id="tc-reminder">
+          <i class="bi bi-info-circle me-1"></i>You're clocked out — remember to clock in when your shift starts.
+        </div>
+
+        <div class="tc-actions">
+          <button type="button" class="btn btn-clockin" data-tc="clock_in"><i class="bi bi-play-fill me-1"></i>Clock In</button>
+          <button type="button" class="btn btn-outline-info" data-tc="break_start"><i class="bi bi-cup-hot me-1"></i>Start Break</button>
+          <button type="button" class="btn btn-info" data-tc="break_end"><i class="bi bi-arrow-return-left me-1"></i>End Break</button>
+          <button type="button" class="btn btn-outline-dark" data-tc="clock_out"><i class="bi bi-stop-fill me-1"></i>Clock Out</button>
+        </div>
+
+        <div class="tc-today">Today: <b>{{ today_worked_hm }}</b> worked</div>
+      </div>
+
+      <div class="tc-card tc-sched">
+        <h6 class="text-muted fw-bold mb-2"><i class="bi bi-calendar-week me-1"></i>Your schedule</h6>
+        <div class="tc-sched-today">
+          <span class="text-muted small">Today</span>
+          <div class="fw-bold tc-sched-label">{{ today_schedule.display_label }}</div>
+          {% if today_schedule.note %}<div class="text-muted small">{{ today_schedule.note }}</div>{% endif %}
+        </div>
+        <div class="tc-weekstrip">
+          {% for d in week_schedule %}
+          <div class="tc-day{% if d.date == today %} is-today{% endif %}">
+            <div class="tc-day-name">{{ d.day_name }}</div>
+            <div class="tc-day-label{% if d.is_working is False %} off{% elif d.kind == 'none' %} none{% endif %}">
+              {% if d.is_working %}{{ d.display_label }}{% elif d.kind == 'none' %}—{% else %}Off{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="tc-recent">
+        <h6 class="text-muted fw-bold mt-4 mb-2"><i class="bi bi-clock-history me-1"></i>Recent shifts</h6>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead><tr class="text-muted small">
+              <th>Date</th><th>In</th><th>Out</th><th>Break</th><th>Net</th>
+            </tr></thead>
+            <tbody>
+              {% for s in recent_shifts %}
+              <tr>
+                <td>{{ s.clock_in_at|date:"D m/d" }}</td>
+                <td>{{ s.clock_in_at|time:"g:i A" }}</td>
+                <td>{% if s.clock_out_at %}{{ s.clock_out_at|time:"g:i A" }}{% else %}<span class="badge bg-warning text-dark">open</span>{% endif %}</td>
+                <td>{{ s.break_hm }}</td>
+                <td class="fw-bold">{{ s.net_hm }}{% if s.auto_closed %} <i class="bi bi-exclamation-triangle text-warning" title="Auto-closed — please verify"></i>{% endif %}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-muted text-center py-3">No shifts yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const card = document.getElementById('tc-card');
+  const actionUrl = card.dataset.actionUrl;
+  const pill = document.getElementById('tc-pill');
+  const pillLabel = document.getElementById('tc-pill-label');
+  const elapsedEl = document.getElementById('tc-elapsed');
+  const subEl = document.getElementById('tc-sub');
+  const reminder = document.getElementById('tc-reminder');
+  const buttons = Array.from(card.querySelectorAll('[data-tc]'));
+
+  let state = card.dataset.state || 'clocked_out';
+  let clockInMs = parseInt(card.dataset.clockinMs, 10) || null;
+  let breakStartMs = parseInt(card.dataset.breakstartMs, 10) || null;
+
+  function csrf() {
+    if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
+    const m = document.cookie.match(/(^|; )csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[2]) : '';
+  }
+
+  function fmt(ms) {
+    if (ms == null) return '0:00:00';
+    let s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  const VISIBLE = {
+    clocked_out: ['clock_in'],
+    clocked_in: ['break_start', 'clock_out'],
+    on_break: ['break_end', 'clock_out'],
+  };
+
+  function tick() {
+    if (state === 'on_break') elapsedEl.textContent = fmt(breakStartMs);
+    else if (state === 'clocked_in') elapsedEl.textContent = fmt(clockInMs);
+    else elapsedEl.textContent = '0:00:00';
+  }
+
+  function render() {
+    pill.className = 'tc-pill ' + (state === 'clocked_in' ? 'in' : state === 'on_break' ? 'brk' : 'out');
+    pillLabel.textContent = state === 'clocked_in' ? 'Clocked In' : state === 'on_break' ? 'On Break' : 'Clocked Out';
+    reminder.style.display = state === 'clocked_out' ? '' : 'none';
+    subEl.textContent = state === 'on_break' ? 'On an unpaid break'
+                      : state === 'clocked_in' ? 'On the clock'
+                      : 'Not on the clock';
+    const allowed = VISIBLE[state] || [];
+    buttons.forEach(b => { b.style.display = allowed.includes(b.dataset.tc) ? '' : 'none'; });
+    tick();
+  }
+
+  async function doAction(action) {
+    buttons.forEach(b => b.disabled = true);
+    try {
+      const resp = await fetch(actionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ action }),
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        alert(data.error || 'Could not complete that action.');
+      } else {
+        // Clocking out changes the "today" total and recent table — reload to refresh.
+        if (action === 'clock_out') { window.location.reload(); return; }
+        state = data.state;
+        clockInMs = data.clock_in_ms || null;
+        breakStartMs = data.break_start_ms || null;
+      }
+    } catch (e) {
+      alert('Network error — please try again.');
+    } finally {
+      buttons.forEach(b => b.disabled = false);
+      render();
+    }
+  }
+
+  buttons.forEach(b => b.addEventListener('click', () => doAction(b.dataset.tc)));
+  render();
+  setInterval(tick, 1000);
+})();
+</script>
+{% endblock %}

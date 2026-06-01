@@ -25,11 +25,40 @@ def _format_time(t):
 
 # Office contact for automated-message footer
 OFFICE_PHONE = "407-212-7190"
+# The automated "do not reply" notice is dropped for VIP (Small World Big Fun)
+# confirmations, which a dispatcher sends by hand as a RingCentral group chat
+# (where replies ARE wanted). See _agent_is_vip() / get_confirmation_message().
+AUTOMATED_NOTICE = "\nThis is an automated message — please do not reply to this number."
 AUTOMATED_FOOTER = (
     "\n"
-    f"Questions or changes? Call/text our office: {OFFICE_PHONE}\n"
-    "This is an automated message — please do not reply to this number."
+    f"Questions or changes? Call/text our office: {OFFICE_PHONE}"
+    + AUTOMATED_NOTICE
 )
+
+# Agencies whose confirmations are handled as a VIP group chat (sent manually on
+# RingCentral with the travel agent looped in). Matched as a case-insensitive
+# substring of the agent's agency name, so "Small World Big Fun Travel" still
+# matches. Add keywords here to flag more VIP agencies.
+VIP_AGENCY_KEYWORDS = ["small world big fun"]
+
+
+def _agent_is_vip(travel_agent):
+    """True if the travel agent belongs to a VIP agency (e.g. Small World Big Fun)."""
+    if not travel_agent:
+        return False
+    agency_name = ""
+    if getattr(travel_agent, "agency_id", None) and travel_agent.agency:
+        agency_name = travel_agent.agency.name or ""
+    if not agency_name:
+        agency_name = travel_agent.agency_name or ""
+    agency_name = agency_name.strip().lower()
+    return any(kw in agency_name for kw in VIP_AGENCY_KEYWORDS) if agency_name else False
+
+
+def is_vip_leg(leg):
+    """True if the leg's reservation has a VIP travel agent (Small World Big Fun)."""
+    reservation = getattr(leg, "reservation", None)
+    return _agent_is_vip(getattr(reservation, "travel_agent", None)) if reservation else False
 
 # Trip type -> CSV/label (e.g. "Departure" for return if you prefer)
 TRIP_TYPE_LABELS = {
@@ -107,6 +136,7 @@ def get_legs_for_confirmation(target_date):
             "reservation__customer",
             "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
+            "reservation__travel_agent__agency",
             "flight_information",
             "cruise_information",
         )
@@ -183,6 +213,7 @@ def leg_to_row(leg):
             (travel_agent.agency.name if travel_agent.agency else travel_agent.agency_name) or ""
         ) if travel_agent else "",
         "travel_agent_phone": (travel_agent.phone or "") if travel_agent else "",
+        "is_vip": _agent_is_vip(travel_agent),
         "airline": (flight.airline or "") if flight else "",
         "airline_display": (flight.airline_display_name or flight.airline or "").strip() if flight else "",
         "flight_number": (flight.flight_number or "").strip() if flight else "",
@@ -195,6 +226,16 @@ def leg_to_row(leg):
 
 
 def get_confirmation_message(leg, row):
+    """Confirmation SMS body. VIP (Small World Big Fun) legs omit the automated
+    'do not reply' notice — a dispatcher sends those by hand as a RingCentral
+    group chat where replies are wanted. Everything else is unchanged."""
+    msg = _compose_confirmation_message(leg, row)
+    if row.get("is_vip"):
+        msg = msg.replace(AUTOMATED_NOTICE, "")
+    return msg
+
+
+def _compose_confirmation_message(leg, row):
     """
     Generate confirmation SMS per templates:
     - Template 1: Departure (hotel → airport)

@@ -4,6 +4,17 @@
 {% block content %}
   {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
+  <style>
+    /* Small World Big Fun (VIP) legs must be impossible to miss */
+    tr.vip-row > td { background: #fff6da !important; }
+    tr.vip-row:hover > td { background: #ffefc2 !important; }
+    tr.vip-row > td:first-child { box-shadow: inset 5px 0 0 0 #C9A227; }
+    .vip-flag {
+      background: #C9A227; color: #0d1117; font-weight: 700;
+      letter-spacing: .02em; font-size: .7rem;
+    }
+    .vip-agent-phone { color: #5a3e1c; font-weight: 700; }
+  </style>
   <div class="container-fluid py-4">
     <div class="row mb-4">
       <div class="col-12">
@@ -47,6 +58,23 @@
       <div class="alert alert-warning">
         <i class="bi bi-exclamation-triangle me-2"></i>
         Twilio is not configured. Set <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code>, and <code>TWILIO_PHONE_NUMBER</code> in your <code>.env</code> to send texts. You can still export CSV.
+      </div>
+    {% endif %}
+
+    {% if vip_count %}
+      <div class="alert d-flex align-items-center flex-wrap gap-2 mb-4"
+           style="border-left:6px solid #C9A227; background:#fff6da; color:#3d2c08;">
+        <span class="vip-flag badge"><i class="bi bi-star-fill me-1"></i>SMALL WORLD BIG FUN</span>
+        <span>
+          <strong>{{ vip_count }} VIP leg{{ vip_count|pluralize }}</strong> below (highlighted in gold).
+          Send {{ vip_count|pluralize:"this,these" }} as a <strong>group text on RingCentral</strong> with the
+          agent looped in — not as a regular automated text.
+        </span>
+        {% if twilio_configured %}
+          <button type="button" class="btn btn-sm btn-outline-dark ms-auto" onclick="excludeSwbf()">
+            <i class="bi bi-slash-circle me-1"></i>Exclude all SWBF from this send
+          </button>
+        {% endif %}
       </div>
     {% endif %}
 
@@ -97,14 +125,23 @@
               </thead>
               <tbody>
                 {% for row in rows %}
-                  <tr id="row-{{ row.leg.id }}" class="conf-row">
+                  <tr id="row-{{ row.leg.id }}" class="conf-row{% if row.is_vip %} vip-row{% endif %}">
                     <td>
                       <input type="checkbox" class="form-check-input leg-check"
                              data-leg-id="{{ row.leg.id }}" checked
+                             {% if row.is_vip %}data-vip="1"{% endif %}
                              onchange="updateExcluded()">
                     </td>
                     <td class="fw-semibold">{{ row.pickup_time }}</td>
                     <td>
+                      {% if row.is_vip %}
+                        <div class="mb-1">
+                          <span class="vip-flag badge"><i class="bi bi-star-fill me-1"></i>SMALL WORLD BIG FUN</span>
+                          <div class="small mt-1" style="color:#5a3e1c;font-weight:600;">
+                            <i class="bi bi-people-fill me-1"></i>Send as RingCentral group w/ agent
+                          </div>
+                        </div>
+                      {% endif %}
                       <div class="fw-semibold">{{ row.guest_name }}</div>
                       {% if row.travel_agent %}
                         <div class="d-flex flex-column gap-1 mt-1" style="font-size:0.78rem;line-height:1.25;">
@@ -115,8 +152,8 @@
                             <span class="text-muted ms-3" style="font-size:0.72rem;">{{ row.travel_agent_agency }}</span>
                           {% endif %}
                           {% if row.travel_agent_phone %}
-                            <span class="text-muted ms-3" style="font-size:0.72rem;">
-                              <i class="bi bi-telephone me-1"></i>{{ row.travel_agent_phone }}
+                            <span class="ms-3 {% if row.is_vip %}vip-agent-phone{% else %}text-muted{% endif %}" style="font-size:0.72rem;">
+                              <i class="bi bi-telephone me-1"></i>{{ row.travel_agent_phone }}{% if row.is_vip %} — add to group{% endif %}
                             </span>
                           {% endif %}
                         </div>
@@ -311,6 +348,13 @@
         const dateText = header.textContent.split('—')[0].trim();
         header.textContent = dateText + ' — ' + included + ' of ' + allChecks.length + ' leg(s) selected';
       }
+    }
+
+    // Uncheck (exclude) all Small World Big Fun legs from the bulk app send —
+    // the dispatcher sends those by hand as a RingCentral group.
+    function excludeSwbf() {
+      document.querySelectorAll('.leg-check[data-vip="1"]').forEach(cb => { cb.checked = false; });
+      updateExcluded();
     }
 
     function sendBulkSms() {

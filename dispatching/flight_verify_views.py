@@ -272,6 +272,16 @@ def flight_verification_public(request, token):
                         pickup_shift_minutes = diff_min
                         old_pickup_time_str = old_time.strftime("%-I:%M %p")
                         new_pickup_time_str = new_time.strftime("%-I:%M %p")
+                        # After-hours fee: the new pickup may now fall in the
+                        # 10 PM-6 AM window (flight delayed). Flag for dispatcher.
+                        try:
+                            from ops.tasks import flag_afterhours_fee
+                            leg.pickup_time = new_time
+                            flag_afterhours_fee(leg, new_time)
+                        except Exception as e:
+                            logger.warning(
+                                f"flight_verification_public: after-hours flag failed for leg {leg.id}: {e}"
+                            )
             except Exception as e:
                 logger.warning(
                     f"flight_verification_public: pickup auto-adjust failed for leg {leg.id}: {e}"

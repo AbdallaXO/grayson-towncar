@@ -2,6 +2,8 @@
 Views for the operational task queue and related API endpoints.
 """
 
+import csv
+import io
 import json
 import logging
 from datetime import timedelta, datetime
@@ -11,14 +13,41 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Avg, Q, F, Min, Max
 from django.db.models.functions import TruncDate
-from django.http import Http404, JsonResponse
+from django.http import Http404, JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from django.contrib import messages
 
-from .models import OperationalTask, CommunicationAttempt, StaffActivity, EmailLog
+from .models import (
+    OperationalTask,
+    CommunicationAttempt,
+    StaffActivity,
+    EmailLog,
+    TimeClockShift,
+    TimeClockBreak,
+    StaffWeeklySchedule,
+    StaffScheduleOverride,
+)
 from .services import close_task, cancel_task, log_communication, create_task
+from .services import (
+    clock_in as tc_clock_in,
+    clock_out as tc_clock_out,
+    start_break as tc_start_break,
+    end_break as tc_end_break,
+    get_open_shift,
+    auto_close_stale_shifts,
+    TimeClockError,
+    admin_punch_in,
+    admin_punch_out,
+    admin_create_shift,
+    admin_update_shift,
+    admin_delete_shift,
+    admin_add_break,
+    admin_update_break,
+    admin_delete_break,
+)
+from . import scheduling
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -1710,6 +1739,33 @@ def _build_confirmation_texts_context(task):
     }
 
 
+def _build_afterhours_fee_context(task):
+    """Context for the after-hours fee task detail: leg/customer summary, fee
+    amount, whether a card is on file, and the one-click charge action."""
+    from decimal import Decimal
+    from reservations.utils import AFTERHOURS_FEE_AMOUNT
+
+    leg = task.leg
+    if not leg:
+        return {}
+    reservation = leg.reservation
+    customer = reservation.customer if reservation else None
+    already_applied = (leg.afterhours_fee or Decimal("0.00")) >= AFTERHOURS_FEE_AMOUNT
+
+    return {
+        "ah_leg": leg,
+        "ah_reservation": reservation,
+        "ah_customer": customer,
+        "ah_amount": AFTERHOURS_FEE_AMOUNT,
+        "ah_has_card_on_file": bool(getattr(customer, "stripe_customer_id", None)),
+        "ah_already_applied": already_applied,
+        "ah_pickup_str": (
+            leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else ""
+        ),
+        "is_afterhours_fee": True,
+    }
+
+
 @login_required(login_url="login")
 @user_passes_test(_is_staff, login_url="login")
 def task_detail_view(request, task_id):
@@ -1768,6 +1824,8 @@ def task_detail_view(request, task_id):
         context.update(_build_driver_assign_context(task))
     elif task.task_type == OperationalTask.TaskType.CONFIRMATION_TEXTS:
         context.update(_build_confirmation_texts_context(task))
+    elif task.task_type == OperationalTask.TaskType.AFTERHOURS_FEE and task.leg:
+        context.update(_build_afterhours_fee_context(task))
 
     return render(request, "dispatching/task_detail.html", context)
 
@@ -3849,6 +3907,7 @@ def admin_tasks_view(request):
             OperationalTask.TaskType.DRIVER_ASSIGNMENT: "#c084fc",
             OperationalTask.TaskType.CONFIRMATION_TEXTS: "#34d399",
             OperationalTask.TaskType.CONTACT_FORM: "#38bdf8",
+            OperationalTask.TaskType.AFTERHOURS_FEE: "#64748b",
             OperationalTask.TaskType.MANUAL: "#6b7089",
         },
         "priority_colors": {
@@ -3944,3 +4003,658 @@ def admin_tasks_bulk_action(request):
             count += 1
 
     return JsonResponse({"success": True, "count": count})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Staff Time Clock — dispatchers clock in/out + unpaid breaks; founder oversight
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _tc_fmt_hm(total_minutes):
+    """Format a minute count as 'Hh Mm' (e.g. 450 -> '7h 30m')."""
+    total_minutes = int(total_minutes)
+    h, m = divmod(total_minutes, 60)
+    return f"{h}h {m}m"
+
+
+def _tc_parse_range(request):
+    """
+    Resolve the report window from query params, in Eastern time.
+
+    ``?start=YYYY-MM-DD&end=YYYY-MM-DD`` takes precedence; otherwise
+    ``?range=N`` days back from today (default 7, capped 90). Returns
+    ``(start_date, end_date, range_days, start_dt, end_dt)`` where the *_dt
+    bounds are tz-aware ET datetimes spanning ``[start 00:00, end+1 00:00)``.
+    """
+    tz = timezone.get_current_timezone()
+    today = timezone.localdate()
+    start_str = (request.GET.get("start") or "").strip()
+    end_str = (request.GET.get("end") or "").strip()
+
+    start_date = end_date = None
+    if start_str and end_str:
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+        except ValueError:
+            start_date = end_date = None
+
+    if start_date and end_date:
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        if (end_date - start_date).days > 90:
+            start_date = end_date - timedelta(days=90)
+        range_days = (end_date - start_date).days + 1
+    else:
+        try:
+            range_days = int(request.GET.get("range", 7))
+        except (ValueError, TypeError):
+            range_days = 7
+        range_days = max(1, min(range_days, 90))
+        end_date = today
+        start_date = today - timedelta(days=range_days - 1)
+
+    start_dt = timezone.make_aware(datetime.combine(start_date, datetime.min.time()), tz)
+    end_dt = timezone.make_aware(
+        datetime.combine(end_date + timedelta(days=1), datetime.min.time()), tz
+    )
+    return start_date, end_date, range_days, start_dt, end_dt
+
+
+def _tc_aggregate(shifts, now=None):
+    """Roll a prefetched shift queryset into per-staff totals (seconds-accurate)."""
+    now = now or timezone.now()
+    by_user = {}
+    for s in shifts:
+        agg = by_user.get(s.user_id)
+        if agg is None:
+            agg = by_user[s.user_id] = {
+                "user": s.user,
+                "name": s.user.get_full_name() or s.user.username,
+                "shifts": 0,
+                "gross_seconds": 0.0,
+                "break_seconds": 0.0,
+                "net_seconds": 0.0,
+                "has_open": False,
+                "has_auto_closed": False,
+            }
+        agg["shifts"] += 1
+        agg["gross_seconds"] += s.gross_seconds(now)
+        agg["break_seconds"] += s.break_seconds(now)
+        agg["net_seconds"] += s.worked_seconds(now)
+        agg["has_open"] = agg["has_open"] or s.is_open
+        agg["has_auto_closed"] = agg["has_auto_closed"] or s.auto_closed
+
+    rows = []
+    for agg in by_user.values():
+        agg["gross_minutes"] = int(agg["gross_seconds"] // 60)
+        agg["break_minutes"] = int(agg["break_seconds"] // 60)
+        agg["net_minutes"] = int(agg["net_seconds"] // 60)
+        agg["gross_hm"] = _tc_fmt_hm(agg["gross_minutes"])
+        agg["break_hm"] = _tc_fmt_hm(agg["break_minutes"])
+        agg["net_hm"] = _tc_fmt_hm(agg["net_minutes"])
+        rows.append(agg)
+    return sorted(rows, key=lambda r: r["name"].lower())
+
+
+def _tc_today_worked_seconds(user, now=None):
+    """
+    Worked seconds credited to *today* (ET) for a staffer's own "Today" line.
+
+    Counts every shift that STARTED today, PLUS the currently-open shift even if
+    it began before midnight — so an overnight shift keeps showing the live
+    session instead of dropping to 0h 0m the instant the date rolls over.
+    """
+    now = now or timezone.now()
+    tz = timezone.get_current_timezone()
+    local_today = timezone.localdate(now)
+    day_start = timezone.make_aware(datetime.combine(local_today, datetime.min.time()), tz)
+    day_end = day_start + timedelta(days=1)
+    shifts = list(
+        TimeClockShift.objects.filter(
+            user=user, clock_in_at__gte=day_start, clock_in_at__lt=day_end
+        ).prefetch_related("breaks")
+    )
+    open_shift = get_open_shift(user)
+    if open_shift and not any(s.pk == open_shift.pk for s in shifts):
+        shifts.append(open_shift)  # overnight: started before midnight, still on the clock
+    return sum(s.worked_seconds(now) for s in shifts)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+def timeclock_view(request):
+    """A staffer's own clock — current state, action buttons, recent shifts."""
+    now = timezone.now()
+    shift = get_open_shift(request.user)
+    open_break = shift.open_break if shift else None
+
+    recent_shifts = list(
+        TimeClockShift.objects.filter(user=request.user)
+        .prefetch_related("breaks")
+        .order_by("-clock_in_at")[:10]
+    )
+    for s in recent_shifts:
+        s.net_hm = _tc_fmt_hm(int(s.worked_seconds(now) // 60))
+        s.break_hm = _tc_fmt_hm(int(s.break_seconds(now) // 60))
+
+    # Net minutes worked so far today (ET). Includes the current open shift even
+    # if it started before midnight, so an overnight shift never reads 0h 0m.
+    today_seconds = _tc_today_worked_seconds(request.user, now)
+
+    # Read-only "Your schedule" card — today's planned window + this week.
+    today = timezone.localdate()
+    monday = today - timedelta(days=today.weekday())
+    sched_user = (
+        User.objects.prefetch_related("schedule_overrides", "weekly_schedule_rows")
+        .get(pk=request.user.pk)
+    )
+    today_schedule = scheduling.resolve_staff_schedule(sched_user, today)
+    week_sched = scheduling.week_schedule(sched_user, monday)
+
+    context = {
+        "shift": shift,
+        "open_break": open_break,
+        "state": shift.state if shift else TimeClockShift.State.CLOCKED_OUT,
+        "recent_shifts": recent_shifts,
+        "today_worked_hm": _tc_fmt_hm(int(today_seconds // 60)),
+        "today_schedule": today_schedule,
+        "week_schedule": week_sched,
+        "today": today,
+        # Epoch millis drive the live JS timers (no tz ambiguity in the browser).
+        "clock_in_ms": int(shift.clock_in_at.timestamp() * 1000) if shift else None,
+        "break_start_ms": int(open_break.break_start_at.timestamp() * 1000) if open_break else None,
+    }
+    return render(request, "dispatching/timeclock.html", context)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+@require_POST
+def timeclock_action(request):
+    """Single POST endpoint for clock_in / clock_out / break_start / break_end."""
+    try:
+        action = json.loads(request.body).get("action")
+    except (json.JSONDecodeError, AttributeError):
+        action = request.POST.get("action")
+
+    handlers = {
+        "clock_in": tc_clock_in,
+        "clock_out": tc_clock_out,
+        "break_start": tc_start_break,
+        "break_end": tc_end_break,
+    }
+    handler = handlers.get(action)
+    if handler is None:
+        return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
+
+    try:
+        handler(request.user)
+    except TimeClockError as e:
+        # Soft failure (e.g. a double-click) — never a 500. The page re-syncs.
+        return JsonResponse({"success": False, "error": str(e)})
+
+    shift = get_open_shift(request.user)
+    open_break = shift.open_break if shift else None
+    return JsonResponse({
+        "success": True,
+        "state": shift.state if shift else TimeClockShift.State.CLOCKED_OUT,
+        "clock_in_ms": int(shift.clock_in_at.timestamp() * 1000) if shift else None,
+        "break_start_ms": int(open_break.break_start_at.timestamp() * 1000) if open_break else None,
+    })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+def timeclock_overview(request):
+    """Founder view: who's on the clock now + per-staff hour totals over a range."""
+    auto_close_stale_shifts()  # lazy cleanup — this app has no scheduler
+    now = timezone.now()
+
+    # ── Live: who is on the clock right now ──
+    open_shifts = (
+        TimeClockShift.objects.filter(clock_out_at__isnull=True)
+        .select_related("user")
+        .prefetch_related("breaks")
+        .order_by("clock_in_at")
+    )
+    live = []
+    for s in open_shifts:
+        ob = s.open_break
+        anchor = ob.break_start_at if ob else s.clock_in_at
+        live.append({
+            "name": s.user.get_full_name() or s.user.username,
+            "on_break": ob is not None,
+            "since": anchor,
+            "since_ms": int(anchor.timestamp() * 1000),
+            "clock_in": s.clock_in_at,
+            "net_hm": _tc_fmt_hm(int(s.worked_seconds(now) // 60)),
+        })
+
+    # ── Report: per-staff totals over the selected range ──
+    start_date, end_date, range_days, start_dt, end_dt = _tc_parse_range(request)
+    shifts = (
+        TimeClockShift.objects.filter(clock_in_at__gte=start_dt, clock_in_at__lt=end_dt)
+        .select_related("user")
+        .prefetch_related("breaks")
+    )
+    rows = _tc_aggregate(shifts, now)
+    totals_net = sum(r["net_minutes"] for r in rows)
+    totals = {
+        "shifts": sum(r["shifts"] for r in rows),
+        "gross_hm": _tc_fmt_hm(sum(r["gross_minutes"] for r in rows)),
+        "break_hm": _tc_fmt_hm(sum(r["break_minutes"] for r in rows)),
+        "net_hm": _tc_fmt_hm(totals_net),
+    }
+
+    context = {
+        "live": live,
+        "rows": rows,
+        "totals": totals,
+        "start_date": start_date,
+        "end_date": end_date,
+        "range_days": range_days,
+        "is_preset_range": not (request.GET.get("start") and request.GET.get("end")),
+        "export_query": request.GET.urlencode(),
+    }
+    return render(request, "dispatching/timeclock_overview.html", context)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+def timeclock_export_csv(request):
+    """One row per shift over the range, for payroll. Times shown in Eastern."""
+    start_date, end_date, range_days, start_dt, end_dt = _tc_parse_range(request)
+    shifts = (
+        TimeClockShift.objects.filter(clock_in_at__gte=start_dt, clock_in_at__lt=end_dt)
+        .select_related("user")
+        .prefetch_related("breaks")
+        .order_by("user__first_name", "user__username", "clock_in_at")
+    )
+    now = timezone.now()
+
+    fieldnames = [
+        "staff", "date", "clock_in", "clock_out",
+        "gross_hours", "break_hours", "net_hours", "open", "auto_closed",
+    ]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for s in shifts:
+        ci = timezone.localtime(s.clock_in_at)
+        co = timezone.localtime(s.clock_out_at) if s.clock_out_at else None
+        gross_h = round(s.gross_seconds(now) / 3600, 2)
+        break_h = round(s.break_seconds(now) / 3600, 2)
+        writer.writerow({
+            "staff": s.user.get_full_name() or s.user.username,
+            "date": ci.strftime("%Y-%m-%d"),
+            "clock_in": ci.strftime("%Y-%m-%d %I:%M %p"),
+            "clock_out": co.strftime("%Y-%m-%d %I:%M %p") if co else "",
+            "gross_hours": gross_h,
+            "break_hours": break_h,
+            "net_hours": round(gross_h - break_h, 2),
+            "open": "yes" if s.is_open else "",
+            "auto_closed": "yes" if s.auto_closed else "",
+        })
+
+    resp = HttpResponse(buf.getvalue().encode("utf-8"), content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="timeclock_{start_date}_{end_date}.csv"'
+    return resp
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Time Clock — superuser management (punch/edit entries + staff scheduling)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _office_staff_qs():
+    """Office dispatchers: is_staff & active, excluding drivers/travel agents."""
+    from users.models import UserProfile
+    non_office = set(
+        UserProfile.objects.filter(Q(is_driver=True) | Q(is_travel_agent=True))
+        .values_list("user_id", flat=True)
+    )
+    return (
+        User.objects.filter(is_staff=True, is_active=True)
+        .exclude(id__in=non_office)
+        .order_by("first_name", "username")
+    )
+
+
+def _tc_parse_et_dt(s):
+    """Parse a 'YYYY-MM-DDTHH:MM' datetime-local (ET wall-clock) -> aware datetime, or None."""
+    if not s:
+        return None
+    s = s.strip().replace(" ", "T")
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            naive = datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+        return timezone.make_aware(naive, timezone.get_current_timezone())
+    return None
+
+
+def _parse_hm(s):
+    if not s:
+        return None
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(s.strip(), fmt).time()
+        except (ValueError, AttributeError):
+            continue
+    return None
+
+
+def _parse_ymd(s):
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s.strip(), "%Y-%m-%d").date()
+    except (ValueError, AttributeError):
+        return None
+
+
+def _serialize_override(o):
+    return {
+        "id": o.id,
+        "date": o.date.strftime("%Y-%m-%d"),
+        "end_date": o.end_date.strftime("%Y-%m-%d") if o.end_date else "",
+        "kind": o.kind,
+        "start_time": o.start_time.strftime("%H:%M") if o.start_time else "",
+        "end_time": o.end_time.strftime("%H:%M") if o.end_time else "",
+        "note": o.note,
+        "range_display": o.date_range_display,
+        "kind_label": dict(StaffScheduleOverride.KIND_CHOICES).get(o.kind, o.kind),
+    }
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+def timeclock_manage(request):
+    """Superuser hub: roster + live status + quick punch + today scheduled-vs-actual."""
+    auto_close_stale_shifts()
+    now = timezone.now()
+    today = timezone.localdate()
+    roster = list(_office_staff_qs().prefetch_related("schedule_overrides", "weekly_schedule_rows"))
+
+    open_by_user = {}
+    for s in (
+        TimeClockShift.objects.filter(clock_out_at__isnull=True)
+        .select_related("user").prefetch_related("breaks")
+    ):
+        open_by_user[s.user_id] = s
+
+    day_start = timezone.make_aware(datetime.combine(today, datetime.min.time()), timezone.get_current_timezone())
+    day_end = day_start + timedelta(days=1)
+    today_shifts = defaultdict(list)
+    for s in (
+        TimeClockShift.objects.filter(clock_in_at__gte=day_start, clock_in_at__lt=day_end).prefetch_related("breaks")
+    ):
+        today_shifts[s.user_id].append(s)
+
+    # Earliest clock-in per user, so a staffer who never used the clock isn't flagged "absent".
+    first_in_by_user = {}
+    for row in TimeClockShift.objects.values("user_id").annotate(first=Min("clock_in_at")):
+        first_in_by_user[row["user_id"]] = timezone.localtime(row["first"]).date()
+
+    rows = []
+    for u in roster:
+        open_shift = open_by_user.get(u.id)
+        vs = scheduling.schedule_vs_actual(
+            u, today, shifts=today_shifts.get(u.id, []), now=now, tracking_since=first_in_by_user.get(u.id)
+        )
+        state = "clocked_out"
+        if open_shift:
+            state = "on_break" if open_shift.open_break else "clocked_in"
+        rows.append({
+            "user": u,
+            "name": u.get_full_name() or u.username,
+            "state": state,
+            "is_open": open_shift is not None,
+            "since_ms": int(open_shift.clock_in_at.timestamp() * 1000) if open_shift else None,
+            "today_status": vs["status"],
+            "today_status_label": vs["label"],
+            "today_quiet": vs["status"] in scheduling.QUIET_STATUSES,
+            "today_scheduled": vs["scheduled_label"],
+            "today_actual": vs["actual_label"],
+        })
+
+    return render(request, "dispatching/timeclock_manage.html", {
+        "rows": rows,
+        "now": now,
+        "today": today,
+        "on_clock_count": len(open_by_user),
+    })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+def timeclock_staff_detail(request, user_id):
+    """Per-staff management: shifts (add/edit/delete), schedule editor, vs-actual table."""
+    staff_user = get_object_or_404(User, id=user_id)
+    now = timezone.now()
+    start_date, end_date, range_days, start_dt, end_dt = _tc_parse_range(request)
+
+    shifts = list(
+        TimeClockShift.objects.filter(user=staff_user, clock_in_at__gte=start_dt, clock_in_at__lt=end_dt)
+        .prefetch_related("breaks").select_related("edited_by").order_by("-clock_in_at")
+    )
+    for s in shifts:
+        s.net_hm = _tc_fmt_hm(int(s.worked_seconds(now) // 60))
+        s.break_hm = _tc_fmt_hm(int(s.break_seconds(now) // 60))
+        s.edited = s.edited_by_id is not None
+        s.in_local = timezone.localtime(s.clock_in_at).strftime("%Y-%m-%dT%H:%M")
+        s.out_local = timezone.localtime(s.clock_out_at).strftime("%Y-%m-%dT%H:%M") if s.clock_out_at else ""
+        s.breaks_json = json.dumps([
+            {
+                "id": b.id,
+                "start": timezone.localtime(b.break_start_at).strftime("%Y-%m-%dT%H:%M"),
+                "end": timezone.localtime(b.break_end_at).strftime("%Y-%m-%dT%H:%M") if b.break_end_at else "",
+            }
+            for b in s.breaks.all()
+        ])
+
+    open_shift = get_open_shift(staff_user)
+    state = "clocked_out"
+    if open_shift:
+        state = "on_break" if open_shift.open_break else "clocked_in"
+
+    today = timezone.localdate()
+    monday = today - timedelta(days=today.weekday())
+    sched_user = User.objects.prefetch_related("schedule_overrides", "weekly_schedule_rows").get(pk=staff_user.pk)
+    week_sched = scheduling.week_schedule(sched_user, monday)
+    weekly_rows = {r.day_of_week: r for r in sched_user.weekly_schedule_rows.all()}
+    weekly_editor = []
+    for dow, dname in StaffWeeklySchedule.DAY_CHOICES:
+        r = weekly_rows.get(dow)
+        weekly_editor.append({
+            "day_of_week": dow,
+            "day_name": dname,
+            "is_working": r.is_working if r else False,
+            "start_time": r.start_time.strftime("%H:%M") if (r and r.start_time) else "09:00",
+            "end_time": r.end_time.strftime("%H:%M") if (r and r.end_time) else "17:00",
+            "note": r.note if r else "",
+        })
+    overrides = list(
+        sched_user.schedule_overrides.filter(
+            Q(end_date__isnull=True, date__gte=today) | Q(end_date__gte=today)
+        ).order_by("date")
+    )
+
+    # When did this person first clock in? Days before that have no data, so we
+    # report them "untracked" rather than flagging a no-show that predates the clock.
+    first_in = (
+        TimeClockShift.objects.filter(user=staff_user)
+        .order_by("clock_in_at").values_list("clock_in_at", flat=True).first()
+    )
+    tracking_since = timezone.localtime(first_in).date() if first_in else None
+
+    shifts_by_date = defaultdict(list)
+    for s in shifts:
+        shifts_by_date[timezone.localtime(s.clock_in_at).date()].append(s)
+    vs_rows = []
+    d = start_date
+    while d <= end_date:
+        vs = scheduling.schedule_vs_actual(
+            sched_user, d, shifts=shifts_by_date.get(d, []), now=now, tracking_since=tracking_since
+        )
+        if vs["status"] not in scheduling.QUIET_STATUSES or shifts_by_date.get(d):
+            vs_rows.append({"date": d, **vs})
+        d += timedelta(days=1)
+    vs_rows.reverse()
+
+    return render(request, "dispatching/timeclock_staff_detail.html", {
+        "staff_user": staff_user,
+        "staff_name": staff_user.get_full_name() or staff_user.username,
+        "shifts": shifts,
+        "state": state,
+        "range_days": range_days,
+        "start_date": start_date,
+        "end_date": end_date,
+        "is_preset_range": not (request.GET.get("start") and request.GET.get("end")),
+        "week_schedule": week_sched,
+        "weekly_editor": weekly_editor,
+        "overrides": overrides,
+        "vs_rows": vs_rows,
+    })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+@require_POST
+def timeclock_entry_action(request):
+    """Single superuser endpoint: punch/add/edit/delete shifts and breaks."""
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = request.POST
+    action = data.get("action")
+    by = request.user
+
+    def office_user(uid):
+        return _office_staff_qs().filter(id=uid).first()
+
+    try:
+        if action in ("punch_in", "punch_out", "add_shift"):
+            u = office_user(data.get("user_id"))
+            if not u:
+                return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+            if action == "punch_in":
+                admin_punch_in(u, by, at=_tc_parse_et_dt(data.get("at")))
+            elif action == "punch_out":
+                admin_punch_out(u, by, at=_tc_parse_et_dt(data.get("at")))
+            else:
+                admin_create_shift(
+                    u, _tc_parse_et_dt(data.get("clock_in_at")),
+                    _tc_parse_et_dt(data.get("clock_out_at")), by, note=data.get("note", ""),
+                )
+        elif action == "edit_shift":
+            shift = get_object_or_404(TimeClockShift, id=data.get("shift_id"))
+            admin_update_shift(
+                shift, _tc_parse_et_dt(data.get("clock_in_at")),
+                _tc_parse_et_dt(data.get("clock_out_at")), by, note=data.get("note"),
+            )
+        elif action == "delete_shift":
+            admin_delete_shift(get_object_or_404(TimeClockShift, id=data.get("shift_id")))
+        elif action == "add_break":
+            shift = get_object_or_404(TimeClockShift, id=data.get("shift_id"))
+            admin_add_break(shift, _tc_parse_et_dt(data.get("break_start_at")), _tc_parse_et_dt(data.get("break_end_at")), by)
+        elif action == "edit_break":
+            brk = get_object_or_404(TimeClockBreak, id=data.get("break_id"))
+            admin_update_break(brk, _tc_parse_et_dt(data.get("break_start_at")), _tc_parse_et_dt(data.get("break_end_at")), by)
+        elif action == "delete_break":
+            admin_delete_break(get_object_or_404(TimeClockBreak, id=data.get("break_id")), by=by)
+        else:
+            return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
+    except TimeClockError as e:
+        return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse({"success": True})
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+def staff_schedule_get(request):
+    """Return a staffer's weekly schedule + upcoming overrides as JSON."""
+    u = _office_staff_qs().filter(id=request.GET.get("user_id")).first()
+    if not u:
+        return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+    today = timezone.localdate()
+    weekly = {}
+    for r in u.weekly_schedule_rows.all():
+        weekly[str(r.day_of_week)] = {
+            "is_working": r.is_working,
+            "start_time": r.start_time.strftime("%H:%M") if r.start_time else "",
+            "end_time": r.end_time.strftime("%H:%M") if r.end_time else "",
+            "note": r.note,
+        }
+    overrides = [
+        _serialize_override(o) for o in u.schedule_overrides.filter(
+            Q(end_date__isnull=True, date__gte=today) | Q(end_date__gte=today)
+        ).order_by("date")
+    ]
+    return JsonResponse({"success": True, "weekly": weekly, "overrides": overrides})
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+@require_POST
+def staff_schedule_action(request):
+    """Save weekly schedule / add-edit-delete overrides for a staffer."""
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = request.POST
+    action = data.get("action")
+    u = _office_staff_qs().filter(id=data.get("user_id")).first()
+    if not u:
+        return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+
+    if action == "save_weekly":
+        weekly = data.get("weekly", {})
+        for dow_str, row in weekly.items():
+            try:
+                dow = int(dow_str)
+            except (ValueError, TypeError):
+                continue
+            is_working = bool(row.get("is_working"))
+            start_t = _parse_hm(row.get("start_time")) if is_working else None
+            end_t = _parse_hm(row.get("end_time")) if is_working else None
+            if is_working and (start_t is None or end_t is None):
+                day = dict(StaffWeeklySchedule.DAY_CHOICES).get(dow, dow)
+                return JsonResponse({"success": False, "error": f"{day}: start and end times are required when working."})
+            StaffWeeklySchedule.objects.update_or_create(
+                user=u, day_of_week=dow,
+                defaults={"is_working": is_working, "start_time": start_t, "end_time": end_t, "note": (row.get("note") or "")[:200]},
+            )
+        return JsonResponse({"success": True})
+
+    if action in ("add_override", "edit_override"):
+        date_ = _parse_ymd(data.get("date"))
+        if not date_:
+            return JsonResponse({"success": False, "error": "A date is required."})
+        end_date = _parse_ymd(data.get("end_date")) if data.get("end_date") else None
+        if end_date and end_date < date_:
+            return JsonResponse({"success": False, "error": "End date must be on or after the start date."})
+        kind = data.get("kind", "off")
+        start_t = end_t = None
+        if kind == "custom_hours":
+            start_t, end_t = _parse_hm(data.get("start_time")), _parse_hm(data.get("end_time"))
+            if start_t is None or end_t is None:
+                return JsonResponse({"success": False, "error": "Custom hours need a start and end time."})
+        fields = dict(date=date_, end_date=end_date, kind=kind, start_time=start_t, end_time=end_t, note=(data.get("note") or "")[:200])
+        if action == "add_override":
+            o = StaffScheduleOverride.objects.create(user=u, created_by=request.user, **fields)
+        else:
+            o = get_object_or_404(StaffScheduleOverride, id=data.get("id"), user=u)
+            for k, v in fields.items():
+                setattr(o, k, v)
+            o.save()
+        return JsonResponse({"success": True, "override": _serialize_override(o)})
+
+    if action == "delete_override":
+        o = get_object_or_404(StaffScheduleOverride, id=data.get("id"), user=u)
+        o.delete()
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"success": False, "error": "Unknown action"}, status=400)

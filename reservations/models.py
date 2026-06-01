@@ -888,6 +888,16 @@ class Leg(models.Model):
         blank=True,
         help_text="Base price for this leg. NULL = equal split of reservation base_price.",
     )
+    afterhours_fee = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=0,
+        help_text=(
+            "After-hours fee currently applied for this leg (pickup 10 PM-6 AM). "
+            "Set at booking and reconciled when a flight delay shifts the pickup "
+            "into/out of the window. 0 = none applied."
+        ),
+    )
     passenger_count = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -1386,14 +1396,35 @@ class Leg(models.Model):
                             / Decimal("100")
                         )
                     if gratuity_amount:
-                        leg_count = reservation.legs.count()
-                        if self.pk is None:
-                            leg_count += 1
-                        if leg_count <= 0:
-                            leg_count = 1
-                        gratuity_share = (gratuity_amount / Decimal(leg_count)).quantize(
-                            Decimal("0.01")
+                        # Split only the UNATTRIBUTED remainder of the customer
+                        # gratuity. Gratuity already pinned to specific legs
+                        # (their driver_gratuity is set — e.g. a tip charged for
+                        # one leg via the payment portal) must NOT be re-smeared
+                        # across the other legs. Total is always conserved.
+                        siblings = [
+                            l for l in reservation.legs.all() if l.pk != self.pk
+                        ]
+                        already_attributed = sum(
+                            (
+                                l.driver_gratuity
+                                for l in siblings
+                                if l.driver_gratuity is not None
+                            ),
+                            Decimal("0.00"),
                         )
+                        unattributed = gratuity_amount - already_attributed
+                        if unattributed < 0:
+                            unattributed = Decimal("0.00")
+                        # Divide across legs that still need a share: siblings
+                        # without a pinned gratuity, plus this leg.
+                        share_count = (
+                            sum(1 for l in siblings if l.driver_gratuity is None) + 1
+                        )
+                        if share_count <= 0:
+                            share_count = 1
+                        gratuity_share = (
+                            unattributed / Decimal(share_count)
+                        ).quantize(Decimal("0.01"))
 
                 # Set base pay and gratuity separately
                 self.driver_base_pay = base_pay.quantize(Decimal("0.01"))
@@ -1612,6 +1643,33 @@ class Leg(models.Model):
             time_str = f"{total_minutes} min"
         label = f"Coming {time_str} {'late' if direction == 'late' else 'early'}"
         return {"direction": direction, "minutes": total_minutes, "label": label}
+
+    def effective_afterhours_time(self):
+        """The local time-of-day used to decide the after-hours (10 PM-6 AM)
+        window: for an arrival leg with flight info, the flight's best (possibly
+        delayed) arrival when it lands on the pickup date — so a delay into the
+        window is caught before the pickup is re-matched; otherwise the booked
+        pickup_time. Returns a datetime.time or None."""
+        if self.get_trip_type() == "arrival" and self.flight_information_id:
+            arr = self.flight_information.best_arrival_local()
+            if arr is not None:
+                if timezone.is_aware(arr):
+                    arr = timezone.make_naive(arr, timezone.get_current_timezone())
+                # Trust only a same-day arrival; red-eye / different-date arrivals
+                # are handled by the normal flight-verification flow.
+                if self.pickup_date is None or arr.date() == self.pickup_date:
+                    return arr.time()
+        return self.pickup_time
+
+    def afterhours_fee_outstanding(self):
+        """Decimal after-hours fee OWED BUT NOT YET applied/charged for this leg,
+        based on the effective (delay-aware) pickup time. Returns 0 when out of
+        the window or already collected — a leg booked late already carries the
+        fee (afterhours_fee == 20), so it returns 0 and shows no 'owed' flag."""
+        from .utils import afterhours_fee_owed
+        owed = afterhours_fee_owed(self.effective_afterhours_time())
+        applied = self.afterhours_fee or Decimal("0.00")
+        return owed - applied if owed > applied else Decimal("0.00")
 
     def get_trip_type_display(self):
         """
@@ -1988,6 +2046,19 @@ class Flight(models.Model):
         null=True, blank=True,
         help_text="When flight data was last fetched from AeroAPI"
     )
+
+    def best_arrival_local(self):
+        """Best available arrival time (single source of truth for the priority
+        chain): actual gate > estimated gate > actual runway > estimated runway >
+        scheduled gate > scheduled runway. Returns a datetime or None."""
+        return (
+            self.actual_gate_arrival_local
+            or self.estimated_gate_arrival_local
+            or self.actual_arrival_local
+            or self.estimated_arrival_local
+            or self.scheduled_gate_arrival_local
+            or self.scheduled_arrival_local
+        )
 
     def save(self, *args, **kwargs):
         """

@@ -1255,6 +1255,17 @@ def auto_refresh_flights():
             if flight_data.get("status") == "success":
                 _apply_flight_update(flight, flight_data)
                 refreshed += 1
+                # After-hours fee detection: if the refreshed arrival now lands
+                # in the late-night window (10 PM-6 AM) on the pickup day, flag it
+                # for the dispatcher to review + charge. Day-of only (founder:
+                # "only on the day of the pickup"). Never charges here.
+                if leg.pickup_date == today:
+                    try:
+                        _detect_afterhours_after_refresh(leg, flight)
+                    except Exception as e:
+                        logger.warning(
+                            f"After-hours detect failed for leg {leg.id}: {e}"
+                        )
             else:
                 errors += 1
                 logger.debug(
@@ -1401,3 +1412,88 @@ def _apply_flight_update(flight, flight_data):
 
     # Deduplicate and save
     flight.save(update_fields=list(set(update_fields)))
+
+
+# ── After-hours fee detection ───────────────────────────────────────────────
+
+def _detect_afterhours_after_refresh(leg, flight):
+    """After a background flight refresh, check whether the flight's effective
+    arrival now lands in the late-night window on the pickup day, and flag it.
+    Uses the flight arrival (this path does NOT move pickup_time)."""
+    from zoneinfo import ZoneInfo
+
+    arrival = (
+        flight.actual_gate_arrival_local
+        or flight.estimated_gate_arrival_local
+        or flight.actual_arrival_local
+        or flight.estimated_arrival_local
+        or flight.scheduled_gate_arrival_local
+        or flight.scheduled_arrival_local
+    )
+    if arrival is None:
+        return
+    if timezone.is_aware(arrival):
+        arrival = arrival.astimezone(ZoneInfo("America/New_York"))
+    # A different-date arrival (red-eye) is handled by the flight-verification
+    # flow; only act when the arrival lands on the leg's own pickup day.
+    if arrival.date() != leg.pickup_date:
+        return
+    flag_afterhours_fee(leg, arrival.time())
+
+
+def flag_afterhours_fee(leg, effective_time):
+    """Raise (or clear) an after-hours-fee ops task for a leg based on whether
+    `effective_time` (the real pickup/arrival time-of-day) falls in the
+    10 PM-6 AM window and the fee has NOT yet been applied/charged
+    (`leg.afterhours_fee == 0`).
+
+    Never charges the card — that is the dispatcher's one-click action on the
+    task (or, later, the flag-gated auto path). Flap-safe: if the pickup moves
+    back out of the window before charging, any open flag is closed.
+    Returns the created task, or None.
+    """
+    from decimal import Decimal
+    from reservations.utils import afterhours_fee_owed, AFTERHOURS_FEE_AMOUNT
+    from .models import OperationalTask
+    from .services import create_task, close_task
+
+    owed = afterhours_fee_owed(effective_time)
+    applied = leg.afterhours_fee or Decimal("0.00")
+
+    if owed and applied < owed:
+        reservation = leg.reservation
+        when = effective_time.strftime("%I:%M %p").lstrip("0")
+        day = leg.pickup_date.strftime("%b %d") if leg.pickup_date else ""
+        title = f"After-hours fee — {day} pickup now {when}"
+        description = (
+            f"Pickup for reservation #{reservation.id if reservation else '?'} is now "
+            f"{when} ({day}), inside the 10 PM-6 AM window. A "
+            f"${AFTERHOURS_FEE_AMOUNT} after-hours fee has not been collected. "
+            f"Click 'Charge after-hours fee' to bill the card on file and notify the customer."
+        )
+        return create_task(
+            task_type=OperationalTask.TaskType.AFTERHOURS_FEE,
+            title=title,
+            priority=OperationalTask.Priority.HIGH,
+            description=description,
+            reservation=reservation,
+            leg=leg,
+            metadata={
+                "effective_time": effective_time.strftime("%H:%M"),
+                "amount": str(AFTERHOURS_FEE_AMOUNT),
+            },
+        )
+
+    # Not owed (flapped back out of the window) or already applied → clear flags.
+    open_tasks = OperationalTask.objects.filter(
+        leg=leg,
+        task_type=OperationalTask.TaskType.AFTERHOURS_FEE,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+    )
+    for task in open_tasks:
+        close_task(
+            task,
+            auto=True,
+            resolution_notes="After-hours fee no longer owed (pickup moved out of window) or already applied.",
+        )
+    return None

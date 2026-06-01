@@ -1,0 +1,154 @@
+{% load filters %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en" style="-webkit-text-size-adjust: none !important;">
+  <head>
+    <title>Update to Your Grayson Towncar Reservation</title>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="x-apple-disable-message-reformatting" content="" />
+    <meta content="target-densitydpi=device-dpi" name="viewport" />
+    <meta content="true" name="HandheldFriendly" />
+    <meta content="width=device-width" name="viewport" />
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+
+    <style type="text/css">
+      @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;700&family=Roboto:wght@400;700&display=swap');
+    </style>
+
+    <style type="text/css">
+      body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+      table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+      img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+      table { border-collapse: collapse !important; }
+      body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+      @media screen and (max-width: 600px) {
+        .main-table { width: 100% !important; }
+        .content-cell { padding: 30px 24px 40px 24px !important; }
+        .footer-cell { padding: 30px 24px !important; }
+      }
+    </style>
+  </head>
+  <body id="body" style="margin:0; padding:0; background-color:#242424; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; background-color:#242424;">
+      <tr>
+        <td align="center" style="padding:0;">
+
+          <!-- Main Content Container -->
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse; background-color:#F8F8F8; margin-top:30px;">
+            <tr>
+              <td class="content-cell" style="padding:50px 50px 60px 50px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+
+                  <!-- Logo -->
+                  <tr>
+                    <td align="center" style="padding-bottom:16px;">
+                      <h2 style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:28px; color:#333333; font-weight:700; letter-spacing:1px;">GRAYSON TOWNCAR</h2>
+                    </td>
+                  </tr>
+
+                  <!-- Divider accent -->
+                  <tr>
+                    <td align="center" style="padding-bottom:28px;">
+                      <div style="width:60px; height:3px; background-color:#C89B3C; margin:0 auto;"></div>
+                    </td>
+                  </tr>
+
+                  <!-- Main Heading -->
+                  <tr>
+                    <td>
+                      <h1 style="margin:0 0 6px 0; font-family:Roboto, Arial, sans-serif; font-size:24px; line-height:30px; color:#222222; font-weight:700; text-align:center;">After-Hours Service Update</h1>
+                    </td>
+                  </tr>
+                  <tr><td height="24"></td></tr>
+
+                  <!-- Greeting + explanation -->
+                  <tr>
+                    <td>
+                      <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                        Hi {{ reservation.customer.first_name }},
+                      </p>
+                      <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                        Your pickup is now scheduled during our late-night service window (between
+                        <strong>10:00&nbsp;PM and 6:00&nbsp;AM</strong>). This often happens when a flight&rsquo;s
+                        arrival time shifts later in the evening.
+                      </p>
+                      <p style="margin:0 0 24px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:27px; color:#444444;">
+                        As stated in our booking policy, all pickups during these hours are subject to a flat
+                        <strong>${{ amount }} after-hours service fee</strong>. This fee has been
+                        <strong>automatically applied</strong> to your reservation and charged to the card on file &mdash;
+                        no action is needed on your part.
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Summary Box -->
+                  <tr>
+                    <td style="background-color:#f0f0f0; border-left:4px solid #C89B3C; padding:18px 20px; border-radius:4px;">
+                      <p style="margin:0 0 10px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:15px; font-weight:700; color:#333333; text-transform:uppercase; letter-spacing:0.5px;">Trip Details</p>
+                      <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <strong>Confirmation #:</strong> 50{{ reservation.id }}
+                      </p>
+                      <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <strong>Pickup:</strong> {{ leg.pickup_date|date:"l, F j, Y" }} at {{ leg.pickup_time|time:"g:i A" }}
+                      </p>
+                      <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <strong>From:</strong> {{ leg.pickup_location }}
+                      </p>
+                      <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <strong>To:</strong> {{ leg.dropoff_location }}
+                      </p>
+                      <p style="margin:10px 0 0 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; border-top:1px solid #dddddd; padding-top:10px;">
+                        <strong>After-Hours Service Fee:</strong>
+                        <span style="color:#222222; font-weight:700;">${{ amount }}</span>
+                      </p>
+                    </td>
+                  </tr>
+                  <tr><td height="28"></td></tr>
+
+                  <!-- Contact Info -->
+                  <tr>
+                    <td>
+                      <p style="margin:0 0 6px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:24px; color:#444444;">
+                        Questions about this charge? Give us a call or reply to this email:
+                      </p>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:24px; color:#444444;">
+                        <a href="tel:4072127190" style="color:#C89B3C; text-decoration:none; font-weight:700;">(407) 212-7190</a>
+                        &nbsp;&bull;&nbsp;
+                        <a href="mailto:reservations@graysontowncar.com" style="color:#C89B3C; text-decoration:none;">reservations@graysontowncar.com</a>
+                      </p>
+                    </td>
+                  </tr>
+                  <tr><td height="36"></td></tr>
+
+                  <!-- Company sign-off -->
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:24px; color:#555555; font-weight:700; font-style:italic;">Grayson Towncar Orlando</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Footer -->
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse; background-color:#242424;">
+            <tr>
+              <td class="footer-cell" style="padding:36px 50px; text-align:center;">
+                <p style="margin:0 0 8px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:20px; color:#888888;">&copy; 2025 Grayson Towncar. All rights reserved.</p>
+                <p style="margin:0 0 8px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:20px; color:#888888;">
+                  Contact Us | <a href="tel:4072127190" style="color:#888888; text-decoration:none;">407-212-7190</a>
+                </p>
+                <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:20px; color:#C89B3C;">
+                  <a href="https://www.graysontowncar.com" style="color:#C89B3C; font-weight:700; text-decoration:none;" target="_blank">www.graysontowncar.com</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -2093,6 +2093,68 @@ body {
 
         {% endif %}
 
+        {% if is_afterhours_fee %}
+        <!-- ═══ After-Hours Fee Panel ═══ -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-moon-stars-fill" style="color: var(--ops-amber);"></i>
+            <h6>After-Hours Fee</h6>
+            <span class="fv-severity">${{ ah_amount }}</span>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-summary" style="margin-bottom: .65rem;">
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Customer</span>
+                <span class="conflict-stat-value">{{ ah_customer.get_full_name|default:"—" }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Pickup</span>
+                <span class="conflict-stat-value conflict-stat-warn">{{ ah_pickup_str }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Reservation</span>
+                <span class="conflict-stat-value">#{{ ah_reservation.id }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Fee</span>
+                <span class="conflict-stat-value">${{ ah_amount }}</span>
+              </div>
+            </div>
+
+            <p class="text-muted" style="font-size: .85rem; margin-bottom: .75rem;">
+              This pickup falls in the 10 PM–6 AM window. Charging bills the card on
+              file and automatically emails the customer a professional after-hours notice.
+            </p>
+
+            <div class="conflict-actions">
+              {% if ah_already_applied %}
+                <div class="act-badge act-badge-ok"><i class="bi bi-check-circle-fill"></i> Fee already applied</div>
+              {% elif not ah_has_card_on_file %}
+                <div class="act-badge act-badge-warn"><i class="bi bi-exclamation-triangle-fill"></i> No card on file — collect manually</div>
+              {% else %}
+                <button id="chargeAfterhoursBtn" class="conflict-act-btn act-dispatch"
+                        data-charge-url="{% url 'charge_afterhours_fee' leg_id=ah_leg.id %}">
+                  <i class="bi bi-credit-card-fill"></i>
+                  <div class="act-text-col">
+                    <span class="act-label">Charge ${{ ah_amount }} after-hours fee &amp; notify customer</span>
+                    <span class="act-hint">Bills the card on file and emails the customer automatically</span>
+                  </div>
+                </button>
+              {% endif %}
+              {% if ah_reservation %}
+              <a href="{% url 'reservation_details' id=ah_reservation.uuid %}" class="conflict-act-btn act-dispatch" target="_blank">
+                <i class="bi bi-box-arrow-up-right"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Reservation</span>
+                  <span class="act-hint">Review trip + payment details</span>
+                </div>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         {% if is_flight_verify %}
         <!-- ═══ Flight Verify Panel ═══ -->
 
@@ -3139,6 +3201,43 @@ document.querySelectorAll('.act-match-flight').forEach(btn => {
       if (label) label.textContent = origLabel;
       alert('Error: ' + err);
     });
+  });
+});
+
+/* Charge After-Hours Fee action */
+document.getElementById('chargeAfterhoursBtn')?.addEventListener('click', function() {
+  const url = this.dataset.chargeUrl;
+  const label = this.querySelector('.act-label');
+  const origLabel = label ? label.textContent : '';
+  if (!confirm('Charge the after-hours fee to the card on file and email the customer?')) return;
+  this.style.pointerEvents = 'none';
+  this.style.opacity = '.6';
+  if (label) label.textContent = 'Charging...';
+
+  fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      if (label) label.textContent = 'Charged!';
+      const icon = this.querySelector('i');
+      if (icon) icon.className = 'bi bi-check-circle-fill';
+      setTimeout(() => location.reload(), 800);
+    } else {
+      this.style.pointerEvents = '';
+      this.style.opacity = '';
+      if (label) label.textContent = origLabel;
+      alert(data.error || 'Could not charge the after-hours fee');
+    }
+  })
+  .catch(err => {
+    this.style.pointerEvents = '';
+    this.style.opacity = '';
+    if (label) label.textContent = origLabel;
+    alert('Error: ' + err);
   });
 });
 

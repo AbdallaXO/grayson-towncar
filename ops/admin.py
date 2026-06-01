@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import OperationalTask, CommunicationAttempt, StaffActivity, EmailLog
+from django.utils import timezone
+from .models import (
+    OperationalTask,
+    CommunicationAttempt,
+    StaffActivity,
+    EmailLog,
+    TimeClockShift,
+    TimeClockBreak,
+)
 
 
 class CommunicationAttemptInline(admin.TabularInline):
@@ -54,3 +62,45 @@ class EmailLogAdmin(admin.ModelAdmin):
     readonly_fields = ("sent_at",)
     raw_id_fields = ("sent_by", "reservation")
     date_hierarchy = "sent_at"
+
+
+class TimeClockBreakInline(admin.TabularInline):
+    model = TimeClockBreak
+    extra = 0
+    fields = ("break_start_at", "break_end_at", "auto_closed", "minutes")
+    readonly_fields = ("minutes", "created_at")
+
+
+@admin.register(TimeClockShift)
+class TimeClockShiftAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "user", "clock_in_at", "clock_out_at",
+        "worked_minutes", "break_minutes", "is_open", "auto_closed",
+    )
+    list_filter = (
+        "auto_closed",
+        ("clock_out_at", admin.EmptyFieldListFilter),  # open vs closed
+        "user",
+    )
+    readonly_fields = (
+        "created_at", "updated_at", "edited_by", "edited_at",
+        "gross_minutes", "break_minutes", "worked_minutes",
+    )
+    raw_id_fields = ("user",)
+    date_hierarchy = "clock_in_at"
+    inlines = [TimeClockBreakInline]
+
+    def save_model(self, request, obj, form, change):
+        """Stamp who corrected the times when an admin edits an existing shift."""
+        if change:
+            obj.edited_by = request.user
+            obj.edited_at = timezone.now()
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(TimeClockBreak)
+class TimeClockBreakAdmin(admin.ModelAdmin):
+    list_display = ("id", "shift", "break_start_at", "break_end_at", "minutes", "auto_closed")
+    list_filter = ("auto_closed",)
+    raw_id_fields = ("shift",)
+    date_hierarchy = "break_start_at"

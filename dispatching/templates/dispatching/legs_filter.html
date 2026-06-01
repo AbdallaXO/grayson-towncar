@@ -404,7 +404,10 @@
     <div class="row mb-4">
       <div class="col-12">
         <div class="d-flex justify-content-between align-items-center flex-wrap">
-          <h1 class="mb-3 mb-md-0 fs-1 fw-bold">Legs Dashboard</h1>
+          <div class="mb-3 mb-md-0">
+            <h1 class="fs-1 fw-bold mb-0">Legs Dashboard</h1>
+            <p class="text-muted mb-0">Hello, {{ request.user.first_name|default:request.user.get_username|title }} 👋</p>
+          </div>
           <div class="d-flex flex-wrap gap-2">
             <a href="{% url 'dispatcher_booking_start' %}" class="btn btn-success">
               <i class="fas fa-plus me-1"></i>New Reservation
@@ -838,6 +841,22 @@
     <!-- Driver Timeline -->
     {% include 'dispatching/includes/driver_timeline.html' %}
 
+    <!-- After-hours fee banner: unmissable count + one-click "review then charge all" -->
+    {% if afterhours_owed_count %}
+    <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 shadow-sm mb-3" id="afterhoursBanner">
+      <div class="fw-semibold">
+        <i class="bi bi-moon-stars-fill me-1"></i>
+        After-hours fee owed on {{ afterhours_owed_count }} leg{{ afterhours_owed_count|pluralize }}
+        <span class="text-muted fw-normal">($20 each — pickup now in the 10 PM–6 AM window, not yet charged)</span>
+      </div>
+      <button type="button" class="btn btn-sm btn-warning fw-semibold" id="chargeAllAfterhoursBtn"
+              data-date="{{ selected_date|date:'Y-m-d' }}" data-count="{{ afterhours_owed_count }}"
+              title="Charge $20 to each flagged customer's card on file and email them">
+        <i class="bi bi-credit-card me-1"></i>Review &amp; charge all
+      </button>
+    </div>
+    {% endif %}
+
     <!-- Legs Table Section -->
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-light py-2 px-3">
@@ -915,7 +934,7 @@
             <tbody>
               {% for leg in legs %}
                 {% with mismatch=leg.get_flight_time_mismatch_display %}
-                  <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
+                  <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       data-leg-status="{{ leg.status }}"
                       {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
@@ -1081,6 +1100,19 @@
 
                       <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
                       <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
+                      {% if leg.afterhours_owed %}
+                      <div class="mt-1">
+                        <span class="badge bg-warning text-dark" title="This pickup is now in the 10 PM–6 AM window (often a delayed flight) and the $20 after-hours fee has not been collected yet.">
+                          <i class="bi bi-moon-stars-fill me-1"></i>After-hours fee owed · $20
+                        </span>
+                        <button type="button" class="btn btn-sm btn-warning charge-afterhours-btn d-block mt-1"
+                                data-leg-id="{{ leg.id }}"
+                                data-charge-url="{% url 'charge_afterhours_fee' leg_id=leg.id %}"
+                                title="Charge $20 to the card on file and email the customer">
+                          <i class="bi bi-credit-card me-1"></i>Charge $20 &amp; email
+                        </button>
+                      </div>
+                      {% endif %}
                       <div class="mt-2">
                         {% with trip_display=leg.get_trip_type_display %}
                           <span class="badge bg-{{ trip_display.color }}">
@@ -1392,8 +1424,8 @@
             {% for leg in legs %}
               {% with mismatch=leg.get_flight_time_mismatch_display %}
                 <div class="col-12" id="leg-card-{{ leg.id }}" data-leg-status="{{ leg.status }}">
-                  <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' %}border-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
-                    <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
+                  <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
+                    <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                       <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold">
                           {{ leg.reservation.customer.get_full_name }}
@@ -1441,6 +1473,16 @@
                             <i class="bi bi-calendar-event text-primary me-2"></i>
                             <div class="small">
                               <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
+                              {% if leg.afterhours_owed %}
+                                <div class="mt-1">
+                                  <span class="badge bg-warning text-dark"><i class="bi bi-moon-stars-fill me-1"></i>After-hours fee owed · $20</span>
+                                  <button type="button" class="btn btn-sm btn-warning charge-afterhours-btn d-block mt-1"
+                                          data-leg-id="{{ leg.id }}"
+                                          data-charge-url="{% url 'charge_afterhours_fee' leg_id=leg.id %}">
+                                    <i class="bi bi-credit-card me-1"></i>Charge $20 &amp; email
+                                  </button>
+                                </div>
+                              {% endif %}
                               {% if leg.flight_information %}
                                 <div>
                                   <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
@@ -2515,6 +2557,84 @@
                       });
               });
           });
+
+          // ── After-hours fee: per-row charge + email ──
+          document.querySelectorAll('.charge-afterhours-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const el = this;
+                  const url = el.dataset.chargeUrl;
+                  if (!confirm('Charge $20 after-hours fee to the card on file and email the customer?')) return;
+                  const originalHTML = el.innerHTML;
+                  el.disabled = true;
+                  el.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Charging...';
+                  fetch(url, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                          body: JSON.stringify({})
+                      })
+                      .then(r => r.json())
+                      .then(data => {
+                          if (data.success) {
+                              el.innerHTML = '<i class="bi bi-check-circle text-success"></i> Charged';
+                              window.location.reload();
+                          } else {
+                              el.disabled = false;
+                              el.innerHTML = originalHTML;
+                              alert(data.error || 'Could not charge the after-hours fee');
+                          }
+                      })
+                      .catch(err => {
+                          el.disabled = false;
+                          el.innerHTML = originalHTML;
+                          alert('Error: ' + err.message);
+                      });
+              });
+          });
+
+          // ── After-hours fee: batch "review & charge all" ──
+          (function() {
+              const btn = document.getElementById('chargeAllAfterhoursBtn');
+              if (!btn) return;
+              btn.addEventListener('click', function() {
+                  // Charge exactly the legs the dispatcher is looking at (honors
+                  // active driver/vehicle/trip-type filters): collect the owed legs
+                  // actually rendered on the page. Dedupe (desktop + mobile rows).
+                  const ids = [...new Set(
+                      Array.from(document.querySelectorAll('.charge-afterhours-btn'))
+                           .map(b => b.dataset.legId)
+                  )];
+                  if (!ids.length) return;
+                  if (!confirm('Charge $20 to ' + ids.length + ' customer(s) and email each of them?')) return;
+                  const originalHTML = btn.innerHTML;
+                  btn.disabled = true;
+                  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Charging ' + ids.length + '...';
+                  fetch("{% url 'charge_all_afterhours_fees' %}", {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                          body: JSON.stringify({ leg_ids: ids })
+                      })
+                      .then(r => r.json())
+                      .then(data => {
+                          if (data.success) {
+                              let msg = data.message || ('Charged ' + data.charged + '.');
+                              if (data.failed && data.failed.length) {
+                                  msg += '\n\nFailed:\n' + data.failed.map(f => '• ' + (f.customer || ('Leg ' + f.leg_id)) + ': ' + f.error).join('\n');
+                              }
+                              alert(msg);
+                              window.location.reload();
+                          } else {
+                              btn.disabled = false;
+                              btn.innerHTML = originalHTML;
+                              alert(data.error || 'Could not charge the after-hours fees');
+                          }
+                      })
+                      .catch(err => {
+                          btn.disabled = false;
+                          btn.innerHTML = originalHTML;
+                          alert('Error: ' + err.message);
+                      });
+              });
+          })();
 
           // Dim Completed toggle
           (function() {
