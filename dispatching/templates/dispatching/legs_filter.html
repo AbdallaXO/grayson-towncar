@@ -7,6 +7,9 @@
   <style>
       /* Ensure interactive elements show pointer cursor */
       .form-select, .btn { cursor: pointer; }
+      /* Early-flight flag: thin left accent bar instead of a full-row fill */
+      tr.leg-flag-alert { box-shadow: inset 4px 0 0 0 #dc3545; }
+      tr.leg-flag-watch { box-shadow: inset 4px 0 0 0 #e6a23c; }
 
       /* Dim completed/cancelled jobs */
       body.dim-done tr[data-leg-status="completed"],
@@ -933,11 +936,11 @@
             </thead>
             <tbody>
               {% for leg in legs %}
-                {% with mismatch=leg.get_flight_time_mismatch_display %}
-                  <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
+                {% with flag=leg.flight_timing_flag %}
+                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       data-leg-status="{{ leg.status }}"
-                      {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
+                      {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
                     <!-- Customer -->
                     <td>
                       <div class="d-flex flex-column">
@@ -975,10 +978,16 @@
 
                     <!-- Pickup Info -->
                     <td>
-                      {% if mismatch %}
+                      {% if flag.level == 'alert' %}
                         <div class="mb-1">
-                          <span class="badge bg-danger" title="{{ mismatch.label }}">
-                            <i class="bi bi-exclamation-triangle me-1"></i>{{ mismatch.label }}
+                          <span class="badge bg-danger" title="{{ flag.label }}">
+                            <i class="bi bi-exclamation-triangle me-1"></i>{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}
+                          </span>
+                        </div>
+                      {% elif flag.level == 'watch' %}
+                        <div class="mb-1">
+                          <span class="badge bg-warning text-dark" title="Flight is landing early — keep an eye on the driver's turnaround">
+                            <i class="bi bi-airplane-engines me-1"></i>{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}
                           </span>
                         </div>
                       {% endif %}
@@ -1422,15 +1431,17 @@
         <div class="d-lg-none">
           <div class="row g-3 p-2">
             {% for leg in legs %}
-              {% with mismatch=leg.get_flight_time_mismatch_display %}
+              {% with flag=leg.flight_timing_flag %}
                 <div class="col-12" id="leg-card-{{ leg.id }}" data-leg-status="{{ leg.status }}">
-                  <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
-                    <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
+                  <div class="card shadow-sm {% if leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if flag.level == 'alert' %}border-start border-4 border-danger{% elif flag.level == 'watch' %}border-start border-4 border-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
+                    <div class="card-header {% if leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                       <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold">
                           {{ leg.reservation.customer.get_full_name }}
-                          {% if mismatch %}
-                            <span class="badge bg-danger ms-1" title="{{ mismatch.label }}">{{ mismatch.label }}</span>
+                          {% if flag.level == 'alert' %}
+                            <span class="badge bg-danger ms-1" title="{{ flag.label }}">{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}</span>
+                          {% elif flag.level == 'watch' %}
+                            <span class="badge bg-warning text-dark ms-1" title="Flight is landing early — keep an eye on the turnaround"><i class="bi bi-airplane-engines me-1"></i>{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}</span>
                           {% endif %}
                         </h6>
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"

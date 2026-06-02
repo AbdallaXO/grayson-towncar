@@ -637,6 +637,24 @@
     [data-theme="dark"] .gt-conflict-strip.gt-conflict-overlap { background: rgba(239,68,68,0.15); }
     [data-theme="dark"] .gt-conflict-strip.gt-buffer-ok { background: rgba(16,185,129,0.1); }
 
+    /* Heads-up flag: next pickup's flight is landing early (be proactive) */
+    .gt-next-early {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: var(--gt-radius-sm);
+        font-size: 0.82rem;
+        font-weight: 700;
+        line-height: 1.3;
+        color: #b45309;
+        background: rgba(245,158,11,0.13);
+        border: 1px solid rgba(245,158,11,0.28);
+        border-left: 4px solid var(--gt-orange);
+    }
+    .gt-next-early i { font-size: 1.05rem; color: var(--gt-orange); flex-shrink: 0; }
+    [data-theme="dark"] .gt-next-early { color: #fcd34d; background: rgba(245,158,11,0.16); }
+
     /* ─── Estimated End Time ─── */
     .gt-est-end {
         font-size: 0.8125rem;

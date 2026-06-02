@@ -30,6 +30,25 @@ MINOR_THRESHOLD = 30
 MODERATE_THRESHOLD = 60
 MAJOR_THRESHOLD = 120
 
+# ── Early-flight "tight turn" safety net ────────────────────────────────────
+# When an arrival flight lands early, a driver coming off a prior job may reach
+# the airport AFTER the plane is already down. Founder's rule (no deplaning
+# padding): compare the driver's projected arrival to the RAW flight arrival.
+#   * driver arrives >= TIGHT_TURN_RED_AFTER_MIN min after the flight → RED
+#     "won't make it" (existing CRITICAL driver_conflict).
+#   * driver arrives 0..TIGHT_TURN_RED_AFTER_MIN min after the flight → AMBER
+#     "tight turn — keep an eye" (MEDIUM tight_turn task; the new tier).
+#   * driver arrives before the flight lands → no flag.
+# This threshold is intentionally measured against the raw arrival and is kept
+# SEPARATE from the scheduler's AIRPORT_ARRIVAL_GRACE_MINUTES so the morning
+# safety flag stays conservative even if the deplaning grace is retuned.
+TIGHT_TURN_ENABLED = True
+TIGHT_TURN_RED_AFTER_MIN = 15
+# Board "landing early" badge: flag an arrival whose flight is now this many
+# minutes (or more) earlier than the booked pickup time. (Used in the Leg helper
+# in reservations/models.py; mirrored here for reference.)
+EARLY_ARRIVAL_BADGE_MIN = 15
+
 # Priority matrix: (severity_tier, days_until_bucket) → Priority
 # severity_tier: "minor" (30-60min), "moderate" (60-120min), "major" (120+min)
 # days_bucket: "imminent" (1-2d), "soon" (3-5d), "distant" (6-7d)
@@ -125,6 +144,150 @@ def _get_effective_ready_time(leg, target_date):
             pass
 
     return datetime.combine(target_date, leg.pickup_time)
+
+
+def _get_raw_arrival_dt(leg, target_date):
+    """Best available flight arrival for an airport-arrival leg, normalized to
+    target_date, WITHOUT any deplaning grace. Returns a datetime or None when the
+    leg isn't an airport arrival or has no usable flight arrival time."""
+    if leg.get_trip_type() != "arrival" or not leg.flight_information:
+        return None
+    try:
+        from dispatching.scheduler import _get_best_flight_arrival
+        flight_dt = _get_best_flight_arrival(leg)
+        if flight_dt:
+            return datetime.combine(target_date, flight_dt.time())
+    except Exception:
+        pass
+    return None
+
+
+def _reposition_minutes(from_location, to_location):
+    """Travel minutes between two raw addresses: live traffic → category table → 0.
+    Module-level twin of the inner helper in detect_driver_conflicts so the
+    tight-turn code and the overlap scan share one implementation."""
+    if not from_location or not to_location:
+        return 0
+    try:
+        from drivers.utils import get_drive_time as google_drive_time
+        live = google_drive_time(from_location, to_location)
+        if live:
+            return round(live["duration_seconds"] / 60)
+    except Exception:
+        pass
+    try:
+        from dispatching.analytics import categorize_location
+        from dispatching.scheduler import get_drive_time as sched_drive
+        fc = categorize_location(from_location)
+        tc = categorize_location(to_location)
+        return sched_drive(fc, tc, None, None)
+    except Exception:
+        return 0
+
+
+def _turn_late_minutes(prev_leg, curr_leg, target_date):
+    """How many minutes after curr_leg's RAW flight arrival the driver would reach
+    it, coming off prev_leg (prev end + reposition travel). Positive = the driver
+    is that many minutes late to the plane; <= 0 = there before it lands.
+
+    Returns a dict {late, driver_arrives, raw_arrival, travel} or None when
+    curr_leg isn't an airport arrival with a known flight arrival time."""
+    raw_arrival = _get_raw_arrival_dt(curr_leg, target_date)
+    if raw_arrival is None:
+        return None
+    end_prev = _estimate_leg_end_time(prev_leg, target_date)
+    travel = _reposition_minutes(prev_leg.dropoff_location, curr_leg.pickup_location)
+    driver_arrives = end_prev + timedelta(minutes=travel)
+    late = int((driver_arrives - raw_arrival).total_seconds() / 60)
+    return {
+        "late": late,
+        "driver_arrives": driver_arrives,
+        "raw_arrival": raw_arrival,
+        "travel": travel,
+        "end_prev": end_prev,
+    }
+
+
+def classify_turn(prev_leg, curr_leg, target_date):
+    """Single source of truth for the risk of the turn from prev_leg into curr_leg.
+    Used by both the overlap scan (task creation) and the auto-close re-check so the
+    two never disagree at the threshold.
+
+    Returns a dict {tier, late, driver_arrives, raw_arrival, end_prev, travel} or None
+    (no flag). `tier` is:
+      * 'red'   — driver reaches an airport arrival >= TIGHT_TURN_RED_AFTER_MIN min
+                  after the RAW flight arrival (won't make it), OR a booked-pickup
+                  overlap on a non-arrival leg.
+      * 'amber' — driver reaches the airport 0..TIGHT_TURN_RED_AFTER_MIN min after the
+                  raw flight arrival (tight, still makes it).
+    """
+    risk = _turn_late_minutes(prev_leg, curr_leg, target_date)
+    if risk is not None:
+        late = risk["late"]
+        if late <= 0:
+            return None  # driver is there before the flight lands — comfortable
+        risk["tier"] = "red" if late >= TIGHT_TURN_RED_AFTER_MIN else "amber"
+        return risk
+
+    # curr_leg isn't an airport arrival (no raw flight time) → booked-pickup overlap.
+    end_prev = _estimate_leg_end_time(prev_leg, target_date)
+    ready = _get_effective_ready_time(curr_leg, target_date)
+    travel = _reposition_minutes(prev_leg.dropoff_location, curr_leg.pickup_location)
+    driver_arrives = end_prev + timedelta(minutes=travel)
+    late = int((driver_arrives - ready).total_seconds() / 60)
+    if late > 0:
+        return {
+            "tier": "red",
+            "late": late,
+            "driver_arrives": driver_arrives,
+            "raw_arrival": None,
+            "travel": travel,
+            "end_prev": end_prev,
+        }
+    return None
+
+
+def _prior_same_driver_leg(leg, target_date):
+    """The active leg immediately preceding `leg` (by pickup_time) for the same
+    in-house driver on target_date. Returns a Leg or None (affiliate/unassigned/
+    first-of-day)."""
+    from reservations.models import Leg
+
+    if not leg.driver_id:
+        return None
+    driver = leg.driver
+    if getattr(driver, "driver_type", "affiliate") != "inhouse":
+        return None
+
+    earlier = (
+        Leg.objects.filter(driver=driver, pickup_date=target_date)
+        .exclude(pk=leg.pk)
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .filter(pickup_time__lte=leg.pickup_time)
+        .select_related("flight_information", "reservation", "reservation__customer")
+        .order_by("-pickup_time")
+        .first()
+    )
+    return earlier
+
+
+def _close_open_tight_turn_tasks(leg, *, note):
+    """Close any open TIGHT_TURN tasks for a leg (used when the turn escalates to a
+    red conflict, or is no longer tight). Returns the count closed."""
+    closed = 0
+    open_tt = OperationalTask.objects.filter(
+        leg=leg,
+        task_type=OperationalTask.TaskType.TIGHT_TURN,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+    )
+    for task in open_tt:
+        try:
+            close_task(task, auto=True, resolution_notes=note)
+            closed += 1
+        except Exception as e:
+            logger.error(f"Error closing tight_turn task #{task.id}: {e}", exc_info=True)
+    return closed
 
 
 def detect_driver_conflicts(leg, target_date):
@@ -497,6 +660,11 @@ def _scan_driver_overlaps():
     driver where the first leg's estimated end time overlaps the second
     leg's effective ready time.
 
+    Two tiers (see classify_turn): a RED driver_conflict when the driver can't
+    make it, and a softer AMBER tight_turn when an early flight leaves him a thin
+    cushion — still makes it, but worth watching. Both use the early-flight rule
+    (driver arrival vs the RAW flight arrival) for airport-arrival legs.
+
     Only checks same-day, in-house drivers. Skips legs that already have
     an open driver_conflict task (deduplication handled by create_task).
     Skips legs whose pickup time has already passed (no actionable conflict).
@@ -553,53 +721,26 @@ def _scan_driver_overlaps():
             if leg_a.pk in legs_with_open_conflict or leg_b.pk in legs_with_open_conflict:
                 continue
 
-            end_a = _estimate_leg_end_time(leg_a, today)
-            ready_b = _get_effective_ready_time(leg_b, today)
-
-            # Include travel time from leg_a dropoff to leg_b pickup
-            travel_mins = 0
-            if leg_a.dropoff_location and leg_b.pickup_location:
-                try:
-                    from drivers.utils import get_drive_time as google_drive_time
-                    live = google_drive_time(leg_a.dropoff_location, leg_b.pickup_location)
-                    if live:
-                        travel_mins = round(live["duration_seconds"] / 60)
-                except Exception:
-                    pass
-                if not travel_mins:
-                    try:
-                        from dispatching.analytics import categorize_location
-                        from dispatching.scheduler import get_drive_time as sched_drive
-                        fc = categorize_location(leg_a.dropoff_location)
-                        tc = categorize_location(leg_b.pickup_location)
-                        travel_mins = sched_drive(fc, tc, None, None)
-                    except Exception:
-                        pass
-
-            driver_arrives_b = end_a + timedelta(minutes=travel_mins)
-
-            if driver_arrives_b <= ready_b:
-                continue  # No overlap
-
-            conflict_minutes = int((driver_arrives_b - ready_b).total_seconds() / 60)
-            if conflict_minutes <= 0:
+            risk = classify_turn(leg_a, leg_b, today)
+            if risk is None:
                 continue
+            if risk["tier"] == "amber" and not TIGHT_TURN_ENABLED:
+                continue
+
+            conflict_minutes = risk["late"]
+            tier = risk["tier"]
 
             driver = leg_a.driver
             driver_name = str(driver)
 
-            # Use leg_b as the "affected" leg (the one the driver will be late to)
+            # Use leg_b as the "affected" leg (the one the driver is tight/late to)
             pickup_str_a = leg_a.pickup_time.strftime("%I:%M %p").lstrip("0")
             pickup_str_b = leg_b.pickup_time.strftime("%I:%M %p").lstrip("0")
-            clears_str = end_a.strftime("%I:%M %p").lstrip("0")
-
-            customer_a = leg_a.reservation.customer.get_full_name() if leg_a.reservation else "Unknown"
-            customer_b = leg_b.reservation.customer.get_full_name() if leg_b.reservation else "Unknown"
-
-            title = f"Driver Conflict — {driver_name}"
-            description = (
-                f"{pickup_str_a} and {pickup_str_b} legs conflict — "
-                f"driver will be {conflict_minutes} min late. Reassign or adjust times."
+            clears_str = risk["end_prev"].strftime("%I:%M %p").lstrip("0")
+            arrival_str = (
+                risk["raw_arrival"].strftime("%I:%M %p").lstrip("0")
+                if risk["raw_arrival"]
+                else ""
             )
 
             # Flight label if either leg has one
@@ -609,6 +750,58 @@ def _scan_driver_overlaps():
                     fi = check_leg.flight_information
                     flight_label = f"{fi.airline_display_name or fi.airline or ''} {fi.flight_number or ''}".strip()
                     break
+
+            # ── Amber: tight turn — driver still makes it, but only just ───────
+            if tier == "amber":
+                title = f"Tight turn — {driver_name}"
+                description = (
+                    f"Flight {flight_label or 'arrival'} now lands {arrival_str}. After the "
+                    f"{pickup_str_a} job, {driver_name} would reach the airport about "
+                    f"{conflict_minutes} min after it lands — still makes it, but tight. "
+                    f"Keep an eye on it / consider matching the pickup time."
+                )
+                task = create_task(
+                    task_type=OperationalTask.TaskType.TIGHT_TURN,
+                    title=title,
+                    due_at=now,
+                    priority=OperationalTask.Priority.MEDIUM,
+                    description=description,
+                    leg=leg_b,
+                    reservation=leg_b.reservation,
+                    metadata={
+                        "driver_id": driver.id,
+                        "driver_name": driver_name,
+                        "flight_ident": flight_label,
+                        "late_minutes": conflict_minutes,
+                        "new_arrival_time": arrival_str,
+                        "conflicting_leg_id": leg_a.id,
+                        "conflicting_pickup_time": str(leg_a.pickup_time),
+                        "driver_clears_at": clears_str,
+                        "pickup_date": str(today),
+                        "pickup_time": str(leg_b.pickup_time),
+                    },
+                )
+                if task:
+                    created += 1
+                continue
+
+            # ── Red: won't make it — escalate, dropping any softer tight flag ──
+            _close_open_tight_turn_tasks(
+                leg_b, note="Escalated to driver conflict (driver now late)."
+            )
+
+            title = f"Driver Conflict — {driver_name}"
+            if arrival_str:
+                description = (
+                    f"Flight {flight_label or 'arrival'} now lands {arrival_str}. After the "
+                    f"{pickup_str_a} job, {driver_name} would reach the airport about "
+                    f"{conflict_minutes} min after it lands — won't make it. Reassign or adjust."
+                )
+            else:
+                description = (
+                    f"{pickup_str_a} and {pickup_str_b} legs conflict — "
+                    f"driver will be {conflict_minutes} min late. Reassign or adjust times."
+                )
 
             task = create_task(
                 task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
@@ -638,7 +831,7 @@ def _scan_driver_overlaps():
                 created += 1
 
     if created:
-        logger.info(f"Driver overlap scan: created {created} driver_conflict tasks")
+        logger.info(f"Driver overlap scan: created {created} driver/tight-turn tasks")
     return created
 
 
@@ -1019,7 +1212,20 @@ def _auto_close_resolved_tasks():
                         continue
 
                 # Re-check if the schedule conflict still exists (regardless of flight mismatch status)
-                if leg.driver_id:
+                is_arrival_overlap = (
+                    is_pure_overlap
+                    and leg.get_trip_type() == "arrival"
+                    and leg.flight_information_id
+                )
+                if is_arrival_overlap:
+                    # Early-flight conflict: re-evaluate with the SAME rule used to
+                    # create it (classify_turn) so the threshold never flaps.
+                    prior = _prior_same_driver_leg(leg, leg.pickup_date)
+                    risk = classify_turn(prior, leg, leg.pickup_date) if prior else None
+                    if risk is None or risk["tier"] != "red":
+                        close_task(task, resolution_notes="Auto-closed: driver conflict resolved")
+                        closed += 1
+                elif leg.driver_id:
                     conflicts = detect_driver_conflicts(leg, leg.pickup_date)
                     if not conflicts:
                         if not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
@@ -1031,6 +1237,46 @@ def _auto_close_resolved_tasks():
                 logger.error(f"Error checking conflict task #{task.id}: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Auto-close conflict tasks error: {e}", exc_info=True)
+
+    # ── 2b. Tight-turn (amber) tasks: close when no longer tight ─────────────
+    try:
+        tight_tasks = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.TIGHT_TURN,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+        ).select_related(
+            "leg", "leg__driver", "leg__flight_information", "leg__reservation"
+        )
+        for task in tight_tasks:
+            try:
+                leg = task.leg
+                if not leg.driver_id:
+                    close_task(task, auto=True, resolution_notes="Auto-closed: driver unassigned")
+                    closed += 1
+                    continue
+
+                # Stale once the pickup time is well past
+                pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
+                pickup_aware = timezone.make_aware(pickup_dt, timezone.get_current_timezone())
+                if pickup_aware < now - timedelta(hours=3):
+                    close_task(task, auto=True, resolution_notes="Auto-closed: pickup time has passed")
+                    closed += 1
+                    continue
+
+                prior = _prior_same_driver_leg(leg, leg.pickup_date)
+                risk = classify_turn(prior, leg, leg.pickup_date) if prior else None
+                if risk is None:
+                    close_task(task, auto=True, resolution_notes="Auto-closed: turn no longer tight")
+                    closed += 1
+                elif risk["tier"] == "red":
+                    # Escalated to a real conflict — the overlap scan raises the red
+                    # task; drop the softer flag so the leg isn't double-flagged.
+                    close_task(task, auto=True, resolution_notes="Auto-closed: escalated to driver conflict")
+                    closed += 1
+            except Exception as e:
+                logger.error(f"Error checking tight_turn task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close tight_turn tasks error: {e}", exc_info=True)
 
     # ── 3. Contact form tasks where form was contacted/closed ────────────────
     try:

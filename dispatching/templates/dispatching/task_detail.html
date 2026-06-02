@@ -627,6 +627,21 @@ body {
 .conflict-stat-warn { color: var(--ops-amber); }
 .conflict-stat-danger { color: var(--ops-red); }
 
+/* Conflict timeline — the relocated story, now the visual hero under the stats */
+.conflict-flow {
+  margin-top: .85rem;
+  padding-top: .9rem;
+  border-top: 1px solid var(--ops-border);
+}
+.conflict-flow-title {
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--ops-text-muted);
+  margin-bottom: .6rem;
+}
+
 /* ── Flight Shift Detail ── */
 .flight-shift-detail {
   margin-top: .75rem;
@@ -1749,7 +1764,10 @@ body {
         <!-- Conflict Summary -->
         <div class="ops-card">
           <div class="ops-card-head">
-            {% if is_flight_triggered %}
+            {% if is_tight_turn %}
+            <i class="bi bi-hourglass-split" style="color: #e67e22;"></i>
+            <h6>Tight Turn — keep an eye</h6>
+            {% elif is_flight_triggered %}
             <i class="bi bi-airplane-fill" style="color: var(--ops-red);"></i>
             <h6>Flight Delay + Driver Conflict</h6>
             {% else %}
@@ -1763,47 +1781,110 @@ body {
                 <span class="conflict-stat-label">Driver</span>
                 <span class="conflict-stat-value">{{ driver_name }}</span>
               </div>
+              {% if is_tight_turn %}
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">After landing</span>
+                <span class="conflict-stat-value conflict-stat-warn">{{ tt_late_minutes }} min</span>
+              </div>
+              {% if tt_new_arrival %}
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Now lands</span>
+                <span class="conflict-stat-value">{{ tt_new_arrival }}</span>
+              </div>
+              {% endif %}
+              {% else %}
               <div class="conflict-stat">
                 <span class="conflict-stat-label">Late by</span>
                 <span class="conflict-stat-value conflict-stat-danger">{{ conflict_minutes }} min</span>
               </div>
+              {% endif %}
               {% if is_flight_triggered and flight_ident %}
               <div class="conflict-stat">
                 <span class="conflict-stat-label">Flight</span>
                 <span class="conflict-stat-value">{{ flight_ident }}</span>
               </div>
+              {% if mismatch_label %}
               <div class="conflict-stat">
                 <span class="conflict-stat-label">Shift</span>
                 <span class="conflict-stat-value conflict-stat-warn">{{ mismatch_label }}</span>
               </div>
               {% endif %}
+              {% endif %}
             </div>
 
-            <!-- Both conflicting legs side-by-side — earlier on left -->
-            {% if first_summary and second_summary %}
-            <div class="conflict-legs-row">
-              <div class="conflict-leg-card {% if first_summary == trigger_summary %}card-trigger{% else %}card-conflicting{% endif %} {% if first_summary.reassigned %}card-reassigned{% endif %}">
-                <div class="cl-time">{{ first_summary.time }}</div>
-                <div class="cl-customer">{{ first_summary.customer }}</div>
-                <div class="cl-location"><span class="cl-loc-label">P/U</span> {{ first_summary.pickup }}</div>
-                <div class="cl-location"><span class="cl-loc-label">D/O</span> {{ first_summary.dropoff }}</div>
-                {% if first_summary.flight %}<div class="cl-flight"><i class="bi bi-airplane"></i> {{ first_summary.flight }}</div>{% endif %}
-                <div class="cl-clears">Clears ~{{ first_summary.clear_time }}</div>
-                <span class="cl-tag {% if first_summary == trigger_summary %}cl-tag-trigger{% else %}cl-tag-conflict{% endif %}">{{ first_summary.trip_type|default:"leg" }}</span>
-                {% if first_summary.reassigned %}<span class="cl-tag cl-tag-reassigned">Reassigned</span>{% endif %}
-              </div>
-              <div class="conflict-arrow">
-                <i class="bi bi-arrow-right-circle-fill"></i>
-              </div>
-              <div class="conflict-leg-card {% if second_summary == trigger_summary %}card-trigger{% else %}card-conflicting{% endif %} {% if second_summary.reassigned %}card-reassigned{% endif %}">
-                <div class="cl-time">{{ second_summary.time }}</div>
-                <div class="cl-customer">{{ second_summary.customer }}</div>
-                <div class="cl-location"><span class="cl-loc-label">P/U</span> {{ second_summary.pickup }}</div>
-                <div class="cl-location"><span class="cl-loc-label">D/O</span> {{ second_summary.dropoff }}</div>
-                {% if second_summary.flight %}<div class="cl-flight"><i class="bi bi-airplane"></i> {{ second_summary.flight }}</div>{% endif %}
-                <div class="cl-clears">Clears ~{{ second_summary.clear_time }}</div>
-                <span class="cl-tag {% if second_summary == trigger_summary %}cl-tag-trigger{% else %}cl-tag-conflict{% endif %}">{{ second_summary.trip_type|default:"leg" }}</span>
-                {% if second_summary.reassigned %}<span class="cl-tag cl-tag-reassigned">Reassigned</span>{% endif %}
+            <!-- The conflict as a single vertical timeline (the story) -->
+            {% if conflict_detail %}
+            <div class="conflict-flow">
+              <div class="conflict-flow-title"><i class="bi bi-signpost-split-fill me-1"></i>What happens</div>
+              <div class="conflict-breakdown">
+                {% if conflict_detail.second_is_arrival and conflict_detail.original_flight_str %}
+                <div class="cb-step cb-step-flight">
+                  <div class="cb-icon"><i class="bi bi-airplane-fill"></i></div>
+                  <div class="cb-text">
+                    <span class="cb-label">{{ conflict_detail.second_flight_label }} — flight time shifted</span>
+                    <span class="cb-value">
+                      <span class="cb-strike">{{ conflict_detail.original_flight_str }}</span>
+                      <span style="font-size:.68rem; color:#94a3b8; margin: 0 2px;">scheduled</span>
+                      <i class="bi bi-arrow-right" style="font-size:.75rem; margin: 0 4px; color:#94a3b8;"></i>
+                      <strong>{{ conflict_detail.flight_gate_str }}</strong>
+                      <span style="font-size:.68rem; color:#94a3b8; margin: 0 2px;">estimated</span>
+                    </span>
+                  </div>
+                </div>
+                <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+                {% endif %}
+
+                <div class="cb-step cb-step-ok">
+                  <div class="cb-icon"><i class="bi bi-check-circle-fill"></i></div>
+                  <div class="cb-text">
+                    <span class="cb-label">{{ conflict_detail.first_customer }} job clears at</span>
+                    <span class="cb-value">{{ conflict_detail.clears_at_str }}</span>
+                    <span class="cb-sub"><i class="bi bi-geo-alt" style="font-size:.65rem;"></i> {{ conflict_detail.clears_location|truncatewords:5 }}</span>
+                  </div>
+                </div>
+                <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+                <div class="cb-step cb-step-travel">
+                  <div class="cb-icon"><i class="bi bi-{% if conflict_detail.is_reposition %}arrow-repeat{% else %}signpost-split-fill{% endif %}"></i></div>
+                  <div class="cb-text">
+                    <span class="cb-label">{% if conflict_detail.is_reposition %}Reposition to pickup area{% else %}Travel to next pickup{% endif %}</span>
+                    <span class="cb-value">{{ conflict_detail.travel_label }}{% if conflict_detail.travel_is_live %} <span class="tl-live-dot" title="Live traffic data"></span>{% endif %}</span>
+                    {% if not conflict_detail.is_reposition %}
+                    <span class="cb-sub"><i class="bi bi-geo-alt" style="font-size:.65rem;"></i> {{ conflict_detail.travel_to|truncatewords:5 }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+                <div class="cb-step cb-step-arrival">
+                  <div class="cb-icon"><i class="bi bi-geo-alt-fill"></i></div>
+                  <div class="cb-text">
+                    <span class="cb-label">Driver reaches {{ conflict_detail.second_customer }} pickup</span>
+                    <span class="cb-value">{{ conflict_detail.earliest_arrival_str }}</span>
+                  </div>
+                </div>
+
+                {% if conflict_detail.second_is_arrival and conflict_detail.flight_gate_str %}
+                <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+                <div class="cb-step cb-step-late">
+                  <div class="cb-icon"><i class="bi bi-airplane-fill"></i></div>
+                  <div class="cb-text">
+                    <span class="cb-label">Flight arrives at gate</span>
+                    <span class="cb-value">{{ conflict_detail.flight_gate_str }}</span>
+                    <span class="cb-sub">Driver reaches the pickup at {{ conflict_detail.earliest_arrival_str }} — dispatcher's call.</span>
+                  </div>
+                </div>
+                {% else %}
+                <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+                <div class="cb-step cb-step-late">
+                  <div class="cb-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                  <div class="cb-text">
+                    <span class="cb-label">Pickup scheduled</span>
+                    <span class="cb-value">{{ conflict_detail.second_pickup_str }}</span>
+                    {% if conflict_detail.late_minutes > 0 %}
+                    <span class="cb-late-badge">{{ conflict_detail.late_minutes }} min late</span>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endif %}
               </div>
             </div>
             {% endif %}
@@ -1953,91 +2034,6 @@ body {
             </div>
           </div>
         </div>
-
-        <!-- Conflict Breakdown -->
-        {% if conflict_detail %}
-        <div class="ops-card">
-          <div class="ops-card-head">
-            <i class="bi bi-signpost-split-fill" style="color: var(--ops-amber);"></i>
-            <h6>Why It Conflicts</h6>
-          </div>
-          <div class="ops-card-body">
-            <div class="conflict-breakdown">
-              {% if conflict_detail.second_is_arrival and conflict_detail.original_flight_str %}
-              <div class="cb-step cb-step-flight">
-                <div class="cb-icon"><i class="bi bi-airplane-fill"></i></div>
-                <div class="cb-text">
-                  <span class="cb-label">{{ conflict_detail.second_flight_label }} — flight time shifted</span>
-                  <span class="cb-value">
-                    <span class="cb-strike">{{ conflict_detail.original_flight_str }}</span>
-                    <span style="font-size:.68rem; color:#94a3b8; margin: 0 2px;">scheduled</span>
-                    <i class="bi bi-arrow-right" style="font-size:.75rem; margin: 0 4px; color:#94a3b8;"></i>
-                    <strong>{{ conflict_detail.flight_gate_str }}</strong>
-                    <span style="font-size:.68rem; color:#94a3b8; margin: 0 2px;">estimated</span>
-                  </span>
-                </div>
-              </div>
-              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
-              {% endif %}
-
-              <div class="cb-step cb-step-ok">
-                <div class="cb-icon"><i class="bi bi-check-circle-fill"></i></div>
-                <div class="cb-text">
-                  <span class="cb-label">Driver clears at</span>
-                  <span class="cb-value">{{ conflict_detail.clears_at_str }}</span>
-                  <span class="cb-sub"><i class="bi bi-geo-alt" style="font-size:.65rem;"></i> {{ conflict_detail.clears_location|truncatewords:5 }}</span>
-                </div>
-              </div>
-              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
-              <div class="cb-step cb-step-travel">
-                <div class="cb-icon"><i class="bi bi-{% if conflict_detail.is_reposition %}arrow-repeat{% else %}signpost-split-fill{% endif %}"></i></div>
-                <div class="cb-text">
-                  <span class="cb-label">{% if conflict_detail.is_reposition %}Reposition to pickup area{% else %}Travel to next pickup{% endif %}</span>
-                  <span class="cb-value">{{ conflict_detail.travel_label }}{% if conflict_detail.travel_is_live %} <span class="tl-live-dot" title="Live traffic data"></span>{% endif %}</span>
-                  {% if not conflict_detail.is_reposition %}
-                  <span class="cb-sub"><i class="bi bi-geo-alt" style="font-size:.65rem;"></i> {{ conflict_detail.travel_to|truncatewords:5 }}</span>
-                  {% endif %}
-                </div>
-              </div>
-              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
-              <div class="cb-step cb-step-arrival">
-                <div class="cb-icon"><i class="bi bi-geo-alt-fill"></i></div>
-                <div class="cb-text">
-                  <span class="cb-label">Driver at pickup</span>
-                  <span class="cb-value">{{ conflict_detail.earliest_arrival_str }}</span>
-                </div>
-              </div>
-
-              {% if conflict_detail.second_is_arrival and conflict_detail.guest_ready_str %}
-              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
-              <div class="cb-step cb-step-late">
-                <div class="cb-icon"><i class="bi bi-person-walking"></i></div>
-                <div class="cb-text">
-                  <span class="cb-label">Guest at baggage claim</span>
-                  <span class="cb-value">~{{ conflict_detail.guest_ready_str }}</span>
-                  <span class="cb-sub">{{ conflict_detail.flight_gate_str }} est. gate arrival + ~{{ conflict_detail.guest_ready_minutes }} min deplane &amp; walk</span>
-                  {% if conflict_detail.late_minutes > 0 %}
-                  <span class="cb-late-badge">Driver arrives {{ conflict_detail.late_minutes }} min after guest</span>
-                  {% endif %}
-                </div>
-              </div>
-              {% else %}
-              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
-              <div class="cb-step cb-step-late">
-                <div class="cb-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
-                <div class="cb-text">
-                  <span class="cb-label">Pickup scheduled</span>
-                  <span class="cb-value">{{ conflict_detail.second_pickup_str }}</span>
-                  {% if conflict_detail.late_minutes > 0 %}
-                  <span class="cb-late-badge">{{ conflict_detail.late_minutes }} min late</span>
-                  {% endif %}
-                </div>
-              </div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-        {% endif %}
 
         <!-- Actions -->
         {% if task.is_open %}

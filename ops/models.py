@@ -31,6 +31,7 @@ class OperationalTask(models.Model):
         CONFIRMATION_TEXTS = "confirmation_texts", "Confirmation Texts"
         CONTACT_FORM = "contact_form", "Contact Us"
         AFTERHOURS_FEE = "afterhours_fee", "After-Hours Fee"
+        TIGHT_TURN = "tight_turn", "Tight Turn"
         MANUAL = "manual", "Manual Task"
 
     class Status(models.TextChoices):
@@ -221,6 +222,7 @@ class OperationalTask(models.Model):
         TaskType.CONFIRMATION_TEXTS: "bi-chat-text-fill",
         TaskType.CONTACT_FORM: "bi-envelope-paper",
         TaskType.AFTERHOURS_FEE: "bi-moon-stars",
+        TaskType.TIGHT_TURN: "bi-hourglass-split",
         TaskType.MANUAL: "bi-pencil-square",
     }
 
@@ -232,6 +234,7 @@ class OperationalTask(models.Model):
         TaskType.CONFIRMATION_TEXTS: "#1abc9c",
         TaskType.CONTACT_FORM: "#2ecc71",
         TaskType.AFTERHOURS_FEE: "#34495e",
+        TaskType.TIGHT_TURN: "#e67e22",
         TaskType.MANUAL: "#7f8c8d",
     }
 
@@ -324,6 +327,7 @@ class StaffActivity(models.Model):
         TASK_CREATED = "task_created", "Task Created"
         TASK_ASSIGNED = "task_assigned", "Task Assigned"
         COMM_LOGGED = "comm_logged", "Communication Logged"
+        FLIGHT_MATCHED = "flight_matched", "Flight Time Matched"
 
     user = models.ForeignKey(
         "auth.User", on_delete=models.CASCADE, related_name="staff_activities"

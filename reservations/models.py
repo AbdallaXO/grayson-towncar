@@ -1644,6 +1644,77 @@ class Leg(models.Model):
         label = f"Coming {time_str} {'late' if direction == 'late' else 'early'}"
         return {"direction": direction, "minutes": total_minutes, "label": label}
 
+    def flight_timing_flag(self, early_watch_minutes=15, alert_minutes=20):
+        """Board-facing flight-timing signal for an arrival leg, with two distinct,
+        mutually-exclusive levels so the dispatcher board can render them differently
+        and keep the noise down:
+
+          * 'alert' (red)   — the flight is >= alert_minutes off the booked pickup in
+                              either direction; the pickup likely needs matching.
+          * 'watch' (amber) — the flight is landing EARLY by early_watch..alert_minutes;
+                              still fine, but an early arrival can squeeze a driver's
+                              turnaround, so it's worth an eye ("landing early").
+
+        Uses the same best-available arrival chain as get_flight_time_mismatch_display.
+        Returns {level, direction, minutes, label, arrival_label} or None. This is a
+        separate, additive helper — get_flight_time_mismatch_display (and its push-alert
+        / flight-refresh callers) are intentionally left on the original 30-min rule.
+        """
+        if self.get_trip_type() != "arrival" or not self.flight_information:
+            return None
+        flight = self.flight_information
+        flight_dt = (
+            flight.actual_gate_arrival_local
+            or flight.estimated_gate_arrival_local
+            or flight.actual_arrival_local
+            or flight.estimated_arrival_local
+            or flight.scheduled_gate_arrival_local
+            or flight.scheduled_arrival_local
+        )
+        if not flight_dt:
+            return None
+
+        # Pretty "now lands at" time for the badge.
+        flight_local = (
+            timezone.localtime(flight_dt) if timezone.is_aware(flight_dt) else flight_dt
+        )
+        try:
+            arrival_label = flight_local.strftime("%I:%M %p").lstrip("0")
+        except Exception:
+            arrival_label = ""
+
+        leg_dt = datetime.combine(self.pickup_date, self.pickup_time)
+        flight_naive = flight_dt
+        if timezone.is_aware(flight_naive):
+            flight_naive = timezone.make_naive(flight_naive, timezone.get_current_timezone())
+        total_seconds = int((flight_naive - leg_dt).total_seconds())
+        total_minutes = abs(total_seconds) // 60
+        direction = "late" if total_seconds >= 0 else "early"
+
+        if total_minutes >= alert_minutes:
+            level = "alert"
+        elif direction == "early" and total_minutes >= early_watch_minutes:
+            level = "watch"
+        else:
+            return None
+
+        if total_minutes >= 60:
+            hours, mins = divmod(total_minutes, 60)
+            time_str = f"{hours} hr {mins} min" if mins else f"{hours} hr"
+        else:
+            time_str = f"{total_minutes} min"
+        if level == "watch":
+            label = f"Landing {time_str} early"
+        else:
+            label = f"Coming {time_str} {'late' if direction == 'late' else 'early'}"
+        return {
+            "level": level,
+            "direction": direction,
+            "minutes": total_minutes,
+            "label": label,
+            "arrival_label": arrival_label,
+        }
+
     def effective_afterhours_time(self):
         """The local time-of-day used to decide the after-hours (10 PM-6 AM)
         window: for an arrival leg with flight info, the flight's best (possibly

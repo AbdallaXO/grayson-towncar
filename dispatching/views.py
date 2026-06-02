@@ -2036,6 +2036,9 @@ def update_leg_assignment(request):
                     # Track who assigned the driver and when
                     leg.driver_assigned_by = request.user
                     leg.driver_assigned_at = timezone.now()
+                    # Attribute any conflict/tight-turn task auto-close to this user
+                    # so it shows in the task activity feed (ops/signals.py).
+                    leg._reassigned_by = request.user
                     # Single save: Leg.save() auto-fills pay when driver changes
                     leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                     cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
@@ -2069,6 +2072,8 @@ def update_leg_assignment(request):
                 # Attribute the auto-reset of leg.status (handled in Leg.save)
                 # to the user performing the unassign.
                 leg._status_change_user = request.user
+                # Attribute conflict/tight-turn task auto-close (ops/signals.py).
+                leg._reassigned_by = request.user
                 leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                 logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
                 cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
@@ -3776,6 +3781,29 @@ def match_leg_time_to_flight(request):
             f"{new_time.strftime('%I:%M %p').lstrip('0')}"
         )
 
+        # Always record the match on the conflict/tight-turn tasks' activity feed —
+        # even when the conflict still persists afterward (matching the booked time
+        # doesn't free the committed driver), so the dispatcher sees their action.
+        conflict_types = [
+            OperationalTask.TaskType.DRIVER_CONFLICT,
+            OperationalTask.TaskType.TIGHT_TURN,
+        ]
+        for t in OperationalTask.objects.filter(
+            leg=leg,
+            task_type__in=conflict_types,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+        ):
+            StaffActivity.objects.create(
+                user=request.user,
+                action_type=StaffActivity.ActionType.FLIGHT_MATCHED,
+                task=t,
+                metadata={
+                    "old_time": old_time.strftime("%H:%M"),
+                    "new_time": new_time.strftime("%H:%M"),
+                    "note": match_note,
+                },
+            )
+
         # Always close flight_verify tasks — the mismatch is resolved
         fv_tasks = OperationalTask.objects.filter(
             leg=leg,
@@ -4662,6 +4690,16 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 auto_create_flight_verify_tasks(rows)
             except Exception as e:
                 logger.error(f"auto_create_flight_verify_tasks failed: {e}")
+            # Instant turn-risk pass: surface driver-conflict (red) and tight-turn
+            # (amber) flags right away — the early-flight safety net — instead of
+            # waiting for the next 30-min background cycle. Scoped to today's board
+            # (the morning-refresh use case) and deduped, so it is safe to run
+            # alongside the background scan.
+            try:
+                from ops.tasks import _scan_driver_overlaps
+                _scan_driver_overlaps()
+            except Exception as e:
+                logger.error(f"Post-refresh turn-risk scan failed: {e}")
         except Exception as e:
             logger.error(f"Review summary build failed: {e}")
 

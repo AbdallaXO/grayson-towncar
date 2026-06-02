@@ -358,6 +358,14 @@
                   </div>
                 </div>
 
+                <!-- Heads-up flag: next pickup's flight is landing early — be proactive -->
+                {% if leg.next_early %}
+                  <div class="gt-next-early mb-3">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>Next pickup landing <strong>~{{ leg.next_early.minutes }} min early</strong> · {{ leg.next_early.arrival_label }}{% if leg.next_early.tight %} · tight{% endif %}</span>
+                  </div>
+                {% endif %}
+
                 <!-- Flight/Cruise -->
                 {% if leg.flight_information %}
                   <div class="gt-flight-card mb-3">

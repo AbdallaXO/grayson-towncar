@@ -1,0 +1,529 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .cf {
+    --paper:#F4F1EA; --paper-2:#EDE9DF; --card:#FFFFFF; --card-2:#FBF9F3;
+    --line:#E7E2D6; --line-2:#DAD3C4; --line-3:#CBC3B1;
+    --ink:#1B2A44; --ink-soft:#54607A; --ink-mute:#8A93A3; --ink-faint:#A9B0BC;
+    --gold:#C0851B; --gold-deep:#9E6E16; --gold-fill:#E1AC46; --gold-dim:rgba(193,133,27,.12); --gold-line:rgba(193,133,27,.42);
+    --red:#D5364A; --red-soft:#B22B3C; --red-dim:rgba(213,54,74,.09); --red-line:rgba(213,54,74,.34);
+    --grn:#178F66; --grn-dim:rgba(23,143,102,.1);
+    --blu:#3568CC; --blu-dim:rgba(53,104,204,.1); --blu-line:rgba(53,104,204,.32);
+    --amb:#C5811C; --amb-dim:rgba(197,129,28,.12); --amb-line:rgba(197,129,28,.34);
+    --nav-bg:#0d1117; --nav-ink:#EEF2F9; --nav-soft:#A7B3C9; --nav-line:rgba(255,255,255,.10);
+    --radius:14px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(27,42,68,.05), 0 16px 36px -22px rgba(27,42,68,.22);
+    font-family:'Hanken Grotesk',system-ui,sans-serif; color:var(--ink);
+    background:var(--paper); min-height:100vh;
+  }
+  .cf *{ box-sizing:border-box; }
+  .cf .navbar{ margin-bottom:0; }  /* dispatcher_navbar sets 1rem — kill the gap above the command bar */
+  .cf .mono{ font-family:'Spline Sans Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .cf .disp{ font-family:'Archivo',sans-serif; }
+  .cf .lbl{ font-family:'Archivo',sans-serif; text-transform:uppercase; letter-spacing:.10em; font-weight:700; font-size:10.5px; color:var(--ink-mute); }
+
+  /* ── command bar ── */
+  .cf-cmd{ position:sticky; top:0; z-index:30; background:var(--nav-bg); color:var(--nav-ink);
+    border-bottom:1px solid var(--nav-line); padding:11px 0; }
+  .cf-cmd-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  .cf-cmd-left{ display:flex; align-items:flex-start; gap:13px; }
+  .cf-back{ flex:0 0 auto; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    color:var(--nav-soft); background:rgba(255,255,255,.06); border:1px solid var(--nav-line); text-decoration:none; font-size:16px; margin-top:2px; transition:.14s; }
+  .cf-back:hover{ color:#fff; background:rgba(255,255,255,.13); }
+  .cf-bc{ font-size:11px; color:var(--nav-soft); letter-spacing:.04em; margin-bottom:6px; }
+  .cf-bc a{ color:var(--nav-soft); text-decoration:none; }
+  .cf-bc a:hover{ color:var(--nav-ink); }
+  .cf-title{ font-family:'Archivo'; font-weight:800; font-size:18px; display:flex; align-items:center; gap:10px; }
+  .cf-dot{ width:9px; height:9px; border-radius:50%; background:var(--red); box-shadow:0 0 0 0 rgba(213,54,74,.6);
+    animation:cfpulse 1.8s infinite; }
+  @keyframes cfpulse{ 0%{box-shadow:0 0 0 0 rgba(213,54,74,.55);} 70%{box-shadow:0 0 0 9px rgba(213,54,74,0);} 100%{box-shadow:0 0 0 0 rgba(213,54,74,0);} }
+  .cf-dot-amb{ background:var(--amb); box-shadow:none; animation:none; }
+  .cf-chips{ display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
+  .cf-chip{ font-family:'Archivo'; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 9px; border-radius:999px; border:1px solid var(--nav-line); color:var(--nav-soft); }
+  .cf-chip.is-crit{ color:#FFD9DE; background:rgba(213,54,74,.18); border-color:rgba(213,54,74,.4); }
+  .cf-chip.is-over{ color:#FFE2B8; background:rgba(197,129,28,.16); border-color:rgba(197,129,28,.4); }
+  .cf-chip .mono{ font-size:11px; }
+  .cf-cmd-actions{ display:flex; gap:9px; flex-wrap:wrap; }
+  .cf-btn{ font-family:'Archivo'; font-weight:700; font-size:12.5px; letter-spacing:.01em; cursor:pointer;
+    padding:9px 15px; border-radius:10px; border:1px solid transparent; display:inline-flex; align-items:center; gap:7px;
+    text-decoration:none; transition:.14s; }
+  .cf-btn-ghost{ background:rgba(255,255,255,.06); color:var(--nav-ink); border-color:var(--nav-line); }
+  .cf-btn-ghost:hover{ background:rgba(255,255,255,.12); color:#fff; }
+  .cf-btn-gold{ background:var(--gold-fill); color:#3a2a08; }
+  .cf-btn-gold:hover{ background:#edbb5c; }
+  .cf-btn-solid{ background:#fff; color:var(--nav-bg); }
+
+  /* ── layout ── */
+  .cf-page{ padding:24px 0 60px; display:grid;
+    grid-template-columns:1fr 340px; gap:22px; align-items:start; }
+  @media (max-width:980px){ .cf-page{ grid-template-columns:1fr; } }
+  .cf-col{ display:flex; flex-direction:column; gap:18px; min-width:0; }
+  .cf-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .cf-card-h{ display:flex; align-items:center; gap:9px; padding:13px 18px; border-bottom:1px solid var(--line); }
+  .cf-card-h .lbl{ color:var(--ink-soft); font-size:11px; }
+  .cf-card-b{ padding:18px; }
+
+  /* ── hero / the situation ── */
+  .cf-hero{ background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .cf-hero-top{ display:flex; gap:22px; padding:22px 22px 18px; align-items:flex-start; flex-wrap:wrap; }
+  .cf-metric{ flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-start; }
+  .cf-metric-num{ font-family:'Archivo'; font-weight:800; font-size:62px; line-height:.92; color:var(--red);
+    letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .cf-metric-unit{ font-family:'Archivo'; font-weight:700; font-size:12px; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--red-soft); margin-top:7px; }
+  .cf-situation{ flex:1 1 320px; min-width:260px; }
+  .cf-situation h2{ font-family:'Archivo'; font-weight:600; font-size:15px; color:var(--ink); margin:2px 0 8px; line-height:1.45; }
+  .cf-situation h2 .mono{ color:var(--ink); }
+  .cf-judge{ font-style:italic; font-size:13px; color:var(--ink-soft); border-left:2px solid var(--gold-line);
+    padding-left:11px; line-height:1.45; }
+  .cf-vitals{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border-top:1px solid var(--line); }
+  @media (max-width:560px){ .cf-vitals{ grid-template-columns:repeat(2,1fr); } }
+  .cf-vital{ background:var(--card); padding:13px 16px; }
+  .cf-vital .lbl{ font-size:9.5px; margin-bottom:5px; }
+  .cf-vital-v{ font-family:'Spline Sans Mono'; font-weight:600; font-size:17px; color:var(--ink); }
+  .cf-vital-v small{ font-family:'Hanken Grotesk'; font-size:11px; color:var(--ink-mute); font-weight:500; }
+  .cf-rec{ display:flex; align-items:center; gap:11px; padding:12px 18px; background:var(--gold-dim);
+    border-top:1px solid var(--gold-line); }
+  .cf-rec i{ color:var(--gold-deep); font-size:16px; }
+  .cf-rec b{ font-family:'Archivo'; color:var(--gold-deep); font-size:13px; }
+  .cf-rec span{ font-size:13px; color:var(--ink-soft); }
+
+  /* ── timeline ── */
+  .cf-tl-gut{ width:78px; flex:0 0 78px; padding-top:50px; display:flex; flex-direction:column; }
+  .cf-tl-lane-row{ height:38px; display:flex; align-items:center; }
+  .cf-tl-lane-row.is-driver{ margin-top:12px; }
+  .cf-tl-lane-lbl{ font-family:'Archivo'; font-weight:700; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
+  .cf-tl{ display:flex; }
+  .cf-tl-plot{ flex:1 1 auto; position:relative; min-width:0; }
+  .cf-tl-axis{ position:relative; height:16px; margin-bottom:4px; }
+  .cf-tick{ position:absolute; transform:translateX(-50%); font-family:'Spline Sans Mono'; font-size:9.5px; color:var(--ink-faint); top:0; }
+  .cf-tick-grid{ position:absolute; top:20px; bottom:8px; width:1px; background:var(--line); }
+  .cf-lanes{ position:relative; padding-top:32px; padding-bottom:4px; }
+  .cf-band{ position:absolute; top:24px; bottom:0; background:var(--red-dim); border-left:1px solid var(--red-line);
+    border-right:1px solid var(--red-line); z-index:0; }
+  .cf-band-lbl{ position:absolute; top:-19px; left:50%; transform:translateX(-50%); white-space:nowrap;
+    font-family:'Archivo'; font-weight:700; font-size:9.5px; letter-spacing:.06em; color:var(--red-soft);
+    background:var(--paper); padding:1px 6px; border-radius:5px; border:1px solid var(--red-line); }
+  .cf-lane{ position:relative; height:38px; z-index:1; }
+  .cf-lane.is-driver{ margin-top:12px; }
+  .cf-bar{ position:absolute; top:50%; transform:translateY(-50%); height:18px; border-radius:5px; }
+  .cf-bar-blu{ background:var(--blu); }
+  .cf-bar-gold{ background:var(--gold-fill); }
+  .cf-bar-repo{ background:repeating-linear-gradient(45deg,var(--ink-faint),var(--ink-faint) 2px,transparent 2px,transparent 5px); height:10px; border-radius:3px; }
+  .cf-bar-terminal{ height:14px; border:1px dashed var(--amb-line); background:var(--amb-dim); border-radius:5px; }
+  .cf-bar-enroute{ background:var(--gold-dim); border:1px solid var(--gold-line); height:14px; border-radius:5px; }
+  .cf-bar-cap{ position:absolute; top:-16px; font-family:'Spline Sans Mono'; font-size:9px; color:var(--ink-mute); white-space:nowrap; }
+  .cf-mk{ position:absolute; top:-3px; bottom:-3px; width:0; z-index:2; }
+  .cf-mk-line{ position:absolute; top:0; bottom:0; left:0; border-left:2px solid; }
+  .cf-mk-tag{ position:absolute; top:-15px; left:0; transform:translateX(-50%); white-space:nowrap;
+    font-family:'Archivo'; font-weight:700; font-size:8.5px; letter-spacing:.04em; padding:1px 5px; border-radius:4px; }
+  .cf-mk-amb .cf-mk-line{ border-color:var(--amb); } .cf-mk-amb .cf-mk-tag{ color:#fff; background:var(--amb); }
+  .cf-mk-gold .cf-mk-line{ border-color:var(--gold); } .cf-mk-gold .cf-mk-tag{ color:#3a2a08; background:var(--gold-fill); }
+  .cf-mk-blu .cf-mk-line{ border-color:var(--blu); } .cf-mk-blu .cf-mk-tag{ color:#fff; background:var(--blu); }
+
+  /* ── why it conflicts ── */
+  .cf-why{ display:grid; grid-template-columns:1fr auto 1fr auto 1fr; align-items:stretch; gap:0; }
+  @media (max-width:680px){ .cf-why{ grid-template-columns:1fr; gap:8px; } .cf-why-arrow{ display:none; } }
+  .cf-node{ border:1px solid var(--line); border-radius:var(--radius-sm); padding:13px 14px; background:var(--card-2); }
+  .cf-node.is-red{ border-color:var(--red-line); background:var(--red-dim); }
+  .cf-node .lbl{ font-size:9.5px; }
+  .cf-node-v{ font-family:'Spline Sans Mono'; font-weight:600; font-size:18px; color:var(--ink); margin-top:5px; }
+  .cf-node.is-red .cf-node-v{ color:var(--red-soft); }
+  .cf-node-sub{ font-size:11px; color:var(--ink-mute); margin-top:3px; }
+  .cf-why-arrow{ display:flex; align-items:center; justify-content:center; color:var(--ink-faint); padding:0 4px; font-size:18px; }
+
+  /* ── resolution ladder ── */
+  .cf-ladder{ position:relative; }
+  .cf-step{ display:flex; gap:14px; padding:16px 0; border-top:1px solid var(--line); }
+  .cf-step:first-child{ border-top:0; }
+  .cf-step-n{ flex:0 0 30px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Archivo'; font-weight:800; font-size:14px; background:var(--paper-2); color:var(--ink-soft); border:1px solid var(--line-2); }
+  .cf-step.is-rec .cf-step-n{ background:var(--gold-fill); color:#3a2a08; border-color:var(--gold); }
+  .cf-step.is-locked{ opacity:.62; }
+  .cf-step-body{ flex:1 1 auto; min-width:0; }
+  .cf-step-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .cf-step-title{ font-family:'Archivo'; font-weight:700; font-size:15px; color:var(--ink); }
+  .cf-tag{ font-family:'Archivo'; font-weight:700; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; }
+  .cf-tag-gold{ color:var(--gold-deep); background:var(--gold-dim); border:1px solid var(--gold-line); }
+  .cf-tag-amb{ color:var(--amb); background:var(--amb-dim); border:1px solid var(--amb-line); }
+  .cf-tag-mute{ color:var(--ink-mute); background:var(--paper-2); border:1px solid var(--line-2); }
+  .cf-step-desc{ font-size:12.5px; color:var(--ink-soft); margin-top:5px; line-height:1.45; }
+  .cf-step-lock{ font-size:11.5px; color:var(--amb); margin-top:8px; display:flex; align-items:center; gap:6px; }
+  .cf-step-note{ font-size:11.5px; color:var(--ink-mute); margin-top:8px; display:flex; align-items:center; gap:6px; }
+  .cf-act{ font-family:'Archivo'; font-weight:700; font-size:12.5px; cursor:pointer; padding:8px 14px; border-radius:9px;
+    border:1px solid var(--line-2); background:var(--card); color:var(--ink); text-decoration:none; display:inline-flex; align-items:center; gap:7px; margin-top:10px; }
+  .cf-act-gold{ background:var(--gold-fill); border-color:var(--gold); color:#3a2a08; }
+  .cf-act-gold:hover{ background:#edbb5c; }
+  .cf-act:hover{ border-color:var(--line-3); }
+  .cf-cands{ display:flex; flex-direction:column; gap:8px; margin-top:11px; }
+  .cf-cand{ display:flex; align-items:center; gap:11px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card-2); }
+  .cf-cand-ini{ flex:0 0 34px; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    font-family:'Archivo'; font-weight:800; font-size:13px; }
+  .cf-cand-ini.free{ background:var(--grn-dim); color:var(--grn); }
+  .cf-cand-ini.aff{ background:var(--amb-dim); color:var(--amb); }
+  .cf-cand-main{ flex:1 1 auto; min-width:0; }
+  .cf-cand-name{ font-family:'Archivo'; font-weight:700; font-size:13.5px; }
+  .cf-cand-meta{ font-size:11px; color:var(--ink-mute); }
+  .cf-cand-meta .mono{ color:var(--ink-soft); }
+
+  /* ── right rail ── */
+  .cf-kv{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); font-size:13px; }
+  .cf-kv:first-child{ border-top:0; }
+  .cf-kv-k{ color:var(--ink-mute); }
+  .cf-kv-v{ font-family:'Spline Sans Mono'; font-weight:500; color:var(--ink); text-align:right; }
+  .cf-kv-v.red{ color:var(--red-soft); }
+  .cf-meter{ height:6px; border-radius:99px; background:var(--paper-2); overflow:hidden; }
+  .cf-meter-fill{ height:100%; background:var(--gold-fill); }
+  .cf-contact{ display:flex; gap:8px; margin-top:11px; }
+  .cf-contact a{ flex:1; text-align:center; font-family:'Archivo'; font-weight:700; font-size:12px; padding:8px 0;
+    border-radius:9px; border:1px solid var(--line-2); color:var(--ink); text-decoration:none; }
+  .cf-contact a:hover{ background:var(--paper-2); }
+  .cf-act-log{ display:flex; flex-direction:column; gap:0; }
+  .cf-act-item{ display:flex; gap:9px; padding:9px 0; border-top:1px solid var(--line); font-size:12px; }
+  .cf-act-item:first-child{ border-top:0; }
+  .cf-act-item .mono{ color:var(--ink-mute); flex:0 0 auto; font-size:11px; }
+  .cf-act-empty{ font-size:12px; color:var(--ink-faint); font-style:italic; padding:6px 0; }
+</style>
+{% endblock extra_css %}
+
+{% block footer %}{% endblock footer %}
+{% block content %}
+{% block navbar %}{% endblock navbar %}
+<div class="cf">
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <!-- ═══ Command bar ═══ -->
+  <div class="cf-cmd">
+    <div class="container">
+      <div class="cf-cmd-row">
+        <div class="cf-cmd-left">
+          <a href="{% url 'task_queue' %}" class="cf-back" title="Back to tasks"><i class="bi bi-arrow-left"></i></a>
+          <div>
+            <div class="cf-bc"><a href="{% url 'task_queue' %}">Ops Control</a> / Tasks / #{{ task.id }}</div>
+            <div class="cf-title"><span class="cf-dot{% if is_tight_turn %} cf-dot-amb{% endif %}"></span>{% if is_tight_turn %}Tight Turn{% else %}Driver Conflict{% endif %} — {{ driver_name }}</div>
+            <div class="cf-chips">
+              {% if task.priority == 1 %}<span class="cf-chip is-crit">Critical</span>{% endif %}
+              {% if task.is_overdue %}<span class="cf-chip is-over">Overdue</span>{% endif %}
+              {% if task.escalate_at and task.is_open %}
+              <span class="cf-chip" id="cfEscalate" data-at="{{ task.escalate_at|date:'c' }}">Escalates in <span class="mono">—</span></span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="cf-cmd-actions">
+          <a class="cf-btn cf-btn-ghost" href="{% url 'dashboard' %}?date={{ pickup_date_str }}&highlight={{ task.leg_id }}" target="_blank"><i class="bi bi-arrow-left-right"></i> Reassign leg</a>
+          {% if task.is_open %}
+          <button class="cf-btn cf-btn-solid" id="cfResolve"><i class="bi bi-check2-circle"></i> Mark resolved</button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+  <div class="cf-page">
+    <!-- ═══ Main column ═══ -->
+    <div class="cf-col">
+
+      <!-- The Situation -->
+      <div class="cf-hero">
+        <div class="cf-hero-top">
+          <div class="cf-metric">
+            <div class="cf-metric-num">{% if redesign.behind_gate != None %}+{{ redesign.behind_gate }}{% else %}{{ conflict_minutes }}{% endif %}</div>
+            <div class="cf-metric-unit">min after arrival</div>
+          </div>
+          <div class="cf-situation">
+            <h2>After the <span class="mono">{{ redesign.prior_pickup_str }}</span> {{ redesign.prior_label }} return from <strong>{{ redesign.prior_pickup_loc }}</strong>, {{ driver_name }} isn't at <strong>{{ redesign.arr_pickup_loc }}</strong> until <span class="mono">{{ redesign.driver_curb_str }}</span> — but the flight is at the gate by <span class="mono">{{ redesign.gate_str }}</span>, so he gets there about <span class="mono">{{ redesign.behind_gate }} min</span> after it.</h2>
+            <div class="cf-judge">Typically 10–15 min after gate arrival for guests to reach baggage claim — judge the real gap from there.</div>
+          </div>
+        </div>
+        <div class="cf-vitals">
+          <div class="cf-vital"><div class="lbl">Flight at gate</div><div class="cf-vital-v">{{ redesign.gate_str|default:"—" }}</div></div>
+          <div class="cf-vital"><div class="lbl">Driver there</div><div class="cf-vital-v">{{ redesign.driver_curb_str }}</div></div>
+          <div class="cf-vital"><div class="lbl">Booked pickup</div><div class="cf-vital-v">{{ redesign.booked_str }}</div></div>
+          <div class="cf-vital"><div class="lbl">Reposition</div><div class="cf-vital-v">{{ redesign.reposition_min }}<small> min</small></div></div>
+        </div>
+        <div class="cf-rec">
+          <i class="bi bi-stars"></i><b>Recommended:</b><span>Cover it in-house — see Step&nbsp;2 below.</span>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      {% if redesign.timeline %}
+      {% with tl=redesign.timeline %}
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-bar-chart-steps" style="color:var(--gold-deep)"></i><span class="lbl">Conflict Timeline</span></div>
+        <div class="cf-card-b">
+          <div class="cf-tl">
+            <div class="cf-tl-gut">
+              <div class="cf-tl-lane-row"><span class="cf-tl-lane-lbl">Guest</span></div>
+              <div class="cf-tl-lane-row is-driver"><span class="cf-tl-lane-lbl">Driver</span></div>
+            </div>
+            <div class="cf-tl-plot">
+              <div class="cf-tl-axis">
+                {% for t in tl.ticks %}<span class="cf-tick" style="left:{{ t.pct }}%">{{ t.label }}</span>{% endfor %}
+              </div>
+              <div class="cf-lanes">
+                {% for t in tl.ticks %}<span class="cf-tick-grid" style="left:{{ t.pct }}%"></span>{% endfor %}
+                {% if tl.band %}<div class="cf-band" style="left:{{ tl.band.left }}%;width:{{ tl.band.width }}%"><span class="cf-band-lbl">+{{ redesign.behind_gate }} MIN AFTER ARRIVAL</span></div>{% endif %}
+
+                <!-- Guest lane -->
+                <div class="cf-lane">
+                  {% if tl.guest_terminal %}<div class="cf-bar cf-bar-terminal" style="left:{{ tl.guest_terminal.left }}%;width:{{ tl.guest_terminal.width }}%"><span class="cf-bar-cap">in terminal</span></div>{% endif %}
+                  <div class="cf-bar cf-bar-enroute" style="left:{{ tl.guest_enroute.left }}%;width:{{ tl.guest_enroute.width }}%"></div>
+                  {% if tl.marker_gate != None %}<div class="cf-mk cf-mk-amb" style="left:{{ tl.marker_gate }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">GATE {{ redesign.gate_str }}</span></div>{% endif %}
+                  <div class="cf-mk cf-mk-gold" style="left:{{ tl.marker_booked }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">BOOKED</span></div>
+                </div>
+
+                <!-- Driver lane -->
+                <div class="cf-lane is-driver">
+                  <div class="cf-bar cf-bar-blu" style="left:{{ tl.driver_prior.left }}%;width:{{ tl.driver_prior.width }}%"><span class="cf-bar-cap">{{ redesign.prior_label }} return</span></div>
+                  <div class="cf-bar cf-bar-repo" style="left:{{ tl.driver_reposition.left }}%;width:{{ tl.driver_reposition.width }}%"></div>
+                  <div class="cf-bar cf-bar-gold" style="left:{{ tl.driver_arrival.left }}%;width:{{ tl.driver_arrival.width }}%"></div>
+                  <div class="cf-mk cf-mk-blu" style="left:{{ tl.marker_driver_free }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">FREE {{ redesign.driver_curb_str }}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:18px;margin-top:14px;padding-left:86px;flex-wrap:wrap;font-size:11px;color:var(--ink-mute)">
+            <span><b style="color:var(--blu)">▬</b> Driver — {{ driver_name }}</span>
+            <span><b style="color:var(--gold-deep)">▬</b> Guest / arrival leg</span>
+            <span><b style="color:var(--amb)">▮</b> Flight gate</span>
+          </div>
+        </div>
+      </div>
+      {% endwith %}
+      {% endif %}
+
+      <!-- Why It Conflicts -->
+      {% if conflict_detail %}
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-signpost-split-fill" style="color:var(--gold-deep)"></i><span class="lbl">Why It Conflicts</span></div>
+        <div class="cf-card-b">
+          <div class="cf-why">
+            <div class="cf-node">
+              <div class="lbl">Flight at gate</div>
+              <div class="cf-node-v">{{ redesign.gate_str|default:conflict_detail.flight_gate_str }}</div>
+              <div class="cf-node-sub">{{ redesign.flight_label }}{% if conflict_detail.original_flight_str %} · was {{ conflict_detail.original_flight_str }}{% endif %}</div>
+            </div>
+            <div class="cf-why-arrow"><i class="bi bi-arrow-right"></i></div>
+            <div class="cf-node">
+              <div class="lbl">Driver clears prior job</div>
+              <div class="cf-node-v">{{ redesign.prior_clear_str }}</div>
+              <div class="cf-node-sub">+{{ redesign.reposition_min }} min reposition → {{ redesign.driver_curb_str }}</div>
+            </div>
+            <div class="cf-why-arrow"><i class="bi bi-arrow-right"></i></div>
+            <div class="cf-node is-red">
+              <div class="lbl">Net result</div>
+              <div class="cf-node-v">+{{ redesign.behind_gate }} min</div>
+              <div class="cf-node-sub">clears after the flight arrives</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Resolution Ladder -->
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-list-ol" style="color:var(--gold-deep)"></i><span class="lbl">Resolution Ladder</span></div>
+        <div class="cf-card-b">
+          <div class="cf-ladder" id="cfLadder" data-leg-id="{{ task.leg_id }}" data-date="{{ pickup_date_str }}">
+
+            <!-- Step 1 -->
+            <div class="cf-step">
+              <div class="cf-step-n">1</div>
+              <div class="cf-step-body">
+                <div class="cf-step-head"><span class="cf-step-title">Match flight time</span><span class="cf-tag cf-tag-mute">Correct first</span></div>
+                <div class="cf-step-desc">Move the booked pickup to the flight's gate arrival ({{ redesign.gate_str }}). Corrects the target window — but does <em>not</em> free the committed driver.</div>
+                {% if can_match_flight and task.leg %}
+                <button class="cf-act" id="cfMatchFlight"><i class="bi bi-clock-history"></i> Match to {{ redesign.gate_str }}</button>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="cf-step is-rec" id="cfStep2">
+              <div class="cf-step-n">2</div>
+              <div class="cf-step-body">
+                <div class="cf-step-head"><span class="cf-step-title">Cover in-house</span><span class="cf-tag cf-tag-gold">Do this</span></div>
+                <div class="cf-step-desc">Reassign the arrival leg to a free in-house driver — the primary fix, no margin lost.{% if ladder.checked and not ladder.inhouse %} None are open in this window; free one up with a <a href="{% url 'dashboard' %}?date={{ pickup_date_str }}&highlight={{ task.leg_id }}" target="_blank">swap on the board</a>.{% endif %}</div>
+                <div id="cfStep2Body" class="cf-cands">
+                  {% for c in ladder.inhouse %}
+                  <div class="cf-cand">
+                    <div class="cf-cand-ini free">{{ c.name|slice:":1"|upper }}</div>
+                    <div class="cf-cand-main">
+                      <div class="cf-cand-name">{{ c.name }}</div>
+                      <div class="cf-cand-meta">{% if c.vehicle %}{{ c.vehicle }} · {% endif %}{% if c.jobs %}{{ c.jobs }} job{{ c.jobs|pluralize }} today{% if c.buffer < 480 %} · <span class="mono">{{ c.buffer }} min</span> slack{% endif %}{% else %}open day{% endif %}</div>
+                    </div>
+                    <button class="cf-act cf-act-gold cf-assign" data-driver="{{ c.id }}"><i class="bi bi-person-check"></i> Assign</button>
+                  </div>
+                  {% empty %}
+                  <div class="cf-act-empty">No free in-house driver fits this window — see Step&nbsp;3.</div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="cf-step {% if not ladder.step3_unlocked %}is-locked{% endif %}" id="cfStep3">
+              <div class="cf-step-n">3</div>
+              <div class="cf-step-body">
+                <div class="cf-step-head"><span class="cf-step-title">Farm out</span><span class="cf-tag cf-tag-amb">Last resort</span></div>
+                <div class="cf-step-desc">Hand the leg to a partner operator. Costs margin — only after in-house is exhausted.</div>
+                {% if ladder.step3_unlocked %}
+                <div class="cf-step-note"><i class="bi bi-info-circle"></i> No in-house driver fits — review a swap on the board first, then farm out if needed.</div>
+                <div id="cfStep3Body" class="cf-cands">
+                  {% for a in ladder.affiliates %}
+                  <div class="cf-cand">
+                    <div class="cf-cand-ini aff">{{ a.name|slice:":1"|upper }}</div>
+                    <div class="cf-cand-main">
+                      <div class="cf-cand-name">{{ a.name }}</div>
+                      <div class="cf-cand-meta">Affiliate operator</div>
+                    </div>
+                    <button class="cf-act cf-assign" data-driver="{{ a.id }}"><i class="bi bi-box-arrow-up-right"></i> Farm out</button>
+                  </div>
+                  {% empty %}
+                  <div class="cf-act-empty">No affiliate operators on file.</div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <div class="cf-step-lock" id="cfStep3Lock"><i class="bi bi-lock-fill"></i> In-house options available — try Step&nbsp;2 first.</div>
+                <div id="cfStep3Body" class="cf-cands" hidden></div>
+                {% endif %}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ Right rail ═══ -->
+    <div class="cf-col">
+
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-info-circle" style="color:var(--ink-soft)"></i><span class="lbl">Task Details</span></div>
+        <div class="cf-card-b">
+          <div class="cf-kv"><span class="cf-kv-k">Created</span><span class="cf-kv-v">{{ task.created_at|date:"M j, g:i A" }}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Due</span><span class="cf-kv-v {% if task.is_overdue %}red{% endif %}">{{ task.due_at|date:"M j, g:i A" }}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Assigned</span><span class="cf-kv-v">{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}Unassigned{% endif %}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Attempts</span><span class="cf-kv-v">{{ task.attempts }} / {{ task.max_attempts }}</span></div>
+          <div class="cf-meter" style="margin-top:8px"><div class="cf-meter-fill" style="width:{% widthratio task.attempts task.max_attempts 100 %}%"></div></div>
+        </div>
+      </div>
+
+      {% with guest=task.leg.reservation.customer %}
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-person" style="color:var(--ink-soft)"></i><span class="lbl">Guest</span></div>
+        <div class="cf-card-b">
+          <div style="font-family:'Archivo';font-weight:700;font-size:15px">{{ guest.get_full_name }}</div>
+          <div style="font-size:12px;color:var(--ink-mute);margin-top:4px">{{ redesign.arr_route }}</div>
+        </div>
+      </div>
+      {% endwith %}
+
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-airplane" style="color:var(--ink-soft)"></i><span class="lbl">Flight</span></div>
+        <div class="cf-card-b">
+          <div class="cf-kv"><span class="cf-kv-k">{{ redesign.flight_label }}</span><span class="cf-kv-v">{% if task.leg.flight_information %}{{ task.leg.flight_information.status|default:"—" }}{% else %}—{% endif %}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Gate arrival</span><span class="cf-kv-v">{{ redesign.gate_str|default:"—" }}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Booked pickup</span><span class="cf-kv-v">{{ redesign.booked_str }}</span></div>
+          {% if task.leg.flight_information.terminal %}<div class="cf-kv"><span class="cf-kv-k">Terminal</span><span class="cf-kv-v">{{ task.leg.flight_information.terminal }}</span></div>{% endif %}
+          <div class="cf-kv"><span class="cf-kv-k">Walk buffer</span><span class="cf-kv-v">≈{{ conflict_detail.guest_ready_minutes|default:15 }} min <small style="color:var(--ink-mute);font-weight:400">gate → bag claim</small></span></div>
+        </div>
+      </div>
+
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-clock-history" style="color:var(--ink-soft)"></i><span class="lbl">Activity</span></div>
+        <div class="cf-card-b">
+          <div class="cf-act-log">
+            {% for a in activities %}
+            <div class="cf-act-item"><span class="mono">{{ a.created_at|date:"g:i A" }}</span><span>{{ a.get_action_type_display }}{% if a.user %} · {{ a.user.get_full_name|default:a.user.username }}{% endif %}</span></div>
+            {% empty %}
+            <div class="cf-act-empty">No activity yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function(){
+  function cookie(n){ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+  var CSRF = cookie('csrftoken');
+  var leg = document.getElementById('cfLadder') ? document.getElementById('cfLadder').dataset.legId : null;
+
+  // Escalation countdown
+  var esc = document.getElementById('cfEscalate');
+  if(esc){
+    var at = new Date(esc.dataset.at).getTime();
+    var span = esc.querySelector('.mono');
+    function tick(){
+      var d = at - Date.now();
+      if(d<=0){ esc.textContent='Escalated'; return; }
+      var m=Math.floor(d/60000), s=Math.floor((d%60000)/1000);
+      span.textContent = (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+      setTimeout(tick,1000);
+    }
+    tick();
+  }
+
+  function post(url, body){
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},body:JSON.stringify(body||{})}).then(function(r){return r.json();});
+  }
+
+  var mf = document.getElementById('cfMatchFlight');
+  if(mf){ mf.addEventListener('click',function(){
+    mf.disabled=true; mf.innerHTML='<i class="bi bi-hourglass-split"></i> Matching…';
+    post('/dispatching/match-leg-time-to-flight/',{leg_id:leg}).then(function(d){
+      if(d.success){ location.reload(); } else { mf.disabled=false; mf.innerHTML='Failed — '+(d.error||'retry'); }
+    });
+  }); }
+
+  // Cover in-house (Step 2) / farm out (Step 3) — reassign the arrival leg to the
+  // chosen driver, then resolve the task (moving it off the conflicted driver fixes it).
+  Array.prototype.forEach.call(document.querySelectorAll('.cf-assign'), function(btn){
+    btn.addEventListener('click', function(){
+      var did = btn.dataset.driver;
+      var card = btn.closest('.cf-cand');
+      var nameEl = card ? card.querySelector('.cf-cand-name') : null;
+      var dname = nameEl ? nameEl.textContent.trim() : 'driver';
+      var isFarm = !!btn.closest('#cfStep3');
+      if(isFarm && !confirm('Farm this leg out to ' + dname + '? This costs margin.')) return;
+      var orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Working…';
+      post('{% url "update_leg_assignment" %}', {leg_id:leg, field:'driver', value:did}).then(function(d){
+        if(!d.success){ btn.disabled=false; btn.innerHTML=orig; alert(d.error||'Failed to assign'); return; }
+        var note = (isFarm ? 'Farmed out to ' : 'Reassigned in-house to ') + dname + ' — conflict resolved.';
+        return post('{% url "task_complete" %}', {task_id:'{{ task.id }}', notes:note}).then(function(){
+          location.href = '{% url "task_queue" %}';
+        });
+      }).catch(function(){ btn.disabled=false; btn.innerHTML=orig; alert('Network error'); });
+    });
+  });
+
+  var rs = document.getElementById('cfResolve');
+  if(rs){ rs.addEventListener('click',function(){
+    if(!confirm('Mark this conflict resolved?')) return;
+    var fd=new URLSearchParams(); fd.append('task_id','{{ task.id }}');
+    fetch('{% url "task_complete" %}',{method:'POST',headers:{'X-CSRFToken':CSRF,'Content-Type':'application/x-www-form-urlencoded'},body:fd.toString()})
+      .then(function(r){return r.json();}).then(function(d){ if(d.success||d.ok){ location.href='{% url "task_queue" %}'; } else { alert(d.error||'Failed'); } });
+  }); }
+})();
+</script>
+{% endblock extra_js %}

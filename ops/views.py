@@ -939,6 +939,7 @@ def _build_driver_conflict_context(task):
 
     # ── Conflict breakdown: travel time between conflicting legs ──
     conflict_detail = None
+    redesign = {}
     trigger_entry = next((e for e in schedule if e["is_trigger"]), None)
     conflicting_entry = next((e for e in schedule if e["is_conflicting"]), None)
     if trigger_entry and conflicting_entry:
@@ -1048,6 +1049,78 @@ def _build_driver_conflict_context(task):
                 "guest_ready_str": guest_ready_str,
                 "guest_ready_minutes": guest_ready_minutes,
                 "second_flight_label": second["flight_label"],
+            }
+
+            # ── Redesign v3: headline metric (driver-at-curb vs flight gate) + a
+            #    fully dynamic two-lane timeline. All positions are precomputed as
+            #    percentages of the window so the template stays arithmetic-free.
+            _gate_dt = (
+                datetime.combine(pickup_date, flight_dt.time())
+                if (second_is_arrival and flight_dt) else None
+            )
+            _prior_pickup = datetime.combine(pickup_date, first_leg.pickup_time)
+            _arr_drive = second.get("drive_minutes") or 0
+            _arr_end = earliest_arrival + timedelta(minutes=_arr_drive)
+            _behind_gate = (
+                int((earliest_arrival - _gate_dt).total_seconds() / 60) if _gate_dt else None
+            )
+
+            def _mins(dt):
+                return dt.hour * 60 + dt.minute + dt.second / 60.0
+
+            _events = [_prior_pickup, clears_at, earliest_arrival, second_pickup, _arr_end]
+            if _gate_dt:
+                _events.append(_gate_dt)
+            _lo = min(_mins(e) for e in _events) - 5
+            _lo -= _lo % 15
+            _hi = max(_mins(e) for e in _events) + 5
+            _hi += (15 - (_hi % 15)) % 15
+            _win = max(_hi - _lo, 15)
+
+            def _pct(dt):
+                return round((_mins(dt) - _lo) / _win * 100, 2)
+
+            def _bar(a, b):
+                _l = _pct(a)
+                return {"left": _l, "width": round(_pct(b) - _l, 2)}
+
+            _ticks = []
+            _t = _lo
+            while _t <= _hi + 0.01:
+                _h = int(_t // 60) % 24
+                _ticks.append({
+                    "pct": round((_t - _lo) / _win * 100, 2),
+                    "label": f"{_h % 12 or 12}:{int(_t % 60):02d}",
+                })
+                _t += 15
+
+            redesign = {
+                "behind_gate": _behind_gate,
+                "driver_curb_str": earliest_arrival.strftime("%I:%M %p").lstrip("0"),
+                "gate_str": flight_gate_str,
+                "booked_str": second_pickup.strftime("%I:%M %p").lstrip("0"),
+                "reposition_min": travel_minutes,
+                "prior_label": first["customer_name"],
+                "prior_pickup_str": _prior_pickup.strftime("%I:%M %p").lstrip("0"),
+                "prior_pickup_loc": first_leg.pickup_location or "",
+                "prior_route": f"{first_leg.pickup_location} → {first_leg.dropoff_location}",
+                "prior_clear_str": clears_at.strftime("%I:%M %p").lstrip("0"),
+                "arr_label": second["customer_name"],
+                "arr_pickup_loc": second_leg.pickup_location or "",
+                "arr_route": f"{second_leg.pickup_location} → {second_leg.dropoff_location}",
+                "flight_label": second["flight_label"],
+                "timeline": {
+                    "ticks": _ticks,
+                    "driver_prior": _bar(_prior_pickup, clears_at),
+                    "driver_reposition": _bar(clears_at, earliest_arrival),
+                    "driver_arrival": _bar(earliest_arrival, _arr_end),
+                    "guest_terminal": _bar(_gate_dt, earliest_arrival) if _gate_dt else None,
+                    "guest_enroute": _bar(earliest_arrival, _arr_end),
+                    "band": _bar(_gate_dt, earliest_arrival) if _gate_dt else None,
+                    "marker_gate": _pct(_gate_dt) if _gate_dt else None,
+                    "marker_booked": _pct(second_pickup),
+                    "marker_driver_free": _pct(earliest_arrival),
+                },
             }
         except Exception:
             logger.exception("Error computing conflict breakdown for task %s", task.id)
@@ -1177,6 +1250,72 @@ def _build_driver_conflict_context(task):
     # otherwise fall back to stale metadata value
     recalc_minutes = conflict_detail["late_minutes"] if conflict_detail else meta.get("conflict_minutes", 0)
 
+    # ── Resolution Ladder: which in-house drivers can cover the arrival leg, plus
+    #    an affiliate fallback. Offline-safe: with USE_LIVE_DISTANCE off, feasibility
+    #    uses the category drive-time table — no synchronous Google call in the
+    #    request path (see CLAUDE.md hotfix 6da1626a / NEXT #7).
+    ladder = {"inhouse": [], "affiliates": [], "step3_unlocked": True, "checked": False}
+    if task.leg and is_arrival_leg:
+        try:
+            from dispatching.scheduler import (
+                build_driver_schedules,
+                check_feasibility,
+                load_all_driver_vtypes,
+                get_compatible_vehicle_types,
+            )
+            arrival_leg = task.leg
+            arrival_vtype = arrival_leg.effective_vehicle_type
+            inhouse_drivers = list(
+                Driver.objects.filter(driver_type="inhouse", is_active=True)
+                .exclude(profile__username__icontains="placeholder")
+                .exclude(profile__first_name__icontains="placeholder")
+                .select_related("profile")
+            )
+            day_legs_all = list(
+                Leg.objects.filter(pickup_date=pickup_date, driver__in=inhouse_drivers)
+                .exclude(status__in=["completed", "cancelled"])
+                .exclude(reservation__status="cancelled")
+                .select_related(
+                    "reservation", "reservation__customer", "flight_information"
+                )
+            )
+            sched_map = build_driver_schedules(day_legs_all, inhouse_drivers, pickup_date)
+            vtypes = load_all_driver_vtypes(pickup_date)
+            for d in inhouse_drivers:
+                if d.id == int(driver_id):
+                    continue
+                dv = vtypes.get(d.id)
+                # Respect the vehicle tier when known; don't hard-exclude on unknown
+                # (scrubbed local data often lacks vehicle assignments).
+                if dv and arrival_vtype and arrival_vtype not in get_compatible_vehicle_types(dv):
+                    continue
+                ds = sched_map.get(d.id)
+                if ds is None:
+                    continue
+                feas = check_feasibility(ds, arrival_leg, pickup_date)
+                if not feas.feasible:
+                    continue
+                ladder["inhouse"].append({
+                    "id": d.id,
+                    "name": str(d),
+                    "vehicle": dv or "",
+                    "jobs": len(ds.slots),
+                    "buffer": feas.buffer_minutes,
+                })
+            # Fewest existing jobs first (easiest to slot), then most slack.
+            ladder["inhouse"].sort(key=lambda c: (c["jobs"], -c["buffer"]))
+            ladder["inhouse"] = ladder["inhouse"][:6]
+            ladder["step3_unlocked"] = len(ladder["inhouse"]) == 0
+            ladder["affiliates"] = [
+                {"id": a.id, "name": str(a)}
+                for a in Driver.objects.filter(
+                    driver_type="affiliate", is_active=True
+                ).select_related("profile")[:8]
+            ]
+            ladder["checked"] = True
+        except Exception:
+            logger.exception("Error building resolution ladder for task %s", task.id)
+
     return {
         "driver_schedule": schedule,
         "driver_name": driver_name,
@@ -1197,6 +1336,8 @@ def _build_driver_conflict_context(task):
         "late_night_flag": late_night_flag,
         "pickup_date_str": pickup_date_str,
         "conflict_detail": conflict_detail,
+        "redesign": redesign,
+        "ladder": ladder,
         "trigger_summary": trigger_summary,
         "conflicting_summary": conflicting_summary,
         "first_summary": first_summary,
@@ -1360,17 +1501,20 @@ def _build_flight_verify_context(task):
     }
 
 
-def _build_payment_chase_context(task):
+def _build_payment_chase_context(task, request, comm_attempts):
     """
     Build extra context for payment_chase task detail: reservation payment
-    summary, upcoming legs, guest contact, and quick action links.
+    summary, upcoming legs, guest contact, the playbook-driven resolution
+    ladder (state derived from ``comm_attempts``), and quick action links.
     """
     reservation = task.reservation
     if not reservation:
         return {}
 
-    from reservations.models import Leg
+    import re
     from decimal import Decimal
+    from django.urls import reverse
+    from ops.playbooks import get_playbook, build_ladder_steps, resolve_actions
 
     customer = reservation.customer
     meta = task.metadata or {}
@@ -1423,6 +1567,58 @@ def _build_payment_chase_context(task):
             "has_card": bool(p.stripe_payment_method_id),
         })
 
+    # ── Playbook-driven resolution ladder (state from real attempt history) ──
+    playbook = get_playbook(task.task_type)
+    ladder_steps = build_ladder_steps(playbook, comm_attempts)
+    for st in ladder_steps:
+        branches = st.get("branches") or {}
+        st["answered_actions"] = resolve_actions(branches.get("answered"))
+        st["advance_actions"] = resolve_actions(branches.get("no_answer"))
+        st["resolve_actions"] = resolve_actions(branches.get("resolve"))
+
+    # Reminders logged so far, by channel (drives the hero sentence + vitals).
+    reminders = {"call": 0, "sms": 0, "email": 0, "total": 0}
+    for a in comm_attempts:
+        if a.channel in reminders:
+            reminders[a.channel] += 1
+        reminders["total"] += 1
+
+    # Trip-when fragment for the hero sentence (no %-d — cross-platform).
+    if leg_data:
+        first = leg_data[0]
+        trip_when = "a trip on %s %d at %s" % (
+            first["pickup_date"].strftime("%b"), first["pickup_date"].day,
+            first["pickup_time_str"],
+        )
+    else:
+        trip_when = "this reservation"
+
+    # Action wiring — reuse existing flows (payment portal / reservation page /
+    # checkout link). No new payment or SMS endpoints (logged-manual text).
+    portal_url = reverse("dispatcher_payment_portal", kwargs={"reservation_id": reservation.uuid})
+    reservation_url = reverse("reservation_details", args=[reservation.id])
+    checkout_url = request.build_absolute_uri(
+        reverse("create_checkout_session", args=[str(reservation.uuid)])
+    )
+    phone_href = re.sub(r"[^\d+]", "", guest_phone) if guest_phone else ""
+    first_name = (customer.first_name if customer and customer.first_name else "there")
+    sms_draft = (
+        f"Hi {first_name}, this is Grayson Towncar.\n\n"
+        f"We're just checking in regarding your upcoming reservation, which is still pending.\n\n"
+        f"If you'd still like to keep it, please use this link to finalize it, since we're not "
+        f"able to assign anyone while the reservation is still pending: {checkout_url}\n\n"
+        f"If not, please let us know so we can cancel it. Otherwise, unpaid reservations may be "
+        f"automatically canceled the day before service. Thank you!"
+    )
+
+    ladder_ctx = {
+        "phone": guest_phone,
+        "phone_href": phone_href,
+        "sms_draft": sms_draft,
+        "portal_url": portal_url,
+        "reservation_url": reservation_url,
+    }
+
     return {
         "pc_total_price": total_price,
         "pc_total_paid": total_paid,
@@ -1438,6 +1634,11 @@ def _build_payment_chase_context(task):
         "pc_reservation_id": reservation.id,
         "pc_days_until": meta.get("days_until_pickup", ""),
         "pc_has_saved_card": any(p.stripe_payment_method_id for p in payments),
+        "pc_reminders": reminders,
+        "pc_trip_when": trip_when,
+        "ladder_steps": ladder_steps,
+        "ladder_ctx": ladder_ctx,
+        "payment_redesign": True,
         "is_payment_chase": True,
     }
 
@@ -1766,6 +1967,22 @@ def _build_afterhours_fee_context(task):
     }
 
 
+def _build_tight_turn_context(task):
+    """Tight-turn task detail. Reuses the rich driver-conflict schedule view (driver's
+    full day, the two legs, drive/transit times, and the Match-Flight-Time action) but
+    frames it as a softer 'keep an eye' tight turn rather than a hard conflict. The
+    cushion (`tt_late_minutes` = minutes the driver reaches the airport after the RAW
+    flight arrival) and the early new-arrival time come from the task metadata."""
+    ctx = _build_driver_conflict_context(task)
+    meta = task.metadata or {}
+    if not ctx:
+        ctx = {}
+    ctx["is_tight_turn"] = True
+    ctx["tt_late_minutes"] = meta.get("late_minutes", ctx.get("conflict_minutes", 0))
+    ctx["tt_new_arrival"] = meta.get("new_arrival_time", ctx.get("flight_arrival_str", ""))
+    return ctx
+
+
 @login_required(login_url="login")
 @user_passes_test(_is_staff, login_url="login")
 def task_detail_view(request, task_id):
@@ -1819,13 +2036,34 @@ def task_detail_view(request, task_id):
     elif task.task_type == OperationalTask.TaskType.FLIGHT_VERIFICATION and task.leg:
         context.update(_build_flight_verify_context(task))
     elif task.task_type == OperationalTask.TaskType.PAYMENT_CHASE and task.reservation:
-        context.update(_build_payment_chase_context(task))
+        context.update(_build_payment_chase_context(task, request, comm_attempts))
     elif task.task_type == OperationalTask.TaskType.DRIVER_ASSIGNMENT and task.leg:
         context.update(_build_driver_assign_context(task))
     elif task.task_type == OperationalTask.TaskType.CONFIRMATION_TEXTS:
         context.update(_build_confirmation_texts_context(task))
     elif task.task_type == OperationalTask.TaskType.AFTERHOURS_FEE and task.leg:
         context.update(_build_afterhours_fee_context(task))
+    elif task.task_type == OperationalTask.TaskType.TIGHT_TURN and task.leg:
+        context.update(_build_tight_turn_context(task))
+
+    # Conflict / tight-turn tasks get the redesigned "resolution ladder" page;
+    # everything else keeps the standard ops task detail.
+    if (
+        task.task_type in (
+            OperationalTask.TaskType.DRIVER_CONFLICT,
+            OperationalTask.TaskType.TIGHT_TURN,
+        )
+        and context.get("driver_schedule")
+        and context.get("redesign")
+    ):
+        return render(request, "dispatching/conflict_task_detail.html", context)
+
+    # Payment-chase tasks get the redesigned playbook-driven collection ladder.
+    if (
+        task.task_type == OperationalTask.TaskType.PAYMENT_CHASE
+        and context.get("payment_redesign")
+    ):
+        return render(request, "dispatching/payment_task_detail.html", context)
 
     return render(request, "dispatching/task_detail.html", context)
 

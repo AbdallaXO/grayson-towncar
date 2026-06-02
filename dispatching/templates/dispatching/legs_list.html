@@ -5,6 +5,9 @@
 
 {% block extra_css %}
   <style>
+      /* Early-flight flag: thin left accent bar instead of a full-row fill */
+      tr.leg-flag-alert { box-shadow: inset 4px 0 0 0 #dc3545; }
+      tr.leg-flag-watch { box-shadow: inset 4px 0 0 0 #e6a23c; }
       @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
@@ -329,9 +332,9 @@
           </thead>
           <tbody>
             {% for leg in legs %}
-              {% with mismatch=leg.get_flight_time_mismatch_display %}
-                <tr class="align-middle {% if mismatch %}table-danger{% endif %}"
-                    {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
+              {% with flag=leg.flight_timing_flag %}
+                <tr class="align-middle {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %}"
+                    {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
                   <!-- Customer dark -->
                   <td>
                     <div class="d-flex align-items-center mb-1">
@@ -370,10 +373,16 @@
 
                   <!-- Trip Details -->
                   <td>
-                    {% if mismatch %}
+                    {% if flag.level == 'alert' %}
                       <div class="mb-1">
-                        <span class="badge bg-danger" title="{{ mismatch.label }}">
-                          <i class="bi bi-exclamation-triangle me-1"></i>{{ mismatch.label }}
+                        <span class="badge bg-danger" title="{{ flag.label }}">
+                          <i class="bi bi-exclamation-triangle me-1"></i>{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}
+                        </span>
+                      </div>
+                    {% elif flag.level == 'watch' %}
+                      <div class="mb-1">
+                        <span class="badge bg-warning text-dark" title="Flight is landing early — keep an eye on the driver's turnaround">
+                          <i class="bi bi-airplane-engines me-1"></i>{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}
                         </span>
                       </div>
                     {% endif %}
@@ -779,12 +788,12 @@
         <div class="row g-2">
           {% for leg in legs %}
             <div class="col-12">
-              {% with mismatch=leg.get_flight_time_mismatch_display %}
-                <div class="card shadow-sm {% if mismatch %}border-danger{% endif %}">
-                  <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% else %}bg-light p-2{% endif %}">
+              {% with flag=leg.flight_timing_flag %}
+                <div class="card shadow-sm {% if flag.level == 'alert' %}border-danger{% elif flag.level == 'watch' %}border-warning{% endif %}">
+                  <div class="card-header {% if flag.level == 'alert' %}bg-danger bg-opacity-10 border-danger p-2{% elif flag.level == 'watch' %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                     <div class="d-flex justify-content-between align-items-center">
                       <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
-                      {% if mismatch %}<span class="badge bg-danger" title="{{ mismatch.label }}">{{ mismatch.label }}</span>{% endif %}
+                      {% if flag.level == 'alert' %}<span class="badge bg-danger" title="{{ flag.label }}">{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}</span>{% elif flag.level == 'watch' %}<span class="badge bg-warning text-dark" title="Flight is landing early — keep an eye on the turnaround">{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}</span>{% endif %}
                       <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                          class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
                     </div>

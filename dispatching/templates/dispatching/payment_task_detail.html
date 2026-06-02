@@ -1,0 +1,554 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Shared design system (matches conflict_task_detail.html) ── */
+  .cf {
+    --paper:#F4F1EA; --paper-2:#EDE9DF; --card:#FFFFFF; --card-2:#FBF9F3;
+    --line:#E7E2D6; --line-2:#DAD3C4; --line-3:#CBC3B1;
+    --ink:#1B2A44; --ink-soft:#54607A; --ink-mute:#8A93A3; --ink-faint:#A9B0BC;
+    --gold:#C0851B; --gold-deep:#9E6E16; --gold-fill:#E1AC46; --gold-dim:rgba(193,133,27,.12); --gold-line:rgba(193,133,27,.42);
+    --red:#D5364A; --red-soft:#B22B3C; --red-dim:rgba(213,54,74,.09); --red-line:rgba(213,54,74,.34);
+    --grn:#178F66; --grn-dim:rgba(23,143,102,.1);
+    --blu:#3568CC; --blu-dim:rgba(53,104,204,.1); --blu-line:rgba(53,104,204,.32);
+    --amb:#C5811C; --amb-dim:rgba(197,129,28,.12); --amb-line:rgba(197,129,28,.34);
+    --nav-bg:#0d1117; --nav-ink:#EEF2F9; --nav-soft:#A7B3C9; --nav-line:rgba(255,255,255,.10);
+    --radius:14px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(27,42,68,.05), 0 16px 36px -22px rgba(27,42,68,.22);
+    font-family:'Hanken Grotesk',system-ui,sans-serif; color:var(--ink);
+    background:var(--paper); min-height:100vh;
+  }
+  .cf *{ box-sizing:border-box; }
+  .cf .navbar{ margin-bottom:0; }
+  .cf .mono{ font-family:'Spline Sans Mono',monospace; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .cf .disp{ font-family:'Archivo',sans-serif; }
+  .cf .lbl{ font-family:'Archivo',sans-serif; text-transform:uppercase; letter-spacing:.10em; font-weight:700; font-size:10.5px; color:var(--ink-mute); }
+
+  /* ── command bar ── */
+  .cf-cmd{ position:sticky; top:0; z-index:30; background:var(--nav-bg); color:var(--nav-ink);
+    border-bottom:1px solid var(--nav-line); padding:11px 0; }
+  .cf-cmd-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+  .cf-cmd-left{ display:flex; align-items:flex-start; gap:13px; }
+  .cf-back{ flex:0 0 auto; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    color:var(--nav-soft); background:rgba(255,255,255,.06); border:1px solid var(--nav-line); text-decoration:none; font-size:16px; margin-top:2px; transition:.14s; }
+  .cf-back:hover{ color:#fff; background:rgba(255,255,255,.13); }
+  .cf-bc{ font-size:11px; color:var(--nav-soft); letter-spacing:.04em; margin-bottom:6px; }
+  .cf-bc a{ color:var(--nav-soft); text-decoration:none; }
+  .cf-bc a:hover{ color:var(--nav-ink); }
+  .cf-title{ font-family:'Archivo'; font-weight:800; font-size:18px; display:flex; align-items:center; gap:10px; }
+  .cf-dot{ width:9px; height:9px; border-radius:50%; background:var(--red); box-shadow:0 0 0 0 rgba(213,54,74,.6);
+    animation:cfpulse 1.8s infinite; }
+  @keyframes cfpulse{ 0%{box-shadow:0 0 0 0 rgba(213,54,74,.55);} 70%{box-shadow:0 0 0 9px rgba(213,54,74,0);} 100%{box-shadow:0 0 0 0 rgba(213,54,74,0);} }
+  .cf-chips{ display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
+  .cf-chip{ font-family:'Archivo'; font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 9px; border-radius:999px; border:1px solid var(--nav-line); color:var(--nav-soft); }
+  .cf-chip.is-crit{ color:#FFD9DE; background:rgba(213,54,74,.18); border-color:rgba(213,54,74,.4); }
+  .cf-chip.is-over{ color:#FFE2B8; background:rgba(197,129,28,.16); border-color:rgba(197,129,28,.4); }
+  .cf-chip .mono{ font-size:11px; }
+  .cf-cmd-actions{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+  .cf-btn{ font-family:'Archivo'; font-weight:700; font-size:12.5px; letter-spacing:.01em; cursor:pointer;
+    padding:9px 15px; border-radius:10px; border:1px solid transparent; display:inline-flex; align-items:center; gap:7px;
+    text-decoration:none; transition:.14s; }
+  .cf-btn-ghost{ background:rgba(255,255,255,.06); color:var(--nav-ink); border-color:var(--nav-line); }
+  .cf-btn-ghost:hover{ background:rgba(255,255,255,.12); color:#fff; }
+  .cf-btn-gold{ background:var(--gold-fill); color:#3a2a08; }
+  .cf-btn-gold:hover{ background:#edbb5c; }
+  .cf-btn-solid{ background:#fff; color:var(--nav-bg); }
+  .cf-assign-sel{ font-family:'Archivo'; font-weight:600; font-size:12px; color:var(--nav-ink); background:rgba(255,255,255,.06);
+    border:1px solid var(--nav-line); border-radius:10px; padding:8px 10px; cursor:pointer; }
+  .cf-assign-sel option{ color:#1B2A44; }
+
+  /* ── layout ── */
+  .cf-page{ padding:24px 0 60px; display:grid; grid-template-columns:1fr 340px; gap:22px; align-items:start; }
+  @media (max-width:980px){ .cf-page{ grid-template-columns:1fr; } }
+  .cf-col{ display:flex; flex-direction:column; gap:18px; min-width:0; }
+  .cf-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .cf-card-h{ display:flex; align-items:center; gap:9px; padding:13px 18px; border-bottom:1px solid var(--line); }
+  .cf-card-h .lbl{ color:var(--ink-soft); font-size:11px; }
+  .cf-card-b{ padding:18px; }
+
+  /* ── hero / the situation ── */
+  .cf-hero{ background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+  .cf-hero-top{ display:flex; gap:22px; padding:22px 22px 18px; align-items:flex-start; flex-wrap:wrap; }
+  .cf-metric{ flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-start; }
+  .cf-metric-num{ font-family:'Archivo'; font-weight:800; font-size:62px; line-height:.92; color:var(--red);
+    letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .cf-metric-unit{ font-family:'Archivo'; font-weight:700; font-size:12px; letter-spacing:.10em; text-transform:uppercase;
+    color:var(--red-soft); margin-top:7px; }
+  .cf-situation{ flex:1 1 320px; min-width:260px; }
+  .cf-situation h2{ font-family:'Archivo'; font-weight:600; font-size:15px; color:var(--ink); margin:2px 0 8px; line-height:1.45; }
+  .cf-situation h2 .mono{ color:var(--ink); }
+  .cf-judge{ font-style:italic; font-size:13px; color:var(--ink-soft); border-left:2px solid var(--gold-line);
+    padding-left:11px; line-height:1.45; }
+  .cf-vitals{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border-top:1px solid var(--line); }
+  @media (max-width:560px){ .cf-vitals{ grid-template-columns:repeat(2,1fr); } }
+  .cf-vital{ background:var(--card); padding:13px 16px; }
+  .cf-vital .lbl{ font-size:9.5px; margin-bottom:5px; }
+  .cf-vital-v{ font-family:'Spline Sans Mono'; font-weight:600; font-size:17px; color:var(--ink); }
+  .cf-vital-v small{ font-family:'Hanken Grotesk'; font-size:11px; color:var(--ink-mute); font-weight:500; }
+  .cf-rec{ display:flex; align-items:center; gap:11px; padding:12px 18px; background:var(--gold-dim);
+    border-top:1px solid var(--gold-line); cursor:pointer; }
+  .cf-rec i{ color:var(--gold-deep); font-size:16px; }
+  .cf-rec b{ font-family:'Archivo'; color:var(--gold-deep); font-size:13px; }
+  .cf-rec span{ font-size:13px; color:var(--ink-soft); }
+
+  /* ── trip at risk ── */
+  .cf-trip{ display:flex; flex-direction:column; gap:10px; }
+  .cf-trip-row{ display:flex; align-items:center; gap:13px; padding:12px 13px; border:1px solid var(--line);
+    border-radius:var(--radius-sm); background:var(--card-2); }
+  .cf-trip-ico{ flex:0 0 36px; width:36px; height:36px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    background:var(--red-dim); color:var(--red-soft); font-size:16px; }
+  .cf-trip-main{ flex:1 1 auto; min-width:0; }
+  .cf-trip-route{ font-family:'Archivo'; font-weight:700; font-size:13.5px; color:var(--ink); }
+  .cf-trip-meta{ font-size:11.5px; color:var(--ink-mute); margin-top:2px; }
+  .cf-trip-meta .mono{ color:var(--ink-soft); }
+  .cf-trip-tag{ flex:0 0 auto; font-family:'Archivo'; font-weight:700; font-size:10px; letter-spacing:.05em; text-transform:uppercase;
+    padding:4px 9px; border-radius:999px; }
+  .cf-trip-tag.unassigned{ color:var(--amb); background:var(--amb-dim); border:1px solid var(--amb-line); }
+  .cf-trip-tag.assigned{ color:var(--grn); background:var(--grn-dim); border:1px solid rgba(23,143,102,.3); }
+  .cf-trip-note{ font-size:12px; color:var(--ink-soft); margin-top:12px; display:flex; align-items:flex-start; gap:7px; line-height:1.45; }
+  .cf-trip-note i{ color:var(--amb); margin-top:2px; }
+
+  /* ── resolution ladder ── */
+  .cf-ladder{ position:relative; }
+  .cf-step{ display:flex; gap:14px; padding:16px 0; border-top:1px solid var(--line); }
+  .cf-step:first-child{ border-top:0; }
+  .cf-step-n{ flex:0 0 30px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:'Archivo'; font-weight:800; font-size:14px; background:var(--paper-2); color:var(--ink-soft); border:1px solid var(--line-2); }
+  .cf-step.is-rec .cf-step-n{ background:var(--gold-fill); color:#3a2a08; border-color:var(--gold); }
+  .cf-step.is-tried{ opacity:.6; }
+  .cf-step-body{ flex:1 1 auto; min-width:0; }
+  .cf-step-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .cf-step-title{ font-family:'Archivo'; font-weight:700; font-size:15px; color:var(--ink); }
+  .cf-tag{ font-family:'Archivo'; font-weight:700; font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; display:inline-flex; align-items:center; gap:4px; }
+  .cf-tag-gold{ color:var(--gold-deep); background:var(--gold-dim); border:1px solid var(--gold-line); }
+  .cf-tag-amb{ color:var(--amb); background:var(--amb-dim); border:1px solid var(--amb-line); }
+  .cf-tag-mute{ color:var(--ink-mute); background:var(--paper-2); border:1px solid var(--line-2); }
+  .cf-step-desc{ font-size:12.5px; color:var(--ink-soft); margin-top:5px; line-height:1.45; }
+  .cf-step-note{ font-size:11.5px; color:var(--ink-mute); margin-top:8px; display:flex; align-items:center; gap:6px; }
+  .cf-step-actions{ display:flex; gap:8px; margin-top:11px; flex-wrap:wrap; }
+  .cf-act{ font-family:'Archivo'; font-weight:700; font-size:12.5px; cursor:pointer; padding:8px 14px; border-radius:9px;
+    border:1px solid var(--line-2); background:var(--card); color:var(--ink); text-decoration:none; display:inline-flex; align-items:center; gap:7px; }
+  .cf-act-gold{ background:var(--gold-fill); border-color:var(--gold); color:#3a2a08; }
+  .cf-act-gold:hover{ background:#edbb5c; }
+  .cf-act:hover{ border-color:var(--line-3); }
+  .cf-act:disabled{ opacity:.55; cursor:default; }
+  .cf-branch{ margin-top:11px; padding:12px 13px; border:1px dashed var(--gold-line); border-radius:var(--radius-sm); background:var(--gold-dim); }
+  .cf-branch-lbl{ font-family:'Archivo'; font-weight:700; font-size:11.5px; color:var(--gold-deep); margin-bottom:9px; display:flex; align-items:center; gap:6px; }
+  .cf-draft{ margin-top:11px; }
+  .cf-draft-text{ width:100%; border:1px solid var(--line-2); border-radius:var(--radius-sm); background:var(--card-2);
+    padding:11px 13px; font-family:'Hanken Grotesk'; font-size:12.5px; color:var(--ink); resize:vertical; line-height:1.5; }
+
+  /* ── log communication form ── */
+  .cf-form{ display:flex; flex-direction:column; gap:11px; }
+  .cf-form-row{ display:flex; gap:11px; flex-wrap:wrap; }
+  .cf-field{ flex:1 1 160px; display:flex; flex-direction:column; gap:5px; }
+  .cf-field .lbl{ font-size:9.5px; }
+  .cf-input, .cf-select, .cf-textarea{ font-family:'Hanken Grotesk'; font-size:13px; color:var(--ink);
+    border:1px solid var(--line-2); border-radius:var(--radius-sm); background:var(--card); padding:9px 11px; width:100%; }
+  .cf-textarea{ resize:vertical; min-height:60px; }
+  .cf-form-submit{ align-self:flex-start; }
+
+  /* ── communication history ── */
+  .cf-hist{ display:flex; flex-direction:column; }
+  .cf-hist-item{ display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line); }
+  .cf-hist-item:first-child{ border-top:0; }
+  .cf-hist-ch{ flex:0 0 34px; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px;
+    background:var(--paper-2); color:var(--ink-soft); }
+  .cf-hist-ch.ch-call{ background:var(--blu-dim); color:var(--blu); }
+  .cf-hist-ch.ch-sms{ background:var(--gold-dim); color:var(--gold-deep); }
+  .cf-hist-ch.ch-email{ background:var(--grn-dim); color:var(--grn); }
+  .cf-hist-main{ flex:1 1 auto; min-width:0; }
+  .cf-hist-top{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
+  .cf-hist-out{ font-family:'Archivo'; font-weight:700; font-size:12.5px; color:var(--ink); }
+  .cf-hist-when{ font-family:'Spline Sans Mono'; font-size:10.5px; color:var(--ink-mute); }
+  .cf-hist-who{ font-size:11px; color:var(--ink-mute); }
+  .cf-hist-notes{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+  .cf-empty{ font-size:12.5px; color:var(--ink-faint); font-style:italic; padding:8px 0; }
+
+  /* ── right rail ── */
+  .cf-kv{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line); font-size:13px; }
+  .cf-kv:first-child{ border-top:0; }
+  .cf-kv-k{ color:var(--ink-mute); }
+  .cf-kv-v{ font-family:'Spline Sans Mono'; font-weight:500; color:var(--ink); text-align:right; }
+  .cf-kv-v.red{ color:var(--red-soft); }
+  .cf-meter{ height:6px; border-radius:99px; background:var(--paper-2); overflow:hidden; margin-top:8px; }
+  .cf-meter-fill{ height:100%; background:var(--gold-fill); }
+  .cf-guest-name{ font-family:'Archivo'; font-weight:700; font-size:15px; }
+  .cf-guest-line{ font-size:12px; color:var(--ink-mute); margin-top:4px; word-break:break-word; }
+  .cf-contact{ display:flex; gap:8px; margin-top:12px; }
+  .cf-contact a{ flex:1; text-align:center; font-family:'Archivo'; font-weight:700; font-size:12px; padding:8px 0;
+    border-radius:9px; border:1px solid var(--line-2); color:var(--ink); text-decoration:none; }
+  .cf-contact a:hover{ background:var(--paper-2); }
+  .cf-act-log{ display:flex; flex-direction:column; gap:0; }
+  .cf-act-item{ display:flex; gap:9px; padding:9px 0; border-top:1px solid var(--line); font-size:12px; }
+  .cf-act-item:first-child{ border-top:0; }
+  .cf-act-item .mono{ color:var(--ink-mute); flex:0 0 auto; font-size:11px; }
+</style>
+{% endblock extra_css %}
+
+{% block footer %}{% endblock footer %}
+{% block content %}
+{% block navbar %}{% endblock navbar %}
+<div class="cf">
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <!-- ═══ A. Command bar ═══ -->
+  <div class="cf-cmd">
+    <div class="container">
+      <div class="cf-cmd-row">
+        <div class="cf-cmd-left">
+          <a href="{% url 'task_queue' %}" class="cf-back" title="Back to tasks"><i class="bi bi-arrow-left"></i></a>
+          <div>
+            <div class="cf-bc"><a href="{% url 'task_queue' %}">Ops Control</a> / Tasks / #{{ task.id }}</div>
+            <div class="cf-title"><span class="cf-dot"></span>Unpaid Balance — {{ pc_guest_name }}</div>
+            <div class="cf-chips">
+              {% if task.priority == 1 %}<span class="cf-chip is-crit">Critical</span>
+              {% elif task.priority == 2 %}<span class="cf-chip is-over">High</span>
+              {% else %}<span class="cf-chip">{{ task.get_priority_display }}</span>{% endif %}
+              <span class="cf-chip">{{ task.get_status_display }}</span>
+              {% if task.is_overdue %}<span class="cf-chip is-over">Overdue</span>{% endif %}
+              {% if task.escalate_at and task.is_open %}
+              <span class="cf-chip" id="cfEscalate" data-at="{{ task.escalate_at|date:'c' }}">Escalates in <span class="mono">—</span></span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="cf-cmd-actions">
+          <select class="cf-assign-sel" id="cfAssign" title="Assign to">
+            <option value="">Unassigned</option>
+            {% for s in ops_staff %}
+            <option value="{{ s.id }}" {% if task.assigned_to_id == s.id %}selected{% endif %}>{{ s.first_name|default:s.username }}</option>
+            {% endfor %}
+          </select>
+          {% if task.is_open %}
+          <button class="cf-btn cf-btn-ghost" id="cfComplete"><i class="bi bi-check2-circle"></i> Complete</button>
+          <a class="cf-btn cf-btn-gold" href="{{ ladder_ctx.portal_url }}" target="_blank" rel="noopener"><i class="bi bi-credit-card"></i> Take payment</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+  <div class="cf-page">
+    <!-- ═══ Main column ═══ -->
+    <div class="cf-col">
+
+      <!-- B. The Situation -->
+      <div class="cf-hero">
+        <div class="cf-hero-top">
+          <div class="cf-metric">
+            <div class="cf-metric-num">${{ pc_amount_owed|floatformat:2 }}</div>
+            <div class="cf-metric-unit">owed</div>
+          </div>
+          <div class="cf-situation">
+            <h2>{{ pc_guest_name }} owes <span class="mono">${{ pc_amount_owed|floatformat:2 }}</span> on {{ pc_trip_when }}{% if pc_reminders.email %} — <span class="mono">{{ pc_reminders.email }}</span> payment email{{ pc_reminders.email|pluralize }} sent, no response{% endif %}.</h2>
+            <div class="cf-judge">A quick call usually settles it — they pay over the phone, or you cancel and free the slot. Email is the weakest lever; lead with the call.</div>
+          </div>
+        </div>
+        <div class="cf-vitals">
+          <div class="cf-vital"><div class="lbl">Owed</div><div class="cf-vital-v">${{ pc_amount_owed|floatformat:2 }}<small> of ${{ pc_total_price|floatformat:2 }}</small></div></div>
+          <div class="cf-vital"><div class="lbl">Trip date</div><div class="cf-vital-v">{% if pc_legs %}{{ pc_legs.0.pickup_date|date:"M j" }}<small> {{ pc_legs.0.pickup_time_str }}</small>{% else %}—{% endif %}</div></div>
+          <div class="cf-vital"><div class="lbl">Reminders</div><div class="cf-vital-v">{{ pc_reminders.total }}<small> {% if pc_reminders.call %}{{ pc_reminders.call }}c {% endif %}{% if pc_reminders.sms %}{{ pc_reminders.sms }}t {% endif %}{% if pc_reminders.email %}{{ pc_reminders.email }}e{% endif %}</small></div></div>
+          <div class="cf-vital"><div class="lbl">Attempts</div><div class="cf-vital-v">{{ task.attempts }}<small> / {{ task.max_attempts }}{% if task.last_attempt_at %} · {{ task.last_attempt_at|date:"M j" }}{% endif %}</small></div></div>
+        </div>
+        <div class="cf-rec" id="cfRecBanner">
+          <i class="bi bi-stars"></i><b>Recommended:</b><span>Call first — Step&nbsp;1 below.</span>
+        </div>
+      </div>
+
+      <!-- C. Trip at Risk -->
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-geo-alt" style="color:var(--gold-deep)"></i><span class="lbl">Trip at Risk</span></div>
+        <div class="cf-card-b">
+          <div class="cf-trip">
+            {% for lg in pc_legs %}
+            <div class="cf-trip-row">
+              <div class="cf-trip-ico"><i class="bi bi-geo-alt-fill"></i></div>
+              <div class="cf-trip-main">
+                <div class="cf-trip-route">{{ lg.pickup_location }} <i class="bi bi-arrow-right" style="font-size:11px;color:var(--ink-faint)"></i> {{ lg.dropoff_location }}</div>
+                <div class="cf-trip-meta"><span class="mono">{{ lg.pickup_date|date:"D, M j" }} · {{ lg.pickup_time_str }}</span> · {{ lg.driver_name }}</div>
+              </div>
+              <span class="cf-trip-tag {% if lg.has_driver %}assigned{% else %}unassigned{% endif %}">{% if lg.has_driver %}Assigned{% else %}Unassigned{% endif %}</span>
+            </div>
+            {% empty %}
+            <div class="cf-empty">No upcoming legs on this reservation.</div>
+            {% endfor %}
+          </div>
+          <div class="cf-trip-note">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>If still unpaid near pickup, this task escalates to <b>Critical</b> for manual review and cancellation — trips are not auto-cancelled, so collect or cancel before {% if task.escalate_at %}<span class="mono">{{ task.escalate_at|date:"M j, g:i A" }}</span>{% else %}pickup{% endif %}.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- D. Collection Ladder -->
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-list-ol" style="color:var(--gold-deep)"></i><span class="lbl">Collection Ladder</span></div>
+        <div class="cf-card-b">
+          {% include "dispatching/includes/_resolution_ladder.html" %}
+        </div>
+      </div>
+
+      <!-- E. Log Communication -->
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-pencil-square" style="color:var(--ink-soft)"></i><span class="lbl">Log Communication</span></div>
+        <div class="cf-card-b">
+          <form class="cf-form" id="cfLogForm">
+            <div class="cf-form-row">
+              <div class="cf-field">
+                <div class="lbl">Channel</div>
+                <select class="cf-select" name="channel">
+                  {% for value, label in channels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="cf-field">
+                <div class="lbl">Outcome</div>
+                <select class="cf-select" name="outcome">
+                  {% for value, label in outcomes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="cf-field">
+              <div class="lbl">Notes</div>
+              <textarea class="cf-textarea" name="notes" placeholder="What happened? (optional)"></textarea>
+            </div>
+            <button type="submit" class="cf-act cf-act-gold cf-form-submit"><i class="bi bi-plus-lg"></i> Log communication</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- F. Communication History -->
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-clock-history" style="color:var(--ink-soft)"></i><span class="lbl">Communication History</span></div>
+        <div class="cf-card-b">
+          <div class="cf-hist">
+            {% for a in comm_attempts %}
+            <div class="cf-hist-item">
+              <div class="cf-hist-ch ch-{{ a.channel }}">
+                {% if a.channel == 'call' %}<i class="bi bi-telephone-fill"></i>{% elif a.channel == 'sms' %}<i class="bi bi-chat-dots"></i>{% elif a.channel == 'email' %}<i class="bi bi-envelope"></i>{% else %}<i class="bi bi-dot"></i>{% endif %}
+              </div>
+              <div class="cf-hist-main">
+                <div class="cf-hist-top">
+                  <span class="cf-hist-out">{{ a.get_channel_display }} · {{ a.get_outcome_display }}</span>
+                  <span class="cf-hist-when">{{ a.created_at|date:"M j, g:i A" }}</span>
+                  {% if a.staff_user %}<span class="cf-hist-who">{{ a.staff_user.get_full_name|default:a.staff_user.username }}</span>{% endif %}
+                </div>
+                {% if a.notes %}<div class="cf-hist-notes">{{ a.notes }}</div>{% endif %}
+              </div>
+            </div>
+            {% empty %}
+            <div class="cf-empty">No communication logged yet — start with a call above.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══ G. Right rail ═══ -->
+    <div class="cf-col">
+
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-info-circle" style="color:var(--ink-soft)"></i><span class="lbl">Task Details</span></div>
+        <div class="cf-card-b">
+          <div class="cf-kv"><span class="cf-kv-k">Created</span><span class="cf-kv-v">{{ task.created_at|date:"M j, g:i A" }}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Due</span><span class="cf-kv-v {% if task.is_overdue %}red{% endif %}">{{ task.due_at|date:"M j, g:i A" }}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">Assigned</span><span class="cf-kv-v">{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}Unassigned{% endif %}</span></div>
+          {% if task.escalate_at %}<div class="cf-kv"><span class="cf-kv-k">Escalates</span><span class="cf-kv-v">{{ task.escalate_at|date:"M j, g:i A" }}</span></div>{% endif %}
+          <div class="cf-kv"><span class="cf-kv-k">Attempts</span><span class="cf-kv-v">{{ task.attempts }} / {{ task.max_attempts }}</span></div>
+          <div class="cf-meter"><div class="cf-meter-fill" style="width:{% if task.max_attempts %}{% widthratio task.attempts task.max_attempts 100 %}{% else %}0{% endif %}%"></div></div>
+          {% if task.last_attempt_at %}<div class="cf-kv"><span class="cf-kv-k">Last attempt</span><span class="cf-kv-v">{{ task.last_attempt_at|date:"M j, g:i A" }}</span></div>{% endif %}
+        </div>
+      </div>
+
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-person" style="color:var(--ink-soft)"></i><span class="lbl">Guest</span></div>
+        <div class="cf-card-b">
+          <div class="cf-guest-name">{{ pc_guest_name }}</div>
+          {% if pc_guest_phone %}<div class="cf-guest-line"><i class="bi bi-telephone"></i> <span class="mono">{{ pc_guest_phone }}</span></div>{% endif %}
+          {% if pc_guest_email %}<div class="cf-guest-line"><i class="bi bi-envelope"></i> {{ pc_guest_email }}</div>{% endif %}
+          <div class="cf-contact">
+            {% if ladder_ctx.phone_href %}<a href="tel:{{ ladder_ctx.phone_href }}"><i class="bi bi-telephone-fill"></i> Call</a>{% endif %}
+            {% if ladder_ctx.phone_href %}<a href="sms:{{ ladder_ctx.phone_href }}"><i class="bi bi-chat-dots"></i> Text</a>{% endif %}
+            {% if pc_guest_email %}<a href="mailto:{{ pc_guest_email }}"><i class="bi bi-envelope"></i> Email</a>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="cf-card">
+        <div class="cf-card-h"><i class="bi bi-clock-history" style="color:var(--ink-soft)"></i><span class="lbl">Activity</span></div>
+        <div class="cf-card-b">
+          <div class="cf-act-log">
+            {% for a in activities %}
+            <div class="cf-act-item"><span class="mono">{{ a.created_at|date:"M j, g:i A" }}</span><span>{{ a.get_action_type_display }}{% if a.user %} · {{ a.user.get_full_name|default:a.user.username }}{% endif %}</span></div>
+            {% empty %}
+            <div class="cf-empty">No activity yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function(){
+  function cookie(n){ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+  var CSRF = cookie('csrftoken');
+  var TASK_ID = '{{ task.id }}';
+  var RES_UUID = '{{ pc_reservation_uuid }}';
+  var OWED = '{{ pc_amount_owed|floatformat:2 }}';
+  var URLS = {
+    log:    '{% url "task_log_comm" %}',
+    done:   '{% url "task_complete" %}',
+    cancel: '{% url "task_cancel" %}',
+    assign: '{% url "task_assign" %}',
+    email:  '{% url "send_payment_reminder" %}',
+    queue:  '{% url "task_queue" %}'
+  };
+
+  function post(url, body){
+    return fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body:JSON.stringify(body||{})})
+      .then(function(r){ return r.json(); });
+  }
+
+  // ── Escalation countdown ──
+  var esc = document.getElementById('cfEscalate');
+  if(esc){
+    var at = new Date(esc.dataset.at).getTime();
+    var span = esc.querySelector('.mono');
+    (function tick(){
+      var d = at - Date.now();
+      if(d<=0){ esc.textContent='Escalated'; return; }
+      var h=Math.floor(d/3600000), m=Math.floor((d%3600000)/60000);
+      span.textContent = (h>0?h+'h ':'') + m + 'm';
+      setTimeout(tick, 30000);
+    })();
+  }
+
+  // ── Recommended banner → scroll to ladder ──
+  var rec = document.getElementById('cfRecBanner');
+  if(rec){ rec.addEventListener('click', function(){
+    var l = document.getElementById('cfLadder');
+    if(l){ l.scrollIntoView({behavior:'smooth', block:'center'}); }
+  }); }
+
+  // ── Assign ──
+  var asg = document.getElementById('cfAssign');
+  if(asg){ asg.addEventListener('change', function(){
+    post(URLS.assign, {task_id:TASK_ID, user_id: asg.value || null}).then(function(d){
+      if(!d.success){ alert(d.error||'Failed to assign'); }
+    });
+  }); }
+
+  // ── Complete ──
+  var done = document.getElementById('cfComplete');
+  if(done){ done.addEventListener('click', function(){
+    if(!confirm('Mark this task complete?')) return;
+    post(URLS.done, {task_id:TASK_ID, notes:'Resolved from collection ladder'}).then(function(d){
+      if(d.success){ location.href = URLS.queue; } else { alert(d.error||'Failed'); }
+    });
+  }); }
+
+  // ── Ladder (event-delegated) ──
+  var ladder = document.getElementById('cfLadder');
+  function logComm(channel, outcome, notes){
+    return post(URLS.log, {task_id:TASK_ID, channel:channel, outcome:outcome, notes:notes||''});
+  }
+  if(ladder){
+    ladder.addEventListener('click', function(ev){
+      var btn = ev.target.closest('[data-act]'); if(!btn) return;
+      var act = btn.dataset.act;
+      var step = btn.closest('.cf-step');
+
+      if(act === 'branch'){
+        // reveal answered / advance branch within this step
+        var which = btn.dataset.branch;
+        var b = step.querySelector('[data-branch-for="'+(which==='answered'?'answered':'advance')+'"]');
+        if(b){ b.hidden = false; b.scrollIntoView({behavior:'smooth', block:'nearest'}); }
+        return;
+      }
+
+      if(act === 'log'){
+        btn.disabled = true;
+        logComm(btn.dataset.channel, btn.dataset.outcome, btn.title||'').then(function(d){
+          if(d.success){ location.reload(); } else { btn.disabled=false; alert(d.error||'Failed to log'); }
+        });
+        return;
+      }
+
+      if(act === 'payment' || act === 'cancel'){
+        if(btn.dataset.url){ window.open(btn.dataset.url, '_blank', 'noopener'); }
+        // reveal the matching "Mark …& resolve" button next to it
+        var mode = (act === 'payment') ? 'paid' : 'cancelled';
+        var resolveBtn = step.querySelector('.cf-resolve-after[data-mode="'+mode+'"]');
+        if(resolveBtn){ resolveBtn.hidden = false; }
+        return;
+      }
+
+      if(act === 'resolve'){
+        var mode = btn.dataset.mode; // paid | cancelled
+        if(mode === 'paid' && !confirm('Confirm the guest paid, then close this task?')) return;
+        if(mode === 'cancelled' && !confirm('Confirm the trip was cancelled, then close this task?')) return;
+        btn.disabled = true;
+        var note = (mode === 'paid') ? ('Guest paid $'+OWED+' on the call.') : 'Guest cancelled the trip on the call.';
+        logComm('call', 'answered', note).then(function(){
+          if(mode === 'paid'){
+            return post(URLS.done, {task_id:TASK_ID, notes:'Paid $'+OWED+' — collected via payment portal.'});
+          }
+          return post(URLS.cancel, {task_id:TASK_ID, reason:'Trip cancelled per guest (unpaid).'});
+        }).then(function(d){
+          if(d && d.success){ location.href = URLS.queue; } else { btn.disabled=false; alert((d&&d.error)||'Failed'); }
+        });
+        return;
+      }
+
+      if(act === 'draft-sms'){
+        var box = step.querySelector('[data-draft-box]');
+        if(box){ box.hidden = !box.hidden; }
+        return;
+      }
+
+      if(act === 'copy'){
+        var ta = step.querySelector('.cf-draft-text');
+        if(ta && navigator.clipboard){ navigator.clipboard.writeText(ta.value); btn.innerHTML='<i class="bi bi-check2"></i> Copied'; }
+        else if(ta){ ta.select(); document.execCommand('copy'); btn.innerHTML='<i class="bi bi-check2"></i> Copied'; }
+        return;
+      }
+
+      if(act === 'send-email'){
+        btn.disabled = true; btn.innerHTML='<i class="bi bi-hourglass-split"></i> Sending…';
+        post(URLS.email, {reservation_id:RES_UUID}).then(function(d){
+          if(d.success){ location.reload(); }
+          else { btn.disabled=false; btn.innerHTML='<i class="bi bi-envelope"></i> Send reminder email'; alert(d.error||'Failed to send'); }
+        });
+        return;
+      }
+    });
+  }
+
+  // ── Log Communication form ──
+  var form = document.getElementById('cfLogForm');
+  if(form){ form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var fd = new FormData(form);
+    var sub = form.querySelector('[type="submit"]'); sub.disabled = true;
+    post(URLS.log, {task_id:TASK_ID, channel:fd.get('channel'), outcome:fd.get('outcome'), notes:fd.get('notes')||''}).then(function(d){
+      if(d.success){ location.reload(); } else { sub.disabled=false; alert(d.error||'Failed to log'); }
+    });
+  }); }
+})();
+</script>
+{% endblock extra_js %}

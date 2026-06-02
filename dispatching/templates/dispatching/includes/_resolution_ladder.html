@@ -1,0 +1,141 @@
+{% comment %}
+Shared, playbook-driven resolution ladder.
+
+Renders an ordered list of steps from `ladder_steps` (built by
+ops.playbooks.build_ladder_steps + enriched with resolved branch actions in
+the view) and reflects real attempt history: the recommended step is gold,
+already-tried channels fade with a "sent ×N" / "tried ×N" pill, and steps
+ahead of the recommended one carry a soft nudge (never a hard block).
+
+Context contract:
+  ladder_steps : list of step dicts. Each has:
+      id, order, label, icon, channel, description, recommended (bool),
+      state ("recommended"|"available"|"deemphasized"), tried_pill, nudge,
+      answered_actions[], advance_actions[], resolve_actions[]
+  ladder_ctx   : per-page wiring (page supplies the channel-specific data):
+      phone, phone_href, sms_draft, portal_url, reservation_url,
+      send_email_url, owed_str
+The including page owns the action JS (it reads the data-* attributes below).
+{% endcomment %}
+{% load static %}
+<div class="cf-ladder" id="cfLadder"
+     data-task-id="{{ task.id }}"
+     data-reservation-uuid="{{ pc_reservation_uuid }}">
+  {% for step in ladder_steps %}
+  <div class="cf-step{% if step.state == 'recommended' %} is-rec{% elif step.state == 'deemphasized' %} is-tried{% endif %}"
+       data-step="{{ step.id }}" data-channel="{{ step.channel|default:'' }}">
+    <div class="cf-step-n">{{ step.order }}</div>
+    <div class="cf-step-body">
+      <div class="cf-step-head">
+        <span class="cf-step-title">{{ step.label }}</span>
+        {% if step.state == 'recommended' %}
+          <span class="cf-tag cf-tag-gold">Do this</span>
+        {% elif step.tried_pill %}
+          <span class="cf-tag cf-tag-mute"><i class="bi bi-check2"></i> {{ step.tried_pill }}</span>
+        {% endif %}
+      </div>
+      <div class="cf-step-desc">{{ step.description }}</div>
+      {% if step.nudge %}
+      <div class="cf-step-note"><i class="bi bi-info-circle"></i> {{ step.nudge }}</div>
+      {% endif %}
+
+      {# ── Channel-specific primary affordance ── #}
+      {% if step.channel == 'call' %}
+        <div class="cf-step-actions">
+          {% if ladder_ctx.phone_href %}
+          <a class="cf-act{% if step.recommended %} cf-act-gold{% endif %}" href="tel:{{ ladder_ctx.phone_href }}">
+            <i class="bi bi-telephone-fill"></i> Call{% if ladder_ctx.phone %} {{ ladder_ctx.phone }}{% endif %}
+          </a>
+          {% endif %}
+          <button type="button" class="cf-act" data-act="branch" data-branch="answered">
+            <i class="bi bi-check2-circle"></i> Answered
+          </button>
+          <button type="button" class="cf-act" data-act="branch" data-branch="advance">
+            <i class="bi bi-telephone-x"></i> No answer
+          </button>
+        </div>
+
+        {# Answered → resolve actions (pay / cancel) #}
+        {% if step.answered_actions %}
+        <div class="cf-branch" data-branch-for="answered" hidden>
+          <div class="cf-branch-lbl"><i class="bi bi-arrow-return-right"></i> Guest answered — resolve it:</div>
+          <div class="cf-step-actions">
+            {% for a in step.answered_actions %}
+              {% if a.kind == 'payment' %}
+              <button type="button" class="cf-act cf-act-gold" data-act="payment" data-url="{{ ladder_ctx.portal_url }}">
+                <i class="bi {{ a.icon }}"></i> {{ a.label }}
+              </button>
+              <button type="button" class="cf-act cf-resolve-after" data-act="resolve" data-mode="paid" hidden>
+                <i class="bi bi-check2-circle"></i> Mark paid &amp; resolve
+              </button>
+              {% elif a.kind == 'cancel' %}
+              <button type="button" class="cf-act" data-act="cancel" data-url="{{ ladder_ctx.reservation_url }}">
+                <i class="bi {{ a.icon }}"></i> {{ a.label }}
+              </button>
+              <button type="button" class="cf-act cf-resolve-after" data-act="resolve" data-mode="cancelled" hidden>
+                <i class="bi bi-check2-circle"></i> Mark cancelled &amp; resolve
+              </button>
+              {% else %}
+              <button type="button" class="cf-act" data-act="{{ a.kind }}" data-action-id="{{ a.id }}">
+                <i class="bi {{ a.icon }}"></i> {{ a.label }}
+              </button>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# No answer → advance actions (voicemail) #}
+        {% if step.advance_actions %}
+        <div class="cf-branch" data-branch-for="advance" hidden>
+          <div class="cf-branch-lbl"><i class="bi bi-arrow-return-right"></i> No answer — log the attempt:</div>
+          <div class="cf-step-actions">
+            {% for a in step.advance_actions %}
+            <button type="button" class="cf-act"
+                    data-act="log" data-channel="{{ a.log_channel|default:'call' }}"
+                    data-outcome="{{ a.log_outcome|default:'voicemail' }}">
+              <i class="bi {{ a.icon }}"></i> {{ a.label }}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+      {% elif step.channel == 'sms' %}
+        <div class="cf-step-actions">
+          <button type="button" class="cf-act{% if step.recommended %} cf-act-gold{% endif %}" data-act="draft-sms">
+            <i class="bi bi-chat-dots"></i> Draft text
+          </button>
+        </div>
+        <div class="cf-draft" data-draft-box hidden>
+          <textarea class="cf-draft-text" readonly rows="8">{{ ladder_ctx.sms_draft }}</textarea>
+          <div class="cf-step-actions">
+            <button type="button" class="cf-act" data-act="copy"><i class="bi bi-clipboard"></i> Copy</button>
+            <button type="button" class="cf-act cf-act-gold" data-act="log" data-channel="sms" data-outcome="sent" data-advance="1">
+              <i class="bi bi-check2"></i> Mark texted
+            </button>
+          </div>
+        </div>
+
+      {% elif step.channel == 'email' %}
+        <div class="cf-step-actions">
+          <button type="button" class="cf-act{% if step.recommended %} cf-act-gold{% endif %}" data-act="send-email">
+            <i class="bi bi-envelope"></i> Send reminder email
+          </button>
+        </div>
+
+      {% elif step.resolve_actions %}
+        {# Non-comm steps (coverage / verify) — generic resolve buttons #}
+        <div class="cf-step-actions">
+          {% for a in step.resolve_actions %}
+          <button type="button" class="cf-act{% if step.recommended %} cf-act-gold{% endif %}"
+                  data-act="{{ a.kind }}" data-action-id="{{ a.id }}">
+            <i class="bi {{ a.icon }}"></i> {{ a.label }}
+          </button>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>

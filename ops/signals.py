@@ -99,6 +99,32 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
     driver_changed = old_driver is not _NOT_TRACKED and old_driver != instance.driver_id
     status_changed = old_status is not _NOT_TRACKED and old_status != instance.status
 
+    # Conflict + tight-turn tasks both share the driver_id/conflicting_leg_id metadata
+    # shape, so a reassignment resolves either tier.
+    _CONFLICT_TYPES = [
+        OperationalTask.TaskType.DRIVER_CONFLICT,
+        OperationalTask.TaskType.TIGHT_TURN,
+    ]
+    # A dispatcher-initiated reassignment sets this on the leg (see
+    # dispatching.views.update_leg_assignment) so the auto-close can be attributed
+    # in the activity feed; system-driven saves leave it None (closed silently).
+    _actor = getattr(instance, "_reassigned_by", None)
+
+    def _close_and_log(task, notes):
+        close_task(task, resolved_by=_actor, resolution_notes=notes, auto=True)
+        if _actor:
+            try:
+                from .models import StaffActivity
+                StaffActivity.objects.create(
+                    user=_actor,
+                    action_type=StaffActivity.ActionType.TASK_COMPLETED,
+                    task=task,
+                    metadata={"resolution": "driver_reassigned",
+                              "new_driver_id": instance.driver_id},
+                )
+            except Exception:
+                logger.warning("Failed to log reassign activity for task %s", task.id)
+
     # ── A. Driver change handling ───────────────────────────────────────
     if driver_changed:
 
@@ -119,24 +145,19 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
         # If the driver changed (reassigned or removed), the original
         # conflict recorded in the task metadata is no longer valid.
         for task in OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            task_type__in=_CONFLICT_TYPES,
             leg=instance,
             status__in=list(OperationalTask.OPEN_STATUSES),
         ):
             meta_driver = (task.metadata or {}).get("driver_id")
             if not instance.driver_id:
                 # Driver removed — no conflict possible
-                close_task(
-                    task,
-                    resolution_notes="Auto-closed: driver unassigned",
-                    auto=True,
-                )
+                _close_and_log(task, "Auto-closed: driver unassigned")
             elif meta_driver and meta_driver != instance.driver_id:
                 # Different driver now — original conflict is moot
-                close_task(
+                _close_and_log(
                     task,
-                    resolution_notes="Auto-closed: driver reassigned, original conflict resolved",
-                    auto=True,
+                    "Auto-closed: driver reassigned, original conflict resolved",
                 )
 
         # 3. Conflict tasks on OTHER legs that reference THIS leg
@@ -144,7 +165,7 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
         # metadata. If leg_a's driver changed, the pair may no longer
         # share the same driver → conflict resolved.
         for task in OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            task_type__in=_CONFLICT_TYPES,
             status__in=list(OperationalTask.OPEN_STATUSES),
             metadata__conflicting_leg_id=instance.pk,
         ).select_related("leg"):
@@ -152,10 +173,9 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
                 continue  # leg's own driver is gone; handled by scanner
             if task.leg.driver_id != instance.driver_id:
                 # The two legs no longer share a driver
-                close_task(
+                _close_and_log(
                     task,
-                    resolution_notes="Auto-closed: conflicting leg reassigned to different driver",
-                    auto=True,
+                    "Auto-closed: conflicting leg reassigned to different driver",
                 )
 
     # ── B. Status change handling ───────────────────────────────────────
@@ -163,7 +183,7 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
 
         # 1. Close conflict tasks on THIS leg (leg is done)
         for task in OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            task_type__in=_CONFLICT_TYPES,
             leg=instance,
             status__in=list(OperationalTask.OPEN_STATUSES),
         ):
@@ -175,7 +195,7 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
 
         # 2. Close conflict tasks on OTHER legs that reference THIS leg
         for task in OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            task_type__in=_CONFLICT_TYPES,
             status__in=list(OperationalTask.OPEN_STATUSES),
             metadata__conflicting_leg_id=instance.pk,
         ):

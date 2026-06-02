@@ -100,6 +100,30 @@ def _annotate_legs_with_scheduling(legs_list, target_date):
             curr.buffer_ok = True
 
 
+def _annotate_next_early(legs_list):
+    """Set `leg.next_early` when the driver's NEXT pickup (same day) is an airport
+    arrival whose flight is landing early. Drives a subtle heads-up on the current
+    card so the driver can be proactive and reach the airport early. Reuses the same
+    early-flight signal as the dispatcher board (Leg.flight_timing_flag). Call AFTER
+    _annotate_legs_with_scheduling so `conflict_next` is available for the tight flag."""
+    for i in range(len(legs_list) - 1):
+        curr, nxt = legs_list[i], legs_list[i + 1]
+        if curr.pickup_date != nxt.pickup_date:
+            continue
+        try:
+            if nxt.get_trip_type() == "arrival" and nxt.flight_information:
+                nflag = nxt.flight_timing_flag()
+                if nflag and nflag["direction"] == "early":
+                    curr.next_early = {
+                        "minutes": nflag["minutes"],
+                        "arrival_label": nflag["arrival_label"],
+                        "level": nflag["level"],
+                        "tight": bool(getattr(curr, "conflict_next", False)),
+                    }
+        except Exception:
+            pass
+
+
 def _annotate_legs_with_live_eta(legs_list):
     """
     For legs that are on-the-way or picked-up, fetch the latest GPS snapshot
@@ -199,6 +223,9 @@ def index(request):
     # ── Smart conflict detection (accounts for drive time + job duration) ──
     _annotate_legs_with_scheduling(legs_list, selected_date)
 
+    # ── Heads-up: the NEXT pickup is an early-landing flight ──
+    _annotate_next_early(legs_list)
+
     # ── Route preview (drive time) + estimated done ──
     if settings.GOOGLE_MAPS_API_KEY:
         for leg in legs_list:
@@ -297,6 +324,9 @@ def schedule(request):
 
     # ── Smart conflict detection (accounts for drive time + job duration) ──
     _annotate_legs_with_scheduling(legs_list, today)
+
+    # ── Heads-up: the NEXT pickup is an early-landing flight ──
+    _annotate_next_early(legs_list)
 
     # ── Route preview (drive time) + estimated done ──
     if settings.GOOGLE_MAPS_API_KEY:
