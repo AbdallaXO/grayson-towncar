@@ -192,6 +192,20 @@ class Reservation(models.Model):
         max_length=100, blank=True, null=True, help_text="UTM content parameter"
     )
 
+    # Stable per-reservation id shared by the browser Meta Pixel and every
+    # server-side Conversions API Purchase fire so Meta dedupes them to ONE
+    # Purchase. Generated once at booking (reservations.utils.extra_charges).
+    # Legacy reservations with an empty value fall back to the Stripe
+    # payment-intent id / reservation uuid at fire time (see payment.views /
+    # payment.webhook / dispatching.views).
+    purchase_event_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Stable Meta Purchase dedup event_id (browser pixel + CAPI)",
+    )
+
     # Canonical attribution channel — derived from utm_*/click IDs/travel_agent
     # in reservations.attribution.derive_booking_source(). Persisted on save so
     # KPI dashboards can GROUP BY it directly without re-deriving.

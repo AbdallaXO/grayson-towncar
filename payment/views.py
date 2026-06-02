@@ -145,11 +145,13 @@ def payment_success(request):
 
             # Prepare purchase event data
             transaction_id = stripe_transaction_id or str(reservation.uuid)
-            # Stable event_id (the Stripe payment-intent id) so the browser
-            # pixel, this success-page CAPI call, and the Stripe webhook all
-            # emit the SAME id and Meta deduplicates them to ONE Purchase.
+            # Stable event_id: the per-reservation purchase_event_id minted at
+            # booking, shared by the browser pixel, this success-page CAPI call,
+            # the Stripe webhook, and any dispatcher charge so Meta deduplicates
+            # them to ONE Purchase regardless of pay-now/pay-later/race/refresh.
+            # Legacy reservations (no stored id) fall back to the transaction id.
             # Do NOT append a timestamp — that breaks deduplication.
-            event_id = transaction_id
+            event_id = reservation.purchase_event_id or transaction_id
 
             purchase_data = {
                 "transaction_id": transaction_id,

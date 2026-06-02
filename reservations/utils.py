@@ -4,6 +4,7 @@ from django.conf import settings
 import requests
 import re
 import threading
+import uuid
 from .forms import (
     ReservationForm,
     CustomerForm,
@@ -577,6 +578,13 @@ def extra_charges(reservation):
     reservation.additional_charges = total_extra
     reservation.total_price = reservation.base_price + total_extra + gratuity_amount
 
+    # Mint a stable Meta Purchase dedup id ONCE per reservation. The browser
+    # pixel and all server-side CAPI Purchase fires read this same id so Meta
+    # collapses them into one Purchase regardless of pay-now/pay-later/refresh.
+    # Set only when empty so re-running extra_charges (edits) never changes it.
+    if not reservation.purchase_event_id:
+        reservation.purchase_event_id = uuid.uuid4().hex
+
     # Always add gratuity note to reservation special_requests
     if gratuity_amount > 0:
         gratuity_note = f"{int(reservation.gratuity_percentage)}% Gratuity Included (${gratuity_amount:.2f})"
@@ -585,7 +593,7 @@ def extra_charges(reservation):
         else:
             reservation.special_requests = gratuity_note
 
-    reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount", "special_requests"])
+    reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount", "special_requests", "purchase_event_id"])
 
     # Always add per-leg gratuity to private_notes (split for multi-leg)
     if gratuity_amount > 0:

@@ -3083,9 +3083,11 @@ def dispatcher_payment_portal(request, reservation_id):
                         logger.info(f"Confirmation email queued for dispatcher payment on reservation {reservation.uuid}")
 
                         # Send purchase event to Meta in background (matches webhook.py pattern).
-                        # Stable event_id (payment-intent id, no timestamp) so a retried charge
-                        # or a payment_intent.succeeded webhook for the same intent dedupes.
-                        event_id = str(payment_intent.id)
+                        # Stable event_id: the per-reservation purchase_event_id minted at booking,
+                        # so this dispatcher charge dedupes against the booking-time browser pixel /
+                        # success-page CAPI fire (pay-later flow). Legacy reservations (no stored id)
+                        # fall back to the payment-intent id. No timestamp (breaks dedup).
+                        event_id = reservation.purchase_event_id or str(payment_intent.id)
                         _run_in_background(send_purchase_event, reservation, value=None, event_id=event_id)
 
                         messages.success(
