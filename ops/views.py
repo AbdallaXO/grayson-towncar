@@ -1103,6 +1103,7 @@ def _build_driver_conflict_context(task):
                 "prior_label": first["customer_name"],
                 "prior_pickup_str": _prior_pickup.strftime("%I:%M %p").lstrip("0"),
                 "prior_pickup_loc": first_leg.pickup_location or "",
+                "prior_dropoff_loc": first_leg.dropoff_location or "",
                 "prior_route": f"{first_leg.pickup_location} → {first_leg.dropoff_location}",
                 "prior_clear_str": clears_at.strftime("%I:%M %p").lstrip("0"),
                 "arr_label": second["customer_name"],
@@ -1285,9 +1286,15 @@ def _build_driver_conflict_context(task):
                 if d.id == int(driver_id):
                     continue
                 dv = vtypes.get(d.id)
-                # Respect the vehicle tier when known; don't hard-exclude on unknown
-                # (scrubbed local data often lacks vehicle assignments).
-                if dv and arrival_vtype and arrival_vtype not in get_compatible_vehicle_types(dv):
+                # Only offer drivers actually on the roster today — i.e. assigned a
+                # vehicle for this date (load_all_driver_vtypes is keyed off the day's
+                # DriverVehicleAssignment rows). This drops anyone who isn't working
+                # today and anyone without a vehicle to drive. A rostered driver with
+                # zero jobs still qualifies (they're the freest cover).
+                if not dv:
+                    continue
+                # The assigned vehicle must be able to cover the leg's tier.
+                if arrival_vtype and arrival_vtype not in get_compatible_vehicle_types(dv):
                     continue
                 ds = sched_map.get(d.id)
                 if ds is None:

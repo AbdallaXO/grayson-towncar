@@ -119,7 +119,8 @@
   .cf-bar-repo{ background:repeating-linear-gradient(45deg,var(--ink-faint),var(--ink-faint) 2px,transparent 2px,transparent 5px); height:10px; border-radius:3px; }
   .cf-bar-terminal{ height:14px; border:1px dashed var(--amb-line); background:var(--amb-dim); border-radius:5px; }
   .cf-bar-enroute{ background:var(--gold-dim); border:1px solid var(--gold-line); height:14px; border-radius:5px; }
-  .cf-bar-cap{ position:absolute; top:-16px; font-family:'Spline Sans Mono'; font-size:9px; color:var(--ink-mute); white-space:nowrap; }
+  .cf-bar-cap{ position:absolute; top:-16px; left:0; font-family:'Spline Sans Mono'; font-size:9px; color:var(--ink-mute); white-space:nowrap; }
+  .cf-bar-cap.is-end{ left:auto; right:0; }
   .cf-mk{ position:absolute; top:-3px; bottom:-3px; width:0; z-index:2; }
   .cf-mk-line{ position:absolute; top:0; bottom:0; left:0; border-left:2px solid; }
   .cf-mk-tag{ position:absolute; top:-15px; left:0; transform:translateX(-50%); white-space:nowrap;
@@ -241,8 +242,12 @@
             <div class="cf-metric-unit">min after arrival</div>
           </div>
           <div class="cf-situation">
-            <h2>After the <span class="mono">{{ redesign.prior_pickup_str }}</span> {{ redesign.prior_label }} return from <strong>{{ redesign.prior_pickup_loc }}</strong>, {{ driver_name }} isn't at <strong>{{ redesign.arr_pickup_loc }}</strong> until <span class="mono">{{ redesign.driver_curb_str }}</span> — but the flight is at the gate by <span class="mono">{{ redesign.gate_str }}</span>, so he gets there about <span class="mono">{{ redesign.behind_gate }} min</span> after it.</h2>
+            {% if redesign.gate_str %}
+            <h2>{{ driver_name }} picks up {{ redesign.prior_label }} from <strong>{{ redesign.prior_pickup_loc }}</strong> at <span class="mono">{{ redesign.prior_pickup_str }}</span>, dropping off at <strong>{{ redesign.prior_dropoff_loc }}</strong> by <span class="mono">{{ redesign.prior_clear_str }}</span>. {{ redesign.flight_label|default:"The flight" }} reaches the gate at <span class="mono">{{ redesign.gate_str }}</span> — but {{ driver_name }} can't be at <strong>{{ redesign.arr_pickup_loc }}</strong> until <span class="mono">{{ redesign.driver_curb_str }}</span>, about <span class="mono">{{ redesign.behind_gate }} min</span> after it.</h2>
             <div class="cf-judge">Typically 10–15 min after gate arrival for guests to reach baggage claim — judge the real gap from there.</div>
+            {% else %}
+            <h2>{{ driver_name }} picks up {{ redesign.prior_label }} from <strong>{{ redesign.prior_pickup_loc }}</strong> at <span class="mono">{{ redesign.prior_pickup_str }}</span>, dropping off at <strong>{{ redesign.prior_dropoff_loc }}</strong> by <span class="mono">{{ redesign.prior_clear_str }}</span> — but the next pickup, {{ redesign.arr_label }} at <strong>{{ redesign.arr_pickup_loc }}</strong>, is booked for <span class="mono">{{ redesign.booked_str }}</span>, leaving him about <span class="mono">{{ conflict_minutes }} min</span> short.</h2>
+            {% endif %}
           </div>
         </div>
         <div class="cf-vitals">
@@ -283,19 +288,19 @@
                   <div class="cf-mk cf-mk-gold" style="left:{{ tl.marker_booked }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">BOOKED</span></div>
                 </div>
 
-                <!-- Driver lane -->
+                <!-- Driver lane — both of his legs: the prior job (blue) and this arrival (gold) -->
                 <div class="cf-lane is-driver">
-                  <div class="cf-bar cf-bar-blu" style="left:{{ tl.driver_prior.left }}%;width:{{ tl.driver_prior.width }}%"><span class="cf-bar-cap">{{ redesign.prior_label }} return</span></div>
+                  <div class="cf-bar cf-bar-blu" style="left:{{ tl.driver_prior.left }}%;width:{{ tl.driver_prior.width }}%"><span class="cf-bar-cap">Leg 1 · {{ redesign.prior_label }}</span></div>
                   <div class="cf-bar cf-bar-repo" style="left:{{ tl.driver_reposition.left }}%;width:{{ tl.driver_reposition.width }}%"></div>
-                  <div class="cf-bar cf-bar-gold" style="left:{{ tl.driver_arrival.left }}%;width:{{ tl.driver_arrival.width }}%"></div>
+                  <div class="cf-bar cf-bar-gold" style="left:{{ tl.driver_arrival.left }}%;width:{{ tl.driver_arrival.width }}%"><span class="cf-bar-cap is-end">Leg 2 · {{ redesign.arr_label }}</span></div>
                   <div class="cf-mk cf-mk-blu" style="left:{{ tl.marker_driver_free }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">FREE {{ redesign.driver_curb_str }}</span></div>
                 </div>
               </div>
             </div>
           </div>
           <div style="display:flex;gap:18px;margin-top:14px;padding-left:86px;flex-wrap:wrap;font-size:11px;color:var(--ink-mute)">
-            <span><b style="color:var(--blu)">▬</b> Driver — {{ driver_name }}</span>
-            <span><b style="color:var(--gold-deep)">▬</b> Guest / arrival leg</span>
+            <span><b style="color:var(--blu)">▬</b> Leg 1 — {{ redesign.prior_label }} ({{ driver_name }})</span>
+            <span><b style="color:var(--gold-deep)">▬</b> Leg 2 — {{ redesign.arr_label }} arrival</span>
             <span><b style="color:var(--amb)">▮</b> Flight gate</span>
           </div>
         </div>
