@@ -13,6 +13,7 @@ opted-out number or double-send.
 """
 
 import json
+import logging
 from datetime import datetime, time as dt_time, timedelta
 
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -22,6 +23,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from reservations.models import Lead
+
+logger = logging.getLogger(__name__)
 
 
 def _is_staff(user):
@@ -257,43 +260,93 @@ def lead_board_create_task(request):
     })
 
 
-@login_required(login_url="login")
-@user_passes_test(_is_staff, login_url="login")
-def lead_board_detail(request):
-    """Lead info + a merged conversation/activity timeline (in / out / events).
+def _ghl_thread(lead):
+    """Full SMS thread for a lead, pulled live from GHL (source of truth for
+    human-typed outbound replies). Returns [] when the lead was never synced or
+    GHL is unreachable, so the caller falls back to local records."""
+    if not getattr(lead, "ghl_contact_id", ""):
+        return []
+    try:
+        from ghl_integration.services import GoHighLevelService
+        return GoHighLevelService().get_conversation_messages(lead.ghl_contact_id)
+    except Exception:
+        logger.exception("GHL thread fetch failed for lead %s", lead.id)
+        return []
 
-    Powers the in-board Details panel so staff never leave for the admin.
-    """
-    from django.utils.timesince import timesince
+
+def _system_events(lead):
+    """Lifecycle events from our own activity log (sequence started/stopped,
+    converted, opt-out…). GHL has no concept of these, so they always come from
+    us and are merged into every timeline."""
+    from ghl_integration.models import LeadActivity
+    reply = LeadActivity.ActivityType.REPLY_RECEIVED
+    return [{
+        "when": a.created_at, "dir": "event",
+        "label": a.get_activity_type_display(), "text": a.description,
+    } for a in lead.activities.exclude(activity_type=reply)]
+
+
+def _local_messages(lead):
+    """Message bubbles from our OWN records — shown instantly on open, and the
+    fallback when the live GHL thread is unavailable. (We only persist messages
+    our automation sent + inbound replies the webhook captured.)"""
     from ghl_integration.models import FollowUpTask, LeadActivity
-
-    lead = get_object_or_404(Lead.objects.select_related("vehicle"), id=request.GET.get("lead_id"))
-    now = timezone.now()
-
-    events = []
-    for a in lead.activities.all():
+    reply = LeadActivity.ActivityType.REPLY_RECEIVED
+    msgs = []
+    for a in lead.activities.filter(activity_type=reply):
         meta = a.metadata or {}
-        body = meta.get("message_body") or meta.get("message_preview")
-        is_reply = a.activity_type == LeadActivity.ActivityType.REPLY_RECEIVED
-        events.append({
-            "when": a.created_at,
-            "dir": "in" if is_reply else "event",
-            "label": "Customer replied" if is_reply else a.get_activity_type_display(),
-            "text": body if is_reply else a.description,
+        msgs.append({
+            "when": a.created_at, "dir": "in", "label": "Customer replied",
+            "text": meta.get("message_body") or meta.get("message_preview") or "",
         })
     for t in lead.follow_up_tasks.filter(status=FollowUpTask.StatusChoices.SENT).exclude(message_body=""):
-        events.append({
-            "when": t.sent_at or t.created_at,
-            "dir": "out",
+        msgs.append({
+            "when": t.sent_at or t.created_at, "dir": "out",
             "label": "Pre-pickup nudge" if t.step_number == 6 else f"Follow-up step {t.step_number}",
             "text": t.message_body,
         })
-    events.sort(key=lambda e: e["when"] or now)
+    return msgs
 
-    timeline = [{
+
+def _ghl_messages(thread):
+    """Map a live GHL thread (from _ghl_thread) into timeline bubbles."""
+    out = []
+    for m in thread:
+        inbound = m["direction"] == "inbound"
+        out.append({
+            "when": m["when"], "dir": "in" if inbound else "out",
+            "label": "Customer replied" if inbound else "Message sent",
+            "text": m["body"],
+        })
+    return out
+
+
+def _format_timeline(events):
+    """Sort merged events oldest-first and attach display strings."""
+    from django.utils.timesince import timesince
+    now = timezone.now()
+    events.sort(key=lambda e: e["when"] or now)
+    return [{
         "dir": e["dir"], "label": e["label"], "text": e["text"] or "",
         "ago": timesince(e["when"], now) + " ago" if e["when"] else "",
     } for e in events]
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+def lead_board_detail(request):
+    """Phase 1 — lead info + an INSTANT, local-only conversation timeline.
+
+    Deliberately makes NO external call so the panel opens immediately. When the
+    lead is synced to GHL we flag ``thread_pending`` so the frontend can pull the
+    full live thread (incl. human-typed outbound) from ``lead_board_thread`` and
+    swap it in — keeping the open snappy even when GHL is slow or down.
+    """
+    from django.utils.timesince import timesince
+    lead = get_object_or_404(Lead.objects.select_related("vehicle"), id=request.GET.get("lead_id"))
+    now = timezone.now()
+
+    timeline = _format_timeline(_system_events(lead) + _local_messages(lead))
 
     return JsonResponse({
         "name": f"{lead.first_name} {lead.last_name}".strip(),
@@ -314,7 +367,31 @@ def lead_board_detail(request):
         "last_contact": (timesince(lead.last_contact_date, now) + " ago") if lead.last_contact_date else "never",
         "last_reply": (timesince(lead.last_reply_at, now) + " ago") if lead.last_reply_at else "—",
         "timeline": timeline,
+        "thread_source": "local",
+        "thread_pending": bool(getattr(lead, "ghl_contact_id", "")),
         "admin_url": f"/admin/reservations/lead/{lead.id}/change/",
+    })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+def lead_board_thread(request):
+    """Phase 2 — the FULL conversation: system events merged with the live GHL
+    thread (the source of truth for human-typed outbound), falling back to local
+    records if GHL is unreachable.
+
+    Fetched asynchronously AFTER the panel is already on screen, so a slow GHL
+    call never blocks the open. The GHL fetch is cached ~60s per contact upstream
+    (Redis in prod = shared across workers), so repeat opens are instant.
+    """
+    lead = get_object_or_404(
+        Lead.objects.only("id", "ghl_contact_id"), id=request.GET.get("lead_id")
+    )
+    thread = _ghl_thread(lead)
+    messages = _ghl_messages(thread) if thread else _local_messages(lead)
+    return JsonResponse({
+        "timeline": _format_timeline(_system_events(lead) + messages),
+        "thread_source": "ghl" if thread else "local",
     })
 
 

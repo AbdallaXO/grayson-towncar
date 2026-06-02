@@ -619,6 +619,95 @@ class GoHighLevelService:
             # On error, err on the side of caution — don't block sends
             return False
 
+    def get_conversation_messages(self, contact_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Fetch the full SMS thread for a contact from GHL.
+
+        GHL is the only place human-typed outbound replies live (we only persist
+        the messages our own automation sends), so this is the source of truth for
+        the complete back-and-forth shown on the leads board.
+
+        Returns a list of ``{"direction": "inbound"|"outbound", "body": str,
+        "when": aware datetime | None}`` ordered oldest-first. Returns ``[]`` on
+        any error / missing creds / no conversation so callers can fall back to
+        local records. Cached briefly per contact so re-opening a lead panel does
+        not re-hit the API (and uses the same proven endpoints as
+        ``contact_has_replied``).
+        """
+        from datetime import datetime, timezone as _utc
+        from django.core.cache import cache
+        from django.utils.dateparse import parse_datetime
+
+        if not self.api_key or not contact_id:
+            return []
+
+        cache_key = f"ghl_thread:{contact_id}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        out: List[Dict[str, Any]] = []
+        try:
+            # 1. Locate the contact's conversation.
+            search = requests.get(
+                f"{self.base_url}/conversations/search",
+                headers=self.headers,
+                params={"locationId": self.location_id, "contactId": contact_id},
+                timeout=6,
+            )
+            if search.status_code != 200:
+                return []  # transient — don't cache, retry on next open
+            conversations = (search.json() or {}).get("conversations", []) or []
+            if not conversations:
+                cache.set(cache_key, [], 60)
+                return []
+            conv_id = conversations[0].get("id")
+            if not conv_id:
+                return []
+
+            # 2. Pull that conversation's messages.
+            msg_resp = requests.get(
+                f"{self.base_url}/conversations/{conv_id}/messages",
+                headers=self.headers,
+                timeout=6,
+            )
+            if msg_resp.status_code != 200:
+                return []
+            messages = (msg_resp.json() or {}).get("messages", [])
+            if isinstance(messages, dict):  # GHL nests as {"messages": {"messages": [...]}}
+                messages = messages.get("messages", []) or []
+
+            for m in messages:
+                # Keep the SMS back-and-forth; skip emails / calls / etc. when the
+                # message type is known and isn't SMS.
+                mtype = m.get("messageType") or m.get("type") or ""
+                if mtype and "SMS" not in str(mtype).upper():
+                    continue
+                body = (m.get("body") or m.get("message") or "").strip()
+                if not body:
+                    continue
+                direction = "inbound" if m.get("direction") == "inbound" else "outbound"
+
+                raw_when = m.get("dateAdded") or m.get("dateUpdated")
+                when = None
+                if isinstance(raw_when, (int, float)):
+                    when = datetime.fromtimestamp(raw_when / 1000, tz=_utc.utc)
+                elif raw_when:
+                    when = parse_datetime(raw_when)
+                if when is not None and timezone.is_naive(when):
+                    when = timezone.make_aware(when, _utc.utc)
+
+                out.append({"direction": direction, "body": body, "when": when})
+
+            out.sort(key=lambda x: x["when"].timestamp() if x["when"] else 0.0)
+            if limit:
+                out = out[-limit:]
+        except Exception as e:
+            logger.warning(f"Error fetching GHL thread for {contact_id}: {e}")
+            return []
+
+        cache.set(cache_key, out, 60)
+        return out
+
     def _is_opted_out(self, contact_id: str) -> bool:
         """
         True if this contact (or any lead sharing its phone) has opted out of SMS.

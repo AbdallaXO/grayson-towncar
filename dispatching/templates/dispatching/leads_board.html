@@ -110,6 +110,7 @@ table.lb-tbl{width:100%;border-collapse:collapse;font-size:.85rem;}
 .lb-fl.optout{background:var(--lb-red-bg);color:var(--lb-red);}
 .lb-mbody{padding:1rem 1.4rem 1.5rem;}
 .lb-mbody h3{font-size:.74rem;text-transform:uppercase;letter-spacing:.4px;color:var(--lb-muted);font-weight:700;margin:0 0 .8rem;}
+.lb-src{font-weight:600;letter-spacing:0;text-transform:none;opacity:.7;margin-left:.3rem;}
 .lb-tl{display:flex;flex-direction:column;gap:.6rem;}
 .lb-ev{display:flex;}
 .lb-ev .bubble{border-radius:10px;padding:.45rem .7rem;font-size:.85rem;max-width:84%;}
@@ -266,6 +267,7 @@ const URLS = {
   'create-task': '{% url "leads_board_create_task" %}',
   'mark-lost': '{% url "leads_board_mark_lost" %}',
   'detail': '{% url "leads_board_detail" %}',
+  'thread': '{% url "leads_board_thread" %}',
   'offer-preview': '{% url "leads_board_offer_preview" %}',
 };
 
@@ -316,17 +318,59 @@ document.addEventListener('click', function(e){
 // ── Details modal ──
 const modal = document.getElementById('lb-modal');
 const modalContent = document.getElementById('lb-modal-content');
-function closeModal(){ modal.hidden = true; modalContent.innerHTML = ''; }
+let currentLeadId = null;  // guards async thread loads against fast lead-switching
+function closeModal(){ modal.hidden = true; modalContent.innerHTML = ''; currentLeadId = null; }
 document.getElementById('lb-modal-close').addEventListener('click', closeModal);
 modal.addEventListener('click', e => { if(e.target === modal) closeModal(); });
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && !modal.hidden) closeModal(); });
 
+// Phase 1: open instantly with local data (no external call). Phase 2: if the
+// lead is synced to GHL, pull the full live thread and swap it in so the panel
+// never waits on a slow GHL call.
 function openDetail(leadId){
   modal.hidden = false;
+  currentLeadId = leadId;
   modalContent.innerHTML = '<div class="lb-mbody"><p class="lb-empty-tl">Loading…</p></div>';
   fetch(URLS.detail + '?lead_id=' + encodeURIComponent(leadId))
-    .then(r => r.json()).then(renderDetail)
-    .catch(() => { modalContent.innerHTML = '<div class="lb-mbody"><p class="lb-empty-tl">Could not load details.</p></div>'; });
+    .then(r => r.json())
+    .then(d => {
+      if(currentLeadId !== leadId) return;   // user already opened another lead
+      renderDetail(d);
+      if(d.thread_pending) loadThread(leadId);
+    })
+    .catch(() => {
+      if(currentLeadId !== leadId) return;
+      modalContent.innerHTML = '<div class="lb-mbody"><p class="lb-empty-tl">Could not load details.</p></div>';
+    });
+}
+
+function loadThread(leadId){
+  setSrc('· loading conversation…');
+  fetch(URLS.thread + '?lead_id=' + encodeURIComponent(leadId))
+    .then(r => r.json())
+    .then(t => {
+      if(currentLeadId !== leadId) return;   // stale response — ignore
+      const tlEl = document.getElementById('lb-tl');
+      if(tlEl) tlEl.innerHTML = tlHtml(t.timeline);
+      setSrc(srcLabel(t.thread_source));
+    })
+    .catch(() => { if(currentLeadId === leadId) setSrc('· local records only'); });
+}
+
+function setSrc(text){ const el = document.getElementById('lb-src'); if(el) el.textContent = text; }
+function srcLabel(source){ return source === 'ghl' ? '· live from GHL' : '· local records only'; }
+
+function tlHtml(timeline){
+  if(!timeline || !timeline.length) return '<p class="lb-empty-tl">No messages yet.</p>';
+  let h = '';
+  for(const e of timeline){
+    const who = e.dir === 'in' ? 'Customer' : (e.dir === 'out' ? 'Us' : '');
+    h += `<div class="lb-ev ${e.dir}"><div>`
+       + `<div class="who">${esc(who)}${who ? ' · ' : ''}${esc(e.label)}</div>`
+       + `<div class="bubble">${esc(e.text)}</div>`
+       + `<div class="ago">${esc(e.ago)}</div></div></div>`;
+  }
+  return h;
 }
 
 function renderDetail(d){
@@ -338,18 +382,8 @@ function renderDetail(d){
   if(f.replied) flags += '<span class="lb-fl on">replied</span>';
   if(!flags) flags = '<span class="lb-fl">no flags</span>';
 
-  let tl = '';
-  if(d.timeline && d.timeline.length){
-    for(const e of d.timeline){
-      const who = e.dir === 'in' ? 'Customer' : (e.dir === 'out' ? 'Us' : '');
-      tl += `<div class="lb-ev ${e.dir}"><div>`
-          + `<div class="who">${esc(who)}${who ? ' · ' : ''}${esc(e.label)}</div>`
-          + `<div class="bubble">${esc(e.text)}</div>`
-          + `<div class="ago">${esc(e.ago)}</div></div></div>`;
-    }
-  } else {
-    tl = '<p class="lb-empty-tl">No saved messages yet. (Inbound replies are saved from now on; older threads live in GHL.)</p>';
-  }
+  // Initial source note: if a live thread is incoming, say so; else local-only.
+  const initialSrc = d.thread_pending ? '· loading conversation…' : srcLabel(d.thread_source);
 
   modalContent.innerHTML =
     `<div class="lb-mhead">
@@ -368,8 +402,8 @@ function renderDetail(d){
        <div class="lb-mflags">${flags}</div>
      </div>
      <div class="lb-mbody">
-       <h3>Conversation &amp; activity</h3>
-       <div class="lb-tl">${tl}</div>
+       <h3>Conversation &amp; activity <span class="lb-src" id="lb-src">${esc(initialSrc)}</span></h3>
+       <div class="lb-tl" id="lb-tl">${tlHtml(d.timeline)}</div>
      </div>`;
 }
 

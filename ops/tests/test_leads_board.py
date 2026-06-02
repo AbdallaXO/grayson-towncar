@@ -22,6 +22,7 @@ from reservations.models import Lead
 
 SEND_SMS = "ghl_integration.services.GoHighLevelService.send_sms"
 IN_WINDOW = "ghl_integration.timing.is_within_send_window"
+GHL_THREAD = "ghl_integration.services.GoHighLevelService.get_conversation_messages"
 
 
 @override_settings(GHL_API_KEY="", GHL_LOCATION_ID="")
@@ -184,3 +185,95 @@ class LeadsBoardTests(TestCase):
         self.assertIn("our outbound text", texts)
         self.assertIn("their reply text", texts)
         self.assertEqual({"in", "out"}, dirs & {"in", "out"})
+
+    # ── two-phase load: instant local detail + async live GHL thread ──
+
+    def test_detail_is_instant_local_and_flags_pending(self):
+        """Phase 1 makes NO GHL call (so the panel opens instantly) but shows our
+        local records right away and flags thread_pending for a synced lead."""
+        from ghl_integration.models import LeadActivity
+        lead = self._lead(phone="407-555-0021", ghl_contact_id="ghl-abc")
+        LeadActivity.objects.create(
+            lead=lead, activity_type=LeadActivity.ActivityType.REPLY_RECEIVED,
+            description="reply", metadata={"message_body": "local reply text"},
+        )
+        with patch(GHL_THREAD) as mock_thread:
+            resp = self.client.get(reverse("leads_board_detail"), {"lead_id": lead.id})
+        mock_thread.assert_not_called()  # phase 1 never blocks on GHL
+        data = resp.json()
+        self.assertEqual(data["thread_source"], "local")
+        self.assertTrue(data["thread_pending"])  # frontend will fetch live thread
+        self.assertIn("local reply text", [e["text"] for e in data["timeline"]])
+
+    def test_detail_without_contact_id_not_pending(self):
+        """No GHL contact id -> nothing to fetch; thread_pending is False."""
+        lead = self._lead(phone="407-555-0023")  # no ghl_contact_id
+        with patch(GHL_THREAD) as mock_thread:
+            resp = self.client.get(reverse("leads_board_detail"), {"lead_id": lead.id})
+        mock_thread.assert_not_called()
+        data = resp.json()
+        self.assertFalse(data["thread_pending"])
+        self.assertEqual(data["thread_source"], "local")
+
+    def test_thread_prefers_live_ghl_thread(self):
+        """Phase 2 shows the FULL thread from GHL — including outbound replies a
+        human typed in GHL — merged with our system events, with no double-count
+        of locally-saved replies."""
+        from ghl_integration.models import LeadActivity
+        lead = self._lead(phone="407-555-0021", ghl_contact_id="ghl-abc")
+        # A system event (GHL has no concept of these — must still show).
+        LeadActivity.objects.create(
+            lead=lead, activity_type=LeadActivity.ActivityType.SEQUENCE_STARTED,
+            description="Follow-up sequence started.",
+        )
+        # A locally-saved inbound reply that GHL ALSO has — must not duplicate.
+        LeadActivity.objects.create(
+            lead=lead, activity_type=LeadActivity.ActivityType.REPLY_RECEIVED,
+            description="reply", metadata={"message_body": "LOCAL-DUP-REPLY"},
+        )
+        now = timezone.now()
+        thread = [
+            {"direction": "inbound", "body": "Do you offer military rates?",
+             "when": now - timedelta(hours=2)},
+            {"direction": "outbound", "body": "We offer an 8% military discount.",
+             "when": now - timedelta(hours=1, minutes=50)},
+            {"direction": "inbound", "body": "Sounds good, booking now.",
+             "when": now - timedelta(minutes=5)},
+        ]
+        with patch(GHL_THREAD, return_value=thread):
+            resp = self.client.get(reverse("leads_board_thread"), {"lead_id": lead.id})
+        data = resp.json()
+        self.assertEqual(data["thread_source"], "ghl")
+        tl = data["timeline"]
+        texts = [e["text"] for e in tl]
+        out_texts = [e["text"] for e in tl if e["dir"] == "out"]
+        # The human-typed outbound reply now shows (the whole point of the fix).
+        self.assertIn("We offer an 8% military discount.", out_texts)
+        # GHL inbound shown; the locally-saved duplicate is NOT added on top.
+        self.assertEqual(sum(1 for e in tl if e["dir"] == "in"), 2)
+        self.assertNotIn("LOCAL-DUP-REPLY", texts)
+        # System event still merged in.
+        self.assertTrue(any(e["dir"] == "event" for e in tl))
+
+    def test_thread_falls_back_to_local_when_ghl_unavailable(self):
+        """If GHL returns nothing (unreachable / not synced), phase 2 still
+        returns our locally-saved records so the panel is never blank."""
+        from ghl_integration.models import LeadActivity
+        lead = self._lead(phone="407-555-0022", ghl_contact_id="ghl-xyz")
+        FollowUpTask.objects.create(
+            lead=lead, step_number=3, segment="general",
+            status=FollowUpTask.StatusChoices.SENT,
+            scheduled_at=timezone.now(), sent_at=timezone.now(),
+            message_body="local outbound text",
+        )
+        LeadActivity.objects.create(
+            lead=lead, activity_type=LeadActivity.ActivityType.REPLY_RECEIVED,
+            description="reply", metadata={"message_body": "local reply text"},
+        )
+        with patch(GHL_THREAD, return_value=[]):
+            resp = self.client.get(reverse("leads_board_thread"), {"lead_id": lead.id})
+        data = resp.json()
+        self.assertEqual(data["thread_source"], "local")
+        texts = [e["text"] for e in data["timeline"]]
+        self.assertIn("local outbound text", texts)
+        self.assertIn("local reply text", texts)

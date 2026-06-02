@@ -11,6 +11,7 @@ urlpatterns = [
     # Leads board — date-anchored opportunities view
     path("leads-board/", ops_leads.leads_board_view, name="leads_board"),
     path("leads-board/detail/", ops_leads.lead_board_detail, name="leads_board_detail"),
+    path("leads-board/thread/", ops_leads.lead_board_thread, name="leads_board_thread"),
     path("leads-board/offer-preview/", ops_leads.lead_board_offer_preview, name="leads_board_offer_preview"),
     path("leads-board/send-nudge/", ops_leads.lead_board_send_nudge, name="leads_board_send_nudge"),
     path("leads-board/create-task/", ops_leads.lead_board_create_task, name="leads_board_create_task"),
