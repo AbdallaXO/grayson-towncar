@@ -10927,6 +10927,141 @@ def vehicle_profit_report_csv(request):
     return response
 
 
+# Recommendation hint per binding-constraint family (shown on the dashboard).
+_FLEET_FAMILY_ADVICE = {
+    "capacity": "Capacity-bound: in-house units were busy or the vehicle type wasn't deployed. "
+                "Add a unit (buy/hire) ONLY if repeatable — confirm with the +1 buy analysis.",
+    "driver": "Driver-bound: a vehicle existed but no driver was on shift. Fix coverage/scheduling, "
+              "not the fleet.",
+    "process": "Process-bound: positioning, swaps, or flight buffers could have kept it in-house. "
+               "A dispatch/scheduling improvement, not a purchase.",
+    "strategic": "Mostly intentional farm-outs that protected better work.",
+    "unknown": "Insufficient data to classify (missing vehicle type / route / window).",
+}
+
+
+@login_required(login_url="login")
+def fleet_intel_dashboard(request):
+    """Fleet Capacity Intelligence — farm-out economics + binding-constraint leaks (superuser only).
+
+    Read-only. Reuses ``dispatching.fleet_intel.summarize_range``; result cached 5 min per range
+    (classification replays the engine, so caching keeps the request fast like capacity_planner).
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    from django.core.cache import cache
+    from dispatching import fleet_intel as fi
+
+    date_from, date_to, start_date, end_date = _parse_report_date_range(request)
+
+    cache_key = f"fleet_intel_{start_date.isoformat()}_{end_date.isoformat()}"
+    report = cache.get(cache_key)
+    if report is None:
+        report = fi.summarize_range(start_date, end_date, classify=True)
+        cache.set(cache_key, report, 300)
+
+    def _rows(d, labels=None):
+        out = []
+        for k, v in d.items():
+            spend = v.get("spend", 0) or 0
+            net = v["net"]
+            out.append({
+                "key": labels.get(k, k) if labels else k,
+                "raw_key": k,
+                "count": v["count"],
+                "net": net,
+                "positive": v["positive"],
+                "negative": v["negative"],
+                "available": v["available"],
+                "paid": spend,                       # what we paid affiliates for this group
+                "inhouse": v.get("inhouse", 0) or 0,  # what in-house would have cost
+                "margin_pct": round(float(net) / float(spend) * 100, 1) if spend else None,
+            })
+        out.sort(key=lambda r: r["count"], reverse=True)
+        return out
+
+    reason_rows = _rows(report["by_reason"], report["reason_labels"])
+    for r in reason_rows:
+        r["family"] = fi.REASON_FAMILY.get(r["raw_key"], "unknown")
+        r["action"] = fi.REASON_ACTION.get(r["raw_key"], fi.ACT_REVIEW)
+        r["remedy"] = report["reason_remedies"].get(r["raw_key"], "")
+        r["preventable"] = fi.is_preventable(r["raw_key"])
+
+    family_rows = _rows(report["by_family"])
+    dominant = family_rows[0]["raw_key"] if family_rows else None
+
+    context = {
+        "date_from": date_from,
+        "date_to": date_to,
+        "range_days": report["range"]["days"],
+        "op": report["operational"],
+        "fin": report["financial"],
+        "reason_rows": reason_rows,
+        "family_rows": family_rows,
+        "dominant_family": dominant,
+        "dominant_advice": _FLEET_FAMILY_ADVICE.get(dominant, ""),
+        "vehicle_rows": _rows(report["by_vehicle_type"]),
+        "zone_pickup_rows": _rows(report["by_zone_pickup"]),
+        "affiliate_rows": _rows(report["by_affiliate"])[:15],
+        "dow_rows": _rows(report["by_day_of_week"]),
+        "fleet_size": sorted(report["fleet_size_by_type"].items(), key=lambda x: -x[1]),
+    }
+    return render(request, "dispatching/fleet_intel_dashboard.html", context)
+
+
+@login_required(login_url="login")
+def fleet_intel_leaks(request):
+    """Per-leg farm-out LEAK finder (superuser only).
+
+    Every farmed leg, grouped into founder-facing action buckets (preventable / hire / delay / buy /
+    positioning) with the evidence behind each verdict — including WHO farmed it and which in-house
+    driver(s) could have taken it. Read-only; result cached 5 min per range.
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    from django.core.cache import cache
+    from dispatching import fleet_intel as fi
+
+    date_from, date_to, start_date, end_date = _parse_report_date_range(request)
+    action = request.GET.get("action", "")
+
+    cache_key = f"fleet_leaks_{start_date.isoformat()}_{end_date.isoformat()}"
+    data = cache.get(cache_key)
+    if data is None:
+        data = fi.collect_leaks(start_date, end_date)
+        cache.set(cache_key, data, 300)
+
+    items = data["items"]
+    if action in fi.ACTION_ORDER:
+        items = [it for it in items if it["action"] == action]
+
+    bucket_cards = []
+    for a in data["action_order"]:
+        b = data["buckets"].get(a)
+        if not b:
+            continue
+        bucket_cards.append({
+            "action": a,
+            "label": data["action_labels"].get(a, a),
+            "count": b["count"],
+            "spend": b["spend"],
+            "net": b["net"],
+        })
+
+    context = {
+        "date_from": date_from,
+        "date_to": date_to,
+        "range_days": data["range"]["days"],
+        "items": items[:400],          # cap rows rendered
+        "item_count": len(items),
+        "bucket_cards": bucket_cards,
+        "selected_action": action,
+    }
+    return render(request, "dispatching/fleet_intel_leaks.html", context)
+
+
 # ============================================================================
 # SCHEDULER SETTINGS API
 # ============================================================================
