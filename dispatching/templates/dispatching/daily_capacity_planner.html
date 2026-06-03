@@ -1071,6 +1071,9 @@
 </div>
 
 <div class="container">
+    <div class="pt-3">
+      {% include 'dispatching/includes/_draft_banner.html' %}
+    </div>
     {% if total_legs == 0 %}
     <!-- Empty state -->
     <div class="chart-container text-center py-5">
@@ -2452,7 +2455,7 @@
                 'Content-Type': 'application/json',
                 'X-CSRFToken': '{{ csrf_token }}',
             },
-            body: JSON.stringify({leg_id: legId, field: 'driver', value: driverId}),
+            body: JSON.stringify({leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive}),
         })
         .then(r => r.json())
         .then(data => {

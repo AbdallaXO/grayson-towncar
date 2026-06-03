@@ -504,3 +504,108 @@ def twilio_configured():
     auth = (getattr(settings, "TWILIO_AUTH_TOKEN", None) or "").strip()
     phone = (getattr(settings, "TWILIO_PHONE_NUMBER", None) or "").strip()
     return bool(sid and auth and phone)
+
+
+def _twilio_send(to, body):
+    """Send one raw SMS via Twilio. Returns (ok: bool, err: str or None)."""
+    sid = (getattr(settings, "TWILIO_ACCOUNT_SID", None) or "").strip()
+    auth = (getattr(settings, "TWILIO_AUTH_TOKEN", None) or "").strip()
+    from_number = (getattr(settings, "TWILIO_PHONE_NUMBER", None) or "").strip()
+    if not sid or not auth or not from_number:
+        return False, "Twilio not configured"
+    if from_number and len(from_number) == 10 and from_number.isdigit():
+        from_number = "+1" + from_number
+    elif from_number and not from_number.startswith("+"):
+        from_number = "+1" + from_number.lstrip("1")
+    to = (to or "").strip()
+    if not to:
+        return False, "No phone number"
+    try:
+        from twilio.rest import Client
+        client = Client(sid, auth)
+        client.messages.create(body=body, from_=from_number, to=to)
+        return True, None
+    except Exception as e:
+        logger.exception("Twilio release-notice send failed to %s", to)
+        return False, str(e)
+
+
+def _release_sms_body(driver, schedule_date):
+    """Compose a short SMS summarizing a driver's published schedule for a date."""
+    legs = list(
+        Leg.objects.filter(driver=driver, pickup_date=schedule_date)
+        .exclude(status="cancelled")
+        .order_by("pickup_time")
+    )
+    pretty_date = schedule_date.strftime("%a %b %d").replace(" 0", " ")
+    if not legs:
+        return (
+            f"Grayson Towncar - your schedule for {pretty_date} was updated. "
+            f"You have no trips assigned. Open the app for details."
+        )
+    first = legs[0]
+    first_time = _format_time(first.pickup_time)
+    route = ""
+    if first.pickup_location and first.dropoff_location:
+        route = f" ({first.pickup_location} -> {first.dropoff_location})"
+    trips = "trip" if len(legs) == 1 else "trips"
+    return (
+        f"Grayson Towncar - your schedule for {pretty_date} was updated. "
+        f"You now have {len(legs)} {trips}, first pickup {first_time}{route}. "
+        f"Open the app for full details."
+    )
+
+
+def notify_drivers_of_release(draft_id, actor_id=None):
+    """Text drivers affected by a published draft. Designed for _run_in_background.
+
+    Idempotent at the data layer: the calling view stamps draft.notified_at as a
+    claim before spawning this, so a double-click can't reach here twice. We still
+    re-read the draft and record a NOTIFIED event with the send tally.
+    """
+    from reservations.models import ScheduleDraft, ScheduleDraftEvent
+    from drivers.models import Driver
+    from django.contrib.auth.models import User
+
+    draft = ScheduleDraft.objects.filter(id=draft_id).first()
+    if not draft:
+        return {"sent": 0, "failed": 0, "skipped": 0, "errors": ["draft not found"]}
+
+    actor = User.objects.filter(id=actor_id).first() if actor_id else None
+
+    # Affected drivers = those recorded on the PUBLISHED event (old + new driver
+    # of every leg that actually changed at publish time).
+    affected_ids = []
+    pub = draft.events.filter(event_type=ScheduleDraftEvent.EventType.PUBLISHED).order_by("-created_at").first()
+    if pub and isinstance(pub.metadata, dict):
+        affected_ids = pub.metadata.get("affected_driver_ids") or []
+
+    if not twilio_configured():
+        ScheduleDraftEvent.objects.create(
+            draft=draft, event_type=ScheduleDraftEvent.EventType.NOTIFIED, actor=actor,
+            note="Twilio not configured — no texts sent.",
+            metadata={"sent": 0, "failed": 0, "skipped": len(affected_ids)},
+        )
+        return {"sent": 0, "failed": 0, "skipped": len(affected_ids), "errors": ["twilio not configured"]}
+
+    sent = failed = skipped = 0
+    errors = []
+    for drv in Driver.objects.filter(id__in=affected_ids):
+        phone = (drv.phone_number or "").strip()
+        if not phone:
+            skipped += 1
+            continue
+        body = _release_sms_body(drv, draft.schedule_date)
+        ok, err = _twilio_send(phone, body)
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+            errors.append((drv.id, err or "Unknown error"))
+
+    ScheduleDraftEvent.objects.create(
+        draft=draft, event_type=ScheduleDraftEvent.EventType.NOTIFIED, actor=actor,
+        note=f"Texted {sent} driver(s) ({skipped} skipped, {failed} failed).",
+        metadata={"sent": sent, "failed": failed, "skipped": skipped},
+    )
+    return {"sent": sent, "failed": failed, "skipped": skipped, "errors": errors}
