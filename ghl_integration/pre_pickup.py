@@ -168,6 +168,8 @@ class PrePickupNudgeEngine:
             Lead.StatusChoices.CONVERTED, Lead.StatusChoices.LOST
         ):
             return self._skip(lead, "converted_or_lost")
+        if self._has_booked_sibling(lead):
+            return self._skip(lead, "sibling_booked")
         if FollowUpTask.objects.filter(lead=lead, step_number=NUDGE_STEP).exists():
             return self._skip(lead, "already_nudged")
         if not lead.phone and not lead.email:
@@ -239,6 +241,13 @@ class PrePickupNudgeEngine:
             Lead.StatusChoices.CONVERTED, Lead.StatusChoices.LOST
         ):
             return self._skip(lead, "converted_or_lost")
+        # Duplicate-lead safety net: never nudge someone who already booked under a
+        # TWIN lead. A round-trip + one-way quote create two leads, and booking
+        # converts only ONE (auto_convert_lead_on_reservation uses .first()), so the
+        # still-"interested" twin would otherwise be texted even though the customer
+        # already booked — the exact trust-eroding case this guard prevents.
+        if self._has_booked_sibling(lead):
+            return self._skip(lead, "sibling_booked")
         # Opt-out (TCPA): never text an opted-out number. The shared send_sms path
         # also blocks this, but skip early so we don't fall through to the email
         # fallback for an SMS-opted-out lead.
@@ -409,6 +418,32 @@ class PrePickupNudgeEngine:
     def _skip(self, lead, reason) -> str:
         self.result.skipped[reason] += 1
         return f"skipped:{reason}"
+
+    def _has_booked_sibling(self, lead) -> bool:
+        """
+        True if a DIFFERENT lead sharing this person's phone OR email has already
+        booked (converted). This is the duplicate-lead safety net: it does NOT
+        rely on the duplicate twins being merged or converted together — a single
+        converted lead anywhere on the same phone/email suppresses the nudge. Only
+        ever suppresses a send, so it cannot cause an erroneous text. Mirrors the
+        phone_already_nudged sibling guard.
+        """
+        from django.db.models import Q
+        from reservations.models import Lead
+
+        ident = Q()
+        if lead.normalized_phone:
+            ident |= Q(normalized_phone=lead.normalized_phone)
+        if lead.email:
+            ident |= Q(email__iexact=lead.email)
+        if not ident:
+            return False
+        return (
+            Lead.objects.filter(ident)
+            .filter(Q(converted=True) | Q(status=Lead.StatusChoices.CONVERTED))
+            .exclude(pk=lead.pk)
+            .exists()
+        )
 
     def _last_outbound_at(self, lead):
         """Most recent outbound to the lead across locally-visible signals."""

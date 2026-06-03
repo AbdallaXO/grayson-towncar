@@ -2250,107 +2250,106 @@ class LeadAdmin(admin.ModelAdmin):
         
         self.message_user(request, f"Marked {updated} leads as interested.")
 
+    def _sync_status_to_ghl_in_background(self, leads_with_contact, status):
+        """
+        Push `status` to GHL for the given (lead_id, contact_id) pairs in ONE
+        background thread, serially. This is the safe replacement for the old
+        per-lead post_save signal, which spawned a thread (and a GHL API call) for
+        EVERY converted lead — the thing that timed out the worker on bulk actions.
+        """
+        if not leads_with_contact:
+            return
+        from threading import Thread
+        from ghl_integration.services import GoHighLevelService
+
+        pairs = list(leads_with_contact)
+
+        def _run():
+            service = GoHighLevelService()
+            synced = 0
+            for lead_id, contact_id in pairs:
+                try:
+                    if service.update_contact_status_fields(contact_id=contact_id, status=status):
+                        synced += 1
+                except Exception as e:
+                    logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
+            logger.info(f"Synced status '{status}' to GHL for {synced}/{len(pairs)} leads")
+
+        Thread(target=_run, daemon=True).start()
+
     @admin.action(description="Mark as Converted")
     def mark_converted(self, request, queryset):
-        # Get leads with GHL contact IDs before update (for syncing)
-        leads_with_ghl = list(queryset.filter(ghl_contact_id__isnull=False).values_list('id', 'ghl_contact_id'))
+        """
+        Manually mark the selected leads converted (operator override — converts
+        regardless of match confidence) and link each to its best reservation for
+        revenue attribution. Bulk + reservation-index based, so it stays fast and
+        does NOT crash on large selections: one reservation scan + a single
+        bulk_update (no per-lead query, no per-lead save/signal storm).
+        """
+        from .lead_matching import ReservationIndex, match_lead
 
-        # Mark as converted and try to link matching reservations
-        updated = 0
+        leads = list(queryset)
+        leads_with_ghl = [(l.id, l.ghl_contact_id) for l in leads if l.ghl_contact_id]
+
+        index = ReservationIndex.build(
+            Reservation.objects.values(
+                "id", "created_at", "customer__email", "customer__phone_number",
+            ).iterator()
+        )
+        now = timezone.now()
         linked = 0
-        for lead in queryset:
+        for lead in leads:
             lead.status = "converted"
             lead.converted = True
-            lead.converted_at = timezone.now()
-
-            # Try to find a matching reservation for revenue attribution
-            if not lead.converted_reservation:
-                matching_reservation = None
-                if lead.email:
-                    matching_reservation = Reservation.objects.filter(
-                        customer__email__iexact=lead.email
-                    ).order_by('-created_at').first()
-                if not matching_reservation and lead.phone:
-                    matching_reservation = Reservation.objects.filter(
-                        customer__phone_number__iexact=lead.phone
-                    ).order_by('-created_at').first()
-                if matching_reservation:
-                    lead.converted_reservation = matching_reservation
+            lead.converted_at = now
+            if not lead.converted_reservation_id:
+                res_id = match_lead(lead, index)
+                if res_id:
+                    lead.converted_reservation_id = res_id
                     linked += 1
+        Lead.objects.bulk_update(
+            leads,
+            ["status", "converted", "converted_at", "converted_reservation"],
+            batch_size=500,
+        )
 
-            lead.save()
-            updated += 1
+        self._sync_status_to_ghl_in_background(leads_with_ghl, "converted")
+        self.message_user(
+            request,
+            f"Marked {len(leads)} leads as converted ({linked} linked to reservations)."
+        )
 
-        # Sync status to GHL for leads that have contact IDs
-        if leads_with_ghl:
-            from ghl_integration.services import GoHighLevelService
-            from threading import Thread
-
-            def sync_statuses_in_background():
-                service = GoHighLevelService()
-                synced_count = 0
-                for lead_id, contact_id in leads_with_ghl:
-                    try:
-                        success = service.update_contact_status_fields(
-                            contact_id=contact_id,
-                            status="converted"
-                        )
-                        if success:
-                            synced_count += 1
-                    except Exception as e:
-                        logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
-
-                logger.info(f"Synced status to GHL for {synced_count} out of {len(leads_with_ghl)} leads")
-
-            thread = Thread(target=sync_statuses_in_background, daemon=True)
-            thread.start()
-
-        self.message_user(request, f"Marked {updated} leads as converted ({linked} linked to reservations).")
-    
     @admin.action(description="Check for Auto-Conversion")
     def check_auto_conversion(self, request, queryset):
         """
-        Check if any of the selected leads should be auto-converted based on existing reservations.
-        This is useful for leads that existed before the auto-conversion system was implemented.
-        """
-        from .models import Reservation
-        
-        converted_count = 0
-        for lead in queryset:
-            if lead.status != 'converted':
-                # Check if there's a reservation with matching email or phone
-                matching_reservation = None
-                
-                if lead.email:
-                    matching_reservation = Reservation.objects.filter(
-                        customer__email__iexact=lead.email
-                    ).first()
-                
-                if not matching_reservation and lead.phone:
-                    matching_reservation = Reservation.objects.filter(
-                        customer__phone_number__iexact=lead.phone
-                    ).first()
-                
-                if matching_reservation:
-                    lead.status = 'converted'
-                    lead.converted = True
-                    lead.converted_at = timezone.now()
-                    lead.converted_reservation = matching_reservation
+        Auto-convert selected leads that match an existing reservation (for leads
+        created before auto-conversion, or that the booking signal missed).
 
-                    # Add conversion note
-                    conversion_note = f"Auto-converted on {timezone.now().strftime('%Y-%m-%d %H:%M')} - Found existing Reservation #{matching_reservation.id}"
-                    if lead.notes:
-                        lead.notes += f"\n\n{conversion_note}"
-                    else:
-                        lead.notes = conversion_note
-                    
-                    lead.save()
-                    converted_count += 1
-        
-        if converted_count > 0:
-            self.message_user(request, f"Auto-converted {converted_count} leads based on existing reservations.")
-        else:
-            self.message_user(request, "No leads were auto-converted. All selected leads are either already converted or don't have matching reservations.")
+        Scale-safe: delegates to lead_matching.recheck_lead_conversions, which
+        preloads reservations once and uses bulk_update — so it does NOT fire the
+        per-lead GHL-sync signal that previously spawned one API thread per lead and
+        timed out the worker at ~3k leads. Matches by email then phone (the original
+        logic). GHL status is pushed once, batched, in the background.
+        """
+        from .lead_matching import recheck_lead_conversions
+
+        lead_ids = list(queryset.values_list("id", flat=True))
+        report = recheck_lead_conversions(Lead.objects.filter(id__in=lead_ids))
+
+        if report.converted_lead_ids:
+            with_ghl = list(
+                Lead.objects.filter(
+                    id__in=report.converted_lead_ids, ghl_contact_id__isnull=False
+                ).values_list("id", "ghl_contact_id")
+            )
+            self._sync_status_to_ghl_in_background(with_ghl, "converted")
+
+        self.message_user(
+            request,
+            f"Auto-conversion check: converted {report.converted}, "
+            f"no match {report.no_match}, already converted {report.already_converted}."
+            + (" GHL status syncing in background." if report.converted_lead_ids else ""),
+        )
 
     @admin.action(description="Mark as Lost")
     def mark_lost(self, request, queryset):

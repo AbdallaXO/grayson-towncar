@@ -1,6 +1,7 @@
 import logging
 import time
 from django.db.models.signals import post_save, pre_save
+from django.db.models import Q
 from django.dispatch import receiver
 from .models import Reservation, Leg
 from users.emails import send_reservation_confirmation
@@ -8,6 +9,7 @@ from django.db import transaction
 from decimal import Decimal
 from django.utils import timezone
 from .models import Reservation, Lead
+from .lead_matching import ACTIVE_STATUSES
 
 logger = logging.getLogger(__name__)  # Get a logger instance
 
@@ -214,14 +216,16 @@ def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
     if created:  # Only run when a new reservation is created
         customer = instance.customer
 
-        # Try to find a matching lead by email first, then by phone
+        # Match by email first, then phone. Customer carries no GHL id, so these
+        # are the only shared signals. order_by('-created_at') makes .first()
+        # deterministic (newest active lead wins).
         matching_lead = None
 
         if customer.email:
             matching_lead = Lead.objects.filter(
                 email__iexact=customer.email,
-                status__in=['new', 'contacted', 'interested', 'future_contact']
-            ).first()
+                status__in=ACTIVE_STATUSES,
+            ).order_by('-created_at').first()
 
         # If no match by email, try by phone using normalized_phone index
         if not matching_lead and customer.phone_number:
@@ -229,8 +233,8 @@ def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
             if norm:
                 matching_lead = Lead.objects.filter(
                     normalized_phone=norm,
-                    status__in=['new', 'contacted', 'interested', 'future_contact'],
-                ).first()
+                    status__in=ACTIVE_STATUSES,
+                ).order_by('-created_at').first()
         
         # If we found a matching lead, convert it
         if matching_lead:
@@ -290,6 +294,92 @@ def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
                 pass
 
             logger.info(f"Auto-converted lead {matching_lead.id} ({matching_lead.first_name} {matching_lead.last_name}) to converted status")
+
+            # Converge same-trip duplicate leads so a booked customer never shows a
+            # stale "interested" twin (and never gets nudged/sequenced under it).
+            _converge_duplicate_leads(matching_lead, instance)
+
+
+def _converge_duplicate_leads(primary, reservation):
+    """
+    Mark same-trip DUPLICATE leads converted alongside the primary matched lead.
+
+    A customer submitting both a round-trip and a one-way quote creates TWO leads
+    (different trip_type → not merged by the create-time dedup). The booking above
+    matches/converts only ONE (``.first()``), leaving the twin stuck at
+    "interested" — which the leads board then shows as an open lead and the 3-day
+    pre-pickup nudge then texts, confusing someone who already booked.
+
+    Scope is deliberately narrow: same person (normalized_phone OR email) AND the
+    SAME ``pickup_date`` as the primary lead, so a genuinely separate trip on
+    another date is left untouched (it is still protected from nudges by
+    ``PrePickupNudgeEngine._has_booked_sibling``). Best-effort: never raises, so it
+    can't break reservation creation.
+    """
+    if primary.pickup_date is None:
+        return  # can't establish "same trip" without a date
+
+    ident = Q()
+    if primary.normalized_phone:
+        ident |= Q(normalized_phone=primary.normalized_phone)
+    if primary.email:
+        ident |= Q(email__iexact=primary.email)
+    if not ident:
+        return
+
+    twins = (
+        Lead.objects.filter(ident)
+        .filter(
+            status__in=ACTIVE_STATUSES,
+            pickup_date=primary.pickup_date,
+        )
+        .exclude(pk=primary.pk)
+    )
+
+    for twin in twins:
+        try:
+            twin.status = "converted"
+            twin.converted = True
+            twin.converted_at = timezone.now()
+            twin.converted_reservation = reservation
+            note = (
+                f"Auto-converted duplicate on {timezone.now().strftime('%Y-%m-%d %H:%M')} "
+                f"- same-trip twin of lead #{primary.id} (Reservation #{reservation.id})"
+            )
+            twin.notes = f"{twin.notes}\n\n{note}" if twin.notes else note
+            twin.save()
+
+            # Stop any running follow-up sequence on the twin (mirrors the primary).
+            if twin.sequence_active:
+                try:
+                    from ghl_integration.runner import run_in_background
+                    from ghl_integration.tasks import cancel_lead_sequence
+                    run_in_background(cancel_lead_sequence, twin.id, reason="converted")
+                except Exception:
+                    logger.warning(
+                        f"Failed to queue sequence cancellation for duplicate lead #{twin.id}"
+                    )
+
+            try:
+                from ghl_integration.models import LeadActivity
+                LeadActivity.objects.create(
+                    lead=twin,
+                    activity_type=LeadActivity.ActivityType.CONVERTED,
+                    description=(
+                        f"Auto-converted duplicate: same-trip twin of lead #{primary.id}, "
+                        f"Reservation #{reservation.id}"
+                    ),
+                    metadata={"reservation_id": str(reservation.id), "primary_lead_id": primary.id},
+                )
+            except Exception:
+                pass
+
+            logger.info(
+                f"Converged duplicate lead #{twin.id} (twin of #{primary.id}) "
+                f"on Reservation #{reservation.id}"
+            )
+        except Exception:
+            logger.warning(f"Failed to converge duplicate lead #{twin.id}", exc_info=True)
 
 
 @receiver(post_save, sender=Lead)

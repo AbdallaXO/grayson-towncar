@@ -170,6 +170,44 @@ class DedupTests(_NudgeTestCase):
         self.assertEqual(result.sent, 1)
         self.assertEqual(result.skipped["phone_already_nudged"], 1)
 
+    def test_booked_sibling_by_phone_suppresses_nudge(self):
+        # The reported bug: a round-trip + one-way quote create two leads; booking
+        # converts only ONE. The still-"interested" twin must NOT be nudged.
+        now = _et(2026, 6, 15, 10)
+        self._lead(now, phone="407-555-0100",
+                   status=Lead.StatusChoices.CONVERTED, converted=True)  # booked twin
+        self._lead(now, phone="(407) 555-0100",
+                   status=Lead.StatusChoices.INTERESTED)  # stale unconverted twin
+        with patch(SEND_SMS, return_value=True) as mock_send:
+            result = PrePickupNudgeEngine(now=now).process()
+        mock_send.assert_not_called()
+        self.assertEqual(result.sent, 0)
+        self.assertEqual(result.skipped["sibling_booked"], 1)
+
+    def test_booked_sibling_by_email_suppresses_nudge(self):
+        # Same person, different phone formats absent — match on email instead.
+        now = _et(2026, 6, 15, 10)
+        self._lead(now, phone="407-555-0200", email="dup@example.com",
+                   status=Lead.StatusChoices.CONVERTED, converted=True)
+        self._lead(now, phone="407-555-0201", email="DUP@example.com",
+                   status=Lead.StatusChoices.INTERESTED)
+        with patch(SEND_SMS, return_value=True) as mock_send:
+            result = PrePickupNudgeEngine(now=now).process()
+        mock_send.assert_not_called()
+        self.assertEqual(result.skipped["sibling_booked"], 1)
+
+    def test_unrelated_booked_lead_does_not_suppress(self):
+        # A booked lead for a DIFFERENT person must not suppress an eligible nudge.
+        now = _et(2026, 6, 15, 10)
+        self._lead(now, phone="407-555-0300", email="other@example.com",
+                   status=Lead.StatusChoices.CONVERTED, converted=True)
+        self._lead(now, phone="407-555-0400", email="me@example.com",
+                   status=Lead.StatusChoices.INTERESTED)
+        with patch(SEND_SMS, return_value=True) as mock_send:
+            result = PrePickupNudgeEngine(now=now).process()
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(result.sent, 1)
+
 
 # ── Throttle ────────────────────────────────────────────────────────────────────
 
