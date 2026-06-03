@@ -1,0 +1,154 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_extra %}
+<style>
+  :root { --gold:#C9A227; --dark:#0d1117; --dark2:#161b22; --pos:#1b7f3b; --neg:#c0392b; }
+  body { background:#f4f3ef; }
+  .page-header { background:linear-gradient(135deg,var(--dark) 0%,var(--dark2) 100%);
+                 padding:1.75rem 0 1.5rem; border-radius:0 0 1rem 1rem; }
+  .page-header h1,.page-header p { color:#fff; } .page-header p { opacity:.75; margin:0; }
+  .filter-panel { background:#fff; border-radius:.75rem; padding:.85rem 1.1rem;
+                  box-shadow:0 1px 4px rgba(0,0,0,.06); margin:1rem 0; }
+  .filter-panel label { font-size:.78rem; font-weight:600; color:#6c757d; }
+  .buckets { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.1rem; }
+  .bucket { flex:1; min-width:150px; background:#fff; border-radius:.7rem; padding:.8rem 1rem;
+       box-shadow:0 1px 4px rgba(0,0,0,.06); text-decoration:none; color:var(--dark);
+       border-left:4px solid #ccc; }
+  .bucket.sel { outline:2px solid var(--gold); }
+  .bucket .b-label { font-size:.74rem; font-weight:700; color:#555; }
+  .bucket .b-count { font-size:1.35rem; font-weight:800; }
+  .bucket .b-sub { font-size:.72rem; color:#999; font-weight:600; }
+  .b-preventable { border-left-color:var(--neg); } .b-hire { border-left-color:#9b59b6; }
+  .b-delay { border-left-color:#e67e22; } .b-buy { border-left-color:#3498db; }
+  .b-position { border-left-color:#16a085; } .b-review { border-left-color:#7f8c8d; }
+  .act-badge { font-size:.66rem; font-weight:700; padding:.12rem .5rem; border-radius:999px; color:#fff; white-space:nowrap; }
+  .a-preventable { background:var(--neg); } .a-hire { background:#9b59b6; }
+  .a-delay { background:#e67e22; } .a-buy { background:#3498db; }
+  .a-position { background:#16a085; } .a-review { background:#7f8c8d; }
+  .table-wrap { background:#fff; border-radius:.75rem; box-shadow:0 1px 4px rgba(0,0,0,.06); overflow:hidden; }
+  .v-table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  .v-table th { text-align:left; font-size:.69rem; text-transform:uppercase; letter-spacing:.3px;
+       color:#999; padding:.5rem .9rem; border-bottom:1px solid #eee; position:sticky; top:0; background:#fff; }
+  .v-table td { padding:.5rem .9rem; border-bottom:1px solid #f3f1ec; vertical-align:top; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .pos { color:var(--pos); font-weight:700; } .neg { color:var(--neg); font-weight:700; }
+  .muted { color:#aaa; }
+  .who { font-size:.76rem; color:#666; }
+  .free-drv { color:var(--pos); font-weight:600; }
+  details.trace { margin-top:.25rem; } details.trace summary { font-size:.74rem; color:#888; cursor:pointer; }
+  .trace table { width:100%; border-collapse:collapse; margin-top:.3rem; font-size:.74rem; }
+  .trace td { padding:.2rem .4rem; border-bottom:1px solid #f6f4ef; }
+  .ok { color:var(--pos); font-weight:700; } .no { color:#b94a3b; }
+  .footnote { font-size:.76rem; color:#8a8a8a; line-height:1.5; margin:1rem 0 2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="container">
+    <h1 class="h4 fw-bold mb-1">Find the leaks — job by job</h1>
+    <p>Every farmed-out job, why it was farmed, and the proof — {{ date_from }} → {{ date_to }} ({{ range_days }} days)</p>
+  </div>
+</div>
+
+<div class="container py-3">
+  <form method="get" class="filter-panel" id="rangeForm">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto"><label>From</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><label>To</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm"></div>
+      {% if selected_action %}<input type="hidden" name="action" value="{{ selected_action }}">{% endif %}
+      <div class="col-auto"><button class="btn btn-sm btn-dark" type="submit">Apply</button></div>
+      <div class="col-auto ms-auto">
+        <a class="btn btn-sm btn-outline-dark" href="{% url 'fleet_intel_dashboard' %}?date_from={{ date_from }}&date_to={{ date_to }}">← Back to summary</a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Action buckets -->
+  <div class="buckets">
+    <a class="bucket {% if not selected_action %}sel{% endif %}"
+       href="{% url 'fleet_intel_leaks' %}?date_from={{ date_from }}&date_to={{ date_to }}">
+      <div class="b-label">All farmed jobs</div>
+      <div class="b-count">{{ item_count }}</div>
+      <div class="b-sub">click a bucket to filter</div>
+    </a>
+    {% for b in bucket_cards %}
+      <a class="bucket b-{{ b.action }} {% if selected_action == b.action %}sel{% endif %}"
+         href="{% url 'fleet_intel_leaks' %}?date_from={{ date_from }}&date_to={{ date_to }}&action={{ b.action }}">
+        <div class="b-label">{{ b.label }}</div>
+        <div class="b-count">{{ b.count }}</div>
+        <div class="b-sub">paid ${{ b.spend|floatformat:0|intcomma }} · keep ${{ b.net|floatformat:0|intcomma }}</div>
+      </a>
+    {% endfor %}
+  </div>
+
+  <div class="table-wrap">
+    <table class="v-table">
+      <thead><tr>
+        <th>When</th><th>Job</th><th>Type</th><th>Affiliate</th>
+        <th class="num">Paid</th><th class="num">Could keep</th><th>What &amp; why</th>
+      </tr></thead>
+      <tbody>
+      {% for it in items %}
+        <tr>
+          <td>{{ it.date|date:"M d" }}<br><span class="muted">{{ it.time|time:"g:i A" }}</span></td>
+          <td>{{ it.customer }}<br><span class="muted" style="font-size:.76rem;">{{ it.pickup }} → {{ it.dropoff }}</span></td>
+          <td>{{ it.vehicle_type }}</td>
+          <td>{{ it.affiliate }}</td>
+          <td class="num">{% if it.paid is not None %}${{ it.paid|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="num">{% if it.available %}${{ it.margin|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>
+            <span class="act-badge a-{{ it.action }}">{{ it.action_label }}</span>
+            {% if it.action == 'preventable' and it.feasible_drivers %}
+              <div class="who">Could've gone to
+                <span class="free-drv">{{ it.feasible_drivers.0.driver }}</span>
+                ({{ it.feasible_drivers.0.vehicle_type }}{% if it.feasible_drivers.0.buffer_minutes %}, {{ it.feasible_drivers.0.buffer_minutes }}m buffer{% endif %}){% if it.feasible_drivers|length > 1 %} +{{ it.feasible_drivers|length|add:"-1" }} more{% endif %}.
+                {% if it.assigned_by %}Farmed by <b>{{ it.assigned_by }}</b>.{% endif %}
+              </div>
+            {% else %}
+              <div class="who">{{ it.candidates }} in-house driver(s) checked{% if it.assigned_by %} · farmed by {{ it.assigned_by }}{% endif %}.</div>
+            {% endif %}
+            {% if it.trace %}
+              <details class="trace"><summary>see all {{ it.trace|length }} drivers checked</summary>
+                <table>
+                  {% for t in it.trace %}
+                    <tr>
+                      <td>{{ t.driver }}</td>
+                      <td>{{ t.vehicle_type }}</td>
+                      <td>{% if t.feasible %}<span class="ok">could do it ({{ t.buffer_minutes }}m buffer)</span>{% else %}<span class="no">{{ t.reason }}</span>{% endif %}</td>
+                    </tr>
+                  {% endfor %}
+                </table>
+              </details>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="muted">No farmed jobs match this filter.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if item_count > 400 %}
+  <p class="footnote">Showing the first 400 of {{ item_count }} jobs — narrow the date range to see the rest.</p>
+  {% endif %}
+  <p class="footnote">
+    <b>Preventable</b> = at the time of the job, an in-house driver was on shift, had a vehicle that fits,
+    and could have made it (the named driver + buffer is the proof). Shift windows are still
+    <b>estimated</b>, so spot-check a couple before confronting anyone. If several preventable jobs name
+    the <b>same</b> driver at overlapping times, only one of them was truly coverable — don't add them all up.
+  </p>
+</div>
+
+<script>
+  document.getElementById('rangeForm');
+</script>
+{% endblock %}

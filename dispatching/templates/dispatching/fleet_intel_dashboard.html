@@ -1,0 +1,267 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_extra %}
+<style>
+  :root { --gold:#C9A227; --dark:#0d1117; --dark2:#161b22; --pos:#1b7f3b; --neg:#c0392b;
+          --cap:#c0392b; --drv:#9b59b6; --proc:#e67e22; --strat:#1b7f3b; }
+  body { background:#f4f3ef; }
+  .page-header { background:linear-gradient(135deg,var(--dark) 0%,var(--dark2) 100%);
+                 padding:2rem 0 1.75rem; border-radius:0 0 1rem 1rem; }
+  .page-header h1,.page-header p { color:#fff; }
+  .page-header p { opacity:.75; margin:0; }
+  .filter-panel { background:#fff; border-radius:.75rem; padding:1rem 1.25rem;
+                  box-shadow:0 1px 4px rgba(0,0,0,.06); margin:1rem 0; }
+  .filter-panel label { font-size:.78rem; font-weight:600; color:#6c757d; margin-bottom:.15rem; }
+  .presets { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem; }
+  .presets .preset { font-size:.76rem; font-weight:600; color:#555; background:#fff;
+       border:1px solid #e5e2da; border-radius:999px; padding:.3rem .85rem; cursor:pointer; }
+  .presets .preset:hover { border-color:var(--gold); color:var(--gold); }
+  .legend { background:#fffdf5; border:1px solid #ecdfae; border-radius:.6rem; padding:.85rem 1.1rem;
+       margin-bottom:1.25rem; font-size:.82rem; color:#5b5326; }
+  .legend b { color:#7a6a16; }
+  .legend ul { margin:.4rem 0 0; padding-left:1.1rem; } .legend li { margin:.15rem 0; }
+  .summary-section { display:flex; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+  .stat-card { background:#fff; border-radius:.75rem; padding:1rem 1.25rem;
+       box-shadow:0 1px 4px rgba(0,0,0,.06); flex:1; min-width:170px; border-top:3px solid var(--gold); }
+  .stat-card .sc-label { font-size:.72rem; font-weight:700; color:#555; margin-bottom:.3rem; }
+  .stat-card .sc-value { font-size:1.4rem; font-weight:800; color:var(--dark); line-height:1.1; }
+  .stat-card .sc-sub { font-size:.72rem; color:#999; font-weight:600; margin-top:.25rem; }
+  .stat-card.pos { border-top-color:var(--pos); } .stat-card.pos .sc-value { color:var(--pos); }
+  .leak-cta { display:inline-flex; align-items:center; gap:.4rem; background:var(--dark); color:#fff;
+       text-decoration:none; font-weight:700; font-size:.85rem; padding:.55rem 1rem; border-radius:.55rem; }
+  .leak-cta:hover { background:#000; color:#fff; }
+  .table-wrap { background:#fff; border-radius:.75rem; box-shadow:0 1px 4px rgba(0,0,0,.06);
+       overflow:hidden; margin-bottom:1.25rem; }
+  .table-wrap h2 { font-size:1rem; font-weight:800; margin:0; padding:.85rem 1.1rem;
+       border-bottom:1px solid #eee; color:var(--dark); }
+  .table-wrap h2 small { font-weight:600; font-size:.74rem; color:#999; }
+  .v-table { width:100%; border-collapse:collapse; font-size:.86rem; }
+  .v-table th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.3px;
+       color:#999; padding:.55rem 1.1rem; border-bottom:1px solid #eee; }
+  .v-table td { padding:.55rem 1.1rem; border-bottom:1px solid #f3f1ec; }
+  .v-table tr:last-child td { border-bottom:none; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .pos { color:var(--pos); font-weight:700; } .neg { color:var(--neg); font-weight:700; }
+  .muted { color:#aaa; }
+  .badge-fam { font-size:.66rem; font-weight:700; text-transform:uppercase; padding:.12rem .5rem;
+       border-radius:999px; color:#fff; }
+  .fam-capacity { background:var(--cap); } .fam-driver { background:var(--drv); }
+  .fam-process { background:var(--proc); } .fam-strategic { background:var(--strat); }
+  .fam-unknown { background:#7f8c8d; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; }
+  @media (max-width:800px){ .grid-2{ grid-template-columns:1fr; } }
+  .footnote { font-size:.76rem; color:#8a8a8a; line-height:1.5; margin:.5rem 0 2rem; }
+  a.reason-link { color:inherit; text-decoration:none; border-bottom:1px dotted #ccc; }
+  a.reason-link:hover { color:var(--gold); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="container">
+    <h1 class="h3 fw-bold mb-1">Fleet Capacity Intelligence</h1>
+    <p>What farming out costs us, and where the money leaks — {{ date_from }} → {{ date_to }} ({{ range_days }} days)</p>
+  </div>
+</div>
+
+<div class="container py-3">
+  <!-- Filters -->
+  <form method="get" class="filter-panel" id="rangeForm">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto"><label>From</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><label>To</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm"></div>
+      <div class="col-auto"><button class="btn btn-sm btn-dark" type="submit">Apply</button></div>
+      <div class="col-auto ms-auto">
+        <a class="leak-cta" href="{% url 'fleet_intel_leaks' %}?date_from={{ date_from }}&date_to={{ date_to }}">
+          🔎 Find the leaks (job-by-job)</a>
+      </div>
+    </div>
+    <div class="presets">
+      <span class="preset" data-days="7">Last 7d</span>
+      <span class="preset" data-days="14">Last 14d</span>
+      <span class="preset" data-days="30">Last 30d</span>
+      <span class="preset" data-days="90">Last 90d</span>
+    </div>
+  </form>
+
+  <!-- How to read this -->
+  <div class="legend">
+    <b>How to read this (plain English):</b>
+    <ul>
+      <li><b>Farmed out</b> = we gave the job to an outside affiliate instead of one of our own drivers.</li>
+      <li><b>What we paid affiliates</b> = total cash paid to outside companies for those jobs.</li>
+      <li><b>Could've kept in-house</b> = what we paid the affiliate minus what it would've cost us to do
+          it with our own driver (driver pay only — gas/tolls not counted yet).
+          <span class="pos">Positive</span> = we likely lost money by farming;
+          <span class="neg">negative</span> = the affiliate was actually cheaper, so farming was the right call.</li>
+      <li><b>%</b> = that "could've kept" amount as a share of what we paid. 43% means for every $100 paid
+          to the affiliate, about $43 could have stayed with us.</li>
+      <li><b>Data coverage</b> = share of farmed jobs we have enough info to compare (we need the route's
+          in-house rate). Lower coverage → trust the dollar totals a bit less.</li>
+      <li>These are <b>opportunity</b> numbers, not guaranteed savings — whether we could actually have done
+          the job depends on the reason it was farmed. Use <b>Find the leaks</b> to see the proof per job.</li>
+    </ul>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="summary-section">
+    <div class="stat-card">
+      <div class="sc-label">Jobs done</div>
+      <div class="sc-value">{{ op.total|intcomma }}</div>
+      <div class="sc-sub">{{ op.in_house }} by us · {{ op.farm_out }} farmed out</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-label">Farm-out rate</div>
+      <div class="sc-value">{{ op.farm_out_rate }}%</div>
+      <div class="sc-sub">of all jobs went to affiliates</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-label">What we paid affiliates</div>
+      <div class="sc-value">${{ fin.affiliate_cost_total|floatformat:0|intcomma }}</div>
+      <div class="sc-sub">in-house would've cost ~${{ fin.inhouse_counterfactual_total|floatformat:0|intcomma }}</div>
+    </div>
+    <div class="stat-card pos">
+      <div class="sc-label">Could've kept in-house</div>
+      <div class="sc-value">${{ fin.recovered_net|floatformat:0|intcomma }}</div>
+      <div class="sc-sub"><span class="pos">+${{ fin.recovered_positive|floatformat:0|intcomma }}</span> lost to farming
+        · <span class="neg">${{ fin.recovered_negative|floatformat:0|intcomma }}</span> rightly farmed</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-label">Data coverage</div>
+      <div class="sc-value">{{ fin.counterfactual_coverage_pct }}%</div>
+      <div class="sc-sub">{{ fin.counterfactual_available }}/{{ fin.farm_legs }} farmed jobs comparable</div>
+    </div>
+  </div>
+
+  {% if dominant_family %}
+  <div class="legend" style="background:#fff;border-color:#eee;">
+    <b>Biggest leak this period:
+      <span class="badge-fam fam-{{ dominant_family }}">{{ dominant_family }}</span></b> — {{ dominant_advice }}
+  </div>
+  {% endif %}
+
+  <!-- Why legs were farmed -->
+  <div class="table-wrap">
+    <h2>Why jobs were farmed — and what to do <small>(click a row to see those jobs)</small></h2>
+    <table class="v-table">
+      <thead><tr>
+        <th>Reason</th><th>What it means for you</th><th class="num">Jobs</th>
+        <th class="num">Paid</th><th class="num">Could keep</th><th>Preventable?</th>
+      </tr></thead>
+      <tbody>
+      {% for r in reason_rows %}
+        <tr>
+          <td><a class="reason-link"
+                 href="{% url 'fleet_intel_leaks' %}?date_from={{ date_from }}&date_to={{ date_to }}&action={{ r.action }}">{{ r.key }}</a></td>
+          <td style="font-size:.8rem;color:#666;">{{ r.remedy }}</td>
+          <td class="num">{{ r.count }}</td>
+          <td class="num">${{ r.paid|floatformat:0|intcomma }}</td>
+          <td class="num">${{ r.net|floatformat:0|intcomma }}</td>
+          <td>{% if r.preventable %}<span class="pos">yes</span>{% else %}<span class="muted">no</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted">No farmed jobs in this range.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid-2">
+    <!-- By vehicle type -->
+    <div class="table-wrap">
+      <h2>By vehicle type <small>where the money goes</small></h2>
+      <table class="v-table">
+        <thead><tr><th>Type</th><th class="num">Jobs</th><th class="num">Paid</th>
+          <th class="num">Could keep</th><th class="num">%</th></tr></thead>
+        <tbody>
+        {% for r in vehicle_rows %}
+          <tr><td>{{ r.key }}</td><td class="num">{{ r.count }}</td>
+            <td class="num">${{ r.paid|floatformat:0|intcomma }}</td>
+            <td class="num">${{ r.net|floatformat:0|intcomma }}</td>
+            <td class="num">{% if r.margin_pct is not None %}{{ r.margin_pct }}%{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="muted">—</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Top affiliates -->
+    <div class="table-wrap">
+      <h2>Affiliates <small>what we pay each &amp; what we could keep</small></h2>
+      <table class="v-table">
+        <thead><tr><th>Affiliate</th><th class="num">Jobs</th><th class="num">Paid</th>
+          <th class="num">Could keep</th><th class="num">%</th></tr></thead>
+        <tbody>
+        {% for r in affiliate_rows %}
+          <tr><td>{{ r.key }}</td><td class="num">{{ r.count }}</td>
+            <td class="num">${{ r.paid|floatformat:0|intcomma }}</td>
+            <td class="num">${{ r.net|floatformat:0|intcomma }}</td>
+            <td class="num">{% if r.margin_pct is not None %}{{ r.margin_pct }}%{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="muted">—</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- By pickup zone -->
+    <div class="table-wrap">
+      <h2>By pickup area</h2>
+      <table class="v-table">
+        <thead><tr><th>Area</th><th class="num">Jobs</th><th class="num">Paid</th>
+          <th class="num">Could keep</th></tr></thead>
+        <tbody>
+        {% for r in zone_pickup_rows %}
+          <tr><td>{{ r.key }}</td><td class="num">{{ r.count }}</td>
+            <td class="num">${{ r.paid|floatformat:0|intcomma }}</td>
+            <td class="num">${{ r.net|floatformat:0|intcomma }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="muted">—</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Fleet size -->
+    <div class="table-wrap">
+      <h2>Our fleet <small>physical vehicles by type</small></h2>
+      <table class="v-table">
+        <thead><tr><th>Vehicle type</th><th class="num">Units</th></tr></thead>
+        <tbody>
+        {% for vt, n in fleet_size %}
+          <tr><td>{{ vt }}</td><td class="num">{{ n }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="muted">—</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="footnote">
+    Dollar figures compare the affiliate's base rate against our route's in-house driver pay
+    (gratuity excluded as a customer pass-through; gas/tolls/wear not yet modeled). The "why farmed"
+    reasons come from replaying that day's actual schedule through our dispatch engine and are
+    <b>stub-shift-limited</b> — verify the specific jobs under <b>Find the leaks</b> before acting. The true
+    number of jobs an extra vehicle could absorb comes from the buy-decision simulation, not by adding up
+    these rows.
+  </p>
+</div>
+
+<script>
+  document.querySelectorAll('.preset').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var days = parseInt(el.dataset.days, 10);
+      var to = new Date(), from = new Date();
+      from.setDate(to.getDate() - (days - 1));
+      var fmt = function (d) { return d.toISOString().slice(0, 10); };
+      var form = document.getElementById('rangeForm');
+      form.querySelector('[name=date_from]').value = fmt(from);
+      form.querySelector('[name=date_to]').value = fmt(to);
+      form.submit();
+    });
+  });
+</script>
+{% endblock %}
