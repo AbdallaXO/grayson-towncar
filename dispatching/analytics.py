@@ -807,13 +807,21 @@ def calculate_route_timing_metrics(
     """
     from reservations.models import Leg
 
-    # Use provided queryset or fetch all completed legs (inhouse only, non-excluded)
+    # Use provided queryset or fetch completed legs (inhouse only, non-excluded).
+    # When no queryset is passed (legacy/defensive path — every in-repo caller
+    # passes its own bucket queryset), bound to the last 90 days so a stray call
+    # can't full-scan years of legs. Real callers are unaffected, so computed
+    # metric values — and therefore scheduler estimates — are unchanged.
     if legs_queryset is None:
+        from datetime import timedelta
+        from django.utils import timezone as _tz
+        cutoff = _tz.localdate() - timedelta(days=90)
         legs_queryset = Leg.objects.filter(
             status='completed',
             driver__driver_type='inhouse',
             driver__exclude_from_timing=False,
             exclude_from_analytics=False,
+            pickup_date__gte=cutoff,
         ).select_related('reservation').prefetch_related('status_history', 'flight_information')
 
     # Filter by bucket criteria (in-memory). Time-of-day uses the flight-aware

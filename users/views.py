@@ -813,7 +813,9 @@ class AgencyDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                     "unpaid": format_decimal(agent.unpaid_commissions or 0),
                     "pending": format_decimal(agent.pending_commissions or 0),
                     "paid": format_decimal(agent.total_paid_commission or 0),
-                    "reservation_count": agent.reservations.count(),
+                    # len(...all()) uses the agents__reservations prefetch cache
+                    # instead of a COUNT query per agent (N+1).
+                    "reservation_count": len(agent.reservations.all()),
                 }
                 for agent in agency.agents.all()
             ]
@@ -970,6 +972,15 @@ class AgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
             agent__in=agents
         ).order_by("-paid_at")[:10]
 
+        # Reservation counts for ALL agents in one grouped query instead of a
+        # COUNT per agent in the loop below (N+1).
+        res_counts = dict(
+            Reservation.objects.filter(travel_agent__in=agents)
+            .values_list("travel_agent")
+            .annotate(c=Count("id"))
+            .values_list("travel_agent", "c")
+        )
+
         # Agent statistics
         context["agents_with_stats"] = [
             {
@@ -977,9 +988,7 @@ class AgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
                 "unpaid": format_decimal(agent.unpaid_commissions),
                 "pending": format_decimal(agent.pending_commissions),
                 "paid": format_decimal(agent.total_paid_commission),
-                "reservation_count": Reservation.objects.filter(
-                    travel_agent=agent
-                ).count(),
+                "reservation_count": res_counts.get(agent.id, 0),
             }
             for agent in agents
         ]

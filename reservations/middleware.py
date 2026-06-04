@@ -6,6 +6,9 @@ from threading import local
 import time
 import logging
 
+from django.conf import settings
+from django.db import connection
+
 _perf_logger = logging.getLogger('perf')
 
 _thread_locals = local()
@@ -33,16 +36,29 @@ class SlowRequestMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        # connection.queries only accumulates under DEBUG; snapshot the count
+        # before the view so we report queries for THIS request, not the worker total.
+        queries_before = len(connection.queries) if settings.DEBUG else 0
         t0 = time.perf_counter()
         response = self.get_response(request)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         if elapsed_ms > self.THRESHOLD_MS:
-            _perf_logger.warning(
-                "SLOW %s %s — %.0fms",
-                request.method,
-                request.get_full_path(),
-                elapsed_ms,
-            )
+            if settings.DEBUG:
+                query_count = len(connection.queries) - queries_before
+                _perf_logger.warning(
+                    "SLOW %s %s — %.0fms, %d queries",
+                    request.method,
+                    request.get_full_path(),
+                    elapsed_ms,
+                    query_count,
+                )
+            else:
+                _perf_logger.warning(
+                    "SLOW %s %s — %.0fms",
+                    request.method,
+                    request.get_full_path(),
+                    elapsed_ms,
+                )
         return response
 
 

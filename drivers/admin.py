@@ -120,20 +120,6 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             },
         ),
         (
-            "Vehicle Capability & Preferences",
-            {
-                "fields": (
-                    "certified_vehicle_types",
-                    "preferred_vehicle_types",
-                    "preferred_vehicles",
-                ),
-                "description": "Certified vehicle types = restricted types this driver is cleared "
-                               "to drive (e.g. the Sprinter / 14-pax van — leave empty for drivers "
-                               "who can't drive it). Preferred type(s)/unit(s) are soft preferences "
-                               "shown to dispatchers, never enforced.",
-            },
-        ),
-        (
             "Payment Tracking",
             {
                 "fields": (
@@ -146,11 +132,6 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             },
         ),
     )
-    filter_horizontal = [
-        "certified_vehicle_types",
-        "preferred_vehicle_types",
-        "preferred_vehicles",
-    ]
     readonly_fields = [
         "unpaid_legs_display",
         "unpaid_amount_display",
@@ -619,20 +600,32 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     def preview_driver_payments(self, request, queryset):
         """Show a preview of driver payments without actually processing them."""
         from django.contrib import messages
+        from collections import defaultdict
+
+        # Batch-fetch all unpaid completed legs for the selected drivers in ONE
+        # query, grouped by driver, instead of driver.get_unpaid_legs() per driver
+        # (N+1). Same filter as driver.get_unpaid_legs().filter(status="completed").
+        legs_by_driver = defaultdict(list)
+        for leg in Leg.objects.filter(
+            driver_id__in=[d.id for d in queryset],
+            payment_status="unpaid",
+            status="completed",
+        ):
+            legs_by_driver[leg.driver_id].append(leg)
 
         preview_data = []
         total_amount = 0
 
         for driver in queryset:
-            # Get unpaid COMPLETED legs only
-            unpaid_legs = driver.get_unpaid_legs().filter(status="completed")
+            # Unpaid COMPLETED legs only (from the prefetched batch)
+            unpaid_legs = legs_by_driver.get(driver.id, [])
 
             if unpaid_legs:
                 # Calculate total
                 payment_total = sum(leg.total_driver_pay for leg in unpaid_legs)
 
                 # Count legs
-                leg_count = unpaid_legs.count()
+                leg_count = len(unpaid_legs)
 
                 # Get date range
                 leg_dates = [leg.pickup_date for leg in unpaid_legs if leg.pickup_date]
@@ -951,6 +944,9 @@ class LegPaymentAdmin(admin.ModelAdmin):
         "leg__dropoff_location",
     ]
     list_filter = ["payment__payment_method", "payment__payment_date"]
+    # Each changelist row renders the `payment` FK (str -> driver), `leg_display`
+    # and `profit_display` (obj.leg fields). Without this, that's 2 queries/row (N+1).
+    list_select_related = ("payment", "payment__driver", "payment__driver__profile", "leg")
 
     def leg_display(self, obj):
         url = reverse("admin:reservations_leg_change", args=[obj.leg.id])

@@ -1225,12 +1225,15 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
 
     @admin.display(description="Payment Status")
     def payment_status_display(self, obj):
-        # Check if payments related manager exists and has items
-        if not hasattr(obj, "payments") or not obj.payments.exists():
+        # Use the prefetched payments (get_queryset prefetch_related("payments"))
+        # instead of .exists()/.order_by().first(), which each bypass the
+        # prefetch cache and issue a fresh query per changelist row (N+1).
+        payments = list(obj.payments.all())
+        if not payments:
             return "-"
 
         # Get the latest payment (most recent by created_at)
-        payment = obj.payments.order_by('-created_at').first()
+        payment = max(payments, key=lambda p: p.created_at)
 
         # Generate the correct URL to the Payment admin page
         payment_url = reverse("admin:payment_payment_change", args=[payment.id])

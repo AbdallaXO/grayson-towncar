@@ -577,11 +577,18 @@ class TravelAgentAdmin(admin.ModelAdmin):
 
     def mark_agents_for_payment(self, request, queryset):
         """Mark agents with unpaid commissions for payment processing."""
-        agents_with_unpaid = queryset.filter(unpaid_commissions__gt=0)
-        
-        if agents_with_unpaid.exists():
-            total_unpaid = sum(agent.unpaid_commissions for agent in agents_with_unpaid)
-            message = f"Found {agents_with_unpaid.count()} agents with unpaid commissions totaling ${total_unpaid:,.2f}. "
+        from django.db.models import Sum, Count
+
+        # Single aggregate instead of exists() + Python sum() + count() (3 queries).
+        agg = queryset.filter(unpaid_commissions__gt=0).aggregate(
+            total_unpaid=Sum("unpaid_commissions"),
+            agent_count=Count("id"),
+        )
+        agent_count = agg["agent_count"] or 0
+
+        if agent_count:
+            total_unpaid = agg["total_unpaid"] or 0
+            message = f"Found {agent_count} agents with unpaid commissions totaling ${total_unpaid:,.2f}. "
             message += "Use 'Preview commission payments' to see details, then 'Process agent commissions' to pay them."
             messages.info(request, message)
         else:

@@ -50,10 +50,11 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             "cruise_information",
         ).prefetch_related(
             "reservation__legs",
+            "legstop_set",  # leg.additional_dropoffs / has_intermediate_stops in list templates
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
             Prefetch("status_history", queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')),
         )
-    
+
     # Exclude cancelled reservations and cancelled legs - they should be hidden from normal operations
     legs_query = legs_query.exclude(reservation__status='cancelled').exclude(status='cancelled')
     

@@ -465,9 +465,36 @@ class Reservation(models.Model):
 
     def calculate_total_driver_payments(self):
         """
-        Calculate total amount to be paid to drivers
+        Calculate total amount to be paid to drivers.
+
+        Mirrors Leg.total_driver_pay (base+gratuity+additional, else legacy
+        driver_pay_amount) as a single DB aggregate instead of summing the
+        property per leg in Python — same pattern as
+        Driver.get_total_unpaid_amount. Numerically identical: every component
+        is a 2-decimal field, so the SQL sum equals the per-leg-quantize sum.
         """
-        return sum(leg.total_driver_pay for leg in self.legs.all())
+        from django.db.models import Sum, Case, When, Q, Value, F, DecimalField
+        from django.db.models.functions import Coalesce
+
+        total = self.legs.aggregate(
+            total=Sum(
+                Case(
+                    When(
+                        Q(driver_base_pay__isnull=False)
+                        | Q(driver_gratuity__isnull=False)
+                        | Q(driver_additional__isnull=False),
+                        then=(
+                            Coalesce(F("driver_base_pay"), Value(Decimal("0.00")))
+                            + Coalesce(F("driver_gratuity"), Value(Decimal("0.00")))
+                            + Coalesce(F("driver_additional"), Value(Decimal("0.00")))
+                        ),
+                    ),
+                    default=Coalesce(F("driver_pay_amount"), Value(Decimal("0.00"))),
+                    output_field=DecimalField(max_digits=10, decimal_places=2),
+                )
+            )
+        )["total"]
+        return total or Decimal("0.00")
 
     def calculate_profit(self):
         """
@@ -519,18 +546,19 @@ class Reservation(models.Model):
                     share = (self.total_price * weight).quantize(Decimal("0.01"))
                 else:
                     share = (self.total_price / Decimal(num_legs)).quantize(Decimal("0.01"))
-                Leg.objects.filter(pk=leg.pk).update(revenue_share=share)
-                leg.revenue_share = share  # keep in-memory copy current
-                profit = leg.calculate_profit()
-                Leg.objects.filter(pk=leg.pk).update(profit_estimate=profit)
+                leg.revenue_share = share  # set before calculate_profit() reads it
+                leg.profit_estimate = leg.calculate_profit()
         else:
             # Equal split (original behavior)
             share = (self.total_price / Decimal(len(legs))).quantize(Decimal("0.01"))
-            self.legs.update(revenue_share=share)
             for leg in legs:
                 leg.revenue_share = share
-                profit = leg.calculate_profit()
-                Leg.objects.filter(pk=leg.pk).update(profit_estimate=profit)
+                leg.profit_estimate = leg.calculate_profit()
+
+        # One bulk UPDATE for both columns instead of 2 UPDATEs per leg.
+        # bulk_update bypasses save()/signals — same as the prior .update() calls,
+        # and per-leg revenue_share/profit_estimate values are unchanged.
+        Leg.objects.bulk_update(legs, ["revenue_share", "profit_estimate"], batch_size=500)
 
     @cached_property
     def all_payments(self):
@@ -1803,7 +1831,7 @@ class Leg(models.Model):
             return False
         return self.legstop_set.exists()
 
-    @property
+    @cached_property
     def additional_dropoffs(self):
         """LegStop rows that represent additional drop-off destinations
         (stop_type='dropoff'). The leg's `dropoff_location` CharField is the
@@ -1815,7 +1843,7 @@ class Leg(models.Model):
         # keeps these in sequence order.
         return [s for s in self.legstop_set.all() if s.stop_type == 'dropoff']
 
-    @property
+    @cached_property
     def intermediate_stops(self):
         """LegStop rows that represent on-the-way stops with a duration
         (luggage drop, store stop, wait) — i.e., stops where everyone stays
@@ -1825,19 +1853,19 @@ class Leg(models.Model):
             return []
         return [s for s in self.legstop_set.all() if s.stop_type != 'dropoff']
 
-    @property
+    @cached_property
     def has_additional_dropoffs(self):
         if self.pk is None:
             return False
         return any(s.stop_type == 'dropoff' for s in self.legstop_set.all())
 
-    @property
+    @cached_property
     def has_intermediate_stops(self):
         if self.pk is None:
             return False
         return any(s.stop_type != 'dropoff' for s in self.legstop_set.all())
 
-    @property
+    @cached_property
     def all_stops(self):
         """
         Return the ordered itinerary as a list of dicts:

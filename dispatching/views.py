@@ -1858,11 +1858,19 @@ def legs_list(request):
     # Get all vehicles for filter dropdown
     vehicles = Vehicle.objects.all()
 
+    # get_trip_type() inspects the reservation + leg position and is otherwise
+    # recomputed for every leg in each of the three loops below (DISP-05). Cache
+    # the result once per leg instance and reuse it across all passes.
+    def _leg_trip_type(leg):
+        if not hasattr(leg, "_cached_trip_type"):
+            leg._cached_trip_type = leg.get_trip_type()
+        return leg._cached_trip_type
+
     # Apply trip type filter if specified (filter in Python since it's a computed property)
     if trip_type_filter:
         filtered_legs = []
         for leg in page_obj:
-            if leg.get_trip_type() == trip_type_filter:
+            if _leg_trip_type(leg) == trip_type_filter:
                 filtered_legs.append(leg)
         page_obj.object_list = filtered_legs
         page_obj._object_list = filtered_legs
@@ -1873,7 +1881,7 @@ def legs_list(request):
     # Calculate trip type statistics
     trip_type_stats = {"arrival": 0, "return": 0, "cruise": 0, "other": 0}
     for leg in page_obj:
-        trip_type = leg.get_trip_type()
+        trip_type = _leg_trip_type(leg)
         trip_type_stats[trip_type] = trip_type_stats.get(trip_type, 0) + 1
 
     # Calculate current page statistics in a single pass
@@ -1913,7 +1921,7 @@ def legs_list(request):
     
     # Count trip types for current page (always calculate)
     for leg in page_obj:
-        trip_type = leg.get_trip_type()
+        trip_type = _leg_trip_type(leg)
         current_page_stats[trip_type] += 1
 
     # Annotate each leg with estimated cleared time and duration
@@ -8502,6 +8510,16 @@ def capacity_planner(request):
     )
     all_drivers = Driver.objects.select_related("profile").all()
 
+    # Memoize effective availability per driver for this request (DISP-01).
+    # It's pure for a given (driver, date) — weekly_schedule + date_overrides are
+    # prefetched above — but is otherwise recomputed for the same eligible driver
+    # in both the vehicle_assign_rows loop and the eligible-driver timeline loop.
+    _cp_eff_cache = {}
+    def _cp_get_eff(driver):
+        if driver.id not in _cp_eff_cache:
+            _cp_eff_cache[driver.id] = driver.get_effective_availability(selected_date)
+        return _cp_eff_cache[driver.id]
+
     # Vehicle assignments for this date
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
         date=selected_date, driver__in=inhouse_drivers
@@ -8534,7 +8552,7 @@ def capacity_planner(request):
     for d in inhouse_drivers:
         _assignment = assignment_map.get(d.id)
         # Driver availability for this date — combines weekly + active exception
-        _va_eff = d.get_effective_availability(selected_date)
+        _va_eff = _cp_get_eff(d)
         _va_is_avail = _va_eff["is_available"]
         # Underlying schedule state — preserved so the UI can flag override-working drivers
         _was_scheduled_off = not _va_is_avail
@@ -8808,7 +8826,7 @@ def capacity_planner(request):
         # Driver availability for selected date
         _cp_avail = driver.get_availability_for_date(selected_date)
         _cp_is_avail, _cp_sh, _cp_eh, _cp_pref, _cp_flex = _cp_avail
-        _cp_eff = driver.get_effective_availability(selected_date)
+        _cp_eff = _cp_get_eff(driver)
 
         _CP_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
