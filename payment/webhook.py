@@ -75,7 +75,14 @@ def stripe_webhook(request):
 def handle_checkout_session(session):
     reservation_id = session.get("metadata", {}).get("reservation_id")
     logger.info(f"Processing checkout for reservation: {reservation_id}")
-    logger.info(f"Session details: {session}")
+    # Do NOT log the full session object — it contains customer PII (name, email,
+    # postal code) and live Stripe IDs. Log only a safe, non-sensitive summary.
+    logger.info(
+        "Checkout session summary: id=%s payment_status=%s mode=%s",
+        session.get("id"),
+        session.get("payment_status"),
+        session.get("mode"),
+    )
 
     if not reservation_id:
         logger.error("No Reservation ID in session metadata")

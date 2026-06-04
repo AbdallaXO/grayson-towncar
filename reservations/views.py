@@ -28,7 +28,7 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from .conversions import send_lead_event, send_initiate_checkout_event
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date
 from django.db.models import Q
 from .models import Lead, Quote, Reservation
 
@@ -331,6 +331,18 @@ class QuoteFormHandlerView(View):
         try:
             data = json.loads(request.body)
 
+            # Sanitize pickup_date: blanks, smart-quote placeholders ("") and any
+            # non-ISO value become None instead of crashing the lead save with
+            # '"" value has an invalid date format' (was returning a 500).
+            raw_date = data.get("pickup_date")
+            if isinstance(raw_date, str):
+                cleaned_date = raw_date.strip().strip('"“”‘’\'')
+                try:
+                    date.fromisoformat(cleaned_date)
+                    data["pickup_date"] = cleaned_date
+                except ValueError:
+                    data["pickup_date"] = None
+
             # Create form instance with the submitted data
             form = LeadForm(
                 {
@@ -363,7 +375,16 @@ class QuoteFormHandlerView(View):
                     if email:
                         query &= Q(email__iexact=email)
                     if phone:
-                        query &= Q(phone__iexact=phone)
+                        # Match on normalized (last-10-digits) phone so different
+                        # formats of the same number — "+1 301-555-1234" vs
+                        # "3015551234" — still dedupe. Raw phone__iexact missed
+                        # these, spawning duplicate leads while GHL (which
+                        # normalizes) correctly reused one contact.
+                        normalized_phone = Lead.normalize_phone(phone)
+                        if normalized_phone:
+                            query &= Q(normalized_phone=normalized_phone)
+                        else:
+                            query &= Q(phone__iexact=phone)
 
                     # Also check if it's the same trip details
                     if pickup_location and dropoff_location and pickup_date:
