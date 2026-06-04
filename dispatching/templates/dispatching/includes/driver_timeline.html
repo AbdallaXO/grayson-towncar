@@ -47,14 +47,30 @@
                 <small class="text-muted">
                   {% if data.vehicle_number %}<span style="color:#0d6efd;font-weight:600;">#{{ data.vehicle_number }}</span>{% if data.vehicle_type_label %} <span style="color:#aaa;">{{ data.vehicle_type_label }}</span>{% endif %} &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                 </small>
+                {% if data.exc_badge %}
+                  <div class="exc-line">
+                    <span class="exc-badge" title="{{ data.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ data.exc_badge }}</span>
+                    {% if data.exception_notes %}<span class="exc-note" title="{{ data.exception_notes }}"><i class="bi bi-sticky-fill"></i> {{ data.exception_notes|truncatechars:40 }}</span>{% endif %}
+                  </div>
+                {% endif %}
+                {% if data.pref_vehicle or data.shift_pref_label %}
+                  <div class="exc-line">
+                    {% if data.pref_vehicle %}<span class="pref-veh-pill" title="Preferred vehicle"><i class="bi bi-car-front-fill"></i> {{ data.pref_vehicle }}</span>{% endif %}
+                    {% if data.shift_pref_label %}<span class="shift-pref-text">{{ data.shift_pref_label }}</span>{% endif %}
+                  </div>
+                {% endif %}
                 {% if data.prev_night_cleared %}
                   <div style="color:#ff9100;font-size:0.78rem;font-weight:600;margin-top:2px;" title="Previous day last job cleared"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
                 {% endif %}
               </div>
               <div class="timeline-bar">
+                {% for b in data.avail_blocks %}
+                  <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
+                {% endfor %}
                 {% for slot in data.schedule.slots %}
-                  <div class="timeline-slot {{ slot.trip_type }}" data-tl-popup
+                  <div class="timeline-slot {{ slot.trip_type }}{% if slot.pending_refund %} refund-pending{% endif %}" data-tl-popup
                        data-leg-id="{{ slot.leg_id }}"
+                       data-pending-refund="{{ slot.pending_refund|yesno:'1,0' }}"
                        style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
                        data-trip="{{ slot.trip_type }}"
                        data-time="{{ slot.pickup_time|time:'g:i A' }}"
@@ -71,7 +87,7 @@
                        data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
                        data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}"
                        onclick="document.getElementById('leg-row-{{ slot.leg_id }}')?.scrollIntoView({behavior:'smooth', block:'center'})">
-                    {{ slot.pickup_time|time:"g:i" }}{% if slot.extra_stop_count %}<sup style="color:#d4a017;font-weight:700;">+{{ slot.extra_stop_count }}</sup>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                    {{ slot.pickup_time|time:"g:i" }}{% if slot.extra_stop_count %}<sup style="color:#d4a017;font-weight:700;">+{{ slot.extra_stop_count }}</sup>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                     <span class="tl-status-strip st-{{ slot.status }}"></span>
                   </div>
                 {% endfor %}

@@ -7,10 +7,14 @@ from datetime import date, time
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from drivers.models import Driver, DriverWeeklySchedule, DriverDateOverride
+from drivers.models import Driver, DriverWeeklySchedule, DriverDateOverride, FleetVehicle
+from rates.models import Vehicle
 from drivers.availability import (
     resolve_effective_availability,
     is_pickup_within_window,
+    format_exception_badge,
+    availability_block_bands,
+    format_shift_preference,
 )
 
 
@@ -184,6 +188,169 @@ class AvailabilityResolverTests(TestCase):
         is_avail, sh, eh, pref, flex = self.driver.get_availability_for_date(date(2026, 5, 22))
         self.assertFalse(is_avail)
         self.assertEqual((sh, eh), (0, 0))
+
+
+class ExceptionBadgeAndBandTests(TestCase):
+    """Red-pill text (format_exception_badge) and on-grid timeline band math
+    (availability_block_bands) used to make one-time unavailability prominent."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="luis", first_name="Luis")
+        cls.driver = Driver.objects.create(
+            profile=cls.user, driver_type="inhouse",
+            default_shift_type="full_day", default_start_hour=6, default_end_hour=17,
+            default_flexible=False,
+        )
+
+    def _eff(self, **kwargs):
+        defaults = dict(date=date(2026, 5, 22), exception_type="off", reason="day_off")
+        defaults.update(kwargs)
+        DriverDateOverride.objects.create(driver=self.driver, **defaults)
+        return resolve_effective_availability(self.driver, defaults["date"])
+
+    # --- format_exception_badge ------------------------------------------------
+
+    def test_badge_unavailable_window(self):
+        eff = self._eff(exception_type="unavailable_window",
+                        start_time=time(10, 30), end_time=time(12, 30))
+        self.assertEqual(format_exception_badge(eff), "Unavailable 10:30 AM – 12:30 PM")
+
+    def test_badge_available_until(self):
+        eff = self._eff(exception_type="available_until", end_time=time(16, 0))
+        self.assertEqual(format_exception_badge(eff), "Until 4 PM")
+
+    def test_badge_available_after(self):
+        eff = self._eff(exception_type="available_after", start_time=time(12, 0))
+        self.assertEqual(format_exception_badge(eff), "After 12 PM")
+
+    def test_badge_available_window(self):
+        eff = self._eff(exception_type="available_window",
+                        start_time=time(8, 0), end_time=time(14, 0))
+        self.assertEqual(format_exception_badge(eff), "Window 8 AM – 2 PM")
+
+    def test_badge_empty_when_off(self):
+        eff = self._eff(exception_type="off")
+        self.assertEqual(format_exception_badge(eff), "")
+
+    def test_badge_empty_when_no_exception(self):
+        eff = resolve_effective_availability(self.driver, date(2026, 5, 21))
+        self.assertEqual(format_exception_badge(eff), "")
+
+    # --- availability_block_bands (display_start=6, end=22 -> total=1020) -------
+    # A time t maps to ((t.hour-6)*60 + t.minute) / 1020 * 100.
+
+    def test_band_unavailable_window(self):
+        eff = self._eff(exception_type="unavailable_window",
+                        start_time=time(10, 30), end_time=time(12, 30))
+        bands = availability_block_bands(eff, 6, 1020)
+        self.assertEqual(len(bands), 1)
+        self.assertAlmostEqual(bands[0]["left_pct"], 26.5, places=1)   # 270/1020*100
+        self.assertAlmostEqual(bands[0]["width_pct"], 11.8, places=1)  # (390-270)/1020*100
+        self.assertEqual(bands[0]["label"], "Unavailable")
+
+    def test_band_available_after_blocks_morning(self):
+        eff = self._eff(exception_type="available_after", start_time=time(12, 0))
+        bands = availability_block_bands(eff, 6, 1020)
+        self.assertEqual(len(bands), 1)
+        self.assertAlmostEqual(bands[0]["left_pct"], 0.0, places=1)
+        self.assertAlmostEqual(bands[0]["width_pct"], 35.3, places=1)  # 360/1020*100
+
+    def test_band_available_until_blocks_evening(self):
+        eff = self._eff(exception_type="available_until", end_time=time(16, 0))
+        bands = availability_block_bands(eff, 6, 1020)
+        self.assertEqual(len(bands), 1)
+        self.assertAlmostEqual(bands[0]["left_pct"], 58.8, places=1)   # 600/1020*100
+        self.assertAlmostEqual(bands[0]["width_pct"], 41.2, places=1)  # to 100%
+
+    def test_band_available_window_blocks_both_ends(self):
+        eff = self._eff(exception_type="available_window",
+                        start_time=time(8, 0), end_time=time(14, 0))
+        bands = availability_block_bands(eff, 6, 1020)
+        self.assertEqual(len(bands), 2)
+        self.assertAlmostEqual(bands[0]["left_pct"], 0.0, places=1)
+        self.assertAlmostEqual(bands[0]["width_pct"], 11.8, places=1)  # 120/1020*100
+        self.assertAlmostEqual(bands[1]["left_pct"], 47.1, places=1)   # 480/1020*100
+        self.assertAlmostEqual(bands[1]["width_pct"], 52.9, places=1)
+
+    def test_band_clamps_to_visible_timeline(self):
+        # Block 4:00–7:00 but the timeline starts at 6:00 -> clipped to [6:00, 7:00].
+        eff = self._eff(exception_type="unavailable_window",
+                        start_time=time(4, 0), end_time=time(7, 0))
+        bands = availability_block_bands(eff, 6, 1020)
+        self.assertEqual(len(bands), 1)
+        self.assertAlmostEqual(bands[0]["left_pct"], 0.0, places=1)
+        self.assertAlmostEqual(bands[0]["width_pct"], 5.9, places=1)   # 60/1020*100
+
+    def test_band_empty_when_off(self):
+        eff = self._eff(exception_type="off")
+        self.assertEqual(availability_block_bands(eff, 6, 1020), [])
+
+    def test_band_empty_when_no_exception(self):
+        eff = resolve_effective_availability(self.driver, date(2026, 5, 21))
+        self.assertEqual(availability_block_bands(eff, 6, 1020), [])
+
+
+class VehicleCapabilityTests(TestCase):
+    """Driver.can_drive / cert_labels / preferred_vehicle_label + format_shift_preference."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="cap", first_name="Cap")
+        cls.driver = Driver.objects.create(profile=cls.user, driver_type="inhouse")
+        cls.suv = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=4)
+        cls.sprinter = Vehicle.objects.create(
+            vehicle_type="Van(14 Pax)", capacity=14, luggage_capacity=10,
+            requires_certification=True,
+        )
+        cls.unit = FleetVehicle.objects.create(
+            vehicle_number="008", vehicle_type=cls.suv, year=2022, make="Chev", model="Suburban",
+        )
+
+    def test_can_drive_unrestricted_type(self):
+        self.assertTrue(self.driver.can_drive(self.suv))
+
+    def test_cannot_drive_restricted_without_cert(self):
+        self.assertFalse(self.driver.can_drive(self.sprinter))
+
+    def test_can_drive_restricted_once_certified(self):
+        self.driver.certified_vehicle_types.add(self.sprinter)
+        self.assertTrue(self.driver.can_drive(self.sprinter))
+
+    def test_can_drive_none_type_allowed(self):
+        self.assertTrue(self.driver.can_drive(None))
+
+    def test_cert_labels_sprinter(self):
+        self.driver.certified_vehicle_types.add(self.sprinter)
+        self.assertEqual(self.driver.cert_labels(), ["Sprinter"])
+
+    def test_preferred_vehicle_label_type_and_unit(self):
+        self.driver.preferred_vehicle_types.add(self.suv)
+        self.driver.preferred_vehicles.add(self.unit)
+        self.assertEqual(self.driver.preferred_vehicle_label(), "Suv · #008")
+
+    def test_preferred_vehicle_label_empty(self):
+        self.assertEqual(self.driver.preferred_vehicle_label(), "")
+
+    # --- format_shift_preference -----------------------------------------------
+
+    def test_shift_pref_flexible_prefers_mornings(self):
+        # "Flexible" is shown separately (badge/icon), so the preference label
+        # must not repeat it — just the preference nuance.
+        eff = {"is_available": True, "flexible": True, "preferred_shift": "morning"}
+        self.assertEqual(format_shift_preference(eff), "Prefers mornings")
+
+    def test_shift_pref_fixed_prefers_nights(self):
+        eff = {"is_available": True, "flexible": False, "preferred_shift": "night"}
+        self.assertEqual(format_shift_preference(eff), "Prefers nights")
+
+    def test_shift_pref_empty_without_preferred_shift(self):
+        eff = {"is_available": True, "flexible": True, "preferred_shift": ""}
+        self.assertEqual(format_shift_preference(eff), "")
+
+    def test_shift_pref_empty_when_off(self):
+        eff = {"is_available": False, "flexible": True, "preferred_shift": "morning"}
+        self.assertEqual(format_shift_preference(eff), "")
 
 
 class DriverDateOverrideModelTests(TestCase):

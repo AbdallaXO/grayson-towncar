@@ -66,6 +66,25 @@ class Driver(models.Model):
         help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."
     )
 
+    # ── Vehicle capability + preferences (driver knowledge for dispatchers) ──
+    # Capability is exception-based: a vehicle TYPE is only restricted if its
+    # rates.Vehicle.requires_certification is set (today only the Sprinter / 14-pax).
+    # certified_vehicle_types lists the restricted types this driver is cleared for.
+    certified_vehicle_types = models.ManyToManyField(
+        "rates.Vehicle", blank=True, related_name="certified_drivers",
+        help_text="Restricted vehicle types this driver is cleared to drive (e.g. the Sprinter / "
+                  "14-pax van). Non-restricted types need no entry here.",
+    )
+    preferred_vehicle_types = models.ManyToManyField(
+        "rates.Vehicle", blank=True, related_name="preferring_drivers",
+        help_text="Vehicle type(s) this driver prefers to drive (soft preference — informational).",
+    )
+    preferred_vehicles = models.ManyToManyField(
+        "FleetVehicle", blank=True, related_name="preferring_drivers",
+        help_text="Specific vehicle unit(s) this driver prefers / usually drives, e.g. their "
+                  "regular car (soft preference — informational).",
+    )
+
     # ── Gusto contractor matching (used only by the Gusto Smart Import CSV export) ──
     # All fields optional. Leave blank to fall back to profile.first_name / last_name
     # for matching. Only the masked last-4 or contractor ID is stored — never the
@@ -216,6 +235,33 @@ class Driver(models.Model):
         effective-availability fields (status, display_label, exception, ...).
         """
         return self.get_effective_availability(target_date)
+
+    # ── Vehicle capability + preference helpers ──────────────────────────────
+    def can_drive(self, vehicle_type):
+        """True if this driver may be assigned the given rates.Vehicle (type).
+
+        Non-restricted types are drivable by everyone; a restricted type
+        (requires_certification) is drivable only if the driver is certified for it.
+        `vehicle_type` may be None (unknown type → allowed)."""
+        if vehicle_type is None or not getattr(vehicle_type, "requires_certification", False):
+            return True
+        return self.certified_vehicle_types.filter(pk=vehicle_type.pk).exists()
+
+    def cert_labels(self):
+        """Display labels for the restricted vehicle types this driver is cleared for,
+        e.g. ['Sprinter']. 'Van(14 Pax)' is shown as 'Sprinter'."""
+        labels = []
+        for v in self.certified_vehicle_types.all():
+            if getattr(v, "requires_certification", False):
+                labels.append("Sprinter" if v.vehicle_type == "Van(14 Pax)" else str(v))
+        return labels
+
+    def preferred_vehicle_label(self):
+        """Combined soft vehicle preference: type(s) and/or specific unit(s),
+        e.g. 'SUV · #008'. Empty string when none set."""
+        parts = [str(v) for v in self.preferred_vehicle_types.all()]
+        parts += [f"#{fv.vehicle_number}" for fv in self.preferred_vehicles.all()]
+        return " · ".join(parts)
 
     def __str__(self):
         if self.profile.first_name:

@@ -7,68 +7,67 @@
 {% block head_extra %}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 {% endblock %}
 
 {% block extra_css %}
 <style>
   /* ── V1 Heatmap (light) tokens ───────────────────────────────────── */
   .sm {
-    --page: #F4F1E8;
+    --page: #F6F7F9;
     --surface: #FFFFFF;
-    --surface2: #FAF7EE;
-    --surface3: #F1ECDF;
-    --nav-top: #0d1117;
-    --nav-top-text: #F8F6F0;
-    --hairline: rgba(13,17,23,0.08);
-    --hairline2: rgba(13,17,23,0.14);
-    --text: #0d1117;
-    --text2: #5C5749;
-    --text3: #8B8470;
-    --gold: #A8861B;
-    --gold-strong: #8C6F12;
-    --gold-soft: rgba(168,134,27,0.10);
-    --gold-line: rgba(168,134,27,0.32);
-    --good: #2F8E5A;
-    --warn: #B57B1F;
-    --warn-soft: rgba(181,123,31,0.10);
-    --crit: #B5413F;
-    --info: #2F6FB5;
-    --info-soft: rgba(47,111,181,0.08);
+    --surface2: #FAFBFC;
+    --surface3: #EEF1F4;
+    --nav-top: #FFFFFF;
+    --nav-top-text: #1A1D21;
+    --hairline: rgba(20,22,28,0.07);
+    --hairline2: rgba(20,22,28,0.12);
+    --text: #1A1D21;
+    --text2: #5A6068;
+    --text3: #9AA0A8;
+    --gold: #B0851C;
+    --gold-strong: #8A6A12;
+    --gold-soft: rgba(176,133,28,0.09);
+    --gold-line: rgba(176,133,28,0.26);
+    --good: #2E7D52;
+    --warn: #B07A22;
+    --warn-soft: rgba(176,122,34,0.10);
+    --crit: #C0504D;
+    --info: #3A6EA5;
+    --info-soft: rgba(58,110,165,0.07);
     background: var(--page);
     color: var(--text);
-    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-feature-settings: 'tnum' 1;
-    letter-spacing: 0.005em;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
   }
   .sm *, .sm *::before, .sm *::after { box-sizing: border-box; }
-  body.schedule-mgr-page { background: #F4F1E8; }
+  body.schedule-mgr-page { background: #F6F7F9; }
   body.schedule-mgr-page > main, body.schedule-mgr-page main { padding: 0 !important; }
 
-  .sm-display { font-family: 'Playfair Display', Georgia, serif; font-weight: 600; letter-spacing: -0.02em; }
-  .sm-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-feature-settings: 'tnum' 1; }
+  .sm-display { font-family: 'Montserrat', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+  .sm-mono { font-family: 'Montserrat', sans-serif; font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums; }
   .sm-eyebrow {
     font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em;
     text-transform: uppercase; color: var(--gold);
   }
 
   /* ── shift-type palette ──────────────────────────────────────────── */
-  .sm-shift-morning { --fg:#9C5A14; --bg:rgba(232,168,92,0.16);  --accent:#E08A2A; }
-  .sm-shift-midday  { --fg:#7E6512; --bg:rgba(232,201,92,0.18);  --accent:#D4A91D; }
-  .sm-shift-evening { --fg:#5A3F8C; --bg:rgba(155,123,196,0.16); --accent:#7B5BB0; }
-  .sm-shift-night   { --fg:#1f2e6e; --bg:rgba(92,123,232,0.14);  --accent:#4860C8; }
-  .sm-shift-split   { --fg:#1d5b75; --bg:rgba(123,174,196,0.18); --accent:#4B8FA8; }
-  .sm-shift-flex    { --fg:#1F6B45; --bg:rgba(123,196,155,0.16); --accent:#4DA678; }
-  .sm-shift-set     { --fg:#7a5f1a; --bg:rgba(201,162,39,0.10);  --accent:#C9A227; }
-  .sm-shift-off     { --fg:#8B8470; --bg:transparent;             --accent:#C9C1AA; }
+  .sm-shift-morning { --fg:#8A5A1E; --bg:transparent; --accent:#C99A5B; }
+  .sm-shift-midday  { --fg:#7A6418; --bg:transparent; --accent:#C7A93E; }
+  .sm-shift-evening { --fg:#5E4A86; --bg:transparent; --accent:#9583B8; }
+  .sm-shift-night   { --fg:#3A4A86; --bg:transparent; --accent:#6E82B8; }
+  .sm-shift-split   { --fg:#2F6173; --bg:transparent; --accent:#6FA3B5; }
+  .sm-shift-flex    { --fg:#357A52; --bg:transparent; --accent:#74B08C; }
+  .sm-shift-set     { --fg:#7A6218; --bg:transparent; --accent:#C2A24A; }
+  .sm-shift-off     { --fg:#9AA0A8; --bg:transparent; --accent:#D2D6DC; }
 
   /* ── exception-type palette ─────────────────────────────────────── */
-  .sm-exc-partial { --efg:#B57B1F; --esoft:rgba(181,123,31,0.12); --ering:rgba(181,123,31,0.45); }
-  .sm-exc-pto     { --efg:#2F6FB5; --esoft:rgba(47,111,181,0.10); --ering:rgba(47,111,181,0.40); }
-  .sm-exc-leave   { --efg:#B5413F; --esoft:rgba(181,65,63,0.10);  --ering:rgba(181,65,63,0.40); }
-  .sm-exc-swap    { --efg:#5A3F8C; --esoft:rgba(123,91,176,0.12); --ering:rgba(123,91,176,0.45); }
+  .sm-exc-partial { --efg:#B07A22; --esoft:rgba(176,122,34,0.10); --ering:rgba(176,122,34,0.34); }
+  .sm-exc-pto     { --efg:#3A6EA5; --esoft:rgba(58,110,165,0.09); --ering:rgba(58,110,165,0.32); }
+  .sm-exc-leave   { --efg:#C0504D; --esoft:rgba(192,80,77,0.09);  --ering:rgba(192,80,77,0.32); }
+  .sm-exc-swap    { --efg:#6E5A99; --esoft:rgba(110,90,153,0.10); --ering:rgba(110,90,153,0.34); }
 
   /* ── buttons ────────────────────────────────────────────────────── */
   .sm-btn {
@@ -81,23 +80,22 @@
   }
   .sm-btn:hover { background: var(--surface3); border-color: var(--gold-line); color: var(--text); }
   .sm-btn-gold {
-    background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
-    color: #0d1117 !important; border-color: transparent; font-weight: 600;
+    background: #C9A227;
+    color: #1A1D21 !important; border-color: transparent; font-weight: 600;
   }
   .sm-btn-gold:hover {
-    box-shadow: 0 4px 16px rgba(201,162,39,0.30);
-    transform: translateY(-1px);
-    background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
-    color: #0d1117;
+    box-shadow: 0 2px 8px rgba(201,162,39,0.22);
+    background: #BD981F;
+    color: #1A1D21;
   }
   .sm-btn-dark {
-    background: rgba(255,255,255,0.06); color: #fff;
-    border-color: rgba(255,255,255,0.16);
+    background: var(--surface); color: var(--text);
+    border-color: var(--hairline2);
   }
-  .sm-btn-dark:hover { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.28); }
+  .sm-btn-dark:hover { background: var(--surface3); color: var(--text); border-color: var(--gold-line); }
   .sm-btn-dark.is-active {
-    background: rgba(201,162,39,0.18); color: #E8D5B7;
-    border-color: rgba(201,162,39,0.42);
+    background: var(--gold-soft); color: var(--gold-strong);
+    border-color: var(--gold-line);
   }
 
   /* ── dark page header ───────────────────────────────────────────── */
@@ -105,27 +103,28 @@
     display: flex; align-items: center; justify-content: space-between;
     gap: 24px; padding: 14px 24px;
     background: var(--nav-top); color: var(--nav-top-text);
+    border-bottom: 1px solid var(--hairline);
   }
   .sm-header-left { display: flex; align-items: center; gap: 18px; min-width: 0; }
   .sm-brand-mark {
     width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto;
     background: linear-gradient(135deg, #C9A227 0%, #E8D5B7 50%, #C9A227 100%);
     display: flex; align-items: center; justify-content: center;
-    color: #0d1117; font-family: 'Playfair Display', serif;
+    color: #1A1D21; font-family: 'Montserrat', sans-serif;
     font-size: 17px; font-weight: 700;
   }
   .sm-brand-text { line-height: 1.05; }
-  .sm-brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 16px; color: #fff; }
+  .sm-brand-name { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 16px; color: var(--text); }
   .sm-brand-eyebrow {
-    font-size: 10px; color: rgba(255,255,255,0.55);
+    font-size: 10px; color: var(--text3);
     letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;
   }
   .sm-header-divider {
-    width: 1px; height: 28px; background: rgba(255,255,255,0.12); flex: 0 0 auto;
+    width: 1px; height: 28px; background: var(--hairline2); flex: 0 0 auto;
   }
-  .sm-page-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 20px; color: #fff; line-height: 1.05; }
+  .sm-page-title { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 19px; color: var(--text); line-height: 1.1; letter-spacing: -0.01em; }
   .sm-page-subtitle {
-    font-size: 11.5px; color: rgba(255,255,255,0.55); margin-top: 2px;
+    font-size: 11.5px; color: var(--text3); margin-top: 2px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .sm-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -179,7 +178,7 @@
   .sm-cov-delta.is-good { color: var(--good); }
   .sm-cov-delta.is-crit { color: var(--crit); }
   .sm-cov-number-row { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
-  .sm-cov-number { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 34px; line-height: 1; letter-spacing: -0.02em; }
+  .sm-cov-number { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 27px; line-height: 1; letter-spacing: -0.01em; }
   .sm-cov-number.is-good { color: var(--good); }
   .sm-cov-number.is-warn { color: var(--warn); }
   .sm-cov-number.is-crit { color: var(--crit); }
@@ -248,7 +247,7 @@
     letter-spacing: 0.12em; text-transform: uppercase;
   }
   .sm-rib-pill .date-range {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: 'Montserrat', sans-serif;
     font-size: 11px; color: var(--text2);
   }
   .sm-rib-pill .reason { font-size: 11px; color: var(--text3); }
@@ -347,21 +346,21 @@
     min-height: 54px; color: var(--fg);
     min-width: 0;
   }
-  .sm-cell:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13,17,23,0.08); z-index: 2; }
+  .sm-cell:hover { box-shadow: 0 2px 6px rgba(20,22,28,0.06); z-index: 2; border-color: var(--gold-line); }
   .sm-cell.is-off {
-    background: repeating-linear-gradient(135deg,
-      var(--surface), var(--surface) 6px,
-      var(--page) 6px, var(--page) 12px);
-    border-color: var(--hairline); color: var(--text3);
+    background: repeating-linear-gradient(45deg, rgba(220,38,38,0.13) 0 6px, rgba(220,38,38,0.22) 6px 12px);
+    border-color: #dc2626; color: #9A3A3A;
   }
+  .sm-cell.is-off .day,
+  .sm-cell.is-off .type { color: #B5413F; }
   .sm-cell.is-working {
-    background: var(--bg);
-    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    background: var(--surface);
+    border-color: var(--hairline2);
   }
   .sm-cell.has-flex { border-style: dashed; }
   .sm-cell .stripe-top {
-    position: absolute; left: 0; right: 0; top: 0; height: 3px;
-    border-radius: 8px 8px 0 0; background: var(--accent);
+    position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    border-radius: 8px 0 0 8px; background: var(--accent);
   }
   .sm-cell.locked::after {
     content: ''; position: absolute; top: 5px; right: 5px;
@@ -374,12 +373,16 @@
   }
   .sm-cell .maxh { font-size: 8.5px; color: var(--warn); font-weight: 700; }
   .sm-cell .hrs {
-    font-size: 12px; font-weight: 700;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 12px; font-weight: 700; color: var(--text);
+    font-family: 'Montserrat', sans-serif;
   }
   .sm-cell .type {
     font-size: 9px; font-weight: 700; letter-spacing: 0.10em;
     text-transform: uppercase; opacity: .85;
+  }
+  .sm-cell .pref {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
+    color: var(--gold-strong); margin-top: 1px; line-height: 1.15;
   }
 
   .sm-row-actions {
@@ -417,7 +420,7 @@
     background: var(--surface2);
   }
   .sm-drawer-head-row { display: flex; align-items: flex-start; gap: 14px; }
-  .sm-drawer-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: var(--text); }
+  .sm-drawer-name { font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; color: var(--text); }
   .sm-drawer-meta {
     font-size: 11.5px; color: var(--text2); margin-top: 4px;
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -496,7 +499,7 @@
   .sm-weekly-row .day-name { font-size: 12px; color: var(--text); font-weight: 700; }
   .sm-weekly-row .day-name.is-off { color: var(--text3); }
   .sm-weekly-row .hrs {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: 'Montserrat', sans-serif;
     font-size: 12px; color: var(--text);
   }
   .sm-weekly-row .hrs.is-off { color: var(--text3); }
@@ -560,7 +563,7 @@
     letter-spacing: 0.12em; text-transform: uppercase;
   }
   .sm-exc-row .range {
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-family: 'Montserrat', sans-serif;
     font-size: 12px; color: var(--text); font-weight: 600;
   }
   .sm-exc-row .reason { font-size: 12px; color: var(--text2); margin-top: 4px; }
@@ -619,18 +622,18 @@
   }
 
   /* ── risk palette (shared by banner, coverage, gaps, day drawer) ── */
-  .sm-risk-covered      { --rfg:#1F6B45; --rsoft:rgba(47,142,90,0.10);  --rline:rgba(47,142,90,0.45);  --rdot:#2F8E5A; }
-  .sm-risk-tight        { --rfg:#8C6F12; --rsoft:rgba(181,123,31,0.12); --rline:rgba(181,123,31,0.50); --rdot:#B57B1F; }
-  .sm-risk-understaffed { --rfg:#A8341F; --rsoft:rgba(181,65,63,0.12);  --rline:rgba(181,65,63,0.50);  --rdot:#B5413F; }
-  .sm-risk-critical     { --rfg:#fff;    --rsoft:#B5413F;                --rline:#8C2A28;              --rdot:#fff;    }
-  .sm-risk-no_data      { --rfg:#8B8470; --rsoft:rgba(13,17,23,0.04);   --rline:var(--hairline2);     --rdot:#8B8470; }
+  .sm-risk-covered      { --rfg:#2E7D52; --rsoft:rgba(46,125,82,0.09);  --rline:rgba(46,125,82,0.30);  --rdot:#2E7D52; }
+  .sm-risk-tight        { --rfg:#8A6A12; --rsoft:rgba(176,122,34,0.10); --rline:rgba(176,122,34,0.32); --rdot:#B07A22; }
+  .sm-risk-understaffed { --rfg:#B0413E; --rsoft:rgba(192,80,77,0.10);  --rline:rgba(192,80,77,0.32);  --rdot:#C0504D; }
+  .sm-risk-critical     { --rfg:#fff;    --rsoft:#C0504D;               --rline:#A33F3C;               --rdot:#fff;    }
+  .sm-risk-no_data      { --rfg:#9AA0A8; --rsoft:rgba(20,22,28,0.04);   --rline:var(--hairline2);      --rdot:#9AA0A8; }
 
   /* ── Action Needed banner ──────────────────────────────────────── */
   .sm-action {
     background: var(--surface); border: 1px solid var(--hairline);
     border-radius: 12px; overflow: hidden;
   }
-  .sm-action.has-crit { border-color: var(--crit); box-shadow: 0 0 0 1px rgba(181,65,63,0.18); }
+  .sm-action.has-crit { border-color: var(--crit); }
   .sm-action-head {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--hairline);
@@ -769,10 +772,8 @@
 
   /* mark grid cells whose driver is fully off on a risky day */
   .sm-cell.day-is-risky.is-off {
-    background: repeating-linear-gradient(135deg,
-      rgba(181,65,63,0.10), rgba(181,65,63,0.10) 6px,
-      rgba(181,65,63,0.04) 6px, rgba(181,65,63,0.04) 12px);
-    border-color: rgba(181,65,63,0.30);
+    background: repeating-linear-gradient(45deg, rgba(220,38,38,0.20) 0 6px, rgba(220,38,38,0.32) 6px 12px);
+    border-color: #dc2626;
   }
 
   /* ── ribbon pill impact line ──────────────────────────────────── */
@@ -798,7 +799,7 @@
   }
   .sm-day-eyebrow { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
                     color: var(--text3); font-weight: 700; }
-  .sm-day-title { font-family: 'Playfair Display', serif; font-weight: 600;
+  .sm-day-title { font-family: 'Montserrat', sans-serif; font-weight: 600;
                   font-size: 22px; line-height: 1.1; color: var(--text); margin-top: 4px; }
   .sm-day-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
   .sm-day-close {
@@ -821,7 +822,7 @@
     border-radius: 8px; padding: 10px 12px; text-align: center;
   }
   .sm-day-num-value {
-    font-family: 'Playfair Display', serif; font-weight: 600; font-size: 26px;
+    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 26px;
     line-height: 1; color: var(--text);
   }
   .sm-day-num-label {
@@ -934,13 +935,13 @@
           <span class="sm-cov-target">Target <b>{{ coverage_target }}</b> / day</span>
         </div>
         <div class="sm-cov-legend">
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#E08A2A;"></span>Morning</span>
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#D4A91D;"></span>Midday</span>
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#7B5BB0;"></span>Evening</span>
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#4860C8;"></span>Night</span>
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#4B8FA8;"></span>Split</span>
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#4DA678;"></span>Flexible</span>
-          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C9A227;"></span>Set Hours</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C99A5B;"></span>Morning</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C7A93E;"></span>Midday</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#9583B8;"></span>Evening</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#6E82B8;"></span>Night</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#6FA3B5;"></span>Split</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#74B08C;"></span>Flexible</span>
+          <span class="sm-cov-legend-item"><span class="sm-cov-legend-swatch" style="background:#C2A24A;"></span>Set Hours</span>
         </div>
       </div>
       <div class="sm-cov-grid" style="--cov-cols: {{ coverage_strip|length }};">
@@ -986,14 +987,14 @@
           <div class="sm-cov-bar">
             {% for s in c.segments %}
               <div title="{{ s.count }} {{ s.key }}" style="width:{{ s.pct }}%; background:var(--accent); --accent:
-                {% if s.key == 'morning' %}#E08A2A
-                {% elif s.key == 'midday' %}#D4A91D
-                {% elif s.key == 'evening' %}#7B5BB0
-                {% elif s.key == 'night' %}#4860C8
-                {% elif s.key == 'split' %}#4B8FA8
-                {% elif s.key == 'flex' %}#4DA678
-                {% elif s.key == 'set' %}#C9A227
-                {% else %}#C9C1AA{% endif %};"></div>
+                {% if s.key == 'morning' %}#C99A5B
+                {% elif s.key == 'midday' %}#C7A93E
+                {% elif s.key == 'evening' %}#9583B8
+                {% elif s.key == 'night' %}#6E82B8
+                {% elif s.key == 'split' %}#6FA3B5
+                {% elif s.key == 'flex' %}#74B08C
+                {% elif s.key == 'set' %}#C2A24A
+                {% else %}#D2D6DC{% endif %};"></div>
             {% endfor %}
           </div>
           <div class="sm-cov-survive {% if not c.survives_one_callout %}is-bad{% endif %}">
@@ -1148,6 +1149,9 @@
                 {% else %}
                   <div class="hrs">{{ day.hours_label }}</div>
                   <div class="type">{{ day.shift_label }}{% if day.locked %} · LOCK{% endif %}</div>
+                  {% if day.flexible and day.preferred_shift %}
+                  <div class="pref">prefers {% if day.preferred_shift == 'morning' %}mornings{% elif day.preferred_shift == 'midday' %}middays{% elif day.preferred_shift == 'evening' %}evenings{% elif day.preferred_shift == 'night' %}nights{% endif %}</div>
+                  {% endif %}
                 {% endif %}
               </div>
               {% endwith %}
@@ -1267,6 +1271,18 @@
       out += '<option value="' + h + '"' + (h === selected ? ' selected' : '') + '>' + fmtHour(h) + '</option>';
     }
     return out;
+  }
+  // Preferred time-of-day options — shown for FLEXIBLE days (no set hours), a
+  // soft hint the planner leans on but isn't bound by.
+  var PREF_SHIFT_OPTIONS = [
+    ['', 'No preference'], ['morning', 'Prefer morning'], ['midday', 'Prefer midday'],
+    ['evening', 'Prefer evening'], ['night', 'Prefer night'],
+  ];
+  function prefOptions(selected) {
+    selected = selected || '';
+    return PREF_SHIFT_OPTIONS.map(function(o) {
+      return '<option value="' + o[0] + '"' + (o[0] === selected ? ' selected' : '') + '>' + o[1] + '</option>';
+    }).join('');
   }
   function escapeHtml(s) {
     return String(s == null ? '' : s)
@@ -1487,8 +1503,12 @@
             '<span class="sm-weekly-toggle ' + (off ? '' : 'is-on') + '" data-action="toggle-day"></span>' +
             '<span class="day-name ' + (off ? 'is-off' : '') + '">' + DAY_NAMES[i] + '</span>' +
           '</span>' +
-          '<select data-action="start-hour" ' + (timeDisabled ? 'disabled' : '') + '>' + hourOptions(day.start_hour) + '</select>' +
-          '<select data-action="end-hour" ' + (timeDisabled ? 'disabled' : '') + '>' + hourOptions(day.end_hour) + '</select>' +
+          // Flexible day = no hard hours → the start/end pickers don't apply,
+          // so we swap them for a "preferred time of day" hint instead.
+          (flex && !off
+            ? '<select data-action="pref-shift" class="sm-pref-select" style="grid-column: span 2;" title="Preferred time of day — a soft hint for auto-assign, not a hard limit">' + prefOptions(day.preferred_shift) + '</select>'
+            : '<select data-action="start-hour" ' + (timeDisabled ? 'disabled' : '') + '>' + hourOptions(day.start_hour) + '</select>' +
+              '<select data-action="end-hour" ' + (timeDisabled ? 'disabled' : '') + '>' + hourOptions(day.end_hour) + '</select>') +
           '<label class="sm-flex-cell" title="Flexible — no hard start/end limits">' +
             '<input type="checkbox" data-action="flexible" ' + (flex ? 'checked' : '') + ' ' + (off ? 'disabled' : '') + ' />' +
           '</label>' +
@@ -1507,7 +1527,7 @@
       '<div class="sm-eyebrow" style="color:var(--text3); margin-bottom:8px;">Weekly default</div>' +
       '<div class="sm-weekly">' +
         '<div class="sm-weekly-head">' +
-          '<div>Day</div><div>Start</div><div>End</div><div>Flex</div><div>Max</div>' +
+          '<div>Day</div><div style="grid-column: span 2;">Hours / preference</div><div>Flex</div><div>Max</div>' +
         '</div>' +
         rows +
         '<div class="sm-weekly-foot">' +
@@ -1677,6 +1697,7 @@
       var toggle  = row.querySelector('[data-action="toggle-day"]');
       var startSel = row.querySelector('[data-action="start-hour"]');
       var endSel   = row.querySelector('[data-action="end-hour"]');
+      var prefSel  = row.querySelector('[data-action="pref-shift"]');
       var flexCb   = row.querySelector('[data-action="flexible"]');
       var maxIn   = row.querySelector('[data-action="max-hours"]');
       toggle.addEventListener('click', function() {
@@ -1696,6 +1717,9 @@
       });
       if (endSel) endSel.addEventListener('change', function() {
         draftWeek[idx].end_hour = parseInt(endSel.value, 10);
+      });
+      if (prefSel) prefSel.addEventListener('change', function() {
+        draftWeek[idx].preferred_shift = prefSel.value;
       });
       if (flexCb) flexCb.addEventListener('change', function() {
         draftWeek[idx].flexible = flexCb.checked;
@@ -1719,6 +1743,7 @@
         draftWeek[i].flexible     = mon.flexible;
         draftWeek[i].shift_type   = mon.shift_type;
         draftWeek[i].max_hours    = mon.max_hours;
+        draftWeek[i].preferred_shift = mon.preferred_shift;
       }
       renderDrawerBody();
     });
@@ -1881,8 +1906,8 @@
 
   var SHIFT_LABEL = { morning:'Morning', midday:'Midday', evening:'Evening',
     night:'Night', split:'Split', flex:'Flexible', set:'Set Hours' };
-  var SHIFT_COLOR = { morning:'#E08A2A', midday:'#D4A91D', evening:'#7B5BB0',
-    night:'#4860C8', split:'#4B8FA8', flex:'#4DA678', set:'#C9A227' };
+  var SHIFT_COLOR = { morning:'#C99A5B', midday:'#C7A93E', evening:'#9583B8',
+    night:'#6E82B8', split:'#6FA3B5', flex:'#74B08C', set:'#C2A24A' };
   var RISK_LABEL = { covered:'Covered', tight:'Tight',
     understaffed:'Understaffed', critical:'Critical', no_data:'No data' };
 

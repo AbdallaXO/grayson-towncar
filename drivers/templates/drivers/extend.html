@@ -95,6 +95,20 @@
     }
     .driver-name-link:hover { color: var(--gt-gold); border-bottom-color: var(--gt-gold); }
     .driver-username { color: var(--gt-muted); font-size: 0.7rem; display: block; }
+    /* Inactive drivers stay in the directory but are visually de-emphasized */
+    .driver-inactive-row { opacity: 0.55; }
+    .driver-inactive-row:hover { opacity: 0.85; }
+    /* Driver "tribal knowledge" pills: vehicle capability + preferences */
+    .driver-knowledge { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 3px; }
+    .driver-knowledge .cap-pill {
+        display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d;
+        border: 1px solid #86efac; font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+    }
+    .driver-knowledge .pref-veh-pill {
+        display: inline-flex; align-items: center; gap: 3px; background: #eff6ff; color: #1d4ed8;
+        border: 1px solid #bfdbfe; font-size: 0.62rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+    }
+    .driver-knowledge .shift-pref-text { color: #6366f1; font-size: 0.62rem; font-weight: 600; }
 
     /* Type badges */
     .type-badge {
@@ -223,33 +237,34 @@
       {# Tab pills #}
       <div class="d-flex justify-content-center mb-3">
         <div class="dir-tabs" role="tablist" aria-label="Driver type filter">
-          <a href="?tab=all{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}"
+          <a href="?tab=all{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if active_only %}&active_only=1{% endif %}"
              class="dir-tab {% if active_tab == 'all' %}active{% endif %}">
             <i class="bi bi-grid-fill"></i> All <span class="tab-count">{{ all_count_total }}</span>
           </a>
-          <a href="?tab=inhouse{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}"
+          <a href="?tab=inhouse{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if active_only %}&active_only=1{% endif %}"
              class="dir-tab {% if active_tab == 'inhouse' %}active{% endif %}">
             <i class="bi bi-building"></i> In-House <span class="tab-count">{{ inhouse_count_total }}</span>
           </a>
-          <a href="?tab=affiliate{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if show_inactive %}&show_inactive=1{% endif %}"
+          <a href="?tab=affiliate{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if active_only %}&active_only=1{% endif %}"
              class="dir-tab {% if active_tab == 'affiliate' %}active{% endif %}">
             <i class="bi bi-person-badge"></i> Affiliate <span class="tab-count">{{ affiliate_count_total }}</span>
           </a>
         </div>
       </div>
 
-      {# Show/hide inactive drivers toggle #}
+      {# Active-only filter (inactive drivers are listed here by default, marked Inactive) #}
       <div class="d-flex justify-content-center mb-3">
-        {% if show_inactive %}
+        {% if active_only %}
           <a href="?tab={{ active_tab }}{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}"
-             class="btn btn-sm" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);">
-            <i class="bi bi-eye-slash me-1"></i>Hide inactive drivers
-          </a>
-        {% else %}
-          <a href="?tab={{ active_tab }}{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}&show_inactive=1"
              class="btn btn-sm" style="background: var(--gt-surface-2); color: var(--gt-text-secondary); border: 1px solid var(--gt-border);">
             <i class="bi bi-eye me-1"></i>Show inactive drivers
             {% if inactive_count_total %}<span class="badge ms-1" style="background: var(--gt-border); color: var(--gt-text);">{{ inactive_count_total }}</span>{% endif %}
+          </a>
+        {% else %}
+          <a href="?tab={{ active_tab }}{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}&active_only=1"
+             class="btn btn-sm" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);">
+            <i class="bi bi-eye-slash me-1"></i>Active only
+            {% if inactive_count_total %}<span class="badge ms-1" style="background: var(--gt-border); color: var(--gt-text);">{{ inactive_count_total }} inactive</span>{% endif %}
           </a>
         {% endif %}
       </div>
@@ -303,7 +318,7 @@
             </thead>
             <tbody>
               {% for driver in drivers %}
-                <tr>
+                <tr{% if not driver.is_active %} class="driver-inactive-row"{% endif %}>
                   <td data-label="Driver">
                     <a href="{% url 'driver_profile' driver.id %}" class="driver-name-link">
                       {% if driver.profile.first_name %}
@@ -313,9 +328,16 @@
                       {% endif %}
                     </a>
                     {% if not driver.is_active %}
-                      <span class="badge ms-1" style="background: var(--gt-border); color: var(--gt-text-secondary); font-weight: 600; letter-spacing: 0.04em;" title="This driver is marked inactive and is hidden from the directory by default.">INACTIVE</span>
+                      <span class="badge ms-1" style="background: #fee2e2; color: #991b1b; font-weight: 700; letter-spacing: 0.04em;" title="This driver is marked inactive — hidden from the planner, board, and vehicle assignment. Shown here in the directory only.">INACTIVE</span>
                     {% endif %}
                     <span class="driver-username">@{{ driver.profile.username }}</span>
+                    {% if driver.cert_labels or driver.preferred_vehicle_label or driver.shift_pref_label %}
+                    <div class="driver-knowledge">
+                      {% for c in driver.cert_labels %}<span class="cap-pill" title="Cleared to drive the {{ c }}"><i class="bi bi-patch-check-fill"></i> {{ c }}</span>{% endfor %}
+                      {% if driver.preferred_vehicle_label %}<span class="pref-veh-pill" title="Preferred vehicle"><i class="bi bi-car-front-fill"></i> {{ driver.preferred_vehicle_label }}</span>{% endif %}
+                      {% if driver.shift_pref_label %}<span class="shift-pref-text">{{ driver.shift_pref_label }}</span>{% endif %}
+                    </div>
+                    {% endif %}
                   </td>
                   <td data-label="Type">
                     {% if driver.driver_type == 'inhouse' %}

@@ -330,3 +330,102 @@ def is_pickup_within_window(eff, pickup_time, *, dropoff_dt=None):
             return (False, f"Pickup at {fmt_time_long(pickup_time)} is outside the driver's working hours ({fmt_hour_long(sh)}–{fmt_hour_long(eh)}).")
 
     return (True, "")
+
+
+# ----- Prominent visual helpers (red label badge + on-grid timeline band) -----
+
+def format_exception_badge(eff):
+    """Concise text for a prominent red "limited availability" pill, or "" if none.
+
+    Examples: 'Unavailable 10:30 AM – 12:30 PM', 'Until 4 PM', 'After 12 PM',
+    'Window 8 AM – 2 PM'. Returns "" for a full day off (shown as 'Off' elsewhere) or
+    when there is no limiting exception — so callers can render the pill only when truthy.
+    """
+    if not eff.get("is_available"):
+        return ""
+    et = eff.get("exception_type")
+    st = eff.get("exception_start_time")
+    en = eff.get("exception_end_time")
+    if et == "unavailable_window" and st is not None and en is not None:
+        return f"Unavailable {fmt_time_long(st)} – {fmt_time_long(en)}"
+    if et == "available_until" and en is not None:
+        return f"Until {fmt_time_long(en)}"
+    if et == "available_after" and st is not None:
+        return f"After {fmt_time_long(st)}"
+    if et == "available_window" and st is not None and en is not None:
+        return f"Window {fmt_time_long(st)} – {fmt_time_long(en)}"
+    return ""
+
+
+def availability_block_bands(eff, display_start, total_display_minutes):
+    """UNAVAILABLE regions to shade on a driver timeline for a partial-day exception.
+
+    Each item is {'left_pct', 'width_pct', 'label'} positioned in the SAME coordinate
+    system the dispatch views use for job slots: a time ``t`` maps to
+        ((t.hour - display_start) * 60 + t.minute) / total_display_minutes * 100
+    (see dispatching/views.py slot positioning), so a band lines up exactly with the
+    slots and the hour grid. The timeline's right edge (100%) corresponds to
+    ``total_display_minutes`` minutes after ``display_start``.
+
+    Handles the partial-day exception types:
+      unavailable_window [s,e] -> one band [s, e]
+      available_after  s       -> one band [day-start, s]
+      available_until  e       -> one band [e, day-end]
+      available_window [s,e]   -> two bands [day-start, s] and [e, day-end]
+    Returns [] when the driver is off (rendered as an 'Off' row, not a band) or there
+    is no limiting exception. Spans clipped outside the visible timeline are dropped.
+    """
+    if not eff.get("is_available") or not total_display_minutes:
+        return []
+    et = eff.get("exception_type")
+    st = eff.get("exception_start_time")
+    en = eff.get("exception_end_time")
+
+    def _mins(t):
+        return (t.hour - display_start) * 60 + t.minute
+
+    def _band(start_min, end_min):
+        left = max(0.0, min(100.0, start_min / total_display_minutes * 100))
+        right = max(0.0, min(100.0, end_min / total_display_minutes * 100))
+        width = round(right - left, 1)
+        if width <= 0:
+            return None
+        return {"left_pct": round(left, 1), "width_pct": width, "label": "Unavailable"}
+
+    spans = []
+    if et == "unavailable_window" and st is not None and en is not None:
+        spans.append((_mins(st), _mins(en)))
+    elif et == "available_after" and st is not None:
+        spans.append((0, _mins(st)))
+    elif et == "available_until" and en is not None:
+        spans.append((_mins(en), total_display_minutes))
+    elif et == "available_window" and st is not None and en is not None:
+        spans.append((0, _mins(st)))
+        spans.append((_mins(en), total_display_minutes))
+
+    return [b for b in (_band(a, z) for a, z in spans) if b]
+
+
+_SHIFT_PREF_WORDS = {
+    "morning": "mornings",
+    "midday":  "middays",
+    "evening": "evenings",
+    "night":   "nights",
+}
+
+
+def format_shift_preference(eff):
+    """Plain-language time-of-day preference for a driver, or "" if none.
+
+    Only the *preference* nuance — the flexible/fixed state is already shown
+    separately everywhere this label appears (the unlock/lock icon + the shift
+    badge), so we don't repeat "Flexible" here (it read as "Flexible" twice):
+        preferred_shift  -> 'Prefers mornings'
+        no preferred_shift -> '' (the flexible/fixed badge alone is enough)
+    """
+    if not eff.get("is_available"):
+        return ""
+    word = _SHIFT_PREF_WORDS.get(eff.get("preferred_shift") or "")
+    if not word:
+        return ""
+    return f"Prefers {word}"

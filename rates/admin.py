@@ -8,11 +8,12 @@ from rates.models import Vehicle, Route, Rate, Location, LocationGroup
 class VehicleAdmin(admin.ModelAdmin):
     list_display = [
         "vehicle_type", "capacity", "luggage_capacity",
-        "included_carseats", "included_boosters",
+        "included_carseats", "included_boosters", "requires_certification",
     ]
+    list_editable = ["requires_certification"]
     fieldsets = (
         (None, {
-            "fields": ("vehicle_type", "image"),
+            "fields": ("vehicle_type", "image", "requires_certification"),
         }),
         ("Passenger & Luggage", {
             "fields": ("capacity", "luggage_capacity"),

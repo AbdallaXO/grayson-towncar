@@ -19,6 +19,12 @@ class Vehicle(models.Model):
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
+    requires_certification = models.BooleanField(
+        default=False,
+        help_text="If checked, only drivers explicitly cleared for this vehicle type may be "
+                  "assigned it (e.g. the Sprinter / 14-passenger van). Assigning it to an "
+                  "uncertified driver is blocked.",
+    )
     image = models.ImageField(upload_to="vehicles/", blank=True)
     ff_carseats_max = models.PositiveIntegerField(
         default=2,

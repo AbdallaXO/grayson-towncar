@@ -3,6 +3,9 @@
 {% load flight_filters %}
 
 {% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
     :root {
         --gold: #C9A227;
@@ -13,6 +16,9 @@
     }
 
     /* ── Header ── */
+    /* Montserrat across the whole capacity planner (cascades to all sections) */
+    .planner-header, .chart-container { font-family: var(--va-sans); }
+
     .planner-header {
         background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
         padding: 2rem 0 1.5rem;
@@ -108,6 +114,48 @@
     .cp-shift-badge.sb-split    { background: #eff6ff; color: #1e40af; }
     .cp-shift-badge.sb-full_day { background: #ecfdf5; color: #065f46; }
     .cp-shift-badge.sb-custom   { background: #f0fdf4; color: #166534; }
+    /* Always-visible red exception pill + note (no hover needed) */
+    .va-exc-line { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 0; }
+    .exc-badge {
+        display: inline-flex; align-items: center; gap: 3px; background: #dc2626; color: #fff;
+        font-size: 0.62rem; font-weight: 800; padding: 2px 6px; border-radius: 4px;
+        letter-spacing: 0.02em; white-space: nowrap;
+    }
+    .exc-note {
+        display: inline-flex; align-items: center; gap: 3px; color: #b45309;
+        font-size: 0.6rem; font-weight: 600;
+    }
+    /* Vehicle capability (green) + preference + shift-preference */
+    .va-cap-line { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 0; }
+    .cap-pill {
+        display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d;
+        border: 1px solid #86efac; font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+        white-space: nowrap;
+    }
+    .pref-veh-pill {
+        display: inline-flex; align-items: center; gap: 3px; background: #eff6ff; color: #1d4ed8;
+        border: 1px solid #bfdbfe; font-size: 0.6rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+        white-space: nowrap;
+    }
+    .shift-pref-text { color: #6366f1; font-size: 0.6rem; font-weight: 600; white-space: nowrap; }
+    /* Previous-night clear time on the assignment card — prominent rest signal */
+    .va-cleared-line {
+        display: flex; align-items: center; gap: 4px; margin: 3px 0 1px;
+        font-size: 0.66rem; font-weight: 700; color: #b45309;
+        background: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; padding: 2px 6px;
+    }
+    .va-cleared-line .bi { color: #ea580c; }
+    /* One-time UNAVAILABLE window shaded on the grid (below job slots, can't block drag) */
+    .tl-unavail-band {
+        position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none;
+        background: repeating-linear-gradient(45deg, rgba(220,38,38,0.13) 0 6px, rgba(220,38,38,0.22) 6px 12px);
+        border-left: 2px solid #dc2626; border-right: 2px solid #dc2626;
+        display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .tl-unavail-band span {
+        font-size: 0.5rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+        color: #b91c1c; white-space: nowrap; opacity: 0.9;
+    }
     .cp-maxhrs-tag { font-size: 0.6rem; color: #9ca3af; font-weight: 600; white-space: nowrap; }
     .cp-pref-shift-badge {
         display: inline-flex; font-size: 0.6rem; font-weight: 700;
@@ -186,6 +234,22 @@
     .timeline-slot.return { background: #2e7d32; }
     .timeline-slot.cruise { background: #e65100; }
     .timeline-slot.other { background: #6a1b9a; }
+    /* Refund pending — must NOT blend in with normal trips */
+    .timeline-slot.refund-pending {
+        outline: 2px solid #dc2626; outline-offset: -2px;
+        background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0) 0 5px, rgba(220,38,38,0.45) 5px 9px);
+    }
+    .slot-refund {
+        background: #dc2626; color: #fff; font-weight: 800;
+        font-size: 0.5rem; line-height: 1; padding: 1px 3px; border-radius: 2px; margin-left: 2px;
+    }
+    .refund-badge {
+        display: inline-flex; align-items: center; gap: 3px;
+        background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+        font-size: 0.62rem; font-weight: 800; padding: 1px 6px; border-radius: 4px;
+        text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;
+    }
+    .refund-pending-card { border: 1.5px solid #dc2626 !important; background: #fef2f2; }
     .timeline-slot .slot-vtype {
         display: inline-block;
         font-size: 0.5rem;
@@ -466,6 +530,16 @@
         color: #6c757d;
         margin-bottom: 0.4rem;
     }
+    .sb-vtype-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 0.78rem; font-weight: 600; color: #374151;
+        background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 999px;
+        padding: 3px 10px; cursor: pointer; user-select: none;
+        transition: background .12s, border-color .12s, opacity .12s;
+    }
+    .sb-vtype-chip:has(input:checked) { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+    .sb-vtype-chip input { cursor: pointer; margin: 0; }
+    #sbVehicleTypes.sb-disabled { opacity: 0.45; pointer-events: none; }
     .sb-leg-item {
         display: flex;
         align-items: center;
@@ -598,6 +672,7 @@
 
     :root {
         --va-mono: 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo, Consolas, ui-monospace, monospace;
+        --va-sans: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         --va-state-has: #16a34a;
         --va-state-empty: var(--gold);
         --va-state-override: #ea580c;
@@ -619,7 +694,7 @@
         border-radius: 999px;
     }
     .va-progress-fraction {
-        font-family: var(--va-mono);
+        font-family: var(--va-sans);
         font-size: 0.72rem; font-weight: 700;
         color: var(--va-ink); letter-spacing: -0.02em;
         font-variant-numeric: tabular-nums;
@@ -663,6 +738,7 @@
         border: 1px solid #e1e4e8;
         border-radius: 6px;
         cursor: grab; user-select: none;
+        font-family: var(--va-sans);
         font-size: 0.76rem; line-height: 1.2;
         transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease, opacity .12s ease;
     }
@@ -682,23 +758,32 @@
         background: #fffbeb;
     }
     .va-veh-num {
-        font-family: var(--va-mono);
+        font-family: var(--va-sans);
         font-weight: 700; font-size: 0.78rem;
         color: var(--va-ink);
         font-variant-numeric: tabular-nums;
-        letter-spacing: -0.02em;
+        letter-spacing: -0.01em;
     }
+    /* Vehicle type — calm: a small colored dot + plain gray caps, no heavy badge */
     .va-veh-type {
-        font-size: 0.55rem; font-weight: 800;
-        padding: 0.12rem 0.35rem; border-radius: 3px;
-        text-transform: uppercase; letter-spacing: 0.05em;
-        font-family: var(--va-mono);
+        display: inline-flex; align-items: center; gap: 0.28rem;
+        font-size: 0.6rem; font-weight: 700;
+        background: none; padding: 0;
+        text-transform: uppercase; letter-spacing: 0.04em;
+        font-family: var(--va-sans);
+        color: var(--va-ink-2);
+        white-space: nowrap;
     }
-    .va-vtype-towncar  { background: #0f172a; color: #fbbf24; }
-    .va-vtype-suv      { background: #1e3a8a; color: #fff; }
-    .va-vtype-mini_van { background: #6d28d9; color: #fff; }
+    .va-veh-type::before {
+        content: ''; flex-shrink: 0;
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--vtype-dot, #94a3b8);
+    }
+    .va-vtype-towncar  { --vtype-dot: #d97706; }
+    .va-vtype-suv      { --vtype-dot: #2563eb; }
+    .va-vtype-mini_van { --vtype-dot: #7c3aed; }
     .va-vtype-van,
-    .va-vtype-van14    { background: #0f766e; color: #fff; }
+    .va-vtype-van14    { --vtype-dot: #0d9488; }
     .va-veh-model {
         font-size: 0.65rem; color: var(--va-ink-2); font-weight: 500;
         font-variant-numeric: tabular-nums;
@@ -721,6 +806,7 @@
         padding: 0.5rem 0.6rem 0.55rem 0.8rem;
         order: 1;
         display: flex; flex-direction: column;
+        font-family: var(--va-sans);
         transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
     }
     .va-driver-slot::before {
@@ -761,14 +847,14 @@
        the dispatcher's eye should land on first. */
     .va-time-pill {
         display: flex; align-items: center; gap: 0.4rem;
-        font-family: var(--va-mono);
-        font-size: 0.86rem; font-weight: 700;
-        padding: 0.32rem 0.5rem;
+        font-family: var(--va-sans);
+        font-size: 0.78rem; font-weight: 600;
+        padding: 0.28rem 0.5rem;
         border-radius: 6px;
-        background: #f1f3f5;
+        background: #f4f5f7;
         color: var(--va-ink);
         font-variant-numeric: tabular-nums;
-        letter-spacing: -0.015em;
+        letter-spacing: 0;
         line-height: 1.15;
         margin-bottom: 0.4rem;
         white-space: nowrap;
@@ -789,16 +875,8 @@
         font-size: 0.62rem; font-weight: 500; opacity: 0.6;
         flex-shrink: 0;
     }
-    /* Soft tints per shift band — just enough to differentiate */
-    .va-time-pill.tp-morning  { background: #fff4ec; color: #9a3412; }
-    .va-time-pill.tp-midday   { background: #fefbe2; color: #854d0e; }
-    .va-time-pill.tp-evening  { background: #f3eefe; color: #5b21b6; }
-    .va-time-pill.tp-night    { background: #1e293b; color: #f1f5f9; }
-    .va-time-pill.tp-night .bi-clock { opacity: 0.7; }
-    .va-time-pill.tp-split    { background: #ecf3ff; color: #1e40af; }
-    .va-time-pill.tp-full_day,
-    .va-time-pill.tp-custom,
-    .va-time-pill.tp-flex     { background: #e7f9ee; color: #047857; }
+    /* Neutral body (Option B): availability stays one calm gray for every shift —
+       status is carried by the left edge bar, not by tinting each pill. */
 
     /* Inline secondary meta (legs count, preference badge) */
     .va-drv-meta {
@@ -808,7 +886,7 @@
     }
     .va-legs-pill {
         display: inline-flex; align-items: center; gap: 0.22rem;
-        font-family: var(--va-mono);
+        font-family: var(--va-sans);
         font-size: 0.65rem; font-weight: 600;
         color: var(--va-ink-2);
         font-variant-numeric: tabular-nums;
@@ -847,18 +925,18 @@
     .va-assigned-chip {
         display: flex; align-items: center; gap: 0.4rem;
         padding: 0.32rem 0.35rem 0.32rem 0.5rem;
-        background: #ecfdf5;
-        border: 1px solid #86efac;
+        background: #f8fafc;
+        border: 1px solid var(--va-rule);
         border-radius: 6px;
         cursor: grab; user-select: none;
         transition: border-color .12s ease, box-shadow .12s ease;
     }
     .va-assigned-chip:hover {
-        border-color: #16a34a;
-        box-shadow: 0 2px 5px -1px rgba(16,185,129,0.25);
+        border-color: #cbd5e1;
+        box-shadow: 0 2px 5px -1px rgba(15,23,42,0.12);
     }
     .va-assigned-chip:active { cursor: grabbing; }
-    .va-assigned-chip .va-veh-num { color: #064e3b; }
+    .va-assigned-chip .va-veh-num { color: var(--va-ink); }
     .va-remove-btn {
         margin-left: auto;
         border: none; background: transparent;
@@ -874,7 +952,7 @@
 
     /* Badges */
     .va-off-badge {
-        font-family: var(--va-mono);
+        font-family: var(--va-sans);
         font-size: 0.54rem; font-weight: 800;
         padding: 0.08rem 0.35rem; border-radius: 3px;
         background: #e5e7eb; color: #64748b;
@@ -1119,6 +1197,7 @@
                      data-vehicle-id="{{ vehicle.id }}"
                      data-vehicle-num="{{ vehicle.vehicle_number }}"
                      data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}"
+                     data-requires-cert="{% if vehicle.vehicle_type.requires_certification %}1{% else %}0{% endif %}"
                      data-veh-popup
                      data-veh-num="{{ vehicle.vehicle_number }}"
                      data-veh-type="{% if vehicle.vehicle_type %}{{ vehicle.vehicle_type }}{% endif %}"
@@ -1143,6 +1222,7 @@
                  data-driver-id="{{ row.driver.id }}"
                  data-driver-name="{{ row.driver }}"
                  data-was-scheduled-off="{% if row.was_scheduled_off %}1{% else %}0{% endif %}"
+                 data-sprinter-ok="{% if row.sprinter_ok %}1{% else %}0{% endif %}"
                  data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
               <div class="va-drv-name">
                 {{ row.driver }}
@@ -1166,6 +1246,12 @@
                       data-driver-phone="{{ row.driver_phone }}"
                       data-driver-notes="{{ row.driver_notes|escapejs }}"
                       data-scheduling-notes="{{ row.scheduling_notes|escapejs }}"
+                      data-avail-label="{{ row.shift_display|escapejs }}"
+                      data-avail-tooltip="{{ row.avail_tooltip|escapejs }}"
+                      data-exception-notes="{{ row.exception_notes|escapejs }}"
+                      data-cert-labels="{{ row.cert_labels|join:', ' }}"
+                      data-pref-vehicle="{{ row.pref_vehicle|escapejs }}"
+                      data-shift-pref="{{ row.shift_pref_label|escapejs }}"
                       data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
                       data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
                       data-vehicle-notes="{{ row.vehicle_notes|escapejs }}"
@@ -1173,6 +1259,12 @@
                 {% endif %}
               </div>
               {% if not row.is_off_today %}
+              {% if row.exc_badge %}
+              <div class="va-exc-line">
+                <span class="exc-badge" title="{{ row.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ row.exc_badge }}</span>
+                {% if row.exception_notes %}<span class="exc-note" title="{{ row.exception_notes }}"><i class="bi bi-sticky-fill"></i> {{ row.exception_notes|truncatechars:36 }}</span>{% endif %}
+              </div>
+              {% endif %}
               {% if row.shift_display %}
                 {% if 'flex' in row.shift_display|lower %}
                 <div class="va-time-pill tp-flex" title="Flexible availability">
@@ -1188,6 +1280,11 @@
                   {% if row.max_hours %}<span class="va-maxhrs">{{ row.max_hours|floatformat:0 }}h</span>{% endif %}
                 </div>
                 {% endif %}
+              {% endif %}
+              {% if row.prev_night_cleared %}
+              <div class="va-cleared-line" title="When this driver's last job cleared the night before — watch their rest before an early start">
+                <i class="bi bi-moon-stars-fill"></i> Cleared {{ row.prev_night_cleared }} last night{% if row.prev_night_vehicle %} · {{ row.prev_night_vehicle }}{% endif %}
+              </div>
               {% endif %}
               <div class="va-drv-meta">
                 {% if row.leg_count > 0 %}
@@ -1281,17 +1378,19 @@
                             {{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}
                         </small>
                         <div class="cp-avail-line">
+                            {% if data.exc_badge %}<span class="exc-badge" title="{{ data.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ data.exc_badge }}</span>{% endif %}
                             <span class="cp-shift-badge sb-{{ data.shift_type }}">{{ data.shift_display }}</span>
                             <span class="cp-shift">
                                 {% if data.flexible %}<i class="bi bi-unlock" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" title="Hard limits"></i>{% endif %}
                             </span>
                             {% if data.max_hours %}<span class="cp-maxhrs-tag">({{ data.max_hours|floatformat:0 }}h max)</span>{% endif %}
-                            {% if data.preferred_shift %}<span class="cp-pref-shift-badge">Pref {{ data.preferred_shift|title }}</span>{% endif %}
+                            {% if data.shift_pref_label %}<span class="shift-pref-text">{{ data.shift_pref_label }}</span>{% endif %}
                             {% if data.pref_short %}
                                 <span class="cp-pref-badge {% if 'arrival' in data.preference %}pref-arrival{% elif 'return' in data.preference %}pref-return{% elif 'cruise' in data.preference %}pref-cruise{% endif %}">
                                     {{ data.pref_short }}
                                 </span>
                             {% endif %}
+                            {% if data.exception_notes %}<span class="exc-note" title="{{ data.exception_notes }}"><i class="bi bi-sticky-fill"></i> {{ data.exception_notes|truncatechars:32 }}</span>{% endif %}
                             <span class="cp-info-icon" data-cp-popup
                                   data-driver-name="{{ data.driver }}"
                                   data-shift-type="{{ data.shift_type }}"
@@ -1303,6 +1402,12 @@
                                   data-driver-phone="{{ data.driver_phone }}"
                                   data-driver-notes="{{ data.driver_notes|escapejs }}"
                                   data-scheduling-notes="{{ data.scheduling_notes|escapejs }}"
+                                  data-avail-label="{{ data.shift_display|escapejs }}"
+                                  data-avail-tooltip="{{ data.avail_tooltip|escapejs }}"
+                                  data-exception-notes="{{ data.exception_notes|escapejs }}"
+                                  data-cert-labels="{{ data.cert_labels|join:', ' }}"
+                                  data-pref-vehicle="{{ data.pref_vehicle|escapejs }}"
+                                  data-shift-pref="{{ data.shift_pref_label|escapejs }}"
                                   data-vehicle-label="{{ data.vehicle_type_label }}"
                                   data-vehicle-num="{{ data.vehicle_number }}"
                                   data-vehicle-notes="{{ data.vehicle_notes|escapejs }}">i</span>
@@ -1312,12 +1417,16 @@
                         {% endif %}
                     </div>
                     <div class="timeline-bar">
+                        {% for b in data.avail_blocks %}
+                        <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
+                        {% endfor %}
                         {% for slot in data.schedule.slots %}
-                        <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}" data-tl-popup
+                        <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}" data-tl-popup
                              {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                              style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
                              data-leg-id="{{ slot.leg_id }}"
                              data-driver-id="{{ data.driver.id }}"
+                             data-pending-refund="{{ slot.pending_refund|yesno:'1,0' }}"
                              data-trip="{{ slot.trip_type }}"
                              data-time="{{ slot.pickup_time|time:'g:i A' }}"
                              data-cleared="{{ slot.end_time_display }}"
@@ -1340,7 +1449,7 @@
                              data-store-stop="{{ slot.store_stop|yesno:'1,0' }}"
                              data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
                              data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}">
-                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="slot-publix" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="slot-publix" title="multi-flight" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}
+                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="slot-publix" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="slot-publix" title="multi-flight" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="slot-refund" title="Refund pending — do not assign">↩</span>{% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -1400,7 +1509,7 @@
 
                 {% if unassigned_legs %}
                 {% for leg in unassigned_legs %}
-                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}">
+                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}">
                     <div class="row align-items-start">
                         <div class="col-sm-7">
                             <div class="d-flex align-items-center gap-2 mb-1">
@@ -1413,6 +1522,9 @@
                                 </span>
                                 {% if leg.effective_vehicle_type %}
                                 <span class="va-veh-type va-vtype-{{ leg.effective_vehicle_type|lower }}" style="font-size:0.6rem;padding:0.1rem 0.35rem;">{{ leg.effective_vehicle_type }}</span>
+                                {% endif %}
+                                {% if leg.reservation.has_pending_refund %}
+                                <span class="refund-badge" title="A refund is in progress — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span>
                                 {% endif %}
                                 {% if leg.reservation and leg.reservation.payment_status != 'paid' %}
                                 <span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>
@@ -1704,6 +1816,29 @@
                                     <option value="only_cruise">Cruises Only</option>
                                 </optgroup>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Vehicle Type Preference (optional) -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-5">
+                            <div class="sb-label">Vehicle Type Preference (optional)</div>
+                            <select id="sbVehicleMode" class="form-select form-select-sm">
+                                <option value="">No preference - any vehicle</option>
+                                <option value="prefer">Prefer selected type(s)</option>
+                                <option value="heavy">Mostly selected type(s)</option>
+                                <option value="only">Only selected type(s)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="sb-label">Vehicle Types <span id="sbVehicleHint" style="font-weight:400;color:#9ca3af;">(pick when a mode is set)</span></div>
+                            <div id="sbVehicleTypes" class="d-flex flex-wrap gap-2" style="padding-top:2px;">
+                                <label class="sb-vtype-chip"><input type="checkbox" value="suv"> SUV</label>
+                                <label class="sb-vtype-chip"><input type="checkbox" value="mini_van"> Mini-Van</label>
+                                <label class="sb-vtype-chip"><input type="checkbox" value="van"> Van</label>
+                                <label class="sb-vtype-chip"><input type="checkbox" value="Van(14 Pax)"> Sprinter (14-pax)</label>
+                                <label class="sb-vtype-chip"><input type="checkbox" value="towncar"> Town Car</label>
+                            </div>
                         </div>
                     </div>
 
@@ -3154,6 +3289,16 @@
         return Array.from(pinned).map(el => parseInt(el.dataset.legId));
     }
 
+    // Vehicle Type Preference: the type chips only matter once a mode is chosen.
+    (function() {
+        const modeEl = document.getElementById('sbVehicleMode');
+        const typesEl = document.getElementById('sbVehicleTypes');
+        if (!modeEl || !typesEl) return;
+        function sync() { typesEl.classList.toggle('sb-disabled', !modeEl.value); }
+        modeEl.addEventListener('change', sync);
+        sync();
+    })();
+
     function buildPayload(apply) {
         const manualPins = getPinnedLegIds();
         const allPins = [...new Set([...manualPins, ...sbSwapPins])];
@@ -3165,6 +3310,8 @@
             end_hour: parseInt(document.getElementById('sbEndHour').value),
             pinned_leg_ids: allPins,
             preferred_trip_type: document.getElementById('sbTripType').value,
+            vehicle_pref_mode: document.getElementById('sbVehicleMode').value,
+            preferred_vehicle_types: Array.from(document.querySelectorAll('#sbVehicleTypes input:checked')).map(c => c.value),
             excluded_leg_ids: sbExcluded,
             exclude_unpaid: skipUnpaidEl ? skipUnpaidEl.checked : false,
             apply: apply || false,
@@ -4107,6 +4254,14 @@
             if (!pVaDrag) return;
             const driverId = slot.dataset.driverId;
             if (pVaDrag.fromDriverId === driverId) return;
+            // Capability hard block: a cert-required vehicle (Sprinter / 14-pax) can't go to
+            // an uncertified driver. Check before any save so a swap can't strip the donor.
+            const poolCard = document.querySelector(`#pVehiclePool .va-veh-card[data-vehicle-id="${pVaDrag.vehicleId}"]`);
+            if (poolCard && poolCard.dataset.requiresCert === '1' && slot.dataset.sprinterOk !== '1') {
+                alert(`${slot.dataset.driverName || 'This driver'} isn't cleared to drive the Sprinter (14-pax).`);
+                pVaDrag = null;
+                return;
+            }
             if (pVaDrag.fromDriverId) pVaSave(pVaDrag.fromDriverId, null);
             pVaSave(driverId, pVaDrag.vehicleId);
             pVaDrag = null;
@@ -4119,7 +4274,7 @@
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
             body: JSON.stringify({driver_id: parseInt(driverId), date: '{{ selected_date|date:"Y-m-d" }}', vehicle_id: vehicleId ? parseInt(vehicleId) : null}),
         }).then(r => r.json()).then(data => {
-            if (!data.success) return;
+            if (!data.success) { if (data.error) alert(data.error); return; }
             const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
             if (!slot) return;
             const area = slot.querySelector('.va-drv-vehicle');
@@ -4303,6 +4458,9 @@
             const label = tripLabels[trip] || 'Trip';
             let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
             html += '<div class="tl-popup-body">';
+            if (el.dataset.pendingRefund === '1') {
+                html += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:0.72rem;padding:4px 6px;border-radius:5px;margin-bottom:5px;"><i class="bi bi-arrow-counterclockwise"></i> REFUND PENDING — do not assign</div>';
+            }
             html += '<div class="tl-popup-row"><span class="tl-label">Pickup</span><span class="tl-value">' + (el.dataset.pickup || '') + '</span></div>';
             html += '<div class="tl-popup-row"><span class="tl-label">Dropoff</span><span class="tl-value">' + (el.dataset.dropoff || '') + '</span></div>';
             if (el.dataset.vehicle) {
@@ -4348,9 +4506,22 @@
             const stype = el.dataset.shiftType || 'custom';
             let html = '<div class="tl-popup-header" style="background:#1a2332;">' + name + (vNum ? ' — ' + vNum + ' ' + vLabel : '') + '</div>';
             html += '<div class="tl-popup-body">';
-            html += '<div class="tl-popup-row"><span class="tl-label">Shift Type</span><span class="tl-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
-            html += '<div class="tl-popup-row"><span class="tl-label">Hours</span><span class="tl-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+            if (el.dataset.availLabel) {
+                html += '<div class="tl-popup-row"><span class="tl-label">Available</span><span class="tl-value" style="font-weight:700;">' + el.dataset.availLabel + '</span></div>';
+            }
+            if (el.dataset.availTooltip) {
+                html += '<div style="font-size:0.65rem;color:#6b7280;font-style:italic;margin:-2px 0 4px;">' + el.dataset.availTooltip + '</div>';
+            }
             const flex = el.dataset.flexible === 'True';
+            // When flexible, the Flexibility row already says "Flexible", so skip
+            // the redundant Shift Type row (don't say "Flexible" twice).
+            if (!(flex && stype === 'full_day')) {
+                html += '<div class="tl-popup-row"><span class="tl-label">Shift Type</span><span class="tl-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
+            }
+            // Flexible = the planner picks the hours, so there are no set hours to show.
+            if (!flex) {
+                html += '<div class="tl-popup-row"><span class="tl-label">Hours</span><span class="tl-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+            }
             html += '<div class="tl-popup-row"><span class="tl-label">Flexibility</span><span class="tl-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? '<i class="bi bi-unlock"></i> Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
             if (el.dataset.maxHours) html += '<div class="tl-popup-row"><span class="tl-label">Max Hours</span><span class="tl-value">' + el.dataset.maxHours + 'h</span></div>';
             if (el.dataset.preferredShift) {
@@ -4358,7 +4529,15 @@
                 html += '<div class="tl-popup-row"><span class="tl-label">Prefers</span><span class="tl-value" style="color:#6366f1;">' + (PS[el.dataset.preferredShift]||el.dataset.preferredShift) + '</span></div>';
             }
             if (el.dataset.preference) html += '<div class="tl-popup-row"><span class="tl-label">Trip Pref</span><span class="tl-value">' + el.dataset.preference + '</span></div>';
+            if (el.dataset.shiftPref) html += '<div class="tl-popup-row"><span class="tl-label">Shift</span><span class="tl-value">' + el.dataset.shiftPref + '</span></div>';
+            if (el.dataset.certLabels) html += '<div class="tl-popup-row"><span class="tl-label">Certified</span><span class="tl-value" style="color:#15803d;font-weight:700;"><i class="bi bi-patch-check-fill"></i> ' + el.dataset.certLabels + '</span></div>';
+            if (el.dataset.prefVehicle) html += '<div class="tl-popup-row"><span class="tl-label">Prefers vehicle</span><span class="tl-value">' + el.dataset.prefVehicle + '</span></div>';
             if (el.dataset.driverPhone) html += '<div class="tl-popup-row"><span class="tl-label">Phone</span><span class="tl-value">' + el.dataset.driverPhone + '</span></div>';
+            if (el.dataset.exceptionNotes) {
+                html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+                html += '<div style="font-size:0.65rem;color:#92400e;font-weight:600;margin-bottom:2px;"><i class="bi bi-exclamation-circle me-1"></i>Exception Note</div>';
+                html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.exceptionNotes + '</div></div>';
+            }
             if (el.dataset.schedulingNotes) {
                 html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
                 html += '<div style="font-size:0.65rem;color:#1565c0;font-weight:600;margin-bottom:2px;"><i class="bi bi-info-circle me-1"></i>Scheduling Notes</div>';

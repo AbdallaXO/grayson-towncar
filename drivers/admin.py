@@ -120,6 +120,20 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             },
         ),
         (
+            "Vehicle Capability & Preferences",
+            {
+                "fields": (
+                    "certified_vehicle_types",
+                    "preferred_vehicle_types",
+                    "preferred_vehicles",
+                ),
+                "description": "Certified vehicle types = restricted types this driver is cleared "
+                               "to drive (e.g. the Sprinter / 14-pax van — leave empty for drivers "
+                               "who can't drive it). Preferred type(s)/unit(s) are soft preferences "
+                               "shown to dispatchers, never enforced.",
+            },
+        ),
+        (
             "Payment Tracking",
             {
                 "fields": (
@@ -132,6 +146,11 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             },
         ),
     )
+    filter_horizontal = [
+        "certified_vehicle_types",
+        "preferred_vehicle_types",
+        "preferred_vehicles",
+    ]
     readonly_fields = [
         "unpaid_legs_display",
         "unpaid_amount_display",

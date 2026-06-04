@@ -334,6 +334,8 @@ class ScheduleSlot:
     luggage_type: str = ""
     carseats_short: str = ""
     store_stop: bool = False
+    # Trip has a refund in-flight — flag so dispatchers don't assign it by mistake.
+    pending_refund: bool = False
     # Multi-stop / multi-flight indicators (default 0 keeps legacy slots unchanged)
     extra_stop_count: int = 0
     secondary_flight_count: int = 0
@@ -912,6 +914,7 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             luggage_type=leg.effective_luggage_type or "",
             carseats_short=_carseats_short,
             store_stop=bool(leg.reservation.store_stop) if (leg.reservation and leg.get_trip_type() == 'arrival') else False,
+            pending_refund=bool(leg.reservation.has_pending_refund) if leg.reservation else False,
             extra_stop_count=_legstop_count,
             secondary_flight_count=_secondary_flights,
         )
@@ -1961,6 +1964,8 @@ def build_smart_schedule(
     preferred_trip_type: str = None,
     existing_schedule: DriverDaySchedule = None,
     excluded_leg_ids: List[int] = None,
+    vehicle_pref_mode: str = None,
+    preferred_vehicle_types: List[str] = None,
 ) -> dict:
     """
     Build an optimal schedule for a single driver within a time window.
@@ -2127,6 +2132,18 @@ def build_smart_schedule(
         elif pre_filter_count > len(optional_legs):
             warnings.append(f"Strict mode: showing {len(optional_legs)} {pref_type} leg(s) ({pre_filter_count - len(optional_legs)} other type(s) excluded)")
 
+    # VEHICLE-TYPE preference (optional) — mirrors the trip-type preference above.
+    # 'only' hard-filters to the selected vehicle type(s); prefer/heavy nudge ordering below.
+    _veh_pref_set = {str(v) for v in (preferred_vehicle_types or []) if v}
+    if vehicle_pref_mode == 'only' and _veh_pref_set:
+        _pre_v = len(optional_legs)
+        optional_legs = [l for l in optional_legs if str(l.effective_vehicle_type) in _veh_pref_set]
+        _label = ", ".join(sorted(_veh_pref_set))
+        if len(optional_legs) == 0:
+            warnings.append(f"No {_label} jobs available in this window. Try different vehicle types or time range.")
+        elif _pre_v > len(optional_legs):
+            warnings.append(f"Vehicle-only mode: showing {len(optional_legs)} {_label} job(s) ({_pre_v - len(optional_legs)} other vehicle type(s) excluded)")
+
     # Pre-compute scarcity: how many OTHER drivers can handle each leg
     scarcity_map = compute_leg_scarcity(optional_legs, all_driver_vtypes, exclude_driver_id=driver_id)
 
@@ -2205,6 +2222,14 @@ def build_smart_schedule(
             tier = get_vehicle_tier(vtype) if vtype else 0
             return (-tier, leg.pickup_time)
         optional_sorted = sorted(optional_legs, key=_leg_sort_key)
+
+    # Vehicle prefer/heavy: stable nudge so preferred-vehicle-type jobs are considered
+    # first within the existing order (doesn't alter scoring — just ordering, like trip prefer).
+    if _veh_pref_set and vehicle_pref_mode in ('prefer', 'heavy'):
+        optional_sorted = sorted(
+            optional_sorted,
+            key=lambda l: 0 if str(l.effective_vehicle_type) in _veh_pref_set else 1,
+        )
 
     def _score_candidate(leg):
         """Feasibility-gated score for a candidate, or None if it can't be seated now.

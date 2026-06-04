@@ -131,6 +131,54 @@
       .timeline-slot.return { background: #2e7d32; }
       .timeline-slot.cruise { background: #e65100; }
       .timeline-slot.other { background: #6a1b9a; }
+      /* Refund pending — must NOT blend in with normal trips */
+      .timeline-slot.refund-pending {
+          outline: 2px solid #dc2626; outline-offset: -2px;
+          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0) 0 5px, rgba(220,38,38,0.45) 5px 9px);
+      }
+      .tl-refund-flag {
+          background: #dc2626; color: #fff; font-weight: 800;
+          font-size: 0.52rem; line-height: 1; padding: 1px 3px; border-radius: 2px; margin-left: 2px;
+      }
+      .refund-badge {
+          display: inline-flex; align-items: center; gap: 3px;
+          background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;
+          font-size: 0.62rem; font-weight: 800; padding: 1px 6px; border-radius: 4px;
+          text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;
+      }
+      /* One-time UNAVAILABLE window shaded on the grid (below job slots, can't block drag) */
+      .tl-unavail-band {
+          position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none;
+          background: repeating-linear-gradient(45deg, rgba(220,38,38,0.13) 0 6px, rgba(220,38,38,0.22) 6px 12px);
+          border-left: 2px solid #dc2626; border-right: 2px solid #dc2626;
+          display: flex; align-items: center; justify-content: center; overflow: hidden;
+      }
+      .tl-unavail-band span {
+          font-size: 0.5rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+          color: #b91c1c; white-space: nowrap; opacity: 0.9;
+      }
+      /* Always-visible red exception pill + note (no hover needed) */
+      .exc-line { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+      .exc-badge {
+          display: inline-flex; align-items: center; gap: 3px; background: #dc2626; color: #fff;
+          font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; line-height: 1.3;
+      }
+      .exc-note {
+          display: inline-flex; align-items: center; gap: 3px; color: #b45309;
+          font-size: 0.62rem; font-weight: 600; max-width: 100%;
+      }
+      /* Vehicle capability (green) + preference + shift-preference */
+      .cap-pill {
+          display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d;
+          border: 1px solid #86efac; font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+          white-space: nowrap;
+      }
+      .pref-veh-pill {
+          display: inline-flex; align-items: center; gap: 3px; background: #eff6ff; color: #1d4ed8;
+          border: 1px solid #bfdbfe; font-size: 0.62rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+          white-space: nowrap;
+      }
+      .shift-pref-text { color: #6366f1; font-size: 0.62rem; font-weight: 600; white-space: nowrap; }
       /* Status indicator strip at bottom of slot */
       .timeline-slot .tl-status-strip {
           position: absolute;
@@ -720,6 +768,7 @@
                      data-vehicle-id="{{ vehicle.id }}"
                      data-vehicle-num="{{ vehicle.vehicle_number }}"
                      data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}"
+                     data-requires-cert="{% if vehicle.vehicle_type.requires_certification %}1{% else %}0{% endif %}"
                      data-vehicle-label="#{{ vehicle.vehicle_number }} {{ vehicle.vehicle_type|default:'' }}"
                      data-ld-veh-popup
                      data-veh-num="{{ vehicle.vehicle_number }}"
@@ -747,6 +796,7 @@
                    data-driver-id="{{ row.driver.id }}"
                    data-driver-name="{{ row.driver }}"
                    data-was-scheduled-off="{% if row.was_scheduled_off %}1{% else %}0{% endif %}"
+                   data-sprinter-ok="{% if row.sprinter_ok %}1{% else %}0{% endif %}"
                    data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
                 <div class="va-drv-name">
                   {{ row.driver }}
@@ -785,6 +835,7 @@
                 </div>
                 {% if not row.is_off_today %}
                 <div class="va-drv-context">
+                  {% if row.exc_badge %}<span class="exc-badge" title="{{ row.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ row.exc_badge }}</span>{% endif %}
                   {% if row.shift_display %}
                     <span class="va-shift-badge sb-{{ row.avail_status }}" title="{{ row.avail_tooltip }}">{{ row.shift_display }}</span>
                     {% if row.avail_status != 'limited' %}
@@ -792,7 +843,8 @@
                       {% if row.max_hours %}<span class="va-maxhrs-tag">({{ row.max_hours|floatformat:0 }}h max)</span>{% endif %}
                     {% endif %}
                   {% endif %}
-                  {% if row.preferred_shift %}<span class="va-pref-shift-badge">Pref {{ row.preferred_shift|title }}</span>{% endif %}
+                  {% if row.shift_pref_label %}<span class="shift-pref-text">{{ row.shift_pref_label }}</span>{% endif %}
+                  {% if row.pref_vehicle %}<span class="pref-veh-pill" title="Preferred vehicle"><i class="bi bi-car-front-fill"></i> {{ row.pref_vehicle }}</span>{% endif %}
                   {% if row.pref_short %}<span class="va-pref {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>{% endif %}
                   {% if row.exception_notes %}
                     <span class="va-exception-note" title="{{ row.exception_notes }}"><i class="bi bi-sticky-fill me-1"></i>{{ row.exception_notes|truncatechars:42 }}</span>
@@ -945,6 +997,9 @@
                     <td>
                       <div class="d-flex flex-column">
                         <div class="fw-bold">{{ leg.reservation.customer.get_full_name }}</div>
+                        {% if leg.reservation.has_pending_refund %}
+                        <div class="mt-1"><span class="refund-badge" title="A refund is in progress for this trip — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span></div>
+                        {% endif %}
                         <div class="small text-muted">
                           <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                              class="text-decoration-underline">Reservation ID #{{ leg.reservation.id }}</a>
@@ -1438,6 +1493,7 @@
                       <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold">
                           {{ leg.reservation.customer.get_full_name }}
+                          {% if leg.reservation.has_pending_refund %}<span class="refund-badge ms-1" title="A refund is in progress — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span>{% endif %}
                           {% if flag.level == 'alert' %}
                             <span class="badge bg-danger ms-1" title="{{ flag.label }}">{{ flag.label }}{% if flag.arrival_label %} · now {{ flag.arrival_label }}{% endif %}</span>
                           {% elif flag.level == 'watch' %}
@@ -3616,6 +3672,15 @@
                   // If dropping on same driver, ignore
                   if (fromDriverId === driverId) return;
 
+                  // Capability hard block: a cert-required vehicle (Sprinter / 14-pax) can't go
+                  // to an uncertified driver. Check before any save so a swap can't strip the donor.
+                  const poolCard = document.querySelector(`#vaVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
+                  if (poolCard && poolCard.dataset.requiresCert === '1' && slot.dataset.sprinterOk !== '1') {
+                      alert(`${slot.dataset.driverName || 'This driver'} isn't cleared to drive the Sprinter (14-pax).`);
+                      vaDragData = null;
+                      return;
+                  }
+
                   // If from another driver, clear that driver first
                   if (fromDriverId) {
                       vaSaveAssignment(fromDriverId, null);
@@ -3678,6 +3743,8 @@
                           slot.classList.add('va-empty');
                       }
                       vaMarkInUse();
+                  } else if (data.error) {
+                      alert(data.error);
                   }
               });
           }
@@ -4504,9 +4571,9 @@
           font-size: 0.6rem;
           padding: 0.1rem 0.35rem;
           border-radius: 999px;
-          background: #fef3c7;
-          color: #92400e;
-          font-weight: 600;
+          background: #fee2e2;
+          color: #991b1b;
+          font-weight: 700;
           cursor: help;
       }
       .va-exception-note {
@@ -4556,7 +4623,7 @@
       /* Status-driven badges (preferred — match driver-card class va-status-*) */
       .va-shift-badge.sb-flexible     { background: #ecfdf5; color: #065f46; cursor: help; }
       .va-shift-badge.sb-fixed_window { background: #f0fdf4; color: #166534; cursor: help; }
-      .va-shift-badge.sb-limited      { background: #fef3c7; color: #92400e; cursor: help; border: 1px solid #fcd34d; }
+      .va-shift-badge.sb-limited      { background: #fee2e2; color: #991b1b; cursor: help; border: 1px solid #fca5a5; font-weight: 700; }
       .va-shift-badge.sb-off          { background: #fee2e2; color: #991b1b; }
       .va-maxhrs-tag { font-size: 0.6rem; color: #9ca3af; font-weight: 600; white-space: nowrap; }
       .va-pref-shift-badge {
@@ -4683,9 +4750,19 @@
           if (el.dataset.availTooltip) {
               html += '<div style="font-size:0.65rem;color:#6b7280;font-style:italic;margin:-2px 0 4px;">' + el.dataset.availTooltip + '</div>';
           }
-          html += '<div class="ld-popup-row"><span class="ld-label">Shift Type</span><span class="ld-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
-          html += '<div class="ld-popup-row"><span class="ld-label">Hours</span><span class="ld-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
           const flex = el.dataset.flexible === 'True';
+          // "Flexible" only when truly flexible; full_day + hard limits is a fixed
+          // full-day shift. When flexible, that's the whole story, so skip the
+          // redundant Shift Type row (don't say "Flexible" twice).
+          if (!(flex && stype === 'full_day')) {
+              let stypeLabel = SHIFT_LABELS[stype] || stype;
+              if (stype === 'full_day') stypeLabel = 'Full day';
+              html += '<div class="ld-popup-row"><span class="ld-label">Shift Type</span><span class="ld-value">' + stypeLabel + '</span></div>';
+          }
+          // Flexible = the planner picks the hours, so there are no set hours to show.
+          if (!flex) {
+              html += '<div class="ld-popup-row"><span class="ld-label">Hours</span><span class="ld-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+          }
           html += '<div class="ld-popup-row"><span class="ld-label">Flexibility</span><span class="ld-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? '<i class="bi bi-unlock"></i> Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
           if (el.dataset.maxHours) html += '<div class="ld-popup-row"><span class="ld-label">Max Hours</span><span class="ld-value">' + el.dataset.maxHours + 'h</span></div>';
           if (el.dataset.preferredShift) {

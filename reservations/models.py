@@ -335,6 +335,17 @@ class Reservation(models.Model):
         help_text="Admin notes about the refund processing",
     )
 
+    # Refund states that are "in-flight" — a refund is underway but not finalized.
+    # Trips in these states must NOT be assigned to a driver by mistake; the
+    # dispatch surfaces flag them visually.
+    PENDING_REFUND_STATUSES = ("requested", "processing", "approved")
+
+    @property
+    def has_pending_refund(self):
+        """True when a refund is in-flight (requested/processing/approved) and not
+        yet completed or rejected — i.e. don't dispatch this trip."""
+        return self.refund_status in self.PENDING_REFUND_STATUSES
+
     # ── Manual review flag for out-of-area / custom-quote stops ──
     # Set to True when a customer adds an "Other" extra stop, or when a stop's
     # location is outside the allowed LocationGroups. Routes the booking to

@@ -15,6 +15,7 @@ from django.contrib import messages
 from django.db.models import Q, Prefetch, Count, Sum, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from drivers.utils import get_drive_time as google_drive_time
+from drivers.availability import format_shift_preference
 from dispatching.scheduler import (
     estimate_job_end_time,
     get_drive_time as scheduler_drive_time,
@@ -705,15 +706,18 @@ def extend(request):
         active_tab = driver_type_filter or "all"
     search_query = request.GET.get("search", "")
     availability_filter = request.GET.get("availability", "")  # "available" or "busy"
-    show_inactive = request.GET.get("show_inactive", "") == "1"
+    active_only = request.GET.get("active_only", "") == "1"
 
     # Get all drivers with related profile data
     drivers = Driver.objects.select_related(
         "profile"
     ).all()
 
-    # Hide inactive drivers (departed / on extended leave) unless the user opts in
-    if not show_inactive:
+    # Inactive drivers (departed / on extended leave) stay listed in the directory,
+    # marked Inactive — the directory is the one place they remain visible. They are
+    # excluded everywhere else (planner / board / vehicle assignment). The optional
+    # "Active only" filter hides them here too.
+    if active_only:
         drivers = drivers.filter(is_active=True)
 
     # Apply filters
@@ -763,8 +767,9 @@ def extend(request):
     elif availability_filter == "busy":
         drivers = drivers.filter(upcoming_count__gt=0)
     
-    # Order by driver type (inhouse first), then by name
-    drivers = drivers.order_by("-driver_type", "profile__first_name", "profile__last_name")
+    # Order: active drivers first, then inhouse before affiliate, then by name
+    # (inactive drivers sink to the bottom of the directory).
+    drivers = drivers.order_by("-is_active", "-driver_type", "profile__first_name", "profile__last_name")
     
     # Prefetch today's active legs for mini-schedule display
     today_legs_prefetch = Prefetch(
@@ -775,7 +780,10 @@ def extend(request):
         ).select_related("reservation__customer").order_by("pickup_time"),
         to_attr='todays_legs',
     )
-    drivers = drivers.prefetch_related(today_legs_prefetch)
+    drivers = drivers.prefetch_related(
+        today_legs_prefetch,
+        "certified_vehicle_types", "preferred_vehicle_types", "preferred_vehicles",
+    )
 
     # Evaluate queryset once as a list to avoid repeated DB hits
     drivers_list = list(drivers)
@@ -785,6 +793,13 @@ def extend(request):
     for driver in drivers_list:
         # vehicle_display is pure Python — no DB query
         driver.vehicle_display = driver.get_vehicle_display()
+
+        # Plain-language default shift preference (e.g. "Flexible · prefers mornings")
+        driver.shift_pref_label = format_shift_preference({
+            "is_available": True,
+            "flexible": driver.default_flexible,
+            "preferred_shift": driver.default_preferred_shift,
+        })
 
         # Count stats using the already-annotated upcoming_count
         if driver.upcoming_count == 0:
@@ -804,7 +819,7 @@ def extend(request):
     # Counts for tab pills — these reflect the *type* split across the roster
     # visible under the current "show inactive" state, so tab labels stay
     # consistent with what the user sees after toggling search/availability.
-    base_count_qs = Driver.objects.all() if show_inactive else Driver.objects.filter(is_active=True)
+    base_count_qs = Driver.objects.filter(is_active=True) if active_only else Driver.objects.all()
     all_count_total = base_count_qs.count()
     inhouse_count_total = base_count_qs.filter(driver_type="inhouse").count()
     affiliate_count_total = all_count_total - inhouse_count_total
@@ -825,7 +840,7 @@ def extend(request):
         "inhouse_count_total": inhouse_count_total,
         "affiliate_count_total": affiliate_count_total,
         "inactive_count_total": inactive_count_total,
-        "show_inactive": show_inactive,
+        "active_only": active_only,
     }
 
     return render(request, "drivers/extend.html", context)

@@ -45,6 +45,7 @@ from drivers.models import (
     DriverWeeklySchedule,
     DriverDateOverride,
 )
+from drivers.availability import format_exception_badge, availability_block_bands, format_shift_preference
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate, Location
 from users.emails import send_reservation_confirmation
@@ -211,11 +212,16 @@ def index(request):
     # Get all drivers (single query) for assignment dropdown + inhouse vehicle cards
     drivers = list(
         Driver.objects.select_related("profile")
-        .prefetch_related("weekly_schedule", "date_overrides")
+        .prefetch_related(
+            "weekly_schedule", "date_overrides",
+            "certified_vehicle_types", "preferred_vehicle_types", "preferred_vehicles",
+        )
         .all()
     )
+    # Inactive drivers (departed / on leave) are excluded from assignment + timeline;
+    # they remain visible only in the driver directory.
     inhouse_drivers = sorted(
-        [d for d in drivers if d.driver_type == "inhouse"],
+        [d for d in drivers if d.driver_type == "inhouse" and d.is_active],
         key=lambda d: (d.profile.first_name, d.profile.last_name, d.profile.username),
     )
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
@@ -282,6 +288,11 @@ def index(request):
             "avail_tooltip": _ld_eff["tooltip"],
             "exception_notes": _ld_eff["exception_notes"],
             "has_exception": _ld_eff["has_exception"],
+            "exc_badge": format_exception_badge(_ld_eff),
+            "cert_labels": _driver.cert_labels(),
+            "sprinter_ok": bool(_driver.cert_labels()),
+            "pref_vehicle": _driver.preferred_vehicle_label(),
+            "shift_pref_label": format_shift_preference(_ld_eff),
         })
     def _inhouse_vehicle_sort_key(row):
         # Off-today drivers sink to bottom; within each group: numeric vehicle#s
@@ -549,6 +560,7 @@ def index(request):
                 'pickup_location': _tleg.pickup_location or '',
                 'dropoff_location': _dropoff,
                 'trip_type': _trip,
+                'pending_refund': bool(_tleg.reservation.has_pending_refund) if _tleg.reservation else False,
                 'source': 'affiliate' if _is_affiliate else 'unassigned',
                 'driver_name': str(_tleg.driver) if _is_affiliate else '',
                 'vehicle_type': _tleg.effective_vehicle_type or '',
@@ -616,6 +628,8 @@ def index(request):
         _sched = _driver_schedules.get(_driver.id)
         if not _sched or not _sched.slots:
             continue
+        # Effective availability for the day (drives the limited badge + on-grid block band)
+        _tl_eff = _driver.get_effective_availability(selected_date)
         # Position/width for each slot + status timestamps
         for _slot in _sched.slots:
             _slot_start_min = (_slot.pickup_time.hour - display_start) * 60 + _slot.pickup_time.minute
@@ -672,6 +686,16 @@ def index(request):
             'vehicle_type_label': _driver_vehicle_type_map.get(_driver.id, ''),
             'prev_night_cleared': _prev_day_last.get(_driver.id, ''),
             'prev_night_vehicle': _prev_day_vehicle.get(_driver.id, ''),
+            'avail_status': _tl_eff["status"],
+            'shift_display': _tl_eff["display_label"] if _tl_eff["is_available"] else "Off",
+            'avail_tooltip': _tl_eff["tooltip"],
+            'exception_notes': _tl_eff["exception_notes"],
+            'exc_badge': format_exception_badge(_tl_eff),
+            'avail_blocks': availability_block_bands(_tl_eff, display_start, total_display_minutes),
+            'cert_labels': _driver.cert_labels(),
+            'sprinter_ok': bool(_driver.cert_labels()),
+            'pref_vehicle': _driver.preferred_vehicle_label(),
+            'shift_pref_label': format_shift_preference(_tl_eff),
         })
 
     # Build unassigned timeline slots for drag-and-drop
@@ -709,6 +733,7 @@ def index(request):
             'status_label': _sinfo['status_label'] if _sinfo else '',
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
+            'pending_refund': _gc.get('pending_refund', False),
             'extra_stop_count': _gc.get('extra_stop_count', 0),
             'secondary_flight_count': _gc.get('secondary_flight_count', 0),
         })
@@ -822,11 +847,15 @@ def schedule_board(request):
         except Exception:
             leg._estimated_end_dt = None
 
-    # Get inhouse drivers with vehicle assignments, sorted by vehicle number
+    # Get inhouse drivers with vehicle assignments, sorted by vehicle number.
+    # Inactive drivers are excluded from the board (directory-only).
     inhouse_drivers = list(
-        Driver.objects.filter(driver_type="inhouse")
+        Driver.objects.filter(driver_type="inhouse", is_active=True)
         .select_related("profile")
-        .prefetch_related("weekly_schedule", "date_overrides")
+        .prefetch_related(
+            "weekly_schedule", "date_overrides",
+            "certified_vehicle_types", "preferred_vehicle_types", "preferred_vehicles",
+        )
         .order_by("profile__first_name")
     )
     assignments = {
@@ -1031,6 +1060,12 @@ def schedule_board(request):
             'avail_tooltip': _avail_tooltip,
             'exception_notes': _exception_notes,
             'has_exception': _has_exception,
+            'exc_badge': format_exception_badge(_eff),
+            'avail_blocks': availability_block_bands(_eff, display_start, total_display_minutes),
+            'cert_labels': driver.cert_labels(),
+            'sprinter_ok': bool(driver.cert_labels()),
+            'pref_vehicle': driver.preferred_vehicle_label(),
+            'shift_pref_label': format_shift_preference(_eff),
         })
 
     # Build "available but no jobs" list for drivers not in the timeline
@@ -1144,6 +1179,7 @@ def schedule_board(request):
             'carseats_short': _us_carseats,
             # Only meaningful on arrivals (driver does Publix on the way to dropoff).
             'store_stop': bool(leg.reservation.store_stop) if (leg.reservation and _trip == 'arrival') else False,
+            'pending_refund': bool(leg.reservation.has_pending_refund) if leg.reservation else False,
             'extra_stop_count': len(getattr(leg, 'legstop_set').all()) if leg.pk else 0,
             'secondary_flight_count': max(len(getattr(leg, 'legflight_set').all()) - 1, 0) if leg.pk else 0,
         })
@@ -2349,10 +2385,20 @@ def update_inhouse_vehicle_assignment(request):
         return JsonResponse({"success": True, "cleared": True})
 
     try:
-        vehicle = FleetVehicle.objects.get(id=vehicle_id)
+        vehicle = FleetVehicle.objects.select_related("vehicle_type").get(id=vehicle_id)
     except FleetVehicle.DoesNotExist:
         return JsonResponse(
             {"success": False, "error": "Vehicle not found"}, status=404
+        )
+
+    # Hard block: a vehicle type requiring certification (e.g. the Sprinter / 14-pax)
+    # may only be assigned to a driver explicitly cleared for it.
+    if not driver.can_drive(vehicle.vehicle_type):
+        vtype = vehicle.vehicle_type
+        type_label = "Sprinter (14-pax)" if getattr(vtype, "vehicle_type", "") == "Van(14 Pax)" else str(vtype)
+        return JsonResponse(
+            {"success": False, "error": f"{driver} isn't cleared to drive the {type_label}."},
+            status=400,
         )
 
     assignment, _ = DriverVehicleAssignment.objects.get_or_create(
@@ -8443,11 +8489,15 @@ def capacity_planner(request):
     )
     legs_list = list(legs)
 
-    # Get drivers
+    # Get drivers — inactive drivers are excluded from the planner + vehicle
+    # assignment (they remain visible only in the driver directory).
     inhouse_drivers = (
-        Driver.objects.filter(driver_type="inhouse")
+        Driver.objects.filter(driver_type="inhouse", is_active=True)
         .select_related("profile")
-        .prefetch_related("weekly_schedule", "date_overrides")
+        .prefetch_related(
+            "weekly_schedule", "date_overrides",
+            "certified_vehicle_types", "preferred_vehicle_types", "preferred_vehicles",
+        )
         .order_by("profile__first_name")
     )
     all_drivers = Driver.objects.select_related("profile").all()
@@ -8540,6 +8590,11 @@ def capacity_planner(request):
             "avail_tooltip": _va_eff["tooltip"],
             "exception_notes": _va_eff["exception_notes"],
             "has_exception": _va_eff["has_exception"],
+            "exc_badge": format_exception_badge(_va_eff),
+            "cert_labels": d.cert_labels(),
+            "sprinter_ok": bool(d.cert_labels()),
+            "pref_vehicle": d.preferred_vehicle_label(),
+            "shift_pref_label": format_shift_preference(_va_eff),
         })
 
     # Sort: assigned drivers first (by vehicle number), then unassigned, off last
@@ -8681,6 +8736,11 @@ def capacity_planner(request):
             _vt = str(_cpda.vehicle.vehicle_type) if _cpda.vehicle.vehicle_type else ''
             _cp_prev_day_vehicle[_cpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
 
+    # Surface previous-night clear time on the assignment cards too (not just timelines)
+    for _var in vehicle_assign_rows:
+        _var["prev_night_cleared"] = _cp_prev_day_last.get(_var["driver"].id, "")
+        _var["prev_night_vehicle"] = _cp_prev_day_vehicle.get(_var["driver"].id, "")
+
     # Build in-house timeline data — only drivers with vehicles assigned for the day
     inhouse_timeline = []
     for driver in eligible_drivers:
@@ -8791,6 +8851,12 @@ def capacity_planner(request):
             'avail_tooltip': _cp_eff["tooltip"],
             'exception_notes': _cp_eff["exception_notes"],
             'has_exception': _cp_eff["has_exception"],
+            'exc_badge': format_exception_badge(_cp_eff),
+            'avail_blocks': availability_block_bands(_cp_eff, display_start, total_display_minutes),
+            'cert_labels': driver.cert_labels(),
+            'sprinter_ok': bool(driver.cert_labels()),
+            'pref_vehicle': driver.preferred_vehicle_label(),
+            'shift_pref_label': format_shift_preference(_cp_eff),
         })
 
     # Build per-driver availability for the selected date (for auto-assign modal defaults)
@@ -8935,7 +9001,7 @@ def auto_assign_drivers(request):
         ).values_list("driver_id", flat=True)
     )
     inhouse_drivers = list(
-        Driver.objects.filter(driver_type="inhouse", id__in=eligible_driver_ids)
+        Driver.objects.filter(driver_type="inhouse", is_active=True, id__in=eligible_driver_ids)
         .select_related("profile")
         .prefetch_related("weekly_schedule", "date_overrides")
     )
@@ -9557,6 +9623,8 @@ def smart_schedule_builder(request):
     end_hour = int(data.get("end_hour", 23))
     pinned_leg_ids = data.get("pinned_leg_ids", [])
     preferred_trip_type = data.get("preferred_trip_type", "")
+    vehicle_pref_mode = data.get("vehicle_pref_mode", "")  # '', 'prefer', 'heavy', 'only'
+    preferred_vehicle_types = data.get("preferred_vehicle_types", []) or []  # list of type strings
     excluded_leg_ids = data.get("excluded_leg_ids", [])
     apply_assignments = data.get("apply", False)
     # When true, unpaid reservations are treated as if they don't exist for scheduling
@@ -9616,6 +9684,8 @@ def smart_schedule_builder(request):
         preferred_trip_type=preferred_trip_type or None,
         existing_schedule=existing_schedule,
         excluded_leg_ids=excluded_leg_ids,
+        vehicle_pref_mode=vehicle_pref_mode or None,
+        preferred_vehicle_types=preferred_vehicle_types or None,
     )
 
     # Format response
@@ -11141,7 +11211,7 @@ def get_driver_weekly_schedules(request):
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
-    drivers = Driver.objects.filter(driver_type="inhouse").select_related("profile").prefetch_related("weekly_schedule", "date_overrides")
+    drivers = Driver.objects.filter(driver_type="inhouse", is_active=True).select_related("profile").prefetch_related("weekly_schedule", "date_overrides")
     result = []
     for d in drivers:
         entries = {}
@@ -12607,7 +12677,7 @@ def find_swap_suggestions(request):
         ).values_list("driver_id", flat=True)
     )
     inhouse_drivers = list(
-        Driver.objects.filter(driver_type="inhouse", id__in=eligible_driver_ids)
+        Driver.objects.filter(driver_type="inhouse", is_active=True, id__in=eligible_driver_ids)
         .select_related("profile")
     )
 
