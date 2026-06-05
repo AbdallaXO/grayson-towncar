@@ -1813,7 +1813,7 @@ function renderInlinePreview(type, data) {
       // use r.uuid even though we still display the shorter numeric id as link text.
       const lookup = r.uuid || r.id;
       const resUrl = URLS.reservationDetail.replace('/0/', `/${lookup}/`);
-      html += `<tr data-res-id="${r.id}"><td><a href="${resUrl}" target="_blank" rel="noopener" class="res-link">#${r.id}</a></td>`;
+      html += `<tr data-res-id="${r.id}"><td><a href="${resUrl}" target="_blank" rel="noopener" class="res-link">${r.display_number}</a></td>`;
       html += `<td>${r.customer}</td><td>${r.route}</td>`;
       html += `<td>$${r.base_price}</td><td class="text-success fw-bold">$${r.commission}</td><td>${r.date}</td>`;
       html += `<td class="text-end"><button type="button" class="btn btn-link btn-sm p-0 text-muted preview-row-exclude" `;
@@ -1832,8 +1832,10 @@ function renderInlinePreview(type, data) {
     html += '<th>Agent</th><th>Rate</th><th>Reservations</th><th>Subtotal</th>';
     html += '</tr></thead><tbody>';
     data.agents.forEach(a => {
+      const resList = (a.reservations || []).map(r => r.display_number).join(', ');
       html += `<tr><td>${a.agent_name}<br><small class="text-muted">${a.email}</small></td>`;
-      html += `<td>${a.commission_rate}%</td><td>${a.count}</td>`;
+      html += `<td>${a.commission_rate}%</td>`;
+      html += `<td>${a.count}${resList ? `<br><small class="text-muted">${resList}</small>` : ''}</td>`;
       html += `<td class="text-success fw-bold">$${a.subtotal}</td></tr>`;
     });
     html += `</tbody><tfoot><tr class="table-light"><td colspan="3" class="text-end fw-bold">Total:</td>`;

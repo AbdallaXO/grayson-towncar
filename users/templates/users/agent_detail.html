@@ -163,7 +163,7 @@
                   <table class="table table-hover mb-0">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>Res #</th>
                         <th>Date</th>
                         <th>Customer</th>
                         <th>Trip Type</th>
@@ -176,7 +176,7 @@
                     <tbody>
                       {% for res in reservations %}
                         <tr>
-                          <td>{{ res.id }}</td>
+                          <td>{{ res.display_number }}</td>
                           <td>{{ res.created_at|date:'M d, Y' }}</td>
                           <td>{{ res.customer.get_full_name }}</td>
                           <td>{{ res.get_trip_type_display }}</td>

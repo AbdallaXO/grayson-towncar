@@ -217,7 +217,7 @@
                       <tbody>
                         {% for res in payout.reservations.all %}
                           <tr>
-                            <td>#{{ res.id }}</td>
+                            <td>{{ res.display_number }}</td>
                             <td>{{ res.customer.get_full_name }}</td>
                             <td>
                               {% if res.rate and res.rate.route %}

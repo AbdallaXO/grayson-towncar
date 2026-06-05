@@ -279,6 +279,7 @@ def preview_agent_payout(agent):
 
         reservations_data.append({
             "id": res.id,
+            "display_number": res.display_number,
             "uuid": str(res.uuid),
             "customer": res.customer.get_full_name(),
             "route": route,
@@ -336,6 +337,7 @@ def preview_agency_payout(agency):
 
             res_data.append({
                 "id": res.id,
+                "display_number": res.display_number,
                 "customer": res.customer.get_full_name(),
                 "route": route,
                 "base_price": str(res.base_price),
