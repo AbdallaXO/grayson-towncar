@@ -22,11 +22,14 @@ write. Idempotent — a second run reports 0 changes.
     python manage.py recompute_booking_source --apply     # write changes
 """
 from django.core.management.base import BaseCommand
-from django.db import transaction
 from django.db.models import Count
 
 from reservations.models import Reservation
-from reservations.attribution import derive_booking_source
+from reservations.attribution import (
+    derive_booking_source,
+    find_booking_source_drift,
+    repair_booking_source_drift,
+)
 
 
 class Command(BaseCommand):
@@ -51,13 +54,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         apply = opts["apply"]
 
-        forward = Reservation.objects.filter(travel_agent__isnull=False).exclude(
-            booking_source="travel_agent"
-        )
-        reverse = Reservation.objects.filter(
-            booking_source="travel_agent", travel_agent__isnull=True
-        )
-
+        forward, reverse = find_booking_source_drift()
         forward_count = forward.count()
         reverse_count = reverse.count()
 
@@ -95,17 +92,12 @@ class Command(BaseCommand):
             )
             return
 
-        with transaction.atomic():
-            updated_forward = forward.update(booking_source="travel_agent")
-            updated_reverse = 0
-            for pk, new_source in reverse_updates:
-                Reservation.objects.filter(pk=pk).update(booking_source=new_source)
-                updated_reverse += 1
+        result = repair_booking_source_drift(apply=True)
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nApplied: {updated_forward} agent bookings -> travel_agent, "
-                f"{updated_reverse} orphans re-derived."
+                f"\nApplied: {result['forward']} agent bookings -> travel_agent, "
+                f"{result['reverse']} orphans re-derived."
             )
         )
         self._distribution("after")

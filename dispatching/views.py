@@ -13267,7 +13267,15 @@ def reservation_sources(request):
     qd = request.GET.copy()
     qd.pop("page", None)
 
+    # Stored-column drift (independent of the date filter) — shown as a one-click
+    # "Fix attribution" banner so the founder can repair it in-app (no command /
+    # app restart). This page itself is already accurate (derives source live).
+    from reservations.attribution import find_booking_source_drift
+    _fwd, _rev = find_booking_source_drift()
+    drift_count = _fwd.count() + _rev.count()
+
     context = {
+        "drift_count": drift_count,
         "groups": groups,
         "agent_rows": agent_rows,
         "total_count": total_count,
@@ -13283,6 +13291,31 @@ def reservation_sources(request):
         "source_labels": SOURCE_LABELS,
     }
     return render(request, "dispatching/reservation_sources.html", context)
+
+
+@login_required(login_url="login")
+def fix_booking_source_drift(request):
+    """
+    Superuser one-click repair of travel-agent drift in Reservation.booking_source,
+    run in-request so the founder never needs a management command (which would
+    mean a Railway one-off / possible restart). Fast (~dozens of UPDATEs in one
+    transaction). POST-only; redirects back to the dashboard with a message.
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+    if request.method != "POST":
+        return redirect("reservation_sources")
+    from reservations.attribution import repair_booking_source_drift
+    result = repair_booking_source_drift(apply=True)
+    if result["total"]:
+        messages.success(
+            request,
+            f"Attribution fixed — {result['forward']} agent booking(s) re-tagged "
+            f"Travel Agent and {result['reverse']} orphan label(s) corrected.",
+        )
+    else:
+        messages.info(request, "Attribution already accurate — no drift to fix.")
+    return redirect("reservation_sources")
 
 
 @login_required(login_url="login")
