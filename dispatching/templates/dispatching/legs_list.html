@@ -60,6 +60,20 @@
           animation: none !important;
           transition: none !important;
       }
+
+      /* VIP reservations: soft gold row tint + badge. Safety colors (flight
+         alert left-bar / danger / warning) are left intact so they always win;
+         the VIP badge itself shows regardless, so VIP is never hidden. */
+      tr.leg-vip:not(.table-danger):not(.table-warning) > td {
+          background-color: #f7efd4 !important;
+      }
+      tr.leg-vip > td:first-child { box-shadow: inset 4px 0 0 0 #e8b923; }
+      .vip-badge {
+          background-color: #1a1d21 !important;
+          color: #e8b923 !important;
+          border: 1px solid #e8b923 !important;
+          font-weight: 800 !important;
+      }
   </style>
 {% endblock extra_css %}
 
@@ -333,14 +347,17 @@
           <tbody>
             {% for leg in legs %}
               {% with flag=leg.flight_timing_flag %}
-                <tr class="align-middle {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %}"
+                <tr class="align-middle {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %}"
                     {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
                   <!-- Customer dark -->
                   <td>
-                    <div class="d-flex align-items-center mb-1">
+                    <div class="d-flex align-items-center mb-1 flex-wrap gap-1">
                       <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
                       <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                          class="badge bg-warning  text-dark ms-2 fs-6">#{{ leg.reservation.id }}</a>
+                      {% if leg.is_vip %}
+                        <span class="badge vip-badge ms-1" title="VIP reservation"><i class="bi bi-star-fill me-1"></i>VIP</span>
+                      {% endif %}
                     </div>
                     <div class="text-muted small">
                       <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}

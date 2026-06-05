@@ -11,6 +11,20 @@
       tr.leg-flag-alert { box-shadow: inset 4px 0 0 0 #dc3545; }
       tr.leg-flag-watch { box-shadow: inset 4px 0 0 0 #e6a23c; }
 
+      /* VIP reservations: soft gold row tint + badge. Safety colors (danger /
+         warning / flight-alert bar) are left intact so they always win; the VIP
+         badge shows regardless, so VIP is never hidden. */
+      tr.leg-vip:not(.table-danger):not(.table-warning) > td {
+          background-color: #f7efd4 !important;
+      }
+      tr.leg-vip > td:first-child { box-shadow: inset 4px 0 0 0 #e8b923; }
+      .vip-badge {
+          background-color: #1a1d21 !important;
+          color: #e8b923 !important;
+          border: 1px solid #e8b923 !important;
+          font-weight: 800 !important;
+      }
+
       /* Dim completed/cancelled jobs */
       body.dim-done tr[data-leg-status="completed"],
       body.dim-done tr[data-leg-status="cancelled"],
@@ -989,14 +1003,19 @@
             <tbody>
               {% for leg in legs %}
                 {% with flag=leg.flight_timing_flag %}
-                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
+                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       data-leg-status="{{ leg.status }}"
                       {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
                     <!-- Customer -->
                     <td>
                       <div class="d-flex flex-column">
-                        <div class="fw-bold">{{ leg.reservation.customer.get_full_name }}</div>
+                        <div class="d-flex align-items-center flex-wrap gap-1">
+                          <div class="fw-bold">{{ leg.reservation.customer.get_full_name }}</div>
+                          {% if leg.is_vip %}
+                            <span class="badge vip-badge" title="VIP reservation"><i class="bi bi-star-fill me-1"></i>VIP</span>
+                          {% endif %}
+                        </div>
                         {% if leg.reservation.has_pending_refund %}
                         <div class="mt-1"><span class="refund-badge" title="A refund is in progress for this trip — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span></div>
                         {% endif %}

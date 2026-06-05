@@ -346,6 +346,11 @@ urlpatterns = [
         views.toggle_reservation_commission_exclusion,
         name="toggle_reservation_commission_exclusion",
     ),
+    path(
+        "reservations/toggle-vip/",
+        views.toggle_reservation_vip,
+        name="toggle_reservation_vip",
+    ),
     # Travel Agent / Agency management (admin)
     path(
         "travel-agents/",

@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -9,7 +10,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 
 from rates.models import Location, Route, Vehicle, Rate
-from reservations.models import Customer, Lead, Reservation
+from reservations.models import Customer, Leg, Lead, Reservation
 from users.models import TravelAgent
 from users.signals import travel_agent_email
 from reservations.lead_matching import (
@@ -335,3 +336,160 @@ class AgentAutoAttachByEmailTests(TestCase):
         )
         # Agent attribution wins over the staff/phone label (canonical "agent wins").
         self.assertEqual(derive_booking_source(res, request=staff_request), "travel_agent")
+
+
+@override_settings(GHL_API_KEY="", GHL_LOCATION_ID="")
+class VipFlagTests(TestCase):
+    """`Leg.is_vip` is the single source of truth for the board's gold VIP
+    highlight: True when the reservation is manually flagged VIP OR its travel
+    agent belongs to a VIP agency (Small World Big Fun). The toggle endpoint
+    flips the per-reservation manual flag from the dispatch dashboard."""
+
+    @classmethod
+    def setUpTestData(cls):
+        origin = Location.objects.create(name="MCO Airport")
+        dest = Location.objects.create(name="Disney World")
+        route = Route.objects.create(origin=origin, destination=dest)
+        vehicle = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+        cls.rate = Rate.objects.create(
+            vehicle=vehicle, route=route,
+            oneway_price=Decimal("140"), round_trip_price=Decimal("275"),
+        )
+
+    def setUp(self):
+        post_save.disconnect(reservation_saved, sender=Reservation)
+        post_save.disconnect(travel_agent_email, sender=TravelAgent)
+        self.addCleanup(lambda: post_save.connect(reservation_saved, sender=Reservation))
+        self.addCleanup(lambda: post_save.connect(travel_agent_email, sender=TravelAgent))
+
+    def _reservation(self, **kw):
+        customer = Customer.objects.create(
+            first_name="V", last_name="IP", email="walkin@x.com", phone_number="111",
+        )
+        defaults = dict(
+            trip_type="oneway", customer=customer, rate=self.rate,
+            base_price=Decimal("140"), total_price=Decimal("140"), status="confirmed",
+        )
+        defaults.update(kw)
+        return Reservation.objects.create(**defaults)
+
+    def _leg(self, res):
+        return Leg.objects.create(
+            reservation=res, route=self.rate.route, vehicle=self.rate.vehicle,
+            pickup_date=timezone.localdate(), pickup_time=timezone.now().time(),
+        )
+
+    def test_manual_flag_makes_leg_vip(self):
+        leg = self._leg(self._reservation(is_vip=True))
+        self.assertTrue(leg.is_vip)
+
+    def test_plain_reservation_leg_is_not_vip(self):
+        leg = self._leg(self._reservation())
+        self.assertFalse(leg.is_vip)
+
+    def test_swbf_agency_agent_makes_leg_vip(self):
+        u = User.objects.create_user(username="swbf", email="swbf@x.com")
+        agent = TravelAgent.objects.create(
+            user=u, phone="555", agency_name="Small World Big Fun Travel",
+            commission_rate=Decimal("10.00"),  # Decimal, as a DB-loaded agent always is
+        )
+        leg = self._leg(self._reservation(travel_agent=agent))
+        self.assertTrue(leg.is_vip)  # VIP via agency keyword, no manual flag needed
+
+    def test_other_agency_agent_leg_is_not_vip(self):
+        u = User.objects.create_user(username="other", email="o@x.com")
+        agent = TravelAgent.objects.create(
+            user=u, phone="555", agency_name="Regular Travel Co",
+            commission_rate=Decimal("10.00"),  # Decimal, as a DB-loaded agent always is
+        )
+        leg = self._leg(self._reservation(travel_agent=agent))
+        self.assertFalse(leg.is_vip)
+
+    def test_toggle_endpoint_sets_and_clears(self):
+        from django.urls import reverse
+        staff = User.objects.create_user(username="disp", password="x", is_staff=True)
+        self.client.force_login(staff)
+        res = self._reservation()
+        url = reverse("toggle_reservation_vip")
+
+        resp = self.client.post(
+            url, data=json.dumps({"reservation_id": res.id, "is_vip": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["is_vip"])
+        res.refresh_from_db()
+        self.assertTrue(res.is_vip)
+
+        resp = self.client.post(
+            url, data=json.dumps({"reservation_id": res.id, "is_vip": False}),
+            content_type="application/json",
+        )
+        self.assertFalse(resp.json()["is_vip"])
+        res.refresh_from_db()
+        self.assertFalse(res.is_vip)
+
+    def test_toggle_endpoint_requires_staff(self):
+        from django.urls import reverse
+        res = self._reservation()
+        # Not logged in -> staff_member_required redirects to admin login, no change.
+        resp = self.client.post(
+            reverse("toggle_reservation_vip"),
+            data=json.dumps({"reservation_id": res.id, "is_vip": True}),
+            content_type="application/json",
+        )
+        self.assertIn(resp.status_code, (301, 302))
+        res.refresh_from_db()
+        self.assertFalse(res.is_vip)
+
+    def test_planner_schedule_slot_carries_vip(self):
+        # The planner timeline is built by build_driver_schedules; its slots must
+        # carry is_vip so the gold ring renders. Exercises the real data path.
+        from dispatching.scheduler import build_driver_schedules, preload_timing_cache
+        from drivers.models import Driver
+        preload_timing_cache()  # empty in test DB -> drive-time falls back, no per-call DB
+        u = User.objects.create_user(username="drv", first_name="Dee", last_name="River")
+        driver = Driver.objects.create(profile=u, driver_type="inhouse")
+        res = self._reservation(is_vip=True)
+        leg = Leg.objects.create(
+            reservation=res, route=self.rate.route, vehicle=self.rate.vehicle,
+            pickup_date=timezone.localdate(), pickup_time=timezone.now().time(),
+            driver=driver, status="confirmed",
+        )
+        scheds = build_driver_schedules([leg], [driver], timezone.localdate())
+        slots = scheds[driver.id].slots
+        self.assertTrue(slots)
+        self.assertTrue(slots[0].is_vip)
+
+    def test_legs_board_shows_display_badge_for_vip_only(self):
+        # Legs are display-only now: a VIP reservation's leg shows the badge,
+        # a non-VIP one shows nothing and there is NO per-leg toggle to misclick.
+        from django.urls import reverse
+        staff = User.objects.create_user(username="disp3", password="x", is_staff=True)
+        self.client.force_login(staff)
+        today = timezone.localdate()
+        url = reverse("legs_list")
+        params = {"date_from": today.isoformat(), "date_to": today.isoformat()}
+        res = self._reservation(is_vip=True)
+        self._leg(res)
+
+        resp = self.client.get(url, params)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'title="VIP reservation"')  # display badge rendered
+        self.assertNotContains(resp, "vip-toggle")            # no per-leg toggle control
+
+        res.is_vip = False
+        res.save(update_fields=["is_vip"])
+        resp2 = self.client.get(url, params)
+        self.assertNotContains(resp2, 'title="VIP reservation"')  # badge gone when not VIP
+
+    def test_reservation_page_has_vip_toggle(self):
+        # VIP is set at the reservation level: the detail page carries the toggle.
+        from django.urls import reverse
+        staff = User.objects.create_user(username="disp5", password="x", is_staff=True)
+        self.client.force_login(staff)
+        res = self._reservation()
+        self._leg(res)
+        resp = self.client.get(reverse("reservation_details", args=[res.uuid]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'id="vipToggleBtn"')

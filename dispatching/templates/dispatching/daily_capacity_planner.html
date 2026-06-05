@@ -250,6 +250,21 @@
         text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;
     }
     .refund-pending-card { border: 1.5px solid #dc2626 !important; background: #fef2f2; }
+    /* VIP reservation (manual flag or VIP agency, e.g. Small World Big Fun) —
+       gold ring on the timeline bar + a star, mirroring the leg boards. Uses
+       box-shadow so it stacks with the outline-based unpaid/refund flags. */
+    .timeline-slot.vip { box-shadow: 0 0 0 2px #e8b923, 0 0 0 3px #1a1d21, 0 0 6px rgba(232,185,35,0.7); }
+    .timeline-slot .slot-vip {
+        color: #ffd54a; font-size: 0.6rem; margin-right: 2px; line-height: 1;
+        text-shadow: 0 0 2px rgba(0,0,0,0.8);
+    }
+    .suggestion-card.vip-card { border: 1.5px solid #1a1d21 !important; background: #f7efd4; box-shadow: inset 4px 0 0 0 #e8b923; }
+    .vip-badge {
+        display: inline-flex; align-items: center; gap: 3px;
+        background: #1a1d21; color: #e8b923; border: 1px solid #e8b923;
+        font-size: 0.62rem; font-weight: 800; padding: 1px 6px; border-radius: 4px;
+        text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap;
+    }
     .timeline-slot .slot-vtype {
         display: inline-block;
         font-size: 0.5rem;
@@ -1421,7 +1436,7 @@
                         <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
                         {% endfor %}
                         {% for slot in data.schedule.slots %}
-                        <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}" data-tl-popup
+                        <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}" data-tl-popup
                              {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                              style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
                              data-leg-id="{{ slot.leg_id }}"
@@ -1441,6 +1456,7 @@
                              data-revenue="{{ slot.revenue|default:'0' }}"
                              data-vehicle="{{ slot.vehicle_type|default:'' }}"
                              data-res-id="{{ slot.reservation_id }}"
+                             data-vip="{{ slot.is_vip|yesno:'1,0' }}"
                              data-paid="{{ slot.is_paid|yesno:'1,0' }}"
                              data-pax="{{ slot.passengers }}"
                              data-luggage="{{ slot.luggage }}"
@@ -1449,7 +1465,7 @@
                              data-store-stop="{{ slot.store_stop|yesno:'1,0' }}"
                              data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
                              data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}">
-                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="slot-publix" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="slot-publix" title="multi-flight" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="slot-refund" title="Refund pending — do not assign">↩</span>{% endif %}
+                            {% if slot.is_vip %}<span class="slot-vip" title="VIP reservation">★</span>{% endif %}{{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="slot-publix" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="slot-publix" title="multi-flight" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="slot-refund" title="Refund pending — do not assign">↩</span>{% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -1509,7 +1525,7 @@
 
                 {% if unassigned_legs %}
                 {% for leg in unassigned_legs %}
-                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}">
+                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}{% if leg.is_vip %} vip-card{% endif %}">
                     <div class="row align-items-start">
                         <div class="col-sm-7">
                             <div class="d-flex align-items-center gap-2 mb-1">
@@ -1522,6 +1538,9 @@
                                 </span>
                                 {% if leg.effective_vehicle_type %}
                                 <span class="va-veh-type va-vtype-{{ leg.effective_vehicle_type|lower }}" style="font-size:0.6rem;padding:0.1rem 0.35rem;">{{ leg.effective_vehicle_type }}</span>
+                                {% endif %}
+                                {% if leg.is_vip %}
+                                <span class="vip-badge" title="VIP reservation"><i class="bi bi-star-fill"></i> VIP</span>
                                 {% endif %}
                                 {% if leg.reservation.has_pending_refund %}
                                 <span class="refund-badge" title="A refund is in progress — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span>
@@ -4456,7 +4475,8 @@
         function buildJobPopup(el) {
             const trip = el.dataset.trip || 'other';
             const label = tripLabels[trip] || 'Trip';
-            let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
+            const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:#ffd54a;margin-right:5px;" title="VIP"></i>' : '';
+            let html = '<div class="tl-popup-header ' + trip + '">' + vipStar + label + ' — ' + (el.dataset.time || '') + '</div>';
             html += '<div class="tl-popup-body">';
             if (el.dataset.pendingRefund === '1') {
                 html += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:0.72rem;padding:4px 6px;border-radius:5px;margin-bottom:5px;"><i class="bi bi-arrow-counterclockwise"></i> REFUND PENDING — do not assign</div>';

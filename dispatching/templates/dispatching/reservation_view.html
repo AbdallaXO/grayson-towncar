@@ -106,6 +106,7 @@
     <div class="page-header">
       <h1>
         Reservation ID: <span class="fw-semibold">{{ reservation.id }}</span>
+        {% if reservation.is_vip %}<span class="badge ms-2 align-middle" style="background:#1a1d21;color:#e8b923;border:1px solid #e8b923;font-size:0.55em;vertical-align:middle;"><i class="bi bi-star-fill me-1"></i>VIP</span>{% endif %}
       </h1>
     </div>
     <hr class="mb-4">
@@ -127,6 +128,16 @@
               <a class="dropdown-item" href="#">Test 1</a>
             </li>
           </ul>
+        </div>
+        <div class="btn-group me-2" role="group">
+          <button type="button" id="vipToggleBtn"
+                  class="btn {% if not reservation.is_vip %}btn-outline-dark{% endif %}"
+                  {% if reservation.is_vip %}style="background:#1a1d21;color:#e8b923;border:1px solid #e8b923;"{% endif %}
+                  data-reservation-id="{{ reservation.id }}"
+                  data-vip="{{ reservation.is_vip|yesno:'1,0' }}"
+                  title="{% if reservation.is_vip %}This reservation is marked VIP — click to remove{% else %}Mark this reservation as VIP (gold highlight on the boards){% endif %}">
+            <i class="bi {% if reservation.is_vip %}bi-star-fill{% else %}bi-star{% endif %} me-1"></i>{% if reservation.is_vip %}VIP{% else %}Mark VIP{% endif %}
+          </button>
         </div>
         <div class="btn-group me-2" role="group">
           <a href="{% url 'modify_reservation' reservation.uuid %}"
@@ -2842,6 +2853,31 @@
     });
   </script>
   {% endif %}
+
+  <!-- VIP flag toggle (reservation-level). Flagging here lights up all of this
+       reservation's legs gold across the boards + planner; legs themselves are
+       display-only so there's nothing to mis-click on the schedule. -->
+  <script>
+    (function () {
+      var btn = document.getElementById('vipToggleBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var makeVip = btn.dataset.vip !== '1';
+        btn.disabled = true;
+        fetch("{% url 'toggle_reservation_vip' %}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+          body: JSON.stringify({ reservation_id: btn.dataset.reservationId, is_vip: makeVip })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) { window.location.reload(); }
+          else { throw new Error(data.error || 'Failed to update VIP'); }
+        })
+        .catch(function (err) { btn.disabled = false; alert('Could not update VIP: ' + err.message); });
+      });
+    })();
+  </script>
 {% endblock content %}
 
 {% block footer %}

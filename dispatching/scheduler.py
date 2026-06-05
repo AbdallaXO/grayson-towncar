@@ -336,6 +336,9 @@ class ScheduleSlot:
     store_stop: bool = False
     # Trip has a refund in-flight — flag so dispatchers don't assign it by mistake.
     pending_refund: bool = False
+    # VIP reservation (manual flag or VIP agency e.g. Small World Big Fun) — gold
+    # highlight on the planner timeline, mirroring the leg boards.
+    is_vip: bool = False
     # Multi-stop / multi-flight indicators (default 0 keeps legacy slots unchanged)
     extra_stop_count: int = 0
     secondary_flight_count: int = 0
@@ -915,6 +918,7 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             carseats_short=_carseats_short,
             store_stop=bool(leg.reservation.store_stop) if (leg.reservation and leg.get_trip_type() == 'arrival') else False,
             pending_refund=bool(leg.reservation.has_pending_refund) if leg.reservation else False,
+            is_vip=leg.is_vip,
             extra_stop_count=_legstop_count,
             secondary_flight_count=_secondary_flights,
         )

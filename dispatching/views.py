@@ -135,6 +135,7 @@ def index(request):
             "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
             "reservation__travel_agent__user",
+            "reservation__travel_agent__agency",  # for Leg.is_vip agency-keyword check (no N+1)
             "driver",
             "driver__profile",
             "driver_assigned_by",
@@ -734,6 +735,7 @@ def index(request):
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
             'pending_refund': _gc.get('pending_refund', False),
+            'is_vip': bool(_uleg.is_vip) if _uleg else False,
             'extra_stop_count': _gc.get('extra_stop_count', 0),
             'secondary_flight_count': _gc.get('secondary_flight_count', 0),
         })
@@ -829,6 +831,8 @@ def schedule_board(request):
         .select_related(
             "driver", "reservation", "reservation__customer",
             "reservation__vehicle", "vehicle", "flight_information", "cruise_information",
+            "reservation__travel_agent",
+            "reservation__travel_agent__agency",  # for Leg.is_vip agency-keyword check (no N+1)
         )
         .prefetch_related(
             "legstop_set",
@@ -1180,6 +1184,8 @@ def schedule_board(request):
             # Only meaningful on arrivals (driver does Publix on the way to dropoff).
             'store_stop': bool(leg.reservation.store_stop) if (leg.reservation and _trip == 'arrival') else False,
             'pending_refund': bool(leg.reservation.has_pending_refund) if leg.reservation else False,
+            'is_vip': leg.is_vip,
+            'reservation_id': leg.reservation_id,
             'extra_stop_count': len(getattr(leg, 'legstop_set').all()) if leg.pk else 0,
             'secondary_flight_count': max(len(getattr(leg, 'legflight_set').all()) - 1, 0) if leg.pk else 0,
         })
@@ -8475,6 +8481,8 @@ def capacity_planner(request):
             "reservation",
             "reservation__customer",
             "reservation__vehicle", "vehicle",
+            "reservation__travel_agent",
+            "reservation__travel_agent__agency",  # for Leg.is_vip agency-keyword check (no N+1)
             "driver",
             "driver__profile",
             "flight_information",
@@ -14239,6 +14247,22 @@ def affiliate_payments(request, section_lock=None):
     for slot in by_method_pills:
         slot["amount"] = (slot["amount"] or Decimal("0")).quantize(Decimal("0.01"))
 
+    # Display-only: segment widths + a monochrome navy ramp (dark -> light by
+    # size) so the template can render the "owed by method" data as one slim
+    # stacked bar instead of a row of loud colored pills. Does not touch any
+    # query/commission math — purely presentational annotations on the slots.
+    by_method_total = sum((s["amount"] for s in by_method_pills), Decimal("0"))
+    _NAVY_RAMP = [
+        "#0F1B3D", "#233152", "#374768", "#4B5D7E", "#5F7393",
+        "#8090B0", "#A6B2CB", "#C5CDDF", "#DEE3EE",
+    ]
+    for idx, slot in enumerate(by_method_pills):
+        if by_method_total > 0:
+            slot["pct"] = round(float(slot["amount"] / by_method_total) * 100, 2)
+        else:
+            slot["pct"] = 0
+        slot["color"] = _NAVY_RAMP[idx] if idx < len(_NAVY_RAMP) else _NAVY_RAMP[-1]
+
     # ---------- Tab-specific filtering ----------
     agencies_qs = agencies_qs_base
     direct_agents_qs = direct_agents_base
@@ -14595,6 +14619,7 @@ def affiliate_payments(request, section_lock=None):
 
         # by-method pills
         "by_method_pills": by_method_pills,
+        "by_method_total": by_method_total.quantize(Decimal("0.01")),
 
         # history
         "history_tab": history_tab,
@@ -15088,6 +15113,48 @@ def toggle_reservation_commission_exclusion(request):
         "reservation_id": reservation.id,
         "excluded": reservation.commission_excluded,
         "reason": reservation.commission_exclusion_reason,
+    })
+
+
+@staff_member_required
+@require_POST
+def toggle_reservation_vip(request):
+    """Flag/unflag a reservation as VIP (gold board highlight).
+
+    Body (JSON): { "reservation_id": int, "is_vip": bool }
+
+    VIP is a per-reservation flag, so toggling from any one of its legs lights up
+    all of them. Travel-agency VIPs (Small World Big Fun) already show as VIP via
+    Leg.is_vip without this flag; this is for the "other reservations I select"
+    case. Saves only the single field so no other signals/recalcs are triggered.
+    """
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON."}, status=400)
+
+    res_id = data.get("reservation_id")
+    if not res_id:
+        return JsonResponse({"success": False, "error": "Missing reservation_id."}, status=400)
+
+    reservation = get_object_or_404(Reservation, id=res_id)
+    reservation.is_vip = bool(data.get("is_vip", not reservation.is_vip))
+    reservation.save(update_fields=["is_vip"])
+
+    # The planner caches its driver schedules per date for 60s; drop the cache for
+    # every date this reservation touches so the gold VIP highlight shows on the
+    # next load instead of lagging up to a minute.
+    for d in (
+        reservation.legs.exclude(pickup_date__isnull=True)
+        .values_list("pickup_date", flat=True)
+        .distinct()
+    ):
+        cache.delete(f"capacity_planner_{d.isoformat()}")
+
+    return JsonResponse({
+        "success": True,
+        "reservation_id": reservation.id,
+        "is_vip": reservation.is_vip,
     })
 
 

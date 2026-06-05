@@ -125,6 +125,13 @@ class Reservation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     private_notes = models.TextField(null=True, blank=True)
 
+    # VIP flag: gold-highlights this reservation's legs on the dispatch board.
+    # Set from the board / reservation page for special clients or trips that need
+    # extra attention (not only travel-agency VIPs). A leg is ALSO treated as VIP
+    # when its travel agent is a VIP agency (Small World Big Fun) -- see
+    # Leg.is_vip, which OR's this flag with the agency match.
+    is_vip = models.BooleanField(default=False)
+
     # Travel Agent fields
     travel_agent = models.ForeignKey(
         "users.TravelAgent",
@@ -1707,6 +1714,39 @@ class Leg(models.Model):
             time_str = f"{total_minutes} min"
         label = f"Coming {time_str} {'late' if direction == 'late' else 'early'}"
         return {"direction": direction, "minutes": total_minutes, "label": label}
+
+    @property
+    def is_vip(self):
+        """True if this leg should be flagged VIP on the dispatch board/planner:
+        the reservation is manually marked VIP, OR its travel agent belongs to a
+        VIP agency (e.g. Small World Big Fun). Single source of truth for the gold
+        highlight.
+
+        Query-safe by design: the agency check only consults relations that are
+        ALREADY loaded, so it never fires a query in bulk/engine contexts (e.g.
+        build_driver_schedules is shared with auto-assign). The board & planner
+        querysets select_related travel_agent + agency, so the agency check is
+        fully live there; where they aren't loaded, only the (cheap, always-loaded)
+        manual flag applies."""
+        reservation = self.reservation
+        if reservation is None:
+            return False
+        if getattr(reservation, "is_vip", False):
+            return True
+        # Agency-based VIP -- guard every relation hop against an unloaded FK so
+        # we never N+1. reservation is select_related in every slot/row context.
+        res_state = getattr(reservation, "_state", None)
+        agent = res_state.fields_cache.get("travel_agent") if res_state else None
+        if agent is None:
+            return False
+        if agent.agency_id:
+            agent_state = getattr(agent, "_state", None)
+            if not agent_state or "agency" not in agent_state.fields_cache:
+                return False  # agency FK not loaded -> skip rather than query
+        # Local import: dispatching.confirmation_sms imports reservations.models,
+        # so importing it at module load would be circular.
+        from dispatching.confirmation_sms import is_vip_leg
+        return is_vip_leg(self)
 
     def flight_timing_flag(self, early_watch_minutes=15, alert_minutes=20):
         """Board-facing flight-timing signal for an arrival leg, with two distinct,

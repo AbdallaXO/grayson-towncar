@@ -43,6 +43,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
             "reservation__travel_agent__user",
+            "reservation__travel_agent__agency",  # for Leg.is_vip agency-keyword check (no N+1)
             "driver",
             "driver__profile",
             "driver_assigned_by",

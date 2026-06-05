@@ -256,6 +256,14 @@
           border-radius: 3px; margin-left: 4px; letter-spacing: 0.04em;
           box-shadow: 0 1px 2px rgba(0,0,0,0.2);
       }
+      /* VIP reservation (manual flag or VIP agency, e.g. Small World Big Fun) —
+         gold ring + a leading star on the bar. box-shadow stacks with the
+         outline-based unpaid/refund flags so none of them are lost. */
+      .timeline-slot.vip { box-shadow: 0 0 0 2px #e8b923, 0 0 0 3px #1a1d21, 0 0 6px rgba(232,185,35,0.75); }
+      .timeline-slot .tl-vip-star {
+          color: #ffd54a; font-size: 0.62rem; margin-right: 2px; line-height: 1;
+          text-shadow: 0 0 2px rgba(0,0,0,0.85);
+      }
       .driver-timeline-row.dnd-over { background: rgba(201,162,39,0.08); }
       .driver-timeline-row.dnd-feasible { box-shadow: inset 4px 0 0 #2e7d32; background: rgba(46,125,50,0.06); }
       .driver-timeline-row.dnd-infeasible { box-shadow: inset 4px 0 0 #dc3545; background: rgba(220,53,69,0.06); }
@@ -347,10 +355,11 @@
                 </div>
                 <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
-                    <div class="timeline-slot {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}" data-tl-popup
+                    <div class="timeline-slot {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ uslot.leg_id }}"
                          data-driver-id="unassigned"
+                         data-vip="{{ uslot.is_vip|yesno:'1,0' }}"
                          data-pending-refund="{{ uslot.pending_refund|yesno:'1,0' }}"
                          style="left:{{ uslot.position_pct }}%; width:{{ uslot.width_pct }}%; top:{{ uslot.lane_top }}px;{% if uslot.is_paid %} border:1px dashed rgba(255,255,255,0.35);{% endif %}"
                          data-trip="{{ uslot.trip_type }}"
@@ -373,7 +382,7 @@
                          data-store-stop="{{ uslot.store_stop|yesno:'1,0' }}"
                          data-extra-stops="{{ uslot.extra_stop_count|default:0 }}"
                          data-secondary-flights="{{ uslot.secondary_flight_count|default:0 }}">
-                      <span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if uslot.extra_stop_count %}<span class="tl-publix-badge" title="{{ uslot.extra_stop_count }} extra stop{{ uslot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ uslot.extra_stop_count }}</span>{% endif %}{% if uslot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ uslot.secondary_flight_count }} secondary flight{{ uslot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ uslot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                      {% if uslot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if uslot.extra_stop_count %}<span class="tl-publix-badge" title="{{ uslot.extra_stop_count }} extra stop{{ uslot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ uslot.extra_stop_count }}</span>{% endif %}{% if uslot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ uslot.secondary_flight_count }} secondary flight{{ uslot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ uslot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -440,10 +449,11 @@
                     <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
                   {% endfor %}
                   {% for slot in data.schedule.slots %}
-                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}" data-tl-popup
+                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}" data-tl-popup
                          {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ slot.leg_id }}"
                          data-driver-id="{{ data.driver.id }}"
+                         data-vip="{{ slot.is_vip|yesno:'1,0' }}"
                          data-pending-refund="{{ slot.pending_refund|yesno:'1,0' }}"
                          style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
                          data-trip="{{ slot.trip_type }}"
@@ -466,7 +476,7 @@
                          data-store-stop="{{ slot.store_stop|yesno:'1,0' }}"
                          data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
                          data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}">
-                      <span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                      {% if slot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -565,7 +575,8 @@
 
       function showJobPopup(el, e) {
         const trip = el.dataset.trip || 'other';
-        let html = '<div class="tl-popup-header '+trip+'">'+tripLabels[trip]+' — '+(el.dataset.time||'')+'</div>';
+        const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:#ffd54a;margin-right:5px;" title="VIP"></i>' : '';
+        let html = '<div class="tl-popup-header '+trip+'">'+vipStar+tripLabels[trip]+' — '+(el.dataset.time||'')+'</div>';
         html += '<div class="tl-popup-body">';
         if (el.dataset.pendingRefund === '1') {
             html += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:0.72rem;padding:4px 6px;border-radius:5px;margin-bottom:5px;"><i class="bi bi-arrow-counterclockwise"></i> REFUND PENDING — do not assign</div>';
