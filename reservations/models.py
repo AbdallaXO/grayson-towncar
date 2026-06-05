@@ -455,6 +455,17 @@ class Reservation(models.Model):
         if not self.total_price:
             self.total_price = self.base_price + (self.additional_charges or 0)
 
+        # Auto-link a travel agent when the booking-contact email belongs to a
+        # registered agent. Agents book for their clients under their own email,
+        # so this lands the trip in the agent's portal (and triggers the
+        # commission calc below) with no manual step. Creation-only + only when
+        # unset, so a deliberate manual detach is never re-applied on a later edit.
+        if self._state.adding and not self.travel_agent_id:
+            from reservations.attribution import resolve_agent_by_customer_email
+            agent = resolve_agent_by_customer_email(self)
+            if agent is not None:
+                self.travel_agent = agent
+
         # Calculate commission if this is a travel agent reservation
         # Commission is calculated on base_price only, not additional fees or gratuity
         if self.travel_agent and self.commission_amount is None:

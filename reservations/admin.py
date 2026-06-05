@@ -899,7 +899,7 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
     ordering = ("-id",)
     resource_class = ReservationResource
     inlines = [LegInline]
-    autocomplete_fields = ("customer",)
+    autocomplete_fields = ("customer", "travel_agent")
     readonly_fields = (
         "created_at",
         "updated_at",

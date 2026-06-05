@@ -6,8 +6,12 @@ from django.db.models.signals import post_save
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
+from django.contrib.auth.models import User
+
 from rates.models import Location, Route, Vehicle, Rate
 from reservations.models import Customer, Lead, Reservation
+from users.models import TravelAgent
+from users.signals import travel_agent_email
 from reservations.lead_matching import (
     ReservationIndex, match_lead, norm_phone, recheck_lead_conversions,
 )
@@ -231,3 +235,103 @@ class RecheckLeadConversionsEngineTests(TestCase):
         report = recheck_lead_conversions(Lead.objects.all())
         self.assertEqual(report.already_converted, 1)
         self.assertEqual(report.converted, 0)
+
+
+@override_settings(GHL_API_KEY="", GHL_LOCATION_ID="")
+class AgentAutoAttachByEmailTests(TestCase):
+    """A reservation whose customer (booking-contact) email matches a registered
+    ACTIVE travel agent auto-links to that agent at creation -- agents book for
+    their clients under their own email, so the trip lands in the agent's portal
+    with no manual step, and the commission auto-calculates from the linked agent.
+    Creation-only + only-when-unset, so explicit picks and manual detaches win.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        origin = Location.objects.create(name="MCO Airport")
+        dest = Location.objects.create(name="Disney World")
+        route = Route.objects.create(origin=origin, destination=dest)
+        vehicle = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+        cls.rate = Rate.objects.create(
+            vehicle=vehicle, route=route,
+            oneway_price=Decimal("140"), round_trip_price=Decimal("275"),
+        )
+        active_user = User.objects.create_user(username="agentjane", email="jane@agency.com")
+        cls.agent = TravelAgent.objects.create(
+            user=active_user, agent_name="Jane Doe", phone="555-0100",
+            commission_rate=Decimal("15.00"), is_active=True,
+        )
+        inactive_user = User.objects.create_user(username="agentold", email="old@agency.com")
+        cls.inactive_agent = TravelAgent.objects.create(
+            user=inactive_user, agent_name="Old Agent", phone="555-0199", is_active=False,
+        )
+
+    def setUp(self):
+        # Silence background-thread + welcome-email signals so the test DB isn't
+        # touched from worker threads; the feature under test is in Reservation.save().
+        for sig, sender in [
+            (reservation_saved, Reservation),
+            (auto_convert_lead_on_reservation, Reservation),
+            (sync_lead_to_ghl_on_create, Lead),
+            (sync_lead_status_to_ghl, Lead),
+            (travel_agent_email, TravelAgent),
+        ]:
+            post_save.disconnect(sig, sender=sender)
+            self.addCleanup(lambda s=sig, snd=sender: post_save.connect(s, sender=snd))
+
+    def _reservation(self, email, *, travel_agent=None):
+        customer = Customer.objects.create(
+            first_name="Client", last_name="Smith", email=email, phone_number="111-222-3333",
+        )
+        return Reservation.objects.create(
+            trip_type="oneway", customer=customer, rate=self.rate,
+            base_price=Decimal("200"), total_price=Decimal("200"),
+            status="confirmed", travel_agent=travel_agent,
+        )
+
+    def test_matching_email_attaches_agent_and_calcs_commission(self):
+        res = self._reservation("jane@agency.com")
+        self.assertEqual(res.travel_agent_id, self.agent.id)
+        # 15% of base_price 200 = 30.00, calculated because the agent was linked
+        # before the commission block in Reservation.save().
+        self.assertEqual(res.commission_amount, Decimal("30.00"))
+
+    def test_match_is_case_insensitive(self):
+        res = self._reservation("JANE@Agency.com")
+        self.assertEqual(res.travel_agent_id, self.agent.id)
+
+    def test_no_matching_agent_leaves_unattached(self):
+        res = self._reservation("walkin-customer@gmail.com")
+        self.assertIsNone(res.travel_agent_id)
+
+    def test_inactive_agent_is_not_attached(self):
+        res = self._reservation("old@agency.com")
+        self.assertIsNone(res.travel_agent_id)
+
+    def test_explicit_agent_on_create_is_not_overridden(self):
+        other_user = User.objects.create_user(username="agentbob", email="bob@agency.com")
+        other = TravelAgent.objects.create(
+            user=other_user, phone="555-0123", is_active=True,
+            commission_rate=Decimal("10.00"),  # Decimal, as a DB-loaded agent always is
+        )
+        # Booked with a deliberately chosen agent; the email-derived one must NOT win.
+        res = self._reservation("jane@agency.com", travel_agent=other)
+        self.assertEqual(res.travel_agent_id, other.id)
+
+    def test_manual_detach_sticks_on_edit(self):
+        res = self._reservation("jane@agency.com")
+        self.assertEqual(res.travel_agent_id, self.agent.id)
+        res.travel_agent = None
+        res.save()
+        res.refresh_from_db()
+        # Hook is creation-only, so a later deliberate detach is never re-applied.
+        self.assertIsNone(res.travel_agent_id)
+
+    def test_booking_source_attributes_to_agent_even_for_staff(self):
+        from reservations.attribution import derive_booking_source
+        res = self._reservation("jane@agency.com")
+        staff_request = SimpleNamespace(
+            user=SimpleNamespace(is_authenticated=True, is_staff=True)
+        )
+        # Agent attribution wins over the staff/phone label (canonical "agent wins").
+        self.assertEqual(derive_booking_source(res, request=staff_request), "travel_agent")

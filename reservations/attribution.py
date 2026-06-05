@@ -29,8 +29,8 @@ def derive_booking_source(reservation, request=None) -> str:
     Return the canonical booking_source channel for a Reservation.
 
     Order of precedence (most specific wins):
-      1. Staff/dispatcher creating from admin   -> "phone"
-      2. Travel-agent attribution               -> "travel_agent"
+      1. Travel-agent attribution               -> "travel_agent"
+      2. Staff/dispatcher creating from admin   -> "phone"
       3. Google click ID present                -> "google_ads"
       4. Facebook click ID or meta utm_source   -> "meta_ads" / "meta_organic"
       5. Google in utm_source                   -> "google_ads" / "google_organic"
@@ -41,15 +41,18 @@ def derive_booking_source(reservation, request=None) -> str:
     Callers are responsible for assigning the result to
     reservation.booking_source and saving.
     """
-    # 1. Phone / dispatcher: any reservation created by a logged-in staff user
+    # 1. Travel agent FK is the strongest signal and always wins -- including
+    #    when the row is entered by staff in admin. This keeps booking_source
+    #    consistent with find_booking_source_drift(), which treats any
+    #    agent-linked row whose source != 'travel_agent' as drift to repair.
+    if getattr(reservation, "travel_agent_id", None):
+        return "travel_agent"
+
+    # 2. Phone / dispatcher: any reservation created by a logged-in staff user
     if request is not None:
         user = getattr(request, "user", None)
         if user is not None and getattr(user, "is_authenticated", False) and getattr(user, "is_staff", False):
             return "phone"
-
-    # 2. Travel agent FK takes priority over UTM tracking
-    if getattr(reservation, "travel_agent_id", None):
-        return "travel_agent"
 
     medium = _normalize(getattr(reservation, "utm_medium", None))
     src = _normalize(getattr(reservation, "utm_source", None))
@@ -74,6 +77,33 @@ def derive_booking_source(reservation, request=None) -> str:
     # direct traffic, repeat customer typing the URL, etc. We do NOT guess
     # "repeat" here; that lives on is_repeat_booking.
     return "direct"
+
+
+def resolve_agent_by_customer_email(reservation):
+    """
+    Return the registered travel agent whose account email matches the
+    reservation's customer (booking-contact) email, or None.
+
+    Travel agents routinely book for their clients using their OWN email as the
+    booking contact, so a customer email equal to an active agent's login email
+    means the trip belongs in that agent's portal. This is the lookup behind the
+    auto-attach in Reservation.save(): set the FK once, at creation, when unset.
+
+    Pure lookup -- never mutates or saves the reservation. Inactive agents are
+    skipped (a deactivated agent must be attached manually). Matches
+    case-insensitively; .first() is deterministic if two accounts share an email.
+    """
+    if not getattr(reservation, "customer_id", None):
+        return None
+    email = (getattr(reservation.customer, "email", "") or "").strip()
+    if not email:
+        return None
+    from users.models import TravelAgent
+    return (
+        TravelAgent.objects.filter(is_active=True, user__email__iexact=email)
+        .select_related("user")
+        .first()
+    )
 
 
 def find_booking_source_drift():
