@@ -312,7 +312,7 @@
                 <table class="table table-sm">
                   <thead>
                     <tr>
-                      <th>ID</th>
+                      <th>Res #</th>
                       <th>Customer</th>
                       <th>Route</th>
                       <th>Vehicle</th>
@@ -325,7 +325,7 @@
                   <tbody>
                     {% for reservation in agent_payout.reservations.all %}
                       <tr>
-                        <td>#{{ reservation.id }}</td>
+                        <td>{{ reservation.display_number }}</td>
                         <td>{{ reservation.customer.get_full_name }}</td>
                         <td>{{ reservation.rate.route }}</td>
                         <td>{{ reservation.vehicle.vehicle_type.title }}</td>

@@ -27,7 +27,7 @@
             <table class="table table-striped">
               <thead>
                 <tr>
-                  <th>ID</th>
+                  <th>Res #</th>
                   <th>Date</th>
                   <th>Customer</th>
                   <th>Commission</th>
@@ -36,7 +36,7 @@
               <tbody>
                 {% for reservation in unpaid_reservations %}
                   <tr>
-                    <td>{{ reservation.id }}</td>
+                    <td>{{ reservation.display_number }}</td>
                     <td>{{ reservation.created_at|date:"M d, Y" }}</td>
                     <td>{{ reservation.customer }}</td>
                     <td>${{ reservation.commission_amount }}</td>
