@@ -137,7 +137,7 @@
         </li>
         <!-- KPIs dropdown (superuser-only) -->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'revenue_kpis' or request.resolver_match.url_name == 'staff_kpis' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'lead_analytics' %}active{% endif %}"
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'revenue_kpis' or request.resolver_match.url_name == 'staff_kpis' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'lead_analytics' or request.resolver_match.url_name == 'reservation_sources' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-bar-chart-line me-1"></i>KPIs</a>
           <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
@@ -161,6 +161,10 @@
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'lead_analytics' %}active{% endif %}"
                  href="{% url 'lead_analytics' %}"><i class="bi bi-funnel me-2"></i>Lead Analytics</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'reservation_sources' %}active{% endif %}"
+                 href="{% url 'reservation_sources' %}"><i class="bi bi-pie-chart me-2"></i>Reservation Sources</a>
             </li>
           </ul>
         </li>

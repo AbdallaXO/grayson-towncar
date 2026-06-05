@@ -13115,6 +13115,177 @@ def swap_tester(request):
 
 
 @login_required(login_url="login")
+def reservation_sources(request):
+    """
+    Reservation source-attribution dashboard: reservation count + booked
+    revenue per acquisition channel (Google / Meta / Travel Agents / Other),
+    grouped by booking-created date, with sub-channel and per-travel-agent
+    drill-downs and a filterable reservation list.
+
+    Accuracy guarantee for the travel-agent edge case: ANY reservation linked to
+    a travel agent is counted as Travel Agent, regardless of any gclid/fbclid/utm
+    it also carries — and even if the stored booking_source drifted (e.g. the
+    agent was linked after the booking was created). We derive the "effective
+    source" live here rather than trusting the possibly-stale booking_source
+    column, so the numbers are always right.
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    from datetime import datetime as _dt
+    from decimal import Decimal as _Dec
+    from django.db.models import Count, Sum, Case, When, Value, F, CharField, DecimalField
+    from django.db.models.functions import Coalesce
+    from django.core.paginator import Paginator
+    from reservations.models import Reservation
+
+    today = timezone.localdate()
+    SOURCE_LABELS = dict(Reservation.BOOKING_SOURCE_CHOICES)
+    SOURCE_LABELS["travel_agent"] = "Travel Agent"
+
+    # ── date range on booking CREATED date (rolling presets + custom) ──
+    PRESETS = {"7": 7, "30": 30, "90": 90, "365": 365}
+    days_param = (request.GET.get("days") or "90").strip()
+    start = (request.GET.get("start") or "").strip()
+    end = (request.GET.get("end") or "").strip()
+
+    def _pd(s):
+        try:
+            return _dt.strptime(s, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return None
+
+    cstart, cend = _pd(start), _pd(end)
+    if cstart or cend:
+        days_param = "custom"
+        end_date = cend or today
+        start_date = cstart or (end_date - timedelta(days=89))
+    elif days_param == "all":
+        start_date, end_date = None, today
+    else:
+        if days_param not in PRESETS:
+            days_param = "90"
+        start_date = today - timedelta(days=PRESETS[days_param] - 1)
+        end_date = today
+
+    base = Reservation.objects.all()
+    if start_date is not None:
+        base = base.filter(created_at__date__gte=start_date)
+    base = base.filter(created_at__date__lte=end_date)
+
+    # ── effective source: travel agent ALWAYS wins over ad params ──
+    eff = Case(
+        When(travel_agent__isnull=False, then=Value("travel_agent")),
+        default=F("booking_source"),
+        output_field=CharField(),
+    )
+    rev_sum = Coalesce(
+        Sum("total_price"),
+        Value(0),
+        output_field=DecimalField(max_digits=14, decimal_places=2),
+    )
+
+    rows = list(
+        base.annotate(eff_source=eff)
+        .values("eff_source")
+        .annotate(count=Count("id"), revenue=rev_sum)
+    )
+    by_src = {r["eff_source"]: r for r in rows}
+    total_count = sum(r["count"] for r in rows)
+    total_revenue = sum((r["revenue"] for r in rows), _Dec("0"))
+
+    def _row(key):
+        r = by_src.get(key)
+        c = r["count"] if r else 0
+        rev = r["revenue"] if r else _Dec("0")
+        return {
+            "key": key,
+            "label": SOURCE_LABELS.get(key, key.replace("_", " ").title()),
+            "count": c,
+            "revenue": rev,
+            "pct": round(c * 100.0 / total_count, 1) if total_count else 0,
+        }
+
+    # (group key, label, accent color, [sub-source keys])
+    GROUP_DEFS = [
+        ("google", "Google", "#C9A227", ["google_ads", "google_organic"]),
+        ("meta", "Meta / Facebook", "#3A6EA5", ["meta_ads", "meta_organic"]),
+        ("travel_agents", "Travel Agents", "#2E7D52", ["travel_agent"]),
+        ("other", "Other / Direct", "#8B8470", ["direct", "referral", "phone", "other"]),
+    ]
+    groups = []
+    for gkey, glabel, gcolor, subs in GROUP_DEFS:
+        sub_rows = [_row(s) for s in subs]
+        gcount = sum(s["count"] for s in sub_rows)
+        grev = sum((s["revenue"] for s in sub_rows), _Dec("0"))
+        groups.append({
+            "key": gkey,
+            "label": glabel,
+            "color": gcolor,
+            "count": gcount,
+            "revenue": grev,
+            "pct": round(gcount * 100.0 / total_count, 1) if total_count else 0,
+            "avg": (grev / gcount) if gcount else _Dec("0"),
+            "subs": sub_rows if len(subs) > 1 else [],
+        })
+
+    # ── per-travel-agent breakdown ──
+    agent_rows = list(
+        base.filter(travel_agent__isnull=False)
+        .values("travel_agent_id", "travel_agent__agent_name")
+        .annotate(count=Count("id"), revenue=rev_sum)
+        .order_by("-revenue")
+    )
+
+    # ── reservation list (filtered by channel / agent) ──
+    channel = (request.GET.get("channel") or "all").strip()
+    if channel == "travel_agent":
+        channel = "travel_agents"
+    agent_id = (request.GET.get("agent") or "").strip()
+
+    GROUP_SUBS = {g[0]: g[3] for g in GROUP_DEFS}
+    lst = base.select_related("customer", "rate__route", "travel_agent")
+    if agent_id.isdigit():
+        lst = lst.filter(travel_agent_id=int(agent_id))
+        channel = "travel_agents"
+    elif channel == "travel_agents":
+        lst = lst.filter(travel_agent__isnull=False)
+    elif channel in GROUP_SUBS:
+        # non-agent channels: exclude travel-agent rows (they're reclassified)
+        lst = lst.filter(travel_agent__isnull=True, booking_source__in=GROUP_SUBS[channel])
+    elif channel in SOURCE_LABELS:
+        lst = lst.filter(travel_agent__isnull=True, booking_source=channel)
+    # channel == "all" → no extra filter
+
+    lst = lst.order_by("-created_at")
+    page_obj = Paginator(lst, 50).get_page(request.GET.get("page"))
+    for r in page_obj:
+        k = "travel_agent" if r.travel_agent_id else r.booking_source
+        r.source_key = k
+        r.source_label = SOURCE_LABELS.get(k, k)
+
+    qd = request.GET.copy()
+    qd.pop("page", None)
+
+    context = {
+        "groups": groups,
+        "agent_rows": agent_rows,
+        "total_count": total_count,
+        "total_revenue": total_revenue,
+        "avg_value": (total_revenue / total_count) if total_count else _Dec("0"),
+        "page_obj": page_obj,
+        "channel": channel,
+        "agent_id": agent_id,
+        "days_param": days_param,
+        "start_str": start_date.isoformat() if start_date else "",
+        "end_str": end_date.isoformat(),
+        "base_qs": qd.urlencode(),
+        "source_labels": SOURCE_LABELS,
+    }
+    return render(request, "dispatching/reservation_sources.html", context)
+
+
+@login_required(login_url="login")
 def lead_analytics(request):
     """
     Lead analytics dashboard showing conversion funnel, follow-up

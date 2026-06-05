@@ -1,0 +1,255 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block navbar %}{% endblock %}
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .rs {
+    --rs-page:#F6F7F9; --rs-surface:#fff; --rs-surface2:#FAFBFC;
+    --rs-line:rgba(20,22,28,0.08); --rs-line2:rgba(20,22,28,0.13);
+    --rs-text:#1A1D21; --rs-text2:#5A6068; --rs-text3:#9AA0A8;
+    --rs-gold:#C9A227; --rs-blue:#3A6EA5; --rs-green:#2E7D52; --rs-gray:#8B8470;
+    font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color:var(--rs-text); background:var(--rs-page); min-height:100vh;
+  }
+  .rs *,.rs *::before,.rs *::after{box-sizing:border-box;}
+  body.rs-page{background:var(--rs-page);}
+  .rs-wrap{max-width:1320px;margin:0 auto;padding:22px 24px 48px;}
+
+  .rs-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:18px;}
+  .rs-title{font-size:24px;font-weight:700;letter-spacing:-0.02em;margin:0;}
+  .rs-sub{font-size:12.5px;color:var(--rs-text3);margin-top:3px;}
+
+  /* date filter */
+  .rs-dates{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .rs-preset{padding:6px 11px;border-radius:7px;border:1px solid var(--rs-line2);background:var(--rs-surface);
+    color:var(--rs-text2);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;transition:.12s;}
+  .rs-preset:hover{border-color:var(--rs-gold);color:var(--rs-text);}
+  .rs-preset.on{background:var(--rs-gold);border-color:var(--rs-gold);color:#1A1D21;}
+  .rs-custom{display:flex;align-items:center;gap:5px;margin-left:4px;}
+  .rs-custom input{padding:5px 8px;border:1px solid var(--rs-line2);border-radius:6px;font:inherit;font-size:12px;color:var(--rs-text);}
+  .rs-custom button{padding:6px 11px;border:0;border-radius:7px;background:#1A1D21;color:#fff;font-size:12px;font-weight:600;cursor:pointer;}
+
+  /* KPI cards */
+  .rs-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px;}
+  .rs-kpi{background:var(--rs-surface);border:1px solid var(--rs-line);border-radius:12px;padding:16px 18px;}
+  .rs-kpi .lbl{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--rs-text3);}
+  .rs-kpi .val{font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;margin-top:6px;}
+  .rs-kpi .val.green{color:var(--rs-green);}
+
+  /* group grid */
+  .rs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+  @media(max-width:1100px){.rs-grid{grid-template-columns:repeat(2,1fr);}.rs-kpis{grid-template-columns:1fr;}}
+  @media(max-width:640px){.rs-grid{grid-template-columns:1fr;}}
+  .rs-card{background:var(--rs-surface);border:1px solid var(--rs-line);border-radius:12px;padding:16px;
+    display:flex;flex-direction:column;text-decoration:none;color:inherit;transition:.12s;position:relative;overflow:hidden;}
+  .rs-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c);}
+  .rs-card:hover{box-shadow:0 4px 16px rgba(20,22,28,0.07);transform:translateY(-1px);border-color:var(--rs-line2);}
+  .rs-card.on{box-shadow:0 0 0 2px var(--c) inset;}
+  .rs-card .g-lbl{font-size:13px;font-weight:700;color:var(--rs-text);}
+  .rs-card .g-count{font-size:28px;font-weight:700;letter-spacing:-0.02em;margin-top:8px;line-height:1;}
+  .rs-card .g-pct{font-size:11.5px;color:var(--rs-text3);margin-top:2px;}
+  .rs-card .g-rev{font-size:13px;font-weight:700;color:var(--rs-green);margin-top:8px;}
+  .rs-card .g-rev small{color:var(--rs-text3);font-weight:500;}
+  .rs-bar{height:5px;border-radius:3px;background:var(--rs-line);margin-top:10px;overflow:hidden;}
+  .rs-bar>span{display:block;height:100%;background:var(--c);}
+  .rs-subs{margin-top:10px;border-top:1px dashed var(--rs-line);padding-top:8px;display:flex;flex-direction:column;gap:4px;}
+  .rs-subrow{display:flex;justify-content:space-between;font-size:11.5px;color:var(--rs-text2);}
+  .rs-subrow b{color:var(--rs-text);font-weight:700;}
+
+  .rs-section{background:var(--rs-surface);border:1px solid var(--rs-line);border-radius:12px;margin-bottom:24px;overflow:hidden;}
+  .rs-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--rs-line);}
+  .rs-section-head h2{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--rs-text2);margin:0;}
+  .rs-section-head .meta{font-size:11.5px;color:var(--rs-text3);}
+
+  table.rs-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .rs-table th{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--rs-text3);padding:10px 14px;background:var(--rs-surface2);border-bottom:1px solid var(--rs-line);white-space:nowrap;}
+  .rs-table td{padding:9px 14px;border-bottom:1px solid var(--rs-line);vertical-align:middle;}
+  .rs-table tbody tr:last-child td{border-bottom:0;}
+  .rs-table tbody tr:hover{background:var(--rs-surface2);}
+  .rs-table .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .rs-table .rev{text-align:right;font-weight:700;color:var(--rs-green);font-variant-numeric:tabular-nums;}
+  .rs-table a{color:var(--rs-gold);text-decoration:none;font-weight:600;}
+  .rs-table a:hover{text-decoration:underline;}
+  .rs-agent-scroll{max-height:360px;overflow-y:auto;}
+
+  /* source badge */
+  .rs-src{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap;}
+  .rs-src.google{background:rgba(201,162,39,0.13);color:#8A6A12;}
+  .rs-src.meta{background:rgba(58,110,165,0.12);color:#2C5580;}
+  .rs-src.ta{background:rgba(46,125,82,0.12);color:#226343;}
+  .rs-src.other{background:rgba(20,22,28,0.06);color:var(--rs-text2);}
+
+  /* filter chips */
+  .rs-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .rs-chip{padding:5px 11px;border-radius:999px;border:1px solid var(--rs-line2);background:var(--rs-surface);
+    color:var(--rs-text2);font-size:11.5px;font-weight:600;text-decoration:none;transition:.12s;}
+  .rs-chip:hover{border-color:var(--rs-gold);color:var(--rs-text);}
+  .rs-chip.on{background:#1A1D21;border-color:#1A1D21;color:#fff;}
+
+  .rs-pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-top:1px solid var(--rs-line);font-size:12.5px;color:var(--rs-text3);}
+  .rs-pager a{color:var(--rs-text);text-decoration:none;border:1px solid var(--rs-line2);border-radius:7px;padding:5px 11px;font-weight:600;}
+  .rs-pager a:hover{border-color:var(--rs-gold);}
+  .rs-empty{padding:34px;text-align:center;color:var(--rs-text3);font-style:italic;}
+  .rs-note{font-size:11.5px;color:var(--rs-text3);margin-top:-10px;margin-bottom:18px;}
+  .rs-note b{color:var(--rs-text2);font-weight:700;}
+</style>
+{% endblock %}
+
+{% block body_class %}rs-page{% endblock %}
+
+{% block content %}
+{% include "dispatching/dispatcher_navbar.html" %}
+
+<div class="rs">
+  <div class="rs-wrap">
+
+    <!-- header + date range -->
+    <div class="rs-head">
+      <div>
+        <h1 class="rs-title">Reservation Sources</h1>
+        <div class="rs-sub">
+          Where bookings come from · by booking-created date ·
+          {% if start_str %}{{ start_str }} → {{ end_str }}{% else %}all time{% endif %}
+        </div>
+      </div>
+      <div class="rs-dates">
+        {% with c=channel a=agent_id %}
+        <a class="rs-preset {% if days_param == '7' %}on{% endif %}" href="?days=7&channel={{ c }}{% if a %}&agent={{ a }}{% endif %}">7d</a>
+        <a class="rs-preset {% if days_param == '30' %}on{% endif %}" href="?days=30&channel={{ c }}{% if a %}&agent={{ a }}{% endif %}">30d</a>
+        <a class="rs-preset {% if days_param == '90' %}on{% endif %}" href="?days=90&channel={{ c }}{% if a %}&agent={{ a }}{% endif %}">90d</a>
+        <a class="rs-preset {% if days_param == '365' %}on{% endif %}" href="?days=365&channel={{ c }}{% if a %}&agent={{ a }}{% endif %}">12mo</a>
+        <a class="rs-preset {% if days_param == 'all' %}on{% endif %}" href="?days=all&channel={{ c }}{% if a %}&agent={{ a }}{% endif %}">All</a>
+        <form class="rs-custom" method="get">
+          <input type="hidden" name="channel" value="{{ c }}">
+          {% if a %}<input type="hidden" name="agent" value="{{ a }}">{% endif %}
+          <input type="date" name="start" value="{{ start_str }}">
+          <input type="date" name="end" value="{{ end_str }}">
+          <button type="submit">Apply</button>
+        </form>
+        {% endwith %}
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="rs-kpis">
+      <div class="rs-kpi"><div class="lbl">Reservations</div><div class="val">{{ total_count|intcomma }}</div></div>
+      <div class="rs-kpi"><div class="lbl">Booked Revenue</div><div class="val green">${{ total_revenue|floatformat:0|intcomma }}</div></div>
+      <div class="rs-kpi"><div class="lbl">Avg Booking Value</div><div class="val">${{ avg_value|floatformat:0|intcomma }}</div></div>
+    </div>
+
+    <!-- channel groups -->
+    <div class="rs-grid">
+      {% for g in groups %}
+      <a class="rs-card {% if channel == g.key %}on{% endif %}" style="--c:{{ g.color }};"
+         href="?channel={{ g.key }}&days={{ days_param }}{% if days_param == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">
+        <div class="g-lbl">{{ g.label }}</div>
+        <div class="g-count">{{ g.count|intcomma }}</div>
+        <div class="g-pct">{{ g.pct }}% of bookings</div>
+        <div class="rs-bar"><span style="width:{{ g.pct }}%;"></span></div>
+        <div class="g-rev">${{ g.revenue|floatformat:0|intcomma }} <small>· ${{ g.avg|floatformat:0|intcomma }} avg</small></div>
+        {% if g.subs %}
+        <div class="rs-subs">
+          {% for s in g.subs %}
+          <div class="rs-subrow"><span>{{ s.label }}</span><span><b>{{ s.count|intcomma }}</b> · ${{ s.revenue|floatformat:0|intcomma }}</span></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+
+    <div class="rs-note">
+      <b>Travel-agent bookings always count as Travel Agents</b> — even when they carry a Google/Meta click ID or UTM — so ad channels aren't inflated by agent traffic.
+    </div>
+
+    <!-- per-agent breakdown -->
+    {% if agent_rows %}
+    <div class="rs-section">
+      <div class="rs-section-head">
+        <h2>Travel Agents · breakdown</h2>
+        <span class="meta">{{ agent_rows|length }} agent{{ agent_rows|length|pluralize }} with bookings</span>
+      </div>
+      <div class="rs-agent-scroll">
+        <table class="rs-table">
+          <thead><tr><th>Agent</th><th class="num">Reservations</th><th class="num">Booked Revenue</th><th></th></tr></thead>
+          <tbody>
+            {% for a in agent_rows %}
+            <tr>
+              <td>{{ a.travel_agent__agent_name|default:"—" }}</td>
+              <td class="num">{{ a.count|intcomma }}</td>
+              <td class="rev">${{ a.revenue|floatformat:0|intcomma }}</td>
+              <td class="num"><a href="?agent={{ a.travel_agent_id }}&days={{ days_param }}{% if days_param == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">View →</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- reservation list -->
+    <div class="rs-section">
+      <div class="rs-section-head" style="flex-wrap:wrap;">
+        <h2>Reservations</h2>
+        <div class="rs-chips">
+          {% with d=days_param %}
+          <a class="rs-chip {% if channel == 'all' and not agent_id %}on{% endif %}" href="?channel=all&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">All</a>
+          <a class="rs-chip {% if channel == 'google' %}on{% endif %}" href="?channel=google&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Google</a>
+          <a class="rs-chip {% if channel == 'meta' %}on{% endif %}" href="?channel=meta&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Meta</a>
+          <a class="rs-chip {% if channel == 'travel_agents' %}on{% endif %}" href="?channel=travel_agents&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Travel Agents</a>
+          <a class="rs-chip {% if channel == 'other' %}on{% endif %}" href="?channel=other&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Other</a>
+          {% endwith %}
+        </div>
+      </div>
+      {% if page_obj.object_list %}
+      <div style="overflow-x:auto;">
+        <table class="rs-table">
+          <thead>
+            <tr>
+              <th>Res #</th><th>Created</th><th>Customer</th><th>Source</th>
+              <th>Agent</th><th>Route</th><th class="num">Amount</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in page_obj %}
+            <tr>
+              <td><a href="{% url 'reservation_details' r.id %}" target="_blank" rel="noopener">{{ r.display_number }}</a></td>
+              <td class="num" style="text-align:left;">{{ r.created_at|date:"M d, Y" }}</td>
+              <td>{{ r.customer.get_full_name|default:"—" }}</td>
+              <td>
+                {% if 'google' in r.source_key %}<span class="rs-src google">{{ r.source_label }}</span>
+                {% elif 'meta' in r.source_key %}<span class="rs-src meta">{{ r.source_label }}</span>
+                {% elif r.source_key == 'travel_agent' %}<span class="rs-src ta">{{ r.source_label }}</span>
+                {% else %}<span class="rs-src other">{{ r.source_label }}</span>{% endif %}
+              </td>
+              <td>{% if r.travel_agent %}{{ r.travel_agent.agent_name|default:"—" }}{% else %}<span style="color:var(--rs-text3);">—</span>{% endif %}</td>
+              <td>{% if r.rate and r.rate.route %}{{ r.rate.route.origin }} → {{ r.rate.route.destination }}{% else %}—{% endif %}</td>
+              <td class="rev">${{ r.total_price|floatformat:2|intcomma }}</td>
+              <td>{{ r.get_status_display }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="rs-pager">
+        <span>Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count|intcomma }}</span>
+        <span>
+          {% if page_obj.has_previous %}<a href="?{{ base_qs }}&page={{ page_obj.previous_page_number }}">← Prev</a>{% endif %}
+          <span style="margin:0 8px;">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+          {% if page_obj.has_next %}<a href="?{{ base_qs }}&page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+        </span>
+      </div>
+      {% else %}
+      <div class="rs-empty">No reservations match this source and date range.</div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}
