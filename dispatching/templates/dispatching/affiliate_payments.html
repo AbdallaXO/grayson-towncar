@@ -5,116 +5,154 @@
 
 {% block extra_css %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --gt-gold: #C9A227;
-    --gt-gold-soft: rgba(201,162,39,0.12);
-    --gt-gold-tint: #fdfaef;
-    --gt-dark: #1a1d21;
-    --gt-dark-2: #23272b;
-    --gt-surface: #f7f8fa;
-    --gt-surface-2: #fbfbfd;
-    --gt-border: #e6e8ee;
-    --gt-border-soft: #eef0f4;
-    --gt-red: #e04444;
-    --gt-green: #1f9d55;
-    --gt-text: #1c2330;
-    --gt-muted: #7c8597;
-    --gt-radius: 12px;
-    --gt-radius-sm: 8px;
-    --gt-shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
-    --gt-shadow-md: 0 4px 14px rgba(15,23,42,0.06);
+    /* Calm warm-neutral surfaces, brand navy as primary, gold as a sparing
+       accent, red/amber/green reserved strictly for status. Variable NAMES are
+       kept stable (existing rules + JS depend on them) — only the values shift
+       toward the calmer palette; new status/ink tokens are added alongside. */
+    --gt-bg: #F4F3EF;                 /* page background (warm) */
+    --gt-surface: #F5F3ED;            /* light warm inset: chips, table heads, hovers */
+    --gt-surface-2: #FBFAF7;          /* near-white */
+    --gt-inset: #F7F6F1;
+    --gt-gold: #C8A24A;
+    --gt-gold-soft: rgba(200,162,74,0.14);
+    --gt-gold-tint: #FAF6EC;
+    --gt-gold-ink: #7C5E16;           /* gold safe for small text on white */
+    --gt-dark: #0F1B3D;               /* brand navy: primary buttons / active / headings / ink-dark */
+    --gt-dark-2: #1C2B54;
+    --gt-navy-tint: #EAECF3;
+    --gt-border: #E7E5DD;
+    --gt-border-soft: #EFEDE6;
+    --gt-red: #B23A33;   --gt-red-soft: #FBECEA;   --gt-red-ink: #8A2722;
+    --gt-amber: #B5791A; --gt-amber-soft: #FBF1DD; --gt-amber-ink: #7A4F0E;
+    --gt-green: #2F7D5B; --gt-green-soft: #E6F2EB; --gt-green-ink: #1E5A3F;
+    --gt-text: #1A1A1C;               /* ink — primary text */
+    --gt-muted: #5C5B56;              /* ink-2 — secondary */
+    --gt-ink-3: #94928A;              /* ink-3 — hint */
+    --gt-radius: 14px;
+    --gt-radius-sm: 9px;
+    --gt-radius-xs: 7px;
+    --gt-shadow-sm: 0 1px 2px rgba(15,27,61,0.04);
+    --gt-shadow-md: 0 1px 2px rgba(15,27,61,.04), 0 8px 24px -16px rgba(15,27,61,.18);
   }
 
-  body { background: var(--gt-surface); }
-  .container-fluid { font-family: 'DM Sans', sans-serif; color: var(--gt-text); max-width: 1400px; }
+  body { background: var(--gt-bg); }
+  .container-fluid {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    color: var(--gt-text); max-width: 1400px;
+    font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
+  }
 
   /* === Page header === */
   .am-page-head {
     display: flex; justify-content: space-between; align-items: flex-end;
     flex-wrap: wrap; gap: 1rem; margin-bottom: 20px;
   }
-  .am-title { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.6px; color: var(--gt-dark); margin: 0; }
-  .am-subtitle { font-size: .9rem; color: var(--gt-muted); margin: 4px 0 0; }
+  .am-eyebrow {
+    font-size: .7rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--gt-gold-ink); font-weight: 500; margin: 0 0 5px;
+  }
+  .am-title { font-size: 2rem; font-weight: 500; letter-spacing: -0.5px; color: var(--gt-dark); margin: 0; line-height: 1.04; }
+  .am-subtitle { font-size: .9rem; color: var(--gt-muted); margin: 7px 0 0; }
   .am-head-actions { display: flex; gap: .5rem; }
   .am-head-actions .btn {
-    border-radius: var(--gt-radius-sm); font-weight: 600; font-size: .82rem;
+    border-radius: var(--gt-radius-sm); font-weight: 500; font-size: .82rem;
     padding: .5rem .95rem;
   }
+  /* Calm the outline header buttons to hairline-neutral with a navy hover. */
+  .am-head-actions .btn-outline-dark {
+    color: var(--gt-text); border-color: var(--gt-border-2, var(--gt-border));
+    background: #fff;
+  }
+  .am-head-actions .btn-outline-dark:hover {
+    color: var(--gt-dark); border-color: var(--gt-dark); background: #fff;
+  }
 
-  /* === KPI cards (lighter, modern) === */
+  /* === KPI cards — calm: one navy hero, the rest neutral white. Color rides
+       only the status numbers (+ a small dot), never the card backgrounds. === */
   .am-kpis {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;
   }
   .am-kpi {
     background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
-    padding: 18px 18px; box-shadow: var(--gt-shadow-sm);
-    position: relative; overflow: hidden;
+    padding: 16px 17px 15px; box-shadow: var(--gt-shadow-sm);
+    position: relative; overflow: hidden; min-height: 98px;
+    display: flex; flex-direction: column; justify-content: space-between;
     transition: transform .15s ease, box-shadow .15s ease;
   }
   .am-kpi:hover { box-shadow: var(--gt-shadow-md); }
+  /* Hero: Total Owing — navy card, white text, a small gold underline rule. */
   .am-kpi.primary {
-    background: linear-gradient(135deg, var(--gt-gold-tint), #fff);
-    border-color: rgba(201,162,39,.32);
-  }
-  .am-kpi.primary::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: var(--gt-gold);
-  }
-  .am-kpi .kpi-label {
-    font-size: .68rem; text-transform: uppercase; letter-spacing: 1.2px;
-    color: var(--gt-muted); font-weight: 700; margin-bottom: 8px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .am-kpi .kpi-label i { color: var(--gt-gold); font-size: .85rem; }
-  .am-kpi .kpi-value {
-    font-family: 'JetBrains Mono', monospace; font-size: 1.7rem; font-weight: 500;
-    color: var(--gt-dark); letter-spacing: -1px; line-height: 1;
-  }
-  .am-kpi .kpi-value.red { color: var(--gt-red); }
-  .am-kpi .kpi-sub { font-size: .75rem; color: var(--gt-muted); margin-top: 6px; }
-
-  /* === Sticky section nav === */
-  .am-section-nav {
-    position: sticky; top: 0; z-index: 50;
-    background: rgba(247,248,250,0.92); backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    margin: 0 -.5rem 18px; padding: 10px .5rem;
-    border-bottom: 1px solid transparent;
-    transition: border-color .2s, box-shadow .2s;
-  }
-  .am-section-nav.scrolled { border-color: var(--gt-border); box-shadow: var(--gt-shadow-sm); }
-  .am-section-nav-inner {
-    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
-  }
-  .am-tab {
-    background: #fff; border: 1px solid var(--gt-border); border-radius: 999px;
-    color: var(--gt-text); font-size: .85rem; font-weight: 600;
-    padding: .45rem 1rem; text-decoration: none;
-    display: inline-flex; align-items: center; gap: 6px;
-    transition: all .15s ease;
-  }
-  .am-tab:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
-  .am-tab.active {
     background: var(--gt-dark); border-color: var(--gt-dark); color: #fff;
   }
-  .am-tab .count {
-    background: var(--gt-gold-soft); color: var(--gt-dark);
-    font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+  .am-kpi.primary .kpi-label { color: #A7B0C8; }
+  .am-kpi.primary .kpi-value, .am-kpi.primary .kpi-value.red { color: #fff; }
+  .am-kpi.primary .kpi-sub { color: #8C96B4; }
+  .am-kpi.primary .kpi-rule {
+    height: 2px; width: 34px; background: var(--gt-gold);
+    border-radius: 2px; margin: 11px 0 0;
   }
-  .am-tab.active .count { background: rgba(255,255,255,.16); color: #fff; }
+  .am-kpi .kpi-label {
+    font-size: .68rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--gt-muted); font-weight: 500; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .am-kpi .kpi-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+  .am-kpi .kpi-value {
+    font-family: 'Roboto', sans-serif; font-variant-numeric: tabular-nums;
+    font-size: 1.7rem; font-weight: 500;
+    color: var(--gt-dark); letter-spacing: -0.6px; line-height: 1;
+  }
+  /* Owed counts/amounts stay ink; only the two action stats + paid carry color. */
+  .am-kpi .kpi-value.red     { color: var(--gt-text); }
+  .am-kpi .kpi-value.v-amber { color: var(--gt-amber); }
+  .am-kpi .kpi-value.v-red   { color: var(--gt-red); }
+  .am-kpi .kpi-value.v-green { color: var(--gt-green); }
+  .am-kpi .kpi-sub { font-size: .75rem; color: var(--gt-ink-3); margin-top: 7px; }
+
+  /* === Section nav — calm underline tabs (active = navy text + 2px navy rule) === */
+  .am-section-nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(244,243,239,0.92); backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    margin: 0 -.5rem 18px; padding: 0 .5rem;
+    border-bottom: 1px solid var(--gt-border);
+    transition: box-shadow .2s;
+  }
+  .am-section-nav.scrolled { box-shadow: var(--gt-shadow-sm); }
+  .am-section-nav-inner {
+    display: flex; gap: 2px; align-items: stretch; flex-wrap: wrap;
+  }
+  .am-tab {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--gt-muted); font-size: .9rem; font-weight: 500;
+    padding: 11px 14px 13px; text-decoration: none; margin-bottom: -1px;
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+    transition: color .15s, border-color .15s;
+  }
+  .am-tab:hover { color: var(--gt-text); }
+  .am-tab.active { color: var(--gt-dark); border-bottom-color: var(--gt-dark); }
+  .am-tab .count {
+    background: var(--gt-inset); color: var(--gt-muted);
+    font-size: .72rem; font-weight: 500; padding: 1px 8px; border-radius: 999px;
+  }
+  .am-tab.active .count { background: var(--gt-navy-tint); color: var(--gt-dark); }
+  /* The gold star is reserved for the Pay Today tab only. */
+  .am-tab .bi-star-fill { color: var(--gt-gold); }
 
   /* === Filter bar (cleaner, sticky for long lists) === */
   .am-filter-wrap {
-    position: sticky; top: 56px; z-index: 40;
+    position: sticky; top: 45px; z-index: 40;
     margin: 0 -.5rem 20px; padding: 0 .5rem;
-    background: rgba(247,248,250,0.92); backdrop-filter: blur(8px);
+    background: rgba(244,243,239,0.92); backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     transition: box-shadow .2s, padding .2s;
   }
   .am-filter-wrap.scrolled {
-    box-shadow: 0 1px 0 var(--gt-border), 0 6px 16px rgba(15,23,42,.04);
+    box-shadow: 0 1px 0 var(--gt-border), 0 6px 16px rgba(15,27,61,.05);
     padding-top: 8px; padding-bottom: 8px;
   }
   .am-filter {
@@ -136,8 +174,8 @@
     background: var(--gt-surface-2);
   }
   .am-filter .am-search input:focus {
-    outline: none; border-color: var(--gt-gold); background: #fff;
-    box-shadow: 0 0 0 3px var(--gt-gold-soft);
+    outline: none; border-color: var(--gt-dark); background: #fff;
+    box-shadow: 0 0 0 3px var(--gt-navy-tint);
   }
   .am-filter select {
     border: 1px solid var(--gt-border); border-radius: var(--gt-radius-sm);
@@ -148,10 +186,10 @@
     background-repeat: no-repeat;
     background-position: right .65rem center;
   }
-  .am-filter select:focus { outline: none; border-color: var(--gt-gold); }
+  .am-filter select:focus { outline: none; border-color: var(--gt-dark); box-shadow: 0 0 0 3px var(--gt-navy-tint); }
   .am-filter .am-btn-primary {
     background: var(--gt-dark); color: #fff; border: none; border-radius: var(--gt-radius-sm);
-    padding: .5rem 1.1rem; font-size: .82rem; font-weight: 600; cursor: pointer;
+    padding: .5rem 1.1rem; font-size: .82rem; font-weight: 500; cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
   }
   .am-filter .am-btn-primary:hover { background: var(--gt-dark-2); }
@@ -168,11 +206,11 @@
     flex-wrap: wrap; gap: 10px;
   }
   .am-section-head h2 {
-    font-size: .95rem; font-weight: 700; margin: 0;
-    color: var(--gt-dark); letter-spacing: -0.2px;
-    display: flex; align-items: center; gap: 8px;
+    font-size: 1.15rem; font-weight: 500; margin: 0;
+    color: var(--gt-dark); letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 9px;
   }
-  .am-section-head h2 i { color: var(--gt-gold); font-size: 1rem; }
+  .am-section-head h2 i { color: var(--gt-gold); font-size: 1.05rem; }
   .am-section-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .am-section-count {
     font-size: .78rem; color: var(--gt-muted); font-weight: 500;
@@ -183,7 +221,7 @@
     display: inline-flex; align-items: center; gap: 4px;
   }
   .am-page-total .amt {
-    font-family: 'JetBrains Mono', monospace; color: var(--gt-red); font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--gt-text); font-weight: 500;
   }
 
   /* Enhanced pagination */
@@ -219,7 +257,7 @@
     padding: .3rem .5rem; font-size: .82rem; background: var(--gt-surface-2);
     text-align: center;
   }
-  .am-paginator-jump input:focus { outline: none; border-color: var(--gt-gold); background: #fff; }
+  .am-paginator-jump input:focus { outline: none; border-color: var(--gt-dark); background: #fff; box-shadow: 0 0 0 3px var(--gt-navy-tint); }
 
   /* === Entity row (cleaner, single-row layout) === */
   /* overflow: visible so the per-row "More actions" dropdown can extend past
@@ -248,11 +286,11 @@
 
   .am-avatar {
     width: 38px; height: 38px; flex-shrink: 0;
-    background: var(--gt-gold-soft); color: var(--gt-gold);
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--gt-inset); color: var(--gt-muted);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
     font-size: 1rem;
   }
-  .am-entity.paid .am-avatar { background: rgba(31,157,85,.12); color: var(--gt-green); }
+  .am-entity.paid .am-avatar { background: var(--gt-green-soft); color: var(--gt-green); }
 
   .am-entity-info { flex: 1; min-width: 0; }
   .am-entity-line1 {
@@ -260,7 +298,7 @@
     margin-bottom: 4px;
   }
   .am-entity-name {
-    font-weight: 700; font-size: .98rem; color: var(--gt-dark);
+    font-weight: 500; font-size: .98rem; color: var(--gt-text);
     letter-spacing: -0.2px;
   }
   .am-entity-name a {
@@ -297,7 +335,9 @@
     color: var(--gt-text);
   }
   .am-chip i { font-size: .75rem; color: var(--gt-muted); }
-  .am-chip.never { color: #c97a1a; border-color: #f1d59c; background: #fff7e8; }
+  /* "Never paid" is informational, not an alarm — neutral gray tag. */
+  .am-chip.never { color: var(--gt-muted); border-color: var(--gt-border); background: var(--gt-inset); }
+  .am-chip.never i { color: var(--gt-ink-3); }
 
   /* Payment badges */
   .payment-badge {
@@ -327,28 +367,28 @@
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
   .am-pay-row--copyable { cursor: pointer; }
-  .am-pay-row--copyable:hover { background: #eef0f4; border-color: var(--gt-border); }
-  .am-pay-row.copied { background: #d4edda; border-color: #b1dfbb; }
+  .am-pay-row--copyable:hover { background: var(--gt-inset); border-color: var(--gt-border); }
+  .am-pay-row.copied { background: var(--gt-green-soft); border-color: #b9dcc8; }
   .am-pay-row .payment-badge { font-size: .7rem; padding: 2px 9px; flex-shrink: 0; }
   .am-pay-row .payment-handle {
-    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-    font-size: .85rem; font-weight: 500;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: .82rem; font-weight: 500;
     color: var(--gt-text);
     letter-spacing: -.1px;
     word-break: break-all;
   }
   .am-pay-row .payment-handle--missing { font-style: italic; color: var(--gt-muted); font-weight: 400; }
-  .am-pay-row .payment-copy-icon { font-size: .9rem; color: var(--gt-muted); flex-shrink: 0; }
+  .am-pay-row .payment-copy-icon { font-size: .9rem; color: var(--gt-ink-3); flex-shrink: 0; }
   .am-pay-row--copyable:hover .payment-copy-icon { color: var(--gt-text); }
-  .am-pay-row.copied .payment-copy-icon { color: #1e7e34; }
+  .am-pay-row.copied .payment-copy-icon { color: var(--gt-green-ink); }
 
   /* Right-side amount + actions */
   .am-entity-right {
     display: flex; align-items: center; gap: 12px; flex-shrink: 0;
   }
   .am-amount {
-    font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; font-weight: 600;
-    color: var(--gt-red); letter-spacing: -0.5px; line-height: 1;
+    font-variant-numeric: tabular-nums; font-size: 1.2rem; font-weight: 500;
+    color: var(--gt-text); letter-spacing: -0.3px; line-height: 1;
     min-width: 90px; text-align: right;
   }
   .am-entity.paid .am-amount { color: var(--gt-green); }
@@ -357,7 +397,7 @@
   .am-actions .btn-pay {
     background: var(--gt-dark); color: #fff; border: none;
     padding: .5rem 1rem; border-radius: var(--gt-radius-sm);
-    font-size: .85rem; font-weight: 600; cursor: pointer;
+    font-size: .85rem; font-weight: 500; cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
   }
   .am-actions .btn-pay:hover { background: var(--gt-dark-2); }
@@ -418,7 +458,7 @@
   }
   .preview-table td { padding: 9px 10px; border-bottom: 1px solid var(--gt-border-soft); }
   .preview-table .res-link {
-    color: var(--gt-dark); font-weight: 600; text-decoration: none;
+    color: var(--gt-dark); font-weight: 500; text-decoration: none;
     border-bottom: 1px dashed var(--gt-border);
     transition: color .15s, border-color .15s;
   }
@@ -436,7 +476,7 @@
 
   .nav-tabs { border-bottom: 1px solid var(--gt-border); padding: 0 14px; gap: 4px; }
   .nav-tabs .nav-link {
-    font-size: 0.82rem; font-weight: 600; color: var(--gt-muted);
+    font-size: 0.82rem; font-weight: 500; color: var(--gt-muted);
     border: none; padding: 12px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px;
     background: none;
   }
@@ -458,7 +498,9 @@
   .table tbody tr:last-child td { border-bottom: none; }
   .table tbody tr:hover { background: var(--gt-surface-2); }
 
-  .am-mono { font-family: 'JetBrains Mono', monospace; }
+  /* Money utility: tabular Roboto figures so amount columns line up (no longer
+     monospace — mono is reserved for routing/account handles only). */
+  .am-mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
   /* === Modals === */
   .modal-content { border-radius: var(--gt-radius); border: none; box-shadow: 0 20px 60px rgba(15,23,42,.18); }
@@ -510,77 +552,54 @@
   @media (max-width: 1200px) { .am-kpis { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 600px)  { .am-kpis { grid-template-columns: repeat(2, 1fr); } }
 
-  .am-kpi-warn    { border-color: #f1d59c; background: linear-gradient(135deg, #fff8e6, #fff); }
-  .am-kpi-warn::before    { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#c97a1a; }
-  .am-kpi-warn    .kpi-value { color: #b46612; }
-  .am-kpi-warn    .kpi-label i { color: #c97a1a; }
+  /* Action/status KPI tiles are now neutral white cards — the meaning lives in
+     the colored number + small dot in the label, not a tinted background. */
+  .am-kpi-warn, .am-kpi-danger, .am-kpi-success { background: #fff; border-color: var(--gt-border); }
+  .am-kpi-warn::before, .am-kpi-danger::before, .am-kpi-success::before { content: none; }
 
-  .am-kpi-danger  { border-color: #f4c7c7; background: linear-gradient(135deg, #fff0f0, #fff); }
-  .am-kpi-danger::before  { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--gt-red); }
-  .am-kpi-danger  .kpi-value { color: var(--gt-red); }
-  .am-kpi-danger  .kpi-label i { color: var(--gt-red); }
+  /* Method breakdown — one slim stacked bar + legend (monochrome navy ramp,
+     dark→light by size), replacing the old row of colored pills. Each segment
+     and legend entry links to that method's filtered direct-agent view. */
+  .am-method {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    padding: 15px 18px 16px; margin: 0 0 26px; box-shadow: var(--gt-shadow-sm);
+  }
+  .am-method-head {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px;
+  }
+  .am-method-title {
+    font-size: .72rem; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--gt-muted); font-weight: 500;
+  }
+  .am-method-sum { font-size: .8rem; color: var(--gt-ink-3); font-variant-numeric: tabular-nums; }
+  .am-method-track {
+    height: 10px; border-radius: 999px; overflow: hidden; display: flex;
+    background: var(--gt-inset);
+  }
+  .am-method-seg { height: 100%; display: block; text-decoration: none; transition: filter .15s; }
+  .am-method-seg:hover { filter: brightness(1.14); }
+  .am-method-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 13px; }
+  .am-method-legend a {
+    display: inline-flex; align-items: center; gap: 7px; font-size: .8rem;
+    color: var(--gt-muted); text-decoration: none; transition: color .15s;
+  }
+  .am-method-legend a:hover,
+  .am-method-legend a.is-active { color: var(--gt-dark); }
+  .am-method-legend a.is-active b { color: var(--gt-dark); }
+  .am-method-legend .sw { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+  .am-method-legend b { font-weight: 500; color: var(--gt-text); font-variant-numeric: tabular-nums; }
 
-  .am-kpi-success { border-color: #b1dfbb; background: linear-gradient(135deg, #f1fbf4, #fff); }
-  .am-kpi-success::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--gt-green); }
-  .am-kpi-success .kpi-value { color: var(--gt-green); }
-  .am-kpi-success .kpi-label i { color: var(--gt-green); }
-
-  /* Method breakdown pills row */
-  .am-method-pills {
-    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-    margin: -10px 0 22px;
-    padding: 8px 12px;
-    background: #fff;
-    border: 1px solid var(--gt-border-soft);
-    border-radius: var(--gt-radius);
-    box-shadow: var(--gt-shadow-sm);
-  }
-  .am-method-pills-label {
-    font-size: .72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .8px; color: var(--gt-muted); margin-right: 4px;
-  }
-  .am-method-pill {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 4px 12px 4px 6px;
-    background: var(--gt-surface);
-    border: 1px solid var(--gt-border-soft);
-    border-radius: 999px;
-    text-decoration: none;
-    color: var(--gt-text);
-    font-size: .82rem;
-    transition: border-color .15s, background .15s, transform .1s;
-  }
-  .am-method-pill:hover {
-    background: #fff; border-color: var(--gt-dark);
-    color: var(--gt-dark); transform: translateY(-1px);
-  }
-  .am-method-pill.is-active {
-    background: var(--gt-dark); border-color: var(--gt-dark); color: #fff;
-  }
-  .am-method-pill.is-active .am-method-pill-count { background: rgba(255,255,255,.16); color: #fff; }
-  .am-method-pill.is-active .payment-badge { filter: brightness(0.95) saturate(1.1); }
-  .am-method-pill-count {
-    background: var(--gt-gold-soft); color: var(--gt-dark);
-    font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
-    line-height: 1.3;
-  }
-  .am-method-pill--missing { border-style: dashed; }
-
-  /* Colored tab variants */
-  .am-tab.am-tab-primary { border-color: rgba(201,162,39,0.4); background: var(--gt-gold-tint); }
-  .am-tab.am-tab-primary.active { background: var(--gt-gold); border-color: var(--gt-gold); color: var(--gt-dark); }
-  .am-tab.am-tab-primary .count { background: rgba(201,162,39,0.2); }
-  .am-tab.am-tab-primary.active .count { background: rgba(26,29,33,0.12); color: var(--gt-dark); }
-
-  .am-tab.am-tab-warn   { border-color: #f1d59c; background: #fff8e6; color: #8a5a1c; }
-  .am-tab.am-tab-warn.active { background: #c97a1a; border-color: #c97a1a; color: #fff; }
-  .am-tab.am-tab-warn .count { background: rgba(201,122,26,0.12); color: #8a5a1c; }
-  .am-tab.am-tab-warn.active .count { background: rgba(255,255,255,0.18); color: #fff; }
-
-  .am-tab.am-tab-danger { border-color: #f4c7c7; background: #fff0f0; color: #a83232; }
-  .am-tab.am-tab-danger.active { background: var(--gt-red); border-color: var(--gt-red); color: #fff; }
-  .am-tab.am-tab-danger .count { background: rgba(224,68,68,0.12); color: #a83232; }
-  .am-tab.am-tab-danger.active .count { background: rgba(255,255,255,0.18); color: #fff; }
+  /* Tab "variants" (primary/warn/danger) now read as plain underline tabs —
+     color is no longer carried by the tab itself, only by the star + counts. */
+  .am-tab.am-tab-primary,
+  .am-tab.am-tab-warn,
+  .am-tab.am-tab-danger { background: none; color: var(--gt-muted); }
+  .am-tab.am-tab-primary:hover,
+  .am-tab.am-tab-warn:hover,
+  .am-tab.am-tab-danger:hover { color: var(--gt-text); }
+  .am-tab.am-tab-primary.active,
+  .am-tab.am-tab-warn.active,
+  .am-tab.am-tab-danger.active { color: var(--gt-dark); border-bottom-color: var(--gt-dark); }
 
   /* Min-amount input in filter bar */
   .am-min-amount {
@@ -595,7 +614,7 @@
     border: none; background: transparent; padding: .45rem .7rem .45rem .25rem;
     font-size: .82rem; color: var(--gt-text); width: 84px; outline: none;
   }
-  .am-min-amount:focus-within { border-color: var(--gt-gold); background: #fff; }
+  .am-min-amount:focus-within { border-color: var(--gt-dark); background: #fff; box-shadow: 0 0 0 3px var(--gt-navy-tint); }
 
   /* === Sort chips (click=primary, shift+click=secondary) ===
      Replaces the single-key <select>. Direct agents honor every key; agencies
@@ -622,7 +641,7 @@
   .am-sort-chip:hover { color: var(--gt-dark); background: #fff; }
   .am-sort-chip.is-primary {
     background: var(--gt-dark); color: #fff; border-color: var(--gt-dark);
-    font-weight: 600;
+    font-weight: 500;
   }
   .am-sort-chip.is-secondary {
     background: #fff; color: var(--gt-dark);
@@ -637,16 +656,17 @@
   /* Status badges on entity rows */
   .status-badge {
     display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 9px; border-radius: 999px;
-    font-size: .68rem; font-weight: 700; letter-spacing: .2px;
-    line-height: 1.4;
+    padding: 3px 9px; border-radius: 999px;
+    font-size: .7rem; font-weight: 500; letter-spacing: .1px;
+    line-height: 1.3;
   }
   .status-badge i { font-size: .75rem; }
-  .status-badge.ready    { background: rgba(31,157,85,.12); color: var(--gt-green); }
-  .status-badge.paid     { background: rgba(31,157,85,.12); color: var(--gt-green); }
-  .status-badge.overdue  { background: #fff0f0; color: #a83232; border: 1px solid #f4c7c7; }
-  .status-badge.missing  { background: #fff8e6; color: #8a5a1c; border: 1px solid #f1d59c; }
-  .status-badge.never    { background: #eef0f4; color: #555f6e; }
+  /* Exception chips — the only places red/amber/green are allowed on a row. */
+  .status-badge.ready    { background: var(--gt-green-soft); color: var(--gt-green-ink); }
+  .status-badge.paid     { background: var(--gt-green-soft); color: var(--gt-green-ink); }
+  .status-badge.overdue  { background: var(--gt-red-soft); color: var(--gt-red-ink); }
+  .status-badge.missing  { background: var(--gt-amber-soft); color: var(--gt-amber-ink); }
+  .status-badge.never    { background: var(--gt-inset); color: var(--gt-muted); }
 
   /* Bulk-select checkbox column */
   .am-checkbox, .am-checkbox-spacer {
@@ -735,27 +755,28 @@
     .am-bulk-actions { justify-content: space-between; }
   }
 
-  /* Recommended Queue card */
+  /* Recommended Queue card — calm white surface, elevated, with a subtle gold
+     left rail (the one place gold marks "today's picks"). */
   .am-recommended {
-    background: linear-gradient(135deg, var(--gt-gold-tint), #fff);
-    border: 1px solid rgba(201,162,39,.32);
+    background: #fff;
+    border: 1px solid var(--gt-border);
     border-radius: var(--gt-radius);
-    padding: 18px 20px;
-    margin-bottom: 22px;
-    box-shadow: var(--gt-shadow-sm);
-    position: relative;
+    padding: 18px 20px 18px 22px;
+    margin-bottom: 26px;
+    box-shadow: var(--gt-shadow-md);
+    position: relative; overflow: hidden;
   }
   .am-recommended::before {
     content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: var(--gt-gold); border-radius: var(--gt-radius) 0 0 var(--gt-radius);
+    background: var(--gt-gold);
   }
   .am-recommended-head {
     display: flex; justify-content: space-between; align-items: center;
     gap: 14px; margin-bottom: 12px; flex-wrap: wrap;
   }
   .am-recommended-title {
-    font-size: 1rem; font-weight: 700; color: var(--gt-dark); margin: 0;
-    display: flex; align-items: center; gap: 8px;
+    font-size: 1.05rem; font-weight: 500; color: var(--gt-dark); margin: 0;
+    display: flex; align-items: center; gap: 8px; letter-spacing: -0.2px;
   }
   .am-recommended-title i { color: var(--gt-gold); }
   .am-recommended-sub {
@@ -764,7 +785,7 @@
   .am-btn-ghost {
     background: #fff; border: 1px solid var(--gt-border);
     border-radius: var(--gt-radius-sm); padding: .45rem .9rem;
-    font-size: .82rem; font-weight: 600; color: var(--gt-text); cursor: pointer;
+    font-size: .82rem; font-weight: 500; color: var(--gt-text); cursor: pointer;
     display: inline-flex; align-items: center;
   }
   .am-btn-ghost:hover { border-color: var(--gt-dark); color: var(--gt-dark); }
@@ -780,12 +801,12 @@
   .am-rec-row:hover { border-color: var(--gt-dark); }
   .am-rec-row.selected { border-color: var(--gt-gold); box-shadow: 0 0 0 2px var(--gt-gold-soft); }
   .am-rec-avatar {
-    width: 28px; height: 28px; background: var(--gt-gold-soft); color: var(--gt-gold);
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; background: var(--gt-inset); color: var(--gt-muted);
+    border-radius: 7px; display: flex; align-items: center; justify-content: center;
     font-size: .85rem;
   }
-  .am-rec-name { font-weight: 600; color: var(--gt-dark); font-size: .9rem; }
-  .am-rec-amount { margin-left: auto; color: var(--gt-red); font-weight: 600; }
+  .am-rec-name { font-weight: 500; color: var(--gt-text); font-size: .9rem; }
+  .am-rec-amount { margin-left: auto; color: var(--gt-text); font-weight: 500; font-variant-numeric: tabular-nums; }
 
   /* Review & Mark Paid modal contents */
   .am-review-controls {
@@ -808,7 +829,7 @@
     min-width: 180px;
   }
   .am-review-control select:focus, .am-review-control input[type="text"]:focus {
-    outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 3px var(--gt-gold-soft);
+    outline: none; border-color: var(--gt-dark); box-shadow: 0 0 0 3px var(--gt-navy-tint);
   }
   .am-check-inline {
     display: inline-flex; align-items: center; gap: 6px;
@@ -855,6 +876,7 @@
   <!-- Header -->
   <div class="am-page-head">
     <div>
+      <p class="am-eyebrow">Payables</p>
       <h1 class="am-title">Affiliate Management</h1>
       <p class="am-subtitle">Review balances, process payouts, and open agency or agent profiles.</p>
     </div>
@@ -868,56 +890,74 @@
     </div>
   </div>
 
-  <!-- KPI Cards -->
+  <!-- KPI Cards — one navy hero (Total Owing); the rest neutral. Color rides
+       only the two action stats (Missing info / Overdue) + a subtle green on
+       Paid this month, each via the number and a small dot, not a tinted card. -->
   <div class="am-kpis">
     <div class="am-kpi primary">
-      <div class="kpi-label"><i class="bi bi-wallet2"></i> Total Owing</div>
-      <div class="kpi-value red">${{ total_owing|floatformat:2 }}</div>
+      <div class="kpi-label">Total Owing</div>
+      <div class="kpi-value">${{ total_owing|floatformat:2 }}</div>
+      <div class="kpi-rule"></div>
       <div class="kpi-sub">Across all agencies and agents</div>
     </div>
     <div class="am-kpi">
-      <div class="kpi-label"><i class="bi bi-building"></i> Agencies Owing</div>
+      <div class="kpi-label">Agencies Owing</div>
       <div class="kpi-value">{{ total_owing_agencies }}</div>
       <div class="kpi-sub">${{ total_owing_agencies_amount|floatformat:2 }}</div>
     </div>
     <div class="am-kpi">
-      <div class="kpi-label"><i class="bi bi-person"></i> Direct Agents Owing</div>
+      <div class="kpi-label">Direct Agents Owing</div>
       <div class="kpi-value">{{ total_owing_agents }}</div>
       <div class="kpi-sub">${{ total_owing_agents_amount|floatformat:2 }}</div>
     </div>
     <div class="am-kpi am-kpi-warn">
-      <div class="kpi-label"><i class="bi bi-exclamation-triangle"></i> Missing Info</div>
-      <div class="kpi-value">{{ kpi_missing_count }}</div>
+      <div class="kpi-label"><span class="kpi-dot" style="background: var(--gt-amber)"></span> Missing Info</div>
+      <div class="kpi-value v-amber">{{ kpi_missing_count }}</div>
       <div class="kpi-sub">${{ kpi_missing_total|floatformat:2 }} blocked</div>
     </div>
     <div class="am-kpi am-kpi-danger">
-      <div class="kpi-label"><i class="bi bi-clock-history"></i> Overdue &gt; 30d</div>
-      <div class="kpi-value">{{ kpi_overdue_count }}</div>
+      <div class="kpi-label"><span class="kpi-dot" style="background: var(--gt-red)"></span> Overdue &gt; 30d</div>
+      <div class="kpi-value v-red">{{ kpi_overdue_count }}</div>
       <div class="kpi-sub">${{ kpi_overdue_total|floatformat:2 }} past due</div>
     </div>
     <div class="am-kpi am-kpi-success">
-      <div class="kpi-label"><i class="bi bi-check2-circle"></i> Paid This Month</div>
-      <div class="kpi-value">${{ kpi_paid_this_month|floatformat:2 }}</div>
+      <div class="kpi-label">Paid This Month</div>
+      <div class="kpi-value v-green">${{ kpi_paid_this_month|floatformat:2 }}</div>
       <div class="kpi-sub">Settled this calendar month</div>
     </div>
   </div>
 
-  <!-- By-payment-method breakdown pills -->
+  <!-- Owed by method — one slim stacked bar (monochrome navy ramp) + legend,
+       replacing the old row of colored pills. Same data, a fraction of the
+       color; each segment/legend entry filters direct agents by that method. -->
   {% if by_method_pills %}
-  <div class="am-method-pills" aria-label="Amount owed by payment method">
-    <span class="am-method-pills-label">Owed by method:</span>
-    {% for slot in by_method_pills %}
-      {% if slot.amount > 0 %}
+  <section class="am-method" aria-label="Amount owed by payment method">
+    <div class="am-method-head">
+      <span class="am-method-title">Owed by method</span>
+      <span class="am-method-sum">{{ by_method_pills|length }} method{{ by_method_pills|length|pluralize }} · ${{ by_method_total|floatformat:0 }}</span>
+    </div>
+    <div class="am-method-track">
+      {% for slot in by_method_pills %}
+        {% if slot.amount > 0 %}
+        <a class="am-method-seg"
+           style="width: {{ slot.pct }}%; background: {{ slot.color }};"
+           href="?section=agents&pay_method={% if slot.key == '_missing' %}none{% else %}{{ slot.key }}{% endif %}{% if search %}&q={{ search }}{% endif %}"
+           title="{{ slot.label }} · ${{ slot.amount|floatformat:0 }}"></a>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="am-method-legend">
+      {% for slot in by_method_pills %}
+        {% if slot.amount > 0 %}
         <a href="?section=agents&pay_method={% if slot.key == '_missing' %}none{% else %}{{ slot.key }}{% endif %}{% if search %}&q={{ search }}{% endif %}"
-           class="am-method-pill {% if slot.key == '_missing' %}am-method-pill--missing{% endif %} {% if pay_method == slot.key %}is-active{% endif %}"
+           class="{% if pay_method == slot.key %}is-active{% endif %}"
            title="Filter direct agents by {{ slot.label }}">
-          <span class="payment-badge {% if slot.key == '_missing' %}other{% else %}{{ slot.key }}{% endif %}">{{ slot.label }}</span>
-          <span class="am-mono">${{ slot.amount|floatformat:0 }}</span>
-          <span class="am-method-pill-count">{{ slot.count }}</span>
+          <span class="sw" style="background: {{ slot.color }};"></span>{{ slot.label }} <b>${{ slot.amount|floatformat:0 }}</b>
         </a>
-      {% endif %}
-    {% endfor %}
-  </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
   <!-- Sticky Section Nav: entity tabs (Agencies / Direct Agents / History) get
@@ -1179,7 +1219,7 @@
               <tfoot>
                 <tr>
                   <td colspan="3" class="text-end fw-bold">Agency total:</td>
-                  <td class="text-end am-mono fw-bold" style="color: var(--gt-red);">${{ agency.display_amount|floatformat:2 }}</td>
+                  <td class="text-end am-mono fw-bold" style="color: var(--gt-dark);">${{ agency.display_amount|floatformat:2 }}</td>
                 </tr>
               </tfoot>
             </table>
@@ -2103,7 +2143,7 @@ function updateSummaryStats() {
   function updateNavState() {
     nav.classList.toggle('scrolled', nav.getBoundingClientRect().top <= 1);
     if (filterWrap) {
-      filterWrap.classList.toggle('scrolled', filterWrap.getBoundingClientRect().top <= 57);
+      filterWrap.classList.toggle('scrolled', filterWrap.getBoundingClientRect().top <= 46);
     }
   }
   document.addEventListener('scroll', updateNavState, { passive: true });
