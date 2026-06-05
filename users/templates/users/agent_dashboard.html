@@ -224,6 +224,7 @@
                   <table class="data-table">
                     <thead>
                       <tr>
+                        <th>Res #</th>
                         <th>Date</th>
                         <th>Trip Details</th>
                         <th>Customer</th>
@@ -236,6 +237,7 @@
                     <tbody>
                       {% for reservation in reservations %}
                         <tr>
+                          <td><span class="res-number">{{ reservation.display_number }}</span></td>
                           <td>
                             <div class="cell-date">
                               <span class="date-main">{{ reservation.created_at|date:'M d, Y' }}</span>
@@ -319,6 +321,10 @@
                         <span class="status-label status-{{ reservation.status }}">{{ reservation.get_status_display }}</span>
                       </div>
                       <div class="mobile-card-body">
+                        <div class="mobile-row">
+                          <span class="mobile-label">Res #</span>
+                          <span class="mobile-value">{{ reservation.display_number }}</span>
+                        </div>
                         <div class="mobile-row">
                           <span class="mobile-label">Trip</span>
                           <span class="mobile-value">{{ reservation.get_trip_type_display }}</span>
@@ -410,6 +416,7 @@
                         <div class="activity-row">
                           <div class="activity-left">
                             <span class="activity-name">{{ reservation.customer.get_full_name }}</span>
+                            <span class="activity-date">#{{ reservation.display_number }}</span>
                             {% if reservation.last_leg %}
                               <span class="activity-date">{{ reservation.last_leg.pickup_date|date:'M d, Y' }}</span>
                             {% endif %}

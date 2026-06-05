@@ -364,6 +364,7 @@
         <table>
           <thead>
             <tr>
+              <th>Res #</th>
               <th>Date</th>
               <th>Customer</th>
               <th class="text-right">Total Charged</th>
@@ -374,6 +375,7 @@
           <tbody>
             {% for reservation in agent_payout.reservations.all %}
               <tr>
+                <td>{{ reservation.display_number }}</td>
                 <td>{{ reservation.created_at|date:"m/d/Y" }}</td>
                 <td>{{ reservation.customer.get_full_name|default:"N/A" }}</td>
                 <td class="text-right">
@@ -393,7 +395,7 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="5" class="text-center">No reservations found.</td>
+                <td colspan="6" class="text-center">No reservations found.</td>
               </tr>
             {% endfor %}
           </tbody>

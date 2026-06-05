@@ -88,6 +88,7 @@
                 <table class="data-table">
                   <thead>
                     <tr>
+                      <th>Res #</th>
                       <th>Date Completed</th>
                       <th>Customer</th>
                       <th>Trip Type</th>
@@ -99,6 +100,7 @@
                   <tbody>
                     {% for reservation in unpaid_reservations %}
                       <tr>
+                        <td>{{ reservation.display_number }}</td>
                         <td>
                           {% if reservation.get_completion_date %}
                             {{ reservation.get_completion_date|date:'M d, Y' }}
@@ -116,7 +118,7 @@
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colspan="4" class="text-end"><strong>Total Unpaid:</strong></td>
+                      <td colspan="5" class="text-end"><strong>Total Unpaid:</strong></td>
                       <td class="amount-danger"><strong>${{ total_unpaid|floatformat:2 }}</strong></td>
                       <td></td>
                     </tr>
@@ -264,6 +266,7 @@
                 <table class="data-table modal-table">
                   <thead>
                     <tr>
+                      <th>Res #</th>
                       <th>Date</th>
                       <th>Customer</th>
                       <th>Route</th>
@@ -275,6 +278,7 @@
                   <tbody>
                     {% for reservation in payout.reservations.all %}
                       <tr>
+                        <td>{{ reservation.display_number }}</td>
                         <td>{{ reservation.created_at|date:'M d, Y' }}</td>
                         <td>{{ reservation.customer.get_full_name }}</td>
                         <td>{{ reservation.rate.route.origin }} → {{ reservation.rate.route.destination }}</td>

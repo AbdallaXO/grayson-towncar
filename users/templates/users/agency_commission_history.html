@@ -231,6 +231,7 @@
                 <table class="data-table">
                   <thead>
                     <tr>
+                      <th>Res #</th>
                       <th>Completed Date</th>
                       <th>Customer</th>
                       <th>Agent</th>
@@ -242,6 +243,7 @@
                   <tbody>
                     {% for reservation in unpaid_reservations %}
                       <tr>
+                        <td><strong>{{ reservation.display_number }}</strong></td>
                         <td>
                           <strong>
                             {% if reservation.get_completion_date %}
@@ -264,7 +266,7 @@
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colspan="4" class="text-end"><strong>Total Awaiting:</strong></td>
+                      <td colspan="5" class="text-end"><strong>Total Awaiting:</strong></td>
                       <td class="amount-danger"><strong>${{ total_unpaid|floatformat:2 }}</strong></td>
                       <td></td>
                     </tr>
@@ -281,6 +283,10 @@
                       <span class="status-unpaid">Awaiting</span>
                     </div>
                     <div class="mobile-card-body">
+                      <div class="mobile-row">
+                        <span class="mobile-label">Res #</span>
+                        <span class="mobile-value">{{ reservation.display_number }}</span>
+                      </div>
                       <div class="mobile-row">
                         <span class="mobile-label">Date</span>
                         <span class="mobile-value">

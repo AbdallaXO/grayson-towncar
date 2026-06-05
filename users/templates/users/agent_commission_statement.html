@@ -339,6 +339,7 @@
       <table>
         <thead>
           <tr>
+            <th>Res #</th>
             <th>Date</th>
             <th>Customer</th>
             <th class="text-right">Total Charged</th>
@@ -349,6 +350,7 @@
         <tbody>
           {% for reservation in reservations %}
             <tr>
+              <td>{{ reservation.display_number }}</td>
               <td>{{ reservation.created_at|date:"m/d/Y" }}</td>
               <td>{{ reservation.customer.get_full_name|default:"N/A" }}</td>
               <td class="text-right">
@@ -368,11 +370,11 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="5" class="text-center">No reservations found for this payout.</td>
+              <td colspan="6" class="text-center">No reservations found for this payout.</td>
             </tr>
           {% endfor %}
           <tr class="total-row">
-            <td colspan="2"><strong>Total ({{ reservations|length }} reservation{{ reservations|length|pluralize }})</strong></td>
+            <td colspan="3"><strong>Total ({{ reservations|length }} reservation{{ reservations|length|pluralize }})</strong></td>
             <td class="text-right"><strong>${{ total_charged|floatformat:2 }}</strong></td>
             <td class="text-right"><strong>${{ total_base_price|floatformat:2 }}</strong></td>
             <td class="text-right"><strong>${{ payout.total_amount|floatformat:2 }}</strong></td>

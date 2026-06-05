@@ -338,7 +338,7 @@
             <summary>Needs Review ({{ bucket_summary.review.count }}) &mdash; click to expand</summary>
             {% for item in bucket_summary.review.items %}
             <div class="bucket-row">
-              <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
+              <a href="{% url 'reservation_details' item.reservation.id %}">{{ item.reservation.display_number }}</a>
               <span>{{ item.reservation.customer }}</span>
               <span class="br-reason">{{ item.reason }}</span>
               <span class="br-amount">${{ item.commission|floatformat:2 }}</span>
@@ -351,7 +351,7 @@
             <summary>Pending ({{ bucket_summary.pending.count }}) &mdash; click to expand</summary>
             {% for item in bucket_summary.pending.items %}
             <div class="bucket-row">
-              <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
+              <a href="{% url 'reservation_details' item.reservation.id %}">{{ item.reservation.display_number }}</a>
               <span>{{ item.reservation.customer }}</span>
               <span class="br-reason">{{ item.reason }}{% if item.last_leg_at %} &middot; final leg {{ item.last_leg_at|date:"M j, g:i A" }}{% endif %}</span>
               <span class="br-amount">${{ item.commission|floatformat:2 }}</span>
@@ -364,7 +364,7 @@
             <summary>Excluded ({{ bucket_summary.excluded.count }}) &mdash; click to expand</summary>
             {% for item in bucket_summary.excluded.items %}
             <div class="bucket-row">
-              <a href="{% url 'reservation_details' item.reservation.id %}">#{{ item.reservation.id }}</a>
+              <a href="{% url 'reservation_details' item.reservation.id %}">{{ item.reservation.display_number }}</a>
               <span>{{ item.reservation.customer }}</span>
               <span class="br-reason">
                 {{ item.reason }}

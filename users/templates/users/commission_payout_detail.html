@@ -119,7 +119,7 @@
           <table class="table table-hover mb-0">
             <thead class="table-light">
               <tr>
-                <th>ID</th>
+                <th>Res #</th>
                 <th>Customer</th>
                 <th>Route</th>
                 <th>Amount</th>
@@ -130,7 +130,7 @@
             <tbody>
               {% for reservation in payout.reservations.all %}
                 <tr>
-                  <td>#{{ reservation.id }}</td>
+                  <td>{{ reservation.display_number }}</td>
                   <td>{{ reservation.customer.get_full_name }}</td>
                   <td>{{ reservation.rate.route.origin }} to {{ reservation.rate.route.destination }}</td>
                   <td>${{ reservation.total_price|floatformat:2 }}</td>

@@ -69,6 +69,20 @@ class Reservation(models.Model):
         # Track original status so save() can detect changes without a DB query
         self._original_status = self.status if self.pk else None
 
+    @property
+    def display_number(self):
+        """Customer/partner-facing reservation number: the PK with the standard
+        '50' prefix (e.g. id 1234 -> '501234').
+
+        Single source of truth for the "50..." number shown on confirmations,
+        flight notices, payment reminders, the travel-agent dashboard, and
+        commission payouts/statements. Use this everywhere instead of
+        hardcoding '50' + id so the convention stays consistent in one place.
+        """
+        if self.id is None:
+            return ""
+        return f"50{self.id}"
+
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     rate = models.ForeignKey("rates.Rate", on_delete=models.PROTECT)

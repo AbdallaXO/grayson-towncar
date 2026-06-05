@@ -268,7 +268,7 @@
           <tbody>
             {% for res in agent_payout.reservations.all %}
             <tr>
-              <td><a href="{% url 'reservation_details' res.id %}" class="text-decoration-none" style="color: var(--gt-gold);">#{{ res.id }}</a></td>
+              <td><a href="{% url 'reservation_details' res.id %}" class="text-decoration-none" style="color: var(--gt-gold);">{{ res.display_number }}</a></td>
               <td>{{ res.customer.get_full_name }}</td>
               <td>{{ res.rate.route }}</td>
               <td class="text-end">${{ res.base_price|floatformat:2 }}</td>
