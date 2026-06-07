@@ -245,6 +245,7 @@ def find_swaps(
     max_depth: int = 5,
     time_limit_ms: int = 5000,
     max_iterations: int = 5000,
+    driver_windows: Optional[Dict[int, dict]] = None,
 ) -> SwapSearchResult:
     """
     Search for swap chains that make room for target_leg.
@@ -257,6 +258,12 @@ def find_swaps(
     driver_vtypes : {driver_id: vehicle_type_str} from load_all_driver_vtypes
     target_date : the scheduling date
     max_depth, time_limit_ms, max_iterations : search budget
+    driver_windows : OPTIONAL authoritative per-driver Guard-C windows {driver_id: window}.
+        When supplied (the farm-out optimizer's retrospective path), these are used DIRECTLY
+        and the receiver pool is RESTRICTED to drivers present in the dict — bypassing the
+        observed-history stub (feasibility_guards.get_effective_window) entirely, so a rescue
+        is only proposed into a driver's REAL worked day (idle/zero-leg drivers, absent from
+        the dict, are excluded). When None (the live scheduler), behavior is unchanged.
 
     Returns
     -------
@@ -291,20 +298,27 @@ def find_swaps(
     # Guard C context: every candidate swap must also respect the receiving driver's
     # window/clear-by (not just turnaround). Built once, keyed by driver. (Guard A /
     # capacity was removed — booking-time validation enforces party/luggage/car-seat fit.)
-    from dispatching import feasibility_guards as fg
-    from drivers.models import Driver as _Driver
-    _drv_objs = {d.id: d for d in _Driver.objects.filter(id__in=inhouse_driver_ids)}
+    if driver_windows is not None:
+        # Caller supplies authoritative windows (farm-out optimizer's REAL worked-span). Use
+        # them directly and restrict the receiver pool to these drivers — skip the stub entirely
+        # so idle/zero-leg drivers (absent from the dict) can't absorb rescues into phantom idle.
+        inhouse_driver_ids = [did for did in inhouse_driver_ids if did in driver_windows]
+        _windows = driver_windows
+    else:
+        from dispatching import feasibility_guards as fg
+        from drivers.models import Driver as _Driver
+        _drv_objs = {d.id: d for d in _Driver.objects.filter(id__in=inhouse_driver_ids)}
 
-    def _cfg_window(did):
-        d = _drv_objs.get(did)
-        if not d:
-            return None
-        eff = d.get_effective_availability(target_date)
-        mh = eff.get("max_hours")
-        return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+        def _cfg_window(did):
+            d = _drv_objs.get(did)
+            if not d:
+                return None
+            eff = d.get_effective_availability(target_date)
+            mh = eff.get("max_hours")
+            return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                    "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
 
-    _windows = {did: fg.get_effective_window(did, configured=_cfg_window(did)) for did in inhouse_driver_ids}
+        _windows = {did: fg.get_effective_window(did, configured=_cfg_window(did)) for did in inhouse_driver_ids}
 
     for depth_limit in range(1, max_depth + 1):
         if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):

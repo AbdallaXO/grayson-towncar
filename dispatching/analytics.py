@@ -115,6 +115,52 @@ _HOTEL_DISAMBIG_KEYWORDS = [
     'wyndham', 'embassy', 'renaissance', 'radisson',
 ]
 
+# ---------------------------------------------------------------------------
+# CURATED LOCAL ORLANDO-AREA PLACES — extend these when a known recurring local
+# resort/hotel/attraction is being mis-bucketed as Other / Residential / Other
+# Hotel. Those three are the "uncomputable / could-be-far" buckets the farm-out
+# optimizer ABSTAINS on (LIVE_DISTANCE_UNKNOWN_CATS), and they also deny the
+# scheduler an accurate drive-time. Mapping a place to its real local cluster
+# below lets the drive-time table (scheduler.DRIVE_TIME_ESTIMATES) price it.
+#
+# RULES for additions (so we never wrongly price a FAR stop as local):
+#   * phrases are matched as lowercase SUBSTRINGS;
+#   * keep each phrase SPECIFIC to a single Orlando place, OR use an Orlando-only
+#     area token (e.g. 'lake buena vista', 'international drive') that physically
+#     cannot match an out-of-area location;
+#   * NEVER add a broad word like 'resort'/'hotel'/'villas' (would catch Tampa,
+#     Clearwater, Legoland, etc., which must stay abstained).
+# These checks run inside the existing Disney/Universal steps of
+# categorize_location (after airport-hotel/port/terminal detection, before the
+# generic hotel/residential fallbacks), so they only ever PROMOTE a string that
+# would otherwise have been abstained — no currently-correct category changes.
+# ---------------------------------------------------------------------------
+_LOCAL_DISNEY_AREA_KEYWORDS = [   # ~25-40 min from MCO; priced via 'Disney Resort'
+    # On Walt Disney World property
+    'shades of green', 'bay lake tower', 'golden oak', 'floridian way',
+    'all star music', 'all star sports', 'all star movies',  # non-hyphen leak (vs existing 'all-star')
+    'flamingo crossing',
+    # Bonnet Creek / Lake Buena Vista / Hotel Plaza Blvd (Disney-adjacent area tokens)
+    'bonnet creek', 'lake buena vista', 'vistana',
+    # World Center Dr / Apopka-Vineland corridor
+    'world center', 'caribe royale', 'grand cypress', 'evermore',
+    # Kissimmee / Celebration / 192 + SW (ChampionsGate, Reunion) + west (Clermont, Winter Garden)
+    'gaylord', 'margaritaville', 'mystic dunes', 'celebration',
+    'championsgate', 'champions gate', 'reunion resort', 'worldmark reunion',
+    'grove resort', 'summer bay',
+]
+_LOCAL_IDRIVE_UNIVERSAL_KEYWORDS = [   # ~20-25 min from MCO; priced via 'Universal Resort'
+    'international drive', 'i-drive',
+    'seaworld', 'sea world', 'discovery cove', 'aquatica',
+    'epic universe', 'helios', 'wave hotel',                  # Epic Universe park + its hotels
+    'grande lakes', 'ritz-carlton orlando', 'ritz carlton orlando',
+    'rosen', 'shingle creek',
+    'mall at millenia', 'millenia', 'orange county convention',
+    'queen of the universe', 'queen of universe',             # Basilica/Shrine on I-Drive
+    'hilton orlando, destination', 'hilton orlando, 6001', 'hilton orlando,6001',
+    'hyatt regency orlando, international drive', 'hyatt regency orlando,9801',
+]
+
 
 @lru_cache(maxsize=512)
 def is_airport_location(location_text: str) -> bool:
@@ -168,6 +214,19 @@ def categorize_location(location_text: str) -> str:
     if any(keyword in location_lower for keyword in _AIRPORT_HOTEL_KEYWORDS):
         return 'Airport Hotel'
 
+    # MCO-airport HOTELS the rigid brand list above misses (e.g. "Hyatt Regency
+    # Orlando International Airport", "Hampton Inn & Suites Orlando Airport",
+    # hyphenated IHG "Orlando-International Airport" names): any Orlando hotel whose
+    # name carries "airport". is_airport_location() already returns False for these
+    # (hotel-disambig guard), so they were falling through to 'Other Hotel'.
+    # EXCLUDE Sanford — SFB is ~40 min from MCO, so its hotels must NOT get the
+    # 12-min Airport-Hotel price (they stay 'Other Hotel').
+    if ('orlando' in location_lower and 'airport' in location_lower
+            and 'sanford' not in location_lower
+            and any(h in location_lower for h in _HOTEL_DISAMBIG_KEYWORDS)
+            and not is_airport_location(location_text)):
+        return 'Airport Hotel'
+
     # Port Canaveral & Cocoa Beach Area — check BEFORE airport terminals because
     # cruise terminals say "Terminal A/B", which would falsely match MCO.
     if any(keyword in location_lower for keyword in _PORT_KEYWORDS):
@@ -187,6 +246,12 @@ def categorize_location(location_text: str) -> str:
         # "international airport") — keep it out of the MCO drive-time bucket.
         return 'Other'
 
+    # Brightline's Orlando station is physically at MCO Terminal C, so price it like
+    # the airport. Orlando ONLY — Brightline also serves Miami/Ft Lauderdale/etc.,
+    # which must NOT map to the MCO drive-time bucket.
+    if 'brightline orlando' in location_lower:
+        return 'MCO Terminal'
+
     # Disney properties
     disney_keywords = [
         'disney', 'epcot', 'magic kingdom', 'hollywood studios', 'animal kingdom',
@@ -195,16 +260,19 @@ def categorize_location(location_text: str) -> str:
         'art of animation', 'all-star', 'port orleans', 'saratoga springs', 'old key west',
         'wilderness lodge', 'fort wilderness', 'riviera resort', 'disney springs'
     ]
-    if any(keyword in location_lower for keyword in disney_keywords):
+    # Curated local Disney-area places (see _LOCAL_DISNEY_AREA_KEYWORDS) are folded
+    # in here so they map to 'Disney Resort' instead of falling through to the
+    # generic Other Hotel / Residential / Other buckets below.
+    if any(keyword in location_lower for keyword in disney_keywords + _LOCAL_DISNEY_AREA_KEYWORDS):
         return 'Disney Resort'
 
-    # Universal properties
+    # Universal properties (+ curated local I-Drive / Universal-south places)
     universal_keywords = [
         'universal', 'loews', 'portofino', 'hard rock', 'royal pacific', 'cabana bay',
         'sapphire falls', 'aventura', 'endless summer', 'surfside', 'dockside',
         'universal studios', 'islands of adventure', 'volcano bay', 'citywalk'
     ]
-    if any(keyword in location_lower for keyword in universal_keywords):
+    if any(keyword in location_lower for keyword in universal_keywords + _LOCAL_IDRIVE_UNIVERSAL_KEYWORDS):
         return 'Universal Resort'
 
     # Other hotels (not Disney, Universal, or Airport hotels)
@@ -307,6 +375,27 @@ def best_flight_arrival_local(flight):
         or flight.scheduled_gate_arrival_local
         or flight.scheduled_arrival_local
     )
+    if not dt:
+        return None
+    if timezone.is_aware(dt):
+        dt = timezone.make_naive(dt, timezone.get_current_timezone())
+    return dt
+
+
+def scheduled_flight_arrival_local(flight):
+    """Decision-time arrival anchor: scheduled GATE, then scheduled RUNWAY, as a naive local
+    datetime, or None.
+
+    RETROSPECTIVE GRADING ONLY. Unlike best_flight_arrival_local (which prefers the
+    estimated/actual = hindsight legs of the chain), this returns only what the dispatcher
+    would have seen when the schedule was BUILT — the airline's filed schedule. A later DELAY
+    is written to the estimated/actual fields and never touches scheduled_*, so this excludes it.
+    (Caveat: an airline RE-FILING the schedule overwrites scheduled_*, and there is no Flight
+    history to recover the original — irreducible, rare, and frozen for old dates.)
+    """
+    if not flight:
+        return None
+    dt = flight.scheduled_gate_arrival_local or flight.scheduled_arrival_local
     if not dt:
         return None
     if timezone.is_aware(dt):
