@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -1005,12 +1005,30 @@ class DriverPayRateAdmin(admin.ModelAdmin):
     ]
 
 
+@admin.register(AffiliateProfile)
+class AffiliateProfileAdmin(admin.ModelAdmin):
+    """Per-affiliate capability / capacity / route-permit config for the Farm-Out Optimizer.
+    Rates live in DriverPayRate; this holds the facts rates can't express."""
+    list_display = ["driver", "max_vehicle_tier", "capacity_mode", "daily_cap",
+                    "no_pickup_at_port_sanford"]
+    list_filter = ["capacity_mode", "no_pickup_at_port_sanford", "max_vehicle_tier"]
+    list_editable = ["max_vehicle_tier", "capacity_mode", "daily_cap", "no_pickup_at_port_sanford"]
+    search_fields = ["driver__profile__first_name", "driver__profile__last_name"]
+    autocomplete_fields = ["driver"]
+
+
 @admin.register(FleetVehicle)
 class FleetVehicleAdmin(admin.ModelAdmin):
-    list_display = ["vehicle_number", "vehicle_type", "year", "make", "model", "notes"]
-    list_editable = ["notes"]
-    search_fields = ["vehicle_number", "make", "model"]
+    list_display = ["vehicle_number", "vehicle_type", "year", "make", "model", "samsara_vehicle_id", "notes"]
+    list_editable = ["samsara_vehicle_id", "notes"]
+    search_fields = ["vehicle_number", "make", "model", "samsara_vehicle_id"]
     list_filter = ["vehicle_type", "year", "make"]
+    # Live position is written only by the Samsara poller — show, don't edit.
+    readonly_fields = [
+        "samsara_last_location_label", "samsara_movement_status",
+        "samsara_last_latitude", "samsara_last_longitude",
+        "samsara_last_seen_at", "samsara_last_synced_at",
+    ]
 
 
 @admin.register(DriverDateOverride)

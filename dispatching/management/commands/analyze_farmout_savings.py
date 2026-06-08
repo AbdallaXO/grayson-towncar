@@ -6,11 +6,11 @@ FARMED, asks: could we have kept it in-house and farmed something CHEAPER instea
 recommendations with dollars shown (no black-box score). NO writes. Validate the numbers here
 before any dashboard / apply phase.
 
-SCOPED VALIDATION PASS: the farm-cost waterfall is locked to ONE affiliate — WALEED (aka Oualid,
-id 7) — whose rates + rules we know exactly (SUV-or-lower; DROP-OFFS ONLY at Port Canaveral /
-Sanford, never pickups; capacity = feasibility chain, no count cap). Anthony + every other affiliate
-are DISABLED this pass (Architecture B widens the roster later). See the loud header in
-dispatching/farmout_optimizer.py.
+ROSTER (Architecture B): the farm-cost waterfall prices each leg against the WHOLE carded affiliate
+roster, cheapest eligible winning. Rates come from real DriverPayRate rows; per-affiliate capability
+(vehicle classes), capacity (single-vehicle chain / count cap / fleet), and route/permit rules come
+from drivers.models.AffiliateProfile. Affiliates with no card are abstained (never invented a price)
+and surfaced in the roster audit. See the loud header in dispatching/farmout_optimizer.py.
 
 Examples:
     python manage.py analyze_farmout_savings --date 2026-05-02
@@ -50,7 +50,8 @@ class Command(BaseCommand):
         parser.add_argument("--min-savings", type=str, default=None,
                             help="Discretionary savings threshold in dollars (default 100).")
         parser.add_argument("--anthony-cap", type=int, default=None,
-                            help="(Reserved for Architecture B; Anthony is disabled this pass.)")
+                            help="What-if override of Anthony's daily count cap (else his "
+                                 "AffiliateProfile.daily_cap, default ~12).")
         parser.add_argument("--departure-premium", type=str, default=None,
                             help="Max extra farm-$ to spend keeping a DEPARTURE in-house via a "
                                  "displace-and-farm swap (default 0 = only free/cheaper rescues).")
@@ -113,30 +114,62 @@ class Command(BaseCommand):
             f"FARM-OUT OPPORTUNITY-COST -- {rng['start']} -> {rng['end']} ({rng['days']}d)"))
         w(line)
 
-        # Loud scope + capability warning.
+        # Roster scope + capability source (Architecture B — data-driven).
         w(self.style.WARNING(
-            "SCOPED VALIDATION PASS -- single affiliate WALEED/OUALID only (SUV-or-lower; DROP-OFFS "
-            "ONLY at Port Canaveral/Sanford, never pickups; capacity = feasibility chain, NO count cap). "
-            "Rates read from real DriverPayRate rows via _find_rate. Port Canaveral & Sanford are their "
-            "OWN categories -- NOT protected as departures; judged purely on net-spend math. See "
-            f"dispatching/farmout_optimizer.py. Threshold = {_money(r['min_savings'])}."))
-        if r.get("anthony_disabled"):
-            w(self.style.WARNING(
-                "  Anthony (and every other affiliate) is DISABLED this pass -- legs Waleed cannot do "
-                "(van/14-pax, or a Port/Sanford PICKUP) have no in-house-via-farm alternative here."))
+            "DATA-DRIVEN ROSTER (Architecture B): each farm-out is priced against the WHOLE carded "
+            "affiliate roster, cheapest eligible winning. Rates from real DriverPayRate rows; "
+            "capability / capacity / permits from drivers.models.AffiliateProfile. Port Canaveral & "
+            "Sanford are their OWN categories -- NOT protected as departures; judged on net-spend math. "
+            f"See dispatching/farmout_optimizer.py. Threshold = {_money(r['min_savings'])}."))
         for warn in r["affiliate_warnings"]:
             w(self.style.ERROR(f"  ! {warn}"))
         w("")
 
+        # Roster table — who is priceable, with their capability/capacity config.
+        roster = r.get("roster") or []
+        w(f"ROSTER ({len(roster)} rate-ready affiliates)")
+        w(f"  {'affiliate':<16}{'mode':>13}{'max veh':>12}{'cap':>6}{'rows':>6}{'profile':>9}")
+        for a in roster:
+            w(f"  {a['name'][:16]:<16}{a['mode']:>13}{(a['max_vehicle_tier'] or '-'):>12}"
+              f"{(str(a['daily_cap']) if a['daily_cap'] is not None else '-'):>6}{a['rate_rows']:>6}"
+              f"{('yes' if a['has_profile'] else 'NO'):>9}")
+        # Roster gaps — surface what is NOT priceable / risky so the founder sees what config to add.
+        ra = r.get("roster_audit") or {}
+        flat = ra.get("profileless_flat") or []
+        if flat:
+            w(self.style.WARNING(
+                f"  ! FLAT card, NO capability cap (mispricing risk -- their all-vehicle row matches "
+                f"every class incl. 14-pax): {', '.join(flat)}. Set AffiliateProfile.max_vehicle_tier."))
+        gap = ra.get("uncarded_with_volume") or []
+        if gap:
+            shown = ", ".join(f"{n} ({c})" for n, c in gap[:12])
+            w(self.style.ERROR(
+                f"  ! GOT farm-out legs in range but have NO card -> ABSTAINED (not priceable): {shown}. "
+                "Add DriverPayRate rows to bring them into the roster."))
+        w("")
+
         w("SUMMARY")
-        w(f"  Farmed legs examined (targets) : {t['targets']}")
-        w(f"  Recommendations                : {t['recommendations']}")
+        w(f"  Legs evaluated (targets)       : {t['targets']} "
+          f"({t.get('unassigned_targets', 0)} unassigned leftovers / "
+          f"{t['targets'] - t.get('unassigned_targets', 0)} affiliate-farmed)")
+        w(f"  Recommendations (keep in-house): {t['recommendations']}")
         w(f"    - free in-house rescues      : {t['free_rescue']}")
         w(f"    - opportunity swaps (>= min) : {t['opportunity_swap']}")
         w(f"    - policy departure rescues   : {t['policy_departure_rescue']}")
+        w(f"  Farm-only (no keep rec)        : {t.get('farm_only', 0)} "
+          f"(must be farmed)")
+        if t.get('stuck'):
+            w(self.style.ERROR(
+                f"  STUCK leftovers (alert)        : {t['stuck']} "
+                "(unplaceable in-house AND unfarmable by any affiliate -- needs a human)"))
         w(self.style.SUCCESS(
             f"  Free-rescue farm-$ avoided      : {_money(t.get('free_rescue_avoided'))} "
-            f"(whole farm cost of the {t['free_rescue']} free in-house rescues)"))
+            f"(actual cost of the affiliate-leg free rescues)"))
+        if t.get('free_rescue_avoided_hypothetical'):
+            w(self.style.SUCCESS(
+                f"  Free-rescue farm-$ avoided (hyp): "
+                f"{_money(t.get('free_rescue_avoided_hypothetical'))} "
+                "(hypothetical farm cost of the UNASSIGNED-leftover free rescues)"))
         w(self.style.SUCCESS(
             f"  Opportunity/policy net savings  : {_money(t['est_savings'])} "
             f"(apples-to-apples net of swap + departure rescues)"))
@@ -153,23 +186,33 @@ class Command(BaseCommand):
         w(f"  True departures protected (dropoff=airport, non-Port/Sanford) : {audit['true_departures_protected']}")
         w(f"  Port Canaveral legs (now farmable): to-port {audit['port_to']}, from-port {audit['port_from']}")
         w(f"  Sanford (SFB) legs    (now farmable): to-sanford {audit['sanford_to']}, from-sanford {audit['sanford_from']}")
-        w(f"  Port/Sanford PICKUPS excluded from Waleed (no permit)         : {audit['waleed_excluded_pickups']}")
+        w(f"  Port/Sanford PICKUPS among targets (excluded from drop-off-only affiliates): {audit['waleed_excluded_pickups']}")
         w(f"  VIP legs seen among targets (never farmed)                    : {audit['vip_targets_seen']}")
         w("")
 
-        # Affiliate over-loading check, per day. Anthony disabled => only Waleed/Oualid loads.
-        w("WALEED (OUALID) LOAD per day (incremental legs OUR recommendations would farm to him)")
-        w(f"  {'date':<12}{'legs':>6}{'farmed':>8}{'depl':>6}{'recs':>6}{'oualid':>8}")
-        max_oualid = 0
+        # Affiliate load — per day (total legs OUR recommendations would farm to ALL affiliates) plus a
+        # per-affiliate max/total so the founder can calibrate each AffiliateProfile capacity vs reality.
+        w("AFFILIATE LOAD per day (incremental legs OUR recommendations would farm)")
+        w(f"  {'date':<12}{'legs':>6}{'eval':>6}{'unasn':>6}{'depl':>6}{'recs':>6}{'to affs':>8}")
+        per_aff_max, per_aff_total = {}, {}
         for d in r["days"]:
-            ld = d["ledger_load"]
-            max_oualid = max(max_oualid, ld["oualid"])
+            ld = d["ledger_load"] or {}
+            for name, load in ld.items():
+                per_aff_max[name] = max(per_aff_max.get(name, 0), load)
+                per_aff_total[name] = per_aff_total.get(name, 0) + load
             depl = f"{d.get('inhouse_deployable', '?')}/{d.get('inhouse_total', '?')}"
-            w(f"  {str(d['day']):<12}{d['legs']:>6}{d['farmed_targets']:>8}{depl:>6}"
-              f"{len(d['recommendations']):>6}{ld['oualid']:>8}")
+            w(f"  {str(d['day']):<12}{d['legs']:>6}{d.get('evaluated', d.get('farmed_targets', 0)):>6}"
+              f"{d.get('unassigned_targets', 0):>6}{depl:>6}"
+              f"{len(d['recommendations']):>6}{sum(ld.values()):>8}")
+        busy = sorted(((n, per_aff_max[n], per_aff_total[n]) for n in per_aff_max if per_aff_total[n]),
+                      key=lambda x: -x[2])
+        if busy:
+            w("  per-affiliate (max/day, total across range):")
+            for n, mx, tot in busy:
+                w(f"    {n[:18]:<18} max/day {mx:>3}   total {tot:>4}")
         w(self.style.WARNING(
-            f"  MAX Waleed/day across range -> {max_oualid} (reality ~1-5/day?). His only limit is the "
-            "feasibility chain (overlap+turnaround), so sanity-check this against what he really runs."))
+            "  Single-vehicle affiliates are limited only by the feasibility chain (overlap+turnaround); "
+            "count-cap affiliates by AffiliateProfile.daily_cap. Sanity-check max/day against reality."))
         w("")
 
         # Per-day recommendation detail.
@@ -177,7 +220,12 @@ class Command(BaseCommand):
             if not d["recommendations"] and not d.get("abstained_far"):
                 continue
             w("-" * 72)
-            w(self.style.HTTP_INFO(f"{d['day']}  ({d['legs']} legs, {d['farmed_targets']} farmed)"))
+            _ev = d.get('evaluated', d.get('farmed_targets', 0))
+            _un = d.get('unassigned_targets', 0)
+            _fo = d.get('farm_only', 0)
+            w(self.style.HTTP_INFO(
+                f"{d['day']}  ({d['legs']} legs, {_ev} evaluated: {_un} unassigned / "
+                f"{_ev - _un} farmed; {_fo} farm-only)"))
             for rec in d["recommendations"]:
                 tag = {"free_rescue": "[FREE]", "opportunity_swap": "[SWAP]",
                        "policy_departure_rescue": "[DEPARTURE/POLICY]"}.get(rec.kind, "[?]")
@@ -186,11 +234,16 @@ class Command(BaseCommand):
                 w(f"      {rec.reason}")
                 if rec.farmed_leg_ids:
                     mix = ", ".join(f"{n}x {a}" for a, n in rec.farm_affiliate_mix.items())
+                    _a_label = "A farm" if getattr(rec, "target_is_unassigned", False) else "A paid"
                     w(f"      farm: legs {rec.farmed_leg_ids} -> {mix or '-'}  "
-                      f"(A paid {_money(rec.state_a_farm_base)} | B farm {_money(rec.state_b_farm_base)}"
+                      f"({_a_label} {_money(rec.state_a_farm_base)} | B farm {_money(rec.state_b_farm_base)}"
                       f" | net {_money(rec.net_savings)})")
                 if rec.target_actual_farm_cost is not None:
                     w(f"      (actually paid to farm target: {_money(rec.target_actual_farm_cost)})")
+                elif getattr(rec, "target_is_unassigned", False) and \
+                        rec.target_hypothetical_farm_cost is not None:
+                    w(f"      (unassigned leftover -- would cost ~"
+                      f"{_money(rec.target_hypothetical_farm_cost)} to farm)")
             af = d.get("abstained_far") or []
             if af:
                 w(self.style.WARNING(
@@ -248,8 +301,11 @@ class Command(BaseCommand):
             af = d.get("abstained_far") or []
             if not d["recommendations"] and not af:
                 continue
+            _ev = d.get('evaluated', d.get('farmed_targets', 0))
+            _un = d.get('unassigned_targets', 0)
             cards.append(f"<h2 class='day'>{e(str(d['day']))} "
-                         f"<span class='sub'>{d['legs']} legs &middot; {d['farmed_targets']} farmed "
+                         f"<span class='sub'>{d['legs']} legs &middot; {_ev} evaluated "
+                         f"({_un} unassigned / {_ev - _un} farmed) &middot; {d.get('farm_only', 0)} farm-only "
                          f"&middot; {d.get('inhouse_deployable','?')}/{d.get('inhouse_total','?')} in-house "
                          f"deployable</span></h2>")
             for rec in d["recommendations"]:
@@ -268,15 +324,34 @@ class Command(BaseCommand):
         if r["affiliate_warnings"]:
             warn_html = "<div class='warns'>" + "".join(
                 f"<div class='warn'>! {e(x)}</div>" for x in r["affiliate_warnings"]) + "</div>"
-        anthony_note = ("<div class='note'>Anthony and every other affiliate are <b>disabled</b> this "
-                        "pass &mdash; legs Waleed can't do (van/14-pax, or a Port/Sanford pickup) have no "
-                        "in-house-via-farm alternative here.</div>") if r.get("anthony_disabled") else ""
+        # Roster + roster-gap notes (Architecture B).
+        roster = r.get("roster") or []
+        roster_rows = "".join(
+            f"<tr><td>{e(a['name'])}</td><td>{e(a['mode'])}</td>"
+            f"<td>{e(a['max_vehicle_tier'] or '&mdash;')}</td>"
+            f"<td>{a['daily_cap'] if a['daily_cap'] is not None else '&mdash;'}</td>"
+            f"<td>{a['rate_rows']}</td><td>{'yes' if a['has_profile'] else 'NO'}</td></tr>"
+            for a in roster)
+        ra = r.get("roster_audit") or {}
+        gap_notes = []
+        if ra.get("profileless_flat"):
+            gap_notes.append("<div class='note'><b>Flat card, no capability cap</b> (mispricing risk "
+                             "&mdash; their all-vehicle row matches every class incl. 14-pax): "
+                             f"{e(', '.join(ra['profileless_flat']))}. Set AffiliateProfile.max_vehicle_tier.</div>")
+        if ra.get("uncarded_with_volume"):
+            shown = ", ".join(f"{e(n)} ({c})" for n, c in ra["uncarded_with_volume"][:12])
+            gap_notes.append("<div class='warn'>! <b>Got farm-out legs in range but have NO card</b> "
+                             f"&rarr; abstained (not priceable): {shown}. Add DriverPayRate rows.</div>")
+        gap_html = "".join(gap_notes)
 
-        # Waleed load table.
+        # Per-day affiliate load table (total legs our recs would farm across the roster).
         load_rows = "".join(
-            f"<tr><td>{e(str(d['day']))}</td><td>{d['legs']}</td><td>{d['farmed_targets']}</td>"
+            f"<tr><td>{e(str(d['day']))}</td><td>{d['legs']}</td>"
+            f"<td>{d.get('evaluated', d.get('farmed_targets', 0))}</td>"
+            f"<td>{d.get('unassigned_targets', 0)}</td>"
             f"<td>{d.get('inhouse_deployable','?')}/{d.get('inhouse_total','?')}</td>"
-            f"<td>{len(d['recommendations'])}</td><td>{d['ledger_load']['oualid']}</td></tr>"
+            f"<td>{len(d['recommendations'])}</td><td>{d.get('farm_only', 0)}</td>"
+            f"<td>{sum(d['ledger_load'].values())}</td></tr>"
             for d in r["days"])
 
         return f"""<!doctype html>
@@ -356,26 +431,35 @@ class Command(BaseCommand):
 <body><div class="wrap">
   <h1>Farm-Out Opportunity-Cost &mdash; {e(str(rng['start']))} &rarr; {e(str(rng['end']))} ({rng['days']}d)</h1>
   <div class="scope">
-    <b>Scoped validation pass &mdash; single affiliate WALEED / OUALID only.</b>
-    SUV-or-lower; DROP-OFFS ONLY at Port Canaveral &amp; Sanford (never pickups); capacity = feasibility
-    chain (no count cap). Rates from real DriverPayRate rows. Port Canaveral &amp; Sanford are their OWN
-    categories &mdash; NOT protected as departures; judged purely on net-spend math.
-    Threshold = {m(r['min_savings'])}.
+    <b>Data-driven roster (Architecture B).</b> Each farm-out is priced against the WHOLE carded
+    affiliate roster, cheapest eligible winning. Rates from real DriverPayRate rows; capability /
+    capacity / permits from AffiliateProfile. Port Canaveral &amp; Sanford are their OWN categories
+    &mdash; NOT protected as departures; judged purely on net-spend math. Threshold = {m(r['min_savings'])}.
     <br><b>Drive times calibrated</b> to real Orlando times (MCO&harr;Disney 30, MCO&harr;Universal 25,
     MCO&harr;SFB 60, Disney&harr;Port 72). <b>FAR/UNKNOWN destinations</b> (Other / Residential / Other
     Hotel) are treated as <b>UNCOMPUTABLE and ABSTAINED</b> &mdash; Approach A; live-distance verification
     (Approach B) deferred.
-    {anthony_note}
   </div>
   {warn_html}
 
+  <h2 class="day">Roster ({len(roster)} rate-ready affiliates)</h2>
+  <table>
+    <tr><th>Affiliate</th><th>Capacity mode</th><th>Max vehicle</th><th>Daily cap</th><th>Rate rows</th><th>Profile</th></tr>
+    {roster_rows}
+  </table>
+  {gap_html}
+
   <div class="grid">
-    <div class="stat"><div class="k">Farmed targets</div><div class="v">{t['targets']}</div></div>
-    <div class="stat"><div class="k">Recommendations</div><div class="v">{t['recommendations']}</div></div>
+    <div class="stat"><div class="k">Legs evaluated</div><div class="v">{t['targets']}</div>
+      <div class="meta">{t.get('unassigned_targets', 0)} unassigned / {t['targets'] - t.get('unassigned_targets', 0)} farmed</div></div>
+    <div class="stat"><div class="k">Keep in-house (recs)</div><div class="v">{t['recommendations']}</div></div>
     <div class="stat"><div class="k">Free in-house rescues</div><div class="v">{t['free_rescue']}</div></div>
     <div class="stat"><div class="k">Opportunity swaps</div><div class="v">{t['opportunity_swap']}</div></div>
     <div class="stat"><div class="k">Policy departure rescues</div><div class="v">{t['policy_departure_rescue']}</div></div>
-    <div class="stat green"><div class="k">Free-rescue farm-$ avoided</div><div class="v">{m(t.get('free_rescue_avoided'))}</div></div>
+    <div class="stat"><div class="k">Farm-only (must farm)</div><div class="v">{t.get('farm_only', 0)}</div>
+      {f"<div class='meta'>{t['stuck']} stuck (alert)</div>" if t.get('stuck') else ""}</div>
+    <div class="stat green"><div class="k">Free-rescue farm-$ avoided</div><div class="v">{m(t.get('free_rescue_avoided'))}</div>
+      {f"<div class='meta'>+{m(t.get('free_rescue_avoided_hypothetical'))} hypothetical (leftovers)</div>" if t.get('free_rescue_avoided_hypothetical') else ""}</div>
     <div class="stat green"><div class="k">Swap/policy net savings</div><div class="v">{m(t['est_savings'])}</div></div>
     <div class="stat"><div class="k">VIP protected</div><div class="v">{t['vip_protected']}</div></div>
     <div class="stat"><div class="k">Abstained (far/unknown)</div><div class="v">{t.get('abstained_uncomputable_far', 0)}</div></div>
@@ -387,13 +471,13 @@ class Command(BaseCommand):
     <tr><td>True departures protected (dropoff = airport, non-Port/Sanford)</td><td>{audit['true_departures_protected']}</td></tr>
     <tr><td>Port Canaveral legs &mdash; to-port / from-port (now farmable)</td><td>{audit['port_to']} / {audit['port_from']}</td></tr>
     <tr><td>Sanford (SFB) legs &mdash; to-sanford / from-sanford (now farmable)</td><td>{audit['sanford_to']} / {audit['sanford_from']}</td></tr>
-    <tr><td><b>Port/Sanford PICKUPS excluded from Waleed</b> (no permit)</td><td>{audit['waleed_excluded_pickups']}</td></tr>
+    <tr><td><b>Port/Sanford PICKUPS among targets</b> (excluded from drop-off-only affiliates)</td><td>{audit['waleed_excluded_pickups']}</td></tr>
     <tr><td>VIP legs seen among targets (never farmed)</td><td>{audit['vip_targets_seen']}</td></tr>
   </table>
 
-  <h2 class="day">Waleed (Oualid) load per day</h2>
+  <h2 class="day">Affiliate load per day</h2>
   <table>
-    <tr><th>Date</th><th>Legs</th><th>Farmed</th><th>In-house depl.</th><th>Recs</th><th>To Waleed</th></tr>
+    <tr><th>Date</th><th>Legs</th><th>Evaluated</th><th>Unassigned</th><th>In-house depl.</th><th>Recs</th><th>Farm-only</th><th>To affiliates</th></tr>
     {load_rows}
   </table>
 
@@ -404,8 +488,11 @@ class Command(BaseCommand):
     never un-farms a committed leg. Feasibility uses the <b>SCHEDULED</b> (decision-time) flight
     arrival, not hindsight actual/estimated, and bounds each in-house rescue to the driver's
     <b>real worked day</b> (assigned-leg span), not stub windows. Tier-2 displacement is DEPTH-1 (one
-    displaced leg per swap) this phase &mdash; deeper bundles deferred. State A = the amount actually
-    paid to farm the target.
+    displaced leg per swap) this phase &mdash; deeper bundles deferred. It also runs as
+    <b>decision support</b>: for an <b>unassigned leftover</b> (the founder hand-built the in-house
+    schedule and left it) it decides keep-in-house vs farm. State A = the amount actually paid to farm
+    an affiliate target, or the hypothetical cheapest-affiliate cost for an unassigned leftover (nothing
+    was paid).
     <br>Drive times are <b>calibrated</b> to real Orlando times; far/unknown destinations
     (Other / Residential / Other Hotel) are treated as <b>uncomputable and abstained</b> (Approach A) so
     no recommendation rests on a guessed drive time. Live-distance verification (Approach B) is deferred
@@ -420,12 +507,19 @@ class Command(BaseCommand):
                 "opportunity_swap": ("swap", "OPPORTUNITY SWAP"),
                 "policy_departure_rescue": ("dep", "DEPARTURE / POLICY")}.get(rec.kind, ("swap", "?"))
         dep = " &middot; <span class='tag'>DEPARTURE</span>" if rec.target_is_departure else ""
+        # Affiliate target: "Now" it is FARMED at the actual paid cost. Unassigned leftover: "Now" it is
+        # an UNPLACED leftover and the figure is the hypothetical cost to farm it.
+        unassigned = getattr(rec, "target_is_unassigned", False)
         actual = rec.target_actual_farm_cost
+        hyp = rec.target_hypothetical_farm_cost
+        now_cost = hyp if unassigned else actual            # figure to show in the "Now" column
+        now_label = "UNASSIGNED leftover" if unassigned else "FARMED"
+        now_cost_txt = (f"would farm ~{m(now_cost)}" if unassigned else f"farm cost {m(now_cost)}")
 
         if rec.kind == "free_rescue":
             keep = e(disp.get("keep_driver_name", f"driver {rec.keep_in_house_driver_id}"))
-            now = (f"<div class='col now'><h4>Now</h4>Target <b>FARMED</b><br>"
-                   f"<span class='farm'>farm cost {m(actual)}</span></div>")
+            now = (f"<div class='col now'><h4>Now</h4>Target <b>{now_label}</b><br>"
+                   f"<span class='farm'>{now_cost_txt}</span></div>")
             prop = (f"<div class='col prop'><h4>Proposed</h4>In-house on <b>{keep}</b><br>"
                     f"<span class='farm'>farm $0</span> &middot; +1 in-house leg</div>")
             chain = ""
@@ -434,14 +528,15 @@ class Command(BaseCommand):
                 items = "".join(
                     f"<li>{leg_line(x['leg'])} &rarr; <b>{e(x['to_driver'])}</b></li>" for x in resh)
                 chain = f"<div class='chain'>Reshuffled in-house ({len(resh)}):<ul>{items}</ul></div>"
-            delta = (f"<div class='delta'>Saves the whole farm cost "
-                     f"(~{m(actual)})</div>" if actual is not None else "")
+            _verb = "Avoids the ~" if unassigned else "Saves the whole farm cost (~"
+            delta = (f"<div class='delta'>{_verb}{m(now_cost)} farm cost</div>"
+                     if now_cost is not None else "")
         else:
             keep = e(disp.get("keep_driver_name", f"driver {rec.keep_in_house_driver_id}"))
-            aff = e(disp.get("affiliate", "oualid"))
+            aff = e(disp.get("affiliate", "an affiliate"))
             displaced = disp.get("displaced")
-            now = (f"<div class='col now'><h4>Now</h4>Target <b>FARMED</b> "
-                   f"(<span class='farm'>{m(actual)}</span>)<br>"
+            now = (f"<div class='col now'><h4>Now</h4>Target <b>{now_label}</b> "
+                   f"(<span class='farm'>{now_cost_txt}</span>)<br>"
                    f"Displaced leg in-house</div>")
             prop = (f"<div class='col prop'><h4>Proposed</h4>Target in-house on <b>{keep}</b><br>"
                     f"Farm <b>{leg_line(displaced)}</b> &rarr; <b>{aff}</b> "
@@ -449,7 +544,8 @@ class Command(BaseCommand):
             chain = (f"<div class='chain'>Chain: displaced leg leaves the board (&rarr; {aff}); "
                      f"target chains onto {keep}.</div>")
             if rec.net_savings is not None:
-                delta = f"<div class='delta'>Net saves {m(rec.net_savings)} vs the {m(actual)} actually paid</div>"
+                _basis = (f"~{m(now_cost)} to farm" if unassigned else f"{m(actual)} actually paid")
+                delta = f"<div class='delta'>Net saves {m(rec.net_savings)} vs the {_basis}</div>"
             else:
                 delta = "<div class='delta'>Policy rescue (economics uncomputable)</div>"
 
