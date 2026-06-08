@@ -1,8 +1,10 @@
 from django.db import models
 from django.db.models import Q
 from django.contrib.auth.models import User
+from django.utils import timezone
 from reservations.models import Leg
 from decimal import Decimal
+from datetime import timedelta
 
 
 class Driver(models.Model):
@@ -513,6 +515,10 @@ class DriverDateOverride(models.Model):
 
 
 class FleetVehicle(models.Model):
+    # A live GPS sample older than this is considered stale (the vehicle is
+    # mapped to Samsara but we're not getting fresh telemetry).
+    SAMSARA_FRESH_MINUTES = 15
+
     vehicle_number = models.CharField(max_length=50, unique=True)
     vehicle_type = models.ForeignKey(
         "rates.Vehicle", on_delete=models.SET_NULL, null=True, blank=True,
@@ -523,11 +529,72 @@ class FleetVehicle(models.Model):
     model = models.CharField(max_length=50)
     notes = models.TextField(blank=True)
 
+    # --- Samsara telematics (Phase 1: read-only live vehicle visibility) ---
+    # All nullable/blank so un-onboarded in-house cars and affiliate vehicles
+    # are unaffected. Written ONLY by the background poller (samsara_scheduler);
+    # never read synchronously from the API in a request path.
+    samsara_vehicle_id = models.CharField(
+        max_length=64, blank=True, default="", db_index=True,
+        help_text="Samsara vehicle id. Blank = not onboarded; renders no live position."
+    )
+    samsara_last_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    samsara_last_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    samsara_last_location_label = models.CharField(
+        max_length=128, blank=True, default="",
+        help_text="Reverse-geocoded label from Samsara (e.g. 'near MCO Terminal A')."
+    )
+    samsara_movement_status = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="driving / idle (derived from Samsara speed)."
+    )
+    samsara_last_seen_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Timestamp of the Samsara GPS sample itself."
+    )
+    samsara_last_synced_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When we last successfully polled Samsara for this vehicle (diagnostic)."
+    )
+    samsara_stationary_since = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the vehicle last stopped moving (cleared when it drives). "
+                  "Drives the 'vehicle not moving' dwell detection.",
+    )
+
     class Meta:
         ordering = ["vehicle_number"]
 
     def __str__(self):
         return f"{self.vehicle_number} - {self.year} {self.make} {self.model}"
+
+    @property
+    def samsara_enabled(self) -> bool:
+        """True only when this car is mapped to a Samsara vehicle."""
+        return bool(self.samsara_vehicle_id)
+
+    @property
+    def samsara_is_fresh(self) -> bool:
+        """True when we have a GPS sample within the freshness window."""
+        if not self.samsara_last_seen_at:
+            return False
+        return (timezone.now() - self.samsara_last_seen_at) <= timedelta(
+            minutes=self.SAMSARA_FRESH_MINUTES
+        )
+
+    def samsara_age_display(self) -> str:
+        """Compact age of the last GPS sample, e.g. '2m ago' / '1h 3m ago'."""
+        if not self.samsara_last_seen_at:
+            return ""
+        total_min = int((timezone.now() - self.samsara_last_seen_at).total_seconds() // 60)
+        if total_min <= 0:
+            return "just now"
+        if total_min < 60:
+            return f"{total_min}m ago"
+        return f"{total_min // 60}h {total_min % 60}m ago"
 
 
 class DriverVehicleAssignment(models.Model):

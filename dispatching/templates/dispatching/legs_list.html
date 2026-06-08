@@ -2,8 +2,10 @@
 {% load static %}
 {% load tz %}
 {% load flight_filters %}
+{% load samsara_tags %}
 
 {% block extra_css %}
+  {% include "dispatching/includes/_samsara_panel_styles.html" %}
   <style>
       /* Early-flight flag: thin left accent bar instead of a full-row fill */
       tr.leg-flag-alert { box-shadow: inset 4px 0 0 0 #dc3545; }
@@ -775,7 +777,8 @@
                         </div>
                       {% endif %}
                     {% endwith %}
-                    {% if leg.live_eta_minutes %}
+                    {% samsara_tracking_panel leg %}
+                    {% if leg.live_eta_minutes %}{% if leg.dispatch_eta_minutes is None or not leg.dispatch_eta_is_fresh %}
                       <div class="mt-2">
                         <div class="d-flex align-items-center gap-2">
                           <span class="badge d-flex align-items-center gap-1" style="font-size:0.8rem;background:#1a1d21;color:#fff;padding:6px 10px;">
@@ -791,7 +794,7 @@
                           </div>
                         {% endif %}
                       </div>
-                    {% endif %}
+                    {% endif %}{% endif %}
                   </td>
                 </tr>
               {% endwith %}
@@ -1087,6 +1090,7 @@
                               </button>
                             </div>
                           {% endif %}
+                          {% samsara_tracking_panel leg %}
                         {% endwith %}
                       </div>
                     </div>

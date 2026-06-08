@@ -1049,6 +1049,68 @@ class Leg(models.Model):
         max_length=255,
         default="in-progress",
     )
+
+    # --- Samsara Phase 2: schedule-aware live ETA + late-risk (background-computed) ---
+    # Written ONLY by the Samsara ETA sweep (dispatching/samsara_scheduler.sweep_eta);
+    # read at render time. NEVER computed synchronously in a request path. Only the
+    # driver's single "next stop" leg carries these; all others are cleared.
+    DISPATCH_RISK_CHOICES = [
+        ("on_time", "On time"),
+        ("watch", "Watch"),
+        ("at_risk", "At risk"),
+        ("late", "Late"),
+        ("unknown", "Unknown (telematics stale)"),
+    ]
+    dispatch_eta_minutes = models.IntegerField(
+        null=True, blank=True,
+        help_text="Live drive-time (min) from the assigned vehicle's GPS to this leg's relevant target.",
+    )
+    dispatch_eta_target = models.CharField(
+        max_length=16, blank=True, default="",
+        help_text="What the ETA is to: pickup / dropoff / next_pickup.",
+    )
+    dispatch_eta_target_time = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Scheduled (flight-aware) time of the target, for the slack/late comparison.",
+    )
+    dispatch_risk_status = models.CharField(
+        max_length=16, blank=True, default="", db_index=True,
+        choices=DISPATCH_RISK_CHOICES,
+        help_text="Will-he-make-it band driving the board badge color.",
+    )
+    dispatch_risk_reason = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Human-readable reason shown on hover.",
+    )
+    dispatch_eta_evaluated_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the sweep last computed this. Render only while fresh.",
+    )
+    dispatch_is_moving = models.BooleanField(
+        null=True, blank=True,
+        help_text="Snapshot of whether the assigned vehicle was moving at sweep time.",
+    )
+    dispatch_stationary_minutes = models.IntegerField(
+        null=True, blank=True,
+        help_text="How long the assigned vehicle had been stationary at sweep time.",
+    )
+    dispatch_vehicle_label = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Assigned vehicle number snapshot, shown in the live-tracking panel.",
+    )
+
+    # How long a computed ETA stays renderable before it's considered stale.
+    DISPATCH_ETA_FRESH_MIN = 10
+
+    @property
+    def dispatch_eta_is_fresh(self) -> bool:
+        """True when the background ETA sweep evaluated this leg recently."""
+        if not self.dispatch_eta_evaluated_at:
+            return False
+        return (timezone.now() - self.dispatch_eta_evaluated_at) <= timedelta(
+            minutes=self.DISPATCH_ETA_FRESH_MIN
+        )
+
     driver_pay_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,

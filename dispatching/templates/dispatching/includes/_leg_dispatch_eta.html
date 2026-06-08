@@ -1,0 +1,42 @@
+{% comment %}
+Samsara Phase 2 — schedule-aware live ETA + late-risk badge for a leg row.
+Expects `leg` in context. Renders the background-computed dispatch_* fields
+(written by dispatching/samsara_scheduler.sweep_eta). Shows nothing unless the
+ETA was evaluated recently (leg.dispatch_eta_is_fresh). Falls through silently
+for un-onboarded / affiliate vehicles. Include this ABOVE the legacy
+live_eta_minutes block; that block is gated to hide when a fresh Samsara ETA exists.
+{% endcomment %}
+{% if leg.dispatch_eta_is_fresh %}
+  {% if leg.dispatch_eta_minutes is not None %}
+    <div class="mt-2" title="{{ leg.dispatch_risk_reason }}">
+      <span class="d-inline-flex align-items-center gap-1" style="
+        font-size:.72rem;font-weight:600;border-radius:6px;padding:3px 8px;
+        {% if leg.dispatch_risk_status == 'late' %}background:#b71c1c;color:#fff;
+        {% elif leg.dispatch_risk_status == 'at_risk' %}background:#fdecea;color:#b71c1c;
+        {% elif leg.dispatch_risk_status == 'watch' %}background:#fff4d6;color:#8a6100;
+        {% elif leg.dispatch_risk_status == 'on_time' %}background:#e7f5ec;color:#1b5e20;
+        {% else %}background:#eceff1;color:#546e7a;{% endif %}">
+        <i class="bi bi-car-front-fill"></i>
+        {{ leg.dispatch_eta_minutes }} min to {{ leg.dispatch_eta_target }}
+        {% if leg.dispatch_risk_status == 'late' %}· LATE
+        {% elif leg.dispatch_risk_status == 'at_risk' %}· at risk
+        {% elif leg.dispatch_risk_status == 'watch' %}· tight
+        {% elif leg.dispatch_risk_status == 'on_time' %}· on time{% endif %}
+      </span>
+      {% if leg.dispatch_eta_target_time %}
+        <span class="text-muted" style="font-size:.7rem;">
+          · {{ leg.dispatch_eta_target_time|time:'g:i A' }} ({{ leg.dispatch_eta_target_time|timeuntil }})
+        </span>
+      {% endif %}
+      {% if leg.dispatch_risk_reason %}
+        <div class="text-muted" style="font-size:.68rem;margin-top:1px;">{{ leg.dispatch_risk_reason }}</div>
+      {% endif %}
+    </div>
+  {% elif leg.dispatch_risk_status == 'unknown' and not leg.live_eta_minutes %}
+    <div class="mt-2" title="{{ leg.dispatch_risk_reason }}">
+      <span class="d-inline-flex align-items-center gap-1 text-muted" style="font-size:.72rem;background:#eceff1;border-radius:6px;padding:3px 8px;">
+        <i class="bi bi-geo-alt"></i> Live ETA unavailable
+      </span>
+    </div>
+  {% endif %}
+{% endif %}

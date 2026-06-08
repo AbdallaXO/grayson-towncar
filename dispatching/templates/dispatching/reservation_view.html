@@ -733,6 +733,21 @@
                   {% if leg.vehicle_id %}
                     <span class="badge bg-warning text-dark ms-1" title="This leg uses a vehicle different from the reservation default ({{ reservation.vehicle.vehicle_type|title }}).">Override</span>
                   {% endif %}
+                  {% with sv=leg.samsara_vehicle %}
+                    {% if sv and sv.samsara_enabled %}
+                      {% if sv.samsara_is_fresh %}
+                      <div class="fw-normal mt-1" style="font-size:.85rem;color:#475569;">
+                        <i class="bi bi-geo-alt-fill" style="color:#0d9488;"></i>
+                        Live: {{ sv.samsara_last_location_label|default:"position available" }}
+                        <span class="text-muted">({{ sv.samsara_age_display }}{% if sv.samsara_movement_status %}, {{ sv.samsara_movement_status }}{% endif %})</span>
+                      </div>
+                      {% else %}
+                      <div class="fw-normal mt-1 text-muted" style="font-size:.85rem;">
+                        <i class="bi bi-geo-alt"></i> Live position stale (15m+)
+                      </div>
+                      {% endif %}
+                    {% endif %}
+                  {% endwith %}
                 </dd>
 
                 {% if leg.flight_information or leg.legflight_set.exists %}

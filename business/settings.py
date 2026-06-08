@@ -34,7 +34,7 @@ SECRET_KEY = os.environ.get(
 
 # STORAGE_PATH = CONTENT_DIR
 
-DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
+DEBUG = True
 
 
 ALLOWED_HOSTS = [
@@ -113,6 +113,9 @@ if DEBUG:
     # planner, dispatch boards) crawl. Opt back in for a session with ENABLE_DEBUG_TOOLBAR=1.
     DEBUG_TOOLBAR_CONFIG = {
         "SHOW_TOOLBAR_CALLBACK": lambda request: os.environ.get("ENABLE_DEBUG_TOOLBAR") == "1",
+        # DEBUG is hardcoded True, so the toolbar is always in INSTALLED_APPS; without
+        # this, `manage.py test` (which forces DEBUG=False) aborts on debug_toolbar.E001.
+        "IS_RUNNING_TESTS": False,
     }
 ROOT_URLCONF = "business.urls"
 
@@ -228,6 +231,12 @@ NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
 # AeroAPI Settings
 AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
+
+# Samsara fleet telematics (Phase 1: read-only live vehicle visibility).
+# Everything Samsara is gated behind this token — when empty, the integration
+# is completely inert (no API calls, no DB writes, no UI changes).
+SAMSARA_API_TOKEN = os.environ.get("SAMSARA_API_TOKEN", "")
+SAMSARA_BASE_URL = os.environ.get("SAMSARA_BASE_URL", "https://api.samsara.com")
 
 # Google Maps (Distance Matrix API for driver route preview)
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")

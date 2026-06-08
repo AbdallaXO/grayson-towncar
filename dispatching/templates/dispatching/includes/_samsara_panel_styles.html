@@ -1,0 +1,55 @@
+{% comment %}One-time styles + font for the Samsara live-tracking panel. Include
+once per page (inside {% block extra_css %}).{% endcomment %}
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Samsara live-tracking panel — compact parchment chip, Montserrat, colored
+     left edge. Palette aligned with the admin tooling (amber #e0a300, red #c0392b). */
+  .stp {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin-top: 6px;
+    padding: 5px 9px 5px 9px;
+    border-radius: 7px;
+    border-left: 3px solid transparent;
+    background: #f6f1e7;                 /* parchment */
+    max-width: 216px;
+  }
+  .stp-top { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
+  .stp-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #9aa0a6; flex: 0 0 auto;
+    animation: stp-pulse 1.6s ease-in-out infinite;
+  }
+  .stp-pill {
+    font-size: 8.5px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: #6b675e;
+  }
+  .stp-veh {
+    margin-left: auto; flex: 0 0 auto;
+    font-size: 9.5px; font-weight: 700; letter-spacing: .02em; color: #5d594f;
+  }
+  .stp-headline { font-size: 12px; font-weight: 700; color: #2d2a24; line-height: 1.15; }
+  .stp-evidence { font-size: 10px; font-weight: 500; color: #8a857a; margin-top: 1px; line-height: 1.2; }
+  @keyframes stp-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .35; transform: scale(.8); }
+  }
+
+  /* At risk — red */
+  .stp-at_risk { border-left-color: #c0392b; background: #f7ece3; }
+  .stp-at_risk .stp-dot { background: #c0392b; }
+  .stp-at_risk .stp-pill { color: #a5331f; }
+  .stp-at_risk .stp-veh { color: #a5331f; }
+  .stp-at_risk .stp-headline { color: #9b2c1a; }
+
+  /* Tight — amber */
+  .stp-tight { border-left-color: #e0a300; background: #f8f1df; }
+  .stp-tight .stp-dot { background: #e0a300; }
+  .stp-tight .stp-pill { color: #9a6b00; }
+  .stp-tight .stp-veh { color: #9a6b00; }
+  .stp-tight .stp-headline { color: #7a5600; }
+
+  /* On track — visually silent: no fill / border, tight, just the live green pulse */
+  .stp-on_track { background: transparent; border-left-color: transparent; padding: 2px 0 0; margin-top: 5px; }
+  .stp-on_track .stp-dot { background: #2e9e5b; }
+  .stp-on_track .stp-pill { color: #9aa0a6; }
+</style>

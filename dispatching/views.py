@@ -316,12 +316,18 @@ def index(request):
     inhouse_driver_rows.sort(key=_inhouse_vehicle_sort_key)
 
     # Count legs per driver on the selected date (from already-fetched legs, no extra query)
+    # Also capture each driver's "next stop" leg — the one the Samsara ETA sweep flagged
+    # with a fresh dispatch_risk_status — so the driver card can show the live ETA/badge.
     _all_leg_counts = {}
+    _live_leg_by_driver = {}
     for _leg in _all_day_legs:
         if _leg.driver_id:
             _all_leg_counts[_leg.driver_id] = _all_leg_counts.get(_leg.driver_id, 0) + 1
+            if _leg.dispatch_risk_status and _leg.dispatch_eta_is_fresh:
+                _live_leg_by_driver[_leg.driver_id] = _leg
     for row in inhouse_driver_rows:
         row["leg_count"] = _all_leg_counts.get(row["driver"].id, 0)
+        row["live_leg"] = _live_leg_by_driver.get(row["driver"].id)
 
     inhouse_assigned_count = sum(
         1 for row in inhouse_driver_rows if row["assignment"] and row["assignment"].vehicle
@@ -1564,6 +1570,28 @@ def reservation_details(request, id):
         .select_related("sent_by")
         .order_by("-sent_at")
     )
+
+    # Attach each leg's live Samsara vehicle snapshot (read-only; Phase 1).
+    # The physical car a leg's driver is in comes from the per-day
+    # DriverVehicleAssignment; resolve them all in one batched query and pin the
+    # FleetVehicle onto each (prefetched) leg as `leg.samsara_vehicle`. The
+    # template reads it only when vehicle.samsara_enabled, so un-onboarded /
+    # affiliate vehicles render exactly as before.
+    _res_legs = list(reservation.legs.all())
+    _assign_keys = {
+        (leg.driver_id, leg.pickup_date)
+        for leg in _res_legs
+        if leg.driver_id and leg.pickup_date
+    }
+    _assign_lookup = {}
+    if _assign_keys:
+        for a in DriverVehicleAssignment.objects.filter(
+            driver_id__in={k[0] for k in _assign_keys},
+            date__in={k[1] for k in _assign_keys},
+        ).select_related("vehicle"):
+            _assign_lookup[(a.driver_id, a.date)] = a.vehicle
+    for leg in _res_legs:
+        leg.samsara_vehicle = _assign_lookup.get((leg.driver_id, leg.pickup_date))
 
     context = {
         "reservation": reservation,

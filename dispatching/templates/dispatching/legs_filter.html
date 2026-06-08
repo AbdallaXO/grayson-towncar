@@ -2,8 +2,10 @@
 {% load static %}
 {% load tz %}
 {% load flight_filters %}
+{% load samsara_tags %}
 
 {% block extra_css %}
+  {% include "dispatching/includes/_samsara_panel_styles.html" %}
   <style>
       /* Ensure interactive elements show pointer cursor */
       .form-select, .btn { cursor: pointer; }
@@ -876,6 +878,7 @@
                   {% elif row.assignment and row.assignment.vehicle %}
                     <div class="va-assigned-chip"
                          draggable="true"
+                         {% with sv=row.assignment.vehicle %}{% if sv.samsara_enabled and sv.samsara_is_fresh %}title="Live: {{ sv.samsara_last_location_label }} ({{ sv.samsara_age_display }}{% if sv.samsara_movement_status %}, {{ sv.samsara_movement_status }}{% endif %})"{% endif %}{% endwith %}
                          data-vehicle-id="{{ row.assignment.vehicle_id }}"
                          data-vehicle-num="{{ row.assignment.vehicle.vehicle_number }}"
                          data-vehicle-type="{{ row.assignment.vehicle.vehicle_type|default_if_none:'' }}"
@@ -886,6 +889,14 @@
                       {% endif %}
                       <button class="va-remove-btn" onclick="vaRemove({{ row.driver.id }})" title="Remove">&times;</button>
                     </div>
+                    {% comment %}Samsara live next-stop ETA + risk for this driver's active leg
+                       (raw position alone was noise; show the schedule-aware signal instead).
+                       Hover the vehicle # for the raw GPS position.{% endcomment %}
+                    {% if row.live_leg %}
+                      {% with leg=row.live_leg %}
+                        {% include "dispatching/includes/_leg_dispatch_eta.html" %}
+                      {% endwith %}
+                    {% endif %}
                   {% else %}
                     <span class="va-drop-hint">Drop vehicle here</span>
                   {% endif %}
@@ -1450,7 +1461,8 @@
                             </div>
                           {% endif %}
                         {% endwith %}
-                        {% if leg.live_eta_minutes %}
+                        {% samsara_tracking_panel leg %}
+                        {% if leg.live_eta_minutes %}{% if leg.dispatch_eta_minutes is None or not leg.dispatch_eta_is_fresh %}
                           <div class="mt-2" id="live-eta-{{ leg.id }}">
                             <div class="d-flex align-items-center gap-2">
                               <span class="badge d-flex align-items-center gap-1" style="font-size:0.8rem;background:#1a1d21;color:#fff;padding:6px 10px;">
@@ -1466,7 +1478,7 @@
                               </div>
                             {% endif %}
                           </div>
-                        {% endif %}
+                        {% endif %}{% endif %}
                         <div class="mt-1 d-flex gap-2">
                           <button type="button"
                                   class="btn btn-sm btn-link p-0 text-decoration-none leg-history-btn"
@@ -1822,7 +1834,8 @@
                               </div>
                             {% endif %}
                           {% endwith %}
-                          {% if leg.live_eta_minutes %}
+                          {% samsara_tracking_panel leg %}
+                          {% if leg.live_eta_minutes %}{% if leg.dispatch_eta_minutes is None or not leg.dispatch_eta_is_fresh %}
                             <div class="mt-2" id="live-eta-alt-{{ leg.id }}">
                               <div class="d-flex align-items-center gap-2">
                                 <span class="badge d-flex align-items-center gap-1" style="font-size:0.8rem;background:#1a1d21;color:#fff;padding:6px 10px;">
@@ -1838,7 +1851,7 @@
                                 </div>
                               {% endif %}
                             </div>
-                          {% endif %}
+                          {% endif %}{% endif %}
                           <div class="mt-1">
                             <button type="button"
                                     class="btn btn-sm btn-link p-0 text-decoration-none leg-history-btn"
