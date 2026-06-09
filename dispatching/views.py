@@ -11158,6 +11158,52 @@ def fleet_intel_leaks(request):
     return render(request, "dispatching/fleet_intel_leaks.html", context)
 
 
+def _farmout_min_savings(request):
+    """Read the ``min_savings`` query param (accepts '$20', '20', or '20.00'); fall back to the engine
+    default ($20). Gates ONLY opportunity swaps — free in-house keeps + policy departures ignore it."""
+    from dispatching.farmout_optimizer import DEFAULT_MIN_SAVINGS
+    raw = (request.GET.get("min_savings") or "").replace("$", "").replace(",", "").strip()
+    if not raw:
+        return DEFAULT_MIN_SAVINGS
+    try:
+        val = Decimal(raw)
+    except (InvalidOperation, ValueError, TypeError):
+        return DEFAULT_MIN_SAVINGS
+    return val if val >= 0 else DEFAULT_MIN_SAVINGS
+
+
+@login_required(login_url="login")
+def farmout_optimizer(request):
+    """Farm-Out Opportunity-Cost Optimizer — standalone read-only planning page.
+
+    Pick a service date (and optional min-savings threshold); for each job headed for farm-out it
+    shows whether it's cheaper to keep it in-house (free, or by swapping a lower-cost leg out). The
+    engine is read-only and the rendered context is cached 5 min per (date, threshold) (the engine
+    replays the board, ~1-2s). Strictly display-only — nothing here mutates the schedule.
+    """
+    if not request.user.is_staff:
+        return redirect("dashboard")
+
+    from dispatching import farmout_optimizer as fo
+    from dispatching import farmout_report
+
+    selected_date_str = request.GET.get("date")
+    try:
+        d = (datetime.strptime(selected_date_str, "%Y-%m-%d").date()
+             if selected_date_str else timezone.localdate())
+    except (ValueError, TypeError):
+        d = timezone.localdate()
+
+    ms = _farmout_min_savings(request)
+    cache_key = f"farmout_page_{d.isoformat()}_{ms}"
+    context = cache.get(cache_key)
+    if context is None:
+        report = fo.summarize_savings_range(d, d, min_savings=ms)
+        context = farmout_report.build_page_context(report)
+        cache.set(cache_key, context, 300)
+    return render(request, "dispatching/farmout_optimizer.html", context)
+
+
 # ============================================================================
 # SCHEDULER SETTINGS API
 # ============================================================================

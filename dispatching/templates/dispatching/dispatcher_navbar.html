@@ -101,7 +101,7 @@
         {% if request.user.is_superuser %}
         <!-- Analytics dropdown -->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'statistics_page' or request.resolver_match.url_name == 'analytics_dashboard' or request.resolver_match.url_name == 'route_timing_reference' or request.resolver_match.url_name == 'driver_performance' or request.resolver_match.url_name == 'vehicle_profit_report' or request.resolver_match.url_name == 'accrual_revenue_report' %}active{% endif %}"
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'statistics_page' or request.resolver_match.url_name == 'analytics_dashboard' or request.resolver_match.url_name == 'route_timing_reference' or request.resolver_match.url_name == 'driver_performance' or request.resolver_match.url_name == 'vehicle_profit_report' or request.resolver_match.url_name == 'accrual_revenue_report' or request.resolver_match.url_name == 'farmout_optimizer' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
           <ul class="dropdown-menu dropdown-menu-dark">
@@ -128,6 +128,10 @@
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'vehicle_profit_report' %}active{% endif %}"
                  href="{% url 'vehicle_profit_report' %}"><i class="bi bi-car-front-fill me-2"></i>Vehicle Profit</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'farmout_optimizer' %}active{% endif %}"
+                 href="{% url 'farmout_optimizer' %}"><i class="bi bi-piggy-bank me-2"></i>Farm-Out Optimizer</a>
             </li>
           </ul>
         </li>

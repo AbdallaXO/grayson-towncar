@@ -18,7 +18,7 @@ For a residual would-be-farmed "target" leg, compare two end-states that cover t
   (A) farm the target directly;
   (B) keep the target in-house by displacing an in-house leg and farming THAT instead.
 Recommend B iff it preserves in-house coverage AND lowers total farm spend by >= a threshold
-(default $100). Because guest revenue is identical in both states (every leg is served either
+(default $20). Because guest revenue is identical in both states (every leg is served either
 way) the comparison collapses to driver cost, and the per-leg decision reduces to:
 
     net_opportunity(B over A) = recovered_margin(target) - SUM recovered_margin(displaced)
@@ -159,8 +159,10 @@ _CAP_SINGLE_CHAIN = "single_chain"
 _CAP_COUNT = "count_cap"
 _CAP_FLEET = "fleet"
 
-# Default discretionary-savings threshold ($). No nagging on small savings.
-DEFAULT_MIN_SAVINGS = Decimal("100.00")
+# Default discretionary-savings threshold ($). Founder-calibrated: real swap arbitrage is usually
+# ~$20+ (e.g. a towncar return vs a slightly pricier job); $100 only ever caught extreme mismatches
+# (towncar return vs a Port Canaveral van) and hid almost every useful swap. Tunable per-run/per-page.
+DEFAULT_MIN_SAVINGS = Decimal("20.00")
 
 
 # ── Affiliate roster resolution (Architecture B — data-driven) ─────────────────────────────────
