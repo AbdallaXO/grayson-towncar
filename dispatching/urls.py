@@ -47,6 +47,7 @@ urlpatterns = [
     path("vehicle-profit/export.csv", views.vehicle_profit_report_csv, name="vehicle_profit_report_csv"),
     path("fleet-intel/", views.fleet_intel_dashboard, name="fleet_intel_dashboard"),
     path("fleet-intel/legs/", views.fleet_intel_leaks, name="fleet_intel_leaks"),
+    path("farmout-optimizer/", views.farmout_optimizer, name="farmout_optimizer"),
     path("route-timing/legs/", views.route_timing_leg_details, name="route_timing_leg_details"),
     path("route-timing/exclude-leg/", views.route_timing_exclude_leg, name="route_timing_exclude_leg"),
     path("recalculate-route-metrics/", views.recalculate_route_metrics, name="recalculate_route_metrics"),

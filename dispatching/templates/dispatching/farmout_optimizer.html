@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Farm-Out Optimizer · Grayson Towncar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#0F1B3D;--ink:#1d2438;--muted:#697089;--faint:#9aa1b4;
+    --line:#e8eaf0;--line-soft:#f0f2f6;--paper:#f6f7fb;--card:#ffffff;
+    --gold:#C8A24A;--gold-deep:#a8842f;
+    --save:#1f7a4d;--save-soft:#eef6f1;--cost:#a8503d;--cost-soft:#fbf2ef;
+    --keep-soft:#eef6f1;--farm-soft:#fbf5ec;
+    --shadow:0 1px 2px rgba(15,27,61,.035), 0 6px 18px rgba(15,27,61,.045);
+    --shadow-hover:0 2px 4px rgba(15,27,61,.05), 0 12px 30px rgba(15,27,61,.08);
+    --r:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:'Montserrat',sans-serif;background:var(--paper);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-0.005em}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px}
+
+  /* top bar */
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(246,247,251,.86);backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid var(--line)}
+  .topbar-inner{max-width:860px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+  .brand{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .brand-eyebrow{font-size:9.5px;font-weight:600;letter-spacing:.18em;color:var(--gold-deep);text-transform:uppercase}
+  .brand-title{font-size:15px;font-weight:600;color:var(--navy);white-space:nowrap}
+  .controls{display:flex;align-items:flex-end;gap:14px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:9.5px;font-weight:600;letter-spacing:.06em;color:var(--faint);text-transform:uppercase}
+  .field input{font-family:'DM Mono',monospace;font-size:13px;color:var(--ink);border:1px solid var(--line);background:var(--card);border-radius:9px;padding:7px 10px;outline:none;transition:border-color .15s}
+  .field input:focus{border-color:var(--gold)}
+  .field--mini input{width:64px;text-align:center}
+  .date-step{display:flex;align-items:center;gap:5px}
+  .stepper{font-family:'DM Mono',monospace;font-size:15px;line-height:1;color:var(--muted);border:1px solid var(--line);background:var(--card);border-radius:9px;padding:6px 10px;cursor:pointer;transition:border-color .15s,color .15s}
+  .stepper:hover{border-color:var(--gold);color:var(--navy)}
+  .analyze{align-self:flex-end;font-family:'Montserrat',sans-serif;font-size:13px;font-weight:600;color:#fff;background:var(--navy);border:none;border-radius:9px;padding:9px 18px;cursor:pointer;transition:background .15s,transform .1s;white-space:nowrap}
+  .analyze:hover{background:#16264f}
+  .analyze:active{transform:translateY(1px)}
+
+  /* verdict */
+  .verdict{padding:50px 0 36px}
+  .verdict-date{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:20px}
+  .verdict-date b{color:var(--navy);font-weight:600}
+  .headline{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  .headline .figure{font-size:84px;font-weight:700;color:var(--gold);line-height:.92;letter-spacing:-0.04em;font-variant-numeric:tabular-nums}
+  .headline .said{font-size:20px;font-weight:500;color:var(--navy);max-width:300px;line-height:1.25}
+  .verdict-sub{margin-top:22px;font-size:15px;color:var(--muted);max-width:580px;line-height:1.6}
+  .verdict-sub b{color:var(--ink);font-weight:600}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:32px}
+  .stat{background:var(--card);padding:15px 18px}
+  .stat-val{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--navy);font-variant-numeric:tabular-nums}
+  .stat-label{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-top:3px}
+
+  /* schedule-not-built notice */
+  .notice{display:flex;gap:16px;background:var(--farm-soft);border:1px solid #ecdcb8;border-radius:var(--r);padding:22px 24px;margin-top:6px}
+  .notice-ic{flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--gold);color:#3a2c08;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:17px;font-family:'DM Mono',monospace}
+  .notice-title{font-size:18px;font-weight:600;color:var(--navy);margin-bottom:5px}
+  .notice-body{font-size:14px;color:var(--muted);line-height:1.6;max-width:580px}
+  .notice-body b{color:var(--ink);font-weight:600}
+
+  /* section heads */
+  .section{padding:38px 0 0}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:5px}
+  .sec-head h2{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--navy)}
+  .sec-count{font-family:'DM Mono',monospace;font-size:12px;color:#fff;background:var(--navy);border-radius:20px;padding:1px 9px;font-weight:500}
+  .sec-sub{font-size:13.5px;color:var(--muted);margin-bottom:16px}
+  .empty{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;font-size:13.5px;color:var(--muted)}
+
+  /* ---------- swap card (compact two-panel) ---------- */
+  .swap{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin-bottom:13px;overflow:hidden;transition:box-shadow .18s,transform .18s}
+  .swap:hover{box-shadow:var(--shadow-hover);transform:translateY(-2px)}
+  .swap-top{padding:13px 16px 0;display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .swap-id{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .swap-num{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--faint)}
+  .swap-leg{font-family:'DM Mono',monospace;font-size:12.5px;color:var(--muted)}
+  .saved-pill{display:inline-flex;align-items:baseline;gap:4px;flex-shrink:0;background:var(--save-soft);color:var(--save);border-radius:20px;padding:4px 11px;font-weight:600;font-size:12.5px}
+  .saved-pill .amt{font-family:'DM Mono',monospace;font-size:14px}
+  .swap-route{padding:5px 16px 11px;font-size:13.5px;color:var(--ink);font-weight:600}
+  .swap-route .dim{color:var(--faint);font-weight:400}
+  .tag{display:inline-block;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--gold-deep);background:#faf4e6;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+
+  .compare{display:grid;grid-template-columns:1fr 30px 1fr;align-items:stretch;margin:0 16px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .side{padding:11px 13px;display:flex;flex-direction:column}
+  .side--before{background:var(--cost-soft)}
+  .side--after{background:var(--save-soft)}
+  .side-eyebrow{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+  .side--before .side-eyebrow{color:var(--cost)}
+  .side--after .side-eyebrow{color:var(--save)}
+  .side-eyebrow .ic{width:12px;height:12px;opacity:.75}
+  .row{display:flex;align-items:flex-start;gap:6px;font-size:12.5px;color:var(--ink);margin-bottom:5px;line-height:1.35}
+  .row b{font-weight:600}
+  .price{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums;margin-top:auto;padding-top:4px}
+  .side--before .price{color:var(--cost)}
+  .side--after .price{color:var(--save)}
+  .arrow{display:flex;align-items:center;justify-content:center;background:var(--card)}
+  .arrow span{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+
+  /* timeline disclosure */
+  .disclose{margin:9px 16px 12px}
+  .disclose-btn{width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:'Montserrat',sans-serif;font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:7px;padding:6px 0;transition:color .15s}
+  .disclose-btn:hover{color:var(--navy)}
+  .chev{transition:transform .25s;display:inline-flex;color:var(--faint);font-size:11px}
+  .disclose[data-open="true"] .chev{transform:rotate(90deg)}
+  .disclose-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s ease}
+  .disclose[data-open="true"] .disclose-body{grid-template-rows:1fr}
+  .disclose-inner{overflow:hidden;min-height:0}
+
+  .tl{border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-top:5px}
+  .tl-head{padding:8px 13px;background:var(--line-soft);font-size:11.5px;font-weight:600;color:var(--navy);display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+  .tl-head .veh{font-family:'DM Mono',monospace;color:var(--faint);font-weight:400;font-size:10.5px}
+  .tl-row{display:grid;grid-template-columns:108px 1fr auto;gap:10px;align-items:center;padding:8px 13px;font-size:12px;border-bottom:1px solid var(--line-soft)}
+  .tl-row:last-child{border-bottom:none}
+  .tl-row.keep{background:var(--keep-soft)}
+  .tl-row.farm{background:var(--farm-soft)}
+  .tl-time{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
+  .tl-route{color:var(--ink)}
+  .tl-route .dim{color:var(--faint)}
+  .tl-veh{font-family:'DM Mono',monospace;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;text-align:right}
+  .tl-badge{font-size:9px;font-weight:700;letter-spacing:.05em;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:1px;display:inline-block}
+  .tl-badge.k{background:var(--save);color:#fff}
+  .tl-badge.f{background:var(--gold);color:#3a2c08}
+  .tl-fit{grid-column:1 / -1;font-family:'DM Mono',monospace;font-size:10.5px;color:var(--faint);padding-top:4px;line-height:1.4}
+  .tl-fit b{color:var(--save);font-weight:500}
+  .struck{text-decoration:line-through;text-decoration-style:dashed;text-decoration-color:var(--gold-deep);text-decoration-thickness:1.5px;color:var(--muted)}
+  .farm-to{font-family:'Montserrat',sans-serif;font-weight:600;color:var(--gold-deep);margin-left:6px;font-size:11.5px}
+
+  /* farm as planned */
+  .planfarm{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;display:flex;align-items:center;gap:14px}
+  .pf-icon{width:32px;height:32px;border-radius:9px;background:var(--farm-soft);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold-deep)}
+  .pf-text{font-size:13.5px;color:var(--muted)}
+  .pf-text b{color:var(--ink);font-weight:600}
+
+  /* accordions */
+  .details{padding:38px 0 60px}
+  .details-label{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:14px}
+  .acc{border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:10px;overflow:hidden}
+  .acc-btn{width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:'Montserrat',sans-serif;font-size:14px;font-weight:600;color:var(--navy);padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .acc-btn:hover{background:var(--line-soft)}
+  .acc-btn .meta{font-size:12px;font-weight:400;color:var(--faint);font-family:'DM Mono',monospace}
+  .acc-btn .right{display:flex;align-items:center;gap:14px}
+  .acc[data-open="true"] .chev{transform:rotate(90deg)}
+  .acc-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease}
+  .acc[data-open="true"] .acc-body{grid-template-rows:1fr}
+  .acc-inner{overflow:hidden;min-height:0}
+  .acc-pad{padding:2px 20px 18px}
+  .tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .tbl th{text-align:left;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+  .tbl td{padding:9px 10px;border-bottom:1px solid var(--line-soft);color:var(--ink)}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl td.m,.tbl th.m{text-align:right;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}
+  .tbl .name{font-weight:600;color:var(--navy)}
+  .yes{color:var(--save);font-family:'DM Mono',monospace;font-size:11px}
+  .no{color:var(--cost);font-family:'DM Mono',monospace;font-size:11px}
+  .tbl-scroll{overflow-x:auto}
+  .mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .mcell{background:var(--card);padding:12px 15px}
+  .mcell .v{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--navy);font-variant-numeric:tabular-nums}
+  .mcell.pos .v{color:var(--save)}
+  .mcell.zero .v{color:var(--faint)}
+  .mcell .l{font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+  .prose p{font-size:13.5px;color:var(--ink);line-height:1.65;margin-bottom:12px}
+  .prose p:last-child{margin-bottom:0}
+  .prose b{font-weight:600;color:var(--navy)}
+  .prose .muted{color:var(--muted)}
+  .calib{font-family:'DM Mono',monospace;font-size:11.5px;color:var(--muted);background:var(--line-soft);border-radius:8px;padding:10px 14px;margin:4px 0 12px;line-height:1.7}
+
+  .foot{padding:28px 0 70px;border-top:1px solid var(--line);text-align:center}
+  .foot p{font-size:11.5px;color:var(--faint);line-height:1.6;max-width:560px;margin:0 auto}
+
+  /* responsive */
+  @media (max-width:640px){
+    .topbar-inner{flex-direction:column;align-items:stretch;gap:14px}
+    .controls{justify-content:space-between}
+    .verdict{padding:34px 0 28px}
+    .headline .figure{font-size:62px}.headline .said{font-size:17px}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .compare{grid-template-columns:1fr;margin:0 14px}
+    .arrow{padding:5px 0}.arrow span{transform:rotate(90deg)}
+    .swap-top,.swap-route{padding-left:14px;padding-right:14px}
+    .disclose{margin-left:14px;margin-right:14px}
+    .mgrid{grid-template-columns:repeat(2,1fr)}
+    .tl-row{grid-template-columns:90px 1fr;row-gap:2px}.tl-veh{grid-column:2;text-align:left}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+
+  .reveal{opacity:0;transform:translateY(10px);animation:rise .5s cubic-bezier(.2,.7,.3,1) forwards}
+  .reveal.d1{animation-delay:.04s}.reveal.d2{animation-delay:.10s}.reveal.d3{animation-delay:.16s}
+  @keyframes rise{to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-eyebrow">Grayson Towncar</span>
+        <span class="brand-title">Farm-Out Optimizer</span>
+      </div>
+      <form class="controls" method="get">
+        <div class="field"><label for="d">Service date</label>
+          <div class="date-step">
+            <button class="stepper" type="button" onclick="step('{{ prev_iso }}')" aria-label="Previous day" title="Previous day">‹</button>
+            <input id="d" name="date" type="date" value="{{ date_iso }}">
+            <button class="stepper" type="button" onclick="step('{{ next_iso }}')" aria-label="Next day" title="Next day">›</button>
+          </div>
+        </div>
+        <div class="field field--mini"><label for="m">Min save</label><input id="m" name="min_savings" type="text" value="{{ min_savings_display }}"></div>
+        <button class="analyze" type="submit">Analyze</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- VERDICT -->
+    <section class="verdict">
+      <div class="verdict-date reveal">Before you farm out · <b>{{ date_str }}</b></div>
+      {% if unbuilt %}
+      <div class="notice reveal d1">
+        <div class="notice-ic">!</div>
+        <div>
+          <div class="notice-title">Schedule not built yet</div>
+          <p class="notice-body">All <b>{{ unassigned_count }}</b> job{{ unassigned_count|pluralize }} this day {% if unassigned_count == 1 %}is{% else %}are{% endif %} still unassigned — no in-house drivers are on the board, so there's nothing to weigh farm-outs against. Build your driver schedule first, then run this to see which jobs are worth keeping in-house versus farming.</p>
+        </div>
+      </div>
+      {% else %}
+      <div class="headline reveal d1">
+        <span class="figure">{{ savings }}</span>
+        <span class="said">to save before you commit the farm-outs</span>
+      </div>
+      <p class="verdict-sub reveal d2">{{ sub_html|safe }}</p>
+      <div class="stats reveal d3">
+        {% for s in stats %}
+        <div class="stat"><div class="stat-val">{{ s.v }}</div><div class="stat-label">{{ s.label }}</div></div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+    {% if not unbuilt %}
+
+    <!-- KEEP & SWAP -->
+    <section class="section">
+      <div class="sec-head"><h2>Keep &amp; swap</h2><span class="sec-count">{{ keep_count }}</span></div>
+      <p class="sec-sub">Cheaper to run on your own drivers — keep these in-house instead of farming.</p>
+
+      {% if cards %}
+      {% for c in cards %}
+      <article class="swap reveal{% if forloop.counter == 1 %} d1{% elif forloop.counter == 2 %} d2{% endif %}">
+        <div class="swap-top">
+          <div class="swap-id"><span class="swap-num">#{{ c.num }}</span><span class="swap-leg">{{ c.keep_driver }}</span></div>
+          <span class="saved-pill">{{ c.save_label }} <span class="amt">{{ c.save }}</span></span>
+        </div>
+        <div class="swap-route">{{ c.route }} <span class="dim">· {{ c.time }} · {{ c.vehicle }}</span>{% if c.tag %}<span class="tag">{{ c.tag }}</span>{% endif %}</div>
+        <div class="compare">
+          <div class="side side--before">
+            <div class="side-eyebrow"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13L13 3M13 3H6M13 3V10"/></svg>Farm it out</div>
+            <div class="row">Send this job to an affiliate</div>
+            <div class="price">{{ c.before_price }}</div>
+          </div>
+          <div class="arrow"><span>→</span></div>
+          <div class="side side--after">
+            <div class="side-eyebrow"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 8.5l3.5 3.5L13 5"/></svg>Keep it in-house</div>
+            <div class="row">Run on <b>{{ c.keep_driver }}</b></div>
+            {% if c.after_farm_route %}<div class="row">Farm <b>{{ c.after_farm_route }}</b> to <b>{{ c.affiliate }}</b></div>{% else %}<div class="row">No swap needed — slots into a gap</div>{% endif %}
+            <div class="price">{{ c.after_price }}</div>
+          </div>
+        </div>
+        {% if c.timeline %}
+        <div class="disclose" data-open="false">
+          <button class="disclose-btn" type="button" onclick="toggle(this)"><span class="chev">▸</span> How it fits {{ c.keep_driver_first }}'s day</button>
+          <div class="disclose-body"><div class="disclose-inner">
+            {% for tl in c.timeline %}
+            <div class="tl">
+              <div class="tl-head">{{ tl.head_name }} {% if tl.head_vehicle %}<span class="veh">· {{ tl.head_vehicle }}</span>{% endif %}</div>
+              {% for r in tl.rows %}
+              <div class="tl-row{% if r.kind == 'keep' %} keep{% elif r.kind == 'farm' %} farm{% endif %}">
+                <span class="tl-time">{{ r.time }}</span>
+                <span class="tl-route">{% if r.kind == 'farm' %}<span class="struck">{{ r.route }}</span><span class="tl-badge f">FARM</span>{% if r.farm_to %}<span class="farm-to">→ {{ r.farm_to }}</span>{% endif %}{% elif r.kind == 'keep' %}{{ r.route }}<span class="tl-badge k">KEEP</span>{% else %}{{ r.route }} <span class="dim">…</span>{% endif %}</span>
+                <span class="tl-veh">{{ r.vehicle }}</span>
+                {% if r.kind == 'keep' and r.fit %}<span class="tl-fit">{{ r.fit }}</span>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </div></div>
+        </div>
+        {% endif %}
+      </article>
+      {% endfor %}
+      {% else %}
+      <div class="empty">Nothing cheaper to keep in-house — every planned farm-out is already the best call.</div>
+      {% endif %}
+    </section>
+
+    <!-- FARM AS PLANNED -->
+    <section class="section">
+      <div class="sec-head"><h2>Farm as planned</h2><span class="sec-count">{{ farm_only }}</span></div>
+      <p class="sec-sub">No cheaper in-house play — send these out as you planned.</p>
+      <div class="planfarm reveal">
+        <div class="pf-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13L13 3M13 3H6M13 3V10"/></svg></div>
+        <div class="pf-text"><b>{{ farm_only }} job{{ farm_only|pluralize }}</b> had no in-house room and no lower-cost swap. Farming {% if farm_only == 1 %}it{% else %}them{% endif %} is the right call — nothing to change.</div>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- DETAILS -->
+    <section class="details">
+      <div class="details-label">Reference &amp; methodology</div>
+
+      <div class="acc" data-open="false">
+        <button class="acc-btn" type="button" onclick="toggle(this)"><span>Affiliate roster</span><span class="right"><span class="meta">{{ roster_count }} rate-ready</span><span class="chev">▸</span></span></button>
+        <div class="acc-body"><div class="acc-inner"><div class="acc-pad"><div class="tbl-scroll">
+          <table class="tbl">
+            <thead><tr><th>Affiliate</th><th>Capacity</th><th>Max vehicle</th><th class="m">Daily cap</th><th class="m">Rate rows</th><th>Profile</th></tr></thead>
+            <tbody>
+              {% for a in roster_rows %}
+              <tr><td class="name">{{ a.name }}</td><td>{{ a.mode }}</td><td>{{ a.max_vehicle }}</td><td class="m">{{ a.daily_cap }}</td><td class="m">{{ a.rate_rows }}</td><td>{% if a.has_profile %}<span class="yes">✓</span>{% else %}<span class="no">—</span>{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div></div></div></div>
+      </div>
+
+      <div class="acc" data-open="false">
+        <button class="acc-btn" type="button" onclick="toggle(this)"><span>Port &amp; Sanford audit</span><span class="right"><span class="chev">▸</span></span></button>
+        <div class="acc-body"><div class="acc-inner"><div class="acc-pad">
+          <table class="tbl">
+            <thead><tr><th>Signal</th><th class="m">Count</th></tr></thead>
+            <tbody>
+              {% for a in audit_rows %}
+              <tr><td>{{ a.signal }}{% if a.note %} <span style="color:var(--faint)">{{ a.note }}</span>{% endif %}</td><td class="m">{{ a.count }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div></div></div>
+      </div>
+
+      <div class="acc" data-open="false">
+        <button class="acc-btn" type="button" onclick="toggle(this)"><span>All metrics</span><span class="right"><span class="meta">10 fields</span><span class="chev">▸</span></span></button>
+        <div class="acc-body"><div class="acc-inner"><div class="acc-pad">
+          <div class="mgrid">
+            {% for m in metrics %}
+            <div class="mcell{% if m.zero %} zero{% elif m.pos %} pos{% endif %}"><div class="v">{{ m.v }}</div><div class="l">{{ m.label }}</div></div>
+            {% endfor %}
+          </div>
+        </div></div></div>
+      </div>
+
+      <div class="acc" data-open="false">
+        <button class="acc-btn" type="button" onclick="toggle(this)"><span>How this works</span><span class="right"><span class="meta">planning aid</span><span class="chev">▸</span></span></button>
+        <div class="acc-body"><div class="acc-inner"><div class="acc-pad">
+          <div class="prose">
+            <p>Run this <b>after you build the board, before you farm anything out</b>. It never changes the schedule — it prices the farm-outs you're about to commit and flags the ones worth keeping.</p>
+            <p>For every job headed to an affiliate, it prices the trip against the <b>whole roster</b> ({{ roster_count }} carded affiliates) using your real DriverPayRate cards, then checks whether keeping it on one of your own drivers — and farming a cheaper leg to make room — costs less.</p>
+            <p>Feasibility uses the <b>scheduled flight arrival</b>, not hindsight, and fits each kept job inside the driver's actual working day. Far or unknown destinations are left uncomputed, so no recommendation rests on a guessed drive time.</p>
+            <p class="muted">Drive times calibrated to real Orlando routes:</p>
+            <div class="calib">MCO ↔ Disney · 30m &nbsp;&nbsp; MCO ↔ Universal · 25m<br>MCO ↔ Sanford · 60m &nbsp;&nbsp; Disney ↔ Port · 72m</div>
+            <p class="muted">Port Canaveral and Sanford are their own categories, judged purely on net-spend. Minimum saving to flag a swap: {{ min_savings_display }}.</p>
+          </div>
+        </div></div></div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Planning aid · prices each job you're about to farm against your full affiliate roster before you commit. Nothing here changes the schedule.</p>
+    </footer>
+
+  </main>
+
+<script>
+  function toggle(el){
+    var box = el.closest('[data-open]');
+    box.dataset.open = box.dataset.open === 'true' ? 'false' : 'true';
+  }
+  // Step the service date back/forward one day; submits the form so Min-save is preserved too.
+  function step(iso){
+    if(!iso) return;
+    var d = document.getElementById('d');
+    d.value = iso;
+    if (d.form.requestSubmit) { d.form.requestSubmit(); } else { d.form.submit(); }
+  }
+</script>
+</body>
+</html>

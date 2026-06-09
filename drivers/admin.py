@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -1003,6 +1003,18 @@ class DriverPayRateAdmin(admin.ModelAdmin):
         "driver__profile__first_name",
         "driver__profile__last_name",
     ]
+
+
+@admin.register(AffiliateProfile)
+class AffiliateProfileAdmin(admin.ModelAdmin):
+    """Per-affiliate capability / capacity / route-permit config for the Farm-Out Optimizer.
+    Rates live in DriverPayRate; this holds the facts rates can't express."""
+    list_display = ["driver", "max_vehicle_tier", "capacity_mode", "daily_cap",
+                    "no_pickup_at_port_sanford"]
+    list_filter = ["capacity_mode", "no_pickup_at_port_sanford", "max_vehicle_tier"]
+    list_editable = ["max_vehicle_tier", "capacity_mode", "daily_cap", "no_pickup_at_port_sanford"]
+    search_fields = ["driver__profile__first_name", "driver__profile__last_name"]
+    autocomplete_fields = ["driver"]
 
 
 @admin.register(FleetVehicle)

@@ -31,8 +31,8 @@ DRIVE_TIME_ESTIMATES = {
     ('Residential', 'MCO Terminal'): 30,
     ('MCO Terminal', 'Airport Hotel'): 12,
     ('Airport Hotel', 'MCO Terminal'): 12,
-    ('Disney Resort', 'Port Canaveral Area'): 70,
-    ('Port Canaveral Area', 'Disney Resort'): 70,
+    ('Disney Resort', 'Port Canaveral Area'): 72,
+    ('Port Canaveral Area', 'Disney Resort'): 72,
     ('Disney Resort', 'Universal Resort'): 28,
     ('Universal Resort', 'Disney Resort'): 28,
     ('Disney Resort', 'Other Hotel'): 25,
@@ -59,8 +59,8 @@ DRIVE_TIME_ESTIMATES = {
     ('Disney Resort', 'Airport Hotel'): 25,
     ('Airport Hotel', 'Universal Resort'): 20,
     ('Universal Resort', 'Airport Hotel'): 20,
-    ('SFB Terminal', 'MCO Terminal'): 40,
-    ('MCO Terminal', 'SFB Terminal'): 40,
+    ('SFB Terminal', 'MCO Terminal'): 60,
+    ('MCO Terminal', 'SFB Terminal'): 60,
     ('SFB Terminal', 'Other Hotel'): 55,
     ('Other Hotel', 'SFB Terminal'): 55,
     ('SFB Terminal', 'Airport Hotel'): 45,
@@ -547,6 +547,13 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str,
 
 PUBLIX_STOP_MINUTES = 25  # Extra time for grocery store stop
 
+# RETROSPECTIVE-EVAL ONLY. When True, _get_best_flight_arrival returns the SCHEDULED (decision-time)
+# flight arrival instead of best_arrival_local() (estimated/actual = hindsight). The live scheduler /
+# web process NEVER sets this — only dispatching.farmout_optimizer flips it (set/reset around its run)
+# so a past day is graded on the times the founder actually saw when building the schedule.
+USE_SCHEDULED_ARRIVAL_FOR_EVAL = False
+
+
 def _get_best_flight_arrival(leg) -> 'datetime | None':
     """
     Return the best available flight arrival datetime for an arrival leg,
@@ -555,9 +562,15 @@ def _get_best_flight_arrival(leg) -> 'datetime | None':
     Delegates to dispatching.analytics.best_flight_arrival_local — the SAME anchor
     used when historical dwell is measured — so the scheduler's clearing clock and
     the measured dwell start from the identical moment (no gate-vs-runway mismatch).
+
+    When USE_SCHEDULED_ARRIVAL_FOR_EVAL is set (retrospective grading only), uses the
+    SCHEDULED arrival instead — the decision-time value, excluding later delays.
     """
-    from dispatching.analytics import best_flight_arrival_local
-    return best_flight_arrival_local(getattr(leg, 'flight_information', None))
+    from dispatching.analytics import best_flight_arrival_local, scheduled_flight_arrival_local
+    flight = getattr(leg, 'flight_information', None)
+    if USE_SCHEDULED_ARRIVAL_FOR_EVAL:
+        return scheduled_flight_arrival_local(flight)
+    return best_flight_arrival_local(flight)
 
 
 def _anchor_flight_dt(flight_dt: datetime, pickup_dt: datetime) -> datetime:

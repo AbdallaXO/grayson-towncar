@@ -661,6 +661,70 @@ class DriverPayRate(models.Model):
         return f"{self.driver} - {self.route} {arrows.get(self.direction, '↔')}{veh}: ${self.base_pay}"
 
 
+class AffiliateProfile(models.Model):
+    """Architecture B: per-affiliate CAPABILITY / CAPACITY / route-permit config for the Farm-Out
+    Opportunity-Cost Optimizer (``dispatching/farmout_optimizer.py``). The optimizer is read-only;
+    this model is the ONLY persisted config it consults — rates already live in ``DriverPayRate``.
+
+    Turns into DATA the facts that were HARDCODED during the Waleed-only validation pass:
+      * Waleed's "SUV-or-lower" capability    -> ``max_vehicle_tier``
+      * Anthony's 12-legs/day cap             -> ``capacity_mode='count_cap'`` + ``daily_cap``
+      * Oualid's single-vehicle chain         -> ``capacity_mode='single_chain'``
+      * Waleed's "Port/Sanford drop-off only" -> ``no_pickup_at_port_sanford``
+
+    Only AFFILIATE drivers get a profile. A carded affiliate with NO profile is still priced by their
+    ``DriverPayRate`` card but with NO capability cap — safe for PER-VEHICLE cards (which gate
+    themselves by which vehicle rows exist), RISKY for FLAT all-vehicle cards (one NULL-vehicle row
+    matches every class), so set ``max_vehicle_tier`` for those. The optimizer surfaces profile-less
+    carded affiliates for review rather than guessing.
+    """
+    CAP_SINGLE_CHAIN = "single_chain"
+    CAP_COUNT = "count_cap"
+    CAP_FLEET = "fleet"
+    CAPACITY_MODE_CHOICES = [
+        (CAP_SINGLE_CHAIN, "Single vehicle (one feasibility chain, no count cap)"),
+        (CAP_COUNT, "Daily leg-count cap (finite seats/day)"),
+        (CAP_FLEET, "Fleet (treated as a higher count cap; true parallel chains deferred)"),
+    ]
+
+    driver = models.OneToOneField(
+        "Driver", on_delete=models.CASCADE, related_name="affiliate_profile",
+        help_text="The affiliate this config describes (driver_type='affiliate').",
+    )
+    max_vehicle_tier = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Highest vehicle class this affiliate can serve: one of "
+                  "towncar / mini_van / suv / van / Van(14 Pax) (scheduler.VEHICLE_TIER_ORDER). "
+                  "Blank = no capability cap (the rate card alone gates eligibility). REQUIRED for a "
+                  "flat all-vehicle card, whose single NULL-vehicle row otherwise matches every class.",
+    )
+    capacity_mode = models.CharField(
+        max_length=20, choices=CAPACITY_MODE_CHOICES, default=CAP_SINGLE_CHAIN,
+        help_text="How the optimizer rations this affiliate's daily capacity.",
+    )
+    daily_cap = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Legs/day for count_cap (e.g. Anthony 12) or fleet capacity for fleet mode. "
+                  "Ignored for single_chain (capacity = the feasibility chain). NULL = unlimited count.",
+    )
+    no_pickup_at_port_sanford = models.BooleanField(
+        default=False,
+        help_text="Affiliate may DROP at Port Canaveral / Sanford but never PICK UP there (no permit). "
+                  "Excludes any leg ORIGINATING at Port/Sanford from this affiliate (Waleed's rule).",
+    )
+    notes = models.TextField(
+        blank=True, default="",
+        help_text="Internal notes about this affiliate's capability / capacity / permits.",
+    )
+
+    class Meta:
+        ordering = ["driver"]
+
+    def __str__(self):
+        cap = self.max_vehicle_tier or "any-class"
+        return f"AffiliateProfile({self.driver} · {cap} · {self.capacity_mode})"
+
+
 class DriverPayment(models.Model):
     """
     Tracks batches of payments made to drivers
