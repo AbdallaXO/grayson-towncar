@@ -615,3 +615,48 @@ george (his car) — X drove it last; X gets another unit"). A strong usual car 
 share) still beats a one-day fill-in for the same driver — correct by the same rule. Backtest
 pair accuracy improved 58.3% → **63.2%** with continuity on; 2 new tests (returning-regular
 handback, fluid-driver-keeps-yesterday-car); suite 467 (466 + ghl).
+
+---
+
+## Addendum 2026-06-10 — founder test drive, experiments, hour-balance guardrails (f2586291)
+
+Founder drove the full blank-slate flow on 2026-05-16 (his hand-built board that day:
+97 in-house / 49 farmed / 13 drivers); offline experiment harness
+(`scratch/handoff_sweep_0516.py`, `fourteenth_car_*.py`) replays the same pipeline through
+the Django test Client. GOTCHA: the UI modal sends `exclude_unpaid=true` by default, so UI
+coverage reads ~3 lower than harness runs on this date.
+
+**Experiment findings:**
+- **Handoff hour is coverage-neutral** (12:00/13:00/14:00/15:00 all → 112 in-house): an
+  earlier split only shifts jobs from the AM sharer to the PM sharer. Busy-day coverage is
+  CAR-bound, not driver-hour-bound. The fixed 15:00 default stands; demand-aware handoff
+  selection is downgraded to a workload-fairness knob.
+- **A spare unit pays ONLY when checked drivers > cars**: +5 in-house (~$500-750/day) on
+  05-16 (15 drivers / 13 cars), +0 on 04-03 / 03-28 / 05-02 (rosters of 10-13). Heuristic
+  for the founder: every Day Setup SHARED badge marks a day a spare unit would have earned
+  its keep.
+- **Failure modes found on the live board**: the span-cap rescue lifted caps UNBOUNDED
+  (17.8h / 18.3h raw days built around 00:0x airport arrivals), and night legs whack-a-mole
+  onto whichever driver is still Flexible.
+
+**Guardrails (commit f2586291; suite 527):**
+- `SPAN_RESCUE_CEILING_HOURS=17` — the rescue lift stops at the absolute ceiling; a leg that
+  fits nobody under 17h farms LOUDLY via the new `ceiling_blocked` warning kind (rendered in
+  the planner warnings strip). Supersedes "the cap can NEVER cost an in-house job".
+- `NIGHT_LEG_FLEX_BLOCK` / `NIGHT_LEG_BOUNDARY_HOUR=3` — Flexible never covers a
+  00:00-02:59 pickup (founder boards legitimately start 03:00-03:45, so the boundary is 3).
+  Escapes: an EXPLICIT window start covering the hour beats the flexible flag (builder typed
+  From=00:00, accepted advisor night cards, night stubs), and `night_exempt` windows
+  (get_effective_window(enforce_cap=False) — manual-sovereign callers) so execute_swap
+  revalidation never hard-blocks a dispatcher's intentional move nor trips over his
+  pre-existing night legs.
+- `VEHICLE_SHARE_PAD_MIN=60` (was 30) — founder warehouse rule: AM sharer returns the car to
+  base + wash/fuel (~30-40 min past his last clear), PM sharer drives out. Pinned by constant
+  + boundary tests. The geography-aware split (car_ready = clear + drive_to_base + service;
+  PM pickup >= car_ready + drive_out) needs a base-location concept the engine doesn't have.
+
+05-16 validation with guardrails: worst day 17.8h → **14.4h raw**, zero shared-car overlaps,
+coverage cost exactly the two 00:0x arrivals the founder always farmed by hand (110 vs 112).
+An adversarial review caught 4 real pre-commit bugs (manual-swap night-block + pre-existing-
+leg poisoning, silent ceiling farms, unreachable builder escape, unpinned pad) — repeat that
+review pattern on engine-gate diffs.
