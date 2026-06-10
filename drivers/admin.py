@@ -62,6 +62,8 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "vehicle",
     ]
 
+    filter_horizontal = ["preferred_vehicles", "preferred_vehicle_types", "certified_vehicle_types"]
+
     inlines = [DriverPayRateInline, DriverWeeklyScheduleInline, DriverDateOverrideInline]
 
     fieldsets = (
@@ -99,6 +101,20 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                                "Leave first/last blank to fall back to the user's profile name. "
                                "Store ONLY the last 4 digits of SSN/EIN (e.g. \"9579\" or \"*9579\") — never the full number.",
                 "classes": ("collapse",),
+            },
+        ),
+        (
+            "Vehicle Preferences",
+            {
+                "fields": (
+                    "preferred_vehicles",
+                    "preferred_vehicle_types",
+                    "certified_vehicle_types",
+                ),
+                "description": "Preferred vehicle(s) = this driver's regular/usual car — a soft "
+                               "preference used by Day Setup to suggest \"his car\" back to him. "
+                               "Certified vehicle types = the tiers he's ALLOWED to drive (a hard "
+                               "gate for restricted units like the 14-pax van).",
             },
         ),
         (
