@@ -82,6 +82,8 @@ urlpatterns = [
         views.copy_vehicle_assignments,
         name="copy_vehicle_assignments",
     ),
+    path("suggest-day-setup/", views.suggest_day_setup_view, name="suggest_day_setup"),
+    path("apply-day-setup/", views.apply_day_setup, name="apply_day_setup"),
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
     # Inline editor for extra stops + multi-flight on the reservation detail page
