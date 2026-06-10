@@ -2625,6 +2625,16 @@ def apply_day_setup(request):
                                  "error": "Two drivers were given the same vehicle — fix and retry."},
                                 status=400)
 
+    # A share row whose PARTNER was unchecked in the modal arrives as the only pair for its
+    # unit. Declining a proposed split must mean "one driver keeps the car all day" — so
+    # strip the orphaned share flag + partitioned window, otherwise the remaining driver
+    # would be capped at the handoff hour for a handoff that no longer exists (and the car
+    # would sit idle for the other half of the day).
+    clean = [(did, vid, share and len(_by_vid[vid]) > 1,
+              ps if (share and len(_by_vid[vid]) > 1) else None,
+              pe if (share and len(_by_vid[vid]) > 1) else None)
+             for did, vid, share, ps, pe in clean]
+
     drivers = {d.id: d for d in Driver.objects.filter(
         id__in=[did for did, _, _, _, _ in clean]).select_related("profile")
         .prefetch_related("certified_vehicle_types")}

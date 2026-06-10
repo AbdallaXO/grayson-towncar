@@ -332,6 +332,20 @@ class DaySetupApplyTests(TestCase):
         b_row = rows.get(driver=self.b)
         self.assertEqual((b_row.planned_start_hour, b_row.planned_end_hour), (15, 23))
 
+    def test_orphaned_share_row_becomes_solo_day(self):
+        # Founder unchecks the PM half of a proposed share in the modal: the remaining
+        # AM row still arrives with allow_share + the truncated window. Declining a
+        # split must mean "one driver keeps the car ALL day" — the orphaned share flag
+        # and partitioned window are stripped, never persisted.
+        pairs = [{"driver_id": self.a.id, "vehicle_id": self.u1.id, "allow_share": True,
+                  "planned_start_hour": 4, "planned_end_hour": 14}]
+        r = self._post(pairs)
+        self.assertEqual(r.status_code, 200)
+        row = DriverVehicleAssignment.objects.get(date=TARGET, driver=self.a)
+        self.assertEqual(row.vehicle_id, self.u1.id)
+        self.assertIsNone(row.planned_start_hour)
+        self.assertIsNone(row.planned_end_hour)
+
     def test_accidental_duplicate_still_rejected(self):
         # Same unit twice WITHOUT the share flag on every pair = a mistake, not a share.
         pairs = [{"driver_id": self.a.id, "vehicle_id": self.u1.id, "allow_share": True},
