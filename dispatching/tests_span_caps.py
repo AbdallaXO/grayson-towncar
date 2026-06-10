@@ -70,7 +70,8 @@ class EffectiveWindowCapTests(SimpleTestCase):
         # start/end MUST stay None — a non-None end would newly enforce a clear-by on a
         # driver who today has no window at all.
         w = fg.get_effective_window(999999, configured={"flexible": True})
-        self.assertEqual(w, {"start": None, "end": None, "max_hours": 17.0, "flexible": True})
+        self.assertEqual(w, {"start": None, "end": None, "max_hours": 17.0,
+                             "flexible": True, "night_exempt": False})
 
     def test_stub_off_configured_clamped(self):
         with patch.object(fg, "USE_STUB_WINDOWS", False):
@@ -123,6 +124,74 @@ class WindowCheckDeltaGateTests(SimpleTestCase):
 # ════════════════════════════════════════════════════════════════════════════
 # Effective span + marginal pricing
 # ════════════════════════════════════════════════════════════════════════════
+class NightLegFlexBlockTests(SimpleTestCase):
+    """Founder rule 2026-06-10: a 00:00-02:59 pickup is night duty — Flexible means 'any
+    time within a normal day', never the middle of the night. Explicit night windows
+    (non-flexible, start covers the hour) still qualify."""
+
+    def _win(self, flexible=True, start=None, end=None, max_hours=None):
+        return {"start": start, "end": end, "max_hours": max_hours, "flexible": flexible}
+
+    def _clear(self, h, m=0, dur_min=90):
+        return datetime.combine(D, time(h, m)) + timedelta(minutes=dur_min)
+
+    def test_flexible_blocked_for_night_pickup(self):
+        ok, reason = fg.window_check(self._win(flexible=True), time(0, 30),
+                                     self._clear(0, 30), 2.0, target_date=D)
+        self.assertFalse(ok)
+        self.assertIn("night", reason)
+
+    def test_flexible_allowed_at_boundary(self):
+        # 03:00 is a legitimate early-morning day start (founder boards: Michael Olmo 03:00).
+        ok, _ = fg.window_check(self._win(flexible=True), time(3, 0),
+                                self._clear(3, 0), 2.0, target_date=D)
+        self.assertTrue(ok)
+
+    def test_explicit_night_window_allowed(self):
+        # A deliberate night shift (non-flexible, start 0) takes the 00:30 arrival.
+        ok, _ = fg.window_check(self._win(flexible=False, start=0, end=8), time(0, 30),
+                                self._clear(0, 30), 2.0, target_date=D)
+        self.assertTrue(ok)
+
+    def test_non_flexible_day_window_still_blocked_by_start(self):
+        ok, reason = fg.window_check(self._win(flexible=False, start=9, end=23), time(0, 30),
+                                     self._clear(0, 30), 2.0, target_date=D)
+        self.assertFalse(ok)
+        self.assertIn("before start", reason)
+
+    def test_explicit_start_beats_flexible_flag(self):
+        # Builder/advisor escape: a dispatcher typing From=00:00 (or an accepted advisor
+        # night card) is explicit — the flexible DB flag must not override it.
+        ok, _ = fg.window_check(self._win(flexible=True, start=0, end=8), time(0, 30),
+                                self._clear(0, 30), 2.0, target_date=D)
+        self.assertTrue(ok)
+
+    def test_night_exempt_window_bypasses_rule(self):
+        # Manual-sovereign escape: execute_swap revalidation windows carry night_exempt
+        # so a dispatcher's intentional move (or a pre-existing night leg re-checked by
+        # the all-legs revalidation loop) is never hard-blocked.
+        w = self._win(flexible=True)
+        w["night_exempt"] = True
+        ok, _ = fg.window_check(w, time(0, 30), self._clear(0, 30), 2.0, target_date=D)
+        self.assertTrue(ok)
+
+    def test_get_effective_window_marks_manual_sovereign(self):
+        # enforce_cap=False (manual swap revalidation / analytics) -> night_exempt=True;
+        # the default auto-assign path (enforce_cap=True) -> night_exempt=False.
+        stub_id = next(iter(fg.STUB_DRIVER_WINDOWS))
+        manual = fg.get_effective_window(stub_id, configured={"flexible": True},
+                                         enforce_cap=False)
+        auto = fg.get_effective_window(stub_id, configured={"flexible": True})
+        self.assertTrue(manual["night_exempt"])
+        self.assertFalse(auto["night_exempt"])
+
+    def test_flag_off_is_legacy(self):
+        with patch.object(fg, "NIGHT_LEG_FLEX_BLOCK", False):
+            ok, _ = fg.window_check(self._win(flexible=True), time(0, 30),
+                                    self._clear(0, 30), 2.0, target_date=D)
+        self.assertTrue(ok)
+
+
 class EffectiveSpanPricingTests(SimpleTestCase):
     def test_gap_credit_only_for_real_breaks(self):
         slots = [_slot(1, 5, dur_min=60), _slot(2, 7, dur_min=60)]   # 60-min gap: no credit
@@ -285,6 +354,49 @@ class RescuePassTests(TestCase):
         self.assertEqual(fa[99], 8)
         self.assertEqual(warnings, [])
 
+    def test_rescue_never_exceeds_absolute_ceiling(self):
+        # Driver 7 works 05:00-06:30; a 23:00 leg would make a ~19.5h day. The lift stops
+        # at SPAN_RESCUE_CEILING_HOURS (17h): the leg must stay residual and FARM rather
+        # than build an inhumane day (founder rule 2026-06-10) — and the farm must be
+        # LOUD: a ceiling_blocked warning, never a silent disappearance. Driver 8
+        # windowed out.
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 99: _leg(99, 23)}
+        fa, rescued, warnings = sch.rescue_span_blocked_residuals(
+            {1: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
+            self._windows(), driver_hours={7: (4, 23), 8: (4, 10)},
+            flexible_drivers=None, strict_cap_driver_ids=set(), locked_leg_ids=set())
+        self.assertEqual(rescued, [])
+        self.assertNotIn(99, fa)
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["kind"], "ceiling_blocked")
+        self.assertEqual(warnings[0]["driver_id"], 7)
+        self.assertEqual(warnings[0]["cap_hours"], float(fg.SPAN_RESCUE_CEILING_HOURS))
+
+    def test_cap_already_at_ceiling_still_loud(self):
+        # A cap equal to the ceiling has nothing to lift — the leg stays residual but the
+        # farm is still explained with a ceiling_blocked warning.
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 99: _leg(99, 23)}
+        fa, rescued, warnings = sch.rescue_span_blocked_residuals(
+            {1: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
+            self._windows(cap7=float(fg.SPAN_RESCUE_CEILING_HOURS)),
+            driver_hours={7: (4, 23), 8: (4, 10)},
+            flexible_drivers=None, strict_cap_driver_ids=set(), locked_leg_ids=set())
+        self.assertEqual(rescued, [])
+        self.assertNotIn(99, fa)
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]["kind"], "ceiling_blocked")
+
+    def test_rescue_below_ceiling_still_works(self):
+        # 05:00-13:30 + 19:00 leg = ~15.5h: above the 10h cap, below the 17h ceiling ->
+        # rescued with the red badge exactly as before the ceiling existed.
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 19)}
+        fa, rescued, warnings = sch.rescue_span_blocked_residuals(
+            {1: 7, 2: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
+            self._windows(), driver_hours={7: (4, 23), 8: (4, 10)},
+            flexible_drivers=None, strict_cap_driver_ids=set(), locked_leg_ids=set())
+        self.assertEqual(fa.get(99), 7)
+        self.assertEqual(warnings[0]["kind"], "rescued")
+
     def test_turnaround_blocked_leg_not_rescued(self):
         # A leg overlapping driver 7's existing job is infeasible even uncapped -> no rescue
         # (driver 8 is windowed out by his modal hours, so 7 is the only candidate).
@@ -431,9 +543,20 @@ class SharerConflictTests(TestCase):
             self._mk_leg(15, 15), 8, {8: {7}}, self._board(), D))
 
     def test_pad_blocks_tight_handoff(self):
-        # Partner clears ~16:00; a 16:15 pickup is inside the 30-min handoff pad -> conflict.
+        # Partner clears ~16:00; a 16:15 pickup is inside the handoff pad -> conflict.
         self.assertTrue(sch.sharers_conflict(
             self._mk_leg(16, 15), 8, {8: {7}}, self._board(), D))
+
+    def test_pad_is_founder_60_minutes(self):
+        # Founder warehouse rule (2026-06-10): return the car + wash/fuel + drive out.
+        # Pin the constant AND the behavior boundary it creates: partner clears 16:00,
+        # so a 16:45 pickup (inside 60, outside the old 30) must conflict, while a
+        # 17:05 pickup (just past clear + 60) must be clean.
+        self.assertEqual(sch.VEHICLE_SHARE_PAD_MIN, 60)
+        self.assertTrue(sch.sharers_conflict(
+            self._mk_leg(16, 45), 8, {8: {7}}, self._board(), D))
+        self.assertFalse(sch.sharers_conflict(
+            self._mk_leg(17, 5), 8, {8: {7}}, self._board(), D))
 
     def test_clean_evening_job_allowed(self):
         # 17:30 pickup, well after the partner clears + pad -> fine.

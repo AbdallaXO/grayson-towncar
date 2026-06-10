@@ -71,6 +71,23 @@ SPAN_SEEDER_RATE_SCALE = 0.5  # build_smart_schedule seats only on score>0 — h
 SPAN_GAP_CREDIT_MIN_MIN = 120  # a >=2h hole is a real off-duty break (founder split-days: 3-5h)
 SPAN_GAP_CREDIT_MAX_MIN = 300  # cap the credit so one 6h hole can't excuse a 20h day
 
+# ABSOLUTE ceiling for the span-cap coverage rescue (founder 2026-06-10: "no driver ever
+# gets an inhumane day"). The rescue pass may lift a driver's personal/default cap to keep
+# a leg in-house (red badge), but NEVER past this raw-span ceiling — before this rule the
+# lift was unbounded and built 17.8h (shelley) and 18.3h (Aftab) days around the 00:0x
+# airport arrivals on 2026-05-16. A leg that fits nobody under the ceiling farms with a
+# named reason, exactly like the founder does by hand.
+SPAN_RESCUE_CEILING_HOURS = SPAN_HARD_HOURS_DEFAULT
+
+# Night-duty boundary (founder rule 2026-06-10): a pickup BEFORE this hour is night work
+# and must never glue onto a Flexible day driver — windows-as-policy proved whack-a-mole
+# (blocking shelley/sereen just moved the 00:02 leg to the next flexible driver). A
+# NON-flexible window whose explicit start covers the hour still qualifies (a deliberate
+# night shift). Set to 3 from the founder's own boards: his in-house days start as early
+# as 03:00 (Michael Olmo) / 03:45 (runer), but every 00:00-02:59 arrival was farmed.
+NIGHT_LEG_FLEX_BLOCK = True
+NIGHT_LEG_BOUNDARY_HOUR = 3
+
 # ════════════════════════════════════════════════════════════════════════════
 # STUB DRIVER WINDOWS  — PROVISIONAL, from docs/driver_reality_report.md (observed
 # history Feb–May 2026). OPTIMISTIC (captures what a driver did, not hard limits).
@@ -176,6 +193,10 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
     dispatcher's intentional long day.
     """
     cap_on = ENFORCE_SPAN_CAPS and enforce_cap
+    # enforce_cap=False marks the MANUAL-SOVEREIGN callers (manual swap revalidation,
+    # analytics): their windows carry night_exempt so the night rule never hard-blocks
+    # an intentional dispatcher move (founder: "flag but do it").
+    night_exempt = not enforce_cap
     if USE_STUB_WINDOWS:
         w = STUB_DRIVER_WINDOWS.get(driver_id)
         # Use the observed-history stub for start/end/max, but HONOR the driver's REAL
@@ -188,17 +209,22 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
                 return None
             return {"start": None, "end": None,
                     "max_hours": _capped_max_hours(configured.get("max_hours") if configured else None),
-                    "flexible": flexible}
+                    "flexible": flexible, "night_exempt": night_exempt}
         max_h = w["max_hours"]
         if cap_on:
             max_h = _capped_max_hours(max_h, configured.get("max_hours") if configured else None)
-        return {"start": w["start"], "end": w["end"], "max_hours": max_h, "flexible": flexible}
+        return {"start": w["start"], "end": w["end"], "max_hours": max_h,
+                "flexible": flexible, "night_exempt": night_exempt}
     if not cap_on:
+        if configured is not None and night_exempt:
+            return dict(configured, night_exempt=True)
         return configured
     if configured is None:
-        return {"start": None, "end": None, "max_hours": _capped_max_hours(), "flexible": False}
+        return {"start": None, "end": None, "max_hours": _capped_max_hours(),
+                "flexible": False, "night_exempt": night_exempt}
     capped = dict(configured)
     capped["max_hours"] = _capped_max_hours(configured.get("max_hours"))
+    capped["night_exempt"] = night_exempt
     return capped
 
 
@@ -231,6 +257,22 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
     # START bound — bypassed for flexible drivers (flexible on start time).
     if not flexible and start is not None and pickup_time.hour < start:
         return False, f"pickup {pickup_time.strftime('%H:%M')} before start {start}:00"
+
+    # NIGHT bound — a 00:00-(boundary-1):59 pickup is night duty: Flexible means "any time
+    # within a normal day", not "also works the middle of the night". Two escapes:
+    # (1) an EXPLICIT start that covers the hour — explicitness beats the flexible flag,
+    #     so a dispatcher typing From=00:00 in the builder, an accepted advisor night
+    #     card (planned_start_hour=0), or a stub observed working nights still seats;
+    # (2) night_exempt windows (get_effective_window(enforce_cap=False) — the manual-
+    #     sovereign paths): an intentional dispatcher move is never hard-blocked, and a
+    #     pre-existing night leg must not poison execute_swap's all-legs revalidation.
+    if (flexible and NIGHT_LEG_FLEX_BLOCK
+            and pickup_time.hour < NIGHT_LEG_BOUNDARY_HOUR
+            and not window.get("night_exempt")
+            and not (start is not None and start <= pickup_time.hour)):
+        return False, (f"night pickup {pickup_time.strftime('%H:%M')} needs an explicit "
+                       f"night-shift window (Flexible does not cover "
+                       f"00:00-0{NIGHT_LEG_BOUNDARY_HOUR}:00)")
 
     # END bound.
     if end is not None:

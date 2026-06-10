@@ -9717,6 +9717,14 @@ def auto_assign_drivers(request):
                          f"could take it, but your {_w['cap_hours']:g}h Max-hrs cap on him holds "
                          f"(would be {_w['span_after']}h). Raise his Max hrs to keep it in-house."),
             })
+        elif _w["kind"] == "ceiling_blocked":
+            span_warnings_out.append({
+                "level": "strict", "leg_id": _w["leg_id"],
+                "text": (f"Leg #{_w['leg_id']} ({_w['pickup']}) left for affiliates: keeping it in-house "
+                         f"would stretch {_w['driver_name']} to {_w['span_after']}h — past the "
+                         f"{_w['cap_hours']:.0f}h absolute day ceiling. Cover it with a second-shift "
+                         f"driver or an affiliate."),
+            })
 
     # ── Second-Shift Advisor (Phase 5) ──
     # "This day's volume needs another driver" — clusters residual legs + untrimmable

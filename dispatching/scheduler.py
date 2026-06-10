@@ -118,7 +118,13 @@ SPAN_COVERAGE_RESCUE = True
 # one of them must not overlap the partner's jobs +/- this pad. The planned windows alone
 # cannot be airtight: modal End is a LAST-PICKUP bound (a 14:50 pickup clears ~16:20 while
 # the PM partner may already pick up at 15:05 - one car, two jobs, same time).
-VEHICLE_SHARE_PAD_MIN = 30
+# Founder rule (2026-06-10): the pad must cover the AM driver RETURNING the car to the
+# warehouse + wash/fuel (~30-40 min after his last clear) + the PM driver's drive OUT to
+# his first pickup — "done by 3:00 means the car is ready at base ~3:30-3:40, first PM
+# job ~4:30". 60 is the founder's minimum; a geography-aware split (car_ready = clear +
+# drive_to_base + service; PM pickup >= car_ready + drive_out) needs a base-location
+# concept the engine doesn't have yet — see the smarter-handoff arc.
+VEHICLE_SHARE_PAD_MIN = 60
 # Span-trim relocation pass (Span Governor Phase 3): after coverage is settled, actively
 # SHORTEN over-long days — peel a long driver's FIRST or LAST leg (the only span-shrinking
 # legs) onto a driver with room: the founder's "Roberto just starts later" move applied to
@@ -1899,6 +1905,7 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
         best = None          # (raw_span_after, -buffer, did) -> normal assign
         best_lifted = None   # same key -> cap-lifted assign
         strict_only_block = None
+        ceiling_block = None  # span was the sole blocker but even the ceiling can't admit it
         for dr in sorted(drivers, key=lambda d: d.id):
             did = dr.id
             sched = schedules.get(did)
@@ -1938,6 +1945,20 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
             probe = check_feasibility(sched, leg, target_date, driver_window=probe_w)
             if not probe.feasible:
                 continue  # blocked by turnaround/window too — not a span rescue
+            # Span IS the sole blocker. The lift is NOT unbounded: it stops at the
+            # absolute ceiling (founder 2026-06-10: "no driver ever gets an inhumane
+            # day"). A leg that fits nobody under the ceiling farms — LOUDLY, via the
+            # ceiling_blocked warning below, never silently.
+            ceiling = float(fg.SPAN_RESCUE_CEILING_HOURS)
+            within_ceiling = False
+            if float(window["max_hours"]) < ceiling:
+                probe_c = dict(window); probe_c["max_hours"] = ceiling
+                within_ceiling = check_feasibility(
+                    sched, leg, target_date, driver_window=probe_c).feasible
+            if not within_ceiling:
+                if ceiling_block is None or did < ceiling_block[0]:
+                    ceiling_block = (did, span_after, ceiling)
+                continue
             if did in strict:
                 if strict_only_block is None or did < strict_only_block[0]:
                     strict_only_block = (did, span_after, float(window["max_hours"]))
@@ -1969,6 +1990,14 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
                 "kind": "strict_blocked", "leg_id": leg.id, "driver_id": did,
                 "driver_name": str(drivers_by_id.get(did, did)),
                 "span_after": round(span_after, 1), "cap_hours": cap_h,
+                "pickup": leg.pickup_time.strftime("%I:%M %p").lstrip("0"),
+            })
+        elif ceiling_block is not None:
+            did, span_after, ceil_h = ceiling_block
+            warnings.append({
+                "kind": "ceiling_blocked", "leg_id": leg.id, "driver_id": did,
+                "driver_name": str(drivers_by_id.get(did, did)),
+                "span_after": round(span_after, 1), "cap_hours": ceil_h,
                 "pickup": leg.pickup_time.strftime("%I:%M %p").lstrip("0"),
             })
 
