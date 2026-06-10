@@ -528,6 +528,12 @@ class FleetVehicle(models.Model):
     make = models.CharField(max_length=50)
     model = models.CharField(max_length=50)
     notes = models.TextField(blank=True)
+    is_active = models.BooleanField(
+        default=True, db_index=True,
+        help_text="Inactive vehicles can't be assigned and are hidden from "
+                  "selection/availability surfaces. Legs already on the vehicle "
+                  "still render so history is preserved."
+    )
 
     # --- Samsara telematics (Phase 1: read-only live vehicle visibility) ---
     # All nullable/blank so un-onboarded in-house cars and affiliate vehicles
@@ -605,6 +611,12 @@ class DriverVehicleAssignment(models.Model):
     vehicle = models.ForeignKey(
         "FleetVehicle", on_delete=models.PROTECT, null=True, blank=True
     )
+    # Planned working window for THIS day's assignment (Day Setup shared cars: two drivers
+    # on one unit get partitioned windows, e.g. AM 4-15 / PM 15-23, so the auto-assign
+    # modal prefills the split and the engine can never double-book the vehicle).
+    # NULL = no planned window (normal single-driver assignment; saved availability rules).
+    planned_start_hour = models.PositiveSmallIntegerField(null=True, blank=True)
+    planned_end_hour = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ("driver", "date")

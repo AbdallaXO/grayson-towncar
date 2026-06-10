@@ -1019,10 +1019,10 @@ class AffiliateProfileAdmin(admin.ModelAdmin):
 
 @admin.register(FleetVehicle)
 class FleetVehicleAdmin(admin.ModelAdmin):
-    list_display = ["vehicle_number", "vehicle_type", "year", "make", "model", "samsara_vehicle_id", "notes"]
-    list_editable = ["samsara_vehicle_id", "notes"]
+    list_display = ["vehicle_number", "vehicle_type", "year", "make", "model", "is_active", "samsara_vehicle_id", "notes"]
+    list_editable = ["is_active", "samsara_vehicle_id", "notes"]
     search_fields = ["vehicle_number", "make", "model", "samsara_vehicle_id"]
-    list_filter = ["vehicle_type", "year", "make"]
+    list_filter = ["is_active", "vehicle_type", "year", "make"]
     # Live position is written only by the Samsara poller — show, don't edit.
     readonly_fields = [
         "samsara_last_location_label", "samsara_movement_status",

@@ -1194,6 +1194,11 @@
                 </small>
             </div>
             <div class="d-flex gap-2">
+                <button class="btn btn-sm px-3 py-1" id="vaSuggestSetup"
+                        style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 700; font-size: 0.78rem; border: none; border-radius: 6px;"
+                        title="Suggest today's crew (from their schedules + weekday habits) and a vehicle for each — you review and apply">
+                    <i class="bi bi-magic me-1"></i>Suggest Day Setup
+                </button>
                 <button class="btn btn-sm px-3 py-1" id="vaCopyPrev"
                         style="background: var(--dark); color: var(--gold); font-weight: 600; font-size: 0.78rem; border: 1px solid var(--gold); border-radius: 6px;"
                         title="Copy from most recent previous day">
@@ -2426,6 +2431,7 @@
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:140px;">Start</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:140px;">End</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:170px;">Prefer</th>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:80px;text-align:center;" title="Hard cap on this driver's day (first pickup to last clear), in hours. Blank = the global 17h backstop. A number you type is STRICT: a leg that doesn't fit goes to Need Affiliates with a note, never silently stretched.">Max hrs</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:75px;text-align:center;" title="Build this driver's FULL day first, then fill everyone else around them (for fixed schedules that can't compromise)">Build 1st</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:70px;text-align:center;" title="Driver works anytime — Start/End ignored, system picks hours">Flexible</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:60px;text-align:center;">Off</th>
@@ -2504,6 +2510,9 @@
                                             <option value="only_return">Returns Only</option>
                                             <option value="only_cruise">Cruises Only</option>
                                         </select>
+                                    </td>
+                                    <td style="padding:0.4rem 0.75rem;text-align:center;">
+                                        <input type="number" class="form-control form-control-sm aa-max-hours" min="4" max="24" step="0.5" placeholder="17" style="width:64px;font-size:0.8rem;text-align:center;margin:0 auto;" title="Hard cap on this driver's day in hours. Blank = global 17h backstop. A typed number is STRICT (never silently exceeded).">
                                     </td>
                                     <td style="padding:0.4rem 0.75rem;text-align:center;">
                                         <input type="checkbox" class="form-check-input aa-build-first" title="Build this driver's full day FIRST (fixed schedules that can't compromise), then fill everyone else around them">
@@ -2660,11 +2669,11 @@
                 if (flexCb) flexCb.checked = !!avail.flexible;
                 if (!avail.is_available) {
                     dayOffCb.checked = true;
-                    row.querySelectorAll('select').forEach(s => { s.disabled = true; });
+                    row.querySelectorAll('select, .aa-max-hours').forEach(s => { s.disabled = true; });
                     row.style.opacity = '0.4';
                 } else {
                     dayOffCb.checked = false;
-                    row.querySelectorAll('select').forEach(s => { s.disabled = false; });
+                    row.querySelectorAll('select, .aa-max-hours').forEach(s => { s.disabled = false; });
                     row.style.opacity = '1';
                     // Flexible => system picks the hours, so grey out Start/End (Prefer stays usable)
                     if (flexCb && flexCb.checked) {
@@ -2682,7 +2691,7 @@
             cb.addEventListener('change', function() {
                 const row = this.closest('tr');
                 const off = this.checked;
-                row.querySelectorAll('select').forEach(s => { s.disabled = off; });
+                row.querySelectorAll('select, .aa-max-hours').forEach(s => { s.disabled = off; });
                 row.style.opacity = off ? '0.4' : '1';
                 if (!off) {
                     // re-apply flexible state to Start/End after un-marking Off
@@ -2729,6 +2738,9 @@
                     end: parseInt(row.querySelector('.aa-end-hour').value),
                     flexible: !!(row.querySelector('.aa-flexible') || {}).checked,
                 };
+                // Max hrs: a TYPED value is a strict per-driver duty-span cap; blank = global default.
+                const mh = parseFloat((row.querySelector('.aa-max-hours') || {}).value);
+                if (!isNaN(mh) && mh > 0) aaDriverHours[did].max_hours = mh;
                 const pref = row.querySelector('.aa-preference').value;
                 if (pref) aaDriverPrefs[did] = pref;
                 if ((row.querySelector('.aa-build-first') || {}).checked) aaBuildFirst.push(parseInt(did));
@@ -2792,6 +2804,83 @@
             aaIsRebuilding = true;
             document.getElementById('aaPreviewSummary').innerHTML = '<div class="text-center py-2 w-100"><span class="spinner-border spinner-border-sm me-1"></span> Rebuilding...</div>';
             fetchPreview();
+        }
+
+        // ── Second-Shift Advisor accept/dismiss ──
+        const aaAdvisorDismissed = new Set();
+        window.aaAdvisorDismiss = function(sig) {
+            aaAdvisorDismissed.add(sig);
+            renderAutoAssignPreview(aaLastData);
+        };
+        window.aaAdvisorAccept = function(sig, btn) {
+            const p = (aaLastData.advisor || []).find(x => x.signature === sig);
+            if (!p || !p.best) return;
+            const card = btn.closest('[data-adv-sig]');
+            const oi = parseInt((card.querySelector('.adv-src') || {value: 0}).value || 0);
+            const opt = [p.best].concat(p.alternates || [])[oi] || p.best;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Adding...';
+            // 1. Create the REAL vehicle row through the validated Day Setup endpoint
+            //    (freed-unit options are deliberate shares: allow_share).
+            fetch('{% url "apply_day_setup" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({
+                    date: document.getElementById('datePicker').value,
+                    pairs: [{driver_id: opt.driver_id, vehicle_id: opt.vehicle_id, allow_share: !!opt.freed}],
+                    snapshot: {},
+                }),
+            }).then(r => r.json()).then(res => {
+                if (!res.success) {
+                    alert(res.error || 'Could not assign the vehicle');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add this shift';
+                    return;
+                }
+                // 2. Add the driver to the authoritative Step-1 table (editable like any row).
+                //    Residual shifts get Build 1st so the engine seeds the new window first;
+                //    overload shifts rely on the span-trim pass to drain the long day.
+                aaAddSyntheticRow(opt, p.kind !== 'overload');
+                aaAdvisorDismissed.add(sig);
+                rePreview();   // 3. Rebuild — the engine now sees the new driver + unit.
+            }).catch(err => {
+                alert('Error: ' + err);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add this shift';
+            });
+        };
+        function aaAddSyntheticRow(opt, buildFirst) {
+            let row = document.querySelector('.aa-driver-row[data-driver-id="' + opt.driver_id + '"]');
+            if (!row) {
+                const first = document.querySelector('.aa-driver-row');
+                if (!first) return;
+                row = first.cloneNode(true);
+                row.dataset.driverId = opt.driver_id;
+                row.querySelector('td').innerHTML = opt.driver_name +
+                    ' <span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.58rem;">ADDED</span>';
+                first.parentNode.appendChild(row);
+                // minimal handler re-binding for the cloned checkboxes
+                const off = row.querySelector('.aa-day-off');
+                const flex = row.querySelector('.aa-flexible');
+                off.addEventListener('change', function() {
+                    row.querySelectorAll('select, .aa-max-hours').forEach(s => { s.disabled = this.checked; });
+                    row.style.opacity = this.checked ? '0.4' : '1';
+                }.bind(off));
+                flex.addEventListener('change', function() {
+                    if (row.querySelector('.aa-day-off').checked) return;
+                    row.querySelector('.aa-start-hour').disabled = this.checked;
+                    row.querySelector('.aa-end-hour').disabled = this.checked;
+                }.bind(flex));
+            }
+            row.querySelectorAll('select, .aa-max-hours, input').forEach(el => { el.disabled = false; });
+            row.style.opacity = '1';
+            row.querySelector('.aa-day-off').checked = false;
+            row.querySelector('.aa-flexible').checked = false;
+            row.querySelector('.aa-start-hour').value = opt.start_hour;
+            row.querySelector('.aa-end-hour').value = opt.end_hour;
+            row.querySelector('.aa-preference').value = '';
+            const mh = row.querySelector('.aa-max-hours'); if (mh) mh.value = '';
+            const bf = row.querySelector('.aa-build-first'); if (bf) bf.checked = !!buildFirst;
         }
 
         // Remove a leg from a driver's schedule (client-side, no rebuild)
@@ -2925,13 +3014,31 @@
             const totalRevenue = data.driver_schedules.reduce((sum, d) => sum + d.total_revenue, 0);
             const unassignedCount = (data.unassigned_legs || []).length;
 
+            const longDays = data.driver_schedules.filter(d => d.span_warn).length;
+            const maxSpan = Math.max(0, ...data.driver_schedules.map(d => d.effective_span_hours || 0));
             summaryDiv.innerHTML =
                 '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:#2e7d32;">' + data.assigned + '</div><div style="font-size:0.7rem;color:#888;">New Assignments</div></div>' +
                 (unassignedCount > 0 ? '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:#e65100;">' + unassignedCount + '</div><div style="font-size:0.7rem;color:#888;">Need Affiliates</div></div>' : '') +
                 '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:var(--dark);">' + data.driver_schedules.length + '</div><div style="font-size:0.7rem;color:#888;">Drivers Active</div></div>' +
+                (data.trim_moves > 0 ? '<div class="text-center flex-fill" title="Jobs moved off over-long days onto drivers with room"><div style="font-size:1.4rem;font-weight:700;color:#2e7d32;">' + data.trim_moves + '</div><div style="font-size:0.7rem;color:#888;">Days Shortened</div></div>' : '') +
+                (longDays > 0 ? '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:#e65100;">' + longDays + '</div><div style="font-size:0.7rem;color:#888;">Long Days (&gt;13.5h)</div></div>'
+                              : '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:#2e7d32;">' + (maxSpan ? maxSpan.toFixed(1) + 'h' : '—') + '</div><div style="font-size:0.7rem;color:#888;">Longest Day</div></div>') +
                 '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:var(--dark);">$' + Math.round(totalRevenue) + '</div><div style="font-size:0.7rem;color:#888;">Total Revenue</div></div>';
 
             let html = '';
+
+            // Span Governor warnings strip — over-cap rescues (red) + strict-cap blocks.
+            const spanWarnings = data.span_warnings || [];
+            if (spanWarnings.length > 0) {
+                html += '<div class="mb-3 px-3 py-2" style="background:#fff;border-radius:8px;border:1px solid #ef9a9a;">';
+                spanWarnings.forEach(function(w) {
+                    const col = w.level === 'red' ? '#c62828' : '#e65100';
+                    html += '<div class="d-flex align-items-start gap-2 py-1" style="font-size:0.8rem;color:' + col + ';">';
+                    html += '<i class="bi ' + (w.level === 'red' ? 'bi-exclamation-octagon' : 'bi-sign-stop') + '" style="margin-top:2px;"></i>';
+                    html += '<div>' + w.text + '</div></div>';
+                });
+                html += '</div>';
+            }
 
             // Driver schedule cards
             data.driver_schedules.forEach(function(driver) {
@@ -2947,6 +3054,11 @@
                     html += '<span class="badge" style="background:#0d6efd;color:#fff;font-size:0.62rem;font-weight:600;letter-spacing:0.3px;">' + driver.vehicle + '</span>';
                 }
                 html += '<span style="font-size:0.75rem;opacity:0.7;">' + driver.first_pickup + ' &mdash; ' + driver.last_end + (driver.hours ? ' &middot; ' + driver.hours : '') + '</span>';
+                if (driver.span_warn === 'red') {
+                    html += '<span class="badge" style="background:#c62828;color:#fff;font-size:0.62rem;font-weight:600;" title="' + (driver.span_note || '') + '"><i class="bi bi-exclamation-octagon me-1" style="font-size:0.55rem;"></i>' + (driver.span_note || 'over cap') + '</span>';
+                } else if (driver.span_warn === 'amber') {
+                    html += '<span class="badge" style="background:#e65100;color:#fff;font-size:0.62rem;font-weight:600;" title="' + (driver.span_note || '') + '"><i class="bi bi-hourglass-split me-1" style="font-size:0.55rem;"></i>' + (driver.span_note || 'long day') + '</span>';
+                }
                 html += '</div>';
                 html += '<div class="d-flex gap-2 align-items-center">';
                 if (hasNew) {
@@ -2990,6 +3102,45 @@
 
                 html += '</div>';
             });
+
+            // Second-Shift Advisor cards — "this day needs another driver"
+            const advisorProps = (data.advisor || []).filter(p => !aaAdvisorDismissed.has(p.signature));
+            if (advisorProps.length > 0) {
+                html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:2px solid var(--gold);overflow:hidden;">';
+                html += '<div class="px-3 py-2" style="background:linear-gradient(135deg, var(--gold), var(--gold-light));color:var(--dark);font-weight:700;font-size:0.85rem;"><i class="bi bi-person-plus-fill me-2"></i>Second-Shift Advisor — this day needs more coverage</div>';
+                advisorProps.forEach(function(p, pi) {
+                    if (p.kind === 'info') {
+                        html += '<div class="px-3 py-2" style="font-size:0.78rem;color:#888;">' + p.text + '</div>';
+                        return;
+                    }
+                    html += '<div class="px-3 py-2" style="border-bottom:1px solid #f0e6c8;" data-adv-sig="' + p.signature + '">';
+                    const what = p.kind === 'overload'
+                        ? 'Would shorten ' + (p.overload_from || []).join(', ') + '’s long day'
+                        : 'These don’t fit today’s crew';
+                    html += '<div style="font-size:0.84rem;font-weight:600;">' + what + ': ' + p.leg_count + ' leg' + (p.leg_count !== 1 ? 's' : '') + ' · ' + p.tier_label + ' · ' + p.window + (p.revenue ? ' · $' + p.revenue : '') + '</div>';
+                    (p.legs || []).forEach(function(l) {
+                        html += '<div style="font-size:0.72rem;color:#777;padding-left:10px;">' + l.pickup + ' · ' + l.route + '</div>';
+                    });
+                    if (p.best) {
+                        html += '<div class="d-flex align-items-center gap-2 mt-1 flex-wrap">';
+                        html += '<select class="form-select form-select-sm adv-src" style="width:auto;max-width:380px;font-size:0.75rem;">';
+                        [p.best].concat(p.alternates || []).forEach(function(o, oi) {
+                            let label = o.driver_name + ' — ' + o.vehicle_label;
+                            if (o.freed) label += ' (takes it from ' + o.freed.holder + ', clears ' + o.freed.clear + ')';
+                            if (o.scheduled_off) label += ' ⚠ scheduled OFF';
+                            html += '<option value="' + oi + '">' + label + '</option>';
+                        });
+                        html += '</select>';
+                        html += '<button class="btn btn-sm" style="background:var(--dark);color:var(--gold);font-weight:600;font-size:0.72rem;" onclick="aaAdvisorAccept(\'' + p.signature + '\', this)"><i class="bi bi-plus-circle me-1"></i>Add this shift</button>';
+                        html += '<button class="btn btn-sm btn-outline-secondary" style="font-size:0.72rem;" onclick="aaAdvisorDismiss(\'' + p.signature + '\')">Not today</button>';
+                        html += '</div>';
+                    } else {
+                        html += '<div style="font-size:0.75rem;color:#b35900;margin-top:2px;"><i class="bi bi-info-circle me-1"></i>No in-house option (no idle driver + unit fits) — these stay in Need Affiliates below.</div>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
 
             // Unassigned legs section
             const unassigned = data.unassigned_legs || [];
@@ -4440,6 +4591,167 @@
                 vaCopyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
                 vaCopyBtn.disabled = false;
             });
+        });
+    }
+
+    // ============ Day Setup suggester (roster + vehicle plan, preview -> confirm) ============
+    var dsBtn = document.getElementById('vaSuggestSetup');
+    if (dsBtn) {
+        dsBtn.addEventListener('click', function() {
+            dsBtn.disabled = true;
+            dsBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Thinking...';
+            fetch('{% url "suggest_day_setup" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}'}),
+            }).then(r => r.json()).then(data => {
+                dsBtn.innerHTML = '<i class="bi bi-magic me-1"></i>Suggest Day Setup';
+                dsBtn.disabled = false;
+                if (!data.success) { alert(data.error || 'Failed'); return; }
+                dsRenderModal(data);
+            }).catch(err => {
+                alert('Error: ' + err);
+                dsBtn.innerHTML = '<i class="bi bi-magic me-1"></i>Suggest Day Setup';
+                dsBtn.disabled = false;
+            });
+        });
+    }
+
+    function dsRenderModal(data) {
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+        var modal = document.createElement('div');
+        modal.style.cssText = 'background:#fff;border-radius:12px;padding:0;max-width:620px;width:94%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);';
+
+        var demandBits = Object.keys(data.demand || {}).map(function(t) { return data.demand[t] + ' ' + t; });
+        var header = '<div style="padding:14px 20px;border-bottom:1px solid #e9ecef;background:#f8f9fa;border-radius:12px 12px 0 0;">'
+            + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-magic me-2"></i>Day Setup — {{ selected_date|date:"D M j" }}</div>'
+            + '<div style="font-size:0.75rem;color:#6c757d;">' + (demandBits.length ? 'Demand: ' + demandBits.join(' · ') : 'No jobs yet for this date') + '</div>'
+            + '</div>';
+
+        var groupTitles = {locked: 'Already set (untouched)', suggested: 'Suggested crew', available: 'Also available', off: 'Off today (per schedule)'};
+        var body = '<div style="padding:12px 20px;overflow-y:auto;flex:1;">';
+        (data.swaps || []).forEach(function(s) {
+            body += '<div style="background:#fff3cd;border:1px solid #ffecb5;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:0.76rem;color:#664d03;"><i class="bi bi-arrow-left-right me-1"></i>' + s + '</div>';
+        });
+        ['locked', 'suggested', 'available', 'off'].forEach(function(group) {
+            var rows = (data.rows || []).filter(function(r) { return r.group === group; });
+            if (!rows.length) return;
+            var collapsed = group === 'off';
+            body += '<div style="font-size:0.7rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px;">' + groupTitles[group] + ' (' + rows.length + ')</div>';
+            if (collapsed) {
+                body += '<div style="font-size:0.78rem;color:#999;">' + rows.map(function(r) { return r.driver_name; }).join(', ') + '</div>';
+                return;
+            }
+            rows.forEach(function(r) {
+                var locked = group === 'locked';
+                var shareAttrs = '';
+                if (r.share) {
+                    shareAttrs = ' data-allow-share="1" data-planned-start="' + r.planned_start_hour + '" data-planned-end="' + r.planned_end_hour + '"';
+                }
+                body += '<div class="ds-row" data-driver-id="' + r.driver_id + '"' + shareAttrs + ' style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:0.82rem;">';
+                body += locked
+                    ? '<i class="bi bi-lock-fill" style="color:#bbb;width:16px;"></i>'
+                    : '<input type="checkbox" class="ds-check" ' + (r.checked ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#198754;">';
+                body += '<span style="flex:1;font-weight:600;' + (locked ? 'color:#999;' : '') + '">' + r.driver_name
+                    + (r.hint ? ' <span style="font-weight:400;color:#aaa;font-size:0.72rem;">— ' + r.hint + '</span>' : '') + '</span>';
+                if (locked) {
+                    body += '<span style="color:#0d6efd;font-weight:600;font-size:0.78rem;">' + r.vehicle_label + '</span>';
+                } else {
+                    body += '<select class="ds-veh form-select form-select-sm" style="width:170px;font-size:0.75rem;padding:0.15rem 0.4rem;" ' + (r.checked ? '' : 'disabled') + '>';
+                    body += '<option value="">— no unit —</option>';
+                    if (r.vehicle_id) body += '<option value="' + r.vehicle_id + '" selected>' + r.vehicle_label + '</option>';
+                    (data.free_units || []).forEach(function(u) {
+                        if (u.id === r.vehicle_id) return;
+                        body += '<option value="' + u.id + '">' + u.label + (u.rarely_used ? ' (rarely used)' : '') + '</option>';
+                    });
+                    body += '</select>';
+                    if (r.share) {
+                        var sTxt = r.share.role === 'AM'
+                            ? 'until ' + r.share.until + ':00 → hands to ' + r.share.partner
+                            : 'from ' + r.share.from + ':00 ← takes over from ' + r.share.partner;
+                        body += '<span class="badge" style="background:#664d03;color:#ffecb5;font-size:0.62rem;white-space:nowrap;" title="Two drivers share this car in shifts — their working windows are split so it can never be double-booked"><i class="bi bi-arrow-left-right me-1"></i>SHARED · ' + sTxt + '</span>';
+                    } else if (r.reason) {
+                        body += '<span style="font-size:0.68rem;color:' + (r.reason.indexOf('covers') === 0 ? '#0d6efd' : '#888') + ';white-space:nowrap;">' + r.reason + '</span>';
+                    }
+                }
+                body += '</div>';
+            });
+        });
+        (data.warnings || []).forEach(function(w) {
+            body += '<div style="font-size:0.74rem;color:#b35900;margin-top:8px;"><i class="bi bi-exclamation-triangle me-1"></i>' + w + '</div>';
+        });
+        body += '</div>';
+
+        var footer = '<div style="padding:12px 20px;border-top:1px solid #e9ecef;display:flex;gap:8px;justify-content:flex-end;align-items:center;">'
+            + '<span class="ds-count" style="font-size:0.75rem;color:#888;margin-right:auto;"></span>'
+            + '<button class="btn btn-sm btn-outline-secondary ds-cancel" style="font-size:0.8rem;">Cancel</button>'
+            + '<button class="btn btn-sm ds-apply" style="font-size:0.8rem;background:var(--dark);color:var(--gold);font-weight:600;"><i class="bi bi-check2 me-1"></i>Apply</button>'
+            + '</div>';
+
+        modal.innerHTML = header + body + footer;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        overlay.querySelector('.ds-cancel').addEventListener('click', function() { overlay.remove(); });
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+        function dsCollect() {
+            var pairs = [];
+            modal.querySelectorAll('.ds-row').forEach(function(row) {
+                var cb = row.querySelector('.ds-check');
+                var sel = row.querySelector('.ds-veh');
+                if (cb && cb.checked && sel && sel.value) {
+                    var p = {driver_id: parseInt(row.dataset.driverId), vehicle_id: parseInt(sel.value)};
+                    if (row.dataset.allowShare === '1') {
+                        p.allow_share = true;
+                        p.planned_start_hour = parseInt(row.dataset.plannedStart);
+                        p.planned_end_hour = parseInt(row.dataset.plannedEnd);
+                    }
+                    pairs.push(p);
+                }
+            });
+            return pairs;
+        }
+        function dsRefresh() {
+            var pairs = dsCollect();
+            var seen = {}, dup = false;
+            pairs.forEach(function(p) {
+                if (p.allow_share) return;  // deliberate shared car — two rows, one unit
+                if (seen[p.vehicle_id]) dup = true;
+                seen[p.vehicle_id] = true;
+            });
+            modal.querySelector('.ds-count').textContent = pairs.length + ' assignment' + (pairs.length !== 1 ? 's' : '') + (dup ? ' — same unit picked twice!' : '');
+            modal.querySelector('.ds-apply').disabled = dup || pairs.length === 0;
+        }
+        modal.querySelectorAll('.ds-check').forEach(function(cb) {
+            cb.addEventListener('change', function() {
+                var sel = cb.closest('.ds-row').querySelector('.ds-veh');
+                if (sel) sel.disabled = !cb.checked;
+                dsRefresh();
+            });
+        });
+        modal.querySelectorAll('.ds-veh').forEach(function(sel) { sel.addEventListener('change', dsRefresh); });
+        dsRefresh();
+
+        modal.querySelector('.ds-apply').addEventListener('click', function() {
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Applying...';
+            fetch('{% url "apply_day_setup" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', pairs: dsCollect(), snapshot: data.snapshot || {}}),
+            }).then(r => r.json()).then(result => {
+                if (result.success) {
+                    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Done! Reloading...';
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    alert(result.error || 'Failed');
+                    if (result.stale) { overlay.remove(); return; }
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Apply';
+                }
+            }).catch(err => { alert('Error: ' + err); btn.disabled = false; btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Apply'; });
         });
     }
 

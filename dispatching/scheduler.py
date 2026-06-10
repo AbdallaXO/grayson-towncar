@@ -106,6 +106,29 @@ AUTO_PREFARM_SWAP_PASS = True
 # only changes driver, never gets farmed); manual/pinned legs are never moved. Flip to False
 # to disable. See compact_gaps_via_relocation().
 AUTO_GAP_COMPACT_PASS = True
+# Span-cap coverage rescue (Span Governor): after the build + swap passes, any residual leg
+# whose ONLY blocker everywhere was the duty-span cap is assigned anyway (loud RED preview
+# warning) instead of landing in Need Affiliates — founder priority #1: the cap may never
+# cost an in-house job. A dispatcher's explicitly-TYPED modal "Max hrs" is STRICT and never
+# lifted (the leg stays residual with a named reason); only the global default / stub /
+# DB-availability caps are rescue-relaxable. Flip to False to make all caps strict.
+SPAN_COVERAGE_RESCUE = True
+# Span-trim relocation pass (Span Governor Phase 3): after coverage is settled, actively
+# SHORTEN over-long days — peel a long driver's FIRST or LAST leg (the only span-shrinking
+# legs) onto a driver with room: the founder's "Roberto just starts later" move applied to
+# day length. Coverage preserved by construction (a leg only changes driver, never farmed);
+# manual/pinned/seeded legs locked; deterministic; read-only board math.
+AUTO_SPAN_TRIM_PASS = True
+SPAN_TRIM_RAW_MAX_HOURS = 15.0   # also trim a day this long even when a break credit keeps
+                                 # its effective span legal (founder raw p90 = 15.2h)
+SPAN_TRIM_MIN_RELIEF_MIN = 45    # a move must shorten the donor's day by at least this.
+                                 # Receiver stretch is NOT netted against relief — handing a
+                                 # tail leg to a short-day driver always stretches him a lot,
+                                 # harmlessly (the under-both-limits gate is the protection);
+                                 # stretch only breaks ties (prefer the least-stretched receiver)
+SPAN_TRIM_MAX_MOVES = 12         # bound the hill-climb
+SPAN_TRIM_MAX_PER_DONOR = 3      # peels per donor per run
+SPAN_TRIM_MAX_RECEIVE = 2        # receives per receiver per run (no dogpiling)
 GAP_COMPACT_MIN_GAP = 120        # only try to fill an internal gap at least this many minutes
 GAP_COMPACT_MIN_NET_GAIN = 60    # require (receiver gap healed − donor gap opened) ≥ this (min)
 GAP_COMPACT_MAX_MOVES = 25       # safety cap on relocations per run (also bounds the hill-climb)
@@ -761,10 +784,14 @@ def check_feasibility(
                 target_date, min([s.pickup_time for s in driver_schedule.slots] + [new_leg.pickup_time]))
             last_end = max([s.estimated_end_time for s in driver_schedule.slots] + [new_end_dt])
             span_after = (last_end - first_pickup_dt).total_seconds() / 3600
+            _fp_before = datetime.combine(target_date, min(s.pickup_time for s in driver_schedule.slots))
+            _le_before = max(s.estimated_end_time for s in driver_schedule.slots)
+            span_before = (_le_before - _fp_before).total_seconds() / 3600
         else:
             span_after = (new_end_dt - new_pickup_dt).total_seconds() / 3600
+            span_before = 0.0
         ok, reason = fg.window_check(driver_window, new_leg.pickup_time, new_end_dt, span_after,
-                                     target_date=target_date)
+                                     target_date=target_date, span_hours_before=span_before)
         if not ok:
             return FeasibilityResult(feasible=False, buffer_minutes=-999,
                                      reason=f"Outside driver window: {reason}")
@@ -1514,20 +1541,32 @@ def suggest_assignments(
                     if gap_after > idle_threshold:
                         score -= int((gap_after - idle_threshold) * idle_penalty_rate)
 
-            # Schedule span penalty: penalize overly long driver days
-            span_threshold = getattr(cfg, 'span_threshold_hours', 13)
-            span_penalty_rate = getattr(cfg, 'span_penalty_per_hour', 30)
-            if sched.slots and span_threshold > 0:
-                sorted_slots_span = sorted(sched.slots, key=lambda s: s.pickup_time)
-                first_start = datetime.combine(target_date, sorted_slots_span[0].pickup_time)
-                last_end = sorted_slots_span[-1].estimated_end_time
-                new_pickup_dt_span = datetime.combine(target_date, leg.pickup_time)
-                new_end_dt_span = estimate_job_end_time(leg, target_date)
-                effective_start = min(first_start, new_pickup_dt_span)
-                effective_end = max(last_end, new_end_dt_span)
-                span_hours = (effective_end - effective_start).total_seconds() / 3600
-                if span_hours > span_threshold:
-                    score -= int((span_hours - span_threshold) * span_penalty_rate)
+            # Schedule span penalty: penalize overly long driver days.
+            # Span Governor (fg.ENFORCE_SPAN_CAPS + SPAN_SOFT_PRICING): marginal effective-span
+            # pricing — charge only the day-stretch THIS leg adds, progressively (free under
+            # 12h effective, mild to 13.5h, steep beyond), so late legs prefer already-late or
+            # fresh drivers and the old 30/hr flat penalty (routinely outweighed by chain/
+            # scarcity bonuses) stops minting 15-18h days. Legacy block kept behind the flag.
+            if fg.ENFORCE_SPAN_CAPS and fg.SPAN_SOFT_PRICING:
+                if sched.slots:
+                    new_pickup_dt_span = datetime.combine(target_date, leg.pickup_time)
+                    new_end_dt_span = estimate_job_end_time(leg, target_date)
+                    score -= marginal_span_penalty(sched.slots, target_date,
+                                                   new_pickup_dt_span, new_end_dt_span)
+            else:
+                span_threshold = getattr(cfg, 'span_threshold_hours', 13)
+                span_penalty_rate = getattr(cfg, 'span_penalty_per_hour', 30)
+                if sched.slots and span_threshold > 0:
+                    sorted_slots_span = sorted(sched.slots, key=lambda s: s.pickup_time)
+                    first_start = datetime.combine(target_date, sorted_slots_span[0].pickup_time)
+                    last_end = sorted_slots_span[-1].estimated_end_time
+                    new_pickup_dt_span = datetime.combine(target_date, leg.pickup_time)
+                    new_end_dt_span = estimate_job_end_time(leg, target_date)
+                    effective_start = min(first_start, new_pickup_dt_span)
+                    effective_end = max(last_end, new_end_dt_span)
+                    span_hours = (effective_end - effective_start).total_seconds() / 3600
+                    if span_hours > span_threshold:
+                        score -= int((span_hours - span_threshold) * span_penalty_rate)
 
             # Per-driver trip type preference
             if driver_preferences and did in driver_preferences:
@@ -1654,7 +1693,8 @@ def suggest_assignments(
 
 def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id,
                                 drivers, drivers_by_id, target_date, dvtypes,
-                                locked_leg_ids=None):
+                                locked_leg_ids=None, driver_windows=None,
+                                driver_hours=None, flexible_drivers=None):
     """Pre-farm swap pass. After the greedy build, try to pull each would-be-FARMED candidate
     leg back in-house by cascading existing assignments via find_swaps (which the single-leg
     greedy can't do). Read-only wrt the DB — operates on an in-memory assignment map.
@@ -1667,6 +1707,15 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
         dvtypes: {driver_id: vehicle_type} (load_all_driver_vtypes).
         locked_leg_ids: legs that must NOT be relocated (manual / pre-existing assignments);
             any swap solution that would move one is rejected.
+        driver_windows: optional {driver_id: window_dict} forwarded to find_swaps — the
+            auto-assign view passes its CAP-CLAMPED, modal-aware windows so cascade
+            destinations respect the duty-span caps. MUST contain an entry for EVERY working
+            driver (find_swaps restricts its receiver pool to the dict's keys).
+        driver_hours / flexible_drivers: the modal's hard Start/End map + flexible set. When
+            given, every move in an accepted solution is post-validated against the receiving
+            driver's modal pickup-hour window (greedy parity) — find_swaps' window_check uses
+            stub start/end under USE_STUB_WINDOWS, so without this a cascade could land a leg
+            on a driver outside the hours the dispatcher typed.
 
     Returns (final_assignments, recovered_leg_ids).
     """
@@ -1704,10 +1753,23 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
         for s in sch.values():
             s._date = target_date
         try:
-            return find_swaps(target, sch, {l.id: l for l in ih}, dvtypes, target_date)
+            return find_swaps(target, sch, {l.id: l for l in ih}, dvtypes, target_date,
+                              driver_windows=driver_windows)
         finally:
             for lid, (drv, drvid) in saved.items():
                 legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
+
+    def _within_modal_hours(leg_id, did):
+        """Greedy-parity modal window check (scheduler pickup-hour pre-filter semantics)."""
+        if not driver_hours or did not in driver_hours:
+            return True
+        if flexible_drivers and did in flexible_drivers:
+            return True
+        leg = legs_by_id.get(leg_id)
+        if leg is None:
+            return True
+        dh_start, dh_end = driver_hours[did]
+        return time(dh_start, 0) <= leg.pickup_time <= time(dh_end, 59)
 
     for target in farmed:
         try:
@@ -1719,12 +1781,157 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
         sol = res.solutions[0]
         if {mv.leg_id for mv in sol.moves} & locked:
             continue  # never disturb a locked (manual/pre-existing) assignment
+        if not all(_within_modal_hours(mv.leg_id, mv.to_driver_id) for mv in sol.moves):
+            continue  # a cascade destination falls outside the dispatcher's typed hours
+        if not _within_modal_hours(target.id, sol.target_driver_id):
+            continue
         for mv in sol.moves:
             final_assignments[mv.leg_id] = mv.to_driver_id
         final_assignments[target.id] = sol.target_driver_id
         recovered.append(target.id)
 
     return final_assignments, recovered
+
+
+def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_id,
+                                  drivers, drivers_by_id, target_date, dvtypes,
+                                  capped_windows, driver_hours=None, flexible_drivers=None,
+                                  strict_cap_driver_ids=None, locked_leg_ids=None):
+    """Span-cap coverage rescue (Span Governor escalation step). For each residual leg the
+    build + swap passes left unassigned, test every working driver twice:
+
+      1. under his CAP-CLAMPED window — if feasible NOW (the board changed since the greedy
+         ran), assign normally (no warning);
+      2. under the same window with max_hours LIFTED — if feasible only then, the duty-span
+         cap was the leg's sole blocker, so assign it anyway (priority #1: never lose an
+         in-house job to the cap) and emit a RED warning naming the overage.
+
+    Drivers in strict_cap_driver_ids (dispatcher explicitly TYPED a Max hrs in the modal)
+    are never lifted — if only strict drivers could take the leg, it stays residual and a
+    warning names the blocking cap ("the modal is authoritative").
+
+    Greedy-parity candidate filters are replicated here because check_feasibility checks
+    NEITHER of them: vehicle-tier compatibility and the modal pickup-hour window for
+    non-flexible drivers. Deterministic: residuals by (-revenue, id); candidates by
+    (lowest resulting raw span, highest buffer, driver id). Read-only wrt the DB.
+
+    Returns (final_assignments, rescued_leg_ids, warnings) — warnings are dicts:
+    {"kind": "rescued"|"strict_blocked", "leg_id", "driver_id"|None, "driver_name",
+     "span_after", "cap_hours", "pickup"}.
+    """
+    if not SPAN_COVERAGE_RESCUE:
+        return final_assignments, [], []
+    from dispatching import feasibility_guards as fg
+    if not fg.ENFORCE_SPAN_CAPS:
+        return final_assignments, [], []
+
+    strict = set(strict_cap_driver_ids or [])
+    residuals = [legs_by_id[lid] for lid in candidate_leg_ids
+                 if lid not in final_assignments and lid in legs_by_id]
+    residuals.sort(key=lambda l: (-float(getattr(l, "revenue_share", 0) or 0), l.id))
+    if not residuals:
+        return final_assignments, [], []
+
+    # Board = proposed assignments PLUS pre-existing assignments (occupancy must be real).
+    board = dict(final_assignments)
+    for lid, leg in legs_by_id.items():
+        if lid not in board and getattr(leg, "driver_id", None):
+            board[lid] = leg.driver_id
+
+    def build_schedules():
+        saved, ih = {}, []
+        for lid, did in board.items():
+            leg = legs_by_id.get(lid); dr = drivers_by_id.get(did)
+            if leg is None or dr is None:
+                continue
+            saved[lid] = (leg.driver, getattr(leg, "driver_id", None))
+            leg.driver = dr; leg.driver_id = did
+            ih.append(leg)
+        try:
+            return build_driver_schedules(ih, drivers, target_date)
+        finally:
+            for lid, (drv, drvid) in saved.items():
+                legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
+
+    rescued, warnings = [], []
+    schedules = build_schedules()
+    for leg in residuals:
+        leg_vtype = leg.effective_vehicle_type
+        best = None          # (raw_span_after, -buffer, did) -> normal assign
+        best_lifted = None   # same key -> cap-lifted assign
+        strict_only_block = None
+        for dr in sorted(drivers, key=lambda d: d.id):
+            did = dr.id
+            sched = schedules.get(did)
+            if sched is None:
+                continue
+            # Modal pickup-hour window (greedy parity, scheduler pre-filter semantics).
+            if driver_hours and did in driver_hours and not (flexible_drivers and did in flexible_drivers):
+                dh_start, dh_end = driver_hours[did]
+                if not (time(dh_start, 0) <= leg.pickup_time <= time(dh_end, 59)):
+                    continue
+            # Vehicle-tier compatibility (greedy parity).
+            driver_vtype = dvtypes.get(did)
+            if driver_vtype and leg_vtype and leg_vtype not in get_compatible_vehicle_types(driver_vtype):
+                continue
+            window = (capped_windows or {}).get(did)
+            feas = check_feasibility(sched, leg, target_date, driver_window=window)
+            new_end = estimate_job_end_time(leg, target_date)
+            new_pickup_dt = datetime.combine(target_date, leg.pickup_time)
+            if sched.slots:
+                span_after = (max([s.estimated_end_time for s in sched.slots] + [new_end])
+                              - datetime.combine(target_date,
+                                                 min([s.pickup_time for s in sched.slots] + [leg.pickup_time]))
+                              ).total_seconds() / 3600
+            else:
+                span_after = (new_end - new_pickup_dt).total_seconds() / 3600
+            key = (round(span_after, 2), -feas.buffer_minutes, did)
+            if feas.feasible:
+                if best is None or key < best[0]:
+                    best = (key, did, span_after)
+                continue
+            # Only retry with the cap lifted when span was plausibly the blocker.
+            if window is None or window.get("max_hours") is None:
+                continue
+            probe_w = dict(window); probe_w["max_hours"] = None
+            probe = check_feasibility(sched, leg, target_date, driver_window=probe_w)
+            if not probe.feasible:
+                continue  # blocked by turnaround/window too — not a span rescue
+            if did in strict:
+                if strict_only_block is None or did < strict_only_block[0]:
+                    strict_only_block = (did, span_after, float(window["max_hours"]))
+                continue
+            if best_lifted is None or key < best_lifted[0]:
+                best_lifted = (key, did, span_after, float(window["max_hours"]))
+
+        if best is not None:
+            _, did, span_after = best
+            board[leg.id] = did
+            final_assignments[leg.id] = did
+            rescued.append(leg.id)
+            schedules = build_schedules()
+        elif best_lifted is not None:
+            _, did, span_after, cap_h = best_lifted
+            board[leg.id] = did
+            final_assignments[leg.id] = did
+            rescued.append(leg.id)
+            warnings.append({
+                "kind": "rescued", "leg_id": leg.id, "driver_id": did,
+                "driver_name": str(drivers_by_id.get(did, did)),
+                "span_after": round(span_after, 1), "cap_hours": cap_h,
+                "pickup": leg.pickup_time.strftime("%I:%M %p").lstrip("0"),
+            })
+            schedules = build_schedules()
+        elif strict_only_block is not None:
+            did, span_after, cap_h = strict_only_block
+            warnings.append({
+                "kind": "strict_blocked", "leg_id": leg.id, "driver_id": did,
+                "driver_name": str(drivers_by_id.get(did, did)),
+                "span_after": round(span_after, 1), "cap_hours": cap_h,
+                "pickup": leg.pickup_time.strftime("%I:%M %p").lstrip("0"),
+            })
+
+    return final_assignments, rescued, warnings
 
 
 def _max_internal_gap_minutes(slots, target_date: date) -> float:
@@ -1740,8 +1947,226 @@ def _max_internal_gap_minutes(slots, target_date: date) -> float:
     return worst
 
 
+def _span_gap_credit_minutes(slots, target_date: date) -> float:
+    """Off-duty break credit: the largest PRE-EXISTING internal gap, when it is a real break
+    (>= fg.SPAN_GAP_CREDIT_MIN_MIN), capped at fg.SPAN_GAP_CREDIT_MAX_MIN. Computed from the
+    schedule BEFORE any candidate insert, so the engine can never earn credit by minting a
+    new hole with the insert being priced."""
+    from dispatching import feasibility_guards as fg
+    gap = _max_internal_gap_minutes(slots, target_date)
+    if gap < fg.SPAN_GAP_CREDIT_MIN_MIN:
+        return 0.0
+    return float(min(gap, fg.SPAN_GAP_CREDIT_MAX_MIN))
+
+
+def _span_cost_points(effective_hours: float) -> float:
+    """Progressive duty-span price (score points): free under SPAN_SOFT_FREE_HOURS,
+    SPAN_SOFT_RATE/hr up to the (strictly-greater) SPAN_SOFT_EFFECTIVE_HOURS target,
+    SPAN_STEEP_RATE/hr beyond it."""
+    from dispatching import feasibility_guards as fg
+    free, target = fg.SPAN_SOFT_FREE_HOURS, fg.SPAN_SOFT_EFFECTIVE_HOURS
+    return (fg.SPAN_SOFT_RATE * max(0.0, min(effective_hours, target) - free)
+            + fg.SPAN_STEEP_RATE * max(0.0, effective_hours - target))
+
+
+def marginal_span_penalty(slots, target_date: date, new_pickup_dt, new_end_dt) -> int:
+    """Marginal effective-span price of adding a leg: cost(after) − cost(before), where
+    effective span = raw span (first pickup → last clear) minus the pre-existing break
+    credit. A candidate is charged only for the day-stretch THIS leg adds, so a late leg
+    is cheap on an already-late (or fresh) driver and expensive on a 4 AM starter —
+    early/late shift structure emerges from the price with no templates. An insert that
+    lands inside the existing day stretches nothing and costs 0 (gap-filling stays free)."""
+    if not slots:
+        return 0
+    first = datetime.combine(target_date, min(s.pickup_time for s in slots))
+    last = max(s.estimated_end_time for s in slots)
+    raw_before = (last - first).total_seconds() / 3600
+    raw_after = (max(last, new_end_dt) - min(first, new_pickup_dt)).total_seconds() / 3600
+    credit_h = _span_gap_credit_minutes(slots, target_date) / 60.0
+    return int(round(_span_cost_points(max(0.0, raw_after - credit_h))
+                     - _span_cost_points(max(0.0, raw_before - credit_h))))
+
+
+def effective_span_hours(slots, target_date: date):
+    """(raw_span_hours, effective_span_hours) for a built day — the preview/badge metric.
+    Effective = raw minus the break credit (the founder's split-days are judged by their
+    continuous duty, not wall-clock span). Returns (0.0, 0.0) for an empty day."""
+    if not slots:
+        return 0.0, 0.0
+    first = datetime.combine(target_date, min(s.pickup_time for s in slots))
+    last = max(s.estimated_end_time for s in slots)
+    raw = (last - first).total_seconds() / 3600
+    return raw, max(0.0, raw - _span_gap_credit_minutes(slots, target_date) / 60.0)
+
+
+def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
+                              target_date, dvtypes, locked_leg_ids=None,
+                              driver_hours=None, flexible_drivers=None, capped_windows=None):
+    """Span-trim pass (Span Governor Phase 3). For each driver whose built day runs over the
+    soft target (effective span > SPAN_SOFT_EFFECTIVE_HOURS) or is simply too long raw
+    (> SPAN_TRIM_RAW_MAX_HOURS), try to relocate his FIRST or LAST leg — the only legs whose
+    removal shrinks the span — onto another driver with room. The founder's "Roberto just
+    starts later" move, applied to day length.
+
+    A move of leg L (donor D -> receiver R) is accepted iff ALL hold:
+      * L is unlocked (manual / seeded / pre-existing assignments never move) and is D's
+        first or last leg;
+      * removing L shortens D's raw span by >= SPAN_TRIM_MIN_RELIEF_MIN minutes;
+      * R is vehicle-tier compatible, inside his modal hard window (unless flexible), and
+        check_feasibility passes under his cap-clamped window ("never late" preserved);
+      * R stays under BOTH limits after the insert (raw <= SPAN_TRIM_RAW_MAX_HOURS and
+        effective <= the soft target) — trimming may never mint a new long day. Receiver
+        stretch is deliberately NOT netted against relief (it would veto the founder's own
+        move — a tail leg handed to a short-day driver stretches him a lot, harmlessly);
+        stretch only breaks ties so the least-stretched receiver wins.
+    Per round the single best move applies (worst-excess donor first; ties by relief,
+    stretch, tier fit, leg id). Moved legs are LOCKED (no ping-pong; views also locks them against
+    gap compaction). Donors peel <= SPAN_TRIM_MAX_PER_DONOR, receivers gain <=
+    SPAN_TRIM_MAX_RECEIVE, <= SPAN_TRIM_MAX_MOVES total. Farms nothing by construction —
+    the assignment keyset cannot change. Returns (final_assignments, moves).
+    """
+    if not AUTO_SPAN_TRIM_PASS:
+        return final_assignments, []
+    from dispatching import feasibility_guards as fg
+    if not fg.ENFORCE_SPAN_CAPS:
+        return final_assignments, []
+
+    locked = set(locked_leg_ids or [])
+    board = dict(final_assignments)
+    for lid, leg in legs_by_id.items():
+        if lid not in board and getattr(leg, "driver_id", None):
+            board[lid] = leg.driver_id
+            locked.add(lid)
+    keyset_before = set(final_assignments.keys())
+
+    if capped_windows is not None:
+        windows = capped_windows
+    else:
+        windows = {}
+        for dr in drivers:
+            try:
+                eff = dr.get_effective_availability(target_date)
+                mh = eff.get("max_hours")
+                cfgw = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                        "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
+            except Exception:
+                cfgw = None
+            windows[dr.id] = fg.get_effective_window(dr.id, configured=cfgw)
+
+    def build_schedules():
+        saved, ih = {}, []
+        for lid, did in board.items():
+            leg = legs_by_id.get(lid); dr = drivers_by_id.get(did)
+            if leg is None or dr is None:
+                continue
+            saved[lid] = (leg.driver, getattr(leg, "driver_id", None))
+            leg.driver = dr; leg.driver_id = did
+            ih.append(leg)
+        try:
+            return build_driver_schedules(ih, drivers, target_date)
+        finally:
+            for lid, (drv, drvid) in saved.items():
+                legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
+
+    target_eff = fg.SPAN_SOFT_EFFECTIVE_HOURS
+    moves, peels, receives = [], {}, {}
+    for _ in range(SPAN_TRIM_MAX_MOVES):
+        schedules = build_schedules()
+        donors = []
+        for did, s in schedules.items():
+            if len(s.slots) < 2:
+                continue
+            raw, eff = effective_span_hours(s.slots, target_date)
+            excess = max(eff - target_eff, raw - SPAN_TRIM_RAW_MAX_HOURS)
+            if excess > 0 and peels.get(did, 0) < SPAN_TRIM_MAX_PER_DONOR:
+                donors.append((excess, did))
+        if not donors:
+            break
+        donors.sort(key=lambda t: (-t[0], t[1]))
+
+        best = None   # (key, leg, donor_id, receiver_id)
+        for excess, don_id in donors:
+            ordered = sorted(schedules[don_id].slots, key=lambda s: s.pickup_time)
+            d_first = datetime.combine(target_date, ordered[0].pickup_time)
+            d_last = max(s.estimated_end_time for s in ordered)
+            raw_before_min = (d_last - d_first).total_seconds() / 60
+            for slot in (ordered[0], ordered[-1]):
+                if slot.leg_id in locked or board.get(slot.leg_id) != don_id:
+                    continue
+                leg = legs_by_id.get(slot.leg_id)
+                if leg is None:
+                    continue
+                remaining = [s for s in ordered if s.leg_id != slot.leg_id]
+                r_first = datetime.combine(target_date, min(s.pickup_time for s in remaining))
+                r_last = max(s.estimated_end_time for s in remaining)
+                relief = raw_before_min - (r_last - r_first).total_seconds() / 60
+                if relief < SPAN_TRIM_MIN_RELIEF_MIN:
+                    continue
+                leg_vtype = leg.effective_vehicle_type
+                new_end = estimate_job_end_time(leg, target_date)
+                np_dt = datetime.combine(target_date, leg.pickup_time)
+                for rec in sorted(drivers, key=lambda d: d.id):
+                    rid = rec.id
+                    if rid == don_id or receives.get(rid, 0) >= SPAN_TRIM_MAX_RECEIVE:
+                        continue
+                    rsched = schedules.get(rid)
+                    if rsched is None:
+                        continue
+                    if (driver_hours and rid in driver_hours
+                            and not (flexible_drivers and rid in flexible_drivers)):
+                        sh, eh = driver_hours[rid]
+                        if not (time(sh, 0) <= leg.pickup_time <= time(eh, 59)):
+                            continue
+                    rv = dvtypes.get(rid)
+                    if rv and leg_vtype and leg_vtype not in get_compatible_vehicle_types(rv):
+                        continue
+                    feas = check_feasibility(rsched, leg, target_date,
+                                             driver_window=(windows or {}).get(rid))
+                    if not feas.feasible:
+                        continue
+                    if rsched.slots:
+                        nr_first = min([datetime.combine(target_date, s.pickup_time)
+                                        for s in rsched.slots] + [np_dt])
+                        nr_last = max([s.estimated_end_time for s in rsched.slots] + [new_end])
+                        or_first = datetime.combine(target_date,
+                                                    min(s.pickup_time for s in rsched.slots))
+                        or_last = max(s.estimated_end_time for s in rsched.slots)
+                        r_raw_before_min = (or_last - or_first).total_seconds() / 60
+                        credit_h = _span_gap_credit_minutes(rsched.slots, target_date) / 60.0
+                    else:
+                        nr_first, nr_last = np_dt, new_end
+                        r_raw_before_min, credit_h = 0.0, 0.0
+                    r_raw_after = (nr_last - nr_first).total_seconds() / 3600
+                    if (r_raw_after > SPAN_TRIM_RAW_MAX_HOURS
+                            or max(0.0, r_raw_after - credit_h) > target_eff):
+                        continue
+                    stretch = max(0.0, r_raw_after * 60 - r_raw_before_min)
+                    tier_waste = ((get_vehicle_tier(rv) - get_vehicle_tier(str(leg_vtype)))
+                                  if (rv and leg_vtype) else 0)
+                    key = (-excess, -relief, stretch, tier_waste, slot.leg_id, rid)
+                    if best is None or key < best[0]:
+                        best = (key, leg, don_id, rid, relief, stretch)
+            if best is not None:
+                break   # worst-excess donor first: take his best move this round
+
+        if best is None:
+            break
+        _, leg, don_id, rid, relief, stretch = best
+        board[leg.id] = rid
+        final_assignments[leg.id] = rid
+        locked.add(leg.id)
+        peels[don_id] = peels.get(don_id, 0) + 1
+        receives[rid] = receives.get(rid, 0) + 1
+        moves.append({"leg_id": leg.id, "from": don_id, "to": rid,
+                      "relief_min": round(relief), "stretch_min": round(stretch)})
+
+    assert set(final_assignments.keys()) == keyset_before, "trim pass must never change coverage"
+    return final_assignments, moves
+
+
 def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
-                                target_date, dvtypes, locked_leg_ids=None):
+                                target_date, dvtypes, locked_leg_ids=None,
+                                driver_hours=None, flexible_drivers=None):
     """Gap-compaction pass. Relocate an ALREADY-COVERED leg from a donor driver to a driver
     with a large internal gap, when doing so heals more gap than it opens — the founder's
     manual "give David the job sitting in his hole; the other driver just starts later" move.
@@ -1861,6 +2286,14 @@ def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_
                 lvtype = leg.effective_vehicle_type
                 if rvtype and lvtype and str(lvtype) not in get_compatible_vehicle_types(rvtype):
                     continue
+                # Receiver's MODAL hard window (parity with the greedy/trim/rescue passes —
+                # critical for Day Setup shared cars, where two drivers' partitioned windows
+                # are the only thing keeping the physical unit single-booked).
+                if (driver_hours and rid in driver_hours
+                        and not (flexible_drivers and rid in flexible_drivers)):
+                    _sh, _eh = driver_hours[rid]
+                    if not (time(_sh, 0) <= leg.pickup_time <= time(_eh, 59)):
+                        continue
                 # Receiver can feasibly insert L? (turnaround + window; never late)
                 feas = check_feasibility(rsched, leg, target_date, inter_job_buffer=ijb,
                                          arrival_grace=grace, driver_window=windows.get(rid))
@@ -1983,6 +2416,7 @@ def build_smart_schedule(
     excluded_leg_ids: List[int] = None,
     vehicle_pref_mode: str = None,
     preferred_vehicle_types: List[str] = None,
+    max_hours: float = None,
 ) -> dict:
     """
     Build an optimal schedule for a single driver within a time window.
@@ -2027,7 +2461,9 @@ def build_smart_schedule(
             .prefetch_related("weekly_schedule", "date_overrides").first())
     _eff = resolve_effective_availability(_drv, target_date) if _drv else None
     _is_flexible = bool(_eff and _eff.get("status") == "flexible")
-    _dwindow = {"start": start_hour, "end": end_hour, "max_hours": None, "flexible": _is_flexible}
+    # max_hours: per-driver hard duty-span cap (Span Governor). None was a hole — Build-1st
+    # seeding had NO span bound at all, so a wide dispatcher window built 15-18h days.
+    _dwindow = {"start": start_hour, "end": end_hour, "max_hours": max_hours, "flexible": _is_flexible}
 
     pinned_leg_ids = pinned_leg_ids or []
     excluded_leg_ids = excluded_leg_ids or []
@@ -2591,6 +3027,16 @@ def _score_leg_for_smart_schedule(
     # Revenue bonus
     if leg.revenue_share and leg.revenue_share > 0:
         score += min(int(leg.revenue_share / cfg.revenue_divisor), cfg.revenue_cap)
+
+    # Duty-span pricing (Span Governor): same marginal price as the general builder, at
+    # SPAN_SEEDER_RATE_SCALE — the seeder seats only on score>0, so a full-rate term could
+    # silently drop borderline legs from a Build-1st day the dispatcher explicitly asked for.
+    from dispatching import feasibility_guards as fg
+    if fg.ENFORCE_SPAN_CAPS and fg.SPAN_SOFT_PRICING and schedule.slots:
+        _np_dt = datetime.combine(target_date, leg.pickup_time)
+        _ne_dt = estimate_job_end_time(leg, target_date)
+        score -= int(marginal_span_penalty(schedule.slots, target_date, _np_dt, _ne_dt)
+                     * fg.SPAN_SEEDER_RATE_SCALE)
 
     return score
 

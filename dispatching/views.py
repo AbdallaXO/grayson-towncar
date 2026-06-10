@@ -390,7 +390,7 @@ def index(request):
         return (2, "")
 
     inhouse_vehicles = sorted(
-        FleetVehicle.objects.select_related("vehicle_type").all(), key=_vehicle_sort_key
+        FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"), key=_vehicle_sort_key
     )
 
     # Compute real-time dispatch flags for today's legs
@@ -2548,6 +2548,148 @@ def copy_vehicle_assignments(request):
         "source_date": prev.strftime("%Y-%m-%d"),
         "assignments": result_map,
     })
+
+
+@login_required
+@require_POST
+def suggest_day_setup_view(request):
+    """Day Setup preview: propose today's roster + vehicle plan. STRICTLY read-only —
+    nothing persists until apply_day_setup. See dispatching/day_setup.py."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        data = json.loads(request.body)
+        target_date = datetime.strptime(data.get("date", ""), "%Y-%m-%d").date()
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid request"}, status=400)
+    from dispatching.day_setup import suggest_day_setup, DAY_SETUP_ENABLED
+    if not DAY_SETUP_ENABLED:
+        return JsonResponse({"success": False, "error": "Day Setup is disabled"}, status=400)
+    proposal = suggest_day_setup(target_date)
+    proposal["success"] = True
+    return JsonResponse(proposal)
+
+
+@login_required
+@require_POST
+def apply_day_setup(request):
+    """Create the accepted Day Setup vehicle assignments — ONE atomic, validated write.
+
+    Payload: {date, pairs: [{driver_id, vehicle_id}], snapshot: {driver_id: vehicle_id|null}}
+    - cert hard-block per pair (server-side, same rule as update_inhouse_vehicle_assignment);
+    - two pairs naming the same unit -> 400 before any write;
+    - a payload unit already held by a driver OUTSIDE the payload -> 400 naming the holder.
+      Scoped to payload-touched vehicles ONLY: the founder's pre-existing hand-built AM/PM
+      shares (~24% of dates) must never make an unrelated Apply fail;
+    - snapshot drift (a row changed between preview and Apply) -> 409 naming the row;
+    - idempotent (re-applying the same plan is a no-op); never deletes rows.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        data = json.loads(request.body)
+        target_date = datetime.strptime(data.get("date", ""), "%Y-%m-%d").date()
+        pairs = data.get("pairs", [])
+        snapshot = data.get("snapshot", {}) or {}
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid request"}, status=400)
+    if not pairs:
+        return JsonResponse({"success": False, "error": "Nothing to apply"}, status=400)
+
+    from django.db import transaction
+    from dispatching.day_setup import _is_excluded
+
+    try:
+        # allow_share: a DELIBERATE two-drivers-one-car pair — either an advisor freed-unit
+        # accept or a Day Setup planned AM/PM share (both pairs in the same payload, with
+        # partitioned planned windows). planned_start/end_hour: the planned working window
+        # persisted on the row so the auto-assign modal prefills the split as a HARD window.
+        def _hour(p, key):
+            v = p.get(key)
+            return int(v) if v is not None and str(v) != "" else None
+        clean = [(int(p["driver_id"]), int(p["vehicle_id"]), bool(p.get("allow_share")),
+                  _hour(p, "planned_start_hour"), _hour(p, "planned_end_hour"))
+                 for p in pairs]
+    except (KeyError, TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Malformed pairs"}, status=400)
+
+    vehicle_ids = [vid for _, vid, _, _, _ in clean]
+    _by_vid = {}
+    for did, vid, share, _ps, _pe in clean:
+        _by_vid.setdefault(vid, []).append(share)
+    for vid, shares in _by_vid.items():
+        # The same unit twice in one payload is legal ONLY as an explicit share (every pair
+        # flagged) — an accidental double-pick still fails loudly.
+        if len(shares) > 1 and not all(shares):
+            return JsonResponse({"success": False,
+                                 "error": "Two drivers were given the same vehicle — fix and retry."},
+                                status=400)
+
+    drivers = {d.id: d for d in Driver.objects.filter(
+        id__in=[did for did, _, _, _, _ in clean]).select_related("profile")
+        .prefetch_related("certified_vehicle_types")}
+    vehicles = {v.id: v for v in FleetVehicle.objects.filter(
+        id__in=vehicle_ids).select_related("vehicle_type")}
+
+    for did, vid, _share, _ps, _pe in clean:
+        d, v = drivers.get(did), vehicles.get(vid)
+        if d is None or v is None:
+            return JsonResponse({"success": False, "error": "Unknown driver or vehicle"}, status=400)
+        if d.driver_type != "inhouse" or not d.is_active or _is_excluded(d):
+            return JsonResponse({"success": False,
+                                 "error": f"{d} can't be scheduled (inactive/excluded)."}, status=400)
+        if not d.can_drive(v.vehicle_type):
+            return JsonResponse({"success": False,
+                                 "error": f"{d} isn't cleared to drive #{v.vehicle_number}."},
+                                status=400)
+
+    payload_driver_ids = {did for did, _, _, _, _ in clean}
+    with transaction.atomic():
+        existing = {a.driver_id: a for a in
+                    DriverVehicleAssignment.objects.filter(date=target_date)
+                    .select_related("driver", "vehicle")}
+        # Drift check: any payload driver whose row changed since the preview snapshot.
+        for did, _, _share, _ps, _pe in clean:
+            snap_vid = snapshot.get(str(did), None)
+            cur = existing.get(did)
+            cur_vid = cur.vehicle_id if cur else None
+            if cur_vid != snap_vid:
+                return JsonResponse({"success": False, "stale": True,
+                                     "error": f"{drivers[did]}'s vehicle changed since this preview "
+                                              f"was opened — re-open Suggest Day Setup."}, status=409)
+        # Cross-check, scoped to payload vehicles only: a unit we are assigning must not be
+        # held by a driver OUTSIDE the payload (pre-existing shares among untouched rows are
+        # the founder's business, never a failure).
+        for did, vid, allow_share, _ps, _pe in clean:
+            if allow_share:
+                continue   # advisor freed-unit share: holder keeps his row, both are real
+            for other_id, a in existing.items():
+                if other_id not in payload_driver_ids and a.vehicle_id == vid:
+                    if not a.driver.is_active or a.driver.driver_type != "inhouse":
+                        continue   # stale row held by a deactivated driver — not a real claim
+                    return JsonResponse(
+                        {"success": False,
+                         "error": f"#{vehicles[vid].vehicle_number} is already assigned to "
+                                  f"{a.driver} — include or clear them first."}, status=400)
+        created = updated = 0
+        for did, vid, _share, _ps, _pe in clean:
+            obj, was_created = DriverVehicleAssignment.objects.get_or_create(
+                driver=drivers[did], date=target_date)
+            changed = (obj.vehicle_id != vid or obj.planned_start_hour != _ps
+                       or obj.planned_end_hour != _pe)
+            if changed:
+                obj.vehicle = vehicles[vid]
+                obj.planned_start_hour = _ps
+                obj.planned_end_hour = _pe
+                obj.save()
+            if was_created:
+                created += 1
+            elif changed:
+                updated += 1
+
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
+    return JsonResponse({"success": True, "created": created, "updated": updated,
+                         "total": len(clean)})
 
 
 @login_required
@@ -8576,7 +8718,7 @@ def capacity_planner(request):
     eligible_drivers.sort(key=_cp_vehicle_sort_key)
 
     # Fleet vehicles for quick-assign panel
-    inhouse_vehicles = FleetVehicle.objects.select_related("vehicle_type").all().order_by("vehicle_number")
+    inhouse_vehicles = FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type").order_by("vehicle_number")
 
     # Build vehicle_assign_rows with off-today and leg count info
     _planner_leg_counts = {}
@@ -8917,13 +9059,26 @@ def capacity_planner(request):
     driver_availability = {}
     for d in eligible_drivers:
         is_avail, start_h, end_h, pref, flex = d.get_availability_for_date(selected_date)
-        driver_availability[d.id] = {
+        _entry = {
             "is_available": is_avail,
             "start_hour": start_h,
             "end_hour": end_h,
             "preference": pref,
             "flexible": flex,
         }
+        # Planned shared-car window (Day Setup AM/PM split): the partitioned hours OVERRIDE
+        # the saved-availability prefill and force non-flexible, so the engine's hard
+        # window machinery keeps the two drivers off the same car at the same time.
+        _a = assignment_map.get(d.id)
+        if _a is not None and _a.planned_start_hour is not None and _a.planned_end_hour is not None:
+            _entry.update({
+                "is_available": True,
+                "start_hour": _a.planned_start_hour,
+                "end_hour": _a.planned_end_hour,
+                "flexible": False,
+                "planned_share": True,
+            })
+        driver_availability[d.id] = _entry
 
     context = {
         'selected_date': selected_date,
@@ -9069,6 +9224,9 @@ def auto_assign_drivers(request):
     driver_hours = {}
     flexible_drivers = set()
     driver_max_hours = {}
+    # Drivers whose Max hrs the dispatcher explicitly TYPED in the modal — STRICT caps: the
+    # span-cap rescue never lifts them (the modal is authoritative; a typed number means it).
+    strict_span_caps = {}
     if raw_driver_hours:
         working_ids = set()
         for did_str, hours in raw_driver_hours.items():
@@ -9082,6 +9240,13 @@ def auto_assign_drivers(request):
             driver_hours[did] = (sh, eh)
             if hours.get("flexible"):
                 flexible_drivers.add(did)        # works anytime; Start/End not enforced
+            try:
+                _mh = float(hours.get("max_hours") or 0)
+            except (ValueError, TypeError):
+                _mh = 0
+            if _mh > 0:
+                strict_span_caps[did] = _mh
+                driver_max_hours[did] = _mh
         inhouse_drivers = [d for d in inhouse_drivers if d.id in working_ids]  # Off drivers excluded
     else:
         # No modal payload (e.g. a programmatic call) -> use each driver's saved availability.
@@ -9096,7 +9261,25 @@ def auto_assign_drivers(request):
     for d in inhouse_drivers:
         full_avail = d.get_full_availability(target_date)
         if full_avail.get("max_hours"):
-            driver_max_hours[d.id] = float(full_avail["max_hours"])
+            # Modal-typed Max hrs wins over the saved-availability value.
+            driver_max_hours.setdefault(d.id, float(full_avail["max_hours"]))
+
+    # ── Span Governor: one cap-clamped, modal-aware window per working driver ──
+    # max_hours = min(stub, modal/DB, global 17h default) via the get_effective_window funnel.
+    # Built for EVERY working driver and handed to the swap + rescue passes (find_swaps
+    # restricts its receiver pool to this dict's keys, so a partial map would silently
+    # shrink swap recovery). The greedy + gap passes get the same caps through their own
+    # get_effective_window calls.
+    from dispatching import feasibility_guards as fg
+    capped_windows = {}
+    for d in inhouse_drivers:
+        _sh_eh = driver_hours.get(d.id)
+        capped_windows[d.id] = fg.get_effective_window(d.id, configured={
+            "start": _sh_eh[0] if _sh_eh else None,
+            "end": _sh_eh[1] if _sh_eh else None,
+            "max_hours": driver_max_hours.get(d.id),
+            "flexible": d.id in flexible_drivers,
+        })
 
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
@@ -9173,6 +9356,10 @@ def auto_assign_drivers(request):
                 driver_id=did, driver_name=str(drivers_by_id[did]),
                 available_legs=_pool, target_date=target_date,
                 start_hour=sh, end_hour=eh, existing_schedule=existing,
+                # Span Governor: Build-1st seeding was the one path with NO span bound
+                # (max_hours used to be hardcoded None) — pass the same clamped cap the
+                # rest of the pipeline enforces.
+                max_hours=(capped_windows.get(did) or {}).get("max_hours"),
             )
             for s in res.get('schedule', []):
                 if s.leg_id not in existing_ids and s.leg_id not in seeded_assignments:
@@ -9224,25 +9411,61 @@ def auto_assign_drivers(request):
     # existing assignments could absorb. Before finalizing the farm list, try to recover each
     # would-be-farmed auto leg in-house via find_swaps. Read-only; updates final_assignments
     # (recovered + any moved legs). Manual + build-first assignments are locked (never relocated).
+    _span_warnings = []
     if auto_unassigned:
-        from dispatching.scheduler import recover_residuals_via_swaps, load_all_driver_vtypes
+        from dispatching.scheduler import (
+            recover_residuals_via_swaps, rescue_span_blocked_residuals, load_all_driver_vtypes,
+        )
+        _dvtypes = load_all_driver_vtypes(target_date)
         final_assignments, _swap_recovered = recover_residuals_via_swaps(
             final_assignments, [l.id for l in auto_unassigned], legs_by_id,
-            inhouse_drivers, drivers_by_id, target_date,
-            load_all_driver_vtypes(target_date),
+            inhouse_drivers, drivers_by_id, target_date, _dvtypes,
+            locked_leg_ids=locked_ids,
+            driver_windows=capped_windows or None,
+            driver_hours=driver_hours or None,
+            flexible_drivers=flexible_drivers or None,
+        )
+        # ── Span-cap coverage rescue ──
+        # Priority #1: the duty-span cap may never cost an in-house job. Any residual whose
+        # ONLY blocker was the cap is assigned anyway with a loud RED preview warning —
+        # except drivers with a dispatcher-TYPED Max hrs (strict; the leg stays residual
+        # with a named reason). Runs BEFORE gap compaction so rescued legs can still be healed.
+        final_assignments, _span_rescued, _span_warnings = rescue_span_blocked_residuals(
+            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
+            inhouse_drivers, drivers_by_id, target_date, _dvtypes,
+            capped_windows,
+            driver_hours=driver_hours or None,
+            flexible_drivers=flexible_drivers or None,
+            strict_cap_driver_ids=set(strict_span_caps.keys()),
             locked_leg_ids=locked_ids,
         )
+
+    # ── Span-trim relocation pass ──
+    # Coverage is settled; now actively SHORTEN over-long days: peel a long driver's first or
+    # last leg onto a driver with room (the founder's "Roberto just starts later" move). Never
+    # farms (keyset asserted unchanged); moved legs are locked against the gap pass below.
+    from dispatching.scheduler import trim_spans_via_relocation, compact_gaps_via_relocation, load_all_driver_vtypes
+    final_assignments, _trim_moves = trim_spans_via_relocation(
+        final_assignments, legs_by_id, inhouse_drivers, drivers_by_id, target_date,
+        load_all_driver_vtypes(target_date),
+        locked_leg_ids=locked_ids,
+        driver_hours=driver_hours or None,
+        flexible_drivers=flexible_drivers or None,
+        capped_windows=capped_windows or None,
+    )
+    locked_ids = locked_ids | {m["leg_id"] for m in _trim_moves}
 
     # ── Gap-compaction relocation pass ──
     # Coverage is settled above; now compact for quality. If a driver has a big internal hole
     # and another driver holds a job sitting inside it, relocate that job to fill the hole (the
     # donor just starts later / finishes earlier) — but only when it heals more gap than it
     # opens. Manual assignments stay locked (never relocated). Read-only; updates final_assignments.
-    from dispatching.scheduler import compact_gaps_via_relocation, load_all_driver_vtypes
     final_assignments, _gap_moves = compact_gaps_via_relocation(
         final_assignments, legs_by_id, inhouse_drivers, drivers_by_id, target_date,
         load_all_driver_vtypes(target_date),
         locked_leg_ids=locked_ids,
+        driver_hours=driver_hours or None,
+        flexible_drivers=flexible_drivers or None,
     )
 
     assigned_count = len(final_assignments)
@@ -9330,6 +9553,15 @@ def auto_assign_drivers(request):
             sched.slots = [s for s in sched.slots if s.leg_id not in excluded_set]
 
     # Serialize driver schedules
+    from dispatching.scheduler import effective_span_hours
+    _rescued_by_driver = {}
+    for _w in _span_warnings:
+        if _w.get("kind") == "rescued":
+            _rescued_by_driver.setdefault(_w["driver_id"], []).append(_w)
+    # Second-Shift Advisor inputs: drivers still over-target after the trim pass, with the
+    # legs this run assigned (unlocked) — the movable tail a second-shift driver could absorb.
+    _overload_map = {}
+    _movable_ids = set(final_assignments.keys()) - locked_ids
     driver_schedules = []
     for schedule in sorted(proposed.values(), key=lambda s: s.driver_name):
         schedule.slots.sort(key=lambda s: s.pickup_time)
@@ -9345,6 +9577,28 @@ def auto_assign_drivers(request):
             hours_label = f"{_mins // 60}h {_mins % 60}m" if _mins % 60 else f"{_mins // 60}h"
         else:
             hours_label = ""
+
+        # Span Governor badge: RED when the rescue lifted this driver past a cap to keep a
+        # leg in-house; AMBER when his EFFECTIVE duty (raw span minus one >=2h break) runs
+        # STRICTLY past the 13.5h target. Effective-span credit means a founder-style
+        # split-day (16.5h raw with a 4.5h hole) is correctly NOT flagged.
+        _raw_h, _eff_h = effective_span_hours(schedule.slots, target_date)
+        span_warn, span_note = "", ""
+        if schedule.driver_id in _rescued_by_driver:
+            _r = _rescued_by_driver[schedule.driver_id][0]
+            span_warn = "red"
+            span_note = (f"{_raw_h:.1f}h — over the {_r['cap_hours']:.0f}h cap; "
+                         f"kept {len(_rescued_by_driver[schedule.driver_id])} leg(s) in-house instead of farming")
+        elif fg.ENFORCE_SPAN_CAPS and _eff_h > fg.SPAN_SOFT_EFFECTIVE_HOURS:
+            span_warn = "amber"
+            _brk = "" if abs(_raw_h - _eff_h) < 0.05 else f" ({_raw_h:.1f}h with break)"
+            span_note = f"{_eff_h:.1f}h on duty{_brk} — over the {fg.SPAN_SOFT_EFFECTIVE_HOURS:g}h target"
+        if span_warn:
+            _overload_map[schedule.driver_id] = {
+                "name": schedule.driver_name,
+                "slots": list(schedule.slots),
+                "movable_ids": _movable_ids,
+            }
 
         slots_data = []
         for slot in schedule.slots:
@@ -9385,6 +9639,10 @@ def auto_assign_drivers(request):
             "last_end": last_end,
             "hours": hours_label,
             "vehicle": veh_by_driver.get(schedule.driver_id, ""),
+            "span_hours": round(_raw_h, 1),
+            "effective_span_hours": round(_eff_h, 1),
+            "span_warn": span_warn,
+            "span_note": span_note,
             "slots": slots_data,
         })
 
@@ -9420,6 +9678,40 @@ def auto_assign_drivers(request):
         for d in sorted(inhouse_drivers, key=lambda d: str(d))
     ]
 
+    # Span Governor warnings strip — loud, explainable (no silent behavior changes).
+    span_warnings_out = []
+    for _w in _span_warnings:
+        if _w["kind"] == "rescued":
+            span_warnings_out.append({
+                "level": "red", "leg_id": _w["leg_id"],
+                "text": (f"Leg #{_w['leg_id']} ({_w['pickup']}) kept in-house on {_w['driver_name']} "
+                         f"— stretches his day to {_w['span_after']}h, past the {_w['cap_hours']:.0f}h cap "
+                         f"(farming avoided)."),
+            })
+        elif _w["kind"] == "strict_blocked":
+            span_warnings_out.append({
+                "level": "strict", "leg_id": _w["leg_id"],
+                "text": (f"Leg #{_w['leg_id']} ({_w['pickup']}) left for affiliates: only {_w['driver_name']} "
+                         f"could take it, but your {_w['cap_hours']:g}h Max-hrs cap on him holds "
+                         f"(would be {_w['span_after']}h). Raise his Max hrs to keep it in-house."),
+            })
+
+    # ── Second-Shift Advisor (Phase 5) ──
+    # "This day's volume needs another driver" — clusters residual legs + untrimmable
+    # over-target tails into shift proposals with a concrete idle-driver + unit source.
+    # Advisory only; an exception here must never break the preview.
+    advisor_proposals = []
+    try:
+        from dispatching.shift_advisor import build_shift_proposals
+        _residual_objs = [l for l in unassigned if l.id not in final_assignments]
+        if _residual_objs or _overload_map:
+            advisor_proposals = build_shift_proposals(
+                target_date, _residual_objs, _overload_map,
+                set(driver_hours.keys()), proposed, legs_by_id)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("second-shift advisor failed (advisory only)")
+
     return JsonResponse({
         "success": True,
         "assigned": assigned_count,
@@ -9428,6 +9720,9 @@ def auto_assign_drivers(request):
         "driver_schedules": driver_schedules,
         "unassigned_legs": still_unassigned,
         "driver_list": driver_list,
+        "span_warnings": span_warnings_out,
+        "trim_moves": len(_trim_moves),
+        "advisor": advisor_proposals,
     })
 
 
@@ -11007,7 +11302,7 @@ def vehicle_profit_report(request):
         )
 
     context = {
-        "fleet_vehicles": FleetVehicle.objects.select_related("vehicle_type").all(),
+        "fleet_vehicles": FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"),
         "selected_vehicle": selected_vehicle,
         "selected_vehicle_id": selected_vehicle_id,
         "selected_summary": selected_summary,
@@ -12906,7 +13201,9 @@ def _revalidate_swap_feasibility(valid_moves, target_date):
 
     for did in receiving_driver_ids:
         drv_legs = [l for l in legs if l.driver_id == did]
-        window = fg.get_effective_window(did, configured=_cfg_window(did))
+        # enforce_cap=False: this validates a swap the DISPATCHER explicitly chose — the
+        # duty-span cap (Span Governor) must never hard-block an intentional manual move.
+        window = fg.get_effective_window(did, configured=_cfg_window(did), enforce_cap=False)
         for L in drv_legs:
             others = [l for l in drv_legs if l.id != L.id]
             sched = build_driver_schedules(others, [drv_objs[did]], target_date).get(did)

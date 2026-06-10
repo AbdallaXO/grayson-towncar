@@ -361,7 +361,10 @@ def classify_farmout(leg, ctx: DayContext, *, use_swaps: bool = USE_SWAP_RECOVER
     window_fail = turn_fail = idle_turn_fail = 0
     for drv in candidates:
         sched = ctx.board.get(drv.id) or DriverDaySchedule(drv.id, str(drv), "inhouse")
-        window = fg.get_effective_window(drv.id, configured=None)
+        # enforce_cap=False: retrospective farm-out analytics must keep their shipped,
+        # pre-Span-Governor capacity semantics — the new duty-span cap would silently
+        # shift the absorbable counts.
+        window = fg.get_effective_window(drv.id, configured=None, enforce_cap=False)
         fr = check_feasibility(sched, leg, ctx.day, driver_window=window)
         rec = {
             "driver_id": drv.id, "driver": str(drv),
@@ -480,7 +483,7 @@ def fleet_size_by_type() -> Dict[str, int]:
     from drivers.models import FleetVehicle
 
     out: Dict[str, int] = defaultdict(int)
-    for fv in FleetVehicle.objects.select_related("vehicle_type"):
+    for fv in FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"):
         vt = fv.vehicle_type.vehicle_type if fv.vehicle_type else "unknown"
         out[vt] += 1
     return dict(out)
