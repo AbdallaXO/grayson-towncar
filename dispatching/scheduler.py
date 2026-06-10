@@ -113,6 +113,12 @@ AUTO_GAP_COMPACT_PASS = True
 # lifted (the leg stays residual with a named reason); only the global default / stub /
 # DB-availability caps are rescue-relaxable. Flip to False to make all caps strict.
 SPAN_COVERAGE_RESCUE = True
+# Shared-car occupancy gate: when two working drivers hold the SAME physical unit for the
+# day (Day Setup planned AM/PM share, or an advisor freed-unit accept), every insert for
+# one of them must not overlap the partner's jobs +/- this pad. The planned windows alone
+# cannot be airtight: modal End is a LAST-PICKUP bound (a 14:50 pickup clears ~16:20 while
+# the PM partner may already pick up at 15:05 - one car, two jobs, same time).
+VEHICLE_SHARE_PAD_MIN = 30
 # Span-trim relocation pass (Span Governor Phase 3): after coverage is settled, actively
 # SHORTEN over-long days — peel a long driver's FIRST or LAST leg (the only span-shrinking
 # legs) onto a driver with room: the founder's "Roberto just starts later" move applied to
@@ -1094,6 +1100,7 @@ def suggest_assignments_clustered(
     driver_vtypes: Dict[int, str] = None,
     flexible_drivers: set = None,
     driver_max_hours: Dict[int, float] = None,
+    sharer_partners: Dict[int, set] = None,
 ) -> List[AssignmentSuggestion]:
     """Cluster-aware assignment wrapper.
 
@@ -1116,7 +1123,7 @@ def suggest_assignments_clustered(
             unassigned_legs, inhouse_schedules, target_date,
             driver_hours=driver_hours, driver_preferences=driver_preferences,
             driver_vtypes=driver_vtypes, flexible_drivers=flexible_drivers,
-            driver_max_hours=driver_max_hours,
+            driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
         )
 
     if driver_vtypes is None:
@@ -1138,7 +1145,7 @@ def suggest_assignments_clustered(
         driver_hours=driver_hours, driver_preferences=driver_preferences,
         driver_vtypes=driver_vtypes, cluster_hints=cluster_hints,
         clusters=clusters, flexible_drivers=flexible_drivers,
-        driver_max_hours=driver_max_hours,
+        driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
     )
 
 
@@ -1153,6 +1160,7 @@ def suggest_assignments(
     clusters: List[list] = None,
     flexible_drivers: set = None,
     driver_max_hours: Dict[int, float] = None,
+    sharer_partners: Dict[int, set] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -1391,6 +1399,11 @@ def suggest_assignments(
             feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
                                      driver_window=_driver_windows.get(did))
             if not feas.feasible:
+                continue
+
+            # Shared-car occupancy gate: never give a sharer a job overlapping his
+            # partner's jobs (one physical unit; planned windows alone are not airtight).
+            if sharers_conflict(leg, did, sharer_partners, working, target_date):
                 continue
 
             # Check if this driver is reserved for matching jobs but this
@@ -1694,7 +1707,8 @@ def suggest_assignments(
 def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id,
                                 drivers, drivers_by_id, target_date, dvtypes,
                                 locked_leg_ids=None, driver_windows=None,
-                                driver_hours=None, flexible_drivers=None):
+                                driver_hours=None, flexible_drivers=None,
+                                sharer_partners=None):
     """Pre-farm swap pass. After the greedy build, try to pull each would-be-FARMED candidate
     leg back in-house by cascading existing assignments via find_swaps (which the single-leg
     greedy can't do). Read-only wrt the DB — operates on an in-memory assignment map.
@@ -1785,6 +1799,30 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
             continue  # a cascade destination falls outside the dispatcher's typed hours
         if not _within_modal_hours(target.id, sol.target_driver_id):
             continue
+        if sharer_partners:
+            # Shared-car post-validation: every move destination (and the rescued target)
+            # must not overlap its partner's CURRENT jobs. Approximate (pre-cascade board)
+            # but safe-conservative for the rare share days.
+            saved2, ih2 = {}, []
+            for lid2, did2 in board_map().items():
+                lg2 = legs_by_id.get(lid2); dr2 = drivers_by_id.get(did2)
+                if lg2 is None or dr2 is None:
+                    continue
+                saved2[lid2] = (lg2.driver, getattr(lg2, "driver_id", None))
+                lg2.driver = dr2; lg2.driver_id = did2
+                ih2.append(lg2)
+            try:
+                cur_board = build_driver_schedules(ih2, drivers, target_date)
+            finally:
+                for lid2, (drv2, drvid2) in saved2.items():
+                    legs_by_id[lid2].driver = drv2; legs_by_id[lid2].driver_id = drvid2
+            moves_ok = all(
+                not sharers_conflict(legs_by_id[mv.leg_id], mv.to_driver_id,
+                                     sharer_partners, cur_board, target_date)
+                for mv in sol.moves if mv.leg_id in legs_by_id)
+            if not moves_ok or sharers_conflict(target, sol.target_driver_id,
+                                                sharer_partners, cur_board, target_date):
+                continue
         for mv in sol.moves:
             final_assignments[mv.leg_id] = mv.to_driver_id
         final_assignments[target.id] = sol.target_driver_id
@@ -1796,7 +1834,8 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
 def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_id,
                                   drivers, drivers_by_id, target_date, dvtypes,
                                   capped_windows, driver_hours=None, flexible_drivers=None,
-                                  strict_cap_driver_ids=None, locked_leg_ids=None):
+                                  strict_cap_driver_ids=None, locked_leg_ids=None,
+                                  sharer_partners=None):
     """Span-cap coverage rescue (Span Governor escalation step). For each residual leg the
     build + swap passes left unassigned, test every working driver twice:
 
@@ -1873,6 +1912,8 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
             # Vehicle-tier compatibility (greedy parity).
             driver_vtype = dvtypes.get(did)
             if driver_vtype and leg_vtype and leg_vtype not in get_compatible_vehicle_types(driver_vtype):
+                continue
+            if sharers_conflict(leg, did, sharer_partners, schedules, target_date):
                 continue
             window = (capped_windows or {}).get(did)
             feas = check_feasibility(sched, leg, target_date, driver_window=window)
@@ -2001,7 +2042,8 @@ def effective_span_hours(slots, target_date: date):
 
 def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
                               target_date, dvtypes, locked_leg_ids=None,
-                              driver_hours=None, flexible_drivers=None, capped_windows=None):
+                              driver_hours=None, flexible_drivers=None, capped_windows=None,
+                              sharer_partners=None):
     """Span-trim pass (Span Governor Phase 3). For each driver whose built day runs over the
     soft target (effective span > SPAN_SOFT_EFFECTIVE_HOURS) or is simply too long raw
     (> SPAN_TRIM_RAW_MAX_HOURS), try to relocate his FIRST or LAST leg — the only legs whose
@@ -2120,6 +2162,8 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
                     rv = dvtypes.get(rid)
                     if rv and leg_vtype and leg_vtype not in get_compatible_vehicle_types(rv):
                         continue
+                    if sharers_conflict(leg, rid, sharer_partners, schedules, target_date):
+                        continue
                     feas = check_feasibility(rsched, leg, target_date,
                                              driver_window=(windows or {}).get(rid))
                     if not feas.feasible:
@@ -2164,9 +2208,32 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
     return final_assignments, moves
 
 
+def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
+                     pad_min=None):
+    """True if giving `leg` to `driver_id` would overlap his car-share PARTNER's jobs
+    (one physical unit). Interval = [pickup - pad, est_end + pad] vs every partner slot.
+    schedules: {driver_id: DriverDaySchedule} for the CURRENT board state."""
+    partners = (sharer_partners or {}).get(driver_id)
+    if not partners:
+        return False
+    pad = timedelta(minutes=VEHICLE_SHARE_PAD_MIN if pad_min is None else pad_min)
+    start = datetime.combine(target_date, leg.pickup_time) - pad
+    end = estimate_job_end_time(leg, target_date) + pad
+    for pid in partners:
+        psched = schedules.get(pid)
+        if psched is None:
+            continue
+        for s in psched.slots:
+            s_start = datetime.combine(target_date, s.pickup_time)
+            if start < s.estimated_end_time and s_start < end:
+                return True
+    return False
+
+
 def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
                                 target_date, dvtypes, locked_leg_ids=None,
-                                driver_hours=None, flexible_drivers=None):
+                                driver_hours=None, flexible_drivers=None,
+                                sharer_partners=None):
     """Gap-compaction pass. Relocate an ALREADY-COVERED leg from a donor driver to a driver
     with a large internal gap, when doing so heals more gap than it opens — the founder's
     manual "give David the job sitting in his hole; the other driver just starts later" move.
@@ -2294,6 +2361,8 @@ def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_
                     _sh, _eh = driver_hours[rid]
                     if not (time(_sh, 0) <= leg.pickup_time <= time(_eh, 59)):
                         continue
+                if sharers_conflict(leg, rid, sharer_partners, schedules, target_date):
+                    continue
                 # Receiver can feasibly insert L? (turnaround + window; never late)
                 feas = check_feasibility(rsched, leg, target_date, inter_job_buffer=ijb,
                                          arrival_grace=grace, driver_window=windows.get(rid))

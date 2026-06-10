@@ -208,7 +208,9 @@ class DaySetupSuggestTests(TestCase):
         am = next(r for r in shared if r["share"]["role"] == "AM")
         pm = next(r for r in shared if r["share"]["role"] == "PM")
         self.assertEqual(am["vehicle_id"], pm["vehicle_id"])
-        self.assertEqual(am["planned_end_hour"], pm["planned_start_hour"])  # clean handoff
+        # AM End is a last-PICKUP bound one hour before the handoff, so his final job
+        # clears around the handoff instead of after it; PM starts at the handoff hour.
+        self.assertEqual(am["planned_end_hour"], pm["planned_start_hour"] - 1)
         self.assertTrue(any("SHARED CAR" in s for s in out["swaps"]))
 
     def test_inactive_holder_row_is_stale_not_locked(self):

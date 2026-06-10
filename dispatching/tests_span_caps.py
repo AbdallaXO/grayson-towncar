@@ -409,3 +409,39 @@ class TrimPassTests(TestCase):
             fa2, moves = self._run(dict(fa), legs)
         self.assertEqual(moves, [])
         self.assertEqual(fa2, fa)
+
+
+class SharerConflictTests(TestCase):
+    """Shared-car occupancy gate: one physical unit, two drivers - an insert for one must
+    never overlap the partner's jobs (the founder's two-conflicting-jobs-on-#001 bug)."""
+
+    def _board(self):
+        # Partner (id 7) holds a 14:30 job that clears ~16:00.
+        return {7: _sched(7, [_slot(1, 14, 30, dur_min=90)]), 8: _sched(8, [])}
+
+    def _mk_leg(self, h, m=0):
+        return _FakeLeg(id=99, pickup_time=time(h, m), pickup_location="Disney Resort",
+                        dropoff_location="MCO Terminal", effective_vehicle_type="suv",
+                        revenue_share=100, driver=None, driver_id=None, reservation_id=1,
+                        status="pending", flight_information=None, trip_type="return")
+
+    def test_overlapping_job_blocked_for_partner(self):
+        # 15:15 pickup while the partner's 14:30 job is still running -> conflict.
+        self.assertTrue(sch.sharers_conflict(
+            self._mk_leg(15, 15), 8, {8: {7}}, self._board(), D))
+
+    def test_pad_blocks_tight_handoff(self):
+        # Partner clears ~16:00; a 16:15 pickup is inside the 30-min handoff pad -> conflict.
+        self.assertTrue(sch.sharers_conflict(
+            self._mk_leg(16, 15), 8, {8: {7}}, self._board(), D))
+
+    def test_clean_evening_job_allowed(self):
+        # 17:30 pickup, well after the partner clears + pad -> fine.
+        self.assertFalse(sch.sharers_conflict(
+            self._mk_leg(17, 30), 8, {8: {7}}, self._board(), D))
+
+    def test_non_sharer_unaffected(self):
+        self.assertFalse(sch.sharers_conflict(
+            self._mk_leg(15, 15), 8, None, self._board(), D))
+        self.assertFalse(sch.sharers_conflict(
+            self._mk_leg(15, 15), 9, {8: {7}}, self._board(), D))

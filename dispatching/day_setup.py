@@ -396,7 +396,10 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
             for r in rows:
                 if r["driver_id"] == pid:
                     r["planned_start_hour"] = int(st)
-                    r["planned_end_hour"] = h
+                    # End is a LAST-PICKUP bound: h-1 means pickups stop at (h-1):59, so the
+                    # AM partner's final job clears around the handoff instead of after it.
+                    # The engine's shared-car occupancy gate is the hard backstop either way.
+                    r["planned_end_hour"] = h - 1
                     r["share"] = {"partner": str(d), "role": "AM", "until": h}
                     r["reason"] = (r["reason"] + " · " if r.get("reason") else "") + \
                                   f"until {h}:00, then hands off"

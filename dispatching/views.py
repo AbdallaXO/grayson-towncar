@@ -9281,6 +9281,22 @@ def auto_assign_drivers(request):
             "flexible": d.id in flexible_drivers,
         })
 
+    # Shared-car partner map: two WORKING drivers on one physical unit (Day Setup planned
+    # AM/PM share or an advisor freed-unit accept). Every engine pass gates inserts against
+    # the partner's jobs — the planned windows alone are not airtight (modal End is a
+    # last-pickup bound; a 14:50 pickup clears past the partner's 15:05 start).
+    sharer_partners = {}
+    _working_set = {d.id for d in inhouse_drivers}
+    _unit_holders = {}
+    for _dva in DriverVehicleAssignment.objects.filter(
+            date=target_date, vehicle__isnull=False, driver_id__in=_working_set):
+        _unit_holders.setdefault(_dva.vehicle_id, []).append(_dva.driver_id)
+    for _vid, _holders in _unit_holders.items():
+        if len(_holders) > 1:
+            for _did in _holders:
+                sharer_partners.setdefault(_did, set()).update(
+                    h for h in _holders if h != _did)
+
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
     # Parse per-driver trip preferences: {driver_id: "prefer_arrival"}
@@ -9343,7 +9359,8 @@ def auto_assign_drivers(request):
     # legs first. Most-constrained (narrowest window) priority driver is seeded first.
     seeded_assignments = {}
     assign_board = schedules   # board the general assigner sees (gets seeded occupancy below)
-    _priority_ids = [int(x) for x in raw_build_first if str(x).isdigit() and int(x) in driver_hours]
+    _priority_ids = [int(x) for x in raw_build_first if str(x).isdigit() and int(x) in driver_hours
+                     and int(x) not in sharer_partners]  # seeding bypasses the shared-car gate
     _priority_ids.sort(key=lambda did: 24 if did in flexible_drivers else (driver_hours[did][1] - driver_hours[did][0]))
     if _priority_ids:
         from dispatching.scheduler import build_smart_schedule
@@ -9385,7 +9402,8 @@ def auto_assign_drivers(request):
                                                 driver_hours=driver_hours or None,
                                                 driver_preferences=driver_preferences or None,
                                                 flexible_drivers=flexible_drivers or None,
-                                                driver_max_hours=driver_max_hours or None) if auto_unassigned else []
+                                                driver_max_hours=driver_max_hours or None,
+                                                sharer_partners=sharer_partners or None) if auto_unassigned else []
 
     # Merge: auto suggestions + manual overrides
     valid_suggestions = [
@@ -9424,6 +9442,7 @@ def auto_assign_drivers(request):
             driver_windows=capped_windows or None,
             driver_hours=driver_hours or None,
             flexible_drivers=flexible_drivers or None,
+            sharer_partners=sharer_partners or None,
         )
         # ── Span-cap coverage rescue ──
         # Priority #1: the duty-span cap may never cost an in-house job. Any residual whose
@@ -9438,6 +9457,7 @@ def auto_assign_drivers(request):
             flexible_drivers=flexible_drivers or None,
             strict_cap_driver_ids=set(strict_span_caps.keys()),
             locked_leg_ids=locked_ids,
+            sharer_partners=sharer_partners or None,
         )
 
     # ── Span-trim relocation pass ──
@@ -9452,6 +9472,7 @@ def auto_assign_drivers(request):
         driver_hours=driver_hours or None,
         flexible_drivers=flexible_drivers or None,
         capped_windows=capped_windows or None,
+        sharer_partners=sharer_partners or None,
     )
     locked_ids = locked_ids | {m["leg_id"] for m in _trim_moves}
 
@@ -9466,6 +9487,7 @@ def auto_assign_drivers(request):
         locked_leg_ids=locked_ids,
         driver_hours=driver_hours or None,
         flexible_drivers=flexible_drivers or None,
+        sharer_partners=sharer_partners or None,
     )
 
     assigned_count = len(final_assignments)
