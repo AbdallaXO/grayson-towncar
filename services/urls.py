@@ -28,4 +28,19 @@ urlpatterns = [
         views.corporate_transportation,
         name="corporate_transportation",
     ),
+    path(
+        "epic-universe-transportation/",
+        views.epic_universe_transportation,
+        name="epic_universe_transportation",
+    ),
+    path(
+        "mco-terminal-c-transportation/",
+        views.mco_terminal_c_transportation,
+        name="mco_terminal_c_transportation",
+    ),
+    path(
+        "car-seats/",
+        views.car_seats_transportation,
+        name="car_seats_transportation",
+    ),
 ]

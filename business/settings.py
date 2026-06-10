@@ -34,7 +34,9 @@ SECRET_KEY = os.environ.get(
 
 # STORAGE_PATH = CONTENT_DIR
 
-DEBUG = True
+# SECURITY: must stay env-driven. Hardcoding True (56bfbef1) exposed source files +
+# debug tracebacks on prod for 2 days (found in 2026-06-10 SEO/security audit).
+DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
 
 
 ALLOWED_HOSTS = [
@@ -305,7 +307,7 @@ CSRF_TRUSTED_ORIGINS = [
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 SECURE_SSL_REDIRECT = False
-SECURE_HSTS_SECONDS = 3600
+SECURE_HSTS_SECONDS = 31536000  # 1 year — required for the preload flag below to be valid
 SECURE_HSTS_PRELOAD = True
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_BROWSER_XSS_FILTER = True

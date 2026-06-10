@@ -101,7 +101,7 @@ def get_base_structured_data(request, additional_data=None):
             "@type": "AggregateRating",
             "ratingValue": 4.8,
             "bestRating": 5,
-            "ratingCount": 250,
+            "ratingCount": 1500,
         },
         "potentialAction": {
             "@type": "ReserveAction",

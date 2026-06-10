@@ -93,3 +93,27 @@ def port_canaveral_transportation(request):
 
 def corporate_transportation(request):
     return render(request, "services/corporate-transportation.html")
+
+
+def epic_universe_transportation(request):
+    return render(
+        request,
+        "services/epic-universe-transportation.html",
+        {"canonical_url": request.build_absolute_uri("/services/epic-universe-transportation/")},
+    )
+
+
+def mco_terminal_c_transportation(request):
+    return render(
+        request,
+        "services/mco-terminal-c-transportation.html",
+        {"canonical_url": request.build_absolute_uri("/services/mco-terminal-c-transportation/")},
+    )
+
+
+def car_seats_transportation(request):
+    return render(
+        request,
+        "services/car-seats.html",
+        {"canonical_url": request.build_absolute_uri("/services/car-seats/")},
+    )
