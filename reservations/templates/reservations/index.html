@@ -12,79 +12,74 @@
   <link rel="canonical" href="https://www.graysontowncar.com/" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&display=swap" rel="stylesheet">
 {% endblock %}
 {% block extra_css %}
-  <link rel="preload" href="{% static 'css/homepage-elements.css' %}" as="style" />
-  <link rel="stylesheet" href="{% static 'css/premium-landing.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/luxe-landing.css' %}" />
 {% endblock %}
 {% block content %}
   {% structured_data %}
-  <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
-  <main class="flex-shrink-0">
+  <main class="flex-shrink-0 luxe-page">
 
-    <!-- ==================== PREMIUM HERO SECTION ==================== -->
-    <section class="hero premium-hero">
+    <!-- ==================== HERO ==================== -->
+    <section class="luxe-hero">
+      <span class="luxe-monogram" aria-hidden="true">G</span>
       <div class="container px-4">
         <div class="row align-items-center">
-          <!-- Left Column: Header and Trust Indicators -->
+          <!-- Left: headline + trust -->
           <div class="col-lg-5 mb-4 mb-lg-0">
-            <div class="text-lg-start text-center">
-              <!-- Premium Label -->
-              <span class="premium-label mb-3 d-inline-block">Premium Transportation</span>
+            <div class="luxe-hero-copy">
+              <span class="luxe-eyebrow lx-rise lx-rise-1">Premium Transportation &middot; Orlando</span>
 
-              <!-- Hero Headline -->
-              <h1 class="hero-headline">
+              <h1 class="luxe-h1 lx-rise lx-rise-2">
                 Orlando Airport
-                <span class="highlight">Private Car Service</span>
+                <em>Private Car Service</em>
                 with Complimentary Car Seats
               </h1>
 
-              <!-- Trust Indicators -->
-              <div class="hero-trust-indicators">
-                <div class="hero-trust-item">
+              <div class="luxe-trust lx-rise lx-rise-3">
+                <span class="luxe-trust-item">
                   <i class="bi bi-star-fill"></i>
                   <span><strong>5.0</strong> Google Rating</span>
-                </div>
-                <div class="hero-trust-item">
+                </span>
+                <span class="luxe-trust-item">
                   <i class="bi bi-shield-check"></i>
-                  <span>Licensed & Insured</span>
-                </div>
-                <div class="hero-trust-item">
+                  <span>Licensed &amp; Insured</span>
+                </span>
+                <span class="luxe-trust-item">
                   <i class="bi bi-clock"></i>
                   <span>24/7 Service</span>
-                </div>
+                </span>
               </div>
 
-              <!-- Value Props -->
-              <div class="hero-value-props">
-                <div class="hero-value-item">
-                  <i class="bi bi-person-check-fill"></i>
+              <ul class="luxe-values lx-rise lx-rise-4">
+                <li>
+                  <i class="bi bi-check2"></i>
                   <span>Private Direct Rides</span>
-                </div>
-                <div class="hero-value-item">
-                  <i class="fas fa-shield-alt"></i>
+                </li>
+                <li>
+                  <i class="bi bi-check2"></i>
                   <span>Free Car Seats</span>
-                </div>
-                <div class="hero-value-item">
-                  <i class="bi bi-cart-check-fill"></i>
+                </li>
+                <li>
+                  <i class="bi bi-check2"></i>
                   <span>Free Grocery Stop</span>
-                </div>
-                <div class="hero-value-item">
-                  <i class="bi bi-signpost-split-fill"></i>
-                  <span>Airport Meet & Greet</span>
-                </div>
-              </div>
+                </li>
+                <li>
+                  <i class="bi bi-check2"></i>
+                  <span>Airport Meet &amp; Greet</span>
+                </li>
+              </ul>
             </div>
           </div>
 
-          <!-- Right Column: Quote Form (Lead Magnet) -->
+          <!-- Right: Quote Form (Lead Magnet) -->
           <div class="col-lg-7">
-            <div class="premium-quote-container">
-              <div class="premium-quote-header">
+            <div class="luxe-quote-shell lx-rise lx-rise-3">
+              <div class="luxe-quote-head">
                 <h3>Get Your Instant Quote</h3>
                 <p>All-inclusive pricing with no hidden fees</p>
+                <div class="rule"></div>
               </div>
               {% quote_form %}
             </div>
@@ -93,103 +88,93 @@
       </div>
     </section>
 
-    <!-- ==================== TRUSTED BY SECTION ==================== -->
-    <section class="premium-trusted-by">
+    <!-- ==================== TRUSTED BY ==================== -->
+    <section class="luxe-logos">
       <div class="container">
+        <span class="trusted-label">Trusted by Leading Organizations</span>
         <div class="row justify-content-center align-items-center g-4">
-          <div class="col-12 text-center">
-            <span class="trusted-label">Trusted by Leading Organizations</span>
-          </div>
           <div class="col-6 col-md-2 text-center">
             <img src="{% static 'images/carnival.webp' %}"
                  alt="Carnival"
                  class="img-fluid brand-logo"
-                 loading="lazy"
-                 style="max-height: 60px; width: auto;" />
+                 loading="lazy" />
           </div>
           <div class="col-6 col-md-2 text-center">
             <img src="{% static 'images/canaveral.webp' %}"
                  alt="Port Canaveral"
                  class="img-fluid brand-logo"
-                 loading="lazy"
-                 style="max-height: 60px; width: auto;" />
+                 loading="lazy" />
           </div>
           <div class="col-6 col-md-2 text-center">
             <img src="{% static 'images/city-of-orlando.webp' %}"
                  alt="City Of Orlando"
                  class="img-fluid brand-logo"
-                 loading="lazy"
-                 style="max-height: 60px; width: auto;" />
+                 loading="lazy" />
           </div>
           <div class="col-6 col-md-2 text-center">
             <img src="{% static 'images/universal.webp' %}"
                  alt="Universal Orlando"
                  class="img-fluid brand-logo"
-                 loading="lazy"
-                 style="max-height: 60px; width: auto;" />
+                 loading="lazy" />
           </div>
           <div class="col-6 col-md-2 text-center">
             <img src="{% static 'images/disney-cruise-line.webp' %}"
                  alt="Disney Cruise Line"
                  class="img-fluid brand-logo"
-                 loading="lazy"
-                 style="max-height: 60px; width: auto;" />
+                 loading="lazy" />
           </div>
           <div class="col-6 col-md-2 text-center">
             <img src="{% static 'images/mco-logo.webp' %}"
                  alt="Orlando International Airport (MCO)"
                  class="img-fluid brand-logo"
-                 loading="lazy"
-                 style="max-height: 60px; width: auto;" />
+                 loading="lazy" />
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ==================== SOCIAL PROOF SECTION ==================== -->
-    <section class="premium-social-proof" aria-labelledby="reviews-heading">
+    <!-- ==================== SOCIAL PROOF ==================== -->
+    <section class="luxe-sec luxe-sec--ivory" aria-labelledby="reviews-heading">
       <div class="container px-4">
-        <!-- Google Rating Display -->
-        <div class="row justify-content-center mb-5">
-          <div class="col-12 text-center">
-            <div class="premium-rating-card">
-              <div>
-                <div class="premium-rating-score">5.0</div>
-                <div class="premium-rating-stars">
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                </div>
-                <div class="premium-rating-text">Verified Customer Reviews</div>
+        <!-- Google Rating Banner -->
+        <div class="text-center mb-5" data-reveal>
+          <div class="luxe-rating-banner">
+            <div>
+              <div class="luxe-rating-score">5.0</div>
+              <div class="luxe-rating-stars">
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
+                <i class="bi bi-star-fill"></i>
               </div>
-              <div class="border-start ps-4">
-                <img src="{% static 'images/google-logo.webp' %}"
-                     alt="Google Reviews"
-                     width="90"
-                     height="30"
-                     loading="lazy"
-                     class="mb-2" />
-                <div class="d-flex align-items-center justify-content-center">
-                  <span class="fw-semibold me-2" style="color: #0d1117;">Excellent</span>
-                  <i class="bi bi-patch-check-fill" style="color: #C9A227;"></i>
-                </div>
+              <div class="luxe-rating-note">Verified Customer Reviews</div>
+            </div>
+            <div class="luxe-rating-divider"></div>
+            <div class="luxe-rating-google">
+              <img src="{% static 'images/google-logo.webp' %}"
+                   alt="Google Reviews"
+                   width="90"
+                   height="30"
+                   loading="lazy"
+                   class="mb-2" />
+              <div class="verified">
+                Excellent <i class="bi bi-patch-check-fill"></i>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Section Header -->
-        <div class="text-center mb-5">
-          <h2 id="reviews-heading" class="premium-section-title">What Our Clients Say</h2>
-          <div class="divider-gold"></div>
+        <div class="text-center luxe-head">
+          <span class="luxe-eyebrow centered">Guest Stories<span class="luxe-index">01</span></span>
+          <h2 id="reviews-heading" class="luxe-title">What Our <em>Clients</em> Say</h2>
         </div>
 
-        <!-- Reviews Scrollable Container -->
+        <!-- Reviews Scrollable Rail -->
         <div class="reviews-scroll-wrapper">
           <div class="reviews-scroll-container">
-            <div class="premium-review-card">
+            <div class="luxe-review" data-reveal>
               <div class="review-stars">
                 <i class="bi bi-star-fill"></i>
                 <i class="bi bi-star-fill"></i>
@@ -209,7 +194,7 @@
               </div>
             </div>
 
-            <div class="premium-review-card">
+            <div class="luxe-review" data-reveal>
               <div class="review-stars">
                 <i class="bi bi-star-fill"></i>
                 <i class="bi bi-star-fill"></i>
@@ -229,7 +214,7 @@
               </div>
             </div>
 
-            <div class="premium-review-card">
+            <div class="luxe-review" data-reveal>
               <div class="review-stars">
                 <i class="bi bi-star-fill"></i>
                 <i class="bi bi-star-fill"></i>
@@ -249,7 +234,7 @@
               </div>
             </div>
 
-            <div class="premium-review-card">
+            <div class="luxe-review" data-reveal>
               <div class="review-stars">
                 <i class="bi bi-star-fill"></i>
                 <i class="bi bi-star-fill"></i>
@@ -269,7 +254,7 @@
               </div>
             </div>
 
-            <div class="premium-review-card">
+            <div class="luxe-review" data-reveal>
               <div class="review-stars">
                 <i class="bi bi-star-fill"></i>
                 <i class="bi bi-star-fill"></i>
@@ -289,7 +274,7 @@
               </div>
             </div>
 
-            <div class="premium-review-card">
+            <div class="luxe-review" data-reveal>
               <div class="review-stars">
                 <i class="bi bi-star-fill"></i>
                 <i class="bi bi-star-fill"></i>
@@ -311,232 +296,212 @@
           </div>
           <!-- Scroll hint for mobile -->
           <div class="scroll-hint text-center mt-3">
-            <small class="text-muted"><i class="bi bi-arrow-left-right me-1"></i>Swipe to see more reviews</small>
+            <small><i class="bi bi-arrow-left-right me-1"></i>Swipe to see more reviews</small>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ==================== POPULAR SERVICES SECTION ==================== -->
-    <section class="premium-services" aria-labelledby="popular-services-heading">
+    <!-- ==================== POPULAR ROUTES ==================== -->
+    <section class="luxe-sec luxe-sec--paper" aria-labelledby="popular-services-heading">
       <div class="container px-4">
-        <div class="row justify-content-center mb-5">
-          <div class="col-lg-8 text-center">
-            <span class="premium-section-label">Most Requested</span>
-            <h2 id="popular-services-heading" class="premium-section-title">Top Orlando Transportation Routes</h2>
-            <p class="premium-section-subtitle">All-inclusive pricing with taxes, fees, and tolls included</p>
-          </div>
+        <div class="text-center luxe-head">
+          <span class="luxe-eyebrow centered">Most Requested<span class="luxe-index">02</span></span>
+          <h2 id="popular-services-heading" class="luxe-title">Top Orlando <em>Transportation Routes</em></h2>
+          <p class="luxe-sub">All-inclusive pricing with taxes, fees, and tolls included</p>
         </div>
 
         <div class="row g-4">
           <!-- MCO to Disney -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-service-card">
-              <span class="premium-badge">Popular</span>
-              <div class="card-body">
-                <div class="text-center mb-3">
-                  <img src="{% static 'images/disney-castle.webp' %}"
-                       alt="Disney Transportation"
-                       loading="lazy"
-                       class="service-icon" />
+            <div class="luxe-route" data-reveal>
+              <span class="luxe-tag">Popular</span>
+              <img src="{% static 'images/disney-castle.webp' %}"
+                   alt="Disney Transportation"
+                   loading="lazy"
+                   class="route-icon" />
+              <h3 class="route-title">Orlando Airport to Disney</h3>
+              <ul class="route-features">
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Direct, non-stop service
+                </li>
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Inside airport meet &amp; greet
+                </li>
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Free car seats available
+                </li>
+              </ul>
+              <div class="route-pricing">
+                <div>
+                  <span class="price-from">From</span>
+                  <div class="price-amount">$195</div>
+                  <span class="price-type">round trip</span>
                 </div>
-                <h3 class="service-title text-center">Orlando Airport to Disney</h3>
-                <ul class="service-features">
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Direct, non-stop service
-                  </li>
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Inside airport meet & greet
-                  </li>
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Free car seats available
-                  </li>
-                </ul>
-                <div class="service-pricing">
-                  <div>
-                    <span class="price-from">From</span>
-                    <div class="price-amount">$195</div>
-                    <span class="price-type">round trip</span>
-                  </div>
-                  <a href="{% url 'rates' %}" class="btn btn-premium-primary">Book Now</a>
-                </div>
+                <a href="{% url 'rates' %}" class="btn-luxe">Book Now</a>
               </div>
             </div>
           </div>
 
           <!-- MCO to Universal -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-service-card">
-              <div class="card-body">
-                <div class="text-center mb-3">
-                  <img src="{% static 'images/universal-studios.webp' %}"
-                       alt="Universal Transportation"
-                       loading="lazy"
-                       class="service-icon" />
+            <div class="luxe-route" data-reveal>
+              <img src="{% static 'images/universal-studios.webp' %}"
+                   alt="Universal Transportation"
+                   loading="lazy"
+                   class="route-icon" />
+              <h3 class="route-title">Orlando Airport to Universal</h3>
+              <ul class="route-features">
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Direct, non-stop service
+                </li>
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Inside airport meet &amp; greet
+                </li>
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Free car seats available
+                </li>
+              </ul>
+              <div class="route-pricing">
+                <div>
+                  <span class="price-from">From</span>
+                  <div class="price-amount">$195</div>
+                  <span class="price-type">round trip</span>
                 </div>
-                <h3 class="service-title text-center">Orlando Airport to Universal</h3>
-                <ul class="service-features">
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Direct, non-stop service
-                  </li>
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Inside airport meet & greet
-                  </li>
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Free car seats available
-                  </li>
-                </ul>
-                <div class="service-pricing">
-                  <div>
-                    <span class="price-from">From</span>
-                    <div class="price-amount">$195</div>
-                    <span class="price-type">round trip</span>
-                  </div>
-                  <a href="{% url 'rates' %}" class="btn btn-premium-primary">Book Now</a>
-                </div>
+                <a href="{% url 'rates' %}" class="btn-luxe">Book Now</a>
               </div>
             </div>
           </div>
 
           <!-- MCO to Port Canaveral -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-service-card">
-              <div class="card-body">
-                <div class="text-center mb-3">
-                  <img src="{% static 'images/cruise.webp' %}"
-                       alt="Cruise Transportation"
-                       loading="lazy"
-                       class="service-icon" />
+            <div class="luxe-route" data-reveal>
+              <img src="{% static 'images/cruise.webp' %}"
+                   alt="Cruise Transportation"
+                   loading="lazy"
+                   class="route-icon" />
+              <h3 class="route-title">Orlando Airport to Cruise Port</h3>
+              <ul class="route-features">
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Direct service to cruise terminal
+                </li>
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Flexible cruise time scheduling
+                </li>
+                <li>
+                  <i class="bi bi-check-circle-fill"></i>
+                  Spacious vehicles for luggage
+                </li>
+              </ul>
+              <div class="route-pricing">
+                <div>
+                  <span class="price-from">From</span>
+                  <div class="price-amount">$270</div>
+                  <span class="price-type">round trip</span>
                 </div>
-                <h3 class="service-title text-center">Orlando Airport to Cruise Port</h3>
-                <ul class="service-features">
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Direct service to cruise terminal
-                  </li>
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Flexible cruise time scheduling
-                  </li>
-                  <li>
-                    <i class="bi bi-check-circle-fill"></i>
-                    Spacious vehicles for luggage
-                  </li>
-                </ul>
-                <div class="service-pricing">
-                  <div>
-                    <span class="price-from">From</span>
-                    <div class="price-amount">$270</div>
-                    <span class="price-type">round trip</span>
-                  </div>
-                  <a href="{% url 'rates' %}" class="btn btn-premium-primary">Book Now</a>
-                </div>
+                <a href="{% url 'rates' %}" class="btn-luxe">Book Now</a>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- CTA Button -->
         <div class="text-center mt-5">
-          <a href="{% url 'rates' %}" class="btn btn-premium-gold btn-lg px-5">
-            View All Routes & Pricing <i class="bi bi-arrow-right ms-2"></i>
+          <a href="{% url 'rates' %}" class="btn-luxe">
+            View All Routes &amp; Pricing <i class="bi bi-arrow-right"></i>
           </a>
         </div>
       </div>
     </section>
 
-    <!-- ==================== WHY CHOOSE US SECTION ==================== -->
-    <section class="premium-why-choose" aria-labelledby="why-choose-heading">
+    <!-- ==================== WHY CHOOSE US ==================== -->
+    <section class="luxe-sec luxe-sec--ink" aria-labelledby="why-choose-heading">
       <div class="container px-4">
-        <div class="row justify-content-center mb-5">
-          <div class="col-lg-8 text-center">
-            <span class="premium-section-label">The Grayson Difference</span>
-            <h2 id="why-choose-heading" class="premium-section-title">
-              Why Families Choose Us
-            </h2>
-            <p class="premium-section-subtitle">We solve the biggest transportation challenges for Orlando visitors</p>
-          </div>
+        <div class="text-center luxe-head">
+          <span class="luxe-eyebrow centered">The Grayson Difference<span class="luxe-index">03</span></span>
+          <h2 id="why-choose-heading" class="luxe-title">Why Families <em>Choose Us</em></h2>
+          <p class="luxe-sub">We solve the biggest transportation challenges for Orlando visitors</p>
         </div>
 
         <div class="row g-4 justify-content-center">
           <!-- No Shared Shuttles -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-feature-card">
-              <div class="feature-icon">
+            <div class="luxe-why-card" data-reveal>
+              <div class="icon">
                 <i class="bi bi-person-check-fill"></i>
               </div>
-              <h3 class="feature-title">No Shared Shuttles</h3>
-              <p class="feature-text">Private vehicles exclusively for your group. No waiting for other passengers or multiple hotel stops.</p>
+              <h3>No Shared Shuttles</h3>
+              <p>Private vehicles exclusively for your group. No waiting for other passengers or multiple hotel stops.</p>
             </div>
           </div>
 
           <!-- Free Car Seats -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-feature-card">
-              <div class="feature-icon">
+            <div class="luxe-why-card" data-reveal>
+              <div class="icon">
                 <img src="{% static 'images/carseat.webp' %}" alt="Car Seats" loading="lazy" />
               </div>
-              <h3 class="feature-title">Free Car Seats</h3>
-              <p class="feature-text">Complimentary car seats professionally installed by our drivers. Infant, toddler, or booster available.</p>
+              <h3>Free Car Seats</h3>
+              <p>Complimentary car seats professionally installed by our drivers. Infant, toddler, or booster available.</p>
             </div>
           </div>
 
           <!-- Inside Airport Greeting -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-feature-card">
-              <div class="feature-icon">
+            <div class="luxe-why-card" data-reveal>
+              <div class="icon">
                 <i class="bi bi-signpost-split-fill"></i>
               </div>
-              <h3 class="feature-title">Airport Meet & Greet</h3>
-              <p class="feature-text">Your driver meets you inside baggage claim with a personalized sign. No curbside confusion.</p>
+              <h3>Airport Meet &amp; Greet</h3>
+              <p>Your driver meets you inside baggage claim with a personalized sign. No curbside confusion.</p>
             </div>
           </div>
 
           <!-- Free Grocery Stop -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-feature-card">
-              <div class="feature-icon">
+            <div class="luxe-why-card" data-reveal>
+              <div class="icon">
                 <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop" loading="lazy" />
               </div>
-              <h3 class="feature-title">Free Grocery Stop</h3>
-              <p class="feature-text">Complimentary 20-minute Publix stop to stock up on vacation essentials on your way to the hotel.</p>
+              <h3>Free Grocery Stop</h3>
+              <p>Complimentary 20-minute Publix stop to stock up on vacation essentials on your way to the hotel.</p>
             </div>
           </div>
         </div>
 
-        <!-- CTA Button -->
         <div class="text-center mt-5">
-          <a href="{% url 'rates' %}" class="btn btn-premium-gold btn-lg px-5">See Our Prices</a>
+          <a href="{% url 'rates' %}" class="btn-luxe">See Our Prices</a>
         </div>
       </div>
     </section>
 
-    <!-- ==================== FLEET SECTION ==================== -->
-    <section class="premium-fleet" id="fleet" aria-labelledby="fleet-heading">
+    <!-- ==================== FLEET ==================== -->
+    <section class="luxe-sec luxe-sec--ivory" id="fleet" aria-labelledby="fleet-heading">
       <div class="container px-4">
-        <div class="text-center mb-5">
-          <span class="premium-section-label">Luxury Vehicles</span>
-          <h2 id="fleet-heading" class="premium-section-title">Our Premium Fleet</h2>
-          <p class="premium-section-subtitle">Vehicles for every group size, impeccably maintained for your comfort</p>
+        <div class="text-center luxe-head">
+          <span class="luxe-eyebrow centered">Luxury Vehicles<span class="luxe-index">04</span></span>
+          <h2 id="fleet-heading" class="luxe-title">Our <em>Premium</em> Fleet</h2>
+          <p class="luxe-sub">Vehicles for every group size, impeccably maintained for your comfort</p>
         </div>
 
-        <div class="row g-4">
+        <div class="row g-4 justify-content-center">
           <!-- Executive Town Car -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-fleet-card">
+            <div class="luxe-fleet-card" data-reveal>
               <div class="fleet-image">
                 <img src="{% static 'images/towncar.webp' %}"
                      alt="Executive Sedan"
                      loading="lazy" />
               </div>
               <div class="fleet-body">
-                <span class="fleet-badge">Executive Sedan</span>
+                <span class="fleet-kicker">Executive Sedan</span>
                 <h3 class="fleet-title">Towncar Service</h3>
                 <p class="fleet-description">Perfect for couples and small families.</p>
                 <ul class="fleet-specs">
@@ -555,27 +520,25 @@
                 </ul>
               </div>
               <div class="fleet-footer">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="fleet-price">$195</div>
-                    <div class="fleet-price-note">Round Trip to Disney</div>
-                  </div>
-                  <a href="{% url 'reserve' 2 %}?round=2" class="btn btn-premium-primary">Reserve</a>
+                <div>
+                  <div class="fleet-price">$195</div>
+                  <div class="fleet-price-note">Round Trip to Disney</div>
                 </div>
+                <a href="{% url 'reserve' 2 %}?round=2" class="btn-luxe">Reserve</a>
               </div>
             </div>
           </div>
 
           <!-- Luxury SUV -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-fleet-card">
+            <div class="luxe-fleet-card" data-reveal>
               <div class="fleet-image">
-                <img src="{% static 'images/suv-new.webp' %}"
+                <img src="{% static 'images/suburban.webp' %}"
                      alt="Luxury SUV"
                      loading="lazy" />
               </div>
               <div class="fleet-body">
-                <span class="fleet-badge">Luxury SUV</span>
+                <span class="fleet-kicker">Luxury SUV</span>
                 <h3 class="fleet-title">SUV Service</h3>
                 <p class="fleet-description">Spacious transport for larger families.</p>
                 <ul class="fleet-specs">
@@ -594,27 +557,25 @@
                 </ul>
               </div>
               <div class="fleet-footer">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="fleet-price">$275</div>
-                    <div class="fleet-price-note">Round Trip to Disney</div>
-                  </div>
-                  <a href="{% url 'reserve' 16 %}?round=2" class="btn btn-premium-primary">Reserve</a>
+                <div>
+                  <div class="fleet-price">$275</div>
+                  <div class="fleet-price-note">Round Trip to Disney</div>
                 </div>
+                <a href="{% url 'reserve' 16 %}?round=2" class="btn-luxe">Reserve</a>
               </div>
             </div>
           </div>
 
           <!-- Minivan -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-fleet-card">
+            <div class="luxe-fleet-card" data-reveal>
               <div class="fleet-image">
                 <img src="{% static 'images/minivan.webp' %}"
                      alt="Minivan"
                      loading="lazy" />
               </div>
               <div class="fleet-body">
-                <span class="fleet-badge">Minivan</span>
+                <span class="fleet-kicker">Minivan</span>
                 <h3 class="fleet-title">Minivan Service</h3>
                 <p class="fleet-description">Ideal for families up to 5 passengers.</p>
                 <ul class="fleet-specs">
@@ -633,27 +594,25 @@
                 </ul>
               </div>
               <div class="fleet-footer">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="fleet-price">$230</div>
-                    <div class="fleet-price-note">Round Trip to Disney</div>
-                  </div>
-                  <a href="{% url 'reserve' 30 %}?round=2" class="btn btn-premium-primary">Reserve</a>
+                <div>
+                  <div class="fleet-price">$230</div>
+                  <div class="fleet-price-note">Round Trip to Disney</div>
                 </div>
+                <a href="{% url 'reserve' 30 %}?round=2" class="btn-luxe">Reserve</a>
               </div>
             </div>
           </div>
 
           <!-- Passenger Van -->
           <div class="col-md-6 col-lg-3">
-            <div class="premium-fleet-card">
+            <div class="luxe-fleet-card" data-reveal>
               <div class="fleet-image">
                 <img src="{% static 'images/van.webp' %}"
                      alt="Passenger Van"
                      loading="lazy" />
               </div>
               <div class="fleet-body">
-                <span class="fleet-badge">Group Transport</span>
+                <span class="fleet-kicker">Group Transport</span>
                 <h3 class="fleet-title">Passenger Van</h3>
                 <p class="fleet-description">Premium group transportation.</p>
                 <ul class="fleet-specs">
@@ -672,43 +631,76 @@
                 </ul>
               </div>
               <div class="fleet-footer">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="fleet-price">$340</div>
-                    <div class="fleet-price-note">Round Trip to Disney</div>
-                  </div>
-                  <a href="{% url 'reserve' 44 %}?round=2" class="btn btn-premium-primary">Reserve</a>
+                <div>
+                  <div class="fleet-price">$340</div>
+                  <div class="fleet-price-note">Round Trip to Disney</div>
                 </div>
+                <a href="{% url 'reserve' 44 %}?round=2" class="btn-luxe">Reserve</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sprinter Van (14 Pax) — flagship wide card on desktop -->
+          <div class="col-md-6 col-lg-12">
+            <div class="luxe-fleet-card luxe-fleet-card--wide" data-reveal>
+              <div class="fleet-image">
+                <img src="{% static 'images/sprinter.webp' %}"
+                     alt="Sprinter Van"
+                     loading="lazy" />
+              </div>
+              <div class="fleet-body">
+                <span class="fleet-kicker">Large Group Transport</span>
+                <h3 class="fleet-title">Sprinter Van</h3>
+                <p class="fleet-description">Our largest vehicle for big groups.</p>
+                <ul class="fleet-specs">
+                  <li>
+                    <i class="bi bi-person"></i>
+                    Up to 14 passengers
+                  </li>
+                  <li>
+                    <i class="bi bi-suitcase"></i>
+                    Up to 14 suitcases
+                  </li>
+                  <li>
+                    <i class="bi bi-car-front"></i>
+                    Up to 4 car seats
+                  </li>
+                </ul>
+              </div>
+              <div class="fleet-footer">
+                <div>
+                  <div class="fleet-price">$440</div>
+                  <div class="fleet-price-note">Round Trip to Disney</div>
+                </div>
+                <a href="{% url 'reserve' 58 %}?round=2" class="btn-luxe">Reserve</a>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Fleet Help CTA -->
-        <div class="text-center mt-5">
-          <div class="bg-dark rounded-4 p-5 text-white" style="background: linear-gradient(135deg, #0d1117 0%, #0A1428 100%);">
-            <h3 class="premium-section-title text-white mb-3" style="font-size: 1.75rem;">Not Sure Which Vehicle Is Right For You?</h3>
-            <p class="mb-4" style="color: rgba(255,255,255,0.7);">We'll help you choose the perfect transportation for your Orlando vacation.</p>
-            <a href="{% url 'rates' %}" class="btn btn-premium-gold px-5">Compare Our Vehicles <i class="bi bi-arrow-right ms-2"></i></a>
+        <div class="mt-5">
+          <div class="luxe-panel-ink" data-reveal>
+            <h3>Not Sure Which Vehicle Is Right For You?</h3>
+            <p>We'll help you choose the perfect transportation for your Orlando vacation.</p>
+            <a href="{% url 'rates' %}" class="btn-luxe">Compare Our Vehicles <i class="bi bi-arrow-right"></i></a>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ==================== FAQ SECTION ==================== -->
-    <section class="premium-faq" aria-labelledby="faq-heading">
+    <!-- ==================== FAQ ==================== -->
+    <section class="luxe-sec luxe-sec--paper" aria-labelledby="faq-heading">
       <div class="container px-4">
-        <div class="row justify-content-center mb-5">
-          <div class="col-lg-8 text-center">
-            <span class="premium-section-label">Questions & Answers</span>
-            <h2 id="faq-heading" class="premium-section-title">Frequently Asked Questions</h2>
-            <p class="premium-section-subtitle">Everything you need to know about our Orlando transportation services</p>
-          </div>
+        <div class="text-center luxe-head">
+          <span class="luxe-eyebrow centered">Questions &amp; Answers<span class="luxe-index">05</span></span>
+          <h2 id="faq-heading" class="luxe-title">Frequently Asked <em>Questions</em></h2>
+          <p class="luxe-sub">Everything you need to know about our Orlando transportation services</p>
         </div>
 
         <div class="row justify-content-center">
           <div class="col-lg-8">
-            <div class="accordion premium-accordion" id="faqAccordion">
+            <div class="accordion luxe-faq" id="faqAccordion">
               <!-- Question 1 -->
               <div class="accordion-item">
                 <h3 class="accordion-header" id="headingOne">
@@ -812,35 +804,32 @@
               </div>
             </div>
 
-            <!-- CTA Button -->
             <div class="text-center mt-5">
-              <a href="{% url 'faqs' %}" class="btn btn-premium-gold px-5">View All FAQs</a>
+              <a href="{% url 'faqs' %}" class="luxe-textlink">View All FAQs <i class="bi bi-arrow-right"></i></a>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ==================== BENEFITS SECTION ==================== -->
-    <section class="premium-benefits" id="complimentary-services" aria-labelledby="services-benefits-heading">
+    <!-- ==================== BENEFITS ==================== -->
+    <section class="luxe-sec luxe-sec--ivory" id="complimentary-services" aria-labelledby="services-benefits-heading">
       <div class="container px-4">
-        <div class="row justify-content-center mb-5">
-          <div class="col-lg-8 text-center">
-            <span class="premium-section-label">Included with Every Ride</span>
-            <h2 id="services-benefits-heading" class="premium-section-title">Premium Complimentary Services</h2>
-            <p class="premium-section-subtitle">Enjoy these valuable extras at no additional cost</p>
-          </div>
+        <div class="text-center luxe-head">
+          <span class="luxe-eyebrow centered">Included with Every Ride<span class="luxe-index">06</span></span>
+          <h2 id="services-benefits-heading" class="luxe-title">Premium <em>Complimentary</em> Services</h2>
+          <p class="luxe-sub">Enjoy these valuable extras at no additional cost</p>
         </div>
 
         <div class="row g-4">
           <!-- MCO Meet & Greet -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-benefit-card">
+            <div class="luxe-benefit" data-reveal>
               <div class="benefit-header">
                 <div class="benefit-icon">
                   <img src="{% static 'images/handshake.webp' %}" alt="Meet & Greet" loading="lazy" />
                 </div>
-                <h3 class="benefit-title">MCO Meet & Greet</h3>
+                <h3 class="benefit-title">MCO Meet &amp; Greet</h3>
               </div>
               <ul class="benefit-list">
                 <li>
@@ -861,7 +850,7 @@
 
           <!-- Free Car Seats -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-benefit-card">
+            <div class="luxe-benefit" data-reveal>
               <div class="benefit-header">
                 <div class="benefit-icon">
                   <img src="{% static 'images/carseat.webp' %}" alt="Car Seats" loading="lazy" />
@@ -887,7 +876,7 @@
 
           <!-- Grocery Stop -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-benefit-card">
+            <div class="luxe-benefit" data-reveal>
               <div class="benefit-header">
                 <div class="benefit-icon">
                   <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop" loading="lazy" />
@@ -913,7 +902,7 @@
 
           <!-- Professional Drivers -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-benefit-card">
+            <div class="luxe-benefit" data-reveal>
               <div class="benefit-header">
                 <div class="benefit-icon">
                   <img src="{% static 'images/driver.webp' %}" alt="Professional Drivers" loading="lazy" />
@@ -939,7 +928,7 @@
 
           <!-- 24/7 Availability -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-benefit-card">
+            <div class="luxe-benefit" data-reveal>
               <div class="benefit-header">
                 <div class="benefit-icon">
                   <img src="{% static 'images/247.webp' %}" alt="24/7 Availability" loading="lazy" />
@@ -965,7 +954,7 @@
 
           <!-- Roundtrip Discount -->
           <div class="col-md-6 col-lg-4">
-            <div class="premium-benefit-card">
+            <div class="luxe-benefit" data-reveal>
               <div class="benefit-header">
                 <div class="benefit-icon">
                   <img src="{% static 'images/offer.webp' %}" alt="Roundtrip Discount" loading="lazy" />
@@ -975,7 +964,7 @@
               <ul class="benefit-list">
                 <li>
                   <i class="bi bi-check-circle-fill"></i>
-                  Save by booking arrival & departure
+                  Save by booking arrival &amp; departure
                 </li>
                 <li>
                   <i class="bi bi-check-circle-fill"></i>
@@ -990,27 +979,26 @@
           </div>
         </div>
 
-        <!-- CTA Button -->
         <div class="text-center mt-5">
-          <a href="{% url 'rates' %}" class="btn btn-premium-primary btn-lg px-5">Get The Grayson Experience</a>
+          <a href="{% url 'rates' %}" class="btn-luxe">Get The Grayson Experience</a>
         </div>
       </div>
     </section>
 
-    <!-- ==================== CTA SECTION ==================== -->
-    <section class="premium-cta">
+    <!-- ==================== FINAL CTA ==================== -->
+    <section class="luxe-cta">
       <div class="container px-4">
         <div class="row align-items-center">
           <div class="col-lg-7 text-lg-start text-center mb-4 mb-lg-0">
-            <h2 class="cta-title">Ready to Experience Premium Transportation?</h2>
+            <h2 class="cta-title">Ready to Experience <em>Premium</em> Transportation?</h2>
             <p class="cta-subtitle">Book your private Orlando airport transfer today and travel in comfort and style.</p>
             <div class="d-flex flex-wrap gap-3 justify-content-lg-start justify-content-center">
-              <a href="{% url 'rates' %}" class="btn btn-premium-gold btn-lg px-4">Book Your Ride</a>
-              <a href="{% url 'contact' %}" class="btn btn-premium-outline btn-lg px-4">Contact Support</a>
+              <a href="{% url 'rates' %}" class="btn-luxe">Book Your Ride</a>
+              <a href="{% url 'contact' %}" class="btn-luxe-ghost">Contact Support</a>
             </div>
           </div>
           <div class="col-lg-5 text-lg-end text-center">
-            <div class="mb-2" style="color: rgba(255,255,255,0.6); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em;">24/7 Reservations</div>
+            <div class="cta-phone-label">24/7 Reservations</div>
             <a href="tel:+14072127190" class="cta-phone">
               <i class="bi bi-telephone-fill"></i>
               +1 (407) 212-7190
@@ -1053,102 +1041,43 @@
               })
           })
 
-          // Show/hide scroll to top button based on scroll position
           window.addEventListener('scroll', function() {
               if (window.pageYOffset > 300) {
                   scrollToTopBtn.style.display = 'flex'
               } else {
                   scrollToTopBtn.style.display = 'none'
               }
-          })
+          }, { passive: true })
 
-          // Add smooth reveal animations on scroll
-          const observerOptions = {
-              threshold: 0.1,
-              rootMargin: '0px 0px -50px 0px'
-          }
+          // Scroll reveals — classes added by JS so content stays visible without it
+          const revealEls = document.querySelectorAll('[data-reveal]')
+          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-          const observer = new IntersectionObserver((entries) => {
-              entries.forEach(entry => {
-                  if (entry.isIntersecting) {
-                      entry.target.classList.add('animate-fade-in')
-                      observer.unobserve(entry.target)
-                  }
+          if (revealEls.length && !reduceMotion && 'IntersectionObserver' in window) {
+              const observer = new IntersectionObserver((entries) => {
+                  entries.forEach(entry => {
+                      if (entry.isIntersecting) {
+                          const el = entry.target
+                          el.classList.add('lx-in')
+                          observer.unobserve(el)
+                          // Clear stagger + helper classes so hover transitions aren't delayed
+                          setTimeout(() => {
+                              el.style.transitionDelay = ''
+                              el.classList.remove('lx-pre', 'lx-in')
+                          }, 1000)
+                      }
+                  })
+              }, {
+                  threshold: 0.12,
+                  rootMargin: '0px 0px -40px 0px'
               })
-          }, observerOptions)
 
-          // Observe cards and sections for animation
-          document.querySelectorAll('.premium-service-card, .premium-feature-card, .premium-fleet-card, .premium-benefit-card, .premium-review-card').forEach(el => {
-              el.style.opacity = '0'
-              observer.observe(el)
-          })
+              revealEls.forEach((el, i) => {
+                  el.classList.add('lx-pre')
+                  el.style.transitionDelay = (i % 4) * 80 + 'ms'
+                  observer.observe(el)
+              })
+          }
       })
   </script>
-
-  <style>
-      .sticky-buttons {
-          position: fixed;
-          right: 20px;
-          bottom: 20px;
-          z-index: 1000;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-      }
-
-      .sticky-btn {
-          width: 54px;
-          height: 54px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          text-decoration: none;
-          border: none;
-          cursor: pointer;
-          font-size: 18px;
-          transition: all 0.3s ease;
-      }
-
-      .sticky-scroll {
-          background-color: #0d1117;
-          color: white;
-          display: none;
-      }
-
-      .sticky-scroll:hover {
-          background-color: #1a1a1a;
-          color: white;
-          transform: scale(1.1);
-      }
-
-      @media (max-width: 768px) {
-          .sticky-buttons {
-              right: 15px;
-              bottom: 15px;
-          }
-
-          .sticky-btn {
-              width: 48px;
-              height: 48px;
-              font-size: 16px;
-          }
-      }
-
-      /* Ensure animations work */
-      .animate-fade-in {
-          animation: fadeInUp 0.6s ease-out forwards;
-      }
-
-      @keyframes fadeInUp {
-          from {
-              opacity: 0;
-              transform: translateY(30px);
-          }
-          to {
-              opacity: 1;
-              transform: translateY(0);
-          }
-      }
-  </style>
 {% endblock %}
