@@ -45,6 +45,32 @@ SAFETY_PAD_MIN = 0
 # Guard C — use the observed-history STUB windows below until real windows are configured.
 USE_STUB_WINDOWS = True
 
+# ── Duty-span caps (Span Governor, 2026-06: docs/scheduler-automation/auto-assign-hour-
+# balancing-design.md). The Guard C max_hours gate has always existed; these flags fix the
+# VALUES it enforces. Calibrated to the founder's own hand-built boards (39 driver-days:
+# raw span median 12.3h / p90 15.2h / max 16.5h; max CONTINUOUS duty ~13.5h).
+# ENFORCE_SPAN_CAPS=False restores byte-identical pre-cap behavior everywhere.
+ENFORCE_SPAN_CAPS = True
+# HARD ceiling on RAW span (first pickup -> last clear), enforced via window_check.
+# 17h never blocks anything the founder built himself (his max: 16.5h, a split-day); it
+# trims only the optimistic stub values (David 24h, roberto/neuma 23h, ...). A tighter
+# stub/configured/modal value still wins via min().
+SPAN_HARD_HOURS_DEFAULT = 17.0
+# SOFT steering on EFFECTIVE span (raw span minus one PRE-EXISTING internal break of
+# >= SPAN_GAP_CREDIT_MIN_MIN minutes, credit capped at SPAN_GAP_CREDIT_MAX_MIN). Marginal
+# progressive pricing in the builder scoring: free under FREE_HOURS, SPAN_SOFT_RATE pts/hr
+# from FREE_HOURS to SPAN_SOFT_EFFECTIVE_HOURS, SPAN_STEEP_RATE pts/hr beyond. The target
+# is STRICTLY-GREATER (a founder-built 13.5h-effective day pays no steep rate).
+SPAN_SOFT_PRICING = True
+SPAN_SOFT_FREE_HOURS = 12.0
+SPAN_SOFT_EFFECTIVE_HOURS = 13.5
+SPAN_SOFT_RATE = 25           # tiebreak-scale: loses to chain/coherence/scarcity bonuses
+SPAN_STEEP_RATE = 120         # an hour past target outweighs any single bonus; never gates
+SPAN_SEEDER_RATE_SCALE = 0.5  # build_smart_schedule seats only on score>0 — half rate so the
+                              # span term steers Build-1st days without silently dropping legs
+SPAN_GAP_CREDIT_MIN_MIN = 120  # a >=2h hole is a real off-duty break (founder split-days: 3-5h)
+SPAN_GAP_CREDIT_MAX_MIN = 300  # cap the credit so one 6h hole can't excuse a 20h day
+
 # ════════════════════════════════════════════════════════════════════════════
 # STUB DRIVER WINDOWS  — PROVISIONAL, from docs/driver_reality_report.md (observed
 # history Feb–May 2026). OPTIMISTIC (captures what a driver did, not hard limits).
@@ -125,29 +151,60 @@ def is_airport_arrival(trip_type, pickup_category):
 # ════════════════════════════════════════════════════════════════════════════
 # GUARD C — per-driver window (stub-backed)
 # ════════════════════════════════════════════════════════════════════════════
-def get_effective_window(driver_id, configured=None):
+def _capped_max_hours(*values):
+    """min() over the non-None candidate max_hours values plus the global hard default."""
+    candidates = [float(v) for v in values if v is not None]
+    candidates.append(float(SPAN_HARD_HOURS_DEFAULT))
+    return min(candidates)
+
+
+def get_effective_window(driver_id, configured=None, enforce_cap=True):
     """Return the window dict to enforce for this driver.
 
     {"start": h, "end": h, "max_hours": float|None, "flexible": bool}
     When USE_STUB_WINDOWS: use the observed-history stub (flexible=False so it actually
     binds during testing). Otherwise use the caller-supplied `configured` window (the real
     DriverWeeklySchedule-derived dict). Returns None if nothing is known (=> no window guard).
+
+    enforce_cap (with ENFORCE_SPAN_CAPS): clamp max_hours to
+    min(stub, configured, SPAN_HARD_HOURS_DEFAULT) — the stub values are OPTIMISTIC observed
+    history (David 24h, roberto 23h, ...), which is exactly what let auto-assign build 15-18h
+    days. Unknown drivers get a cap-only synthetic window whose start/end stay None (a
+    non-None end would NEWLY enforce a clear-by on drivers who today have no window at all).
+    Pass enforce_cap=False on analytics / manual-sovereign paths (fleet_intel, the manual
+    swap-validation endpoint) so the cap never silently changes shipped numbers or blocks a
+    dispatcher's intentional long day.
     """
+    cap_on = ENFORCE_SPAN_CAPS and enforce_cap
     if USE_STUB_WINDOWS:
         w = STUB_DRIVER_WINDOWS.get(driver_id)
-        if not w:
-            return None
         # Use the observed-history stub for start/end/max, but HONOR the driver's REAL
         # flexible flag (from the caller's `configured` window) — never hardcode False.
         # Otherwise flexible drivers were treated as rigid in auto-assign/swaps and late
         # jobs they could cover (e.g. a 10:24 PM van clearing ~11:46) got farmed.
         flexible = bool(configured and configured.get("flexible"))
-        return {"start": w["start"], "end": w["end"], "max_hours": w["max_hours"], "flexible": flexible}
-    return configured
+        if not w:
+            if not cap_on:
+                return None
+            return {"start": None, "end": None,
+                    "max_hours": _capped_max_hours(configured.get("max_hours") if configured else None),
+                    "flexible": flexible}
+        max_h = w["max_hours"]
+        if cap_on:
+            max_h = _capped_max_hours(max_h, configured.get("max_hours") if configured else None)
+        return {"start": w["start"], "end": w["end"], "max_hours": max_h, "flexible": flexible}
+    if not cap_on:
+        return configured
+    if configured is None:
+        return {"start": None, "end": None, "max_hours": _capped_max_hours(), "flexible": False}
+    capped = dict(configured)
+    capped["max_hours"] = _capped_max_hours(configured.get("max_hours"))
+    return capped
 
 
 def window_check(window, pickup_time, clear_dt, span_hours_after,
-                 target_date=None, mode=None, flexible_respects_clear_by=None):
+                 target_date=None, mode=None, flexible_respects_clear_by=None,
+                 span_hours_before=None):
     """(ok, reason) for whether adding a leg respects the driver's window + max_hours.
 
     window: {"start", "end", "max_hours", "flexible"}; None => skip.
@@ -157,6 +214,10 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
     target_date: the schedule date; used to build an ABSOLUTE clear-by datetime so a leg
         that clears AFTER MIDNIGHT (e.g. a 22:30 pickup clearing 00:30 next day) is correctly
         judged a clear-by violation rather than evading it via a bare hour comparison.
+    span_hours_before: the day span WITHOUT the leg. When the day ALREADY exceeds max_hours
+        (a pre-existing/manual board, or a modal cap set below the saved day), only inserts
+        that GROW the span are blocked — hole-fills that leave the span unchanged stay legal,
+        so an over-cap driver isn't frozen out of every insert. None => legacy total-span gate.
     """
     if not window:
         return True, ""
@@ -190,6 +251,11 @@ def window_check(window, pickup_time, clear_dt, span_hours_after,
 
     # MAX HOURS — hard cap on day span (wall-clock first pickup -> last clear).
     if max_h is not None and span_hours_after is not None and span_hours_after > float(max_h):
-        return False, f"day span {span_hours_after:.1f}h > max_hours {max_h}"
+        already_over = (span_hours_before is not None
+                        and span_hours_before > float(max_h))
+        grows = (span_hours_before is None
+                 or span_hours_after > span_hours_before + 1e-9)
+        if not already_over or grows:
+            return False, f"day span {span_hours_after:.1f}h > max_hours {max_h}"
 
     return True, ""

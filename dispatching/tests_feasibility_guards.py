@@ -128,12 +128,25 @@ class EffectiveWindowTests(SimpleTestCase):
         self.assertIn("end", w)
 
     def test_unknown_driver_returns_none(self):
-        self.assertIsNone(fg.get_effective_window(999999))
+        # Legacy semantics (no Span Governor): unknown driver => no window guard at all.
+        self.assertIsNone(fg.get_effective_window(999999, enforce_cap=False))
+
+    def test_unknown_driver_capped_synthetic(self):
+        # Span Governor: an unknown driver gets a cap-only synthetic window whose start/end
+        # stay None (a non-None end would NEWLY enforce a clear-by he never had).
+        w = fg.get_effective_window(999999)
+        self.assertIsNotNone(w)
+        self.assertIsNone(w["start"])
+        self.assertIsNone(w["end"])
+        self.assertEqual(w["max_hours"], fg.SPAN_HARD_HOURS_DEFAULT)
 
     def test_stub_false_uses_configured(self):
         # H2: flipping USE_STUB_WINDOWS=False must switch to the configured window,
         # NOT silently disable the guard (return None).
         configured = {"start": 6, "end": 17, "max_hours": 12.0, "flexible": False}
         with patch.object(fg, "USE_STUB_WINDOWS", False):
+            # max_hours 12 < the 17h global cap, so the capped window equals configured.
             self.assertEqual(fg.get_effective_window(46, configured=configured), configured)
-            self.assertIsNone(fg.get_effective_window(46, configured=None))
+            self.assertEqual(fg.get_effective_window(46, configured=configured, enforce_cap=False),
+                             configured)
+            self.assertIsNone(fg.get_effective_window(46, configured=None, enforce_cap=False))
