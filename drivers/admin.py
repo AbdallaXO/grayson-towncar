@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile, DriverPushSubscription, DriverWakeupCheck
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -1087,6 +1087,22 @@ class DriverPaymentExportAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(DriverPushSubscription)
+class DriverPushSubscriptionAdmin(admin.ModelAdmin):
+    """Read-only visibility into which drivers/devices have notifications on."""
+    list_display = ["driver", "user_agent", "created_at", "last_success_at"]
+    list_filter = ["created_at"]
+    search_fields = ["driver__profile__first_name", "driver__profile__last_name", "endpoint"]
+    readonly_fields = ["driver", "endpoint", "p256dh", "auth", "user_agent",
+                       "created_at", "last_success_at"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(DriverPayoutAdjustment)
 class DriverPayoutAdjustmentAdmin(admin.ModelAdmin):
     list_display = [
@@ -1111,4 +1127,47 @@ class DriverPayoutAdjustmentAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(DriverWakeupCheck)
+class DriverWakeupCheckAdmin(admin.ModelAdmin):
+    """Early-morning wake-up ladder audit trail + manual override.
+
+    Rows are created/advanced by the background sweeper (drivers/wakeup.py).
+    The only thing staff should ever do here is "Mark confirmed awake" when a
+    driver rings dispatch directly instead of tapping the link.
+    """
+
+    list_display = [
+        "date", "driver", "pickup_local", "status", "ack_source",
+        "sms_sent_at", "call_started_at", "escalated_at", "acked_at",
+    ]
+    list_filter = ["status", "date"]
+    search_fields = ["driver__profile__first_name", "driver__profile__last_name"]
+    date_hierarchy = "date"
+    ordering = ["-date", "first_pickup_at"]
+    readonly_fields = [
+        "driver", "date", "leg", "first_pickup_at", "token", "status",
+        "sms_sent_at", "push_sent_at", "call_started_at", "escalated_at",
+        "acked_at", "ack_source", "log", "created_at",
+    ]
+    actions = ["mark_confirmed_awake"]
+
+    @admin.display(description="First pickup", ordering="first_pickup_at")
+    def pickup_local(self, obj):
+        from django.utils import timezone as tz
+        return tz.localtime(obj.first_pickup_at).strftime("%I:%M %p").lstrip("0")
+
+    @admin.action(description="Mark confirmed awake (driver reached us directly)")
+    def mark_confirmed_awake(self, request, queryset):
+        from drivers.wakeup import ack_check
+        done = 0
+        for check in queryset:
+            if not check.acked_at:
+                ack_check(check, source="admin")
+                done += 1
+        self.message_user(request, f"{done} check(s) marked confirmed.")
+
+    def has_add_permission(self, request):
         return False

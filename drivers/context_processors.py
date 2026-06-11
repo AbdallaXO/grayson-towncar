@@ -21,3 +21,11 @@ def pending_timeoff_count(request):
 def invalidate_pending_timeoff_count():
     """Call after creating, approving, or denying a request so the badge updates fast."""
     cache.delete(_KEY)
+
+
+def webpush_public_key(request):
+    """Expose the VAPID public key to driver-portal templates so the subscribe
+    JS can call pushManager.subscribe(). Empty string = push not configured →
+    the bell UI hides itself."""
+    from django.conf import settings
+    return {"WEBPUSH_VAPID_PUBLIC_KEY": settings.WEBPUSH_VAPID_PUBLIC_KEY}

@@ -39,45 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = "{{ csrf_token }}";
     let currentLegId = null;
 
-    // ── Geolocation permission manager ──
-    // Avoids repeated browser prompts by checking permission state first.
-    let _geoPermission = null;  // 'granted' | 'denied' | 'prompt'
-
-    async function initGeoPermission() {
-        if (navigator.permissions && navigator.permissions.query) {
-            try {
-                const status = await navigator.permissions.query({ name: 'geolocation' });
-                _geoPermission = status.state;
-                status.addEventListener('change', () => { _geoPermission = status.state; });
-                return;
-            } catch (e) { /* Safari and some browsers throw for geolocation query */ }
-        }
-        // Fallback: sessionStorage flag set after first successful position
-        _geoPermission = sessionStorage.getItem('geo_granted') === '1' ? 'granted' : 'prompt';
-    }
-
-    function getLocation(onSuccess, options) {
-        if (!navigator.geolocation) return;
-        if (_geoPermission === 'denied') return;
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                _geoPermission = 'granted';
-                sessionStorage.setItem('geo_granted', '1');
-                onSuccess(pos);
-            },
-            (err) => {
-                if (err.code === 1) { // PERMISSION_DENIED
-                    _geoPermission = 'denied';
-                    sessionStorage.setItem('geo_granted', '0');
-                }
-            },
-            options
-        );
-    }
-
-    initGeoPermission();
-
     // ── Toast helper ──
     function showToast(message, type = 'success') {
         const container = document.getElementById('toast-container');
@@ -150,9 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setFlightStatusBadge(badge, badge.dataset.flightStatus || badge.textContent);
     });
 
-    // ── GPS-aware status update helper ──
-    const GPS_STATUSES = ['on-the-way', 'on-location', 'picked-up'];
-
+    // ── Status update helper ──
     function sendStatusUpdate(legId, newStatus, extraData = {}) {
         return fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
             method: 'POST',
@@ -164,41 +123,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function sendStatusWithGPS(legId, newStatus) {
-        // Fire status update immediately — never wait for GPS
-        const statusPromise = sendStatusUpdate(legId, newStatus);
-
-        // Capture GPS in the background and send separately if available
-        if (GPS_STATUSES.includes(newStatus)) {
-            getLocation((pos) => {
-                fetch("{% url 'driver_report_location' %}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                    body: JSON.stringify({
-                        leg_id: legId,
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        accuracy: pos.coords.accuracy,
-                        heading: pos.coords.heading,
-                        speed: pos.coords.speed,
-                    })
-                }).catch(() => {}); // best-effort, don't block
-            }, { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 });
-        }
-
-        return statusPromise;
-    }
-
     // ── Status select change handler ──
     document.querySelectorAll('.status-select:not([disabled])').forEach(select => {
         select.addEventListener('change', (event) => {
             const legId = event.target.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
             const newStatus = event.target.value;
 
-            sendStatusWithGPS(legId, newStatus)
+            sendStatusUpdate(legId, newStatus)
             .then(data => {
                 if (data.success) {
-                    if (GPS_STATUSES.includes(newStatus)) { startTracking(legId, false); } else { stopTracking(legId); }
                     showToast(`Status updated to ${newStatus.replace(/-/g, ' ')}`, 'success');
                     setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
                 } else {
@@ -232,11 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Failsafe: if anything hangs, force reload after 10s
             const failsafe = setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 10000);
 
-            sendStatusWithGPS(legId, nextStatus)
+            sendStatusUpdate(legId, nextStatus)
             .then(data => {
                 clearTimeout(failsafe);
                 if (data.success) {
-                    if (GPS_STATUSES.includes(nextStatus)) { startTracking(legId); } else { stopTracking(legId); }
                     showToast(`Status updated to ${nextStatus.replace(/-/g, ' ')}`, 'success');
                     setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
                 } else {
@@ -256,84 +188,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── Periodic GPS tracking while en route ──
-    const TRACKING_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
-    let trackingIntervals = {}; // legId -> intervalId
-    let wakeLock = null;
+    // ── Auto-refresh: poll for schedule changes ──
+    // Pages that want it set window.GT_BOARD_POLL = { start: 'Y-m-d', end: 'Y-m-d' }
+    // before including this file. We poll a lightweight fingerprint endpoint and
+    // reload when the driver's board changed (reassignment, retime, new/removed
+    // trip), so an open tab never shows a stale schedule.
+    const pollCfg = window.GT_BOARD_POLL;
+    if (pollCfg) {
+        const POLL_INTERVAL_MS = 60 * 1000;
+        let boardFp = null;
+        let reloadPending = false;
 
-    function sendLocationForLeg(legId) {
-        getLocation((pos) => {
-            fetch("{% url 'driver_report_location' %}", {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({
-                    leg_id: legId,
-                    latitude: pos.coords.latitude,
-                    longitude: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy,
-                    heading: pos.coords.heading,
-                    speed: pos.coords.speed,
-                })
-            }).catch(() => {});
-        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
-    }
-
-    function startTracking(legId, sendNow) {
-        if (trackingIntervals[legId]) return;
-        if (!navigator.geolocation) return;
-
-        // Send immediately if reopening the app (not after a fresh status change)
-        if (sendNow) sendLocationForLeg(legId);
-
-        trackingIntervals[legId] = setInterval(() => sendLocationForLeg(legId), TRACKING_INTERVAL_MS);
-        acquireWakeLock();
-    }
-
-    function stopTracking(legId) {
-        if (trackingIntervals[legId]) {
-            clearInterval(trackingIntervals[legId]);
-            delete trackingIntervals[legId];
+        function checkBoard() {
+            if (reloadPending || document.visibilityState !== 'visible') return;
+            const params = new URLSearchParams({ start: pollCfg.start, end: pollCfg.end });
+            fetch("{% url 'driver_board_state' %}?" + params.toString(), {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (!data || !data.fp) return;
+                if (boardFp === null) { boardFp = data.fp; return; }
+                if (data.fp === boardFp) return;
+                // Don't yank the page out from under an open modal — retry next tick
+                if (document.querySelector('.modal.show')) return;
+                reloadPending = true;
+                showToast('Your schedule was updated — refreshing…', 'success');
+                setTimeout(() => { window.scrollTo(0, 0); window.location.reload(); }, 1200);
+            })
+            .catch(() => {});
         }
-        // Release wake lock if nothing is being tracked
-        if (Object.keys(trackingIntervals).length === 0) releaseWakeLock();
-    }
 
-    // ── Wake Lock: keep screen on while en route ──
-    async function acquireWakeLock() {
-        if (wakeLock || !('wakeLock' in navigator)) return;
-        try { wakeLock = await navigator.wakeLock.request('screen'); }
-        catch (e) { /* device doesn't support or denied */ }
-    }
-    function releaseWakeLock() {
-        if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
-    }
-
-    // ── Re-acquire wake lock + send fresh GPS when tab comes back to foreground ──
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
-        const activeLegs = Object.keys(trackingIntervals);
-        if (activeLegs.length > 0) {
-            acquireWakeLock();
-            activeLegs.forEach(legId => sendLocationForLeg(legId));
-        }
-    });
-
-    // Auto-start tracking for any legs already en route on page load
-    // sendNow=true so reopening the app immediately updates ETA
-    function collectEnRouteLegIds() {
-        const ids = new Set();
-        document.querySelectorAll('.progression-btn').forEach(btn => {
-            const legId = btn.dataset.legId;
-            const card = btn.closest('[data-leg-status]') || btn.closest('.gt-trip-card');
-            if (card && GPS_STATUSES.includes(card.dataset.legStatus)) ids.add(legId);
+        checkBoard(); // capture the baseline fingerprint right away
+        setInterval(checkBoard, POLL_INTERVAL_MS);
+        // Reopening the phone/tab is the moment a driver most needs fresh data
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkBoard();
         });
-        document.querySelectorAll('.status-select').forEach(select => {
-            const legId = select.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
-            if (GPS_STATUSES.includes(select.value)) ids.add(legId);
-        });
-        return ids;
     }
-    collectEnRouteLegIds().forEach(legId => startTracking(legId, true));
 
     // ── Accept job handler ──
     document.querySelectorAll('.accept-job-btn').forEach(button => {
@@ -583,5 +475,151 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('/drivers/sw.js', { scope: '/drivers/' })
             .catch(err => console.warn('SW registration failed:', err));
     }
+
+    // ── Web Push notifications (bell in the navbar) ──
+    const PUSH_KEY = "{{ WEBPUSH_VAPID_PUBLIC_KEY }}";
+    const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const IS_STANDALONE = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+    const pushSupported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    const pushButtons = ['gt-push-toggle', 'gt-push-toggle-mobile']
+        .map(id => document.getElementById(id)).filter(Boolean);
+
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - base64String.length % 4) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = window.atob(base64);
+        return Uint8Array.from([...raw].map(ch => ch.charCodeAt(0)));
+    }
+
+    function setPushIcons(state) { // 'on' | 'off' | 'blocked'
+        const cls = state === 'on' ? 'bi bi-bell-fill'
+                  : state === 'blocked' ? 'bi bi-bell-slash'
+                  : 'bi bi-bell';
+        ['gt-push-icon', 'gt-push-icon-mobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.className = cls;
+        });
+    }
+
+    async function refreshPushUI() {
+        if (!pushButtons.length || !PUSH_KEY) return;
+        if (!pushSupported) {
+            // iOS Safari tab: push only works once installed — show the bell so
+            // tapping it explains Add to Home Screen. Other browsers: hide.
+            if (IS_IOS && !IS_STANDALONE) {
+                pushButtons.forEach(b => b.classList.remove('d-none'));
+                setPushIcons('off');
+            }
+            return;
+        }
+        pushButtons.forEach(b => b.classList.remove('d-none'));
+        if (Notification.permission === 'denied') { setPushIcons('blocked'); return; }
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager.getSubscription();
+            setPushIcons(sub ? 'on' : 'off');
+        } catch (e) { setPushIcons('off'); }
+    }
+
+    async function togglePush() {
+        if (!pushSupported) {
+            if (IS_IOS && !IS_STANDALONE) {
+                showToast('To get notifications: tap Share <i class="bi bi-box-arrow-up"></i>, then "Add to Home Screen", then open the app from your home screen.', 'dark');
+            } else {
+                showToast('Notifications are not supported in this browser', 'danger');
+            }
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            showToast('Notifications are blocked — allow them for this site in your phone settings.', 'danger');
+            return;
+        }
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            const existing = await reg.pushManager.getSubscription();
+
+            if (existing) {
+                await fetch("{% url 'driver_push_unsubscribe' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ endpoint: existing.endpoint })
+                }).catch(() => {});
+                await existing.unsubscribe().catch(() => {});
+                setPushIcons('off');
+                showToast('Trip notifications turned off', 'dark');
+                return;
+            }
+
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') { setPushIcons(perm === 'denied' ? 'blocked' : 'off'); return; }
+
+            const sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(PUSH_KEY),
+            });
+            const resp = await fetch("{% url 'driver_push_subscribe' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ subscription: sub.toJSON() })
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || 'subscribe failed');
+            setPushIcons('on');
+            // Server sends a test notification so the driver sees it working
+            fetch("{% url 'driver_push_test' %}", {
+                method: 'POST', headers: { 'X-CSRFToken': csrfToken }
+            }).catch(() => {});
+        } catch (err) {
+            console.error('Push subscribe failed:', err);
+            const msg = (err && err.message) ? err.message : 'unknown error';
+            showToast('Could not enable notifications: ' + msg, 'danger');
+            setPushIcons('off');
+        }
+    }
+
+    pushButtons.forEach(b => b.addEventListener('click', togglePush));
+    refreshPushUI();
+
+    // ── Add-to-Home-Screen nudge (dismissible, once) ──
+    (function () {
+        if (IS_STANDALONE) return;
+        if (localStorage.getItem('gt-install-dismissed') === '1') return;
+        let deferredPrompt = null;
+
+        function showInstallBanner(mode) { // 'android' | 'ios'
+            if (document.getElementById('gt-install-banner')) return;
+            const div = document.createElement('div');
+            div.id = 'gt-install-banner';
+            div.style.cssText = 'position:fixed;bottom:12px;left:12px;right:12px;z-index:1050;background:var(--gt-dark);color:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,0.35);display:flex;align-items:center;gap:12px;font-family:\'DM Sans\',sans-serif;';
+            const text = mode === 'ios'
+                ? '<div style="flex:1;font-size:0.875rem;">Install the app: tap <i class="bi bi-box-arrow-up"></i> <strong>Share</strong>, then <strong>Add to Home Screen</strong></div>'
+                : '<div style="flex:1;font-size:0.875rem;">Install the GT Driver app for one-tap access and trip notifications</div>';
+            div.innerHTML = '<i class="bi bi-phone" style="font-size:1.25rem;"></i>' + text +
+                (mode === 'android' ? '<button id="gt-install-btn" style="background:#fff;color:#1a1d21;border:none;border-radius:8px;padding:8px 14px;font-weight:600;font-size:0.8125rem;white-space:nowrap;">Install</button>' : '') +
+                '<button id="gt-install-dismiss" style="background:none;border:none;color:rgba(255,255,255,0.6);font-size:1.25rem;padding:0 4px;" aria-label="Dismiss">&times;</button>';
+            document.body.appendChild(div);
+            document.getElementById('gt-install-dismiss').addEventListener('click', () => {
+                div.remove();
+                localStorage.setItem('gt-install-dismissed', '1');
+            });
+            const btn = document.getElementById('gt-install-btn');
+            if (btn) btn.addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                await deferredPrompt.userChoice.catch(() => {});
+                div.remove();
+                localStorage.setItem('gt-install-dismissed', '1');
+            });
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            showInstallBanner('android');
+        });
+        if (IS_IOS) showInstallBanner('ios');
+    })();
 });
 </script>

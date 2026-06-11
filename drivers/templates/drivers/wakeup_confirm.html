@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Wake-up check — Grayson Towncar</title>
+  <style>
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #14141c; color: #f3f0e8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      text-align: center;
+    }
+    .card { padding: 36px 28px; max-width: 420px; width: 100%; }
+    h1 { font-size: 1.35rem; margin: 0 0 8px; }
+    .pickup { color: #d4af37; font-size: 2.2rem; font-weight: 700; margin: 14px 0 26px; }
+    .btn {
+      display: block; width: 100%; padding: 22px 16px; border: 0; border-radius: 14px;
+      background: #d4af37; color: #14141c; font-size: 1.4rem; font-weight: 700; cursor: pointer;
+    }
+    .ok { color: #7ed98c; font-size: 1.2rem; margin-top: 10px; }
+    .muted { color: #9a96a8; font-size: .9rem; margin-top: 22px; }
+    a { color: #d4af37; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    {% if check.acked_at %}
+      <h1>You're confirmed — have a great day!</h1>
+      <div class="pickup">{{ pickup_label }}</div>
+      <p class="ok">✓ Confirmed awake</p>
+      <p class="muted"><a href="{% url 'drivers_dashboard' %}">Open your schedule</a></p>
+    {% else %}
+      <h1>Good morning! First pickup at</h1>
+      <div class="pickup">{{ pickup_label }}</div>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn">I'M UP ✓</button>
+      </form>
+      <p class="muted">Tap the button so dispatch knows you're awake.</p>
+    {% endif %}
+  </div>
+</body>
+</html>

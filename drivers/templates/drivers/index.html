@@ -40,6 +40,27 @@
         {% endfor %}
       {% endif %}
 
+      <!-- ═══ Assigned Vehicle ═══ -->
+      {% if vehicle_assignment %}
+        <div class="gt-card mb-3">
+          <div style="padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <i class="bi bi-car-front-fill" style="font-size:1.375rem;color:var(--gt-blue);"></i>
+            <div>
+              <div class="gt-label">Your Vehicle {% if is_today %}Today{% else %}· {{ selected_date|date:"D, M j" }}{% endif %}</div>
+              <div style="font-weight:600;font-size:0.9375rem;">
+                {% if vehicle_assignment.vehicle.vehicle_type %}{{ vehicle_assignment.vehicle.vehicle_type.get_vehicle_type_display }} · {% endif %}#{{ vehicle_assignment.vehicle.vehicle_number }}
+                <span style="color:var(--gt-text-secondary);font-weight:500;">{{ vehicle_assignment.vehicle.year }} {{ vehicle_assignment.vehicle.make }} {{ vehicle_assignment.vehicle.model }}</span>
+              </div>
+              {% if vehicle_assignment.share_window %}
+                <div style="font-size:0.8125rem;color:var(--gt-orange);font-weight:500;margin-top:2px;">
+                  <i class="bi bi-people-fill"></i> Shared car — your window {{ vehicle_assignment.share_window }}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
       <!-- ═══ Today Summary ═══ -->
       {% if is_today and legs %}
         <div class="d-flex gap-2 mb-3">
@@ -623,6 +644,13 @@
 
     </div>
 
+    <script>
+      // Auto-refresh scope: the day being viewed (see _driver_scripts.html)
+      window.GT_BOARD_POLL = {
+        start: "{{ selected_date|date:'Y-m-d' }}",
+        end: "{{ selected_date|date:'Y-m-d' }}"
+      };
+    </script>
     {% include "drivers/_driver_scripts.html" %}
 
     <script>

@@ -1484,21 +1484,28 @@ class Leg(models.Model):
             self.driver_additional = None
             self.driver_pay_amount = None
 
-        # Reset leg status when driver is unassigned: progressed states like
-        # confirmed/on-the-way/on-location/picked-up don't apply once the
-        # driver is gone. Skip terminal 'completed'/'cancelled' so those stick.
-        _driver_unassigned = (
+        # Reset leg status whenever the DRIVER CHANGES — unassign, reassign,
+        # or fresh assign (founder rule 2026-06-11): progressed states like
+        # confirmed/on-the-way/picked-up belong to the previous driver, so the
+        # leg goes back to 'in-progress' (the new driver must re-accept).
+        # Terminal 'completed'/'cancelled' stick, so e.g. a payroll-correction
+        # reassignment of a finished trip never resurrects it.
+        _driver_changed = (
             self.pk
             and hasattr(self, '_original_driver_id')
-            and self._original_driver_id is not None
-            and self.driver_id is None
-            and self.status not in ('in-progress', 'completed', 'cancelled')
+            and self._original_driver_id != self.driver_id
         )
-        if _driver_unassigned:
+        if _driver_changed and self.status not in ('in-progress', 'completed', 'cancelled'):
             self.status = 'in-progress'
             self.status_changed_by = getattr(self, '_status_change_user', None)
             self.status_changed_at = timezone.now()
             self._reset_status_on_unassign = True
+            # Assignment saves (auto-assign apply, swaps) pass
+            # update_fields=['driver', ...] — widen it or the reset is dropped.
+            if _uf is not None:
+                kwargs['update_fields'] = set(_uf) | {
+                    'status', 'status_changed_by', 'status_changed_at'
+                }
 
         # Auto-fill driver pay when not set (inhouse and affiliate)
         if (

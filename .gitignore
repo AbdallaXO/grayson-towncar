@@ -193,3 +193,8 @@ cython_debug/
 # macOS Finder metadata
 .DS_Store
 **/.DS_Store
+
+# Local DB backups + report artifacts (session tooling, never ship)
+content/db_backup_*.sqlite3
+/report.html
+/vehicle-assignments.html

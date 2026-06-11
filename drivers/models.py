@@ -626,6 +626,92 @@ class DriverVehicleAssignment(models.Model):
         return f"{self.driver} - {self.vehicle} ({self.date})"
 
 
+class DriverPushSubscription(models.Model):
+    """A browser/device Web Push subscription for a driver's portal session.
+    One driver can hold several (phone + tablet). Dead subscriptions (the push
+    service answers 404/410) are pruned automatically by the send helper."""
+
+    driver = models.ForeignKey(
+        "Driver", on_delete=models.CASCADE, related_name="push_subscriptions"
+    )
+    endpoint = models.URLField(max_length=500, unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    user_agent = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.driver} push ({self.endpoint[:40]}…)"
+
+
+def _wakeup_token():
+    import secrets
+    return secrets.token_urlsafe(24)
+
+
+class DriverWakeupCheck(models.Model):
+    """One row per (driver, service date) tracking the early-morning wake-up
+    escalation ladder: confirm-link SMS → wake-up phone call → owner alert.
+
+    Created by the background sweeper (drivers/wakeup.py) only for in-house
+    drivers whose FIRST pickup of the day is before
+    settings.WAKEUP_EARLY_CUTOFF_HOUR. Step timestamps mean "attempted at" —
+    the ladder is time-driven, so a failed Twilio send never blocks the next
+    rung (failures land in `log`).
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_ACKED = "acked"
+    STATUS_ESCALATED = "escalated"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_ACKED, "Confirmed awake"),
+        (STATUS_ESCALATED, "Escalated to owners"),
+        (STATUS_CANCELLED, "Cancelled (no longer an early first pickup)"),
+    ]
+
+    driver = models.ForeignKey(
+        "Driver", on_delete=models.CASCADE, related_name="wakeup_checks"
+    )
+    date = models.DateField(db_index=True, help_text="Service date of the early first pickup.")
+    leg = models.ForeignKey(
+        Leg, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="wakeup_checks",
+        help_text="The first leg the check was built around (informational).",
+    )
+    first_pickup_at = models.DateTimeField(
+        help_text="The driver's first pickup — every deadline is relative to this. "
+                  "Re-synced each sweep while the check is unacknowledged."
+    )
+    token = models.CharField(
+        max_length=64, unique=True, default=_wakeup_token,
+        help_text="Capability token for the no-login tap-to-confirm link.",
+    )
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True
+    )
+    sms_sent_at = models.DateTimeField(null=True, blank=True)
+    push_sent_at = models.DateTimeField(null=True, blank=True)
+    call_started_at = models.DateTimeField(null=True, blank=True)
+    escalated_at = models.DateTimeField(null=True, blank=True)
+    acked_at = models.DateTimeField(null=True, blank=True)
+    ack_source = models.CharField(
+        max_length=12, blank=True, default="",
+        help_text="link (tapped the SMS link), call (pressed a key), admin (manual).",
+    )
+    log = models.TextField(blank=True, default="", help_text="Timestamped breadcrumbs per step.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("driver", "date")
+        ordering = ["-date", "first_pickup_at"]
+
+    def __str__(self):
+        return f"Wake-up {self.driver} {self.date} ({self.status})"
+
+
 class DriverPayRate(models.Model):
     """Per-driver pay rate. Handles inhouse overrides and affiliate rates.
 

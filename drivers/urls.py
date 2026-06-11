@@ -75,14 +75,31 @@ urlpatterns = [
         name="toggle_timing_exclude",
     ),
     path(
-        "driver-eta/<int:leg_id>/",
-        views.get_driver_eta,
-        name="get_driver_eta",
+        "api/board-state/",
+        views.board_state,
+        name="driver_board_state",
     ),
     path(
-        "report-location/",
-        views.report_location,
-        name="driver_report_location",
+        "api/push-subscribe/",
+        views.push_subscribe,
+        name="driver_push_subscribe",
+    ),
+    path(
+        "api/push-unsubscribe/",
+        views.push_unsubscribe,
+        name="driver_push_unsubscribe",
+    ),
+    path(
+        "api/push-test/",
+        views.push_test,
+        name="driver_push_test",
+    ),
+    # Early-morning wake-up checks (tokenized — no login; see views)
+    path("wakeup/<str:token>/", views.wakeup_confirm, name="driver_wakeup_confirm"),
+    path(
+        "wakeup/<str:token>/gather/",
+        views.wakeup_call_gather,
+        name="driver_wakeup_gather",
     ),
     # Time-off requests (driver self-serve)
     path("time-off/", views.my_timeoff_requests, name="driver_my_timeoff_requests"),

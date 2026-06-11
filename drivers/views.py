@@ -1,12 +1,21 @@
 from django.shortcuts import get_object_or_404, render, redirect
-from .models import Driver, DriverPayment, LegPayment, DriverPayoutAdjustment, DriverDateOverride
+from .models import (
+    Driver,
+    DriverPayment,
+    DriverPushSubscription,
+    DriverVehicleAssignment,
+    LegPayment,
+    DriverPayoutAdjustment,
+    DriverDateOverride,
+)
 from datetime import datetime, timedelta
 from reservations.models import Leg, LegStatus
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
-from django.http import FileResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.http import FileResponse, HttpResponse
 from dispatching.aeroapi_service import AeroAPIService
 import json
 import os
@@ -44,6 +53,36 @@ def _compute_eta_string(pickup_date, pickup_time, now, today):
         return "Tomorrow"
     else:
         return f"In {days_away} days"
+
+
+def _hour_label(hour):
+    """0-23 → '12 AM' / '4 AM' / '12 PM' / '3 PM' for shared-car window display."""
+    if hour is None:
+        return ""
+    hour = int(hour) % 24
+    suffix = "AM" if hour < 12 else "PM"
+    return f"{hour % 12 or 12} {suffix}"
+
+
+def _vehicle_assignment_map(driver, start, end):
+    """date → DriverVehicleAssignment (with a .share_window label attached) for
+    an in-house driver's planned units in [start, end]. Affiliates drive their
+    own cars, so they get an empty map."""
+    if driver.driver_type != "inhouse":
+        return {}
+    assignments = (
+        DriverVehicleAssignment.objects
+        .select_related("vehicle", "vehicle__vehicle_type")
+        .filter(driver=driver, date__gte=start, date__lte=end, vehicle__isnull=False)
+    )
+    out = {}
+    for dva in assignments:
+        if dva.planned_start_hour is not None:
+            start_lbl = _hour_label(dva.planned_start_hour)
+            end_lbl = _hour_label(dva.planned_end_hour)
+            dva.share_window = f"{start_lbl} – {end_lbl}" if end_lbl else f"from {start_lbl}"
+        out[dva.date] = dva
+    return out
 
 
 def _annotate_legs_with_scheduling(legs_list, target_date):
@@ -127,8 +166,11 @@ def _annotate_next_early(legs_list):
 
 def _annotate_legs_with_live_eta(legs_list):
     """
-    For legs that are on-the-way or picked-up, fetch the latest GPS snapshot
-    and attach live_eta_minutes to the leg.
+    For legs that are on-the-way or picked-up, fetch the latest DriverLocation
+    snapshot and attach live_eta_minutes to the leg. Used only by the DISPATCH
+    views (imported from dispatching/views.py) — the driver portal doesn't
+    render live ETA. Phone-GPS capture was removed, so new rows come only from
+    the address-based picked-up fallback (_compute_fallback_eta).
     Gracefully handles missing table (pre-migration deployment).
     """
     from reservations.models import DriverLocation
@@ -237,16 +279,19 @@ def index(request):
                 done_dt = pickup_dt + timedelta(seconds=leg.drive_info['duration_seconds']) + timedelta(minutes=2)
                 leg.estimated_done = timezone.localtime(timezone.make_aware(done_dt)).strftime('%I:%M %p').lstrip('0')
 
-    # ── Live GPS ETA for en-route legs ──
-    _annotate_legs_with_live_eta(legs_list)
-
     is_today = selected_date == today
+
+    # ── Assigned vehicle for the day (in-house drivers) ──
+    vehicle_assignment = _vehicle_assignment_map(
+        driver, selected_date, selected_date
+    ).get(selected_date)
 
     return render(
         request, "drivers/index.html", {
             "legs": legs_list,
             "selected_date": selected_date,
             "is_today": is_today,
+            "vehicle_assignment": vehicle_assignment,
         }
     )
 
@@ -339,8 +384,11 @@ def schedule(request):
                 done_dt = pickup_dt + timedelta(seconds=leg.drive_info['duration_seconds']) + timedelta(minutes=2)
                 leg.estimated_done = timezone.localtime(timezone.make_aware(done_dt)).strftime('%I:%M %p').lstrip('0')
 
-    # ── Live GPS ETA for en-route legs ──
-    _annotate_legs_with_live_eta(legs_list)
+    # ── Assigned vehicle per day, shown on each job card (in-house drivers) ──
+    veh_map = _vehicle_assignment_map(driver, today, next_week)
+    if veh_map:
+        for leg in legs_list:
+            leg.day_vehicle = veh_map.get(leg.pickup_date)
 
     next_leg = legs_list[0] if legs_list else None
     next_leg_eta = ""
@@ -384,37 +432,12 @@ def update_leg_status(request, leg_id):
             timestamp=timezone.now()
         )
 
-        # Save GPS snapshot if coordinates provided
-        lat = data.get("latitude")
-        lng = data.get("longitude")
-        if lat is not None and lng is not None:
-            from reservations.models import DriverLocation
+        # Phone-GPS tracking was removed. For picked-up we can still give dispatch
+        # an honest "~X min to dropoff" from the route itself; en-route statuses
+        # have no trustworthy origin without GPS (Samsara covers mapped vehicles).
+        if settings.GOOGLE_MAPS_API_KEY and new_status == "picked-up":
             from reservations.utils import _run_in_background
-
-            location = DriverLocation.objects.create(
-                leg=leg,
-                driver=leg.driver,
-                status=new_status,
-                latitude=lat,
-                longitude=lng,
-                accuracy_meters=data.get("accuracy"),
-                heading=data.get("heading"),
-                speed_mps=data.get("speed"),
-            )
-
-            # Compute ETA in background via Google Maps
-            if settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "on-location", "picked-up"):
-                # on-the-way/on-location → ETA to pickup, picked-up → ETA to dropoff
-                dest = leg.dropoff_location if new_status == "picked-up" else leg.pickup_location
-                # Fallback origin: use pickup address if GPS coords don't resolve
-                fallback = leg.pickup_location if new_status == "picked-up" else None
-                _run_in_background(_compute_location_eta, location.id, dest, fallback)
-
-        elif settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "on-location", "picked-up"):
-            # No GPS coords at all — compute ETA from known addresses as fallback
-            from reservations.utils import _run_in_background
-            dest = leg.dropoff_location if new_status == "picked-up" else leg.pickup_location
-            _run_in_background(_compute_fallback_eta, leg, dest)
+            _run_in_background(_compute_fallback_eta, leg, leg.dropoff_location)
 
         # Check if reservation should be auto-completed
         if new_status == "completed":
@@ -453,30 +476,6 @@ def _parse_duration_to_minutes(duration_text):
     return minutes
 
 
-def _compute_location_eta(location_id, destination_address, fallback_origin=None):
-    """Background: compute ETA from GPS snapshot to destination via Google Maps.
-    If GPS-based lookup fails, falls back to fallback_origin (e.g. pickup address)."""
-    try:
-        from reservations.models import DriverLocation
-        loc = DriverLocation.objects.get(id=location_id)
-        origin = f"{loc.latitude},{loc.longitude}"
-        result = google_drive_time(origin, destination_address)
-
-        # Fallback: if GPS coords didn't resolve, try the address-based origin
-        if not result or not result.get("duration_text"):
-            if fallback_origin:
-                result = google_drive_time(fallback_origin, destination_address)
-
-        if result and result.get("duration_text"):
-            minutes = _parse_duration_to_minutes(result["duration_text"])
-            if minutes > 0:
-                loc.eta_minutes = minutes
-                loc.eta_destination = destination_address
-                loc.save(update_fields=["eta_minutes", "eta_destination"])
-    except Exception:
-        pass  # Non-critical — ETA just won't be available
-
-
 def _compute_fallback_eta(leg, destination_address):
     """Compute ETA using leg's pickup/dropoff address when no GPS is available.
     Creates a DriverLocation record with the fallback ETA so it shows up on dashboards."""
@@ -505,105 +504,124 @@ def _compute_fallback_eta(leg, destination_address):
 
 @login_required
 @require_http_methods(["GET"])
-def get_driver_eta(request, leg_id):
-    """Return the latest GPS snapshot + ETA for a leg (staff or assigned driver)."""
-    from reservations.models import DriverLocation
+def board_state(request):
+    """Lightweight change fingerprint for the driver's board. Polled by the
+    portal (every 60s + on tab refocus) so an open page notices reassignments,
+    retimes, and added/removed trips without a manual reload. The hash covers
+    the driver-visible fields of the driver's legs in the requested date range
+    (Leg has no updated_at), so any change the driver would see bumps it."""
+    import hashlib
 
-    leg = get_object_or_404(Leg, id=leg_id)
+    driver = get_object_or_404(Driver, profile=request.user)
+    today = timezone.localdate()
 
-    # Allow staff or the assigned driver
-    if not request.user.is_staff and (not leg.driver or leg.driver.profile != request.user):
-        return JsonResponse({"error": "Permission denied"}, status=403)
+    def _parse_date(name, default):
+        try:
+            return datetime.strptime(request.GET.get(name, ""), "%Y-%m-%d").date()
+        except ValueError:
+            return default
 
-    latest = DriverLocation.objects.filter(leg=leg).first()
-    if not latest:
-        # No GPS data — compute fallback ETA from leg addresses
-        if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "on-location", "picked-up"):
-            dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
-            origin = leg.pickup_location
-            result = google_drive_time(origin, dest)
-            if result and result.get("duration_text"):
-                minutes = _parse_duration_to_minutes(result["duration_text"])
-                if minutes > 0:
-                    return JsonResponse({
-                        "has_location": False,
-                        "eta_minutes": minutes,
-                        "is_fallback": True,
-                        "status": leg.status,
-                    })
-        return JsonResponse({"has_location": False})
+    start = _parse_date("start", today)
+    end = _parse_date("end", start)
+    if end < start:
+        end = start
+    # Weekly view spans 60 days; cap so a bad client can't ask for years
+    if (end - start).days > 70:
+        end = start + timedelta(days=70)
 
-    age_seconds = (timezone.now() - latest.timestamp).total_seconds()
-
-    # If GPS-based ETA is missing, compute fallback from addresses
-    eta_minutes = latest.eta_minutes
-    is_fallback = False
-    if eta_minutes is None and settings.GOOGLE_MAPS_API_KEY:
-        dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
-        origin = leg.pickup_location
-        result = google_drive_time(origin, dest)
-        if result and result.get("duration_text"):
-            eta_minutes = _parse_duration_to_minutes(result["duration_text"])
-            is_fallback = True
-
-    return JsonResponse({
-        "has_location": True,
-        "latitude": float(latest.latitude),
-        "longitude": float(latest.longitude),
-        "eta_minutes": eta_minutes,
-        "is_fallback": is_fallback,
-        "status": latest.status,
-        "timestamp": latest.timestamp.isoformat(),
-        "age_seconds": int(age_seconds),
-    })
+    rows = (
+        Leg.objects.filter(driver=driver, pickup_date__gte=start, pickup_date__lte=end)
+        .order_by("id")
+        .values_list(
+            "id", "status", "pickup_date", "pickup_time",
+            "pickup_location", "dropoff_location", "vehicle_id",
+            "passenger_count", "luggage_count", "private_notes",
+            "reservation__status",
+        )
+    )
+    fp = hashlib.sha1(repr(list(rows)).encode()).hexdigest()
+    return JsonResponse({"fp": fp})
 
 
 @login_required
 @require_POST
-def report_location(request):
-    """Periodic GPS update from driver while en route. Called every 3 minutes by JS."""
+def push_subscribe(request):
+    """Store a Web Push subscription for this driver's device. Called by the
+    portal JS after the driver grants notification permission."""
+    from drivers.push import push_enabled
+
+    if not push_enabled():
+        return JsonResponse(
+            {"success": False, "error": "Push is not configured"}, status=400
+        )
+    driver = get_object_or_404(Driver, profile=request.user)
     try:
         data = json.loads(request.body)
-        leg_id = data.get("leg_id")
-        lat = data.get("latitude")
-        lng = data.get("longitude")
-
-        if not leg_id or lat is None or lng is None:
-            return JsonResponse({"success": False, "error": "Missing fields"}, status=400)
-
-        leg = get_object_or_404(Leg, id=leg_id, driver__profile=request.user)
-
-        # Only accept updates for en-route statuses
-        if leg.status not in ("on-the-way", "on-location", "picked-up"):
-            return JsonResponse({"success": False, "error": "Not en route"}, status=400)
-
-        from reservations.models import DriverLocation
-        from reservations.utils import _run_in_background
-
-        location = DriverLocation.objects.create(
-            leg=leg,
-            driver=leg.driver,
-            status=leg.status,
-            latitude=lat,
-            longitude=lng,
-            accuracy_meters=data.get("accuracy"),
-            heading=data.get("heading"),
-            speed_mps=data.get("speed"),
-        )
-
-        # Compute ETA in background
-        if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "on-location", "picked-up"):
-            dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
-            # Fallback: use pickup address if GPS coords don't resolve
-            fallback = leg.pickup_location if leg.status == "picked-up" else None
-            _run_in_background(_compute_location_eta, location.id, dest, fallback)
-
-        return JsonResponse({"success": True})
-
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    sub = data.get("subscription") or {}
+    endpoint = sub.get("endpoint") or ""
+    keys = sub.get("keys") or {}
+    if not endpoint or not keys.get("p256dh") or not keys.get("auth"):
+        return JsonResponse(
+            {"success": False, "error": "Invalid subscription"}, status=400
+        )
+
+    DriverPushSubscription.objects.update_or_create(
+        endpoint=endpoint,
+        defaults={
+            "driver": driver,
+            "p256dh": keys["p256dh"],
+            "auth": keys["auth"],
+            "user_agent": (request.META.get("HTTP_USER_AGENT") or "")[:255],
+        },
+    )
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
+def push_unsubscribe(request):
+    """Remove this device's Web Push subscription (driver turned the bell off)."""
+    driver = get_object_or_404(Driver, profile=request.user)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    endpoint = data.get("endpoint") or ""
+    removed, _ = DriverPushSubscription.objects.filter(
+        driver=driver, endpoint=endpoint
+    ).delete()
+    return JsonResponse({"success": True, "removed": removed})
+
+
+@login_required
+@require_POST
+def push_test(request):
+    """Send a test notification to the requesting driver's own devices so they
+    can confirm push works on their phone."""
+    from reservations.utils import _run_in_background
+    from drivers.push import push_enabled, send_push_to_driver
+
+    if not push_enabled():
+        return JsonResponse(
+            {"success": False, "error": "Push is not configured"}, status=400
+        )
+    driver = get_object_or_404(Driver, profile=request.user)
+    if not DriverPushSubscription.objects.filter(driver=driver).exists():
+        return JsonResponse(
+            {"success": False, "error": "No subscription on file"}, status=400
+        )
+    _run_in_background(
+        send_push_to_driver,
+        driver.id,
+        "Notifications are on",
+        "You'll get a buzz when your schedule changes.",
+        url="/drivers/",
+        tag="gt-test",
+    )
+    return JsonResponse({"success": True})
 
 
 @login_required
@@ -1707,3 +1725,48 @@ def cancel_timeoff(request, override_id):
         override.save(update_fields=["status", "updated_at"])
         messages.success(request, "Request cancelled.")
     return redirect("driver_my_timeoff_requests")
+
+
+# ── Early-morning wake-up checks ─────────────────────────────────────────
+# No login: the SMS link must work half-asleep at 4 AM. The unguessable
+# token IS the credential. GET only renders the page (link previewers
+# prefetch GETs — they must never auto-confirm); the tap is a POST.
+
+
+def wakeup_confirm(request, token):
+    from drivers.models import DriverWakeupCheck
+    from drivers.wakeup import ack_check
+
+    check = get_object_or_404(DriverWakeupCheck, token=token)
+    if request.method == "POST" and not check.acked_at:
+        ack_check(check, source="link")
+    return render(
+        request,
+        "drivers/wakeup_confirm.html",
+        {
+            "check": check,
+            "pickup_label": timezone.localtime(check.first_pickup_at).strftime(
+                "%I:%M %p"
+            ).lstrip("0"),
+        },
+    )
+
+
+@csrf_exempt
+@require_POST
+def wakeup_call_gather(request, token):
+    """Twilio <Gather> callback for the wake-up call: any digit = awake."""
+    from drivers.models import DriverWakeupCheck
+    from drivers.wakeup import ack_check
+
+    check = get_object_or_404(DriverWakeupCheck, token=token)
+    # Speech ("yes") or any keypress both confirm — if he spoke to the call,
+    # he's awake.
+    from drivers.wakeup import confirm_line, say_xml
+    if request.POST.get("Digits") or (request.POST.get("SpeechResult") or "").strip():
+        ack_check(check, source="call")
+        say = confirm_line()
+    else:
+        say = "We did not get a response. Please call dispatch. Goodbye."
+    twiml = f'<?xml version="1.0" encoding="UTF-8"?><Response>{say_xml(say)}</Response>'
+    return HttpResponse(twiml, content_type="text/xml")

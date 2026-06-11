@@ -21,14 +21,26 @@
         <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-nav-link">
           <i class="bi bi-calendar-x me-1"></i>Time Off
         </a>
+        {% if WEBPUSH_VAPID_PUBLIC_KEY %}
+          <button id="gt-push-toggle" class="gt-nav-link d-none" style="border:none;cursor:pointer;padding:6px 10px;background:none;"
+                  title="Trip notifications" aria-label="Trip notifications">
+            <i class="bi bi-bell" id="gt-push-icon"></i>
+          </button>
+        {% endif %}
         <button id="gt-theme-toggle" class="gt-nav-link" style="border:none;cursor:pointer;padding:6px 10px;"
                 title="Toggle dark mode" aria-label="Toggle dark mode">
           <i class="bi bi-moon-fill" id="gt-theme-icon"></i>
         </button>
       </div>
 
-      <!-- Mobile: theme toggle + hamburger -->
+      <!-- Mobile: notifications + theme toggle + hamburger -->
       <div class="d-flex d-md-none align-items-center gap-1">
+        {% if WEBPUSH_VAPID_PUBLIC_KEY %}
+          <button id="gt-push-toggle-mobile" class="d-none" style="background:none;border:none;color:rgba(255,255,255,0.65);font-size:1.1rem;padding:4px 8px;cursor:pointer;"
+                  title="Trip notifications" aria-label="Trip notifications">
+            <i class="bi bi-bell" id="gt-push-icon-mobile"></i>
+          </button>
+        {% endif %}
         <button id="gt-theme-toggle-mobile" style="background:none;border:none;color:rgba(255,255,255,0.65);font-size:1.1rem;padding:4px 8px;cursor:pointer;"
                 title="Toggle dark mode" aria-label="Toggle dark mode">
           <i class="bi bi-moon-fill" id="gt-theme-icon-mobile"></i>

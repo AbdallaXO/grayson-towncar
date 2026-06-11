@@ -135,6 +135,7 @@ TEMPLATES = [
                 "ops.context_processors.pending_task_count",
                 "ops.context_processors.timeclock_status",
                 "drivers.context_processors.pending_timeoff_count",
+                "drivers.context_processors.webpush_public_key",
             ],
         },
     },
@@ -240,6 +241,20 @@ AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 SAMSARA_API_TOKEN = os.environ.get("SAMSARA_API_TOKEN", "")
 SAMSARA_BASE_URL = os.environ.get("SAMSARA_BASE_URL", "https://api.samsara.com")
 
+# Web Push (driver portal notifications). Gated behind the VAPID keys — when
+# empty, push is completely inert (no subscribe UI, no sends). Generate a pair
+# with py_vapid and set the same values on Railway to enable in prod.
+WEBPUSH_VAPID_PRIVATE_KEY = os.environ.get("WEBPUSH_VAPID_PRIVATE_KEY", "")
+WEBPUSH_VAPID_PUBLIC_KEY = os.environ.get("WEBPUSH_VAPID_PUBLIC_KEY", "")
+WEBPUSH_VAPID_CLAIMS_EMAIL = os.environ.get(
+    "WEBPUSH_VAPID_CLAIMS_EMAIL", "reservations@graysontowncar.com"
+)
+# PAUSED by default (founder call, 2026-06-11): the bell / subscriptions / test
+# notification stay live so devices can enroll, but AUTOMATIC schedule-change
+# notifications (new/removed/retimed/cancelled trip) don't send until this is
+# flipped to "true". Founder wants it on only after his sandbox work lands.
+WEBPUSH_AUTO_NOTICES = os.environ.get("WEBPUSH_AUTO_NOTICES", "False").lower() == "true"
+
 # Google Maps (Distance Matrix API for driver route preview)
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 
@@ -256,6 +271,42 @@ TIMEOFF_NOTIFY_PHONES = [
         "+14078200072,+14076339901",
     ).split(",") if p.strip()
 ]
+
+# ── Early-morning driver wake-up checks ──────────────────────────────────
+# Drivers whose FIRST pickup of the day is before WAKEUP_EARLY_CUTOFF_HOUR
+# get a wake-up text with a tap-to-confirm link (T-90), then a phone call
+# (T-55, or T-90 when the first job is a far/cruise run — the driver has to
+# leave home much earlier), and if still unconfirmed the owners get
+# called + texted (T-50). Founder-set ladder 2026-06-11.
+# Master switch defaults OFF: the local DB carries REAL driver phone
+# numbers, so a dev runserver with Twilio creds must never place 4 AM calls.
+WAKEUP_CHECKS_ENABLED = os.environ.get("WAKEUP_CHECKS_ENABLED", "False").lower() == "true"
+WAKEUP_EARLY_CUTOFF_HOUR = int(os.environ.get("WAKEUP_EARLY_CUTOFF_HOUR", "7"))
+WAKEUP_SMS_LEAD_MIN = int(os.environ.get("WAKEUP_SMS_LEAD_MIN", "90"))
+WAKEUP_CALL_LEAD_MIN = int(os.environ.get("WAKEUP_CALL_LEAD_MIN", "55"))
+WAKEUP_CALL_LEAD_FAR_MIN = int(os.environ.get("WAKEUP_CALL_LEAD_FAR_MIN", "90"))
+WAKEUP_ESCALATE_LEAD_MIN = int(os.environ.get("WAKEUP_ESCALATE_LEAD_MIN", "50"))
+# Voice for every spoken line (wake-up call, owner alert, keypress replies).
+# Twilio <Say> voice id — generative tier sounds the most human. Empty string
+# falls back to Twilio's basic default voice.
+WAKEUP_VOICE = os.environ.get("WAKEUP_VOICE", "Polly.Joanna-Generative")
+# categorize_location() buckets that mark the first job far/cruise (earlier
+# call): Port Canaveral = cruise transfer, SFB = Sanford, 'Other' = the
+# far/odd catch-all (Tampa, Melbourne, ...). Over-matching is safe — the
+# call just comes earlier.
+WAKEUP_FAR_CATEGORIES = [
+    c.strip() for c in os.environ.get(
+        "WAKEUP_FAR_CATEGORIES", "Port Canaveral Area,SFB Terminal,Other"
+    ).split(",") if c.strip()
+]
+# A check created late (leg assigned/retimed inside the window) still ramps
+# SMS → call → owners with at least this many minutes between steps, instead
+# of firing all three at once.
+WAKEUP_MIN_STEP_GAP_MIN = int(os.environ.get("WAKEUP_MIN_STEP_GAP_MIN", "10"))
+# Who gets the escalation call/text. Defaults to the time-off founder list.
+WAKEUP_NOTIFY_PHONES = [
+    p.strip() for p in os.environ.get("WAKEUP_NOTIFY_PHONES", "").split(",") if p.strip()
+] or TIMEOFF_NOTIFY_PHONES
 
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
