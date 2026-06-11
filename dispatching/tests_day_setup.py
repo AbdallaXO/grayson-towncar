@@ -187,20 +187,24 @@ class DaySetupSuggestTests(TestCase):
         free_ids = {u["id"] for u in out["free_units"]}
         self.assertIn(row["vehicle_id"], free_ids)       # ...but NOT reserved
 
-    def test_share_proposed_when_more_drivers_than_cars(self):
-        # 3 checked drivers, 2 drivable cars (newguy/dave aren't Sprinter-certified, rob is):
-        # the car-less driver is paired onto a colleague's unit as the PM shift with
-        # partitioned planned windows — nobody is left unstaffed.
+    def _more_drivers_than_cars(self):
+        """4 checked drivers, 3 units (only rob can drive the Sprinter) -> 1 unmatched."""
         self._history(self.rob, self.u004, 10)
         self._history(self.dave, self.u007, 10)
-        self._history(self.newguy, self.u013, 3)   # u013 stays "rarely used"? no: 3 < 5 days
+        self._history(self.newguy, self.u013, 3)
         # make u013 normally-used so the only shortage is bodies vs cars
         for i in range(11, 18):
             DriverVehicleAssignment.objects.create(
                 driver=self.newguy, date=TARGET - timedelta(days=i), vehicle=self.u013)
         extra_u = User.objects.create_user("extra", password="x")
-        extra = Driver.objects.create(profile=extra_u, driver_type="inhouse", is_active=True)
-        out = suggest_day_setup(TARGET)
+        return Driver.objects.create(profile=extra_u, driver_type="inhouse", is_active=True)
+
+    def test_share_proposed_when_more_drivers_than_cars(self):
+        # LEGACY auto-share branch (solo_first=False — the one-toggle-away path): the
+        # car-less driver is paired onto a colleague's unit as the PM shift with
+        # partitioned planned windows — nobody is left unstaffed.
+        self._more_drivers_than_cars()
+        out = suggest_day_setup(TARGET, solo_first=False)
         shared = [r for r in out["rows"] if r.get("share")]
         self.assertEqual(len(shared), 2)   # one AM partner + one PM taker
         roles = {r["share"]["role"] for r in shared}
@@ -212,6 +216,47 @@ class DaySetupSuggestTests(TestCase):
         # clears around the handoff instead of after it; PM starts at the handoff hour.
         self.assertEqual(am["planned_end_hour"], pm["planned_start_hour"] - 1)
         self.assertTrue(any("SHARED CAR" in s for s in out["swaps"]))
+
+    def test_solo_first_extra_left_unchecked(self):
+        # SOLO-FIRST default: same shortage, but no share is proposed — the extra stays
+        # UNCHECKED with the "add via Advisor" hint and an aggregated callout explains it.
+        self._more_drivers_than_cars()
+        out = suggest_day_setup(TARGET)   # DAY_SETUP_SOLO_FIRST=True default
+        self.assertFalse([r for r in out["rows"] if r.get("share")])
+        unchecked = [r for r in out["rows"]
+                     if r["group"] == "available" and "add via Advisor" in r["hint"]]
+        self.assertEqual(len(unchecked), 1)
+        row = unchecked[0]
+        self.assertFalse(row["checked"])
+        self.assertIsNone(row["vehicle_id"])
+        self.assertNotIn("planned_start_hour", row)
+        self.assertTrue(any("MORE DRIVERS THAN CARS" in s for s in out["swaps"]))
+        self.assertFalse(any("SHARED CAR" in s for s in out["swaps"]))
+        self.assertFalse(any("No free unit" in w for w in out["warnings"]))
+
+    def test_solo_first_noop_when_cars_suffice(self):
+        # With enough cars for every checked driver the flag changes NOTHING.
+        self._history(self.rob, self.u004, 10)
+        self._history(self.dave, self.u007, 10)
+        self.assertEqual(suggest_day_setup(TARGET),
+                         suggest_day_setup(TARGET, solo_first=False))
+
+    def test_suggest_view_solo_first_passthrough(self):
+        # The endpoint's solo_first key A/Bs the behavior per request (harness + console).
+        self._more_drivers_than_cars()
+        staff = User.objects.create_user("boss_ds", password="x", is_staff=True)
+        self.client.force_login(staff)
+
+        def post(payload):
+            r = self.client.post(reverse("suggest_day_setup"), data=json.dumps(payload),
+                                 content_type="application/json")
+            self.assertEqual(r.status_code, 200)
+            return r.json()
+
+        default = post({"date": TARGET.isoformat()})
+        legacy = post({"date": TARGET.isoformat(), "solo_first": False})
+        self.assertFalse([r for r in default["rows"] if r.get("share")])
+        self.assertTrue([r for r in legacy["rows"] if r.get("share")])
 
     def test_inactive_holder_row_is_stale_not_locked(self):
         # neuma/shipo case: a DEACTIVATED driver still holds a unit row for the date.
@@ -368,3 +413,213 @@ class DaySetupApplyTests(TestCase):
         r = self.client.post(reverse("apply_day_setup"), data="{}",
                              content_type="application/json")
         self.assertEqual(r.status_code, 403)
+
+
+def _fake_end(leg, target_date):
+    """Deterministic 60-min jobs for peak-histogram tests."""
+    from datetime import datetime, timedelta as _td
+    return datetime.combine(target_date, leg.pickup_time) + _td(minutes=60)
+
+
+class DaySetupPeakSizingTests(TestCase):
+    """Peak-concurrency roster sizing — founder rule: size by the in-flight histogram
+    per vehicle tier, never by daily totals or naive legs-per-driver."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from reservations.models import Reservation, Customer
+        cls.vt_suv = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+        cls.vt_van14 = Vehicle.objects.create(vehicle_type="Van(14 Pax)", capacity=14,
+                                              luggage_capacity=14, requires_certification=True)
+        cls.units = [FleetVehicle.objects.create(vehicle_number=f"0{i}", vehicle_type=cls.vt_suv,
+                                                 year=2023, make="Chevy", model="Suburban")
+                     for i in range(1, 7)]
+        cls.u_van14 = FleetVehicle.objects.create(vehicle_number="09", vehicle_type=cls.vt_van14,
+                                                  year=2022, make="Mercedes", model="Sprinter")
+        # burner rows so no fixture driver lands on the hardcoded excluded id 6
+        for i in range(6):
+            u = User.objects.create_user(f"pkburn{i}", password="x")
+            Driver.objects.create(profile=u, driver_type="inhouse", is_active=False)
+        cls.drivers = [_mk_driver(f"pk{i}") for i in range(1, 7)]
+        from rates.models import Location, Route, Rate
+        cust = Customer.objects.create(first_name="Test", email="t@example.com",
+                                       phone_number="555-0000")
+        loc_a = Location.objects.create(name="A")
+        loc_b = Location.objects.create(name="B")
+        route = Route.objects.create(origin=loc_a, destination=loc_b)
+        rate_suv = Rate.objects.create(vehicle=cls.vt_suv, route=route,
+                                       oneway_price=100, round_trip_price=180)
+        rate_v14 = Rate.objects.create(vehicle=cls.vt_van14, route=route,
+                                       oneway_price=200, round_trip_price=360)
+        cls.res_suv = Reservation.objects.create(customer=cust, vehicle=cls.vt_suv,
+                                                 rate=rate_suv)
+        cls.res_v14 = Reservation.objects.create(customer=cust, vehicle=cls.vt_van14,
+                                                 rate=rate_v14)
+        cls.res_untyped = Reservation.objects.create(customer=cust, rate=rate_suv)
+
+    def _leg(self, res, h, m=0):
+        from reservations.models import Leg
+        from datetime import time
+        return Leg.objects.create(reservation=res, pickup_date=TARGET,
+                                  pickup_time=time(h, m), pickup_location="A",
+                                  dropoff_location="B")
+
+    def test_peak_concurrency_histogram(self):
+        from unittest.mock import patch
+        from dispatching.day_setup import peak_concurrency
+        # 9:00, 9:30, 11:00 suv (60-min jobs) + 9:30 van14 + 9:30 untyped:
+        # in flight at 9:30 = 9:00suv + 9:30suv + 9:30van14 + 9:30untyped = 4 overall
+        # (11:00 is isolated; untyped counts in overall only).
+        for h, m in ((9, 0), (9, 30), (11, 0)):
+            self._leg(self.res_suv, h, m)
+        self._leg(self.res_v14, 9, 30)
+        self._leg(self.res_untyped, 9, 30)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            pk = peak_concurrency(TARGET)
+        self.assertEqual(pk["overall"][0], 4)
+        self.assertEqual(pk["overall"][1].strftime("%H:%M"), "09:30")
+        self.assertEqual(pk["per_tier"]["suv"][0], 2)            # exact-tier
+        self.assertEqual(pk["per_tier"]["Van(14 Pax)"][0], 1)
+        self.assertEqual(pk["cumulative"]["suv"][0], 3)          # suv + the van14 above
+        self.assertEqual(pk["total_legs"], 5)
+
+    def test_peak_sizing_caps_checked(self):
+        from unittest.mock import patch
+        # peak 2 (9:00 + 9:30 overlap) + buffer 1 -> 3 checked of 6 available.
+        self._leg(self.res_suv, 9, 0)
+        self._leg(self.res_suv, 9, 30)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        checked = [r for r in out["rows"] if r["checked"]]
+        capped = [r for r in out["rows"] if "peak needs only" in (r["hint"] or "")]
+        self.assertEqual(len(checked), 3)
+        self.assertEqual(len(capped), 3)
+        self.assertTrue(all(not r["checked"] and r["group"] == "available" for r in capped))
+        self.assertTrue(any(s.startswith("PEAK DEMAND:") for s in out["swaps"]))
+        self.assertIsNotNone(out["peak"])
+        self.assertEqual(out["peak"]["overall"]["n"], 2)
+
+    def test_peak_cert_guard(self):
+        from unittest.mock import patch
+        # A van14 leg is in flight: the ONLY certified driver must survive the cap even
+        # though everyone shares the same rank.
+        self._leg(self.res_v14, 9, 0)
+        self._leg(self.res_suv, 9, 30)
+        certified = self.drivers[-1]              # highest id = first drop candidate
+        certified.certified_vehicle_types.add(self.vt_van14)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        row = next(r for r in out["rows"] if r["driver_id"] == certified.id)
+        self.assertTrue(row["checked"])
+
+    def test_peak_sizing_flag_off(self):
+        from unittest.mock import patch
+        self._leg(self.res_suv, 9, 0)
+        self._leg(self.res_suv, 9, 30)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET, peak_sizing=False)
+        self.assertEqual(len([r for r in out["rows"] if r["checked"]]), 6)
+        self.assertFalse(any(s.startswith("PEAK DEMAND:") for s in out["swaps"]))
+        self.assertIsNone(out["peak"])
+
+    def test_no_legs_skips_peak_sizing(self):
+        out = suggest_day_setup(TARGET)
+        self.assertEqual(len([r for r in out["rows"] if r["checked"]]), 6)
+        self.assertFalse(any(s.startswith("PEAK DEMAND:") for s in out["swaps"]))
+
+    def test_p2_reservation_uses_cumulative_peak(self):
+        from unittest.mock import patch
+        # Overlapping suv + van14 legs: cumulative suv peak = 2 -> two units of
+        # tier >= suv get reserved/proposed (exact-tier counting would reserve 1).
+        self._leg(self.res_suv, 9, 0)
+        self._leg(self.res_v14, 9, 30)
+        for d in self.drivers:
+            d.certified_vehicle_types.add(self.vt_van14)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        proposed_units = {r["vehicle_id"] for r in out["rows"] if r["vehicle_id"]}
+        self.assertGreaterEqual(len(proposed_units), 2)
+        self.assertIn(self.u_van14.id, proposed_units)
+
+
+class DaySetupForceIncludeTests(TestCase):
+    """Force-include ("Yovanny in, someone out") — P3d displacement."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.vt_suv = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+        cls.vt_van14 = Vehicle.objects.create(vehicle_type="Van(14 Pax)", capacity=14,
+                                              luggage_capacity=14, requires_certification=True)
+        cls.u004 = FleetVehicle.objects.create(vehicle_number="004", vehicle_type=cls.vt_van14,
+                                               year=2022, make="Mercedes", model="Sprinter")
+        cls.u007 = FleetVehicle.objects.create(vehicle_number="007", vehicle_type=cls.vt_suv,
+                                               year=2023, make="Chevy", model="Suburban")
+        cls.rob = _mk_driver("rob2", certified=cls.vt_van14)
+        cls.dave = _mk_driver("dave2")
+        cls.newguy = _mk_driver("newguy2")
+        cls.staff = User.objects.create_user("boss4", password="x", is_staff=True)
+
+    def _history(self, driver, unit, days):
+        for i in range(1, days + 1):
+            DriverVehicleAssignment.objects.create(
+                driver=driver, date=TARGET - timedelta(days=i), vehicle=unit)
+
+    def test_force_include_displaces_lowest_priority(self):
+        # rob keeps the Sprinter (dedicated), dave wins u007 by history but stays UNDER
+        # the dedicated-lock threshold; forcing newguy displaces dave (lowest
+        # non-forced, non-dedicated) — "Yovanny in, someone out".
+        self._history(self.rob, self.u004, 10)
+        self._history(self.dave, self.u007, 5)
+        out = suggest_day_setup(TARGET, force_include=[self.newguy.id])
+        new_row = next(r for r in out["rows"] if r["driver_id"] == self.newguy.id)
+        dave_row = next(r for r in out["rows"] if r["driver_id"] == self.dave.id)
+        self.assertTrue(new_row["checked"])
+        self.assertTrue(new_row.get("forced"))
+        self.assertEqual(new_row["vehicle_id"], self.u007.id)
+        self.assertFalse(dave_row["checked"])
+        self.assertIn("stepped aside", dave_row["hint"])
+        self.assertTrue(any(" in, " in s for s in out["swaps"]))
+
+    def test_force_include_respects_dedicated_locks(self):
+        # rob's unit is a dedicated lock and the ONLY unit newguy could take -> P3d
+        # refuses with the loud warning instead of bumping a dedicated regular.
+        self.u004.delete()
+        self._history(self.rob, self.u007, 20)   # dedicated: share 100% over 20 days
+        out = suggest_day_setup(TARGET, force_include=[self.newguy.id])
+        rob_row = next(r for r in out["rows"] if r["driver_id"] == self.rob.id)
+        self.assertEqual(rob_row["vehicle_id"], self.u007.id)
+        self.assertTrue(any("Couldn't seat" in w for w in out["warnings"]))
+
+    def test_force_include_off_driver_refused(self):
+        DriverWeeklySchedule.objects.create(
+            driver=self.newguy, day_of_week=TARGET.weekday(), is_available=False,
+            shift_type="full_day", start_hour=0, end_hour=23)
+        out = suggest_day_setup(TARGET, force_include=[self.newguy.id])
+        row = next(r for r in out["rows"] if r["driver_id"] == self.newguy.id)
+        self.assertEqual(row["group"], "off")
+        self.assertFalse(row["checked"])
+        self.assertTrue(any("schedule says OFF" in w and "Advisor" in w
+                            for w in out["warnings"]))
+
+    def test_force_exclude_unchecks(self):
+        self._history(self.dave, self.u007, 10)
+        out = suggest_day_setup(TARGET, force_exclude=[self.dave.id])
+        row = next(r for r in out["rows"] if r["driver_id"] == self.dave.id)
+        self.assertFalse(row["checked"])
+        self.assertEqual(row["hint"], "unchecked by you")
+
+    def test_unknown_forced_id_warns(self):
+        out = suggest_day_setup(TARGET, force_include=[999999])
+        self.assertTrue(any("unknown/inactive/excluded" in w for w in out["warnings"]))
+
+    def test_suggest_view_force_passthrough(self):
+        self._history(self.rob, self.u004, 10)
+        self._history(self.dave, self.u007, 10)
+        self.client.force_login(self.staff)
+        r = self.client.post(reverse("suggest_day_setup"),
+                             data=json.dumps({"date": TARGET.isoformat(),
+                                              "force_include": [self.newguy.id]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        row = next(x for x in r.json()["rows"] if x["driver_id"] == self.newguy.id)
+        self.assertTrue(row.get("forced"))

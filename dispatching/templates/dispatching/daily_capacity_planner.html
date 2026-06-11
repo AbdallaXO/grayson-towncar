@@ -2842,6 +2842,12 @@
                 //    overload shifts rely on the span-trim pass to drain the long day.
                 aaAddSyntheticRow(opt, p.kind !== 'overload');
                 aaAdvisorDismissed.add(sig);
+                // Backtest-measured failure mode: a freed-unit share can constrain the
+                // holder enough to COST coverage on a tight day — surface it like the
+                // fold banner does (revert = one click on the added row's Off box).
+                aaFoldVerify = {sig: sig, driver_name: opt.driver_name,
+                                before_remaining: (aaLastData.unassigned_legs || []).length,
+                                undo_kind: 'shift'};
                 rePreview();   // 3. Rebuild — the engine now sees the new driver + unit.
             }).catch(err => {
                 alert('Error: ' + err);
@@ -2849,6 +2855,112 @@
                 btn.innerHTML = '<i class="bi bi-plus-circle me-1"></i>Add this shift';
             });
         };
+        // ── Fold-Out Advisor accept/undo ──
+        const aaFoldUndoInfo = {};
+        let aaFoldVerify = null;   // {sig, driver_name, before_remaining} — checked on next render
+        window.aaFoldAccept = function(sig, btn) {
+            if (aaIsRebuilding) return;   // never accept off a stale preview mid-rebuild
+            const p = (aaLastData.advisor || []).find(x => x.signature === sig);
+            if (!p) return;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Folding...';
+            // One board-reshaping accept per preview: sibling fold + rebalance cards were
+            // simulated against a board that no longer exists once this accept lands (and
+            // a chained accept could pin legs onto a driver being folded) — they
+            // regenerate on the re-preview.
+            document.querySelectorAll('[data-adv-sig^="fold-"] button, [data-adv-sig^="rebal-"] button').forEach(function(b) {
+                b.disabled = true;
+            });
+            // 1. Pin every relocation to its promised receiver — pins are sovereign and
+            //    locked on every re-preview, so the card's placements can't be reshuffled.
+            (p.relocations || []).forEach(function(r) { aaManual[String(r.leg_id)] = r.to_driver_id; });
+            // 2. Take him off the day — the modal is authoritative (Off rows are omitted
+            //    from driver_hours). Programmatic .checked fires no listeners: dispatch it.
+            const row = document.querySelector('.aa-driver-row[data-driver-id="' + p.driver_id + '"]');
+            const off = row && row.querySelector('.aa-day-off');
+            if (off && !off.checked) { off.checked = true; off.dispatchEvent(new Event('change')); }
+            aaFoldUndoInfo[sig] = {driver_id: p.driver_id, vehicle_id: p.vehicle_id,
+                                   leg_ids: (p.relocations || []).map(r => r.leg_id)};
+            const beforeRemaining = (aaLastData.unassigned_legs || []).length;
+            const revert = function(msg) {
+                (p.relocations || []).forEach(function(r) { delete aaManual[String(r.leg_id)]; });
+                if (off && off.checked) { off.checked = false; off.dispatchEvent(new Event('change')); }
+                delete aaFoldUndoInfo[sig];
+                alert(msg);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-person-dash me-1"></i>Fold out &amp; free the car';
+            };
+            const proceed = function() {
+                aaAdvisorDismissed.add(sig);
+                aaFoldVerify = {sig: sig, driver_name: p.driver_name,
+                                before_remaining: beforeRemaining, undo_kind: 'fold'};
+                rePreview();   // rebuild without him; the coverage banner check runs on render
+            };
+            // 3. Free the car (delete his vehicle row) — the accept's only DB write, the
+            //    exact mirror of the Second-Shift accept's row create. Undoable.
+            if (!p.vehicle_id) { proceed(); return; }
+            fetch('{% url "update_inhouse_vehicle_assignment" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({driver_id: p.driver_id,
+                                      date: document.getElementById('datePicker').value,
+                                      vehicle_id: null}),
+            }).then(r => r.json()).then(res => {
+                if (!res.success) { revert(res.error || 'Could not free the vehicle'); return; }
+                proceed();
+            }).catch(err => revert('Error: ' + err));
+        };
+        // ── Rebalance Advisor accept/undo (pins only — zero DB writes) ──
+        const aaRebalUndoInfo = {};
+        window.aaRebalAccept = function(sig, btn) {
+            if (aaIsRebuilding) return;
+            const p = (aaLastData.advisor || []).find(x => x.signature === sig);
+            if (!p) return;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Moving...';
+            document.querySelectorAll('[data-adv-sig^="fold-"] button, [data-adv-sig^="rebal-"] button').forEach(function(b) { b.disabled = true; });
+            // Pin every move — sovereign + locked on every re-preview.
+            (p.moves || []).forEach(function(m) { aaManual[String(m.leg_id)] = m.to_driver_id; });
+            aaRebalUndoInfo[sig] = {leg_ids: (p.moves || []).map(m => m.leg_id)};
+            aaAdvisorDismissed.add(sig);
+            aaFoldVerify = {sig: sig, driver_name: p.driver_name,
+                            before_remaining: (aaLastData.unassigned_legs || []).length,
+                            undo_kind: 'rebal'};
+            rePreview();
+        };
+        window.aaRebalUndo = function(sig) {
+            const info = aaRebalUndoInfo[sig];
+            if (!info) return;
+            info.leg_ids.forEach(function(lid) { delete aaManual[String(lid)]; });
+            aaAdvisorDismissed.delete(sig);
+            delete aaRebalUndoInfo[sig];
+            rePreview();
+        };
+
+        window.aaFoldUndo = function(sig) {
+            const info = aaFoldUndoInfo[sig];
+            if (!info) return;
+            info.leg_ids.forEach(function(lid) { delete aaManual[String(lid)]; });
+            const row = document.querySelector('.aa-driver-row[data-driver-id="' + info.driver_id + '"]');
+            const off = row && row.querySelector('.aa-day-off');
+            if (off && off.checked) { off.checked = false; off.dispatchEvent(new Event('change')); }
+            const fin = function() { aaAdvisorDismissed.delete(sig); delete aaFoldUndoInfo[sig]; rePreview(); };
+            if (!info.vehicle_id) { fin(); return; }
+            fetch('{% url "update_inhouse_vehicle_assignment" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({driver_id: info.driver_id,
+                                      date: document.getElementById('datePicker').value,
+                                      vehicle_id: info.vehicle_id}),
+            }).then(r => r.json()).then(res => {
+                // The endpoint re-runs the cert gate — if the give-back fails, say so and
+                // leave the board state visible; never silently pretend the undo worked.
+                if (!res.success) alert('Could not give the car back: ' + (res.error || 'unknown') +
+                                        ' — re-assign it by hand in Day Setup.');
+                fin();
+            }).catch(err => { alert('Error: ' + err); fin(); });
+        };
+
         function aaAddSyntheticRow(opt, buildFirst) {
             let row = document.querySelector('.aa-driver-row[data-driver-id="' + opt.driver_id + '"]');
             if (!row) {
@@ -3027,6 +3139,36 @@
 
             let html = '';
 
+            // Advisor post-accept verification: a fold's pins guarantee the folded legs
+            // (not the rest of the rebuild), and a second-shift freed-unit share can
+            // constrain the holder — either way, if coverage got WORSE after the click,
+            // say so loudly instead of letting the founder miss it in the numbers.
+            if (aaFoldVerify) {
+                const v = aaFoldVerify; aaFoldVerify = null;
+                const nowRemaining = (data.unassigned_legs || []).length;
+                if (nowRemaining > v.before_remaining) {
+                    const more = nowRemaining - v.before_remaining;
+                    let what, undoCall = null, undoLabel = 'Undo';
+                    if (v.undo_kind === 'shift') {
+                        what = 'Adding ' + v.driver_name + ' left ' + more + ' more job(s) uncovered — his share window constrains the car\'s holder. Mark his row Off to revert.';
+                    } else if (v.undo_kind === 'rebal') {
+                        what = 'Moving jobs around ' + v.driver_name + ' left ' + more + ' more job(s) uncovered — the rebuild came up short.';
+                        undoCall = "aaRebalUndo('" + v.sig + "')";
+                        undoLabel = 'Undo moves';
+                    } else {
+                        what = 'Folding ' + v.driver_name + ' out left ' + more + ' more job(s) uncovered — the rebuild without him came up short.';
+                        undoCall = "aaFoldUndo('" + v.sig + "')";
+                        undoLabel = 'Undo fold-out';
+                    }
+                    html += '<div class="mb-3 px-3 py-2 d-flex align-items-center gap-2" style="background:#fdecea;border:2px solid #c62828;border-radius:8px;font-size:0.82rem;color:#c62828;">';
+                    html += '<i class="bi bi-exclamation-octagon"></i><div style="flex:1;">' + what + '</div>';
+                    if (undoCall) {
+                        html += '<button class="btn btn-sm btn-outline-danger" style="font-size:0.72rem;" onclick="' + undoCall + '">' + undoLabel + '</button>';
+                    }
+                    html += '</div>';
+                }
+            }
+
             // Span Governor warnings strip — over-cap rescues (red) + strict-cap blocks.
             const spanWarnings = data.span_warnings || [];
             if (spanWarnings.length > 0) {
@@ -3103,8 +3245,13 @@
                 html += '</div>';
             });
 
-            // Second-Shift Advisor cards — "this day needs another driver"
-            const advisorProps = (data.advisor || []).filter(p => !aaAdvisorDismissed.has(p.signature));
+            // Advisor cards, split by direction: Second-Shift ("needs more coverage") vs
+            // Fold-Out ("can run leaner"). Unknown kinds are skipped defensively — a new
+            // card kind must get its own renderer branch, never the residual markup.
+            const advisorAll = (data.advisor || []).filter(p => !aaAdvisorDismissed.has(p.signature));
+            const advisorProps = advisorAll.filter(p => p.kind === 'residual' || p.kind === 'overload' || (p.kind === 'info' && String(p.signature).indexOf('_fold') !== 0 && String(p.signature).indexOf('_rebal') !== 0));
+            const foldProps = advisorAll.filter(p => p.kind === 'fold_out' || (p.kind === 'info' && String(p.signature).indexOf('_fold') === 0));
+            const rebalProps = advisorAll.filter(p => p.kind === 'rebalance' || (p.kind === 'info' && String(p.signature).indexOf('_rebal') === 0));
             if (advisorProps.length > 0) {
                 html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:2px solid var(--gold);overflow:hidden;">';
                 html += '<div class="px-3 py-2" style="background:linear-gradient(135deg, var(--gold), var(--gold-light));color:var(--dark);font-weight:700;font-size:0.85rem;"><i class="bi bi-person-plus-fill me-2"></i>Second-Shift Advisor — this day needs more coverage</div>';
@@ -3138,6 +3285,61 @@
                         html += '<div style="font-size:0.75rem;color:#b35900;margin-top:2px;"><i class="bi bi-info-circle me-1"></i>No in-house option (no idle driver + unit fits) — these stay in Need Affiliates below.</div>';
                     }
                     html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            // Fold-Out Advisor cards — "this day can run leaner" (mirror image of the
+            // Second-Shift box: release a thin driver, free his car).
+            if (foldProps.length > 0) {
+                html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:2px solid #2e7d32;overflow:hidden;">';
+                html += '<div class="px-3 py-2" style="background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;font-weight:700;font-size:0.85rem;"><i class="bi bi-person-dash-fill me-2"></i>Fold-Out Advisor — this day can run leaner</div>';
+                foldProps.forEach(function(p) {
+                    if (p.kind === 'info') {
+                        html += '<div class="px-3 py-2" style="font-size:0.78rem;color:#888;">' + p.text + '</div>';
+                        return;
+                    }
+                    html += '<div class="px-3 py-2" style="border-bottom:1px solid #dcedc8;" data-adv-sig="' + p.signature + '">';
+                    const what = p.leg_count > 0
+                        ? p.driver_name + ' has only ' + p.leg_count + ' job' + (p.leg_count !== 1 ? 's' : '') + (p.window ? ' (' + p.window + ')' : '') + (p.revenue ? ' · $' + p.revenue : '') + ' — they all fit on the others'
+                        : p.driver_name + ' has no jobs on this build';
+                    html += '<div style="font-size:0.84rem;font-weight:600;">' + what + '</div>';
+                    (p.relocations || []).forEach(function(r) {
+                        html += '<div style="font-size:0.72rem;color:#777;padding-left:10px;">' + r.pickup + ' · ' + r.route + ' &nbsp;&rarr;&nbsp; <strong>' + r.to_driver_name + '</strong> (' + r.receiver_eff_before + 'h &rarr; ' + r.receiver_eff_after + 'h)</div>';
+                    });
+                    if (p.freed_note) {
+                        html += '<div style="font-size:0.75rem;color:#2e7d32;margin-top:2px;"><i class="bi bi-car-front me-1"></i>' + p.freed_note + '</div>';
+                    }
+                    html += '<div class="d-flex align-items-center gap-2 mt-1">';
+                    html += '<button class="btn btn-sm" style="background:#2e7d32;color:#fff;font-weight:600;font-size:0.72rem;" onclick="aaFoldAccept(\'' + p.signature + '\', this)"><i class="bi bi-person-dash me-1"></i>Fold out &amp; free the car</button>';
+                    html += '<button class="btn btn-sm btn-outline-secondary" style="font-size:0.72rem;" onclick="aaAdvisorDismiss(\'' + p.signature + '\')">Keep as is</button>';
+                    html += '</div></div>';
+                });
+                html += '</div>';
+            }
+
+            // Rebalance Advisor cards — "spread it evenly, keep it dense" (blue box:
+            // relative-balance fill + hollow-day compress; accept = pins only).
+            if (rebalProps.length > 0) {
+                html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:2px solid #1565c0;overflow:hidden;">';
+                html += '<div class="px-3 py-2" style="background:linear-gradient(135deg,#1565c0,#1e88e5);color:#fff;font-weight:700;font-size:0.85rem;"><i class="bi bi-arrow-left-right me-2"></i>Rebalance Advisor — spread the day evenly</div>';
+                rebalProps.forEach(function(p) {
+                    if (p.kind === 'info') {
+                        html += '<div class="px-3 py-2" style="font-size:0.78rem;color:#888;">' + p.text + '</div>';
+                        return;
+                    }
+                    html += '<div class="px-3 py-2" style="border-bottom:1px solid #bbdefb;" data-adv-sig="' + p.signature + '">';
+                    const head = p.direction === 'fill'
+                        ? p.driver_name + ' has only ' + p.jobs_before + ' job' + (p.jobs_before !== 1 ? 's' : '') + ' vs the day\'s ~' + p.mean_jobs + ' average — move ' + p.moves.length + ' to him (spread ' + p.spread_before + ' &rarr; ' + p.spread_after + ')'
+                        : p.driver_name + '\'s outlier job' + (p.moves.length !== 1 ? 's' : '') + ' stretch ' + p.span_before + 'h around an empty day — move ' + p.moves.length + ' and he ends at ' + p.ends_at + ' (' + p.span_before + 'h &rarr; ' + p.span_after + 'h)';
+                    html += '<div style="font-size:0.84rem;font-weight:600;">' + head + '</div>';
+                    (p.moves || []).forEach(function(m) {
+                        html += '<div style="font-size:0.72rem;color:#777;padding-left:10px;">' + m.pickup + ' · ' + m.route + ' &nbsp;&rarr;&nbsp; <strong>' + m.to_driver_name + '</strong>' + (p.direction === 'fill' ? ' (from ' + m.from_driver_name + ' ' + m.from_jobs_before + '&rarr;' + m.from_jobs_after + ' jobs)' : '') + '</div>';
+                    });
+                    html += '<div class="d-flex align-items-center gap-2 mt-1">';
+                    html += '<button class="btn btn-sm" style="background:#1565c0;color:#fff;font-weight:600;font-size:0.72rem;" onclick="aaRebalAccept(\'' + p.signature + '\', this)"><i class="bi bi-arrow-left-right me-1"></i>Move these ' + p.moves.length + ' job' + (p.moves.length !== 1 ? 's' : '') + '</button>';
+                    html += '<button class="btn btn-sm btn-outline-secondary" style="font-size:0.72rem;" onclick="aaAdvisorDismiss(\'' + p.signature + '\')">Keep as is</button>';
+                    html += '</div></div>';
                 });
                 html += '</div>';
             }
@@ -4649,11 +4851,12 @@
                 if (r.share) {
                     shareAttrs = ' data-allow-share="1" data-planned-start="' + r.planned_start_hour + '" data-planned-end="' + r.planned_end_hour + '"';
                 }
-                body += '<div class="ds-row" data-driver-id="' + r.driver_id + '"' + shareAttrs + ' style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:0.82rem;">';
+                body += '<div class="ds-row" data-driver-id="' + r.driver_id + '" data-orig-checked="' + (r.checked ? 1 : 0) + '" data-forced="' + (r.forced ? 1 : 0) + '"' + shareAttrs + ' style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:0.82rem;">';
                 body += locked
                     ? '<i class="bi bi-lock-fill" style="color:#bbb;width:16px;"></i>'
                     : '<input type="checkbox" class="ds-check" ' + (r.checked ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#198754;">';
                 body += '<span style="flex:1;font-weight:600;' + (locked ? 'color:#999;' : '') + '">' + r.driver_name
+                    + (r.forced ? ' <span class="badge" style="background:#0d6efd;color:#fff;font-size:0.58rem;">YOUR PICK</span>' : '')
                     + (r.hint ? ' <span style="font-weight:400;color:#aaa;font-size:0.72rem;">— ' + r.hint + '</span>' : '') + '</span>';
                 if (locked) {
                     body += '<span style="color:#0d6efd;font-weight:600;font-size:0.78rem;">' + r.vehicle_label + '</span>';
@@ -4686,6 +4889,7 @@
         var footer = '<div style="padding:12px 20px;border-top:1px solid #e9ecef;display:flex;gap:8px;justify-content:flex-end;align-items:center;">'
             + '<span class="ds-count" style="font-size:0.75rem;color:#888;margin-right:auto;"></span>'
             + '<button class="btn btn-sm btn-outline-secondary ds-cancel" style="font-size:0.8rem;">Cancel</button>'
+            + '<button class="btn btn-sm btn-outline-primary ds-resuggest" style="font-size:0.8rem;" title="Re-plan vehicles around the drivers you ticked/unticked — a ticked extra displaces the lowest-priority pick (Yovanny in, someone out)"><i class="bi bi-arrow-repeat me-1"></i>Re-suggest with my picks</button>'
             + '<button class="btn btn-sm ds-apply" style="font-size:0.8rem;background:var(--dark);color:var(--gold);font-weight:600;"><i class="bi bi-check2 me-1"></i>Apply</button>'
             + '</div>';
 
@@ -4694,6 +4898,43 @@
         document.body.appendChild(overlay);
         overlay.querySelector('.ds-cancel').addEventListener('click', function() { overlay.remove(); });
         overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+        // "Yovanny in, someone out": user-CHANGED checkboxes (plus prior picks) become
+        // force_include/force_exclude on a fresh suggest; the modal re-renders.
+        modal.querySelector('.ds-resuggest').addEventListener('click', function() {
+            var btn = this;
+            var finc = [], fexc = [];
+            modal.querySelectorAll('.ds-row').forEach(function(row) {
+                var cb = row.querySelector('.ds-check');
+                if (!cb) return;   // locked rows
+                var orig = row.dataset.origChecked === '1';
+                var wasForced = row.dataset.forced === '1';
+                var did = parseInt(row.dataset.driverId);
+                if (cb.checked && (!orig || wasForced)) finc.push(did);
+                if (!cb.checked && orig) fexc.push(did);
+            });
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Re-planning...';
+            fetch('{% url "suggest_day_setup" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}',
+                                      force_include: finc, force_exclude: fexc}),
+            }).then(r => r.json()).then(function(newData) {
+                if (!newData.success) {
+                    alert(newData.error || 'Failed');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-suggest with my picks';
+                    return;
+                }
+                overlay.remove();
+                dsRenderModal(newData);
+            }).catch(function(err) {
+                alert('Error: ' + err);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-suggest with my picks';
+            });
+        });
 
         function dsCollect() {
             var pairs = [];

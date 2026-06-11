@@ -660,3 +660,295 @@ coverage cost exactly the two 00:0x arrivals the founder always farmed by hand (
 An adversarial review caught 4 real pre-commit bugs (manual-swap night-block + pre-existing-
 leg poisoning, silent ceiling farms, unreachable builder escape, unpinned pad) — repeat that
 review pattern on engine-gate diffs.
+
+
+# PART 6 — DEMAND-AWARE STAFFING: FOLD-OUT ADVISOR + SOLO-FIRST DAY SETUP (2026-06-10)
+
+ROADMAP #1. One philosophy, two pieces: **the engine builds, then advisors adjust headcount
+in BOTH directions from the real board** — the founder stops doing headcount math by hand.
+Designs adversarially reviewed BEFORE build (4 lenses; 7 findings folded in) and the
+implementation diff reviewed AFTER build (4 lenses; 2 blockers + 2 majors fixed pre-commit).
+
+## Fold-Out Advisor (`dispatching/fold_advisor.py` — the founder's bigger pain)
+
+Post-build advisory, the mirror image of the Second-Shift Advisor: "sereen has only 3 jobs
+and they all fit on ken/george/rizwan — fold her out and free her car?" Propose-only.
+
+- **Candidate gate** (ALL): in the modal working set; `0 < legs <= FOLD_OUT_MAX_LEGS=3`
+  (0 = trivially foldable vehicle-holder, `FOLD_OUT_INCLUDE_EMPTY`); **whole day movable** —
+  every slot is THIS run's unlocked proposal (`final_assignments` membership + not in
+  `locked_leg_ids`; pre-existing DB assignments are absent from final_assignments, so one
+  manual/seeded/trim-moved/dispatcher leg disqualifies — manual-sovereign); not Build-1st;
+  **not a sharer** (v1: folding an AM sharer would orphan the partner's planned window);
+  holds a vehicle (freeing the car is the point).
+- **All-or-nothing simulation**: deepcopy the proposed board, remove the candidate, place his
+  legs sequentially; every receiver passes the FULL gate stack (modal hard window parity →
+  tier compat → `sharers_conflict` occupancy gate on the SIM board → `check_feasibility`
+  under the cap-clamped window incl. the night rule → post-insert span ceilings
+  **eff <= 13.5h AND raw <= 15.0h** — the trim pass's own trigger, so a fold can never mint
+  a day the next preview wants to unwind). Receiver ranking `(tier_waste, eff_stretch,
+  deadhead, rid)`. ANY leg unplaceable → no card. Receivers must already carry work (moving
+  a thin day onto an idle body just swaps who gets released).
+- **Suppressed when residuals exist** — a day needing MORE coverage never sees a release card.
+- **Complement, not conflict, with gap compaction**: `GAP_COMPACT_PROTECT_DONOR_MAX_JOBS=3`
+  refuses to strip thin donors piecemeal, so thin days arrive at the advisor INTACT — exactly
+  what makes a whole-day fold possible.
+- **Accept path (zero new endpoints, zero leg writes)**: pin every relocation via the
+  existing `manual_assignments` map (sovereign + locked on every re-preview — the card's
+  placements can't be reshuffled), mark the driver Off (modal-authoritative), DELETE his DVA
+  row through the existing `update_inhouse_vehicle_assignment` endpoint (the exact mirror of
+  the Second-Shift accept's row CREATE — the freed unit becomes a spare unit the Second-Shift
+  Advisor can monetize on the next preview). Post-accept coverage check renders a red banner
+  + **Undo** if the rebuild without him came up short; undo failure (cert re-check) alerts
+  loudly instead of pretending.
+- Flags: `FOLD_OUT_ENABLED=True`, `FOLD_OUT_MAX_LEGS=3`, `FOLD_OUT_MAX_PROPOSALS=2`,
+  `FOLD_OUT_REQUIRE_VEHICLE=True`, `FOLD_OUT_SUPPRESS_ON_RESIDUALS=True`,
+  `FOLD_OUT_INCLUDE_EMPTY=True`.
+- Tests: `dispatching/tests_fold_advisor.py` — 23 tests: every candidate gate, every receiver
+  gate (incl. night-leg-never-on-Flexible and the explicit-night-start escape), all-or-nothing,
+  tier-match ranking, caps/determinism, and the DVA delete/recreate apply path (previously
+  untested endpoint branch).
+
+## Solo-first Day Setup (`DAY_SETUP_SOLO_FIRST=True`)
+
+When checked drivers > cars, P3c no longer auto-proposes an AM/PM share: the extras stay
+UNCHECKED ("available — add via Advisor if the day needs them") with one aggregated callout.
+The Second-Shift Advisor — which reads the actual BUILT board — proposes adding them only
+when the day truly needs a second shift (its freed-unit option IS the share path, protected
+by the occupancy gate). `solo_first=False` (flag or per-request key on the suggest endpoint,
+added for A/B) restores the legacy auto-share branch byte-identically.
+
+## Regression found + fixed while building (shipped bug, `80556dc2`)
+
+The decline-a-share fix stripped `allow_share` from EVERY single-pair share — which is
+exactly the shape of a Second-Shift Advisor freed-unit accept (holder keeps his row, is not
+in the payload) → the holder cross-check 400'd every advisor accept in prod since 06-10.
+Fix: single-pair shares keep `allow_share` (the cross-check skip) and lose only the
+partitioned planned windows (the decline semantics). `tests_shift_advisor.
+test_share_allowed_with_flag` covers it; the orphan-strip + accidental-duplicate tests stay
+green. The occupancy gate, not the flag, is what keeps a real share physically safe.
+
+## Implementation-diff review fixes (workflow, 4 skeptic lenses)
+
+1. Same-preview double-fold accept could chain pins onto a driver being folded (pins to a
+   driver absent from `driver_hours` are silently dropped at the views merge) → accept now
+   guards on `aaIsRebuilding` + disables sibling fold buttons; next-preview chains were
+   already blocked by the manual-sovereign gate (pinned receivers hold locked legs → not
+   foldable).
+2. `_residual_objs` hoist re-wrapped so the advisory-only contract holds (an exception there
+   silences both advisors instead of breaking the preview).
+3. `update_inhouse_vehicle_assignment` now invalidates the capacity-planner cache (latent
+   staleness, load-bearing once fold accepts delete DVA rows mid-session).
+4. Backtest harness: per-date board snapshots persist to DISK before any mutation
+   (`scratch/board_snapshots/`) and audit ScheduleSnapshot rows created by apply calls are
+   cleaned per date — plus `scratch/restore_date_from_backup.py` + a full
+   `content/db_backup_staffing_arc.sqlite3` online backup as the recovery path.
+
+## Acceptance backtest (`scratch/staffing_backtest.py`) — ALL HARD GATES PASS
+
+12 real dates replayed through the FULL UI pipeline (suggest → apply → auto-assign →
+advisor rounds), each snapshot/restored byte-identical (verified; snapshots also persisted
+to disk pre-mutation). RUN A = shipped behavior (auto-share, no accepts); RUN B =
+solo-first + POLICY v2 auto-accepts (one card per preview round, scheduled-OFF options
+skipped, **coverage-guarded**: an accept whose re-preview shows fewer assigned jobs is
+undone — the founder's read-the-numbers judgment, now also a red banner in the UI for
+second-shift accepts). Founder column = his real historical hand board (05-16 parsed from
+the dashboard CSV, hard-asserted 97/49; 06-01 was never hand-built locally).
+
+```
+date        legs bucket   founder     runA     runB  B-A  drvA/B  carA/B   worstA/B  ovl n17 night acc
+2026-04-03   157 busy       99/58    94/63    97/60   +3   11/13   11/12  16.7/16.9   0   0   0    3
+2026-03-28   150 busy       95/55    81/69    82/68   +1    8/10    8/10  15.7/16.7   0   0   0    3
+2026-05-02   149 busy       85/64    82/67    89/60   +7    9/11    9/11  16.8/16.8   0   0   0    3
+2026-05-09   148 busy       97/51    98/50    98/50   +0   12/12   12/12  16.7/16.7   0   0   0    0
+2026-05-16   146 busy       97/49   110/36   113/33   +3   15/13   13/13  14.3/16.1   0   0   0    0
+2026-05-25    97 medium     82/15     89/8     90/7   +1   15/13   13/13  16.5/16.5   0   0   0    0
+2026-04-24    97 medium     73/24    76/21    80/17   +4   11/12   11/12  15.2/14.7   0   0   0    1
+2026-05-22    96 medium     82/14     88/8     92/4   +4   16/13   13/13  16.4/16.8   0   0   0    0
+2026-06-01    68 medium      (unbuilt) 68/0    68/0   +0   15/13   13/13  14.8/14.8   0   0   0    0
+2026-06-02    57 slow        57/0     56/1     57/0   +1   15/13   13/13  12.9/13.0   0   0   0    0
+2026-05-19    39 slow        39/0     39/0     39/0   +0   13/11   13/11    9.3/9.8   0   0   0    2
+2026-04-14    36 slow        35/1     35/1     36/0   +1     9/8     9/8  13.9/14.1   0   0   0    4
+```
+
+**Hard gates (all pass):** RUN B coverage >= RUN A on EVERY day (net **+25 in-house jobs**
+across the 12 days, never negative); 0 shared-car overlaps; 0 days > 17h raw; 0 night-on-
+flexible legs; every restore byte-identical.
+
+**Readings:**
+- **05-16 headline**: solo-first ALONE (13 solo drivers, zero shares, zero accepts) built
+  **113/33 vs the shipped 110/36 that needed 15 drivers sharing 13 cars** — direct
+  confirmation of the settled "coverage is CAR-bound" finding: planned shares fragment
+  windows; 13 full-day drivers beat 15 fragmented ones. Same picture on 05-25/05-22/06-01/
+  06-02 (13 solo drivers >= 15-16 shared, fewer bodies).
+- **Fold-outs fire exactly where designed**: slow days. 05-19: two folds → 13→11 drivers,
+  same 39/0. 04-14: two folds + one re-add → 9→8 drivers AND +1 coverage (36/0). Busy days:
+  zero fold cards (receiver-gated silence) — correct.
+- **The coverage guard earns its keep**: 5 cards rejected across 3 dates (e.g. 05-09's
+  overload card would have COST 4 in-house jobs — a freed-unit share constrains the
+  holder's car on a tight day). This measured failure mode is why the second-shift accept
+  now gets the same red banner the fold accept has.
+- **Engine-vs-founder gap on 03-28 (82 vs 95) and 04-03 (97 vs 99) predates this arc**
+  (RUN A shows it identically) — that is the chain-aware-builder arc's target, not a
+  staffing issue.
+- Median spans rise on consolidation days (e.g. 06-02 6.3h→11.2h) — by design: fewer
+  drivers each carry more, with the worst day still bounded by the 13.5h/15h/17h gates.
+
+
+# PART 7 — ROUND 2: REBALANCE ADVISOR + PEAK ROSTER SIZING + FORCE-INCLUDE (2026-06-10/11)
+
+Driven by the founder's 06-01 test drive. Three findings from that drive, in order:
+
+## 7.0 Drive verification (scratch/verify_0601_fold.py) + a fold-suppression bug
+
+- **Peak vindicated**: in-flight histogram (pickup → estimated clear) reads 12 concurrent
+  at 09:30 on 06-01 (founder counted 13 — same peak within end-estimation error; the
+  sweep counts starts before ends at ties, the conservative reading). Per-tier peaks:
+  suv 5 @ 09:30, towncar 4 @ 09:00, mini_van 3 @ 09:06, van 2 @ 08:00. The 13-driver
+  roster was PEAK-sized, not over-sized. Founder anti-requirement honored: no naive
+  legs-per-driver sizing anywhere.
+- **Fold suppression bug (fixed)**: `_residual_objs` counted legs the dispatcher
+  deliberately skipped via the UI's exclude_unpaid default — ONE manually-unpaid test leg
+  suppressed every fold card during the founder's drive (and could spawn Second-Shift
+  cards for jobs he told the engine to ignore). Fix: skipped-unpaid legs are filtered out
+  of the advisor residual set, mirroring the auto-pool filter ("treat unpaid as if they
+  don't exist").
+- **Fold's real verdict, via the new explain channel** (`build_fold_out_proposals(...,
+  explain=True)` returns (proposals, rejections) with per-gate receiver elimination
+  counts): Aftab (1 leg, 09:06) fails all-or-nothing placement with 11/13 receivers
+  eliminated by FEASIBILITY (busy through the peak), 1 by tier — exactly the founder's
+  "peak-anchored" hypothesis, now provable per card.
+
+## 7.1 Rebalance Advisor (`dispatching/rebalance_advisor.py`) — "spread it evenly, keep it dense"
+
+The founder's RELATIVE balance rule (his correction): no absolute jobs-per-driver target;
+distribute whatever the day has roughly evenly (3-each on a slow day is fine); every day
+DENSE — short-and-tight or full, never long-and-empty; never 1-vs-7 without a physical
+reason (peak or vehicle tier); name the reason when it exists.
+
+One kind ("rebalance"), two directions:
+- **fill**: "Aftab has only 1 job vs the day's ~5.2 average — move these 3 from
+  runer/shelley to him." Trigger: jobs <= max(1, floor(mean*0.5)) AND day spread
+  (max-min) >= 3. Donors heaviest-first; donor floor `after >= ceil(mean)` AND
+  `>= receiver_after` (a move can never invert the imbalance); per-card spread must not
+  increase; partial fills OK (unlike fold's all-or-nothing — densifying at all serves
+  the rule).
+- **compress**: "Raymond's 16:45 + 22:24 stretch a hollow day to 14.8h — move them and he
+  ends at 10:30." Trigger: the STATIC hollow predicate (raw >= 10h AND biggest internal
+  hole >= 4h, `_is_hollow` — shared verbatim with the backtest metric so trigger and
+  metric can never drift) AND eff <= 13.5 (else the trim pass owns him). Boundary legs
+  peel inward, biggest span-collapse first; card iff total collapse >= 4h and >= 1 leg
+  remains (0 legs = fold's territory).
+
+Every move passes the full fold gate stack (modal window parity, tier, sharers_conflict
+on the SIM board, check_feasibility incl. night rule, eff<=13.5/raw<=15.0 ceilings) PLUS
+the **no-new-hollow invariant** (a move that would mint a hollow day on its donor or
+receiver is rejected — the advisor never creates a day it would flag next preview).
+Anti-oscillation is structural: accepted moves become locked pins, so a moved leg can
+never move again. Manual-sovereign is per LEG here (a donor with one hand-placed leg
+still donates his engine legs; the hand-placed leg never moves); Build-1st drivers are
+excluded as subjects AND donors. Suppressed on (paid) residuals; runs after fold with
+live-fold subjects excluded; one card per driver per response; compress keeps a fairness
+seat against the 2-card cap. Physical-reason INFO card (<=1): dominant gate phrase +
+"his 9:06 job IS the peak" qualifier when feasibility dominates at >=80% of the day's
+peak concurrency.
+
+Accept = **zero DB writes**: pin the moves (`manual_assignments`, sovereign + locked),
+re-preview, the shared red coverage banner (now `undo_kind` fold/shift/rebal) with a real
+Undo (delete the pins). Blue card box; mutual fold/rebal sibling-button disable per
+preview. 19 tests (`tests_rebalance_advisor.py`).
+
+## 7.2 Day Setup: peak-concurrency roster sizing (`DAY_SETUP_PEAK_SIZING=True`, buffer +1)
+
+`peak_concurrency()` (day_setup.py): the in-flight sweep with exact-tier peaks (founder's
+counting, for the callout) AND **cumulative peaks** (in-flight legs of tier >= t — the
+correct coverage measure under nested vehicle compatibility: 2 van + 1 Van14 overlapping
+need THREE van-capable units). Untiered legs count in overall only; demand-query parity
+(unpaid counts — staffing for a maybe-paid leg errs safe); timing cache preloaded if cold
+(one query; a suggest click never pays per-leg DB fallbacks).
+
+Sizing: rates still rank WHO, the peak decides HOW MANY — `N = peak_overall + 1` (buffer
++1 reproduces the founder's 06-01 answer: measured 12 -> 13 checked; the peak is a LOWER
+bound — turnaround/deadhead means a driver can't always chain adjacent legs). Drivers
+beyond N step down to "available"/unchecked (P3b prefill keeps re-adding one click);
+locked rows and forced picks never drop; a cert guard never drops below a certification
+tier's cumulative peak; loud callout names the peak + who stepped down; loud warning when
+the gate-passing roster can't even reach the peak. P2 tier reservation switches from
+ceil(daily/6) to the cumulative peak (the descending-tier loop's tier>=t counting makes
+higher-tier reservations count toward lower tiers — Hall condition on the nested
+structure). Flag-off path byte-identical; per-request `peak_sizing` key for A/B.
+
+## 7.3 Day Setup: force-include ("Yovanny in, someone out")
+
+`suggest_day_setup(force_include=[ids], force_exclude=[ids])` + endpoint pass-through
+(list-typed, string payloads rejected) + a modal "Re-suggest with my picks" button (sends
+user-CHANGED checkboxes; forced rows carry a YOUR PICK chip and survive re-suggest
+cycles). Semantics: availability stays the HARD gate (an OFF forced driver is refused
+with a warning naming the Advisor path — it can suggest OFF drivers, labeled);
+inactive/unknown ids warn; forced drivers bypass the rate/streak gate, rank top, are
+never dropped by the peak cap, and are NEVER silently unchecked (an unseatable forced
+driver stays ticked and falls to the loud P4 "No free unit" warning). New P3d pass: a
+still-carless forced driver takes the unit of the lowest-priority THIS-RUN proposal —
+never a locked row (real DVA rows are the founder's business; the warning says "clear one
+in the panel first"), never a P1 dedicated lock (george keeps his car), preferring
+victims not holding certification-tier units; the victim steps aside exactly like the
+solo-first path (one click to re-add). Closes the ROADMAP "new hire can't be force-added"
+gap. 12 new Day Setup tests.
+
+## 7.4 Reviews
+
+Round-2 design adversarially reviewed pre-build (real resolutions: pin-locking as the
+cycle-proof, the static hollow predicate replacing a recursive check, T>=1-leg fill
+floor, Build-1st donor exclusion, compress fairness seat, banner undo_kind shape, P3d
+can never hit the apply cross-check because locked rows are never victims) and the diff
+reviewed post-build (3 lenses clean; 1 claimed blocker REFUTED — the reviewer misread
+tier indices, the cumulative math is pinned by a passing test; 2 real fixes applied:
+list-type guard on force ids, cert-unit victim preference in P3d).
+
+## 7.5 Acceptance backtest round 2 — ALL HARD GATES PASS
+
+RUN A = shipped flags-off baseline; RUN B = solo-first + peak sizing + POLICY v3
+coverage-guarded auto-accepts (second-shift, fold, rebalance). spr = job spread
+(max-min among working drivers), hol = hollow days — both A/B.
+
+```
+date        legs bucket   founder     runA     runB  B-A  drvA/B  carA/B   worstA/B  ovl n17 night sprA/B holA/B acc
+2026-04-03   157 busy       99/58    94/63    95/62   +1   11/14   11/12  16.7/16.3   0   0   0    3/9    0/0    3
+2026-03-28   150 busy       95/55    81/69    82/68   +1     8/9     8/9  15.7/16.5   0   0   0    3/9    0/0    1
+2026-05-02   149 busy       85/64    83/66    86/63   +3     9/9     9/9  17.0/16.8   0   0   0    4/4    0/0    0
+2026-05-09   148 busy       97/51    98/50    98/50   +0   12/12   12/12  16.7/16.7   0   0   0    6/6    0/0    0
+2026-05-16   146 busy       97/49   110/36   113/33   +3   15/13   13/13  14.4/16.1   0   0   0    8/4    0/0    0
+2026-05-25    97 medium     82/15     90/7     90/7   +0   15/13   13/13  16.5/16.0   0   0   0    7/4    1/0    0
+2026-04-24    97 medium     73/24    77/20    80/17   +3   11/12   11/12  15.2/15.5   0   0   0    3/7    0/0    2
+2026-05-22    96 medium     82/14     88/8     92/4   +4   16/13   13/13  16.4/16.8   0   0   0    6/4    1/1    0
+2026-06-01    68 medium      (unbuilt) 68/0    68/0   +0   15/13   13/13  14.6/14.3   0   0   0    6/5    1/1    1
+2026-06-02    57 slow        57/0     56/1     56/1   +0   15/12   13/12  12.9/14.0   0   0   0    4/5    0/0    1
+2026-05-19    39 slow        39/0     39/0     39/0   +0    13/9    13/9   9.3/12.4   0   0   0    4/2    0/0    1
+2026-04-14    36 slow        35/1     35/1     36/0   +1    9/10    9/10  13.9/14.9   0   0   0    6/6    0/0    4
+```
+
+**Hard gates (all pass):** RUN B >= RUN A coverage every day (net **+16 vs shipped**);
+0 shared-car overlaps; 0 days > 17h raw; 0 night-on-flexible; restores byte-identical.
+
+**Readings:**
+- **Peak sizing works in BOTH directions.** Slow/medium: 15->13/12 drivers, 13->9 on
+  05-19, with coverage held. Busy under-checked days: the old rate-gate checked only
+  8-11 bodies on 04-03/03-28/04-14 — peak sizing checks MORE (14/9/10) and coverage goes
+  UP (+1 each). "Rates rank WHO, the peak sizes HOW MANY" is doing exactly that.
+- **Rebalance fill cards fired and were accepted on the founder's target shapes**
+  (rebal-fill on 05-19 and 04-14 — slow days, the 06-01/Aftab pattern). Compress had no
+  qualifying accept this sweep (the two surviving hollow days sit on locked/infeasible
+  shapes); hollow count never worsened and 05-25's hollow day disappeared (1->0).
+- **The coverage guard kept earning**: e.g. 05-02 rejected an overload card that would
+  have cost NINE jobs; net rejected cards across the sweep prevented every potential
+  coverage regression — the same red banner the UI now shows on all three accept kinds.
+- **Job spread rises on busy days (3->9 on 04-03/03-28)** — that is the SECOND-SHIFT
+  adds carrying thin evening tails, and rebalance is suppressed there BY DESIGN
+  (residuals exist -> under-coverage is the one question on screen). The founder's
+  motivating cases (slow-day Aftab fill, Raymond compress) fire where residuals are
+  zero. If busy-day balance becomes a pain, `REBALANCE_SUPPRESS_ON_RESIDUALS=False` is
+  the one-flag experiment.
+- **Run-to-run jitter (±1 coverage on a few dates vs the round-1 sweep)** comes from
+  `USE_LIVE_DISTANCE=1` (the harness runs it for parity with published numbers; some
+  drive times are live-API-dependent). Within one sweep, A and B share identical
+  conditions, so the gates compare like with like.

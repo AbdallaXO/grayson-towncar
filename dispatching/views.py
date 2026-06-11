@@ -2424,6 +2424,7 @@ def update_inhouse_vehicle_assignment(request):
         DriverVehicleAssignment.objects.filter(
             driver=driver, date=assignment_date
         ).delete()
+        cache.delete(f"capacity_planner_{assignment_date.isoformat()}")
         return JsonResponse({"success": True, "cleared": True})
 
     try:
@@ -2448,6 +2449,7 @@ def update_inhouse_vehicle_assignment(request):
     )
     assignment.vehicle = vehicle
     assignment.save()
+    cache.delete(f"capacity_planner_{assignment_date.isoformat()}")
 
     return JsonResponse(
         {"success": True, "vehicle_id": assignment.vehicle_id}
@@ -2565,7 +2567,25 @@ def suggest_day_setup_view(request):
     from dispatching.day_setup import suggest_day_setup, DAY_SETUP_ENABLED
     if not DAY_SETUP_ENABLED:
         return JsonResponse({"success": False, "error": "Day Setup is disabled"}, status=400)
-    proposal = suggest_day_setup(target_date)
+    # Optional A/B overrides (harness + console use); omitted -> module flags decide.
+    _solo = data.get("solo_first")
+    _peak = data.get("peak_sizing")
+    try:
+        _raw_inc = data.get("force_include") or []
+        _raw_exc = data.get("force_exclude") or []
+        # Reject non-list payloads: iterating a string like "123" would silently
+        # yield driver ids [1, 2, 3].
+        if isinstance(_raw_inc, str) or isinstance(_raw_exc, str):
+            raise ValueError
+        _finc = [int(x) for x in _raw_inc]
+        _fexc = [int(x) for x in _raw_exc]
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Bad force_include/exclude ids"},
+                            status=400)
+    proposal = suggest_day_setup(target_date,
+                                 solo_first=(None if _solo is None else bool(_solo)),
+                                 peak_sizing=(None if _peak is None else bool(_peak)),
+                                 force_include=_finc, force_exclude=_fexc)
     proposal["success"] = True
     return JsonResponse(proposal)
 
@@ -2627,10 +2647,15 @@ def apply_day_setup(request):
 
     # A share row whose PARTNER was unchecked in the modal arrives as the only pair for its
     # unit. Declining a proposed split must mean "one driver keeps the car all day" — so
-    # strip the orphaned share flag + partitioned window, otherwise the remaining driver
-    # would be capped at the handoff hour for a handoff that no longer exists (and the car
-    # would sit idle for the other half of the day).
-    clean = [(did, vid, share and len(_by_vid[vid]) > 1,
+    # strip the orphaned PARTITIONED WINDOW, otherwise the remaining driver would be capped
+    # at the handoff hour for a handoff that no longer exists. The allow_share flag itself
+    # SURVIVES for a single pair: a deliberate one-pair share is exactly what a Second-Shift
+    # Advisor freed-unit accept sends (the unit's holder keeps his row and is NOT in the
+    # payload) — stripping the flag made the holder cross-check below reject every advisor
+    # accept. The shared-car occupancy gate, not this flag, is what keeps a real share
+    # physically safe; for a declined proposal no outside holder exists, so the surviving
+    # flag is inert.
+    clean = [(did, vid, share,
               ps if (share and len(_by_vid[vid]) > 1) else None,
               pe if (share and len(_by_vid[vid]) > 1) else None)
              for did, vid, share, ps, pe in clean]
@@ -9742,15 +9767,63 @@ def auto_assign_drivers(request):
     # Advisory only; an exception here must never break the preview.
     advisor_proposals = []
     try:
-        from dispatching.shift_advisor import build_shift_proposals
         _residual_objs = [l for l in unassigned if l.id not in final_assignments]
-        if _residual_objs or _overload_map:
+        if exclude_unpaid:
+            # "Skip unpaid" means those legs don't exist for THIS build — they must not
+            # read as "the day needs more coverage": one skipped unpaid leg was enough to
+            # suppress every Fold-Out card and to spawn Second-Shift cards for jobs the
+            # dispatcher deliberately ignored. Mirror of the auto-pool filter above.
+            _residual_objs = [l for l in _residual_objs
+                              if l.reservation and l.reservation.payment_status == 'paid']
+    except Exception:
+        _residual_objs = None   # board state unreadable — BOTH advisors stay silent
+    try:
+        from dispatching.shift_advisor import build_shift_proposals
+        if _residual_objs is not None and (_residual_objs or _overload_map):
             advisor_proposals = build_shift_proposals(
                 target_date, _residual_objs, _overload_map,
                 set(driver_hours.keys()), proposed, legs_by_id)
     except Exception:
         import logging
         logging.getLogger(__name__).exception("second-shift advisor failed (advisory only)")
+
+    # ── Fold-Out Advisor (demand-aware staffing) ──
+    # The mirror image: "this day can run leaner" — propose releasing a thin driver
+    # whose whole (engine-proposed, unlocked) day verifiably fits on the others.
+    # Suppressed when residuals exist: a day that still needs MORE coverage never
+    # shows a release card. Advisory only; an exception must never break the preview.
+    try:
+        from dispatching.fold_advisor import build_fold_out_proposals
+        if _residual_objs is not None and not _residual_objs:
+            advisor_proposals.extend(build_fold_out_proposals(
+                target_date, proposed, final_assignments, locked_ids,
+                driver_hours, flexible_drivers, capped_windows, sharer_partners,
+                legs_by_id, drivers_by_id,
+                build_first_ids=set(_priority_ids),
+                residual_count=len(_residual_objs)))
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("fold-out advisor failed (advisory only)")
+
+    # ── Rebalance Advisor (demand-aware staffing, round 2) ──
+    # "Spread it evenly, keep it dense": relative-balance FILL cards (move jobs to a
+    # thin-but-needed driver) + hollow-day COMPRESS cards (move boundary outliers so a
+    # long-and-empty day ends early). Runs AFTER fold — a driver with a live fold card
+    # folds, he doesn't get filled. Advisory only.
+    try:
+        from dispatching.rebalance_advisor import build_rebalance_proposals
+        if _residual_objs is not None and not _residual_objs:
+            advisor_proposals.extend(build_rebalance_proposals(
+                target_date, proposed, final_assignments, locked_ids,
+                driver_hours, flexible_drivers, capped_windows, sharer_partners,
+                legs_by_id, drivers_by_id,
+                build_first_ids=set(_priority_ids),
+                residual_count=len(_residual_objs),
+                exclude_driver_ids={p.get("driver_id") for p in advisor_proposals
+                                    if p.get("kind") == "fold_out"}))
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("rebalance advisor failed (advisory only)")
 
     return JsonResponse({
         "success": True,

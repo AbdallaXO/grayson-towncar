@@ -47,6 +47,19 @@ DAY_SETUP_YESTERDAY_BONUS = 40     # keep-the-same-car continuity: strong enough
                                    # (founder: "george off Tuesday gets his car back Wednesday
                                    # even though someone else had it yesterday")
 DAY_SETUP_EXCLUDE_DRIVER_IDS = {6}  # placeholder; demo accounts also name-guarded below
+DAY_SETUP_SOLO_FIRST = True        # drivers > cars: leave the extras UNCHECKED ("available —
+                                   # add via Advisor if the day needs them") instead of auto-
+                                   # proposing an AM/PM share. The Second-Shift Advisor, which
+                                   # reads the actual built board, proposes the split only when
+                                   # the day truly needs it. False = legacy auto-share (P3c).
+DAY_SETUP_PEAK_SIZING = True       # size the checked roster by PEAK CONCURRENT in-flight
+                                   # demand (the histogram), NOT daily totals — founder rule
+                                   # from the 06-01 drive ("13 legs in flight at 09:30 ->
+                                   # 13 drivers was right"; never naive legs-per-driver).
+DAY_SETUP_PEAK_BUFFER = 1          # bodies above the in-flight peak: the peak is a LOWER
+                                   # bound (turnaround/deadhead means a driver can't always
+                                   # chain in-flight-adjacent legs); +1 reproduces the
+                                   # founder's 06-01 answer (measured 12 -> 13 checked).
 
 _DEMO_NAME_MARKERS = ("demo", "placeholder", "test account")
 
@@ -84,12 +97,82 @@ def _unit_tier(unit):
     return get_vehicle_tier(unit.vehicle_type.vehicle_type)
 
 
-def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
+def peak_concurrency(target_date, legs=None):
+    """In-flight concurrency histogram for a date — the founder's roster-sizing measure.
+
+    Returns {"overall": (n, datetime), "per_tier": {tier: (n, datetime)} (exact-tier,
+    the founder's counting, for callouts), "cumulative": {tier: (n, datetime)} (peak of
+    in-flight legs with tier >= t — the CORRECT coverage measure under nested vehicle
+    compatibility: 2 van + 1 Van14 overlapping need 3 van-capable units, not 2 and 1),
+    "total_legs": int}.
+
+    Leg exclusions are identical to the Day Setup demand query (cancelled leg or
+    reservation); unpaid legs COUNT (demand parity — Day Setup has no skip-unpaid
+    concept, and staffing for a maybe-paid leg errs safe; the UI's exclude_unpaid only
+    lowers COVERAGE numbers, see the ROADMAP gotcha). Untiered legs count in `overall`
+    only (a body is still needed). End times via estimate_job_end_time — same estimator
+    the planner uses; the timing cache is preloaded if cold (one query) so a suggest
+    click never pays per-leg DB fallbacks.
+    """
+    from datetime import datetime as _dt
+    import dispatching.scheduler as sch
+    from dispatching.scheduler import get_vehicle_tier
+    if legs is None:
+        from reservations.models import Leg
+        legs = list(Leg.objects.filter(pickup_date=target_date)
+                    .exclude(reservation__status="cancelled").exclude(status="cancelled")
+                    .select_related("reservation__vehicle", "vehicle",
+                                    "reservation", "flight_information"))
+    if sch._timing_cache is None:
+        sch.preload_timing_cache()
+    events = []
+    for leg in legs:
+        vt = leg.effective_vehicle_type
+        events.append((_dt.combine(target_date, leg.pickup_time), 1, str(vt) if vt else None))
+        events.append((sch.estimate_job_end_time(leg, target_date), -1, str(vt) if vt else None))
+    # arrivals before departures at ties — the conservative reading that reproduced the
+    # founder's 06-01 peak (12 @ 09:30 measured vs his 13 read, same moment).
+    events.sort(key=lambda e: (e[0], -e[1]))
+    overall_peak, overall_at, overall_cur = 0, None, 0
+    tier_cur, tier_peak = {}, {}
+    cum_cur, cum_peak = {}, {}
+    tiers_present = sorted({t for _, _, t in events if t}, key=get_vehicle_tier)
+    for t, d, tname in events:
+        overall_cur += d
+        if overall_cur > overall_peak:
+            overall_peak, overall_at = overall_cur, t
+        if tname:
+            tier_cur[tname] = tier_cur.get(tname, 0) + d
+            if tier_cur[tname] > tier_peak.get(tname, (0, None))[0]:
+                tier_peak[tname] = (tier_cur[tname], t)
+            k = get_vehicle_tier(tname)
+            for ct in tiers_present:
+                if get_vehicle_tier(ct) <= k:
+                    cum_cur[ct] = cum_cur.get(ct, 0) + d
+                    if cum_cur[ct] > cum_peak.get(ct, (0, None))[0]:
+                        cum_peak[ct] = (cum_cur[ct], t)
+    return {"overall": (overall_peak, overall_at), "per_tier": tier_peak,
+            "cumulative": cum_peak, "total_legs": len(legs)}
+
+
+def suggest_day_setup(target_date: date, ignore_existing: bool = False,
+                      solo_first=None, peak_sizing=None,
+                      force_include=None, force_exclude=None) -> dict:
     """Build the Day Setup proposal for `target_date`. Read-only, deterministic.
 
     ignore_existing=True is for backtesting only: pretend the date has no DVA rows so the
     proposal can be scored against what the founder actually built that day.
+    solo_first / peak_sizing: None resolves to the module flag at call time; pass an
+    explicit bool to A/B per request.
+    force_include / force_exclude: driver ids the dispatcher ticked/unticked before a
+    re-suggest ("Yovanny in, someone out"). Forced drivers bypass the rate/streak gate
+    (availability stays HARD), rank top everywhere, and displace the lowest-priority
+    proposal if cars run out (P3d). Excluded drivers stay unchecked.
     """
+    _solo = DAY_SETUP_SOLO_FIRST if solo_first is None else bool(solo_first)
+    _peak = DAY_SETUP_PEAK_SIZING if peak_sizing is None else bool(peak_sizing)
+    forced = {int(x) for x in (force_include or [])}
+    f_excl = {int(x) for x in (force_exclude or [])} - forced
     from drivers.models import Driver, DriverVehicleAssignment, FleetVehicle
     from reservations.models import Leg
     from dispatching.scheduler import get_vehicle_tier
@@ -145,11 +228,14 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
             existing[a.driver_id] = a
 
     # ── Demand by tier (Leg.vehicle is NEVER populated — tier comes from
-    # reservation.vehicle via effective_vehicle_type) ──
-    legs = (
+    # reservation.vehicle via effective_vehicle_type). Materialized once; shared with
+    # the peak-concurrency histogram (estimate_job_end_time touches reservation +
+    # flight_information, so select them here and avoid the N+1).
+    legs = list(
         Leg.objects.filter(pickup_date=target_date)
         .exclude(reservation__status="cancelled").exclude(status="cancelled")
-        .select_related("reservation__vehicle", "vehicle")
+        .select_related("reservation__vehicle", "vehicle",
+                        "reservation", "flight_information")
     )
     demand = {}
     for leg in legs:
@@ -169,6 +255,11 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
     rows, warnings, swaps = [], list(stale_rows), []
     assignable = []   # (order_score, driver) for the matching phases, pre-checked only
     avail_start = {}  # checked drivers' availability start hour (share pass: who's early crew)
+    rank_of = {}      # driver_id -> priority tuple (peak cap + P3d displacement order)
+    _known_ids = {d.id for d in drivers}
+    for fid in sorted(forced - _known_ids):
+        warnings.append(f"Force-included driver id {fid} is unknown/inactive/excluded — "
+                        f"ignored.")
     for d in drivers:
         if d.id in existing:
             a = existing[d.id]
@@ -185,6 +276,13 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
 
         eff = d.get_effective_availability(target_date)
         if not eff["is_available"]:
+            if d.id in forced:
+                # Availability is the founder's HARD gate — force-include never overrides
+                # the schedule. The Advisor path can suggest OFF drivers, loudly labeled.
+                warnings.append(
+                    f"{d} is in your picks but the schedule says OFF — Day Setup never "
+                    f"overrides the schedule; fix the schedule or add via the "
+                    f"Second-Shift Advisor (it suggests OFF drivers, labeled).")
             rows.append({
                 "driver_id": d.id, "driver_name": str(d), "group": "off",
                 "checked": False, "vehicle_id": None, "vehicle_label": "",
@@ -203,7 +301,11 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
         rate = (len(wd_same) / samples) if samples else None
         prev_op = operating_dates[-1] if operating_dates else None
         worked_prev = prev_op is not None and prev_op in wd
-        if samples < DAY_SETUP_MIN_WEEKDAY_SAMPLES or rate is None:
+        if d.id in f_excl:
+            checked, hint = False, "unchecked by you"
+        elif d.id in forced:
+            checked, hint = True, "included by you"
+        elif samples < DAY_SETUP_MIN_WEEKDAY_SAMPLES or rate is None:
             checked, hint = True, "available (new/limited history)"
         elif rate >= DAY_SETUP_WEEKDAY_MIN_RATE:
             checked = True
@@ -216,15 +318,87 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
         else:
             checked = False
             hint = f"only {len(wd_same)}/{samples} recent {target_date.strftime('%A')}s"
+        # Rank: who stays when the peak cap or P3d displacement needs a "lowest priority".
+        # Rates rank WHO; the peak sizes HOW MANY. Limited-history drivers sit exactly at
+        # the threshold (benefit of the doubt, below every established regular).
+        rank_of[d.id] = ((rate if (samples >= DAY_SETUP_MIN_WEEKDAY_SAMPLES
+                                   and rate is not None)
+                          else DAY_SETUP_WEEKDAY_MIN_RATE),
+                         1 if worked_prev else 0, len(wd_same), -d.id)
         rows.append({
             "driver_id": d.id, "driver_name": str(d),
             "group": "suggested" if checked else "available",
             "checked": checked, "vehicle_id": None, "vehicle_label": "",
             "reason": "", "hint": hint,
+            "forced": d.id in forced,
         })
         if checked:
             assignable.append(d)
             avail_start[d.id] = eff["start_hour"] if eff["start_hour"] is not None else 4
+
+    # ── PEAK-CONCURRENCY ROSTER SIZING (founder rule: size by the in-flight histogram,
+    # never by daily totals or naive legs-per-driver). Rates ranked WHO above; the peak
+    # decides HOW MANY: drivers beyond peak+buffer step down to "available" (unchecked,
+    # one-click re-add via P3b prefill). Locked rows and your forced picks always stay.
+    # Cert guard: never drop a driver if it would leave fewer certified bodies than a
+    # certification tier's cumulative in-flight peak (the Sprinter case).
+    peak = None
+    if _peak and legs:
+        peak = peak_concurrency(target_date, legs=legs)
+        n_target = peak["overall"][0] + DAY_SETUP_PEAK_BUFFER
+        cert_tiers = {}
+        for u in all_units:
+            vt = u.vehicle_type
+            if vt is not None and getattr(vt, "requires_certification", False):
+                req = peak["cumulative"].get(vt.vehicle_type, (0, None))[0]
+                if req:
+                    cert_tiers[vt.vehicle_type] = req
+        cert_of = {d.id: {v.vehicle_type for v in d.certified_vehicle_types.all()}
+                   for d in drivers}
+        checked_rows = [r for r in rows if r["checked"]]
+        kept_cert = {t: sum(1 for r in checked_rows
+                            if t in cert_of.get(r["driver_id"], ()))
+                     for t in cert_tiers}
+        checked_n = len(checked_rows)
+        droppable = sorted((r for r in rows
+                            if r["group"] == "suggested" and r["checked"]
+                            and not r.get("forced")),
+                           key=lambda r: rank_of.get(r["driver_id"], (0.0, 0, 0, 0)))
+        dropped_names = []
+        for r in droppable:
+            if checked_n <= n_target:
+                break
+            did = r["driver_id"]
+            if any(t in cert_of.get(did, ()) and kept_cert[t] - 1 < req
+                   for t, req in cert_tiers.items()):
+                continue   # dropping him would break a cert tier's peak coverage
+            r["checked"] = False
+            r["group"] = "available"
+            r["hint"] = (f"peak needs only {n_target} drivers — add via Advisor "
+                         f"if the day runs hot")
+            r["reason"] = ""
+            for t in cert_tiers:
+                if t in cert_of.get(did, ()):
+                    kept_cert[t] -= 1
+            assignable = [d for d in assignable if d.id != did]
+            avail_start.pop(did, None)
+            dropped_names.append(r["driver_name"])
+            checked_n -= 1
+        _pt = ", ".join(
+            f"{t} {n} @ {at.strftime('%H:%M')}"
+            for t, (n, at) in sorted(peak["per_tier"].items(), key=lambda kv: -kv[1][0]))
+        swaps.insert(0, (f"PEAK DEMAND: {peak['overall'][0]} legs in flight at "
+                         f"{peak['overall'][1].strftime('%H:%M')}"
+                         + (f" ({_pt})" if _pt else "")
+                         + f" — checking {checked_n} drivers "
+                         f"(peak + {DAY_SETUP_PEAK_BUFFER})."
+                         + (f" Left available: {', '.join(dropped_names)}."
+                            if dropped_names else "")))
+        if checked_n < peak["overall"][0]:
+            warnings.append(
+                f"Peak demand is {peak['overall'][0]} concurrent legs at "
+                f"{peak['overall'][1].strftime('%H:%M')} but only {checked_n} drivers "
+                f"pass the gate — tick more from Also available.")
 
     # ── Vehicle matching over the pre-checked, unlocked drivers ──
     by_id = {d.id: d for d in drivers}
@@ -283,6 +457,7 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
         if (best_vid is not None and best_share >= DAY_SETUP_DEDICATED_SHARE
                 and unit_days.get((d.id, best_vid), 0) >= DAY_SETUP_DEDICATED_MIN_DAYS):
             dedicated.append((-best_share, d.id, d, best_vid, False))
+    p1_winners = set()   # dedicated-lock holders — never P3d displacement victims
     for _, _, d, vid, explicit in sorted(dedicated):
         u = pool.get(vid)
         if u is None:
@@ -296,6 +471,7 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
         if d.can_drive(u.vehicle_type):
             assign(d, u, "his car (set in admin)" if explicit
                    else f"usual unit · {share(d.id, u.id):.0%}")
+            p1_winners.add(d.id)
             # Handback callout: someone else drove this regular's car most recently (e.g.
             # while he was off) — tell the dispatcher why that driver gets a different unit.
             for other in assignable:
@@ -311,7 +487,16 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
         tier = get_vehicle_tier(tname)
         if tier < 0 or not demand[tname]:
             continue
-        need = ceil(demand[tname] / DAY_SETUP_LEGS_PER_UNIT)
+        if peak is not None:
+            # Peak basis: units of tier >= t must cover the CONCURRENT in-flight peak of
+            # tier->=t legs (cumulative — exact-tier peaks under-reserve when a higher
+            # tier overlaps). The descending-tier loop + ">= tier" covered-counting means
+            # higher-tier reservations correctly count toward lower tiers' needs.
+            need = peak["cumulative"].get(tname, (0, None))[0]
+            if not need:
+                continue
+        else:
+            need = ceil(demand[tname] / DAY_SETUP_LEGS_PER_UNIT)
         covered = 0
         for a in existing.values():
             if a.vehicle is not None and _unit_tier(a.vehicle) >= tier:
@@ -366,6 +551,53 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
             reason = "best fit"
         assign(d, u, reason)
 
+    # P3d — FORCE-INCLUDE displacement ("Yovanny in, someone out"). A forced driver still
+    # carless after P1-P3 takes the unit of the LOWEST-priority proposal of THIS run —
+    # never a locked row (real DVA, founder's business; clear it in the panel first) and
+    # never a P1 dedicated lock (george keeps his car). The victim steps aside exactly
+    # like the solo-first path: unchecked + hinted, one click to re-add.
+    if forced and unmatched:
+        for fd in [d for d in list(unmatched) if d.id in forced]:
+            # Prefer victims NOT holding a certification-tier unit (Sprinter): taking one
+            # requires the forced driver to be certified anyway (can_drive gate keeps unit
+            # + cert coverage intact), but a plain unit is always the gentler steal.
+            victims = sorted(
+                (vd for vd in assignable
+                 if vd.id in proposed and vd.id not in forced
+                 and vd.id not in p1_winners
+                 and fd.can_drive(proposed[vd.id].vehicle_type)),
+                key=lambda vd: (
+                    1 if (proposed[vd.id].vehicle_type is not None
+                          and getattr(proposed[vd.id].vehicle_type,
+                                      "requires_certification", False)) else 0,
+                    rank_of.get(vd.id, (0.0, 0, 0, 0))))
+            if not victims:
+                warnings.append(
+                    f"Couldn't seat {fd}: every compatible unit is held by a locked or "
+                    f"dedicated row — clear one in the vehicle panel first.")
+                continue
+            v = victims[0]
+            u = proposed.pop(v.id)
+            for r in rows:
+                if r["driver_id"] == v.id:
+                    r["checked"] = False
+                    r["group"] = "available"
+                    r["vehicle_id"] = None
+                    r["vehicle_label"] = ""
+                    r["reason"] = ""
+                    r["hint"] = (f"stepped aside for {fd} (your pick) — add via "
+                                 f"Advisor if the day needs them")
+            avail_start.pop(v.id, None)
+            proposed[fd.id] = u
+            for r in rows:
+                if r["driver_id"] == fd.id:
+                    r["vehicle_id"] = u.id
+                    r["vehicle_label"] = _unit_label(u)
+                    r["reason"] = f"takes {_unit_label(u)} — added by you"
+            unmatched.remove(fd)
+            swaps.append(f"{fd} in, {v} out: {fd} takes {_unit_label(u)}; "
+                         f"{v} left unchecked (lowest priority).")
+
     # P3c — PLANNED SHARED CARS. More checked drivers than free cars (founder: "we have
     # drivers available, more than cars — and there is no such thing as a car not working"):
     # instead of leaving a checked driver carless (his colleagues then run 15h+ days), pair
@@ -374,7 +606,32 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
     # vehicle rows; the auto-assign modal prefills them as HARD windows, so the engine
     # physically cannot double-book the car. Partners come only from THIS run's proposals —
     # rows the founder already set stay untouched.
-    if unmatched:
+    if unmatched and _solo:
+        # SOLO-FIRST (demand-aware staffing): more checked drivers than cars no longer
+        # auto-proposes an AM/PM share. The extras stay UNCHECKED with a hint — the
+        # Second-Shift Advisor reads the actual BUILT board afterwards and proposes
+        # adding them (spare or freed unit, occupancy-gated) only when the day truly
+        # needs a second shift. DAY_SETUP_SOLO_FIRST=False restores the legacy
+        # auto-share branch below, byte-identically.
+        # A FORCED driver never gets silently unchecked — if P3d couldn't seat him he
+        # stays ticked and falls through to P4's loud "No free unit" warning.
+        names = [str(d) for d in sorted((x for x in unmatched if x.id not in forced),
+                                        key=lambda x: str(x).lower())]
+        for d in list(unmatched):
+            if d.id in forced:
+                continue
+            for r in rows:
+                if r["driver_id"] == d.id:
+                    r["checked"] = False
+                    r["group"] = "available"
+                    r["hint"] = "available — add via Advisor if the day needs them"
+                    r["reason"] = ""
+            unmatched.remove(d)
+        swaps.append(
+            f"MORE DRIVERS THAN CARS: {', '.join(names)} left unchecked — the "
+            f"Second-Shift Advisor proposes adding them after the build if the day "
+            f"needs a second shift.")
+    elif unmatched:
         sharable = sorted(((avail_start.get(pid, 4), pid) for pid in proposed),
                           key=lambda t: (t[0], t[1]))
         shared_partners = set()
@@ -464,6 +721,12 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False) -> dict:
         "swaps": swaps,
         "warnings": warnings,
         "demand": dict(sorted(demand.items(), key=lambda kv: -get_vehicle_tier(kv[0]))),
+        "peak": ({"overall": {"n": peak["overall"][0],
+                              "at": peak["overall"][1].strftime("%H:%M")
+                                    if peak["overall"][1] else ""},
+                  "per_tier": {t: {"n": n, "at": at.strftime("%H:%M")}
+                               for t, (n, at) in peak["per_tier"].items()}}
+                 if peak is not None else None),
         "free_units": [
             {"id": u.id, "label": _unit_label(u),
              "requires_cert": bool(u.vehicle_type and u.vehicle_type.requires_certification),
