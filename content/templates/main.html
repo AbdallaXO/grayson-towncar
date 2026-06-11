@@ -40,6 +40,18 @@
           content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     {% block meta_description %}{% endblock %}
     {% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}" />{% endif %}
+    {% block social_meta %}
+      <meta property="og:site_name" content="Grayson Towncar" />
+      <meta property="og:title" content="Orlando Airport Private Car Service | Grayson Towncar" />
+      <meta property="og:description" content="Private MCO airport transfers to Disney World, Universal Orlando & Port Canaveral. All-inclusive fixed pricing, free car seats, baggage claim meet & greet." />
+      <meta property="og:type" content="website" />
+      {% if canonical_url %}<meta property="og:url" content="{{ canonical_url }}" />{% endif %}
+      <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/services-bg.webp' %}" />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content="Orlando Airport Private Car Service | Grayson Towncar" />
+      <meta name="twitter:description" content="Private MCO airport transfers to Disney World, Universal Orlando & Port Canaveral. All-inclusive fixed pricing, free car seats, meet & greet." />
+      <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/services-bg.webp' %}" />
+    {% endblock %}
 
     {% block extra_css %}{% endblock %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />

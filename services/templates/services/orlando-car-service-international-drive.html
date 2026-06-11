@@ -1,0 +1,571 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}International Drive Car Service from MCO | From $105 | Grayson{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Private car service from Orlando Airport (MCO) to International Drive hotels from $105 all-inclusive. Free car seats, flight tracking, no surge pricing." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="International Drive Car Service from MCO | From $105 | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from Orlando Airport to ICON Park, the Orange County Convention Center, and every I-Drive hotel. Fixed pricing from $105, free car seats, baggage-claim meet & greet." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/orlando-car-service-international-drive/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/city-of-orlando.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="International Drive Car Service from MCO | From $105 | Grayson Towncar" />
+  <meta name="twitter:description" content="Private car service from Orlando Airport to International Drive hotels. Fixed all-inclusive rates from $105, free Graco car seats, no surge pricing." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/city-of-orlando.webp' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "International Drive Car Service",
+        "item": "https://www.graysontowncar.com/orlando-car-service-international-drive/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much is a car service from MCO to International Drive?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private Executive Sedan from Orlando International Airport to any International Drive hotel is $105 one-way or $195 round-trip, all-inclusive. Tolls, taxes, baggage-claim meet and greet, and flight tracking are in the price — no surge pricing, no mandatory gratuity, no hidden fees. Larger vehicles: Family Minivan $120, Luxury SUV $140, Passenger Van $175, Sprinter Van $225 one-way. Pricing is per vehicle, never per person."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long is the ride from MCO to I-Drive?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "International Drive is about 15 miles from Orlando International Airport — a 20 to 25 minute direct drive with a private car. During peak holiday traffic, add 15 to 20 minutes. Your driver tracks your flight, meets you at baggage claim, and drives straight to your hotel with no extra stops."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you serve the Orange County Convention Center hotels?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We serve every hotel around the Orange County Convention Center, including the Hyatt Regency Orlando, Hilton Orlando, Signia by Hilton, Rosen Centre, Rosen Plaza, and Rosen Shingle Creek. Convention travelers get the same fixed rate — a sedan from MCO is $105 one-way — with 24/7 availability for early flights and late arrivals."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can you stop for groceries on the way?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every airport pickup includes a free 20-minute grocery stop at Publix (9930 Universal Blvd, Orlando FL 32819), just off International Drive. Stock up on water, snacks, and breakfast before you check in — at no extra charge."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Free Graco car seats — infant, toddler, and booster — are professionally installed on every booking at no extra charge. Just select the seat types you need when you book and they will be ready when your driver meets you at baggage claim."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "International Drive Car Service — Orlando Airport (MCO)",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando International Airport (MCO) to International Drive hotels, ICON Park, and the Orange County Convention Center. Fixed all-inclusive pricing from $105, free car seats, and baggage-claim meet and greet.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "International Drive"},
+      {"@type": "Place", "name": "Orange County Convention Center"},
+      {"@type": "Place", "name": "ICON Park"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "International Drive Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to International Drive Hotel Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Orange County Convention Center Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to ICON Park Hotels Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "105",
+      "priceCurrency": "USD",
+      "description": "MCO to International Drive one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/orlando-car-service-international-drive/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/city-of-orlando.webp' %}"
+         width="1920" height="1080"
+         alt="Private car service from Orlando Airport to International Drive hotels"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">I-Drive &middot; ICON Park &middot; Convention Center</p>
+          <h1 class="lux-title mb-3">Private Car Service from Orlando Airport to International Drive</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Fixed all-inclusive rates from <strong>$105</strong> to every I-Drive hotel. Your driver tracks your flight and meets you at baggage claim with a name sign — about 20-25 minutes door to door.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your I-Drive Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 from 1,500+ Google reviews</span>
+            <span><i class="bi bi-person-badge"></i> Meet &amp; greet at baggage claim</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing, no surge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">International Drive Car Service</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: ABOUT I-DRIVE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Destination</p>
+          <h2 class="lux-section-title">Orlando's Hotel and Convention Corridor</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            International Drive — I-Drive to locals — runs through the heart of Orlando's tourist district. ICON Park and its 400-foot observation wheel, the Orange County Convention Center, and the shops and restaurants of Pointe Orlando all sit along one corridor, surrounded by dozens of hotels.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~15</div>
+            <div class="route-label">Miles from MCO</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">20-25</div>
+            <div class="route-label">Minutes Direct</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">$105</div>
+            <div class="route-label">Sedan One-Way</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">0</div>
+            <div class="route-label">Extra Stops</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: PRICING
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Pricing</p>
+          <h2 class="lux-section-title">MCO to International Drive Rates</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h3>How much is a car service from MCO to International Drive?</h3>
+            <p>
+              A private Executive Sedan from Orlando International Airport to any International Drive hotel is <strong>$105 one-way</strong> or <strong>$195 round-trip</strong> — all-inclusive. Tolls, taxes, baggage-claim meet and greet, flight tracking, and free Graco car seats are all in the price. No surge pricing, no mandatory gratuity add-on, no hidden fees — and the rate is per vehicle, never per person.
+            </p>
+          </div>
+
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Executive Sedan</td>
+                  <td>Up to 4</td>
+                  <td>$105</td>
+                  <td>$195</td>
+                </tr>
+                <tr>
+                  <td>Family Minivan</td>
+                  <td>Up to 5</td>
+                  <td>$120</td>
+                  <td>$230</td>
+                </tr>
+                <tr>
+                  <td>Luxury SUV</td>
+                  <td>Up to 6</td>
+                  <td>$140</td>
+                  <td>$275</td>
+                </tr>
+                <tr>
+                  <td>Passenger Van</td>
+                  <td>Up to 10</td>
+                  <td>$175</td>
+                  <td>$340</td>
+                </tr>
+                <tr>
+                  <td>Sprinter Van</td>
+                  <td>Up to 14</td>
+                  <td>$225</td>
+                  <td>$440</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-center mt-4" style="font-weight: 300; color: var(--lux-medium-gray);">
+            Heading elsewhere in Orlando? <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">See the full rate table</a> for every route and vehicle.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: HOTELS SERVED
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Where We Take You</p>
+          <h2 class="lux-section-title">I-Drive Hotels We Serve</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Every hotel on the corridor, from the convention district to ICON Park. If your hotel is on or near International Drive, we cover it at the same fixed rate.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <ul class="seo-resort-list">
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Hyatt Regency Orlando</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Hilton Orlando</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Signia by Hilton Orlando</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Rosen Centre Hotel</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Rosen Plaza Hotel</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Rosen Shingle Creek</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Universal's Endless Summer Resort</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Castle Hotel</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> DoubleTree by Hilton at Universal</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> Wyndham Orlando Resort</li>
+            <li class="seo-resort-item"><i class="bi bi-geo-alt-fill"></i> ICON Park hotels</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: CONVENTION TRAVELERS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Business Travel</p>
+          <h2 class="lux-section-title">Flying In for a Convention?</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h4>The Convention Center Corridor Is Our Home Turf</h4>
+            <p>
+              The Orange County Convention Center is one of the busiest in the country, and when a major show is in town, rideshare queues at MCO stretch and surge pricing kicks in. We run on fixed rates — a sedan to the Hyatt Regency, Hilton Orlando, or any Rosen property is <strong>$105 one-way</strong>, booked in advance, with your driver waiting at baggage claim no matter how late your flight lands.
+            </p>
+            <p>
+              Traveling with colleagues? A Passenger Van seats up to 10 and a Sprinter up to 14, so one vehicle covers the whole team. We operate 24/7, and if your flight is delayed, your pickup time adjusts to the actual arrival at no charge. For recurring team travel and group moves, see our <a href="{% url 'corporate_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">corporate transportation service</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much is a car service from MCO to International Drive?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A private Executive Sedan is <strong>$105 one-way</strong> or <strong>$195 round-trip</strong> to any I-Drive hotel, all-inclusive — tolls, taxes, meet and greet, and flight tracking are in the price. Larger vehicles: Family Minivan $120, Luxury SUV $140, Passenger Van $175, Sprinter Van $225 one-way. Pricing is per vehicle, never per person — <a href="{% url 'rates' %}" style="color: var(--lux-gold);">see the full rate table</a>.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How long is the ride from MCO to I-Drive?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>International Drive is about 15 miles from Orlando International Airport — a 20-25 minute direct drive with a private car. During peak holiday traffic, add 15-20 minutes. Your driver tracks your flight, meets you at baggage claim, and drives straight to your hotel with no extra stops.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you serve the Orange County Convention Center hotels?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We serve every hotel around the convention center, including the Hyatt Regency Orlando, Hilton Orlando, Signia by Hilton, Rosen Centre, Rosen Plaza, and Rosen Shingle Creek — all at the same fixed rate, with 24/7 availability for early flights and late arrivals.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can you stop for groceries on the way?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Every airport pickup includes a free 20-minute grocery stop at Publix (9930 Universal Blvd), just off International Drive. Stock up on water, snacks, and breakfast before you check in — at no extra charge.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Free Graco car seats — infant, toddler, and booster — are professionally installed on every booking at no extra charge. Just select the seat types you need when you book. <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold);">Learn more about our car seat program.</a></p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Related Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Airport Transfers</h5>
+            <p>All Orlando airport transportation routes and rates.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'universal_orlando_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-stars me-2" style="color: var(--lux-gold);"></i>Universal Orlando</h5>
+            <p>Private transfers to Universal Studios and Islands of Adventure.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'corporate_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-briefcase me-2" style="color: var(--lux-gold);"></i>Corporate Transportation</h5>
+            <p>Reliable rides for conventions, meetings, and team travel.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your International Drive Transfer</h2>
+          <p class="mb-4">Fixed pricing from $105. No surge. Driver meets you at baggage claim — about 20-25 minutes to your hotel.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}

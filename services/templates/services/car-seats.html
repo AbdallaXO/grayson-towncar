@@ -6,20 +6,26 @@
 {% block meta_description %}
   <meta name="description"
         content="Free professionally installed Graco car seats on every ride. MCO airport transfers to Disney World, Universal, Epic Universe & Port Canaveral. Book today." />
-  <meta property="og:title" content="Free Car Seats on Every Orlando Transfer | Grayson Towncar" />
-  <meta property="og:description" content="Complimentary Graco car seats, professionally installed. Private airport transfers from MCO to Disney World, Universal, Epic Universe & Port Canaveral." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ canonical_url }}" />
-  <meta property="og:image" content="{% static 'images/services-bg.webp' %}" />
   <link rel="preload"
         href="{% static 'images/services-bg.webp' %}"
         as="image"
         type="image/webp" />
 {% endblock %}
 
-{% block head_extra %}
-  <link rel="canonical" href="{{ canonical_url }}" />
+{% block social_meta %}
+  <meta property="og:site_name" content="Grayson Towncar" />
+  <meta property="og:title" content="Free Car Seats on Every Orlando Transfer | Grayson Towncar" />
+  <meta property="og:description" content="Complimentary Graco car seats, professionally installed. Private airport transfers from MCO to Disney World, Universal, Epic Universe & Port Canaveral." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/services-bg.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Free Car Seats on Every Orlando Transfer | Grayson Towncar" />
+  <meta name="twitter:description" content="Complimentary Graco car seats, professionally installed. Private airport transfers from MCO to Disney World, Universal, Epic Universe & Port Canaveral." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/services-bg.webp' %}" />
+{% endblock %}
 
+{% block head_extra %}
   <!-- BreadcrumbList Schema -->
   <script type="application/ld+json">
   {

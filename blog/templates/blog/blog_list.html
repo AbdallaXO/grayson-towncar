@@ -15,19 +15,23 @@
 
 {% block meta_description %}
   <meta name="description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
-  <meta property="og:title" content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
-  <meta property="og:description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
-  {% if latest_post and latest_post.image %}
-    <meta property="og:image" content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}" />
-  {% endif %}
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
-  <meta name="twitter:description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
-  {% if latest_post and latest_post.image %}
-    <meta name="twitter:image" content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}" />
-  {% endif %}
+  <script type="application/ld+json">
+      {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          "name": "Grayson Towncar Blog Posts",
+          "itemListElement": [
+              {% for blog in blogs %}
+              {
+                  "@type": "ListItem",
+                  "position": {{ forloop.counter }},
+                  "name": "{{ blog.title|escapejs }}",
+                  "url": "https://www.graysontowncar.com{% url 'blog-post' slug=blog.slug %}"
+              }{% if not forloop.last %},{% endif %}
+              {% endfor %}
+          ]
+      }
+  </script>
   <script type="application/ld+json">
       {
           "@context": "https://schema.org",
@@ -46,6 +50,23 @@
       }
   </script>
 {% endblock meta_description %}
+
+{% block social_meta %}
+  <meta property="og:site_name" content="Grayson Towncar" />
+  <meta property="og:title" content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
+  <meta property="og:description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
+  {% if latest_post and latest_post.image %}
+    <meta property="og:image" content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}" />
+  {% endif %}
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
+  <meta name="twitter:description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
+  {% if latest_post and latest_post.image %}
+    <meta name="twitter:image" content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}" />
+  {% endif %}
+{% endblock social_meta %}
 
 {% block content %}
 <div class="blog-page-wrapper">

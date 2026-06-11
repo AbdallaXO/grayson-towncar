@@ -1,365 +1,262 @@
 {% extends 'main.html' %}
-{% load seo_tags %}
 {% load static %}
-{% block head_extra %}
-  <link rel="canonical"
-        href="https://www.graysontowncar.com/services/disney-world-transportation/" />
-  <!-- Added more rich schema for enhanced SEO -->
-  <script type="application/ld+json">
-      {
-          "@context": "https://schema.org",
-          "@type": "Service",
-          "name": "Disney World Transportation Service",
-          "serviceType": "Transportation",
-          "description": "Premium Disney World transportation service from Orlando International Airport (MCO) and Sanford International Airport (SFB) to all Disney resorts. Luxury transfers with professional drivers and complimentary car seats.",
-          "provider": {
-              "@type": "LocalBusiness",
-              "name": "Grayson Towncar",
-              "image": "{% static 'images/logo.png' %}",
-              "address": {
-                  "@type": "PostalAddress",
-                  "addressLocality": "Orlando",
-                  "addressRegion": "FL"
-              }
-          },
-          "areaServed": {"@type": "Place", "name": "Walt Disney World Resort, Lake Buena Vista, FL"},
-          "hasOfferCatalog": {
-              "@type": "OfferCatalog",
-              "name": "Disney World Transportation Services",
-              "itemListElement": [{
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "MCO to Disney World Transfer"
-                  }
-              }, {
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "SFB to Disney World Transfer"
-                  }
-              }]
-          }
-      }
-  </script>
-{% endblock %}
-{% block title %}Disney World Car Service | Free Car Seats | Grayson Towncar{% endblock %}
+
+{% block title %}Disney World Car Service from MCO | From $105 | Grayson Towncar{% endblock %}
+
 {% block meta_description %}
   <meta name="description"
-        content="Family-friendly Disney World transportation with complimentary car seats and grocery stops. Professional Orlando car service serving all Disney resorts. Book today!" />
-  <link rel="preload"
-        href="{% static 'images/services-bg.webp' %}"
-        as="image"
-        type="image/webp" />
+        content="Private car service from Orlando Airport (MCO) to Disney World resorts from $105 all-inclusive. Free car seats, baggage-claim meet & greet, no surge pricing." />
 {% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Disney World Car Service from MCO | From $105 | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from Orlando International Airport to every Disney World resort. Fixed all-inclusive pricing from $105, free Graco car seats, meet & greet at baggage claim." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/services/disney-world-transportation/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/disney-castle.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Disney World Car Service from MCO | From $105 | Grayson Towncar" />
+  <meta name="twitter:description" content="Private transfers from MCO to every Disney World resort. From $105 all-inclusive — free car seats, flight tracking, no surge pricing." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/disney-castle.webp' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Disney World Transportation",
+        "item": "https://www.graysontowncar.com/services/disney-world-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much does a private car from MCO to Disney World cost?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private Executive Sedan (up to 4 passengers) from Orlando International Airport to any Disney World resort costs $105 one-way or $195 round-trip. A Family Minivan (up to 5) is $120 one-way / $230 round-trip, a Luxury SUV (up to 6) is $140 / $275, a Passenger Van (up to 10) is $175 / $340, and a Sprinter Van (up to 14) is $225 / $440. Every fare is all-inclusive: tolls, taxes, free car seats, baggage-claim meet and greet, and a free grocery stop are included, with no surge pricing and no mandatory gratuity add-on."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long does the drive from Orlando Airport to Disney World take?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The drive from MCO to the Walt Disney World resort area takes 25-35 minutes and covers about 24 miles. During peak holiday periods, allow 40-50 minutes. A private car drives you straight to your resort's front entrance with no extra stops, while the Mears Connect shared shuttle typically takes 60-90 minutes because it stops at multiple hotels along the way."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you go to all Disney resort hotels?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We serve every Walt Disney World resort — Value resorts like All-Star Movies, All-Star Music, All-Star Sports, Pop Century, and Art of Animation; Moderate resorts like Caribbean Beach, Coronado Springs, and Port Orleans Riverside and French Quarter; and Deluxe resorts like the Grand Floridian, Contemporary, Polynesian, Wilderness Lodge, Beach Club, Yacht Club, BoardWalk, Animal Kingdom Lodge, and Riviera — plus the Disney Springs Resort Area hotels and Flamingo Crossings. Disney Springs area hotels are covered at the same rate, and Flamingo Crossings hotels run from $110 one-way by sedan."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is a private car cheaper than Mears Connect for a family of 4?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "It is very close, and often better value. Mears Connect charges per person: 4 adults pay about $70.40 one-way or $140.80 round-trip, and children 3-9 add $14.30 each. A Grayson Towncar sedan is $105 per vehicle, not per person. For 4 or more passengers, the private car is cost-competitive and includes free pre-installed car seats, direct service to your resort with no shuttle stops, and a free 20-minute grocery stop — none of which the shuttle offers."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What is included in the price?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Everything. Your fare includes tolls and taxes, free Graco car seats (infant, toddler, or booster) professionally installed, baggage-claim meet and greet with a name sign, real-time flight tracking with a text when you land, free pickup adjustment for delayed flights at no charge, and a free 20-minute Publix grocery stop on airport pickups. There is no surge pricing, no mandatory gratuity add-on, and no hidden fees. Pricing is per vehicle, never per person."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer a free grocery stop?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every airport pickup includes a free 20-minute grocery stop at Publix (9930 Universal Blvd, Orlando, FL 32819). Families use it to stock up on breakfast, snacks, drinks, and baby supplies before reaching their Disney resort — and save real money compared to park-area prices."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I book a round trip?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, and round trips are discounted. An Executive Sedan from MCO to Disney World is $195 round-trip instead of $210 as two one-ways; a Family Minivan is $230, a Luxury SUV $275, a Passenger Van $340, and a Sprinter Van $440 round-trip. We schedule your departure pickup around your return flight, and our team is available 24/7 if your plans change."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Disney World Transportation — Private Car Service from MCO",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando International Airport (MCO) to all Walt Disney World resorts. Fixed all-inclusive pricing from $105, free Graco car seats, baggage-claim meet and greet, real-time flight tracking, and a free Publix grocery stop.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Walt Disney World Resort"},
+      {"@type": "Place", "name": "Lake Buena Vista"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Disney World Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Disney World Resort Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Disney World to MCO Departure Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Disney World to Port Canaveral Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Disney World to Universal Orlando Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "105",
+      "priceCurrency": "USD",
+      "description": "MCO to Disney World one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/services/disney-world-transportation/"
+  }
+  </script>
+{% endblock %}
+
 {% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
   <style>
-      /* Luxury Design System */
-      :root {
-          --lux-black: #0a0a0a;
-          --lux-charcoal: #1a1a1a;
-          --lux-dark-gray: #2d2d2d;
-          --lux-medium-gray: #6b6b6b;
-          --lux-light-gray: #a0a0a0;
-          --lux-off-white: #f8f7f5;
-          --lux-white: #ffffff;
-          --lux-gold: #b8956c;
-          --lux-gold-light: #d4b896;
-          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      /* Hero Section */
-      .lux-hero {
-          height: 80vh;
-          min-height: 600px;
-          position: relative;
-          display: flex;
-          align-items: center;
-      }
-
-      .lux-hero::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(10,10,10,0.8) 0%, rgba(26,26,26,0.7) 100%);
-          z-index: 1;
-      }
-
-      .lux-eyebrow {
-          font-size: 0.75rem;
-          font-weight: 400;
-          letter-spacing: 0.35em;
-          text-transform: uppercase;
-          color: var(--lux-gold);
-          margin-bottom: 1.5rem;
-      }
-
-      .lux-title {
-          font-size: clamp(2.5rem, 5vw, 4rem);
-          font-weight: 200;
-          letter-spacing: -0.02em;
-          line-height: 1.1;
-      }
-
-      .lux-divider {
-          width: 60px;
-          height: 1px;
-          background: var(--lux-gold);
-          margin: 1.5rem auto;
-      }
-
-      .lux-section {
-          padding: 6rem 0;
-      }
-
-      .lux-section-title {
-          font-size: clamp(2rem, 4vw, 2.75rem);
-          font-weight: 200;
-          letter-spacing: -0.02em;
-          color: var(--lux-charcoal);
-          margin-bottom: 1rem;
-      }
-
-      .lux-section-subtitle {
-          font-size: 1rem;
-          font-weight: 300;
-          color: var(--lux-medium-gray);
-          max-width: 600px;
-          margin: 0 auto;
-      }
-
-      /* Luxury Cards */
-      .lux-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
-          transition: var(--transition);
-          overflow: hidden;
-      }
-
-      .lux-card:hover {
-          transform: translateY(-6px);
-          box-shadow: 0 15px 45px rgba(0,0,0,0.12);
-      }
-
-      .lux-card-img {
-          height: 350px;
-          object-fit: cover;
-      }
-
-      /* Luxury Icon Box */
-      .lux-icon-box {
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: 1px solid var(--lux-gold);
-          color: var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .lux-card:hover .lux-icon-box {
-          background: var(--lux-gold);
-          color: var(--lux-white);
-      }
-
-      /* Luxury Buttons */
-      .lux-btn {
-          padding: 1rem 2.5rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          border-radius: 0;
-          border: none;
-          transition: var(--transition);
-          display: inline-block;
-          text-decoration: none;
-      }
-
-      .lux-btn-primary {
-          background: var(--lux-gold);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-primary:hover {
-          background: var(--lux-gold-light);
-          color: var(--lux-charcoal);
-          transform: translateY(-2px);
-      }
-
-      .lux-btn-dark {
-          background: var(--lux-charcoal);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-dark:hover {
-          background: var(--lux-black);
-          color: var(--lux-white);
-          transform: translateY(-2px);
-      }
-
-      .lux-btn-outline {
-          background: transparent;
-          border: 1px solid var(--lux-white);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-outline:hover {
-          background: var(--lux-white);
-          color: var(--lux-charcoal);
-      }
-
-      /* Info Box */
-      .lux-info-box {
-          background: var(--lux-off-white);
-          border-left: 3px solid var(--lux-gold);
-          padding: 2rem;
-          margin-bottom: 2rem;
-      }
-
-      /* Breadcrumb */
-      .lux-breadcrumb {
-          background: var(--lux-off-white);
-          padding: 1rem 0;
-      }
-
-      .lux-breadcrumb .breadcrumb {
-          margin: 0;
-      }
-
-      .lux-breadcrumb .breadcrumb-item a {
-          color: var(--lux-medium-gray);
-          text-decoration: none;
-          font-size: 0.85rem;
-          letter-spacing: 0.05em;
-      }
-
-      .lux-breadcrumb .breadcrumb-item.active {
-          color: var(--lux-charcoal);
-          font-size: 0.85rem;
-      }
-
-      /* Route Cards */
-      .route-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          transition: var(--transition);
-          position: relative;
-          overflow: hidden;
-      }
-
-      .route-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: var(--lux-gold);
-          transform: scaleX(0);
-          transition: var(--transition);
-      }
-
-      .route-card:hover::before {
-          transform: scaleX(1);
-      }
-
-      .route-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-      }
-
-      /* Feature Cards */
-      .feature-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          transition: var(--transition);
-      }
-
-      .feature-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 40px rgba(0,0,0,0.08);
-      }
-
-      /* Info Card */
-      .lux-info-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          border-left: 3px solid var(--lux-gold);
-      }
-
-      /* Animations */
-      @keyframes fadeInUp {
-          from {
-              opacity: 0;
-              transform: translateY(30px);
-          }
-          to {
-              opacity: 1;
-              transform: translateY(0);
-          }
-      }
-
-      .lux-card, .route-card, .feature-card {
-          animation: fadeInUp 0.6s ease-out;
-      }
-
-      /* Responsive */
-      @media (max-width: 991px) {
-          .lux-hero {
-              height: auto;
-              min-height: 500px;
-              padding: 4rem 0;
-          }
-          .lux-section {
-              padding: 4rem 0;
-          }
-      }
-
-      @media (max-width: 768px) {
-          .lux-card-img {
-              height: 250px;
-          }
-      }
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+    .review-score {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 3.5rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1;
+    }
+    .review-stars i {
+      color: var(--lux-gold);
+      font-size: 1.1rem;
+      margin: 0 0.1rem;
+    }
   </style>
 {% endblock %}
-{% block content %}
-  {% block schema %}
-    {% structured_data additional_data=structured_data %}
-  {% endblock %}
 
-  <!-- Hero Section -->
-  <section class="lux-hero position-relative overflow-hidden" id="hero">
-    <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/services-bg.webp' %}"
-           width="1920"
-           height="1080"
-           alt="Disney World Magic Kingdom with Cinderella Castle"
-           class="w-100 h-100 object-fit-cover"
-           style="position: absolute; z-index: 0"
-           fetchpriority="high" />
-    </div>
-    <div class="container position-relative py-5" style="z-index: 2;">
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/disney-castle.webp' %}"
+         width="1920" height="1080"
+         alt="Cinderella Castle at Walt Disney World — private car service from Orlando Airport"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
       <div class="row justify-content-center">
         <div class="col-lg-10 text-center text-white">
           <p class="lux-eyebrow">Private Chauffeur Service</p>
-          <h1 class="lux-title mb-4">Disney World Transportation</h1>
+          <h1 class="lux-title mb-3">Disney World Transportation — Private Car Service from MCO</h1>
           <div class="lux-divider"></div>
-          <p style="font-size: 1.2rem; font-weight: 300; max-width: 700px; margin: 0 auto 2.5rem; opacity: 0.85; line-height: 1.8;">
-            Premium transfers from Orlando International Airport (MCO) and Sanford International Airport (SFB) to all Disney World resorts
+          <p class="seo-hero-subtitle">
+            Door-to-door transfers from Orlando International Airport to every Disney World resort. From <strong>$105</strong> all-inclusive — your driver meets you at baggage claim with a name sign.
           </p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
             <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Disney Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 from 1,500+ Google reviews</span>
+            <span><i class="bi bi-shield-check"></i> Free Graco car seats, pre-installed</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing — no surge, no hidden fees</span>
           </div>
         </div>
       </div>
@@ -367,308 +264,604 @@
   </section>
 
   <!-- Breadcrumb -->
-  <section class="lux-breadcrumb">
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
     <div class="container">
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
-          <li class="breadcrumb-item">
-            <a href="/">Home</a>
-          </li>
-          <li class="breadcrumb-item">
-            <a href="/services/">Services</a>
-          </li>
-          <li class="breadcrumb-item active" aria-current="page">Disney World Transportation</li>
-        </ol>
-      </nav>
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Disney World Transportation</li>
+      </ol>
     </div>
-  </section>
+  </nav>
 
-  <!-- Main Content Section -->
-  <section class="lux-section" style="background: var(--lux-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: OPENING + QUOTABLE PRICING
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
     <div class="container">
-      <!-- Disney World Information Section -->
-      <div class="row mb-5">
-        <div class="col-lg-10 mx-auto text-center">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
-          <h2 class="lux-section-title">Premium Disney World Resort Transportation</h2>
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Service</p>
+          <h2 class="lux-section-title">Private Transfers from Orlando Airport to Disney World</h2>
           <div class="lux-divider"></div>
-          <p style="font-size: 1.1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 700px; margin: 0 auto 3rem; line-height: 1.8;">
-            Start your Disney vacation with reliable transportation service, specializing in transfers between Orlando airports and all Disney World resorts.
+          <p class="lux-section-subtitle">
+            Disney no longer runs a free airport shuttle — which means every family flying into MCO has to plan its own ride to the resort. Here is the simplest, most comfortable way to do it.
           </p>
         </div>
-        <div class="col-lg-10 mx-auto">
-          <div class="lux-info-box">
-            <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">About Disney World Transportation</h3>
-            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 1rem;">
-              Located in the heart of Orlando, Walt Disney World Resort is the world's most visited vacation resort. Our transportation service provides seamless transfers between Orlando International Airport (MCO), Sanford International Airport (SFB), and all Disney World resorts, ensuring you arrive relaxed and ready for your magical vacation.
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h3>How much does a private car from MCO to Disney World cost?</h3>
+            <p>
+              A private car from Orlando International Airport (MCO) to any Walt Disney World resort starts at <strong>$105</strong> one-way for an Executive Sedan (up to 4 passengers) or <strong>$195</strong> for a round trip. A Family Minivan (up to 5 passengers) runs <strong>$120</strong> one-way / <strong>$230</strong> round-trip. All fares are all-inclusive &mdash; no surge pricing, no gratuity add-on, no hidden fees. Tolls, taxes, free car seats, baggage claim meet &amp; greet, and a 20-minute Publix grocery stop are included.
             </p>
-            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
-              Whether you're staying at a Value, Moderate, or Deluxe Disney resort, our professional drivers will get you there in comfort and style.
-            </p>
           </div>
-        </div>
-      </div>
 
-      <!-- Disney Resorts Section -->
-      <div class="row mb-5 pb-5">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
-          <h3 class="lux-section-title">Disney World Resorts</h3>
-          <div class="lux-divider"></div>
-        </div>
-        <div class="col-12">
-          <div class="row g-4">
-            <div class="col-lg-6">
-              <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/grand-floridian.webp' %}"
-                     width="100%"
-                     height="400"
-                     class="lux-card-img"
-                     loading="lazy"
-                     alt="Disney Deluxe Resort" />
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Deluxe Resorts</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">
-                    Experience the ultimate in luxury and convenience at Disney's Deluxe resorts, featuring premium amenities and prime locations.
-                  </p>
-                  <ul class="list-unstyled mb-0">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Grand Floridian Resort & Spa
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Contemporary Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Polynesian Village Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Animal Kingdom Lodge
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-6">
-              <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/coronado-springs.webp' %}"
-                     width="100%"
-                     height="400"
-                     class="lux-card-img"
-                     loading="lazy"
-                     alt="Disney Moderate Resort" />
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Moderate & Value Resorts</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">
-                    Enjoy comfortable accommodations and great value at Disney's Moderate and Value resorts, perfect for families.
-                  </p>
-                  <ul class="list-unstyled mb-0">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Caribbean Beach Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Coronado Springs Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Pop Century Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Art of Animation Resort
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Why Choose Us Section -->
-      <div class="row mb-5 pb-5" style="background: var(--lux-off-white); margin-left: -12px; margin-right: -12px; padding: 4rem 2rem;">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Why Choose Us</p>
-          <h3 class="lux-section-title">Why Choose Our Disney World Transportation</h3>
-          <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">Reliable, comfortable, and stress-free transfers for your Disney vacation</p>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-clock fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Punctual Service</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Always on time for your Disney vacation, with flight tracking for airport pickups.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-car-front fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Luxury Vehicles</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Modern, clean vehicles with ample space for luggage and family members.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-person-check fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Professional Drivers</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Experienced with Disney World resorts and Orlando area for seamless transfers.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-shield-check fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Reliable Service</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">24/7 support, flight tracking, and guaranteed on-time arrival for your Disney vacation.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 text-center mt-4">
-          <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">Get a Quote for Disney Transfer</a>
-        </div>
-      </div>
-
-      <!-- Popular Routes Section -->
-      <div class="row mb-5 pt-5">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Routes</p>
-          <h3 class="lux-section-title">Popular Transportation Routes to Disney World</h3>
-          <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">Reliable service from all major Orlando locations to your Disney resort</p>
-        </div>
-        <div class="row g-4">
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-airplane fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Orlando Airport (MCO)</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Direct luxury transportation service from Orlando International Airport to all Disney World resorts. We track your flight for on-time pickup.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-airplane-fill fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Sanford Airport (SFB)</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Convenient luxury transfers from Sanford International Airport to all Disney World resorts. Perfect for international travelers.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-building fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Universal Studios</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Reliable transportation service from Universal Orlando Resort and nearby hotels to all Disney World resorts for a seamless vacation experience.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-map fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">International Drive</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Easy access transportation from I-Drive hotels to all Disney World resorts. Enjoy Orlando attractions before your Disney vacation.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Disney World Information - Additional SEO content -->
-      <div class="row mb-5">
-        <div class="col-lg-10 mx-auto">
-          <div class="lux-info-card shadow-sm">
-            <div class="card-body p-5">
-              <h3 style="font-weight: 200; letter-spacing: -0.01em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.75rem;">Disney World: The Most Magical Place on Earth</h3>
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 2rem;">
-                Located in the heart of Orlando, Walt Disney World Resort is the world's most visited vacation resort, featuring four theme parks, two water parks, and over 25 resort hotels. Our transportation service specializes in comfortable, reliable transfers to all Disney World destinations.
-              </p>
-
-              <div class="row mb-4">
-                <div class="col-md-6">
-                  <h4 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Disney World Theme Parks</h4>
-                  <ul class="list-unstyled">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Magic Kingdom - Home to Cinderella Castle
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Epcot - World Showcase and Future World
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Hollywood Studios
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Animal Kingdom
-                    </li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <h4 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Disney World Water Parks</h4>
-                  <ul class="list-unstyled">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Typhoon Lagoon
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
-                      Disney's Blizzard Beach
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
-                Whether you're visiting the Magic Kingdom, exploring Epcot's World Showcase, experiencing the thrills of Hollywood Studios, or discovering the wonders of Animal Kingdom, our transportation service ensures you arrive at your Disney destination relaxed and ready for adventure.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 text-center mt-5">
-          <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Get a Quote for Disney World</a>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Grayson Towncar is a family-owned Orlando transportation company, founded in 2022 and rated <strong>4.8/5 across 1,500+ Google reviews</strong>. We run airport-to-Disney transfers all day, every day — and the trip is built around arriving families. Your driver tracks your flight in real time, texts you when you land, and meets you at baggage claim holding a sign with your name on it. No app refreshing at the curb, no hunting for a shuttle stop with tired kids and four suitcases.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            If your flight is delayed, your pickup time adjusts to your actual arrival at no charge. Traveling with little ones? Free Graco car seats — infant, toddler, or booster — are professionally installed before your driver leaves for the airport. And every airport pickup includes a free 20-minute grocery stop at Publix, so you can walk into your resort room with breakfast, snacks, and drinks already in hand. Need a car seat for every leg of your trip? See our <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">free car seat program</a>.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
+            Pricing is per vehicle, never per person — so a family of five pays one flat fare, not five tickets. The price you book is the price you pay, day or night, holiday or not. We answer the phone 24/7 at <a href="tel:+14072127190" style="color: var(--lux-gold); font-weight: 500;">(407) 212-7190</a>.
+          </p>
         </div>
       </div>
     </div>
   </section>
-  {% include 'call-to-action.html' %}
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: PRICING TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Transparent Pricing</p>
+          <h2 class="lux-section-title">MCO to Disney World Rates — Every Vehicle</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            One flat, all-inclusive fare per vehicle. Tolls, taxes, car seats, meet &amp; greet, and the grocery stop are already in the price.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Executive Sedan</td>
+                  <td>Up to 4</td>
+                  <td><strong>$105</strong></td>
+                  <td><strong>$195</strong></td>
+                </tr>
+                <tr>
+                  <td>Family Minivan</td>
+                  <td>Up to 5</td>
+                  <td><strong>$120</strong></td>
+                  <td><strong>$230</strong></td>
+                </tr>
+                <tr>
+                  <td>Luxury SUV</td>
+                  <td>Up to 6</td>
+                  <td><strong>$140</strong></td>
+                  <td><strong>$275</strong></td>
+                </tr>
+                <tr>
+                  <td>Passenger Van</td>
+                  <td>Up to 10</td>
+                  <td><strong>$175</strong></td>
+                  <td><strong>$340</strong></td>
+                </tr>
+                <tr>
+                  <td>Sprinter Van</td>
+                  <td>Up to 14</td>
+                  <td><strong>$225</strong></td>
+                  <td><strong>$440</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-center mt-3" style="font-weight: 300; color: var(--lux-medium-gray);">
+            Rates apply to all Walt Disney World resorts and Disney Springs area hotels. For every Orlando route and vehicle, <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">see the full rate table</a>.
+          </p>
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">View Rates &amp; Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: TRAVEL TIME
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Route</p>
+          <h2 class="lux-section-title">How Long Is the Drive from MCO to Disney World?</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~24</div>
+            <div class="route-label">Miles from MCO</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">25-35</div>
+            <div class="route-label">Minutes Direct</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">40-50</div>
+            <div class="route-label">Minutes at Peak</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">0</div>
+            <div class="route-label">Extra Stops</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h4>Direct Drive vs. Shared Shuttle</h4>
+            <p>
+              A private car covers the roughly 24 miles from MCO to the Disney World resort area in <strong>25-35 minutes</strong>, driving straight to your resort's front entrance. During peak holiday weeks, plan on 40-50 minutes.
+            </p>
+            <p>
+              The Mears Connect shared shuttle runs the same route in <strong>60-90 minutes</strong>, because the bus stops at multiple resorts before yours — and you find the bus stop yourself with your luggage. If you are weighing the two options, read our full <a href="{% url 'mears_alternative_orlando' %}" style="color: var(--lux-gold); font-weight: 500;">Mears Connect alternative comparison</a> or our step-by-step <a href="{% url 'mco_to_disney_world' %}" style="color: var(--lux-gold); font-weight: 500;">MCO to Disney World route guide</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: RESORT COVERAGE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
+          <h2 class="lux-section-title">We Serve Every Disney World Resort</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Value, Moderate, or Deluxe — same door-to-door service, same flat fare. Our drivers know every resort entrance and porte coch&egrave;re on Disney property.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center mb-4">
+        <div class="col-md-6 col-lg-4">
+          <div class="seo-resort-card">
+            <img src="{% static 'images/disney-resorts.webp' %}"
+                 width="800" height="533"
+                 loading="lazy"
+                 alt="Disney World Value resort hotels" />
+            <div class="seo-resort-card-body">
+              <h3>Value Resorts</h3>
+              <ul class="seo-resort-list" style="column-count: 1;">
+                <li class="seo-resort-item"><i class="bi bi-check"></i>All-Star Movies Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>All-Star Music Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>All-Star Sports Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Pop Century Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Art of Animation Resort</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="seo-resort-card">
+            <img src="{% static 'images/coronado-springs.webp' %}"
+                 width="800" height="533"
+                 loading="lazy"
+                 alt="Disney's Coronado Springs Resort — a Disney Moderate resort" />
+            <div class="seo-resort-card-body">
+              <h3>Moderate Resorts</h3>
+              <ul class="seo-resort-list" style="column-count: 1;">
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Caribbean Beach Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Coronado Springs Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Port Orleans Riverside</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Port Orleans French Quarter</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="seo-resort-card">
+            <img src="{% static 'images/grand-floridian.webp' %}"
+                 width="800" height="533"
+                 loading="lazy"
+                 alt="Disney's Grand Floridian Resort &amp; Spa — a Disney Deluxe resort" />
+            <div class="seo-resort-card-body">
+              <h3>Deluxe Resorts</h3>
+              <ul class="seo-resort-list">
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Grand Floridian</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Contemporary</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Polynesian</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Wilderness Lodge</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Beach Club</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Yacht Club</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>BoardWalk</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Animal Kingdom Lodge</li>
+                <li class="seo-resort-item"><i class="bi bi-check"></i>Riviera</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box" style="margin-bottom: 0;">
+            <h4>Disney Springs and Flamingo Crossings Hotels</h4>
+            <p>
+              Staying just off property? Disney Springs area hotels are covered at the same MCO rate — sedans from <strong>$105</strong> one-way. The Flamingo Crossings hotels on the western edge of Disney property run <strong>$110</strong> one-way by Executive Sedan. Either way, you get the same baggage-claim meet &amp; greet, free car seats, and grocery stop — <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">see the full rate table</a> for every vehicle.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: HOW IT WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">Airport to Your Disney Resort in 4 Steps</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book Your Ride</h4>
+            <p>Reserve online or call with your flight number, resort, and car seat needs. Your fare is locked in — no surge, ever.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>We Track Your Flight</h4>
+            <p>Your driver follows your flight in real time and texts you when you land. Delayed? Your pickup adjusts automatically at no charge.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Meet at Baggage Claim</h4>
+            <p>Your driver greets you with a name sign, helps with luggage, and the car seats are already installed. Optional 20-minute Publix stop on the way.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Arrive at Your Resort</h4>
+            <p>Direct to your resort's front entrance in 25-35 minutes. Booked round-trip? We pick you up on departure day, timed to your flight.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Compare Options</p>
+          <h2 class="lux-section-title">Grayson Towncar vs. Mears Connect vs. Uber</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Three ways to get from MCO to Disney World — here is how they actually stack up for a family.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="highlight-col">Grayson Towncar</th>
+                  <th>Mears Connect</th>
+                  <th>Uber / Lyft</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Price for a Family of 4</td>
+                  <td class="highlight-col">$105 flat, per vehicle</td>
+                  <td>~$70.40 one-way / $140.80 RT (per person)</td>
+                  <td>$30-$60+, surge at peak</td>
+                </tr>
+                <tr>
+                  <td>Travel Time to Disney</td>
+                  <td class="highlight-col">~25-35 min direct</td>
+                  <td>60-90 min (multiple stops)</td>
+                  <td>~25-35 min direct</td>
+                </tr>
+                <tr>
+                  <td>Direct to Your Resort</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                </tr>
+                <tr>
+                  <td>Driver Meets You</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Baggage claim, name sign</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> You find the bus stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Curb pickup</td>
+                </tr>
+                <tr>
+                  <td>Flight Tracking</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Automatic</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+                <tr>
+                  <td>Car Seats</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free Graco, pre-installed</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                </tr>
+                <tr>
+                  <td>Grocery Stop</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free 20-min Publix stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                </tr>
+                <tr>
+                  <td>Vehicle</td>
+                  <td class="highlight-col">Private, your group only</td>
+                  <td>Shared shuttle</td>
+                  <td>Private, random driver</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-center mt-3" style="font-weight: 300; color: var(--lux-medium-gray);">
+            Want the deeper math, including kids' fares and luggage logistics? Read the full <a href="{% url 'mears_alternative_orlando' %}" style="color: var(--lux-gold); font-weight: 500;">Mears Connect alternative breakdown</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much does a private car from MCO to Disney World cost?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A private Executive Sedan (up to 4 passengers) from Orlando International Airport to any Disney World resort costs <strong>$105</strong> one-way or <strong>$195</strong> round-trip. A Family Minivan (up to 5) is $120 / $230, a Luxury SUV (up to 6) is $140 / $275, a Passenger Van (up to 10) is $175 / $340, and a Sprinter Van (up to 14) is $225 / $440. Every fare is all-inclusive — tolls, taxes, free car seats, baggage-claim meet &amp; greet, and a free grocery stop are included, with no surge pricing and no mandatory gratuity add-on. <a href="{% url 'rates' %}" style="color: var(--lux-gold);">See the full rate table</a>.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How long does the drive from Orlando Airport to Disney World take?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>The drive from MCO to the Walt Disney World resort area takes <strong>25-35 minutes</strong> and covers about 24 miles. During peak holiday periods, allow 40-50 minutes. A private car drives you straight to your resort's front entrance with no extra stops, while the Mears Connect shared shuttle typically takes 60-90 minutes because it stops at multiple hotels along the way.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you go to all Disney resort hotels?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We serve every Walt Disney World resort — Value resorts like All-Star Movies, All-Star Music, All-Star Sports, Pop Century, and Art of Animation; Moderate resorts like Caribbean Beach, Coronado Springs, and Port Orleans Riverside and French Quarter; and Deluxe resorts like the Grand Floridian, Contemporary, Polynesian, Wilderness Lodge, Beach Club, Yacht Club, BoardWalk, Animal Kingdom Lodge, and Riviera — plus the Disney Springs Resort Area hotels and Flamingo Crossings. Disney Springs area hotels are covered at the same rate, and Flamingo Crossings hotels run from <strong>$110</strong> one-way by sedan.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is a private car cheaper than Mears Connect for a family of 4?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>It is very close, and often better value. Mears Connect charges per person: 4 adults pay about <strong>$70.40</strong> one-way or <strong>$140.80</strong> round-trip, and children 3-9 add $14.30 each. A Grayson Towncar sedan is <strong>$105 per vehicle</strong>, not per person. For 4 or more passengers, the private car is cost-competitive and includes free pre-installed car seats, direct service to your resort with no shuttle stops, and a free 20-minute grocery stop — none of which the shuttle offers.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What is included in the price?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Everything. Your fare includes tolls and taxes, free Graco car seats (infant, toddler, or booster) professionally installed, baggage-claim meet &amp; greet with a name sign, real-time flight tracking with a text when you land, free pickup adjustment for delayed flights at no charge, and a free 20-minute Publix grocery stop on airport pickups. There is no surge pricing, no mandatory gratuity add-on, and no hidden fees. Pricing is per vehicle, never per person.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you offer a free grocery stop?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Every airport pickup includes a free 20-minute grocery stop at Publix (9930 Universal Blvd, Orlando, FL 32819). Families use it to stock up on breakfast, snacks, drinks, and baby supplies before reaching their Disney resort — and save real money compared to park-area prices.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can I book a round trip?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes, and round trips are discounted. An Executive Sedan from MCO to Disney World is <strong>$195</strong> round-trip instead of $210 as two one-ways; a Family Minivan is $230, a Luxury SUV $275, a Passenger Van $340, and a Sprinter Van $440 round-trip. We schedule your departure pickup around your return flight, and our team is available 24/7 if your plans change.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 9: REVIEWS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">What Families Say</p>
+          <h2 class="lux-section-title">Rated 4.8/5 by Orlando Travelers</h2>
+          <div class="lux-divider"></div>
+          <div class="review-score mb-2">4.8<span style="font-size: 1.5rem; color: var(--lux-medium-gray);">/5</span></div>
+          <div class="review-stars mb-3" aria-label="4.8 out of 5 stars">
+            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-half"></i>
+          </div>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Grayson Towncar holds a <strong>4.8/5 average across 1,500+ Google reviews</strong>. Families flying in for Disney consistently mention the same things: the driver was already waiting at baggage claim, the car seats were installed and ready, and the price they were quoted was the price they paid. We are a family-owned company — founded in Orlando in 2022 — and the airport-to-Disney run is the trip we have built our reputation on.
+          </p>
+          <a href="{% url 'about-us' %}" style="color: var(--lux-gold); font-weight: 500;">Learn more about our family-owned story</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 10: RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Plan the Rest of Your Trip</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'mco_to_disney_world' %}" class="seo-link-card">
+            <h5><i class="bi bi-signpost-2 me-2" style="color: var(--lux-gold);"></i>MCO to Disney World Guide</h5>
+            <p>The full route guide — times, terminals, and what to expect on arrival day.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'mears_alternative_orlando' %}" class="seo-link-card">
+            <h5><i class="bi bi-arrow-left-right me-2" style="color: var(--lux-gold);"></i>Mears Connect Alternative</h5>
+            <p>Private car vs. the shared shuttle — pricing and travel time, side by side.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'car_seats_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-shield-check me-2" style="color: var(--lux-gold);"></i>Free Car Seat Service</h5>
+            <p>Free Graco infant, toddler, and booster seats — installed on every booking.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Airport Transfers</h5>
+            <p>All Orlando airport transportation routes, vehicles, and rates.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 11: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your Disney World Transfer</h2>
+          <p class="mb-4">From $105 all-inclusive. Driver at baggage claim, car seats installed, straight to your resort in 25-35 minutes.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
 {% endblock %}

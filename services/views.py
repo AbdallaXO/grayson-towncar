@@ -80,19 +80,35 @@ def orlando_airport_transportation(request):
 
 
 def disney_world_transportation(request):
-    return render(request, "services/disney-world-transportation.html")
+    return render(
+        request,
+        "services/disney-world-transportation.html",
+        {"canonical_url": request.build_absolute_uri("/services/disney-world-transportation/")},
+    )
 
 
 def universal_orlando_transportation(request):
-    return render(request, "services/universal-orlando-transportation.html")
+    return render(
+        request,
+        "services/universal-orlando-transportation.html",
+        {"canonical_url": request.build_absolute_uri("/services/universal-orlando-transportation/")},
+    )
 
 
 def port_canaveral_transportation(request):
-    return render(request, "services/port-canaveral-transportation.html")
+    return render(
+        request,
+        "services/port-canaveral-transportation.html",
+        {"canonical_url": request.build_absolute_uri("/services/port-canaveral-transportation/")},
+    )
 
 
 def corporate_transportation(request):
-    return render(request, "services/corporate-transportation.html")
+    return render(
+        request,
+        "services/corporate-transportation.html",
+        {"canonical_url": request.build_absolute_uri("/services/corporate-transportation/")},
+    )
 
 
 def epic_universe_transportation(request):
@@ -116,4 +132,52 @@ def car_seats_transportation(request):
         request,
         "services/car-seats.html",
         {"canonical_url": request.build_absolute_uri("/services/car-seats/")},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Top-level SEO landing pages (routed at the site root via services.landing_urls)
+# ---------------------------------------------------------------------------
+
+def _landing(request, template, slug):
+    return render(
+        request,
+        template,
+        {"canonical_url": request.build_absolute_uri(f"/{slug}/")},
+    )
+
+
+def mco_to_disney_world(request):
+    return _landing(request, "services/mco-to-disney-world.html", "mco-to-disney-world")
+
+
+def mears_alternative_orlando(request):
+    return _landing(request, "services/mears-alternative-orlando.html", "mears-alternative-orlando")
+
+
+def sanford_airport_transportation(request):
+    return _landing(request, "services/sanford-airport-transportation.html", "sanford-airport-transportation")
+
+
+def orlando_car_service_international_drive(request):
+    return _landing(
+        request,
+        "services/orlando-car-service-international-drive.html",
+        "orlando-car-service-international-drive",
+    )
+
+
+def orlando_car_service_kissimmee(request):
+    return _landing(request, "services/orlando-car-service-kissimmee.html", "orlando-car-service-kissimmee")
+
+
+def car_service_lake_buena_vista(request):
+    return _landing(request, "services/car-service-lake-buena-vista.html", "car-service-lake-buena-vista")
+
+
+def car_service_championsgate_reunion(request):
+    return _landing(
+        request,
+        "services/car-service-championsgate-reunion.html",
+        "car-service-championsgate-reunion",
     )

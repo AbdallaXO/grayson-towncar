@@ -22,11 +22,17 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import path, include
 from django.views.generic import TemplateView
 
-from content.sitemaps import StaticPagesSitemap, ServicePagesSitemap, BlogPostSitemap
+from content.sitemaps import (
+    StaticPagesSitemap,
+    ServicePagesSitemap,
+    LandingPagesSitemap,
+    BlogPostSitemap,
+)
 
 sitemaps = {
     "static": StaticPagesSitemap,
     "services": ServicePagesSitemap,
+    "landing": LandingPagesSitemap,
     "blog": BlogPostSitemap,
 }
 
@@ -36,6 +42,7 @@ urlpatterns = [
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="django.contrib.sitemaps.views.sitemap"),
     path("admin/", admin.site.urls),
     path("", include("reservations.urls")),
+    path("", include("services.landing_urls")),
     path("users/", include("users.urls")),
     path("services/", include("services.urls")),
     path("rates-booking/", include("rates.urls")),

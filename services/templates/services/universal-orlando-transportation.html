@@ -1,346 +1,247 @@
 {% extends 'main.html' %}
-{% load seo_tags %}
 {% load static %}
-{% block head_extra %}
-  <link rel="canonical"
-        href="https://www.graysontowncar.com/services/universal-orlando-transportation/" />
-  <!-- Added more rich schema for enhanced SEO -->
-  <script type="application/ld+json">
-      {
-          "@context": "https://schema.org",
-          "@type": "Service",
-          "name": "Universal Orlando Transportation Service",
-          "serviceType": "Transportation",
-          "description": "Premium Universal Orlando transportation service from Orlando International Airport (MCO) and Sanford International Airport (SFB) to all Universal resorts. Luxury transfers with professional drivers and complimentary car seats.",
-          "provider": {
-              "@type": "LocalBusiness",
-              "name": "Grayson Towncar",
-              "image": "{% static 'images/logo.png' %}",
-              "address": {
-                  "@type": "PostalAddress",
-                  "addressLocality": "Orlando",
-                  "addressRegion": "FL"
-              }
-          },
-          "areaServed": {"@type": "Place", "name": "Universal Orlando Resort"},
-          "hasOfferCatalog": {
-              "@type": "OfferCatalog",
-              "name": "Universal Orlando Transportation Services",
-              "itemListElement": [{
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "MCO to Universal Orlando Transfer"
-                  }
-              }, {
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "SFB to Universal Orlando Transfer"
-                  }
-              }]
-          }
-      }
-  </script>
-{% endblock %}
-{% block title %}Universal Orlando Transportation | Orlando Private Car Service{% endblock %}
+
+{% block title %}Universal Orlando Car Service from MCO | $105 | Grayson Towncar{% endblock %}
+
 {% block meta_description %}
   <meta name="description"
-        content="Direct Universal Studios transportation from MCO and Orlando hotels. Luxury vehicles, professional drivers, theme park expertise. Schedule your stress-free ride!" />
-  <!-- Added more meta tags for SEO -->
-  <link rel="preload"
-        href="{% static 'images/universal-orlando.webp' %}"
-        as="image"
-        type="image/webp" />
+        content="Private car service from Orlando Airport (MCO) to Universal Orlando from $105. 20-25 minute direct transfers, free car seats, no surge pricing. Book today." />
 {% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Universal Orlando Car Service from MCO | From $105 | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from Orlando International Airport to every Universal Orlando hotel. All-inclusive pricing from $105, free Graco car seats, meet & greet at baggage claim." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/services/universal-orlando-transportation/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/universal-studios.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Universal Orlando Car Service from MCO | From $105 | Grayson Towncar" />
+  <meta name="twitter:description" content="Private transfers from MCO to every Universal Orlando hotel. All-inclusive pricing from $105, free car seats, meet & greet at baggage claim." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/universal-studios.webp' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Universal Orlando Transportation",
+        "item": "https://www.graysontowncar.com/services/universal-orlando-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much is a private car from MCO to Universal Orlando?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private Executive Sedan (up to 4 passengers) from MCO to Universal Orlando hotels is $105 one-way or $195 round-trip. A Family Minivan (up to 5) is $120/$230, a Luxury SUV (up to 6) is $140/$275, a Passenger Van (up to 10) is $175/$340, and a Sprinter Van (up to 14) is $225/$440. Every rate is all-inclusive — tolls and taxes included, no surge pricing, no hidden fees — and priced per vehicle, never per person."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long does it take to get from MCO to Universal?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The drive from Orlando International Airport (MCO) to Universal Orlando takes 20 to 25 minutes and covers about 15 miles — one of the shortest airport-to-park drives in Orlando. During peak holiday traffic, add 15 to 20 minutes. Grayson Towncar tracks your flight in real time and adjusts your pickup to the actual arrival at no charge, so a delay never costs you your ride."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you serve all Universal resort hotels?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Grayson Towncar serves every Universal Orlando hotel, including Loews Royal Pacific Resort, Loews Portofino Bay Hotel, Hard Rock Hotel, Loews Sapphire Falls Resort, Cabana Bay Beach Resort, Aventura Hotel, Endless Summer Resort Surfside Inn and Dockside Inn, and the Epic Universe hotels — Helios Grand, Stella Nova, and Terra Luna. The flat MCO rate is the same for all of them — $105 one-way in an Executive Sedan."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is there a free grocery stop for Universal pickups?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every airport pickup includes a free 20-minute grocery stop at Publix (9930 Universal Blvd, Orlando, FL 32819), just minutes from the Universal hotels. Stock your room with breakfast, snacks, and water before check-in at no extra charge."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you also serve Epic Universe?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Grayson Towncar runs direct transfers from MCO to Universal's Epic Universe and its hotels, including Helios Grand. Epic Universe sits on its own campus south of the original Universal parks, so it needs its own transportation plan — and the same fixed, all-inclusive pricing applies."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I book a combined Disney and Universal round trip?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Point-to-point transfers between Disney World and Universal start at $85 one-way for a sedan, and many families split a vacation between the two resorts. A typical plan is an airport pickup to a Universal hotel, a mid-stay transfer to a Disney resort, then a return ride to MCO — every leg at a fixed, all-inclusive price."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Universal Orlando Transportation — Private Car Service from MCO",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando International Airport (MCO) to all Universal Orlando resort hotels. Direct 20-25 minute transfers with fixed all-inclusive pricing from $105, free Graco car seats, real-time flight tracking, and baggage-claim meet and greet.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Universal Orlando Resort"},
+      {"@type": "Place", "name": "Universal's Epic Universe"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Universal Orlando Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Universal Orlando Hotels Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Epic Universe Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Disney World to Universal Orlando Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Sanford Airport (SFB) to Universal Orlando Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "105",
+      "priceCurrency": "USD",
+      "description": "MCO to Universal Orlando hotels one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/services/universal-orlando-transportation/"
+  }
+  </script>
+{% endblock %}
+
 {% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
   <style>
-      /* Luxury Design System */
-      :root {
-          --lux-black: #0a0a0a;
-          --lux-charcoal: #1a1a1a;
-          --lux-dark-gray: #2d2d2d;
-          --lux-medium-gray: #6b6b6b;
-          --lux-light-gray: #a0a0a0;
-          --lux-off-white: #f8f7f5;
-          --lux-white: #ffffff;
-          --lux-gold: #b8956c;
-          --lux-gold-light: #d4b896;
-          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .lux-hero {
-          height: 80vh;
-          min-height: 600px;
-          position: relative;
-          display: flex;
-          align-items: center;
-      }
-
-      .lux-hero::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(10,10,10,0.8) 0%, rgba(26,26,26,0.7) 100%);
-          z-index: 1;
-      }
-
-      .lux-eyebrow {
-          font-size: 0.75rem;
-          font-weight: 400;
-          letter-spacing: 0.35em;
-          text-transform: uppercase;
-          color: var(--lux-gold);
-          margin-bottom: 1.5rem;
-      }
-
-      .lux-title {
-          font-size: clamp(2.5rem, 5vw, 4rem);
-          font-weight: 200;
-          letter-spacing: -0.02em;
-          line-height: 1.1;
-      }
-
-      .lux-divider {
-          width: 60px;
-          height: 1px;
-          background: var(--lux-gold);
-          margin: 1.5rem auto;
-      }
-
-      .lux-section {
-          padding: 6rem 0;
-      }
-
-      .lux-section-title {
-          font-size: clamp(2rem, 4vw, 2.75rem);
-          font-weight: 200;
-          letter-spacing: -0.02em;
-          color: var(--lux-charcoal);
-          margin-bottom: 1rem;
-      }
-
-      .lux-section-subtitle {
-          font-size: 1rem;
-          font-weight: 300;
-          color: var(--lux-medium-gray);
-          max-width: 600px;
-          margin: 0 auto;
-      }
-
-      .lux-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
-          transition: var(--transition);
-          overflow: hidden;
-      }
-
-      .lux-card:hover {
-          transform: translateY(-6px);
-          box-shadow: 0 15px 45px rgba(0,0,0,0.12);
-      }
-
-      .lux-card-img {
-          height: 350px;
-          object-fit: cover;
-      }
-
-      .lux-icon-box {
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: 1px solid var(--lux-gold);
-          color: var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .lux-card:hover .lux-icon-box,
-      .feature-card:hover .lux-icon-box,
-      .route-card:hover .lux-icon-box {
-          background: var(--lux-gold);
-          color: var(--lux-white);
-      }
-
-      .lux-btn {
-          padding: 1rem 2.5rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          border-radius: 0;
-          border: none;
-          transition: var(--transition);
-          display: inline-block;
-          text-decoration: none;
-      }
-
-      .lux-btn-primary {
-          background: var(--lux-gold);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-primary:hover {
-          background: var(--lux-gold-light);
-          color: var(--lux-charcoal);
-          transform: translateY(-2px);
-      }
-
-      .lux-btn-dark {
-          background: var(--lux-charcoal);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-dark:hover {
-          background: var(--lux-black);
-          color: var(--lux-white);
-          transform: translateY(-2px);
-      }
-
-      .lux-info-box {
-          background: var(--lux-off-white);
-          border-left: 3px solid var(--lux-gold);
-          padding: 2rem;
-          margin-bottom: 2rem;
-      }
-
-      .lux-breadcrumb {
-          background: var(--lux-off-white);
-          padding: 1rem 0;
-      }
-
-      .lux-breadcrumb .breadcrumb {
-          margin: 0;
-      }
-
-      .lux-breadcrumb .breadcrumb-item a {
-          color: var(--lux-medium-gray);
-          text-decoration: none;
-          font-size: 0.85rem;
-          letter-spacing: 0.05em;
-      }
-
-      .lux-breadcrumb .breadcrumb-item.active {
-          color: var(--lux-charcoal);
-          font-size: 0.85rem;
-      }
-
-      .route-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          transition: var(--transition);
-          position: relative;
-          overflow: hidden;
-      }
-
-      .route-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: var(--lux-gold);
-          transform: scaleX(0);
-          transition: var(--transition);
-      }
-
-      .route-card:hover::before {
-          transform: scaleX(1);
-      }
-
-      .route-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-      }
-
-      .feature-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          transition: var(--transition);
-      }
-
-      .feature-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 40px rgba(0,0,0,0.08);
-      }
-
-      .lux-info-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          border-left: 3px solid var(--lux-gold);
-      }
-
-      @keyframes fadeInUp {
-          from {
-              opacity: 0;
-              transform: translateY(30px);
-          }
-          to {
-              opacity: 1;
-              transform: translateY(0);
-          }
-      }
-
-      .lux-card, .route-card, .feature-card {
-          animation: fadeInUp 0.6s ease-out;
-      }
-
-      @media (max-width: 991px) {
-          .lux-hero {
-              height: auto;
-              min-height: 500px;
-              padding: 4rem 0;
-          }
-          .lux-section {
-              padding: 4rem 0;
-          }
-      }
-
-      @media (max-width: 768px) {
-          .lux-card-img {
-              height: 250px;
-          }
-      }
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+    .review-stars i {
+      color: var(--lux-gold);
+      font-size: 1.35rem;
+      margin: 0 0.1rem;
+    }
   </style>
 {% endblock %}
-{% block content %}
-  {% block schema %}
-    {% structured_data additional_data=structured_data %}
-  {% endblock %}
 
-  <!-- Hero Section -->
-  <section class="lux-hero position-relative overflow-hidden" id="hero">
-    <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/universal-grand-helios.png' %}"
-           width="1920"
-           height="1080"
-           alt="Universal Orlando Resort with Hogwarts Castle"
-           class="w-100 h-100 object-fit-cover"
-           style="position: absolute; z-index: 0"
-           fetchpriority="high" />
-    </div>
-    <div class="container position-relative py-5" style="z-index: 2;">
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/universal-studios.webp' %}"
+         width="1920" height="1080"
+         alt="Universal Orlando Resort — private car service from Orlando International Airport"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
       <div class="row justify-content-center">
         <div class="col-lg-10 text-center text-white">
-          <p class="lux-eyebrow">Private Chauffeur Service</p>
-          <h1 class="lux-title mb-4">Universal Orlando Transportation</h1>
+          <p class="lux-eyebrow">Orlando Airport to Universal Orlando</p>
+          <h1 class="lux-title mb-3">Universal Orlando Transportation — Private Car Service from MCO</h1>
           <div class="lux-divider"></div>
-          <p style="font-size: 1.2rem; font-weight: 300; max-width: 700px; margin: 0 auto 2.5rem; opacity: 0.85; line-height: 1.8;">
-            Premium transfers from Orlando International Airport (MCO) and Sanford International Airport (SFB) to all Universal Orlando resorts
+          <p class="seo-hero-subtitle">
+            Private transfers from Orlando International Airport to every Universal Orlando hotel — 20-25 minutes door to door. Fixed all-inclusive pricing from $105, free car seats, and a driver waiting at baggage claim.
           </p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
-            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Get an Instant Quote</a>
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Universal Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 from 1,500+ Google reviews</span>
+            <span><i class="bi bi-person-badge"></i> Meet &amp; greet at baggage claim</span>
+            <span><i class="bi bi-currency-dollar"></i> All-inclusive pricing, no surge</span>
           </div>
         </div>
       </div>
@@ -348,297 +249,547 @@
   </section>
 
   <!-- Breadcrumb -->
-  <section class="lux-breadcrumb">
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
     <div class="container">
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
-          <li class="breadcrumb-item">
-            <a href="{% url 'home' %}">Home</a>
-          </li>
-          <li class="breadcrumb-item">
-            <a href="{% url 'services' %}">Services</a>
-          </li>
-          <li class="breadcrumb-item active" aria-current="page">Universal Orlando Transportation</li>
-        </ol>
-      </nav>
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Universal Orlando Transportation</li>
+      </ol>
     </div>
-  </section>
+  </nav>
 
-  <!-- Main Content Section -->
-  <section class="lux-section" style="background: var(--lux-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: OPENING + QUOTABLE PRICING
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
     <div class="container">
-      <!-- Universal Orlando Information Section -->
-      <div class="row mb-5">
-        <div class="col-lg-10 mx-auto text-center">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
-          <h2 class="lux-section-title">Premium Universal Orlando Resort Transportation</h2>
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Route</p>
+          <h2 class="lux-section-title">MCO to Universal — One of the Shortest Airport-to-Park Drives in Orlando</h2>
           <div class="lux-divider"></div>
-          <p style="font-size: 1.1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 700px; margin: 0 auto 3rem; line-height: 1.8;">
-            Start your Universal vacation with reliable transportation service, specializing in transfers between Orlando airports and all Universal Orlando resorts.
+          <p class="lux-section-subtitle">
+            Universal Orlando Resort sits about 15 miles from Orlando International Airport — a direct 20-25 minute drive. Few Orlando attractions are this close to the airport.
           </p>
         </div>
-        <div class="col-lg-10 mx-auto">
-          <div class="lux-info-box">
-            <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">About Universal Orlando Transportation</h3>
-            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 1rem;">
-              Located in the heart of Orlando, Universal Orlando Resort is a world-class entertainment destination featuring two theme parks, a water park, and premier resort hotels. Our transportation service provides seamless transfers between Orlando International Airport (MCO), Sanford International Airport (SFB), and all Universal Orlando resorts, ensuring you arrive relaxed and ready for your adventure.
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~15</div>
+            <div class="route-label">Miles from MCO</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">20-25</div>
+            <div class="route-label">Minutes Direct</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">$105</div>
+            <div class="route-label">Sedan One-Way</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">0</div>
+            <div class="route-label">Extra Stops</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h3>How much is a private car from MCO to Universal Orlando?</h3>
+            <p>
+              A private car from Orlando International Airport to Universal Orlando hotels costs <strong>$105 one-way</strong> or <strong>$195 round-trip</strong> in an Executive Sedan seating up to 4. A Family Minivan seating up to 5 is <strong>$120 one-way</strong> / <strong>$230 round-trip</strong>. Every Grayson Towncar rate is all-inclusive: tolls, taxes, real-time flight tracking, baggage-claim meet &amp; greet, and free Graco car seats are all in the price. There is no surge pricing and no mandatory gratuity add-on — the rate you book is the rate you pay, per vehicle, never per person. For every vehicle and route, <a href="{% url 'rates' %}">see the full rate table</a>.
             </p>
-            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
-              Whether you're staying at a Value, Prime Value, or Premier Universal resort, our professional drivers will get you there in comfort and style.
-            </p>
           </div>
-        </div>
-      </div>
 
-      <!-- Universal Resorts Section -->
-      <div class="row mb-5 pb-5">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
-          <h3 class="lux-section-title">Universal Orlando Resorts</h3>
-          <div class="lux-divider"></div>
-        </div>
-        <div class="col-12">
-          <div class="row g-4">
-            <div class="col-lg-6">
-              <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/universal-grand-helios.png' %}"
-                     width="100%"
-                     height="400"
-                     class="lux-card-img"
-                     alt="Universal Premier Resort" />
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Premier Resorts</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">
-                    Experience the ultimate in luxury and convenience at Universal's Premier resorts, featuring premium amenities and prime locations.
-                  </p>
-                  <ul class="list-unstyled mb-0">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Loews Portofino Bay Hotel
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Hard Rock Hotel
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Loews Royal Pacific Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Loews Sapphire Falls Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Grand Helios Hotel
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Terra Luna Resort
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-6">
-              <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/universal-resort.webp' %}"
-                     width="100%"
-                     height="400"
-                     class="lux-card-img"
-                     alt="Universal Value Resort" />
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Value & Prime Value Resorts</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">
-                    Enjoy comfortable accommodations and great value at Universal's Value and Prime Value resorts, perfect for families.
-                  </p>
-                  <ul class="list-unstyled mb-0">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Endless Summer Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Aventura Hotel
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Cabana Bay Beach Resort
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Surfside Inn and Suites
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Why Choose Us Section -->
-      <div class="row mb-5 pb-5" style="background: var(--lux-off-white); margin-left: -12px; margin-right: -12px; padding: 4rem 2rem;">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Why Choose Us</p>
-          <h3 class="lux-section-title">Why Choose Our Universal Orlando Transportation</h3>
-          <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">Reliable, comfortable, and stress-free transfers for your Universal vacation</p>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-clock fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Punctual Service</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Always on time for your Universal vacation, with flight tracking for airport pickups.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-car-front fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Luxury Vehicles</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Modern, clean vehicles with ample space for luggage and family members.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-person-check fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Professional Drivers</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Experienced with Universal Orlando resorts and Orlando area for seamless transfers.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="feature-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-shield-check fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Reliable Service</h4>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">24/7 support, flight tracking, and guaranteed on-time arrival for your Universal vacation.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 text-center mt-4">
-          <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">Get a Quote for Universal Transfer</a>
-        </div>
-      </div>
-
-      <!-- Popular Routes Section -->
-      <div class="row mb-5 pt-5">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Routes</p>
-          <h3 class="lux-section-title">Popular Transportation Routes to Universal Orlando</h3>
-          <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">Reliable service from all major Orlando locations to your Universal resort</p>
-        </div>
-        <div class="row g-4">
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-airplane fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Orlando Airport (MCO)</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Direct luxury transportation service from Orlando International Airport to all Universal Orlando resorts. We track your flight for on-time pickup.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-airplane-fill fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Sanford Airport (SFB)</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Convenient luxury transfers from Sanford International Airport to all Universal Orlando resorts. Perfect for international travelers.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <img src="{% static 'images/disney-castle.webp' %}"
-                       alt="Disney Castle"
-                       style="width: 24px; height: 24px;">
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Disney World</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Reliable transportation service from Disney World resorts to Universal Orlando Resort for a seamless vacation experience.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="route-card h-100 shadow-sm">
-              <div class="card-body text-center p-4">
-                <div class="lux-icon-box mx-auto mb-4">
-                  <i class="bi bi-map fs-4"></i>
-                </div>
-                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">International Drive</h4>
-                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
-                  Easy access transportation from I-Drive hotels to Universal Orlando Resort. Enjoy Orlando attractions before your Universal vacation.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Universal Orlando Information - Additional SEO content -->
-      <div class="row mb-5">
-        <div class="col-lg-10 mx-auto">
-          <div class="lux-info-card shadow-sm">
-            <div class="card-body p-5">
-              <h3 style="font-weight: 200; letter-spacing: -0.01em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.75rem;">Universal Orlando: Where Entertainment Comes to Life</h3>
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 2rem;">
-                Located in the heart of Orlando, Universal Orlando Resort is a world-class entertainment destination featuring two theme parks, a water park, and premier resort hotels. Our transportation service specializes in comfortable, reliable transfers to all Universal Orlando destinations.
-              </p>
-
-              <div class="row mb-4">
-                <div class="col-md-6">
-                  <h4 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Universal Theme Parks</h4>
-                  <ul class="list-unstyled">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal Studios Florida
-                    </li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Islands of Adventure
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Volcano Bay
-                    </li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <h4 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Universal Entertainment</h4>
-                  <ul class="list-unstyled">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal CityWalk
-                    </li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal's Epic Universe (Coming Soon)
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
-                Whether you're exploring the Wizarding World of Harry Potter, experiencing the thrills of Jurassic Park, or enjoying the entertainment at Universal CityWalk, our transportation service ensures you arrive at your Universal destination relaxed and ready for adventure.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 text-center mt-5">
-          <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Get a Quote for Universal Orlando</a>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            That short drive should be the easiest part of your trip — and with a private car, it is. Your driver tracks your flight in real time and texts you when you land. If the flight runs early or late, your pickup time adjusts to the actual arrival at no charge. Your chauffeur meets you at baggage claim with a name sign, helps with your luggage, and drives straight to your Universal hotel. No bus stops, no rideshare queue, no app refreshing in a crowded terminal.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
+            Traveling with little ones? <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">Free Graco car seats</a> — infant, toddler, and booster — are professionally installed on every booking, so you can leave your own seats at home. And every airport pickup includes a free 20-minute grocery stop at Publix on the way to your hotel.
+          </p>
         </div>
       </div>
     </div>
   </section>
-  {% include 'call-to-action.html' %}
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: PRICING TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Transparent Pricing</p>
+          <h2 class="lux-section-title">MCO to Universal Orlando Rates — Every Vehicle</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Flat rates between Orlando International Airport and all Universal Studios area hotels. Tolls and taxes included.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Executive Sedan</td>
+                  <td>Up to 4</td>
+                  <td><strong>$105</strong></td>
+                  <td><strong>$195</strong></td>
+                </tr>
+                <tr>
+                  <td>Family Minivan</td>
+                  <td>Up to 5</td>
+                  <td><strong>$120</strong></td>
+                  <td><strong>$230</strong></td>
+                </tr>
+                <tr>
+                  <td>Luxury SUV</td>
+                  <td>Up to 6</td>
+                  <td><strong>$140</strong></td>
+                  <td><strong>$275</strong></td>
+                </tr>
+                <tr>
+                  <td>Passenger Van</td>
+                  <td>Up to 10</td>
+                  <td><strong>$175</strong></td>
+                  <td><strong>$340</strong></td>
+                </tr>
+                <tr>
+                  <td>Sprinter Van</td>
+                  <td>Up to 14</td>
+                  <td><strong>$225</strong></td>
+                  <td><strong>$440</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-center mt-4" style="font-weight: 300; color: var(--lux-medium-gray);">
+            Every rate is per vehicle and all-inclusive — no surge pricing, no hidden fees, no mandatory gratuity. Coming from Sanford or heading to the port instead? <a href="{% url 'rates' %}">See the full rate table</a> for every route.
+          </p>
+
+          <div class="text-center mt-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">View Rates &amp; Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: UNIVERSAL HOTELS COVERAGE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
+          <h2 class="lux-section-title">We Serve Every Universal Orlando Hotel</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            From the Premier resorts on the original campus to the new Epic Universe hotels — the flat MCO rate is the same for all of them.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center mb-4">
+        <div class="col-lg-5">
+          <div class="seo-resort-card">
+            <img src="{% static 'images/universal-resort.webp' %}"
+                 width="800" height="280"
+                 alt="Universal Orlando Premier resort hotel"
+                 loading="lazy" />
+            <div class="seo-resort-card-body">
+              <h3>Premier &amp; Preferred Resorts</h3>
+              <ul class="seo-resort-list" style="column-count: 1;">
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Loews Royal Pacific Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Loews Portofino Bay Hotel</li>
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Hard Rock Hotel</li>
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Loews Sapphire Falls Resort</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="seo-resort-card">
+            <img src="{% static 'images/universal.webp' %}"
+                 width="800" height="280"
+                 alt="Universal Orlando value resort hotels near the parks"
+                 loading="lazy" />
+            <div class="seo-resort-card-body">
+              <h3>Prime Value, Value &amp; Epic Universe Hotels</h3>
+              <ul class="seo-resort-list" style="column-count: 1;">
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Cabana Bay Beach Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Aventura Hotel</li>
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Endless Summer Resort — Surfside Inn &amp; Dockside Inn</li>
+                <li class="seo-resort-item"><i class="bi bi-check-lg"></i>Epic Universe hotels — Helios Grand, Stella Nova &amp; Terra Luna</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h4>Heading to Epic Universe?</h4>
+            <p>
+              Universal's newest park sits on its own campus south of the original resort, with its own hotels — including Helios Grand, built right into the park. We run direct MCO transfers to Epic Universe every day, at the same all-inclusive pricing. Get route details, timing, and park-opening pickup advice on our <a href="{% url 'epic_universe_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">Epic Universe transportation page</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: HOW IT WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">Airport to Universal in 4 Steps</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book Your Ride</h4>
+            <p>Reserve online or call (407) 212-7190 with your flight details. Your all-inclusive price is locked the moment you book.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>Meet at Baggage Claim</h4>
+            <p>We track your flight in real time and text you when you land. Your driver waits at baggage claim with a name sign — even if your flight is early or delayed.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Ride Direct</h4>
+            <p>Straight to your Universal hotel in 20-25 minutes. Want groceries? Add a free 20-minute Publix stop on the way — at no charge.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Return Trip Ready</h4>
+            <p>Book round-trip and your driver returns on departure day at the scheduled time. Sedan round-trip is $195 all-in.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Compare Options</p>
+          <h2 class="lux-section-title">Private Car vs. Mears Connect vs. Uber</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            A shared shuttle looks cheap until you do the family math. Mears Connect charges per person — about <strong>$70.40 one-way</strong> for a family of four adults — and makes multiple hotel stops. Uber and Lyft run $30-$60 but surge at peak times, and no one meets you inside the terminal.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="highlight-col">Grayson Towncar</th>
+                  <th>Mears Connect</th>
+                  <th>Uber / Lyft</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Price for a family of 4</td>
+                  <td class="highlight-col">$105 flat — one private sedan</td>
+                  <td>~$70.40 one-way / $140.80 round-trip (per person)</td>
+                  <td>$30-$60+, surge at peak</td>
+                </tr>
+                <tr>
+                  <td>Travel time to Universal</td>
+                  <td class="highlight-col">~20-25 min direct</td>
+                  <td>60-90 min, multiple stops</td>
+                  <td>~20-25 min direct</td>
+                </tr>
+                <tr>
+                  <td>Direct to your resort</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                </tr>
+                <tr>
+                  <td>Driver meets you</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Baggage claim with name sign</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> You find the bus stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Curb pickup</td>
+                </tr>
+                <tr>
+                  <td>Flight tracking</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Automatic</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+                <tr>
+                  <td>Car seats</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free Graco, pre-installed</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                </tr>
+                <tr>
+                  <td>Grocery stop</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free 20-min Publix stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                </tr>
+                <tr>
+                  <td>Vehicle</td>
+                  <td class="highlight-col">Private, your group only</td>
+                  <td>Shared shuttle</td>
+                  <td>Private, random driver</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="text-center mt-4" style="font-weight: 300; color: var(--lux-medium-gray);">
+            Weighing the shuttle in detail? Read our <a href="{% url 'mears_alternative_orlando' %}">Mears Connect alternative guide</a>, or <a href="{% url 'rates' %}">see the full rate table</a> to price your exact route.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much is a private car from MCO to Universal Orlando?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>An Executive Sedan (up to 4 passengers) is <strong>$105 one-way</strong> or <strong>$195 round-trip</strong>. A Family Minivan (up to 5) is $120/$230, a Luxury SUV (up to 6) is $140/$275, a Passenger Van (up to 10) is $175/$340, and a Sprinter Van (up to 14) is $225/$440. Every rate is all-inclusive — tolls and taxes included, no surge pricing, no hidden fees — and priced per vehicle, never per person. <a href="{% url 'rates' %}">See the full rate table</a> for every route.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How long does it take to get from MCO to Universal?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>The drive from Orlando International Airport to Universal Orlando takes <strong>20 to 25 minutes</strong> and covers about 15 miles — one of the shortest airport-to-park drives in Orlando. During peak holiday traffic, add 15 to 20 minutes. Your driver tracks your flight in real time and adjusts your pickup to the actual arrival at no charge, so a delay never costs you your ride.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you serve all Universal resort hotels?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We serve every Universal Orlando hotel, including Loews Royal Pacific Resort, Loews Portofino Bay Hotel, Hard Rock Hotel, Loews Sapphire Falls Resort, Cabana Bay Beach Resort, Aventura Hotel, Endless Summer Resort Surfside Inn and Dockside Inn, and the Epic Universe hotels — Helios Grand, Stella Nova, and Terra Luna. The flat MCO rate is the same for all of them — <strong>$105 one-way</strong> in an Executive Sedan.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is there a free grocery stop for Universal pickups?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Every airport pickup includes a free 20-minute grocery stop at Publix (9930 Universal Blvd, Orlando, FL 32819), just minutes from the Universal hotels. Stock your room with breakfast, snacks, and water before check-in — at no extra charge.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you also serve Epic Universe?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We run direct transfers from MCO to Universal's Epic Universe and its hotels, including Helios Grand. Epic Universe sits on its own campus south of the original Universal parks, so it needs its own transportation plan — and the same fixed, all-inclusive pricing applies. <a href="{% url 'epic_universe_transportation' %}" style="color: var(--lux-gold);">See our Epic Universe transportation page</a> for details.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can I book a combined Disney and Universal round trip?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Point-to-point transfers between Disney World and Universal start at <strong>$85 one-way</strong> for a sedan, and many families split a vacation between the two resorts. A typical plan: airport pickup to a Universal hotel, a mid-stay transfer to a <a href="{% url 'disney_world_transportation' %}" style="color: var(--lux-gold);">Disney resort</a>, then a return ride to MCO — every leg at a fixed, all-inclusive price.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: REVIEWS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Why Travelers Choose Grayson</p>
+          <h2 class="lux-section-title">Rated 4.8/5 by Orlando Travelers</h2>
+          <div class="lux-divider"></div>
+          <div class="review-stars mb-3" aria-label="4.8 out of 5 stars">
+            <i class="bi bi-star-fill"></i>
+            <i class="bi bi-star-fill"></i>
+            <i class="bi bi-star-fill"></i>
+            <i class="bi bi-star-fill"></i>
+            <i class="bi bi-star-half"></i>
+          </div>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Grayson Towncar holds a <strong>4.8/5 average across 1,500+ Google reviews</strong>. We are a family-owned Orlando company, founded in 2022, running private airport transfers 24 hours a day, 7 days a week — with real-time flight tracking, baggage-claim meet &amp; greet, and free professionally installed car seats on every booking.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.8; margin-bottom: 0;">
+            Questions before you book? Call <a href="tel:+14072127190" style="color: var(--lux-gold); font-weight: 500;">(407) 212-7190</a> or email reservations@graysontowncar.com.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 9: RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Other Popular Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'epic_universe_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-stars me-2" style="color: var(--lux-gold);"></i>Epic Universe</h5>
+            <p>Direct transfers to Universal's newest park and the Helios Grand Hotel.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World</h5>
+            <p>Private transfers from MCO to every Disney resort, from $105.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Transfers</h5>
+            <p>All Orlando airport transportation routes, vehicles, and rates.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'car_seats_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-shield-check me-2" style="color: var(--lux-gold);"></i>Free Car Seat Service</h5>
+            <p>Free Graco car seats, professionally installed on every booking.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 10: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your Universal Orlando Transfer</h2>
+          <p class="mb-4">From $105 one-way, all-inclusive. Driver meets you at baggage claim. 20-25 minutes to your Universal hotel.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
 {% endblock %}

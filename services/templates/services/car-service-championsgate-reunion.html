@@ -1,0 +1,583 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Championsgate &amp; Reunion Car Service | From $130 | Grayson{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Private car service from Orlando Airport (MCO) to Championsgate and Reunion from $130 all-inclusive. Free car seats, flight tracking, no surge pricing." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Championsgate &amp; Reunion Car Service | From $130 | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from MCO to the Omni at ChampionsGate, Reunion Resort, and area vacation homes. Sedan $130 one-way, all-inclusive. Free car seats, meet &amp; greet at baggage claim." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/car-service-championsgate-reunion/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/full-fleet.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Championsgate &amp; Reunion Car Service | From $130 | Grayson Towncar" />
+  <meta name="twitter:description" content="Private transfers from MCO to ChampionsGate and Reunion from $130 all-inclusive. Free car seats, flight tracking, no surge pricing." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/full-fleet.webp' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Championsgate & Reunion Car Service",
+        "item": "https://www.graysontowncar.com/car-service-championsgate-reunion/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much is a car service from MCO to Championsgate?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private Executive Sedan from Orlando International Airport (MCO) to ChampionsGate or Reunion is $130 one-way or $250 round-trip, all-inclusive. Tolls, taxes, baggage-claim meet and greet, flight tracking, and car seats are covered, with no surge pricing and no mandatory gratuity. Larger vehicles run from $145 one-way for the Family Minivan up to $260 one-way for the 14-passenger Sprinter Van."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you pick up at vacation homes in Reunion?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We provide door-to-door pickup at vacation homes throughout Reunion Resort, Encore Resort at Reunion, Solterra Resort, and the surrounding communities. Just enter the home's street address and any gate details when you book, and your driver will meet you right at the front door."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long is the drive from MCO to Championsgate?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The drive from Orlando International Airport to ChampionsGate takes about 30 to 40 minutes and covers roughly 30 miles. Reunion is a similar ride. During peak holiday traffic, allow an extra 15 to 20 minutes."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can a Sprinter van fit our whole group and golf bags?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. The Sprinter Van seats up to 14 passengers with room for luggage and golf bags — one vehicle for the entire villa group instead of a convoy of rideshares. MCO to ChampionsGate or Reunion in the Sprinter is $260 one-way or $505 round-trip."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Free Graco car seats — infant, toddler, and booster — are professionally installed on every booking at no extra charge. Just select the seat types you need when you book and they will be ready in the vehicle before pickup."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Championsgate & Reunion Car Service",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando International Airport (MCO) to ChampionsGate and Reunion — the Omni Orlando Resort, Reunion Resort & Golf Club, Encore Resort, and area vacation homes. Fixed all-inclusive pricing, free car seats, and meet and greet at baggage claim.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "Place", "name": "ChampionsGate"},
+      {"@type": "Place", "name": "Reunion Resort"},
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "ChampionsGate & Reunion Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to ChampionsGate Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Reunion Resort Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Encore Resort at Reunion Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "130",
+      "priceCurrency": "USD",
+      "description": "MCO to ChampionsGate / Reunion one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/car-service-championsgate-reunion/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/full-fleet.webp' %}"
+         width="1920" height="1080"
+         alt="Private car service fleet for Orlando airport transfers to ChampionsGate and Reunion"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">Golf Resort Country</p>
+          <h1 class="lux-title mb-3">Private Car Service from Orlando Airport to Championsgate &amp; Reunion</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Door-to-door transfers from MCO to the Omni at ChampionsGate, Reunion Resort, and your vacation home. Sedan <strong>$130</strong> one-way, all-inclusive — no surge, no shared shuttles.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your ChampionsGate Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 from 1,500+ Google reviews</span>
+            <span><i class="bi bi-airplane"></i> Real-time flight tracking</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing, no surge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Championsgate &amp; Reunion Car Service</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: THE AREA
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Destination</p>
+          <h2 class="lux-section-title">ChampionsGate &amp; Reunion: Orlando's Golf Resort Corridor</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Southwest of Walt Disney World, ChampionsGate and Reunion are golf-resort country — the Omni Orlando Resort at ChampionsGate, Reunion Resort &amp; Golf Club, Encore Resort at Reunion, and vast vacation-home communities.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~30</div>
+            <div class="route-label">Miles from MCO</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">30-40</div>
+            <div class="route-label">Minutes Direct</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">$130</div>
+            <div class="route-label">Sedan One-Way</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">0</div>
+            <div class="route-label">Extra Stops</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h3>How much is a private car from MCO to ChampionsGate or Reunion?</h3>
+            <p>
+              A private Executive Sedan from Orlando International Airport to ChampionsGate or Reunion is <strong>$130 one-way</strong> or <strong>$250 round-trip</strong> — all-inclusive. That price covers tolls, taxes, baggage-claim meet and greet with a name sign, real-time flight tracking, free Graco car seats, and a free 20-minute Publix grocery stop on the way to your villa. No surge pricing, no mandatory gratuity, no hidden fees — and pricing is always per vehicle, never per person.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: PRICING TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Rates</p>
+          <h2 class="lux-section-title">MCO to ChampionsGate &amp; Reunion Pricing</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Executive Sedan</td>
+                  <td>Up to 4</td>
+                  <td>$130</td>
+                  <td>$250</td>
+                </tr>
+                <tr>
+                  <td>Family Minivan</td>
+                  <td>Up to 5</td>
+                  <td>$145</td>
+                  <td>$280</td>
+                </tr>
+                <tr>
+                  <td>Luxury SUV</td>
+                  <td>Up to 6</td>
+                  <td>$165</td>
+                  <td>$320</td>
+                </tr>
+                <tr>
+                  <td>Passenger Van</td>
+                  <td>Up to 10</td>
+                  <td>$185</td>
+                  <td>$355</td>
+                </tr>
+                <tr>
+                  <td>Sprinter Van</td>
+                  <td>Up to 14</td>
+                  <td>$260</td>
+                  <td>$505</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-center mt-3" style="font-weight: 300; color: var(--lux-medium-gray); font-size: 0.9rem;">
+            Every rate is all-inclusive: tolls and taxes included, no surge pricing, priced per vehicle. Traveling elsewhere in Orlando? <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">See the full rate table</a>.
+          </p>
+          <div class="text-center mt-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">View Rates &amp; Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: PROPERTIES SERVED
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Where We Pick Up &amp; Drop Off</p>
+          <h2 class="lux-section-title">Resorts &amp; Communities We Serve</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-resort-card">
+            <div class="seo-resort-card-body">
+              <h3>ChampionsGate &amp; Reunion Properties</h3>
+              <ul class="seo-resort-list">
+                <li class="seo-resort-item"><i class="bi bi-check2"></i> Omni Orlando Resort at ChampionsGate</li>
+                <li class="seo-resort-item"><i class="bi bi-check2"></i> Reunion Resort &amp; Golf Club</li>
+                <li class="seo-resort-item"><i class="bi bi-check2"></i> Encore Resort at Reunion</li>
+                <li class="seo-resort-item"><i class="bi bi-check2"></i> Oasis Club at ChampionsGate</li>
+                <li class="seo-resort-item"><i class="bi bi-check2"></i> Solterra Resort</li>
+                <li class="seo-resort-item"><i class="bi bi-check2"></i> Surrounding vacation-home communities</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="seo-highlight-box mt-4">
+            <p>
+              Staying in a vacation home rather than a hotel? Give us the house address and gate details when you book — your driver delivers you straight to the front door.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: GOLF GROUPS & LARGE FAMILIES
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Groups</p>
+          <h2 class="lux-section-title">One Vehicle for the Whole Villa Group</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h4><i class="bi bi-flag" style="color: var(--lux-gold);"></i> Golf Groups &amp; Buddy Trips</h4>
+            <p>
+              ChampionsGate and Reunion draw golf groups year-round — and splitting three foursomes across rideshares with golf bags rarely works. The <strong>Sprinter Van seats up to 14 passengers</strong> plus luggage and golf bags, so the whole group rides from MCO to the villa together: <strong>$260 one-way</strong>, <strong>$505 round-trip</strong>.
+            </p>
+          </div>
+
+          <div class="seo-highlight-box" style="border-left-color: var(--lux-charcoal);">
+            <h4><i class="bi bi-people" style="color: var(--lux-gold);"></i> Large Families &amp; Multi-Family Trips</h4>
+            <p>
+              Vacation homes here sleep 10, 12, even 16 — a family that size needs one vehicle, not three. The Passenger Van carries up to 10 and the Sprinter up to 14, both with free professionally installed Graco car seats. Your driver meets everyone at baggage claim with a name sign, and the free 20-minute grocery stop means breakfast is handled before you reach the villa.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much is a car service from MCO to Championsgate?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A private Executive Sedan from Orlando International Airport (MCO) to ChampionsGate or Reunion is <strong>$130 one-way</strong> or <strong>$250 round-trip</strong>, all-inclusive — tolls, taxes, baggage-claim meet and greet, flight tracking, and car seats are covered, with no surge pricing and no mandatory gratuity. Larger vehicles run from $145 one-way for the Family Minivan up to $260 one-way for the 14-passenger Sprinter Van. <a href="{% url 'rates' %}" style="color: var(--lux-gold);">See the full rate table</a> for every vehicle.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you pick up at vacation homes in Reunion?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We provide door-to-door pickup at vacation homes throughout Reunion Resort, Encore Resort at Reunion, Solterra Resort, and the surrounding communities. Just enter the home's street address and any gate details when you book, and your driver will meet you right at the front door.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How long is the drive from MCO to Championsgate?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>The drive from Orlando International Airport to ChampionsGate takes about <strong>30 to 40 minutes</strong> and covers roughly 30 miles. Reunion is a similar ride. During peak holiday traffic, allow an extra 15 to 20 minutes.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can a Sprinter van fit our whole group and golf bags?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. The Sprinter Van seats up to <strong>14 passengers</strong> with room for luggage and golf bags — one vehicle for the entire villa group instead of a convoy of rideshares. MCO to ChampionsGate or Reunion in the Sprinter is <strong>$260 one-way</strong> or <strong>$505 round-trip</strong>.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Free Graco car seats — infant, toddler, and booster — are professionally installed on every booking at no extra charge. Just select the seat types you need when you book and they'll be ready in the vehicle before pickup. <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold);">Learn more about our car seat program.</a></p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Related Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Transfers</h5>
+            <p>All Orlando airport transportation routes and rates.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World</h5>
+            <p>Private transfers to all Disney resorts from MCO.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_car_service_kissimmee' %}" class="seo-link-card">
+            <h5><i class="bi bi-house-door me-2" style="color: var(--lux-gold);"></i>Kissimmee Car Service</h5>
+            <p>Transfers to Hwy 192 hotels and Kissimmee vacation homes.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your ChampionsGate &amp; Reunion Transfer</h2>
+          <p class="mb-4">Sedan $130 one-way, all-inclusive. Driver meets you at baggage claim. Door to door in 30-40 minutes.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}

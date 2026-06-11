@@ -9,6 +9,46 @@
 {% endblock %}
 {% block head_extra %}
   <link rel="canonical" href="https://www.graysontowncar.com/users/contact-grayson-towncar/" />
+
+  <!-- ContactPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    "url": "https://www.graysontowncar.com/users/contact-grayson-towncar/",
+    "mainEntity": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "url": "https://www.graysontowncar.com",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "telephone": "+14072127190",
+      "email": "reservations@graysontowncar.com",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "postalCode": "32827",
+        "addressCountry": "US"
+      },
+      "openingHoursSpecification": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [
+          "Monday", "Tuesday", "Wednesday", "Thursday",
+          "Friday", "Saturday", "Sunday"
+        ],
+        "opens": "00:00",
+        "closes": "23:59"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "telephone": "+14072127190",
+        "contactType": "reservations",
+        "email": "reservations@graysontowncar.com",
+        "availableLanguage": "English"
+      }
+    }
+  }
+  </script>
 {% endblock %}
 {% block content %}
   <!-- Contact Section -->

@@ -1,190 +1,312 @@
 {% extends 'main.html' %}
-{% load seo_tags %}
 {% load static %}
+
+{% block title %}Port Canaveral Car Service | Orlando Cruise Transfers | Grayson{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Private car service from Orlando (MCO) to Port Canaveral from $160 one-way. Fixed all-inclusive rates, cruise terminal drop-off, free car seats. Book 24/7." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Port Canaveral Car Service | Orlando Cruise Transfers | Grayson" />
+  <meta property="og:description" content="Private cruise transfers from MCO, Disney World, Universal, and Sanford to every Port Canaveral terminal. From $160 one-way, all-inclusive, no surge pricing." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/services/port-canaveral-transportation/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/port-hero.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Port Canaveral Car Service | Orlando Cruise Transfers | Grayson" />
+  <meta name="twitter:description" content="Private cruise transfers from MCO, Disney World, Universal, and Sanford to every Port Canaveral terminal. From $160 one-way, all-inclusive, no surge pricing." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/port-hero.webp' %}" />
+{% endblock %}
+
 {% block head_extra %}
-  <link rel="canonical" href="https://www.graysontowncar.com/services/port-canaveral-transportation/" />
-  <!-- Added more rich schema for enhanced SEO -->
+  <!-- BreadcrumbList Schema -->
   <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
       {
-          "@context": "https://schema.org",
-          "@type": "Service",
-          "name": "Port Canaveral Transportation Service",
-          "serviceType": "Transportation",
-          "description": "Premium Port Canaveral transportation service for Disney Cruise Line (Fantasy & Wish) and Royal Caribbean cruises. Luxury transfers between Orlando Airport, Disney World, and all cruise terminals.",
-          "provider": {
-              "@type": "LocalBusiness",
-              "name": "Grayson Towncar",
-              "image": "{% static 'images/logo.png' %}",
-              "address": {
-                  "@type": "PostalAddress",
-                  "addressLocality": "Orlando",
-                  "addressRegion": "FL"
-              }
-          },
-          "areaServed": {"@type": "Place", "name": "Port Canaveral, Cape Canaveral, FL"},
-          "hasOfferCatalog": {
-              "@type": "OfferCatalog",
-              "name": "Port Canaveral Transportation Services",
-              "itemListElement": [{
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "MCO to Port Canaveral Transfer"
-                  }
-              }, {
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "Disney World to Port Canaveral Transfer"
-                  }
-              }]
-          }
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Port Canaveral Transportation",
+        "item": "https://www.graysontowncar.com/services/port-canaveral-transportation/"
       }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much is a car service from Orlando to Port Canaveral?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private car from Orlando International Airport (MCO) to Port Canaveral starts at $160 one-way or $315 round-trip for an Executive Sedan (up to 4 passengers). A Family Minivan is $190 one-way, a Luxury SUV $200, a Passenger Van $235, and a Sprinter Van $295. Every fare is all-inclusive — tolls and taxes are in the price, pricing is per vehicle (never per person), and there is no surge pricing."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How far is Port Canaveral from MCO?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Port Canaveral is about 45 miles east of Orlando International Airport — a 45-55 minute drive via the FL-528 Beachline Expressway. From Walt Disney World resorts the trip is roughly 70 miles and takes 60-75 minutes. During peak holiday weeks, add 15-20 minutes for traffic."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which cruise lines and terminals do you serve at Port Canaveral?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We serve every cruise terminal at Port Canaveral: Disney Cruise Line at Terminal 8, Royal Caribbean at Terminals 1 and 5, Carnival at Terminals 3 and 6, Norwegian at Terminal 10, and MSC at Terminal 3. Your driver drops you at the correct terminal curbside, where porters collect your checked luggage."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How early should I leave for Port Canaveral on embarkation day?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Leave MCO or Orlando with at least 2 hours of buffer before your cruise check-in window opens. The drive from MCO takes 45-55 minutes via FL-528 and 60-75 minutes from Disney World, but peak holiday traffic can add 15-20 minutes. Many families fly in the day before, stay near the port or in Orlando, and ride to the terminal fresh the next morning."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer Disney World to Port Canaveral transfers?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Private transfers from Walt Disney World resorts to Port Canaveral start at $185 one-way or $360 round-trip for an Executive Sedan. The trip covers about 70 miles and takes 60-75 minutes. Your driver picks you up at your resort and drops you directly at your cruise terminal — Terminal 8 for Disney Cruise Line. Free Graco car seats are professionally installed on every booking."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can you pick me up from the cruise terminal after my cruise?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We run post-cruise pickups from every Port Canaveral terminal. Your driver monitors debarkation, meets you outside the terminal, helps with your luggage, and drives you directly to MCO for your flight or to your Orlando hotel — no shared-van waiting, no extra stops."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much luggage can I bring?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "An Executive Sedan holds about 4 large bags, a Family Minivan about 5, a Luxury SUV about 6, a Passenger Van about 10, and a Sprinter Van about 14 large bags — plus carry-ons. If your group is traveling with full cruise luggage, we recommend sizing up one vehicle class so everything rides with you."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Port Canaveral Car Service — Orlando Cruise Transfers",
+    "serviceType": "Cruise Port Transportation",
+    "description": "Private car service between Orlando International Airport (MCO), Disney World, Universal Orlando, Sanford Airport, and all Port Canaveral cruise terminals. Fixed all-inclusive pricing, baggage-claim meet and greet, free car seats, and post-cruise pickups.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Port Canaveral"},
+      {"@type": "Place", "name": "Cape Canaveral"},
+      {"@type": "Place", "name": "Walt Disney World Resort"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"},
+      {"@type": "Airport", "name": "Orlando Sanford International Airport", "iataCode": "SFB"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Port Canaveral Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Port Canaveral Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Disney World to Port Canaveral Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Universal Orlando to Port Canaveral Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Sanford Airport to Port Canaveral Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "160",
+      "priceCurrency": "USD",
+      "description": "MCO to Port Canaveral one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/services/port-canaveral-transportation/"
+  }
   </script>
 {% endblock %}
-{% block title %}
-Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
-{% block meta_description %}
-  <meta name="description" content="Reliable Orlando to Port Canaveral cruise transfers. Large vehicles, luggage assistance, cruise departure scheduling. Professional drivers, competitive rates. Book now!" />
-  <!-- Added more meta tags for SEO -->
-  <link rel="preload" href="{% static 'images/port-canaveral.webp' %}" as="image" type="image/webp" />
-{% endblock %}
+
 {% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
   <style>
-      /* Luxury Design System */
-      :root {
-          --lux-black: #0a0a0a;
-          --lux-charcoal: #1a1a1a;
-          --lux-dark-gray: #2d2d2d;
-          --lux-medium-gray: #6b6b6b;
-          --lux-light-gray: #a0a0a0;
-          --lux-off-white: #f8f7f5;
-          --lux-white: #ffffff;
-          --lux-gold: #b8956c;
-          --lux-gold-light: #d4b896;
-          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .lux-hero {
-          height: 80vh;
-          min-height: 600px;
-          position: relative;
-          display: flex;
-          align-items: center;
-      }
-
-      .lux-hero::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(10,10,10,0.8) 0%, rgba(26,26,26,0.7) 100%);
-          z-index: 1;
-      }
-
-      .lux-eyebrow { font-size: 0.75rem; font-weight: 400; letter-spacing: 0.35em; text-transform: uppercase; color: var(--lux-gold); margin-bottom: 1.5rem; }
-      .lux-title { font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 200; letter-spacing: -0.02em; line-height: 1.1; }
-      .lux-divider { width: 60px; height: 1px; background: var(--lux-gold); margin: 1.5rem auto; }
-      .lux-section { padding: 6rem 0; }
-      .lux-section-title { font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 200; letter-spacing: -0.02em; color: var(--lux-charcoal); margin-bottom: 1rem; }
-      .lux-section-subtitle { font-size: 1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 600px; margin: 0 auto; }
-
-      .lux-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
-          transition: var(--transition);
-          overflow: hidden;
-      }
-
-      .lux-card:hover { transform: translateY(-6px); box-shadow: 0 15px 45px rgba(0,0,0,0.12); }
-      .lux-card-img { height: 350px; object-fit: cover; }
-
-      .lux-icon-box {
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: 1px solid var(--lux-gold);
-          color: var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .feature-card:hover .lux-icon-box, .route-card:hover .lux-icon-box { background: var(--lux-gold); color: var(--lux-white); }
-
-      .lux-btn {
-          padding: 1rem 2.5rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          border-radius: 0;
-          border: none;
-          transition: var(--transition);
-          display: inline-block;
-          text-decoration: none;
-      }
-
-      .lux-btn-primary { background: var(--lux-gold); color: var(--lux-white); }
-      .lux-btn-primary:hover { background: var(--lux-gold-light); color: var(--lux-charcoal); transform: translateY(-2px); }
-      .lux-btn-dark { background: var(--lux-charcoal); color: var(--lux-white); }
-      .lux-btn-dark:hover { background: var(--lux-black); color: var(--lux-white); transform: translateY(-2px); }
-
-      .lux-info-box { background: var(--lux-off-white); border-left: 3px solid var(--lux-gold); padding: 2rem; margin-bottom: 2rem; }
-      .lux-breadcrumb { background: var(--lux-off-white); padding: 1rem 0; }
-      .lux-breadcrumb .breadcrumb { margin: 0; }
-      .lux-breadcrumb .breadcrumb-item a { color: var(--lux-medium-gray); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.05em; }
-      .lux-breadcrumb .breadcrumb-item.active { color: var(--lux-charcoal); font-size: 0.85rem; }
-
-      .route-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          transition: var(--transition);
-          position: relative;
-          overflow: hidden;
-      }
-
-      .route-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--lux-gold); transform: scaleX(0); transition: var(--transition); }
-      .route-card:hover::before { transform: scaleX(1); }
-      .route-card:hover { transform: translateY(-8px); box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
-
-      .feature-card { background: var(--lux-white); border: none; border-radius: 0; transition: var(--transition); }
-      .feature-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
-
-      .lux-info-card { background: var(--lux-white); border: none; border-radius: 0; border-left: 3px solid var(--lux-gold); }
-
-      @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-      .lux-card, .route-card, .feature-card { animation: fadeInUp 0.6s ease-out; }
-
-      @media (max-width: 991px) { .lux-hero { height: auto; min-height: 500px; padding: 4rem 0; } .lux-section { padding: 4rem 0; } }
-      @media (max-width: 768px) { .lux-card-img { height: 250px; } }
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+    .terminal-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 1.75rem 1.5rem;
+      transition: var(--transition);
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .terminal-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--lux-gold);
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+    .terminal-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.08);
+    }
+    .terminal-card:hover::before {
+      transform: scaleX(1);
+    }
+    .terminal-card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--lux-charcoal);
+      margin-bottom: 0.35rem;
+    }
+    .terminal-card .terminal-number {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--lux-gold);
+      margin-bottom: 0.65rem;
+    }
+    .terminal-card p {
+      font-weight: 300;
+      font-size: 0.88rem;
+      color: var(--lux-medium-gray);
+      line-height: 1.65;
+      margin-bottom: 0;
+    }
+    .review-stars i {
+      color: var(--lux-gold);
+      font-size: 1.35rem;
+      margin: 0 0.1rem;
+    }
+    .review-score {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 3rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.1;
+    }
   </style>
 {% endblock %}
-{% block content %}
-  {% block schema %}
-    {% structured_data additional_data=structured_data %}
-  {% endblock %}
 
-  <!-- Hero Section -->
-  <section class="lux-hero position-relative overflow-hidden" id="hero">
-    <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/port-hero.webp' %}" width="1920" height="1080" alt="Port Canaveral cruise terminal with Disney Wish and Royal Caribbean ships" class="w-100 h-100 object-fit-cover" style="position: absolute; z-index: 0" fetchpriority="high" />
-    </div>
-    <div class="container position-relative py-5" style="z-index: 2;">
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/port-hero.webp' %}"
+         width="1920" height="1080"
+         alt="Cruise ships docked at Port Canaveral terminals near Orlando, Florida"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
       <div class="row justify-content-center">
         <div class="col-lg-10 text-center text-white">
-          <p class="lux-eyebrow">Cruise Transfer Service</p>
-          <h1 class="lux-title mb-4">Port Canaveral Transportation</h1>
+          <p class="lux-eyebrow">Orlando Cruise Transfer Service</p>
+          <h1 class="lux-title mb-3">Private Car Service from Orlando to Port Canaveral</h1>
           <div class="lux-divider"></div>
-          <p style="font-size: 1.2rem; font-weight: 300; max-width: 700px; margin: 0 auto 2.5rem; opacity: 0.85; line-height: 1.8;">Premium cruise transfers between Orlando Airport (MCO) and Disney Cruise Line & Royal Caribbean terminals</p>
+          <p class="seo-hero-subtitle">
+            Direct transfers from MCO, Disney World, Universal, and Sanford to every cruise terminal at Port Canaveral. Fixed all-inclusive pricing from $160 — your vehicle, your schedule, no shared-van stops.
+          </p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
             <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Cruise Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 from 1,500+ Google reviews</span>
+            <span><i class="bi bi-airplane"></i> Real-time flight tracking</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing — tolls included</span>
           </div>
         </div>
       </div>
@@ -192,387 +314,586 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
   </section>
 
   <!-- Breadcrumb -->
-  <section class="lux-breadcrumb">
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
     <div class="container">
-      <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
-          <li class="breadcrumb-item"><a href="/">Home</a></li>
-          <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
-          <li class="breadcrumb-item active" aria-current="page">Port Canaveral Transportation</li>
-        </ol>
-      </nav>
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Port Canaveral Transportation</li>
+      </ol>
     </div>
-  </section>
+  </nav>
 
-  <!-- Main Content Section -->
-  <section class="lux-section" style="background: var(--lux-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: ROUTE CONTEXT
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
     <div class="container">
-      <!-- Port Canaveral Information Section -->
-      <div class="row mb-5">
-        <div class="col-lg-10 mx-auto text-center">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
-          <h2 class="lux-section-title">Premium Port Canaveral Cruise Terminal Transportation</h2>
-          <div class="lux-divider"></div>
-          <p style="font-size: 1.1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 700px; margin: 0 auto 3rem; line-height: 1.8;">Start your cruise vacation with reliable Port Canaveral transportation service, specializing in transfers between Orlando and Disney Cruise Line and Royal Caribbean cruise ships.</p>
-        </div>
-        <div class="col-lg-10 mx-auto">
-          <div class="lux-info-box">
-            <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">About Port Canaveral</h3>
-            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 1rem;">Located just 45 miles east of Orlando, Port Canaveral is one of Florida's busiest cruise ports and a gateway to the Caribbean. As the second-busiest cruise port in the world, Port Canaveral welcomes millions of passengers each year aboard Disney Cruise Line, Royal Caribbean, Carnival, Norwegian, and MSC cruise ships.</p>
-            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">Our transportation service provides seamless transfers between Orlando International Airport (MCO), Disney World resorts, and all terminals at Port Canaveral, ensuring you arrive relaxed and on time for your cruise departure.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Disney Cruise Line Section -->
-      <div class="row mb-5 pb-5">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Cruise Lines</p>
-          <h3 class="lux-section-title">Disney Cruise Line</h3>
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Route</p>
+          <h2 class="lux-section-title">Orlando to Port Canaveral: What the Trip Looks Like</h2>
           <div class="lux-divider"></div>
         </div>
-        <div class="col-12">
-          <div class="row g-4">
-            <div class="col-lg-6">
-              <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/disney_wish.webp' %}" width="100%" height="400" class="lux-card-img" loading="lazy" alt="Disney Wish cruise ship docked at Port Canaveral" />
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Disney Wish</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">The newest addition to the Disney fleet at Port Canaveral, featuring innovative entertainment and immersive Disney, Marvel, and Star Wars experiences.</p>
-                  <ul class="list-unstyled mb-0">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>AquaMouse water attraction - Disney's first attraction at sea</li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Immersive Marvel and Star Wars themed dining and play areas</li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Premium dining experiences including Arendelle: A Frozen Dining Adventure</li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Sailing from Port Canaveral to Bahamas and Caribbean destinations</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div class="col-lg-6">
-              <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/disney_fantasy.webp' %}" width="100%" height="400" class="lux-card-img" loading="lazy" alt="Disney Fantasy cruise ship at Port Canaveral terminal" />
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Disney Fantasy</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">A classic Disney cruise experience with beloved characters and family-friendly activities, departing regularly from Port Canaveral.</p>
-                  <ul class="list-unstyled mb-0">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>AquaDuck water coaster spanning the upper decks</li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Broadway-style shows including Disney's Aladdin and Frozen</li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Adults-only areas including the Quiet Cove Pool and Satellite Falls</li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>7-night Caribbean itineraries from Port Canaveral</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="text-center mt-4 mb-5">
-        <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">Get a Quote for Disney Cruise Line</a>
       </div>
 
-      <!-- Royal Caribbean Section -->
-      <div class="row mb-5 mt-5 pt-5">
-        <div class="col-12 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Cruise Lines</p>
-          <h3 class="lux-section-title">Royal Caribbean at Port Canaveral</h3>
-          <div class="lux-divider"></div>
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~45</div>
+            <div class="route-label">Miles from MCO</div>
+          </div>
         </div>
-        <div class="col-12">
-          <div class="lux-card shadow-sm">
-            <div class="row g-0">
-              <div class="col-lg-5">
-                <img src="{% static 'images/royal_carribean.webp' %}" width="100%" height="100%" class="h-100 object-fit-cover" loading="lazy" alt="Royal Caribbean cruise ship at Port Canaveral terminal" />
-              </div>
-              <div class="col-lg-7">
-                <div class="card-body p-5">
-                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Experience Royal Caribbean from Orlando</h4>
-                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 2rem;">Experience the thrill of Royal Caribbean's innovative ships with world-class amenities and entertainment, with easy access from Orlando via our premium transportation service.</p>
-                  <div class="row">
-                    <div class="col-md-6">
-                      <h5 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Featured Ships at Port Canaveral</h5>
-                      <ul class="list-unstyled mb-4">
-                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Wonder of the Seas - World's largest cruise ship</li>
-                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Harmony of the Seas - Features Perfect Storm waterslides</li>
-                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Symphony of the Seas - Ultimate family adventure</li>
-                        <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Allure of the Seas - Featuring the AquaTheater</li>
-                      </ul>
-                    </div>
-                    <div class="col-md-6">
-                      <h5 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Popular Features</h5>
-                      <ul class="list-unstyled mb-0">
-                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>FlowRider surf simulator for all ages</li>
-                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Rock climbing walls with ocean views</li>
-                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Ice skating shows and performance venues</li>
-                        <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Central Park - first living park at sea</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">45-55</div>
+            <div class="route-label">Minutes via FL-528</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~70</div>
+            <div class="route-label">Miles from Disney</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">60-75</div>
+            <div class="route-label">Minutes from Disney</div>
           </div>
         </div>
       </div>
 
-      <!-- Why Choose Us Section - Simplified -->
-      <div class="row mb-6">
-        <div class="col-12 text-center mb-4">
-          <h3 class="display-5">Why Choose Our Port Canaveral Transportation</h3>
-          <p class="lead">Reliable, comfortable, and stress-free transfers for your cruise vacation</p>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-clock text-dark me-3" viewBox="0 0 16 16">
-                  <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z" />
-                  <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z" />
-                </svg>
-                <h4 class="h5 mb-0">Punctual Service</h4>
-              </div>
-              <p class="mb-0">Always on time for cruise departures and arrivals, with buffer time for security and check-in.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-car-front text-dark me-3" viewBox="0 0 16 16">
-                  <path d="M4 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm10 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 8a1 1 0 0 0 0 2h4a1 1 0 1 0 0-2H6ZM4.862 4.276 3.906 6.19a.51.51 0 0 0 .497.731c.91-.073.995-.42 1.076-.737C5.737 5.27 6.484 4 8 4s2.263 1.27 2.521 2.184c.081.317.166.664 1.076.737a.5.5 0 0 0 .497-.731l-.956-1.913A.5.5 0 0 0 10.691 4H5.309a.5.5 0 0 0-.447.276Z" />
-                  <path d="M2.52 3.515A2.5 2.5 0 0 1 4.82 2h6.362c1 0 1.904.596 2.298 1.515l.792 1.848c.075.175.21.319.38.404.5.25.855.715.965 1.262l.335 1.679c.033.161.049.325.049.49v.413c0 .814-.39 1.543-1 1.997V13.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1.338c-1.292.048-2.745.088-4 .088s-2.708-.04-4-.088V13.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1.892c-.61-.454-1-1.183-1-1.997v-.413a2.5 2.5 0 0 1 .049-.49l.335-1.68c.11-.546.465-1.012.964-1.261a.807.807 0 0 0 .381-.404l.792-1.848ZM4.82 3a1.5 1.5 0 0 0-1.379.91l-.792 1.847a1.8 1.8 0 0 1-.853.904.807.807 0 0 0-.43.564L1.03 8.904a1.5 1.5 0 0 0-.03.294v.413c0 .796.62 1.448 1.408 1.484 1.555.07 3.786.155 5.592.155 1.806 0 4.037-.084 5.592-.155A1.479 1.479 0 0 0 15 9.611v-.413c0-.099-.01-.197-.03-.294l-.335-1.68a.807.807 0 0 0-.43-.563 1.807 1.807 0 0 1-.853-.904l-.792-1.848A1.5 1.5 0 0 0 11.18 3H4.82Z" />
-                </svg>
-                <h4 class="h5 mb-0">Luxury Vehicles</h4>
-              </div>
-              <p class="mb-0">Modern, clean vehicles with ample space for cruise luggage and family members.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-person-check text-dark me-3" viewBox="0 0 16 16">
-                  <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm1.679-4.493-1.335 2.226a.75.75 0 0 1-1.174.144l-.774-.773a.5.5 0 0 1 .708-.708l.547.548 1.17-1.951a.5.5 0 1 1 .858.514ZM11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-                  <path d="M8.256 14a4.474 4.474 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10c.26 0 .507.009.74.025.226-.341.496-.65.804-.918C9.077 9.038 8.564 9 8 9c-5 0-6 3-6 4s1 1 1 1h5.256Z" />
-                </svg>
-                <h4 class="h5 mb-0">Professional Drivers</h4>
-              </div>
-              <p class="mb-0">Experienced with Port Canaveral terminals and cruise procedures for seamless transfers.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-shield-check text-dark me-3" viewBox="0 0 16 16">
-                  <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z" />
-                  <path d="M10.854 5.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647a.5.5 0 0 1 .708 0z" />
-                </svg>
-                <h4 class="h5 mb-0">Reliable Service</h4>
-              </div>
-              <p class="mb-0">24/7 support, flight tracking, and guaranteed on-time arrival for your cruise.</p>
-            </div>
-          </div>
-        </div>
-        <div class="text-center mt-4">
-          <a href="{% url 'rates' %}" class="btn btn-dark btn-md px-5 py-3 rounded-pill mb-3">Get a Quote for Port Canaveral Transfer</a>
-        </div>
-      </div>
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Port Canaveral sits about 45 miles east of Orlando International Airport — a 45-55 minute drive on the FL-528 Beachline Expressway. From Walt Disney World resorts, the run is roughly 70 miles and takes 60-75 minutes. There is no train and no practical public transit for this route, so every cruise traveler faces the same choice: shared shuttle, rideshare, or a private car.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Cruise travelers book private for three reasons. <strong>Luggage</strong> — a family sailing for a week travels with more bags than a rideshare trunk holds. <strong>Fixed timing</strong> — cruise ships do not wait, so your pickup is scheduled around your check-in window, not around when a shuttle fills up. And <strong>no shared-van waiting</strong> — a private transfer leaves when you are ready and drives straight to your terminal, with zero hotel stops along the way.
+          </p>
 
-      <!-- Our Services Section - Expanded -->
-      <div class="row mb-6">
-        <div class="col-12">
-          <h3 class="display-5 mb-4 text-center">Our Port Canaveral Transportation Service Includes</h3>
-          <div class="card border-0 shadow-lg">
-            <div class="card-body p-5">
-              <div class="row g-4">
-                <div class="col-md-6">
-                  <ul class="list-unstyled mb-0">
-                    <li class="mb-4 d-flex">
-                      <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
-                      </div>
-                      <div>
-                        <h5 class="h5 mb-2">Professional Drivers</h5>
-                        <p class="fs-5">Experienced with Port Canaveral cruise terminal procedures and luggage handling requirements</p>
-                      </div>
-                    </li>
-                    <li class="mb-4 d-flex">
-                      <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
-                      </div>
-                      <div>
-                        <h5 class="h5 mb-2">Luxury Vehicles</h5>
-                        <p class="fs-5">Spacious and comfortable vehicles with ample room for cruise luggage and passengers</p>
-                      </div>
-                    </li>
-                    <li class="mb-4 d-flex">
-                      <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
-                      </div>
-                      <div>
-                        <h5 class="h5 mb-2">Complimentary Car Seats</h5>
-                        <p class="fs-5">Available for children of all ages traveling to Disney Cruise Line or Royal Caribbean ships</p>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <ul class="list-unstyled mb-0">
-                    <li class="mb-4 d-flex">
-                      <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
-                      </div>
-                      <div>
-                        <h5 class="h5 mb-2">Luggage Handling</h5>
-                        <p class="fs-5">Assistance with loading and unloading your cruise luggage at terminal drop-off and pickup</p>
-                      </div>
-                    </li>
-                    <li class="mb-4 d-flex">
-                      <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
-                      </div>
-                      <div>
-                        <h5 class="h5 mb-2">Flight Tracking</h5>
-                        <p class="fs-5">We monitor your Orlando (MCO) flight for on-time pickup and adjust for delays</p>
-                      </div>
-                    </li>
-                    <li class="mb-4 d-flex">
-                      <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
-                      </div>
-                      <div>
-                        <h5 class="h5 mb-2">Terminal Knowledge</h5>
-                        <p class="fs-5">Familiar with all Port Canaveral cruise terminal locations, procedures, and best drop-off points</p>
-                      </div>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
+          <div class="seo-highlight-box mt-4">
+            <h3>How much is a private car from Orlando to Port Canaveral?</h3>
+            <p>
+              A private car from Orlando International Airport (MCO) to Port Canaveral starts at <strong>$160</strong> one-way for a sedan (up to 4 passengers), or <strong>$315</strong> round-trip. From Walt Disney World resorts to Port Canaveral, fares start at <strong>$185</strong> one-way. All prices include tolls and a professional driver — no shared stops, no waiting for other passengers.
+            </p>
           </div>
-        </div>
-      </div>
-
-      <!-- Popular Routes Section - Enhanced -->
-      <div class="row mb-5">
-        <div class="col-12 text-center mb-4">
-          <h3 class="display-5 mb-4">Popular Transportation Routes to Port Canaveral</h3>
-          <p class="lead mb-5">Reliable shuttle service from all major Orlando locations to your cruise ship</p>
-        </div>
-        <div class="row g-4">
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
-              <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-airplane text-dark mb-3" viewBox="0 0 16 16">
-                  <path d="M6.428 1.151C6.708.591 7.213 0 8 0s1.292.592 1.572 1.151C9.861 1.73 10 2.431 10 3v3.691l5.17 2.585a1.5 1.5 0 0 1 .83 1.342V12a.5.5 0 0 1-.582.493l-5.507-.918-.375 2.253 1.318.219a.5.5 0 0 1 .488.591l-.362 2.172a.5.5 0 0 1-.489.394H7.82a.5.5 0 0 1-.447-.276l-1.147-2.295A.5.5 0 0 1 6.466 13h-1.88a.5.5 0 0 1-.24-.939l1.09-.59-.636-1.272H2.559a.5.5 0 0 1-.447-.724L4.25 5.5A.5.5 0 0 0 3.5 5a.5.5 0 0 1-.5-.5v-.616a.5.5 0 0 1 .213-.408L6 1.402A.5.5 0 0 1 6.5 1.25M3.562 4.342L3 5.768h2.08l.73-1.456-.968.258a.5.5 0 0 1-.36-.062l-.913-.64a.5.5 0 0 1-.273-.453v-.17l.4-.143a.5.5 0 0 0 .145-.118l.102-.134.102-.134L4 2.279a.5.5 0 0 0-.177-.106L3.33 2.04a.5.5 0 0 1-.247-.257l-.12-.302Z" />
-                </svg>
-                <h4 class="h3 mb-3">Orlando Airport (MCO)</h4>
-                <p class="fs-5">Direct luxury transportation service from Orlando International Airport to all Port Canaveral cruise terminals. We track your flight for on-time pickup.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
-              <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-building text-dark mb-3" viewBox="0 0 16 16">
-                  <path d="M4 2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm3 0a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm3.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1ZM4 5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1ZM7.5 5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm2.5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1ZM4.5 8a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm2.5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm3.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Z" />
-                  <path d="M2 1a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V1Zm11 0H3v14h3v-2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V15h3V1Z" />
-                </svg>
-                <h4 class="h3 mb-3">Disney World Resorts</h4>
-                <p class="fs-5">Convenient luxury transfers from any Disney property to Port Canaveral cruise terminals. Extend your Disney vacation with a seamless cruise connection.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
-              <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-tsunami text-dark mb-3" viewBox="0 0 16 16">
-                  <path d="M.036 12.314a.5.5 0 0 1 .65-.278l1.757.703a1.5 1.5 0 0 0 1.114 0l1.014-.406a2.5 2.5 0 0 1 1.857 0l1.015.406a1.5 1.5 0 0 0 1.114 0l1.014-.406a2.5 2.5 0 0 1 1.857 0l1.015.406a1.5 1.5 0 0 0 1.114 0l1.757-.703a.5.5 0 1 1 .372.928l-1.758.703a2.5 2.5 0 0 1-1.857 0l-1.014-.406a1.5 1.5 0 0 0-1.114 0l-1.015.406a2.5 2.5 0 0 1-1.857 0l-1.014-.406a1.5 1.5 0 0 0-1.114 0l-1.015.406a2.5 2.5 0 0 1-1.857 0l-1.757-.703a.5.5 0 0 1-.278-.65zm0 2.5a.5.5 0 0 1 .65-.278l1.757.703a1.5 1.5 0 0 0 1.114 0l1.014-.406a2.5 2.5 0 0 1 1.857 0l1.015.406a1.5 1.5 0 0 0 1.114 0l1.014-.406a2.5 2.5 0 0 1 1.857 0l1.015.406a1.5 1.5 0 0 0 1.114 0l1.757-.703a.5.5 0 1 1 .372.928l-1.758.703a2.5 2.5 0 0 1-1.857 0l-1.014-.406a1.5 1.5 0 0 0-1.114 0l-1.015.406a2.5 2.5 0 0 1-1.857 0l-1.014-.406a1.5 1.5 0 0 0-1.114 0l-1.015.406a2.5 2.5 0 0 1-1.857 0l-1.757-.703a.5.5 0 0 1-.278-.65zM2.662 8.08c-.456 1.063-.994 2.098-1.842 2.804a.5.5 0 0 1-.64-.768c.652-.544 1.114-1.384 1.542-2.374.066-.154.127-.301.186-.44a.5.5 0 0 1 .606-.304A2.97 2.97 0 0 1 3.5 7c.2 0 .396.022.58.06.3-.17.642-.275.99-.275a2.5 2.5 0 0 1 .977.197.5.5 0 1 1-.385.92 1.5 1.5 0 0 0-.592-.121 1.5 1.5 0 0 0-.7.187 2.49 2.49 0 0 1-1.013.21 1.98 1.98 0 0 1-.695-.097zM1.23 9.958a.5.5 0 0 1 .648.278l.5 1.17a2.5 2.5 0 0 0 1.15 1.303c.42.181.863.29 1.315.317a5.47 5.47 0 0 0 1.566-.081.5.5 0 0 1 .197.981 6.47 6.47 0 0 1-1.86.095 5.5 5.5 0 0 1-1.614-.386 3.5 3.5 0 0 1-1.601-1.822l-.5-1.171a.5.5 0 0 1 .277-.647z" />
-                </svg>
-                <h4 class="h3 mb-3">Universal Studios</h4>
-                <p class="fs-5">Reliable transportation service from Universal Orlando Resort and nearby hotels to all Port Canaveral cruise terminals for a seamless vacation experience.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
-              <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-map text-dark mb-3" viewBox="0 0 16 16">
-                  <path fill-rule="evenodd" d="M15.817.113A.5.5 0 0 1 16 .5v14a.5.5 0 0 1-.402.49l-5 1a.502.502 0 0 1-.196 0L5.5 15.01l-4.902.98A.5.5 0 0 1 0 15.5v-14a.5.5 0 0 1 .402-.49l5-1a.5.5 0 0 1 .196 0L10.5.99l4.902-.98a.5.5 0 0 1 .415.103zM10 1.91l-4-.8v12.98l4 .8V1.91zm1 12.98 4-.8V1.11l-4 .8v12.98zm-6-.8V1.11l-4 .8v12.98l4-.8z" />
-                </svg>
-                <h4 class="h3 mb-3">International Drive</h4>
-                <p class="fs-5">Easy access transportation from I-Drive hotels to Port Canaveral cruise terminals. Enjoy Orlando attractions before boarding your cruise ship.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Port Canaveral Cruise Information - Additional SEO content -->
-      <div class="row mb-6">
-        <div class="col-lg-10 mx-auto">
-          <div class="card border-0 shadow-lg">
-            <div class="card-body p-5">
-              <h3 class="h2 mb-4">Port Canaveral: Florida's Premier Cruise Port</h3>
-              <p class="fs-5 mb-4">Located just 45 minutes east of Orlando, Port Canaveral is one of the busiest cruise ports in the world and a major departure point for Caribbean and Bahamas cruises. Our transportation service specializes in comfortable, reliable transfers to all cruise terminals at Port Canaveral.</p>
-
-              <div class="row mb-4">
-                <div class="col-md-6">
-                  <h4 class="h4 mb-3">Port Canaveral Cruise Terminals</h4>
-                  <ul class="list-unstyled fs-5">
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Cruise Terminal 6: Royal Caribbean
-                    </li>
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Cruise Terminal 8: Disney Cruise Line
-                    </li>
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Cruise Terminal 10: Norwegian Cruise Line
-                    </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Cruise Terminal 1: Royal Caribbean
-                    </li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <h4 class="h4 mb-3">Popular Cruise Destinations</h4>
-                  <ul class="list-unstyled fs-5">
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Bahamas (Nassau, Freeport, CocoCay)
-                    </li>
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Eastern Caribbean (St. Thomas, St. Maarten)
-                    </li>
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Western Caribbean (Cozumel, Grand Cayman)
-                    </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
-                      Disney's Private Island: Castaway Cay
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              <p class="fs-5 mb-0">Whether you're sailing on Disney Cruise Line's newest ship, the Disney Wish, enjoying the thrills of Royal Caribbean's Wonder of the Seas, or experiencing any other cruise from Port Canaveral, our transportation service ensures you arrive at your terminal relaxed and on time.</p>
-            </div>
-          </div>
-        </div>
-        <div class="text-center mt-4">
-          <a href="{% url 'rates' %}" class="btn btn-dark btn-md px-5 py-3 rounded-pill">Get a Quote for Port Canaveral</a>
         </div>
       </div>
     </div>
   </section>
-  {% include 'call-to-action.html' %}
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: PRICING TABLES
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Rates</p>
+          <h2 class="lux-section-title">Port Canaveral Car Service Rates</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Every fare below is all-inclusive: tolls and taxes are in the price, pricing is per vehicle — never per person — and there is no surge pricing and no mandatory gratuity add-on. The rate you book is the rate you pay.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+          <h3 style="font-weight: 400; color: var(--lux-charcoal); font-size: 1.3rem; margin-top: 1rem;">MCO to Port Canaveral</h3>
+          <div class="table-responsive mb-4">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr><th>Vehicle</th><th>Passengers</th><th>One-Way</th><th>Round-Trip</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$160</strong></td><td>$315</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$190</td><td>$360</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$200</td><td>$395</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$235</td><td>$460</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$295</td><td>$575</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="font-weight: 400; color: var(--lux-charcoal); font-size: 1.3rem;">Disney World to Port Canaveral</h3>
+          <div class="table-responsive mb-4">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr><th>Vehicle</th><th>Passengers</th><th>One-Way</th><th>Round-Trip</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$185</strong></td><td>$360</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$205</td><td>$395</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$235</td><td>$455</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$270</td><td>$525</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$345</td><td>$675</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="font-weight: 400; color: var(--lux-charcoal); font-size: 1.3rem;">Universal Orlando to Port Canaveral</h3>
+          <div class="table-responsive mb-4">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr><th>Vehicle</th><th>Passengers</th><th>One-Way</th><th>Round-Trip</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$185</strong></td><td>$360</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$205</td><td>$395</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$235</td><td>$455</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$270</td><td>$525</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$345</td><td>$675</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="font-weight: 400; color: var(--lux-charcoal); font-size: 1.3rem;">Sanford Airport (SFB) to Port Canaveral</h3>
+          <div class="table-responsive mb-3">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr><th>Vehicle</th><th>Passengers</th><th>One-Way</th><th>Round-Trip</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$235</strong></td><td>$460</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$255</td><td>$495</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$285</td><td>$560</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$320</td><td>$575</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$395</td><td>$725</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Coming from International Drive, Kissimmee, or another Orlando-area hotel? We cover those too — <a href="{% url 'rates' %}">see the full rate table</a> for every route and vehicle.
+          </p>
+
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">View Rates &amp; Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: CRUISE TERMINAL GUIDE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Terminal Guide</p>
+          <h2 class="lux-section-title">Which Port Canaveral Terminal Is Your Ship At?</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Port Canaveral is one of the busiest cruise ports in the world, and each cruise line sails from its own terminal. Tell us your cruise line and ship when you book — your driver confirms the terminal before pickup, so there is no circling the port looking for the right building.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-6 col-lg-4">
+          <div class="terminal-card">
+            <div class="terminal-number">Terminal 8</div>
+            <h4>Disney Cruise Line</h4>
+            <p>Home port terminal for Disney Cruise Line sailings to the Bahamas and the Caribbean, including Disney's private island, Castaway Cay.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="terminal-card">
+            <div class="terminal-number">Terminals 1 &amp; 5</div>
+            <h4>Royal Caribbean</h4>
+            <p>Royal Caribbean sails from Port Canaveral on Bahamas and Caribbean itineraries, including stops at Perfect Day at CocoCay.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="terminal-card">
+            <div class="terminal-number">Terminals 3 &amp; 6</div>
+            <h4>Carnival</h4>
+            <p>Carnival runs year-round Bahamas and Caribbean sailings out of Port Canaveral from two terminals on the south side of the port.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="terminal-card">
+            <div class="terminal-number">Terminal 10</div>
+            <h4>Norwegian</h4>
+            <p>Norwegian Cruise Line sails from Terminal 10, with Caribbean and Bahamas itineraries departing throughout the year.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="terminal-card">
+            <div class="terminal-number">Terminal 3</div>
+            <h4>MSC</h4>
+            <p>MSC Cruises shares Terminal 3, with Caribbean sailings and stops at its private island reserve, Ocean Cay.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center mt-4">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
+            At every terminal, your driver pulls up to the passenger drop-off curb, unloads your bags, and points you to the porters who collect checked luggage — your suitcases go straight from our trunk to your stateroom door.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: EMBARKATION TIMING
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Timing</p>
+          <h2 class="lux-section-title">Day Before or Day Of? When to Leave for Your Cruise</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h4><i class="bi bi-sunrise me-2" style="color: var(--lux-gold);"></i>Sailing the same day you arrive</h4>
+            <p>
+              If you fly into MCO on embarkation morning, leave the airport with <strong>at least 2 hours of buffer</strong> before your cruise check-in window opens. The drive is 45-55 minutes on a normal day, but peak holiday traffic can add 15-20 minutes — and a missed check-in window is the one travel problem money cannot fix. Your driver tracks your flight in real time and adjusts the pickup to your actual arrival at no charge, so a delayed flight never means a missed car.
+            </p>
+          </div>
+
+          <div class="seo-highlight-box" style="border-left-color: var(--lux-charcoal);">
+            <h4><i class="bi bi-moon-stars me-2" style="color: var(--lux-gold);"></i>Flying in the day before</h4>
+            <p>
+              Many families fly in the day before and stay near the port or in Orlando — it removes flight delays from the equation entirely. Book your airport pickup to the hotel (our free 20-minute Publix grocery stop is handy for sunscreen, snacks, and bottled water before you board), then schedule a relaxed morning ride to the terminal. From an Orlando hotel, plan the same 2-hour buffer before your check-in window; from a Cocoa Beach-area hotel near the port, the ride to the terminal is short.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: POST-CRUISE PICKUP
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">After the Cruise</p>
+          <h2 class="lux-section-title">Post-Cruise Pickup: Terminal to MCO or Your Hotel</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Debarkation morning is the messiest part of any cruise — thousands of passengers, one parking lot, and a flight to catch. We handle it for you. Your driver monitors debarkation, positions outside your terminal, and meets you as you exit with your luggage. From there it is a direct ride to MCO for your flight home or to your Orlando hotel if you are extending the vacation.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Fares are the same in either direction — Port Canaveral back to MCO starts at <strong>$160</strong> one-way for a sedan, and booking your transfer round-trip saves money over two one-way rides (<a href="{% url 'rates' %}">see the full rate table</a>). Heading to Disney World or Universal after your sailing instead? We run those routes from the port every week.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: DISNEY CRUISE LINE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Disney Cruise Line</p>
+          <h2 class="lux-section-title">Disney Cruise Line Transfers to Terminal 8</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center align-items-center g-4">
+        <div class="col-lg-5">
+          <img src="{% static 'images/cruise.webp' %}"
+               width="800" height="600"
+               alt="Family arriving at the Disney Cruise Line terminal at Port Canaveral"
+               class="img-fluid"
+               loading="lazy"
+               style="width: 100%; object-fit: cover;" />
+        </div>
+        <div class="col-lg-5">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Disney Cruise Line families are our most common Port Canaveral booking. Whether you are landing at MCO or wrapping up a Disney World stay before your sailing, your driver takes you directly to Terminal 8, Disney Cruise Line's dedicated terminal.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Traveling with little ones? <a href="{% url 'car_seats_transportation' %}">Free Graco car seats</a> — infant, toddler, and booster — are professionally installed on every booking at no charge, so you do not have to fly a car seat across the country just to use it for two rides. Many guests pair the cruise with a resort stay using our <a href="{% url 'disney_world_transportation' %}">Disney World transportation</a> service: MCO to your resort, resort to Terminal 8, and the terminal back to the airport after the sailing.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
+            From MCO, Terminal 8 fares start at <strong>$160</strong> one-way for a sedan; from a Disney resort, <strong>$185</strong> — <a href="{% url 'rates' %}">see the full rate table</a> for all five vehicles.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: LUGGAGE CAPACITY
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Luggage</p>
+          <h2 class="lux-section-title">Cruise Luggage Capacity by Vehicle</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Cruise luggage runs bigger than airport luggage — a week at sea means full-size suitcases, garment bags, and the stroller. Here is what each vehicle comfortably holds.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-4 col-lg">
+          <div class="route-info-card">
+            <div class="route-value">~4</div>
+            <div class="route-label">Large Bags · Executive Sedan</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg">
+          <div class="route-info-card">
+            <div class="route-value">~5</div>
+            <div class="route-label">Large Bags · Family Minivan</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg">
+          <div class="route-info-card">
+            <div class="route-value">~6</div>
+            <div class="route-label">Large Bags · Luxury SUV</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg">
+          <div class="route-info-card">
+            <div class="route-value">~10</div>
+            <div class="route-label">Large Bags · Passenger Van</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4 col-lg">
+          <div class="route-info-card">
+            <div class="route-value">~14</div>
+            <div class="route-label">Large Bags · Sprinter Van</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
+            Every count above leaves room for carry-ons on top. If your group is traveling with full cruise luggage — or a stroller, golf clubs, or scuba gear — size up one vehicle class so everything rides with you instead of in a second car. Your driver loads and unloads every bag.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 9: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much is a car service from Orlando to Port Canaveral?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A private car from Orlando International Airport (MCO) to Port Canaveral starts at <strong>$160</strong> one-way or <strong>$315</strong> round-trip for an Executive Sedan (up to 4 passengers). A Family Minivan is $190 one-way, a Luxury SUV $200, a Passenger Van $235, and a Sprinter Van $295. Every fare is all-inclusive — tolls and taxes are in the price, pricing is per vehicle (never per person), and there is no surge pricing. <a href="{% url 'rates' %}">See the full rate table</a> for every route.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How far is Port Canaveral from MCO?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Port Canaveral is about 45 miles east of Orlando International Airport — a 45-55 minute drive via the FL-528 Beachline Expressway. From Walt Disney World resorts the trip is roughly 70 miles and takes 60-75 minutes. During peak holiday weeks, add 15-20 minutes for traffic.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Which cruise lines and terminals do you serve at Port Canaveral?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>We serve every cruise terminal at Port Canaveral: Disney Cruise Line at Terminal 8, Royal Caribbean at Terminals 1 and 5, Carnival at Terminals 3 and 6, Norwegian at Terminal 10, and MSC at Terminal 3. Your driver drops you at the correct terminal curbside, where porters collect your checked luggage.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How early should I leave for Port Canaveral on embarkation day?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Leave MCO or Orlando with at least 2 hours of buffer before your cruise check-in window opens. The drive from MCO takes 45-55 minutes via FL-528 and 60-75 minutes from Disney World, but peak holiday traffic can add 15-20 minutes. Many families fly in the day before, stay near the port or in Orlando, and ride to the terminal fresh the next morning.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you offer Disney World to Port Canaveral transfers?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Private transfers from Walt Disney World resorts to Port Canaveral start at <strong>$185</strong> one-way or <strong>$360</strong> round-trip for an Executive Sedan. The trip covers about 70 miles and takes 60-75 minutes. Your driver picks you up at your resort and drops you directly at your cruise terminal — Terminal 8 for Disney Cruise Line. <a href="{% url 'car_seats_transportation' %}">Free Graco car seats</a> are professionally installed on every booking.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can you pick me up from the cruise terminal after my cruise?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We run post-cruise pickups from every Port Canaveral terminal. Your driver monitors debarkation, meets you outside the terminal, helps with your luggage, and drives you directly to MCO for your flight or to your Orlando hotel — no shared-van waiting, no extra stops.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much luggage can I bring?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>An Executive Sedan holds about 4 large bags, a Family Minivan about 5, a Luxury SUV about 6, a Passenger Van about 10, and a Sprinter Van about 14 large bags — plus carry-ons. If your group is traveling with full cruise luggage, we recommend sizing up one vehicle class so everything rides with you.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 10: REVIEWS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Reviews</p>
+          <h2 class="lux-section-title">Rated 4.8 out of 5 by Orlando Travelers</h2>
+          <div class="lux-divider"></div>
+          <div class="review-score mb-1">4.8 / 5</div>
+          <div class="review-stars mb-3" aria-hidden="true">
+            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-half"></i>
+          </div>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Grayson Towncar holds a <strong>4.8/5 average across 1,500+ Google reviews</strong>. We are a family-owned Orlando company, founded in 2022, running airport and cruise transfers 24 hours a day. Your driver meets arriving guests at baggage claim with a name sign, tracks flights in real time, and texts when you land — and cruise-day pickups are scheduled around your check-in window, not a shuttle timetable.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 11: RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Other Popular Routes</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Airport Transfers</h5>
+            <p>All Orlando International Airport routes, rates, and meet &amp; greet details.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World Transportation</h5>
+            <p>Private transfers to every Disney resort — before or after your cruise.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'sanford_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-geo-alt me-2" style="color: var(--lux-gold);"></i>Sanford Airport (SFB)</h5>
+            <p>Flying Allegiant or another SFB carrier? Direct transfers to the port and parks.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'mco_to_disney_world' %}" class="seo-link-card">
+            <h5><i class="bi bi-signpost-2 me-2" style="color: var(--lux-gold);"></i>MCO to Disney World</h5>
+            <p>The full route guide: pricing, travel times, and what to expect on arrival.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 12: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your Port Canaveral Cruise Transfer</h2>
+          <p class="mb-4">From $160 one-way, all-inclusive. Every terminal, every cruise line, 24/7. Your driver is scheduled around your check-in window — not a shuttle timetable.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
 {% endblock %}

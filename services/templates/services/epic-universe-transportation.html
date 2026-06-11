@@ -6,20 +6,26 @@
 {% block meta_description %}
   <meta name="description"
         content="Private car service from Orlando Airport (MCO) to Epic Universe. Direct transfers, free car seats, no surge pricing. Book your ride to Universal's newest theme park." />
-  <meta property="og:title" content="Epic Universe Transportation from MCO | Grayson Towncar" />
-  <meta property="og:description" content="Private transfers from Orlando Airport to Epic Universe. Fixed pricing, free car seats for families, meet & greet at baggage claim." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ canonical_url }}" />
-  <meta property="og:image" content="{% static 'images/services-bg.webp' %}" />
   <link rel="preload"
         href="{% static 'images/services-bg.webp' %}"
         as="image"
         type="image/webp" />
 {% endblock %}
 
-{% block head_extra %}
-  <link rel="canonical" href="{{ canonical_url }}" />
+{% block social_meta %}
+  <meta property="og:site_name" content="Grayson Towncar" />
+  <meta property="og:title" content="Epic Universe Transportation from MCO | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from Orlando Airport to Epic Universe. Fixed pricing, free car seats for families, meet & greet at baggage claim." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/services-bg.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Epic Universe Transportation from MCO | Grayson Towncar" />
+  <meta name="twitter:description" content="Private transfers from Orlando Airport to Epic Universe. Fixed pricing, free car seats for families, meet & greet at baggage claim." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/services-bg.webp' %}" />
+{% endblock %}
 
+{% block head_extra %}
   <!-- BreadcrumbList Schema -->
   <script type="application/ld+json">
   {

@@ -1,0 +1,634 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Best Mears Alternative Orlando | Private Car vs Shuttle{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Looking for a Mears Connect alternative in Orlando? Compare private car service from $105 all-inclusive vs the shared shuttle, Uber/Lyft, and Tiffany Towncar." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Best Mears Alternative Orlando | Private Car vs Shuttle" />
+  <meta property="og:description" content="An honest comparison of Mears Connect alternatives: private car from $105 all-inclusive, Uber/Lyft, and other Orlando towncar services — prices, times, car seats." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/mears-alternative-orlando/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/full-fleet.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Best Mears Alternative Orlando | Private Car vs Shuttle" />
+  <meta name="twitter:description" content="An honest comparison of Mears Connect alternatives: private car from $105 all-inclusive, Uber/Lyft, and other Orlando towncar services." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/full-fleet.webp' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Mears Alternatives",
+        "item": "https://www.graysontowncar.com/mears-alternative-orlando/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Is a private car cheaper than Mears Connect for a family of 4?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "For a family of 4 adults, Mears Connect Standard charges $17.60 per adult — approximately $70.40 one-way to Disney World ($140.80 round-trip). Children ages 3–9 add $14.30 each. A Grayson Towncar private sedan costs $105 one-way for the entire vehicle — not per person. For 3 adults traveling together, Mears ($52.80) is cheaper. For 4 or more passengers, private car at $105 per vehicle becomes cost-competitive — and includes free car seats, direct delivery to your resort, and a 20-minute grocery stop that Mears does not offer."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What are the best alternatives to Mears in Orlando?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The main alternatives to Mears Connect for MCO airport transportation are: (1) Private car services such as Grayson Towncar (from $105 per vehicle, all-inclusive) and Ace Luxury Transportation (from $140 + 20% gratuity); (2) Rideshare apps Uber and Lyft (typically $30–$60 one-way, subject to surge pricing); (3) Tiffany Towncar (from $100 per vehicle, gratuity not included). For families with car seats, large groups, or travelers wanting a direct-to-resort experience with no shared stops, private car services offer the best value."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How long does Mears Connect take to get to Disney World?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Mears Connect typically takes 60 to 90 minutes from MCO to a Disney World hotel because the shared shuttle stops at multiple resorts along the way. A private car drives the same route direct in about 25 to 35 minutes (roughly 24 miles). During peak holiday traffic, add 15 to 20 minutes to either option."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Mears Connect provide car seats?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Mears Connect shared shuttles do not offer car seats, and car seat availability with Uber and Lyft in Orlando is unreliable. Grayson Towncar includes free Graco car seats — infant, toddler, and booster — professionally installed before pickup on every booking, at no extra charge."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What happened to Disney's Magical Express?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Disney's Magical Express — the free shuttle between Orlando International Airport and Disney World resorts — ended in January 2022. Mears Connect stepped in as the default paid shuttle, charging $17.60 per adult one-way. Travelers now choose between Mears Connect, Uber and Lyft, and private car services such as Grayson Towncar (from $105 per vehicle, all-inclusive)."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much is a private car from MCO to Disney World?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A Grayson Towncar Executive Sedan from MCO to any Disney World resort is $105 one-way or $195 round-trip — all-inclusive, with tolls and taxes included and no surge pricing. A Family Minivan (up to 5) is $120 one-way, a Luxury SUV (up to 6) is $140, a Passenger Van (up to 10) is $175, and a Sprinter Van (up to 14) is $225."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do private car services track my flight?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Grayson Towncar tracks your flight in real time and adjusts your pickup to the actual arrival at no charge. Your driver texts you when you land and meets you at baggage claim with a name sign. Mears Connect also tracks flights; Uber and Lyft do not — you request a car only after you have landed and collected your bags."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Orlando Airport Private Car Service — Mears Connect Alternative",
+    "serviceType": "Airport Transportation",
+    "description": "Private car alternative to the Mears Connect shuttle from Orlando International Airport (MCO). Direct transfers to Disney World, Universal Orlando, and area hotels with fixed all-inclusive pricing, free Graco car seats, and baggage-claim meet and greet.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Walt Disney World Resort"},
+      {"@type": "Place", "name": "Universal Orlando Resort"},
+      {"@type": "Place", "name": "International Drive"},
+      {"@type": "City", "name": "Kissimmee"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Private Car Alternatives to Mears Connect",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Disney World Private Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Universal Orlando Private Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to International Drive Private Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Kissimmee Private Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "105",
+      "priceCurrency": "USD",
+      "description": "MCO to Disney World resorts one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/mears-alternative-orlando/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    .seo-comparison-table tbody td:first-child { min-width: 130px; }
+    .mears-reasons .seo-benefits-list li {
+      font-size: 0.95rem;
+      padding: 0.55rem 0 0.55rem 1.6rem;
+    }
+    .mears-reasons .seo-benefits-list li strong {
+      color: var(--lux-charcoal);
+      font-weight: 600;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO (subdued, editorial)
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/full-fleet.webp' %}"
+         width="1920" height="1080"
+         alt="Grayson Towncar private fleet — an alternative to the Mears Connect shuttle in Orlando"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">An Honest Comparison</p>
+          <h1 class="lux-title mb-3">Best Mears Alternatives for Orlando Airport Transportation</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Comparing your options from MCO since Disney's Magical Express ended — shared shuttle, rideshare, and private car, with real prices and real travel times.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Compare Private Car Rates</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 from 1,500+ Google reviews</span>
+            <span><i class="bi bi-currency-dollar"></i> All-inclusive fixed pricing</span>
+            <span><i class="bi bi-people"></i> Family-owned, Orlando-based</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Mears Alternatives</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: OPENING — LIFE AFTER MAGICAL EXPRESS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <p class="lux-eyebrow text-center" style="color: var(--lux-gold);">The Situation</p>
+          <h2 class="lux-section-title text-center">Life After Disney's Magical Express</h2>
+          <div class="lux-divider"></div>
+          <p>
+            When Disney's Magical Express ended in January 2022, Mears Connect became the default MCO shuttle to the Disney World resorts. To be fair: it works. Flights are tracked, and at <strong>$17.60 per adult</strong> one-way it is the cheapest seat to Disney for a solo traveler.
+          </p>
+          <p>
+            But it is a shared shuttle: per-person pricing, a bus loading area you find yourself, and multiple hotel stops before yours — typically 60–90 minutes door to door. For a family with luggage and tired kids, that math and that hour both matter.
+          </p>
+          <p>
+            This page lays out the alternatives — rideshare, private car services like ours, and other towncar operators — with honest numbers. Already set on a private transfer? See our <a href="{% url 'mco_to_disney_world' %}">MCO to Disney World route guide</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: 4-COLUMN COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Side by Side</p>
+          <h2 class="lux-section-title">Mears Connect vs the Alternatives</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-11">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Mears Connect Standard</th>
+                  <th>Uber / Lyft</th>
+                  <th class="highlight-col">Grayson Towncar (Private)</th>
+                  <th>Tiffany Towncar</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>One-way price, family of 4</td>
+                  <td>$70.40 (4 adults; kids 3-9 $14.30 each)</td>
+                  <td>$30-60 + surge risk</td>
+                  <td class="highlight-col">$105 per vehicle, all-inclusive</td>
+                  <td>From $100 per vehicle + gratuity</td>
+                </tr>
+                <tr>
+                  <td>Travel time to Disney</td>
+                  <td>60-90 min with stops</td>
+                  <td>25-35 min</td>
+                  <td class="highlight-col">25-35 min direct</td>
+                  <td>25-35 min direct</td>
+                </tr>
+                <tr>
+                  <td>Vehicle</td>
+                  <td>Shared shuttle</td>
+                  <td>Random driver's car</td>
+                  <td class="highlight-col">Private sedan / SUV / van</td>
+                  <td>Private towncar</td>
+                </tr>
+                <tr>
+                  <td>Direct to resort</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                </tr>
+                <tr>
+                  <td>Free car seats</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Yes — Graco, pre-installed</td>
+                  <td><i class="bi bi-dash-circle"></i> Not published</td>
+                </tr>
+                <tr>
+                  <td>Flight tracking</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Yes, automatic</td>
+                  <td><i class="bi bi-dash-circle"></i> Not published</td>
+                </tr>
+                <tr>
+                  <td>Grocery stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free 20-min Publix stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-center mt-3" style="font-size: 0.85rem; color: var(--lux-medium-gray);">
+            Sedan rates to Disney World shown — <a href="{% url 'rates' %}">see the full rate table</a> for all vehicles and routes.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: WHEN PRIVATE IS CHEAPER THAN MEARS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <p class="lux-eyebrow text-center" style="color: var(--lux-gold);">Do the Math</p>
+          <h2 class="lux-section-title text-center">When a Private Car Beats Mears on Price</h2>
+          <div class="lux-divider"></div>
+          <p>
+            The break-even is simple: Mears charges per seat, a private car charges per vehicle.
+          </p>
+
+          <div class="seo-highlight-box">
+            <h3>Is a private car cheaper than Mears Connect for a family of 4?</h3>
+            <p>
+              For a family of 4 adults, Mears Connect Standard charges <strong>$17.60 per adult</strong> — approximately <strong>$70.40 one-way</strong> to Disney World ($140.80 round-trip). Children ages 3–9 add $14.30 each. A Grayson Towncar private sedan costs <strong>$105 one-way</strong> for the entire vehicle — not per person. For 3 adults traveling together, Mears ($52.80) is cheaper. For 4 or more passengers, private car at $105 per vehicle becomes cost-competitive — and includes free car seats, direct delivery to your resort, and a 20-minute grocery stop that Mears does not offer.
+            </p>
+          </div>
+
+          <p>
+            Every Grayson rate is all-inclusive — no surge, no mandatory gratuity — and never climbs with extra seats. <a href="{% url 'rates' %}">See the full rate table</a> or our <a href="{% url 'disney_world_transportation' %}">Disney World transportation</a> page.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: 5 REASONS FAMILIES CHOOSE PRIVATE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section mears-reasons" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <p class="lux-eyebrow text-center" style="color: var(--lux-gold);">Beyond the Fare</p>
+          <h2 class="lux-section-title text-center">5 Reasons Families Choose Private Car Over Mears Connect</h2>
+          <div class="lux-divider"></div>
+          <ul class="seo-benefits-list">
+            <li>
+              <i class="bi bi-check-circle-fill"></i>
+              <strong>Direct to your resort, no stops.</strong> The 60-90 minute shuttle loop becomes a 25-35 minute drive.
+            </li>
+            <li>
+              <i class="bi bi-check-circle-fill"></i>
+              <strong>Free pre-installed car seats.</strong> Graco infant, toddler, and booster seats, installed before your driver arrives. Mears offers none.
+            </li>
+            <li>
+              <i class="bi bi-check-circle-fill"></i>
+              <strong>Per-vehicle pricing, never per-person.</strong> <strong>$105</strong> covers everyone in the sedan — the same fare for two riders or four.
+            </li>
+            <li>
+              <i class="bi bi-check-circle-fill"></i>
+              <strong>Baggage-claim meet &amp; greet with flight tracking.</strong> Your driver texts when you land and waits at baggage claim with a name sign; delayed flights adjust pickup at no charge.
+            </li>
+            <li>
+              <i class="bi bi-check-circle-fill"></i>
+              <strong>Free 20-minute grocery stop.</strong> On airport pickups we stop at Publix, so you arrive with snacks and breakfast handled.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: THE OTHER ALTERNATIVES, HONESTLY
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <p class="lux-eyebrow text-center" style="color: var(--lux-gold);">The Full Picture</p>
+          <h2 class="lux-section-title text-center">The Other Alternatives, Honestly</h2>
+          <div class="lux-divider"></div>
+          <p>
+            We are one of several good options — here is the whole field, fairly stated.
+          </p>
+
+          <div class="seo-highlight-box">
+            <h3>What are the best alternatives to Mears in Orlando?</h3>
+            <p>
+              The main alternatives to Mears Connect for MCO airport transportation are: (1) Private car services such as Grayson Towncar (from <strong>$105</strong> per vehicle, all-inclusive) and Ace Luxury Transportation (from <strong>$140</strong> + 20% gratuity); (2) Rideshare apps Uber and Lyft (typically <strong>$30–$60</strong> one-way, subject to surge pricing); (3) Tiffany Towncar (from <strong>$100</strong> per vehicle, gratuity not included). For families with car seats, large groups, or travelers wanting a direct-to-resort experience with no shared stops, private car services offer the best value.
+            </p>
+          </div>
+
+          <p>
+            <strong>When Mears is the right call:</strong> solo travelers and couples on a budget. Two adults pay $35.20 one-way — no private service matches that.
+          </p>
+          <p>
+            <strong>When rideshare is the right call:</strong> light packers, no kids, off-peak arrival — if you can accept surge pricing, curb pickup, and no car seats.
+          </p>
+          <p>
+            <strong>Among private operators</strong>, compare what is included. Ace's $140 base is roughly $168 after its mandatory 20% gratuity; Tiffany's $100 excludes gratuity. Grayson's <strong>$105</strong> includes tolls, taxes, car seats, and meet &amp; greet, with no required tip — <a href="{% url 'rates' %}">see the full rate table</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is a private car cheaper than Mears Connect for a family of 4?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>For 4 adults, Mears runs about $70.40 one-way ($17.60 each); a Grayson private sedan is <strong>$105</strong> for the whole vehicle. At 3 adults Mears wins ($52.80); at 4 or more, private is cost-competitive — plus free car seats, a direct ride, and a grocery stop.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What are the best alternatives to Mears in Orlando?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Private car services such as Grayson Towncar (from <strong>$105</strong> per vehicle, all-inclusive) and Ace Luxury (from $140 + 20% gratuity); Uber and Lyft ($30-60, surge applies); and Tiffany Towncar (from $100, gratuity not included). For families with car seats or groups wanting a direct ride, private car offers the best value.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How long does Mears Connect take to get to Disney World?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Typically 60 to 90 minutes, because the shuttle stops at multiple resorts. A <a href="{% url 'mco_to_disney_world' %}">private car from MCO to Disney World</a> drives the same ~24 miles direct in 25 to 35 minutes. In peak holiday traffic, add 15 to 20 minutes.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Does Mears Connect provide car seats?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>No. Mears Connect shuttles do not offer car seats, and Uber/Lyft availability is unreliable. Grayson includes free Graco car seats — infant, toddler, and booster — professionally installed before pickup on every booking. <a href="{% url 'car_seats_transportation' %}">Learn more about our car seat program.</a></p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What happened to Disney's Magical Express?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Disney's free Magical Express shuttle ended in January 2022. Mears Connect stepped in as the default paid shuttle at $17.60 per adult one-way. Travelers now choose between Mears, rideshare, and private car services such as Grayson Towncar (from <strong>$105</strong> per vehicle, all-inclusive).</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much is a private car from MCO to Disney World?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A Grayson Executive Sedan to any <a href="{% url 'disney_world_transportation' %}">Disney World resort</a> is <strong>$105</strong> one-way or <strong>$195</strong> round-trip, all-inclusive — no surge, never per-person. Minivan $120, SUV $140, Van $175, Sprinter $225 one-way — <a href="{% url 'rates' %}">see the full rate table</a>.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do private car services track my flight?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Grayson tracks your flight and adjusts pickup to the actual arrival at no charge; your driver texts when you land and meets you at baggage claim with a name sign. Mears also tracks flights; Uber and Lyft do not.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Plan the Rest of Your Trip</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'mco_to_disney_world' %}" class="seo-link-card">
+            <h5><i class="bi bi-signpost-2 me-2" style="color: var(--lux-gold);"></i>MCO to Disney World</h5>
+            <p>The full route guide — pricing, timing, pickup.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World Transportation</h5>
+            <p>Private transfers to every Disney resort area.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Airport Transfers</h5>
+            <p>All Orlando airport transportation routes and rates.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'sanford_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-geo-alt me-2" style="color: var(--lux-gold);"></i>Sanford Airport (SFB)</h5>
+            <p>Flying into Sanford? Private transfers from SFB too.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Try the Private-Car Alternative</h2>
+          <p class="mb-4">From $105, all-inclusive — tolls, taxes, car seats, and meet &amp; greet included. No surge, no shared stops.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}

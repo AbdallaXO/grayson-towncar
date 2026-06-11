@@ -1,336 +1,659 @@
-{% extends "main.html" %}
-{% load seo_tags %}
+{% extends 'main.html' %}
 {% load static %}
 
-{% block head_extra %}
-  <link rel="canonical"
-        href="https://www.graysontowncar.com/services/corporate-transportation/" />
-  <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Service",
-      "name": "Corporate Transportation Orlando",
-      "serviceType": "Corporate Transportation",
-      "description": "Premium corporate transportation in Orlando for business travel, corporate events, and executive transfers. Professional chauffeurs, luxury vehicles, and reliable service.",
-      "provider": {
-        "@type": "LocalBusiness",
-        "name": "Grayson Towncar",
-        "image": "{% static 'images/logo.png' %}",
-        "address": {
-          "@type": "PostalAddress",
-          "addressLocality": "Orlando",
-          "addressRegion": "FL"
-        }
-      },
-      "areaServed": {"@type": "Place", "name": "Orlando Metro Area, FL"}
-    }
-  </script>
-{% endblock head_extra %}
-
-{% block title %}Corporate Transportation Orlando | Grayson Towncar{% endblock %}
+{% block title %}Corporate Car Service Orlando | Executive Transport | Grayson{% endblock %}
 
 {% block meta_description %}
   <meta name="description"
-        content="Premium corporate transportation in Orlando for business travel, corporate events, and executive transfers. Professional chauffeurs, luxury vehicles, and reliable service for your business needs.">
-{% endblock meta_description %}
+        content="Corporate car service in Orlando: executive MCO airport transfers, convention center runs, and VIP pickups from $105 with fixed all-inclusive pricing, 24/7." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Corporate Car Service Orlando | Grayson Towncar" />
+  <meta property="og:description" content="Executive airport transfers, Orange County Convention Center runs, and client pickups. Fixed all-inclusive pricing your finance team can approve in advance." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/services/corporate-transportation/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/chauffeur-door.jpg' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Corporate Car Service Orlando | Grayson Towncar" />
+  <meta name="twitter:description" content="Executive airport transfers, convention center runs, and client pickups in Orlando. Fixed all-inclusive pricing, receipts for every ride, 24/7." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/chauffeur-door.jpg' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Corporate Transportation",
+        "item": "https://www.graysontowncar.com/services/corporate-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Do you provide corporate accounts and invoicing?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Grayson Towncar works with Orlando businesses on a corporate-account basis. Book by email or phone, receive a receipt for every ride for expense reporting, and request consolidated invoicing for your accounting team. Email reservations@graysontowncar.com or call (407) 212-7190 to set up corporate billing."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I book multiple vehicles for a group arriving on different flights?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We coordinate multiple vehicles for teams arriving on different flights. Each vehicle's driver tracks its own arriving flight in real time, adjusts the pickup to the actual arrival at no charge, and meets that group at baggage claim with a name sign — so one delayed flight never strands the rest of your team."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer early morning and late-night service?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Grayson Towncar operates 24/7, every day of the year. A 5 AM departure to MCO or a midnight arrival is scheduled exactly like any other ride, and your driver tracks the flight so a late landing never costs you your pickup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is pricing fixed for corporate clients?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every rate is a fixed, all-inclusive, per-vehicle price: tolls and taxes are included, there is no surge pricing, and there is no mandatory gratuity add-on. MCO to the International Drive convention area is $105 one-way in an Executive Sedan or $140 in a Luxury SUV. The price your finance team approves is the price on the receipt."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide receipts for expense reporting?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Every ride comes with a receipt suitable for expense reporting, and corporate clients can request consolidated invoicing across multiple rides or travelers. Because pricing is fixed and all-inclusive, the receipt always matches the quote."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Corporate Transportation Orlando",
+    "serviceType": "Corporate Transportation",
+    "description": "Corporate car service in Orlando: executive airport transfers from MCO, Orange County Convention Center runs, client and VIP pickups, and coordinated multi-vehicle transfers for teams arriving on different flights. Fixed all-inclusive pricing with receipts for every ride.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Orange County Convention Center"},
+      {"@type": "Place", "name": "International Drive"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Corporate Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Orange County Convention Center / International Drive Executive Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Executive Airport Transfer from Orlando International Airport"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Multi-Vehicle Group Coordination for Corporate Teams"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Client and VIP Pickup Service"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "105",
+      "priceCurrency": "USD",
+      "description": "MCO to International Drive / convention area one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/services/corporate-transportation/"
+  }
+  </script>
+{% endblock %}
 
 {% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
   <style>
-      /* Luxury Design System */
-      :root {
-          --lux-black: #0a0a0a;
-          --lux-charcoal: #1a1a1a;
-          --lux-dark-gray: #2d2d2d;
-          --lux-medium-gray: #6b6b6b;
-          --lux-light-gray: #a0a0a0;
-          --lux-off-white: #f8f7f5;
-          --lux-white: #ffffff;
-          --lux-gold: #b8956c;
-          --lux-gold-light: #d4b896;
-          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      .lux-hero {
-          padding: 6rem 0;
-          background: linear-gradient(135deg, var(--lux-charcoal) 0%, var(--lux-black) 100%);
-      }
-
-      .lux-eyebrow { font-size: 0.75rem; font-weight: 400; letter-spacing: 0.35em; text-transform: uppercase; color: var(--lux-gold); margin-bottom: 1.5rem; }
-      .lux-title { font-size: clamp(2.5rem, 5vw, 3.5rem); font-weight: 200; letter-spacing: -0.02em; line-height: 1.1; color: var(--lux-white); }
-      .lux-divider { width: 60px; height: 1px; background: var(--lux-gold); margin: 1.5rem auto; }
-      .lux-section { padding: 5rem 0; }
-      .lux-section-title { font-size: clamp(1.75rem, 4vw, 2.25rem); font-weight: 200; letter-spacing: -0.02em; color: var(--lux-charcoal); margin-bottom: 1rem; }
-      .lux-section-subtitle { font-size: 1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 600px; margin: 0 auto; }
-
-      .lux-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
-          transition: var(--transition);
-          overflow: hidden;
-      }
-
-      .lux-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
-
-      .lux-icon-box {
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: 1px solid var(--lux-gold);
-          color: var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .lux-card:hover .lux-icon-box { background: var(--lux-gold); color: var(--lux-white); }
-
-      .lux-btn {
-          padding: 1rem 2.5rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          border-radius: 0;
-          border: none;
-          transition: var(--transition);
-          display: inline-block;
-          text-decoration: none;
-      }
-
-      .lux-btn-primary { background: var(--lux-gold); color: var(--lux-white); }
-      .lux-btn-primary:hover { background: var(--lux-gold-light); color: var(--lux-charcoal); transform: translateY(-2px); }
-      .lux-btn-outline { background: transparent; border: 1px solid var(--lux-white); color: var(--lux-white); }
-      .lux-btn-outline:hover { background: var(--lux-white); color: var(--lux-charcoal); }
-      .lux-btn-dark { background: var(--lux-charcoal); color: var(--lux-white); }
-      .lux-btn-dark:hover { background: var(--lux-black); color: var(--lux-white); transform: translateY(-2px); }
-
-      .service-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          border-left: 3px solid var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .service-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
-
-      .vehicle-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          position: relative;
-          overflow: hidden;
-          transition: var(--transition);
-      }
-
-      .vehicle-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--lux-gold); transform: scaleX(0); transition: var(--transition); }
-      .vehicle-card:hover::before { transform: scaleX(1); }
-      .vehicle-card:hover { transform: translateY(-6px); box-shadow: 0 15px 45px rgba(0,0,0,0.1); }
-
-      @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-      .lux-card, .service-card, .vehicle-card { animation: fadeInUp 0.6s ease-out; }
-
-      @media (max-width: 991px) { .lux-section { padding: 4rem 0; } }
+    .corp-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 1.75rem 1.5rem;
+      transition: var(--transition);
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .corp-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--lux-gold);
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+    .corp-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.08);
+    }
+    .corp-card:hover::before {
+      transform: scaleX(1);
+    }
+    .corp-card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--lux-charcoal);
+      margin-bottom: 0.5rem;
+    }
+    .corp-card p {
+      font-weight: 300;
+      font-size: 0.88rem;
+      color: var(--lux-medium-gray);
+      line-height: 1.65;
+      margin-bottom: 0;
+    }
+    .corp-card .corp-icon {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--lux-gold);
+      color: var(--lux-gold);
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      transition: var(--transition);
+    }
+    .corp-card:hover .corp-icon {
+      background: var(--lux-gold);
+      color: var(--lux-white);
+    }
+    .review-stars {
+      color: var(--lux-gold);
+      font-size: 1.35rem;
+      letter-spacing: 0.35rem;
+      margin-bottom: 1rem;
+    }
   </style>
-{% endblock extra_css %}
+{% endblock %}
 
 {% block content %}
-  {% block schema %}
-    {% structured_data additional_data=structured_data %}
-  {% endblock schema %}
+<div class="seo-page">
 
-  <!-- Hero Section -->
-  <section class="lux-hero text-white" id="hero">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/chauffeur-door.jpg' %}"
+         width="1920" height="1080"
+         alt="Chauffeur opening the door of an executive vehicle for a corporate client in Orlando"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">Executive Service</p>
+          <h1 class="lux-title mb-3">Corporate Transportation in Orlando</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Executive airport transfers, convention center runs, and client pickups — with fixed all-inclusive pricing your finance team can approve before anyone boards a plane.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Corporate Rates</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 — 1,500+ Google reviews</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed all-inclusive pricing</span>
+            <span><i class="bi bi-clock"></i> 24/7 service, every day</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Corporate Transportation</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: OPENING
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Business Travel</p>
+          <h2 class="lux-section-title">Executive Airport Transfers, Convention Runs, and VIP Pickups</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Grayson Towncar is a family-owned Orlando car service handling corporate transportation across Central Florida: <a href="{% url 'orlando_airport_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">executive transfers from Orlando International Airport (MCO)</a>, daily runs to the Orange County Convention Center, client and VIP pickups, and team transportation for offsites at Orlando's resorts. We operate 24/7 and hold a 4.8/5 average rating across more than 1,500 Google reviews.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            The Orange County Convention Center sits on International Drive, roughly 15 miles from MCO — a 20-25 minute ride. Sedan fares on that route start at <strong>$105 one-way</strong>, fixed and all-inclusive: tolls and taxes are included, there is no surge pricing, and there is no mandatory gratuity add-on. The number we quote is the number on the receipt, so your finance team can approve the exact cost of every transfer in advance — <a href="{% url 'rates' %}">see the full rate table</a>.
+          </p>
+
+          <div class="seo-highlight-box mt-4">
+            <h4>Every Airport Pickup Includes Baggage-Claim Meet &amp; Greet</h4>
+            <p>
+              Your driver tracks the flight in real time, texts when it lands, and waits at baggage claim with a name sign. Free pickup adjustment for delayed flights is built in: the pickup time adjusts to the actual arrival at no charge, so a delayed connection never leaves your executive stranded at the airport. Arriving at the new Terminal C? See our <a href="{% url 'mco_terminal_c_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">MCO Terminal C pickup guide</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: WHO WE SERVE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Who We Serve</p>
+          <h2 class="lux-section-title">Corporate Transportation for Every Kind of Business Trip</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-6 col-lg-3">
+          <div class="corp-card">
+            <div class="corp-icon"><i class="bi bi-building"></i></div>
+            <h4>Conventions &amp; Trade Shows</h4>
+            <p>Show-day runs between I-Drive hotels and the Orange County Convention Center, plus MCO transfers for exhibitors and booth staff arriving throughout the day.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="corp-card">
+            <div class="corp-icon"><i class="bi bi-person-badge"></i></div>
+            <h4>Executive Recruiting Visits</h4>
+            <p>Flying in a candidate? A chauffeur at baggage claim with a name sign and a quiet, comfortable ride to the hotel sets the tone before the first interview.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="corp-card">
+            <div class="corp-icon"><i class="bi bi-stars"></i></div>
+            <h4>Client Entertainment</h4>
+            <p>Hosting clients in Orlando? We handle the dinner runs, resort transfers, and park-day logistics so you can focus on the relationship instead of the driving.</p>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="corp-card">
+            <div class="corp-icon"><i class="bi bi-people"></i></div>
+            <h4>Team Offsites at Orlando Resorts</h4>
+            <p>Moving a team to an offsite at a Disney, Universal, or Championsgate resort? Our Passenger Van seats up to 10 and our Sprinter Van seats up to 14 — the whole group rides together.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: HOW CORPORATE BOOKING WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">How Corporate Booking Works</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">No portal to learn, no app to install. Send the itinerary; we handle the rest.</p>
+        </div>
+      </div>
+
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book by Email or Phone</h4>
+            <p>Send your itinerary to <a href="mailto:reservations@graysontowncar.com" style="color: var(--lux-gold);">reservations@graysontowncar.com</a> or call (407) 212-7190 — any hour, any day.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>We Coordinate the Vehicles</h4>
+            <p>Groups arriving on different flights get multiple vehicles, and each vehicle's driver tracks its own arriving flight — one delay never holds up the rest of the team.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Drivers Meet Every Arrival</h4>
+            <p>Each traveler gets a text the moment their flight lands and a driver waiting at baggage claim with a name sign.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Receipts for Every Ride</h4>
+            <p>Every transfer produces a receipt for expense reporting, and corporate clients can request consolidated invoicing across travelers.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: PRICING
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Pricing</p>
+          <h2 class="lux-section-title">Fixed Corporate Rates from MCO to the Convention Area</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Per-vehicle pricing — never per person. Tolls and taxes included. No surge, no hidden fees.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-9">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>MCO &harr; International Drive / Convention Area</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Executive Sedan</td>
+                  <td>Up to 4</td>
+                  <td><strong>$105</strong></td>
+                  <td>$195</td>
+                </tr>
+                <tr>
+                  <td>Family Minivan</td>
+                  <td>Up to 5</td>
+                  <td>$120</td>
+                  <td>$230</td>
+                </tr>
+                <tr>
+                  <td>Luxury SUV</td>
+                  <td>Up to 6</td>
+                  <td><strong>$140</strong></td>
+                  <td>$275</td>
+                </tr>
+                <tr>
+                  <td>Passenger Van</td>
+                  <td>Up to 10</td>
+                  <td>$175</td>
+                  <td>$340</td>
+                </tr>
+                <tr>
+                  <td>Sprinter Van</td>
+                  <td>Up to 14</td>
+                  <td>$225</td>
+                  <td>$440</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="mt-4" style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            The ride from MCO to the I-Drive convention corridor takes 20-25 minutes (about 15 miles). Sedan transfers from MCO to Disney World resorts or Universal-area hotels are also <strong>$105 one-way</strong>, and MCO to Port Canaveral runs <strong>$160</strong> by sedan — <a href="{% url 'rates' %}">see the full rate table</a> for every route and vehicle.
+          </p>
+
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">See All Rates &amp; Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide corporate accounts and invoicing?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We work with Orlando businesses on a corporate-account basis. Book by email or phone, receive a receipt for every ride for expense reporting, and request consolidated invoicing for your accounting team. Email <a href="mailto:reservations@graysontowncar.com" style="color: var(--lux-gold);">reservations@graysontowncar.com</a> or call (407) 212-7190 to set up corporate billing.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can I book multiple vehicles for a group arriving on different flights?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We coordinate multiple vehicles for teams arriving on different flights. Each vehicle's driver tracks its own arriving flight in real time, adjusts the pickup to the actual arrival at no charge, and meets that group at baggage claim with a name sign — so one delayed flight never strands the rest of your team.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you offer early morning and late-night service?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We operate 24/7, every day of the year. A 5 AM departure to MCO or a midnight arrival is scheduled exactly like any other ride, and your driver tracks the flight so a late landing never costs you your pickup.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is pricing fixed for corporate clients?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Every rate is a fixed, all-inclusive, per-vehicle price: tolls and taxes are included, there is no surge pricing, and there is no mandatory gratuity add-on. MCO to the International Drive convention area is <strong>$105 one-way</strong> in an Executive Sedan or <strong>$140</strong> in a Luxury SUV — <a href="{% url 'rates' %}">see the full rate table</a>. The price your finance team approves is the price on the receipt.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide receipts for expense reporting?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Every ride comes with a receipt suitable for expense reporting, and corporate clients can request consolidated invoicing across multiple rides or travelers. Because pricing is fixed and all-inclusive, the receipt always matches the quote.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: REVIEWS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center">
-          <p class="lux-eyebrow">Executive Service</p>
-          <h1 class="lux-title mb-4">Corporate Transportation Orlando</h1>
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Reputation</p>
+          <h2 class="lux-section-title">Rated 4.8/5 by 1,500+ Google Reviewers</h2>
           <div class="lux-divider"></div>
-          <p style="font-size: 1.1rem; font-weight: 300; opacity: 0.85; line-height: 1.8; margin-bottom: 2rem;">Premium business transportation services for executives, corporate events, and business travel</p>
-          <a href="{% url 'rates' %}" class="lux-btn lux-btn-outline">Book Your Corporate Transfers</a>
+          <div class="review-stars" aria-hidden="true">
+            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-half"></i>
+          </div>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Grayson Towncar holds a <strong>4.8 out of 5</strong> average across more than 1,500 Google reviews. Companies keep us on file for the same reasons families do: drivers who are already waiting when the flight lands, a fleet that fits everything from a solo executive to a 14-person team, and a price that never changes between booking and billing.
+          </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Main Content -->
-  <section class="lux-section" style="background: var(--lux-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: RELATED SERVICES
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
     <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-lg-10 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Our Services</p>
-          <h2 class="lux-section-title">Premium Corporate Transportation Services</h2>
-          <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">Professional and reliable transportation services tailored for business travelers and corporate events in Orlando.</p>
-        </div>
-      </div>
-
-      <!-- Service Cards -->
-      <div class="row g-4 mb-5">
-        <div class="col-md-6">
-          <div class="service-card h-100 shadow-sm">
-            <div class="card-body p-5">
-              <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.25rem;">Business Travel Services</h3>
-              <ul class="list-unstyled mb-0">
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Airport Transfers</li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Hotel to Office</li>
-                <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Business Meetings</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="service-card h-100 shadow-sm">
-            <div class="card-body p-5">
-              <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.25rem;">Corporate Event Services</h3>
-              <ul class="list-unstyled mb-0">
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Conferences</li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Team Building</li>
-                <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Corporate Retreats</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Service Features -->
-      <div class="row mb-5">
-        <div class="col-12">
-          <div class="lux-card shadow-sm" style="border-left: 3px solid var(--lux-gold);">
-            <div class="card-body p-5">
-              <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 2rem; font-size: 1.25rem;">Our Corporate Transportation Service Includes</h3>
-              <div class="row">
-                <div class="col-md-6">
-                  <ul class="list-unstyled">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 1rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i><strong style="font-weight: 400;">Professional Chauffeurs</strong></li>
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 1rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i><strong style="font-weight: 400;">Luxury Fleet</strong></li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i><strong style="font-weight: 400;">Corporate Accounts</strong></li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <ul class="list-unstyled">
-                    <li style="color: var(--lux-dark-gray); margin-bottom: 1rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i><strong style="font-weight: 400;">Flight Tracking</strong></li>
-                    <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i><strong style="font-weight: 400;">24/7 Support</strong></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Vehicle Options -->
-      <div class="row mb-5">
-        <div class="col-12 text-center mb-4">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Fleet</p>
-          <h3 class="lux-section-title">Vehicle Options for Corporate Transportation</h3>
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Related Services</h2>
           <div class="lux-divider"></div>
         </div>
       </div>
-      <div class="row g-4 mb-5">
-        <div class="col-md-4">
-          <div class="vehicle-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-car-front fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Executive Sedan</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0;">Perfect for individual executives or small groups (up to 3 passengers).</p>
-            </div>
-          </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Airport Transfers</h5>
+            <p>All Orlando airport transportation routes, rates, and pickup details.</p>
+          </a>
         </div>
-        <div class="col-md-4">
-          <div class="vehicle-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-truck fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Luxury SUV</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0;">Ideal for executive teams (up to 6 passengers).</p>
-            </div>
-          </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_car_service_international_drive' %}" class="seo-link-card">
+            <h5><i class="bi bi-signpost-2 me-2" style="color: var(--lux-gold);"></i>International Drive Car Service</h5>
+            <p>Transfers to I-Drive hotels and the convention district.</p>
+          </a>
         </div>
-        <div class="col-md-4">
-          <div class="vehicle-card h-100 shadow-sm">
-            <div class="card-body p-4 text-center">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-bus-front fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Executive Van</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0;">Perfect for larger groups (up to 10 passengers).</p>
-            </div>
-          </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'port_canaveral_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-water me-2" style="color: var(--lux-gold);"></i>Port Canaveral Transfers</h5>
+            <p>Direct rides between Orlando and the cruise terminals.</p>
+          </a>
         </div>
-      </div>
-
-      <div class="text-center mb-5">
-        <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">View Transportation Rates</a>
       </div>
     </div>
   </section>
 
-  <!-- Why Choose Us -->
-  <section class="lux-section" style="background: var(--lux-off-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 9: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
     <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-lg-10 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Why Choose Us</p>
-          <h2 class="lux-section-title">Why Choose Our Corporate Transportation Service?</h2>
-          <div class="lux-divider"></div>
-        </div>
-      </div>
-      <div class="row g-4">
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 shadow-sm">
-            <div class="card-body text-center p-4">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-star fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Professional Service</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0; font-size: 0.9rem;">Experienced chauffeurs and well-maintained vehicles.</p>
-            </div>
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Set Up Corporate Transportation Today</h2>
+          <p class="mb-4">Fixed all-inclusive rates. Receipts for every ride. 24/7 service — book by phone or email reservations@graysontowncar.com.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
           </div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 shadow-sm">
-            <div class="card-body text-center p-4">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-clock fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Reliability</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0; font-size: 0.9rem;">Punctual service with real-time tracking.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 shadow-sm">
-            <div class="card-body text-center p-4">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-briefcase fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Corporate Accounts</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0; font-size: 0.9rem;">Easy billing and account management.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 shadow-sm">
-            <div class="card-body text-center p-4">
-              <div class="lux-icon-box mx-auto mb-4">
-                <i class="bi bi-gear fs-4"></i>
-              </div>
-              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Flexible Solutions</h4>
-              <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0; font-size: 0.9rem;">Customized transportation for any business need.</p>
-            </div>
-          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
         </div>
       </div>
     </div>
   </section>
 
-  {% include "call-to-action.html" %}
-{% endblock content %}
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}

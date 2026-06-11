@@ -6,20 +6,26 @@
 {% block meta_description %}
   <meta name="description"
         content="Know exactly where to meet your driver at MCO Terminal C. Private car service with meet & greet, flight tracking, and free car seats. No confusion, no waiting." />
-  <meta property="og:title" content="MCO Terminal C Pickup & Car Service | Grayson Towncar" />
-  <meta property="og:description" content="Private car service at Orlando Airport's Terminal C. Your driver meets you inside — no searching for rideshare zones. Flight tracking, free car seats, fixed pricing." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="{{ canonical_url }}" />
-  <meta property="og:image" content="{% static 'images/Orlando_Airport_Terminal_c.webp' %}" />
   <link rel="preload"
         href="{% static 'images/Orlando_Airport_Terminal_c.webp' %}"
         as="image"
         type="image/webp" />
 {% endblock %}
 
-{% block head_extra %}
-  <link rel="canonical" href="{{ canonical_url }}" />
+{% block social_meta %}
+  <meta property="og:site_name" content="Grayson Towncar" />
+  <meta property="og:title" content="MCO Terminal C Pickup & Car Service | Grayson Towncar" />
+  <meta property="og:description" content="Private car service at Orlando Airport's Terminal C. Your driver meets you inside — no searching for rideshare zones. Flight tracking, free car seats, fixed pricing." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/Orlando_Airport_Terminal_c.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MCO Terminal C Pickup & Car Service | Grayson Towncar" />
+  <meta name="twitter:description" content="Private car service at Orlando Airport's Terminal C. Your driver meets you inside — no searching for rideshare zones. Flight tracking, free car seats, fixed pricing." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/Orlando_Airport_Terminal_c.webp' %}" />
+{% endblock %}
 
+{% block head_extra %}
   <!-- BreadcrumbList Schema -->
   <script type="application/ld+json">
   {

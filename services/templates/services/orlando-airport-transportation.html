@@ -1,912 +1,563 @@
 {% extends 'main.html' %}
-{% load seo_tags %}
-{% load quote_tags %}
 {% load static %}
+{% load quote_tags %}
+{% load seo_tags %}
 
-{% block head_extra %}
-  <link rel="canonical"
-        href="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
-  <style>
-      /* Luxury Design System */
-      :root {
-          --lux-black: #0a0a0a;
-          --lux-charcoal: #1a1a1a;
-          --lux-dark-gray: #2d2d2d;
-          --lux-medium-gray: #6b6b6b;
-          --lux-light-gray: #a0a0a0;
-          --lux-off-white: #f8f7f5;
-          --lux-white: #ffffff;
-          --lux-gold: #b8956c;
-          --lux-gold-light: #d4b896;
-          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-
-      /* Force text visibility in quote form - but allow validation states */
-      .quote-form-container label,
-      .quote-form-container .form-label {
-          color: #212529 !important;
-          font-weight: 400;
-          letter-spacing: 0.02em;
-      }
-
-      .quote-form-container h5,
-      .quote-form-container h6,
-      .quote-form-container p {
-          color: #212529 !important;
-      }
-
-      .quote-form-container .text-muted {
-          color: var(--lux-medium-gray) !important;
-      }
-
-      .quote-form-container .text-dark {
-          color: #212529 !important;
-      }
-
-      .quote-form-container .bg-light {
-          background-color: var(--lux-off-white) !important;
-      }
-
-      .quote-form-container .card {
-          background-color: var(--lux-off-white) !important;
-          border-radius: 0 !important;
-      }
-
-      /* Vehicle preview specific styling */
-      .quote-form-container .vehicle-preview,
-      .quote-form-container .vehicle-preview * {
-          color: #212529 !important;
-      }
-
-      .quote-form-container .vehicle-name,
-      .quote-form-container .passenger-capacity,
-      .quote-form-container .luggage-capacity,
-      .quote-form-container .carseats-display {
-          color: #212529 !important;
-      }
-
-      .quote-form-container .vehicle-placeholder {
-          color: var(--lux-medium-gray) !important;
-      }
-
-      .quote-form-container .vehicle-placeholder * {
-          color: var(--lux-medium-gray) !important;
-      }
-
-      /* Allow validation states to work */
-      .quote-form-container .form-control.is-valid,
-      .quote-form-container .form-select.is-valid {
-          border-color: #198754 !important;
-          background-color: #fff !important;
-      }
-
-      .quote-form-container .form-control.is-invalid,
-      .quote-form-container .form-select.is-invalid {
-          border-color: #dc3545 !important;
-          background-color: #fff !important;
-      }
-
-      .quote-form-container .is-valid {
-          color: #198754 !important;
-      }
-
-      .quote-form-container .is-invalid {
-          color: #dc3545 !important;
-      }
-
-      /* Ensure form controls have proper background */
-      .quote-form-container .form-control,
-      .quote-form-container .form-select {
-          background-color: #fff !important;
-          color: #212529 !important;
-          border-radius: 0 !important;
-          border: 1px solid #e0e0e0 !important;
-      }
-
-      /* Ensure select options are visible */
-      .quote-form-container select option {
-          color: #212529 !important;
-          background-color: #fff !important;
-      }
-
-      /* Luxury Hero Styling */
-      .lux-hero {
-          position: relative;
-          min-height: 90vh;
-          display: flex;
-          align-items: center;
-      }
-
-      .lux-hero::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: linear-gradient(135deg, rgba(10,10,10,0.85) 0%, rgba(26,26,26,0.75) 100%);
-          z-index: 1;
-      }
-
-      .lux-hero > .container {
-          position: relative;
-          z-index: 2;
-      }
-
-      .lux-eyebrow {
-          font-size: 0.75rem;
-          font-weight: 400;
-          letter-spacing: 0.35em;
-          text-transform: uppercase;
-          color: var(--lux-gold);
-          margin-bottom: 1.5rem;
-      }
-
-      .lux-title {
-          font-size: clamp(2.5rem, 5vw, 3.5rem);
-          font-weight: 200;
-          letter-spacing: -0.02em;
-          line-height: 1.1;
-          color: var(--lux-white);
-      }
-
-      .lux-title-accent {
-          color: var(--lux-gold-light);
-          font-weight: 300;
-      }
-
-      .lux-lead {
-          font-size: 1.1rem;
-          font-weight: 300;
-          line-height: 1.7;
-          color: rgba(255,255,255,0.8);
-      }
-
-      .lux-highlight {
-          color: var(--lux-gold);
-          font-weight: 400;
-      }
-
-      /* Luxury Card Styling */
-      .lux-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
-          transition: var(--transition);
-      }
-
-      .lux-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 40px rgba(0,0,0,0.12);
-      }
-
-      /* Luxury Section Styling */
-      .lux-section {
-          padding: 6rem 0;
-      }
-
-      .lux-section-dark {
-          background: var(--lux-charcoal);
-          color: var(--lux-white);
-      }
-
-      .lux-section-light {
-          background: var(--lux-off-white);
-      }
-
-      .lux-section-title {
-          font-size: clamp(2rem, 4vw, 2.75rem);
-          font-weight: 200;
-          letter-spacing: -0.02em;
-          margin-bottom: 1rem;
-      }
-
-      .lux-section-subtitle {
-          font-size: 1rem;
-          font-weight: 300;
-          color: var(--lux-medium-gray);
-          max-width: 600px;
-          margin: 0 auto;
-      }
-
-      /* Luxury Feature Icons */
-      .lux-icon-box {
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: transparent;
-          border: 1px solid var(--lux-gold);
-          color: var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .lux-card:hover .lux-icon-box {
-          background: var(--lux-gold);
-          color: var(--lux-white);
-      }
-
-      /* Luxury Buttons */
-      .lux-btn {
-          padding: 1rem 2.5rem;
-          font-size: 0.8rem;
-          font-weight: 500;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          border-radius: 0;
-          border: none;
-          transition: var(--transition);
-      }
-
-      .lux-btn-primary {
-          background: var(--lux-gold);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-primary:hover {
-          background: var(--lux-gold-light);
-          color: var(--lux-charcoal);
-          transform: translateY(-2px);
-      }
-
-      .lux-btn-outline {
-          background: transparent;
-          border: 1px solid var(--lux-white);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-outline:hover {
-          background: var(--lux-white);
-          color: var(--lux-charcoal);
-      }
-
-      .lux-btn-dark {
-          background: var(--lux-charcoal);
-          color: var(--lux-white);
-      }
-
-      .lux-btn-dark:hover {
-          background: var(--lux-black);
-          color: var(--lux-white);
-          transform: translateY(-2px);
-      }
-
-      /* Testimonial Cards */
-      .testimonial-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          border-left: 3px solid var(--lux-gold);
-          transition: var(--transition);
-      }
-
-      .testimonial-card:hover {
-          transform: translateY(-6px);
-          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-      }
-
-      .testimonial-featured {
-          border-left-width: 4px;
-          background: linear-gradient(135deg, var(--lux-white) 0%, var(--lux-off-white) 100%);
-      }
-
-      /* Google Reviews styling */
-      .bi-star-fill {
-          color: #fbbc04 !important;
-      }
-
-      /* Stats Section */
-      .lux-stat {
-          text-align: center;
-          padding: 2rem;
-      }
-
-      .lux-stat-number {
-          font-size: 2.5rem;
-          font-weight: 200;
-          color: var(--lux-charcoal);
-          letter-spacing: -0.02em;
-      }
-
-      .lux-stat-label {
-          font-size: 0.75rem;
-          font-weight: 500;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          color: var(--lux-medium-gray);
-      }
-
-      /* Pricing Cards */
-      .pricing-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          position: relative;
-          overflow: hidden;
-          transition: var(--transition);
-      }
-
-      .pricing-card::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: var(--lux-gold);
-          transform: scaleX(0);
-          transition: var(--transition);
-      }
-
-      .pricing-card:hover::before {
-          transform: scaleX(1);
-      }
-
-      .pricing-card:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
-      }
-
-      .pricing-title {
-          font-size: 0.75rem;
-          font-weight: 500;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: var(--lux-gold);
-      }
-
-      .pricing-amount {
-          font-size: 3rem;
-          font-weight: 200;
-          color: var(--lux-charcoal);
-          letter-spacing: -0.02em;
-      }
-
-      /* Destination Cards */
-      .destination-card {
-          background: var(--lux-white);
-          border: none;
-          border-radius: 0;
-          transition: var(--transition);
-      }
-
-      .destination-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 40px rgba(0,0,0,0.08);
-      }
-
-      .destination-icon {
-          color: var(--lux-gold);
-          font-size: 2rem;
-      }
-
-      /* Quote Form Box */
-      .quote-form-box {
-          background: var(--lux-white);
-          border-radius: 0;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-      }
-
-      /* Card entrance animation */
-      .lux-card, .testimonial-card, .pricing-card, .destination-card {
-          animation: fadeInUp 0.6s ease-out;
-      }
-
-      @keyframes fadeInUp {
-          from {
-              opacity: 0;
-              transform: translateY(30px);
-          }
-          to {
-              opacity: 1;
-              transform: translateY(0);
-          }
-      }
-
-      /* Fix trip type button styling */
-      .trip-type-selector .btn {
-          color: #212529 !important;
-          border-radius: 0 !important;
-      }
-
-      .trip-type-selector .btn:hover {
-          color: #212529 !important;
-      }
-
-      .trip-type-selector .btn-check:checked+.btn {
-          color: #fff !important;
-          background-color: var(--lux-charcoal) !important;
-          border-color: var(--lux-charcoal) !important;
-      }
-
-      /* Divider */
-      .lux-divider {
-          width: 60px;
-          height: 1px;
-          background: var(--lux-gold);
-          margin: 1.5rem auto;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 991px) {
-          .lux-hero {
-              min-height: auto;
-              padding: 4rem 0;
-          }
-          .lux-section {
-              padding: 4rem 0;
-          }
-      }
-  </style>
-{% endblock %}
-
-{% block title %}MCO Airport Transportation | Free Car Seats | Grayson Towncar{% endblock %}
+{% block title %}MCO Airport Car Service | Private Transfers Orlando | Grayson{% endblock %}
 
 {% block meta_description %}
   <meta name="description"
-        content="Premium MCO airport transfers to Disney World, Universal Studios & Orlando hotels. Free car seats, flight tracking, meet & greet service. Book your Orlando airport ride today!" />
-  <meta name="author" content="Grayson Towncar" />
+        content="Private MCO airport car service to Disney, Universal & I-Drive from $105 one-way; Port Canaveral from $160. Free car seats, meet & greet, no surge pricing." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="MCO Airport Car Service | Private Transfers Orlando | Grayson" />
+  <meta property="og:description" content="Private car service from Orlando Airport (MCO) from $105 one-way. Baggage-claim meet & greet, flight tracking, free Graco car seats, no surge pricing." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/grayson-mco.jpg' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MCO Airport Car Service | Private Transfers Orlando | Grayson" />
+  <meta name="twitter:description" content="Private car service from Orlando Airport (MCO) from $105 one-way. Baggage-claim meet & greet, flight tracking, free Graco car seats, no surge pricing." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/grayson-mco.jpg' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Orlando Airport Transportation",
+        "item": "https://www.graysontowncar.com/services/orlando-airport-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Where does my driver meet me at MCO airport?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Your driver meets you inside the terminal at baggage claim, holding a sign with your name. We track your flight in real time and text you the moment you land, so your driver is already in position when you walk out. This applies to every MCO terminal — A, B, and C. Once you have your bags, your driver helps with luggage and walks you to the vehicle. There is no app to refresh and no curb pickup zone to find."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What happens if my flight is delayed?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Nothing changes for you. We track your flight in real time, and your pickup automatically adjusts to your actual arrival time at no extra charge. Whether you land 20 minutes early or three hours late, your driver is waiting at baggage claim when you walk out. Free pickup adjustment for delayed flights is included in every fare."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much does a private car from MCO cost?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private car from Orlando International Airport starts at $105 one-way for an Executive Sedan (up to 4 passengers) to Walt Disney World, Universal Orlando, or International Drive hotels. Kissimmee starts at $115, Championsgate at $130, and Port Canaveral at $160 one-way. Round trips start at $195. Every fare is all-inclusive: tolls, taxes, free Graco car seats, baggage-claim meet and greet, and flight tracking are included, with no surge pricing and no mandatory gratuity."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can you pick up from both MCO Terminal B and Terminal C?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We pick up from every MCO terminal — A, B, and C. Terminals A and B share the main terminal building, while Terminal C is the newer terminal in its own building with its own baggage claim. Your flight number tells us exactly where you land, and your driver meets you at the correct baggage claim with a name sign either way."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How early should I book my airport transfer?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Book as soon as you have your flight details — that locks in your vehicle and your fixed price. Holiday weeks, cruise weekends, and school breaks fill fastest, especially for larger vehicles like the 10-passenger Van and 14-passenger Sprinter. We operate 24/7 and can often accommodate same-day requests; call 407-212-7190 to check availability."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats for airport pickups?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes — free Graco car seats are included on every booking. Choose infant, toddler, or booster seats when you reserve, and they are professionally installed in your vehicle before your driver arrives at the airport. There is no rental fee and no need to haul your own seats through the terminal."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Orlando Airport (MCO) Private Car Service",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando International Airport (MCO) and Orlando Sanford (SFB) to Disney World, Universal Orlando, International Drive, Kissimmee, Championsgate, and Port Canaveral. All-inclusive fixed pricing from $105 one-way with baggage-claim meet and greet, real-time flight tracking, and free Graco car seats.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"},
+      {"@type": "Airport", "name": "Orlando Sanford International Airport", "iataCode": "SFB"},
+      {"@type": "Place", "name": "Walt Disney World Resort"},
+      {"@type": "Place", "name": "Universal Orlando Resort"},
+      {"@type": "Place", "name": "International Drive"},
+      {"@type": "City", "name": "Kissimmee"},
+      {"@type": "Place", "name": "Championsgate"},
+      {"@type": "Place", "name": "Port Canaveral"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Orlando Airport Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Disney World Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Universal Orlando Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to International Drive Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Kissimmee Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Championsgate and Reunion Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Port Canaveral Cruise Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "105",
+      "priceCurrency": "USD",
+      "description": "MCO to Disney World one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/services/orlando-airport-transportation/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    /* Quote Form Box */
+    .quote-form-box {
+      background: var(--lux-white);
+      border-radius: 0;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+
+    /* Force text visibility in quote form - but allow validation states */
+    .quote-form-container label,
+    .quote-form-container .form-label {
+      color: #212529 !important;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .quote-form-container h5,
+    .quote-form-container h6,
+    .quote-form-container p {
+      color: #212529 !important;
+    }
+
+    .quote-form-container .text-muted {
+      color: var(--lux-medium-gray) !important;
+    }
+
+    .quote-form-container .text-dark {
+      color: #212529 !important;
+    }
+
+    .quote-form-container .bg-light {
+      background-color: var(--lux-off-white) !important;
+    }
+
+    .quote-form-container .card {
+      background-color: var(--lux-off-white) !important;
+      border-radius: 0 !important;
+    }
+
+    /* Vehicle preview specific styling */
+    .quote-form-container .vehicle-preview,
+    .quote-form-container .vehicle-preview * {
+      color: #212529 !important;
+    }
+
+    .quote-form-container .vehicle-name,
+    .quote-form-container .passenger-capacity,
+    .quote-form-container .luggage-capacity,
+    .quote-form-container .carseats-display {
+      color: #212529 !important;
+    }
+
+    .quote-form-container .vehicle-placeholder {
+      color: var(--lux-medium-gray) !important;
+    }
+
+    .quote-form-container .vehicle-placeholder * {
+      color: var(--lux-medium-gray) !important;
+    }
+
+    /* Allow validation states to work */
+    .quote-form-container .form-control.is-valid,
+    .quote-form-container .form-select.is-valid {
+      border-color: #198754 !important;
+      background-color: #fff !important;
+    }
+
+    .quote-form-container .form-control.is-invalid,
+    .quote-form-container .form-select.is-invalid {
+      border-color: #dc3545 !important;
+      background-color: #fff !important;
+    }
+
+    .quote-form-container .is-valid {
+      color: #198754 !important;
+    }
+
+    .quote-form-container .is-invalid {
+      color: #dc3545 !important;
+    }
+
+    /* Ensure form controls have proper background */
+    .quote-form-container .form-control,
+    .quote-form-container .form-select {
+      background-color: #fff !important;
+      color: #212529 !important;
+      border-radius: 0 !important;
+      border: 1px solid #e0e0e0 !important;
+    }
+
+    /* Ensure select options are visible */
+    .quote-form-container select option {
+      color: #212529 !important;
+      background-color: #fff !important;
+    }
+
+    /* Fix trip type button styling */
+    .trip-type-selector .btn {
+      color: #212529 !important;
+      border-radius: 0 !important;
+    }
+
+    .trip-type-selector .btn:hover {
+      color: #212529 !important;
+    }
+
+    .trip-type-selector .btn-check:checked + .btn {
+      color: #fff !important;
+      background-color: var(--lux-charcoal) !important;
+      border-color: var(--lux-charcoal) !important;
+    }
+
+    /* Testimonial cards */
+    .testimonial-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-left: 3px solid var(--lux-gold);
+      padding: 1.75rem;
+      height: 100%;
+      transition: var(--transition);
+    }
+
+    .testimonial-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.08);
+    }
+
+    .testimonial-card .stars i {
+      color: #fbbc04;
+      font-size: 0.85rem;
+    }
+
+    .testimonial-card p.quote {
+      font-weight: 300;
+      font-size: 0.92rem;
+      color: var(--lux-dark-gray);
+      line-height: 1.75;
+      margin: 0.85rem 0;
+    }
+
+    .testimonial-card .reviewer {
+      font-weight: 500;
+      font-size: 0.88rem;
+      color: var(--lux-charcoal);
+    }
+
+    .testimonial-card .reviewer-meta {
+      font-size: 0.78rem;
+      color: var(--lux-medium-gray);
+    }
+  </style>
 {% endblock %}
 
 {% block content %}
-  {% structured_data %}
+{% structured_data %}
+<div class="seo-page">
 
-  <!-- Hero Section with Quote Form -->
-  <section class="lux-hero"
-           style="background: url('{% static 'images/grayson-mco.png' %}') center/cover fixed">
-    <div class="container py-5">
-      <div class="row align-items-center">
-        <!-- Left Column: Content -->
-        <div class="col-lg-6 mb-5 mb-lg-0">
-          <div class="text-lg-start text-center">
-            <p class="lux-eyebrow">Private Chauffeur Service</p>
-            <h1 class="lux-title mb-4">
-              Orlando Airport Transfers
-              <br />
-              <span class="lux-title-accent">Disney, Port Canaveral & Beyond</span>
-            </h1>
-            <div class="lux-divider" style="margin-left: 0; margin-right: auto;"></div>
-            <p class="lux-lead mb-4">
-              We meet you <span class="lux-highlight">inside baggage claim</span> with a sign, get you to your resort in 25-30 minutes, and include <span class="lux-highlight">complimentary car seats</span>. Shuttles or Uber won't do any of that.
-            </p>
-
-            <p class="lux-lead mb-5" style="color: var(--lux-gold-light);">
-              Don't wait 2+ hours in the shuttle line with tired kids. Get there fast.
-            </p>
-
-            <!-- Key Benefits -->
-            <div class="row g-4 mb-4">
-              <div class="col-6">
-                <div class="d-flex align-items-center">
-                  <i class="bi bi-person-check-fill fs-4 me-3" style="color: var(--lux-gold);"></i>
-                  <span style="font-weight: 300; letter-spacing: 0.02em;">Meet & Greet Service</span>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="d-flex align-items-center">
-                  <i class="bi bi-airplane fs-4 me-3" style="color: var(--lux-gold);"></i>
-                  <span style="font-weight: 300; letter-spacing: 0.02em;">Flight Tracking</span>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="d-flex align-items-center">
-                  <i class="bi bi-shield-check fs-4 me-3" style="color: var(--lux-gold);"></i>
-                  <span style="font-weight: 300; letter-spacing: 0.02em;">FREE Car Seats</span>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="d-flex align-items-center">
-                  <i class="bi bi-cart-check fs-4 me-3" style="color: var(--lux-gold);"></i>
-                  <span style="font-weight: 300; letter-spacing: 0.02em;">Grocery Stop Available</span>
-                </div>
-              </div>
-            </div>
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO + INSTANT QUOTE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/grayson-mco.jpg' %}"
+         width="1920" height="1080"
+         alt="Private car service chauffeur meeting travelers at Orlando International Airport (MCO)"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row align-items-center g-5">
+        <div class="col-lg-7 text-center text-white">
+          <p class="lux-eyebrow">Orlando Airport Transportation</p>
+          <h1 class="lux-title mb-3">Private Car Service from Orlando Airport (MCO)</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Your chauffeur meets you inside baggage claim with a name sign, tracks your flight in real time, and drives you direct to Disney, Universal, or Port Canaveral. All-inclusive fares from $105 — no surge, no hidden fees.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-star-fill"></i> 4.8/5 — 1,500+ Google reviews</span>
+            <span><i class="bi bi-person-check"></i> Baggage-claim meet &amp; greet</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed all-inclusive pricing</span>
           </div>
         </div>
-
-        <div class="col-lg-6">
-          <div class="quote-form-box p-4 p-lg-5">{% quote_form form_id='mco-quote-form' %}</div>
+        <div class="col-lg-5">
+          <div class="quote-form-box p-4 p-lg-4">{% quote_form form_id='mco-quote-form' %}</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Modern Testimonials Section -->
-  <section class="lux-section lux-section-light">
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Orlando Airport Transportation</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: OPENING — PRIVATE DIRECT SERVICE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Private &amp; Direct</p>
+          <h2 class="lux-section-title">Airport Transfers from MCO and Sanford (SFB)</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; line-height: 1.8; color: var(--lux-dark-gray);">
+            Grayson Towncar is a family-owned Orlando company built around one job: getting you from the airport to your resort quickly, comfortably, and at a price you know before you land. We run private, direct transfers from Orlando International Airport (MCO) and <a href="{% url 'sanford_airport_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">Orlando Sanford International Airport (SFB)</a> to Walt Disney World, Universal Orlando, International Drive, Kissimmee, Championsgate, and Port Canaveral — 24 hours a day, 7 days a week.
+          </p>
+          <p style="font-weight: 300; line-height: 1.8; color: var(--lux-dark-gray);">
+            Every fare is fixed and all-inclusive at booking. Tolls and taxes are included, there is no surge pricing, no mandatory gratuity add-on, and no hidden fees. Pricing is always per vehicle, never per person — a family of four pays the same <strong>$105</strong> sedan fare to Disney as a solo traveler.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-5">
+        <div class="col-md-4">
+          <div class="seo-seat-card">
+            <div class="seat-icon"><i class="bi bi-people"></i></div>
+            <h4>Families</h4>
+            <p>Free Graco car seats — infant, toddler, and booster — professionally installed on every booking, plus a free 20-minute grocery stop at Publix on airport pickups.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="seo-seat-card">
+            <div class="seat-icon"><i class="bi bi-water"></i></div>
+            <h4>Cruise Travelers</h4>
+            <p>Direct MCO-to-Port Canaveral transfers from $160, timed to your ship's boarding window, with room for every suitcase — about 45-55 minutes via FL-528.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="seo-seat-card">
+            <div class="seat-icon"><i class="bi bi-briefcase"></i></div>
+            <h4>Business Travelers</h4>
+            <p>24/7 availability, automatic flight tracking, and executive sedans and SUVs that get you to meetings, conventions, and resorts on schedule.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h3>How much does a private car from Orlando Airport cost?</h3>
+            <p>
+              A private car from Orlando International Airport (MCO) starts at <strong>$105</strong> one-way for an Executive Sedan (up to 4 passengers) to Walt Disney World, Universal Orlando, or I-Drive hotels. Port Canaveral transfers start at <strong>$160</strong> one-way. Round-trip fares start at <strong>$195</strong> to Disney or Universal. All fares are all-inclusive: no surge pricing, no mandatory gratuity, no hidden fees. Tolls, taxes, free car seats, baggage claim meet &amp; greet, and flight delay protection are included.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: HOW PICKUP WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
     <div class="container">
       <div class="row justify-content-center mb-5">
-        <div class="col-lg-8 text-center">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Verified Reviews</p>
-          <h2 class="lux-section-title">What Our Customers Say</h2>
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">From Touchdown to Your Resort in 4 Steps</h2>
           <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">Real reviews from verified Google customers</p>
-
-          <!-- Google Rating Display -->
-          <div class="d-flex align-items-center justify-content-center mt-5 mb-3">
-            <img src="{% static 'images/google-logo.webp' %}"
-                 alt="Google Reviews"
-                 width="80"
-                 height="26"
-                 class="me-3" />
-            <div class="d-flex align-items-center">
-              <div class="me-2">
-                <i class="bi bi-star-fill fs-4"></i>
-                <i class="bi bi-star-fill fs-4"></i>
-                <i class="bi bi-star-fill fs-4"></i>
-                <i class="bi bi-star-fill fs-4"></i>
-                <i class="bi bi-star-fill fs-4"></i>
-              </div>
-              <span class="ms-2" style="font-size: 2.5rem; font-weight: 200; color: var(--lux-charcoal);">5.0</span>
-            </div>
-          </div>
-          <p style="color: var(--lux-medium-gray); font-size: 0.9rem;">Based on verified Google reviews</p>
         </div>
       </div>
 
-      <div class="row g-4">
-        <!-- Featured Testimonial -->
-        <div class="col-12 mb-4">
-          <div class="testimonial-card testimonial-featured shadow-sm">
-            <div class="card-body p-5">
-              <div class="d-flex align-items-center mb-4">
-                <img src="{% static 'images/google-logo.webp' %}"
-                     alt="Google Reviews"
-                     width="80"
-                     height="26"
-                     class="me-3" />
-                <div class="d-flex align-items-center">
-                  <div class="me-2">
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                  </div>
-                  <span style="font-weight: 400; color: var(--lux-charcoal);">5.0</span>
-                </div>
-              </div>
-              <h4 style="font-weight: 300; letter-spacing: -0.01em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">"Excellent Experience - Punctual & Professional!"</h4>
-              <p style="font-size: 1.1rem; font-weight: 300; line-height: 1.8; color: var(--lux-dark-gray); margin-bottom: 2rem;">
-                "I recently booked transportation with Grayson for travel between MCO and Disney, and the experience was excellent. They were punctual, professional, and kept in great communication throughout the process."
-              </p>
-              <div class="d-flex align-items-center">
-                <div class="d-flex align-items-center justify-content-center me-3"
-                     style="width: 50px; height: 50px; background: var(--lux-off-white);">
-                  <span style="font-weight: 500; color: var(--lux-charcoal);">FS</span>
-                </div>
-                <div>
-                  <div style="font-weight: 500; color: var(--lux-charcoal);">Frank S.</div>
-                  <small style="color: var(--lux-medium-gray);">MCO to Disney Transfer • 5 weeks ago</small>
-                </div>
-              </div>
-            </div>
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book Online</h4>
+            <p>Reserve in minutes with your flight number. Your price is fixed at booking — what you see is what you pay.</p>
           </div>
         </div>
-
-        <!-- Testimonial Cards -->
-        <div class="col-md-6 col-lg-4">
-          <div class="testimonial-card h-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <img src="{% static 'images/google-logo.webp' %}"
-                     alt="Google Reviews"
-                     width="60"
-                     height="20"
-                     class="me-2" />
-                <div class="d-flex align-items-center">
-                  <div class="me-1">
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                  </div>
-                </div>
-              </div>
-              <div class="d-flex align-items-center mb-3">
-                <div class="d-flex align-items-center justify-content-center me-3"
-                     style="width: 40px; height: 40px; background: var(--lux-off-white);">
-                  <span style="font-weight: 500; font-size: 0.85rem; color: var(--lux-charcoal);">EH</span>
-                </div>
-                <div>
-                  <div style="font-weight: 500; color: var(--lux-charcoal);">Emily Harp</div>
-                  <small style="color: var(--lux-medium-gray);">2 weeks ago</small>
-                </div>
-              </div>
-              <p style="font-weight: 300; line-height: 1.7; color: var(--lux-dark-gray); font-size: 0.95rem;">
-                "Our drivers Oualid and Ray were wonderful! Polite and professional! They provided text reminders before pick up and were constantly in communication with us. Always on time and the car was very clean and smooth! We went right from baggage claim to the car in about 2 minutes. I would 100% recommend this service from the Orlando airport to Disney. It was one less stress to worry about and knowing my family was safe was the best! Another plus was them having a car seat for us! :)"
-              </p>
-              <div class="d-flex align-items-center">
-                <i class="bi bi-castle me-2" style="color: var(--lux-gold);"></i>
-                <small style="color: var(--lux-medium-gray); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem;">Disney Family Trip</small>
-              </div>
-            </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>We Track Your Flight</h4>
+            <p>We monitor your arrival in real time. Land early or late — your pickup adjusts automatically at no charge.</p>
           </div>
         </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="testimonial-card h-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <img src="{% static 'images/google-logo.webp' %}"
-                     alt="Google Reviews"
-                     width="60"
-                     height="20"
-                     class="me-2" />
-                <div class="d-flex align-items-center">
-                  <div class="me-1">
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                  </div>
-                </div>
-              </div>
-              <div class="d-flex align-items-center mb-3">
-                <div class="d-flex align-items-center justify-content-center me-3"
-                     style="width: 40px; height: 40px; background: var(--lux-off-white);">
-                  <span style="font-weight: 500; font-size: 0.85rem; color: var(--lux-charcoal);">CP</span>
-                </div>
-                <div>
-                  <div style="font-weight: 500; color: var(--lux-charcoal);">Corey Page</div>
-                  <small style="color: var(--lux-medium-gray);">Travel Agent • 4 weeks ago</small>
-                </div>
-              </div>
-              <p style="font-weight: 300; line-height: 1.7; color: var(--lux-dark-gray); font-size: 0.95rem;">
-                "We had the opportunity to have Graysons transfer us from MCO to our Disney resort. They did not disappoint! Our driver was patiently waiting for us even though our flight was delayed on the tarmac AND while it took forever to get our checked bags. He walked our luggage to the car for us and had bottles of water waiting. It felt so nice to have a stress free, private ride. If you're looking for a great black car transfer service, these are your guys!"
-              </p>
-              <div class="d-flex align-items-center">
-                <i class="bi bi-shield-check me-2" style="color: var(--lux-gold);"></i>
-                <small style="color: var(--lux-medium-gray); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem;">Travel Agent Recommendation</small>
-              </div>
-            </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Meet at Baggage Claim</h4>
+            <p>Your chauffeur waits inside the terminal with a name sign and texts you the moment you land.</p>
           </div>
         </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="testimonial-card h-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <img src="{% static 'images/google-logo.webp' %}"
-                     alt="Google Reviews"
-                     width="60"
-                     height="20"
-                     class="me-2" />
-                <div class="d-flex align-items-center">
-                  <div class="me-1">
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                    <i class="bi bi-star-fill small"></i>
-                  </div>
-                </div>
-              </div>
-              <div class="d-flex align-items-center mb-3">
-                <div class="d-flex align-items-center justify-content-center me-3"
-                     style="width: 40px; height: 40px; background: var(--lux-off-white);">
-                  <span style="font-weight: 500; font-size: 0.85rem; color: var(--lux-charcoal);">JH</span>
-                </div>
-                <div>
-                  <div style="font-weight: 500; color: var(--lux-charcoal);">Judy Hoops</div>
-                  <small style="color: var(--lux-medium-gray);">First Time Disney • 4 weeks ago</small>
-                </div>
-              </div>
-              <p style="font-weight: 300; line-height: 1.7; color: var(--lux-dark-gray); font-size: 0.95rem;">
-                "This was our first Disney trip and Grayson Towncar made it so smooth from the start. Our driver was on time, very professional, and super friendly. The car was clean and comfortable. We will definitely use them again!"
-              </p>
-              <div class="d-flex align-items-center">
-                <i class="bi bi-castle me-2" style="color: var(--lux-gold);"></i>
-                <small style="color: var(--lux-medium-gray); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem;">First Time Disney Family</small>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Google Reviews Stats -->
-      <div class="row mt-5 pt-4">
-        <div class="col-12">
-          <div class="lux-card shadow-sm p-4" style="background: var(--lux-white);">
-            <div class="row g-4 text-center">
-              <div class="col-6 col-md-3">
-                <div class="lux-stat">
-                  <div class="lux-stat-number">5.0</div>
-                  <div class="lux-stat-label">Average Rating</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-3">
-                <div class="lux-stat">
-                  <div class="lux-stat-number">25,000+</div>
-                  <div class="lux-stat-label">Happy Families</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-3">
-                <div class="lux-stat">
-                  <div class="lux-stat-number">1,500+</div>
-                  <div class="lux-stat-label">5-Star Reviews</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-3">
-                <div class="lux-stat">
-                  <div class="lux-stat-number">24/7</div>
-                  <div class="lux-stat-label">Service Available</div>
-                </div>
-              </div>
-            </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Ride Direct</h4>
+            <p>Luggage loaded, car seats installed, straight to your resort or ship. No stops unless you ask for one.</p>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Why Choose Us Section -->
-  <section class="lux-section" style="background: var(--lux-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: MCO TERMINAL BREAKDOWN
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
     <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-lg-8 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
-          <h2 class="lux-section-title">Why Choose Our MCO Airport Service?</h2>
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Know Your Terminal</p>
+          <h2 class="lux-section-title">We Pick Up at Every MCO Terminal</h2>
           <div class="lux-divider"></div>
           <p class="lux-section-subtitle">
-            Professional, reliable, and family-friendly transportation from Orlando International Airport
+            Orlando International has three terminals across two buildings. Your flight number tells us exactly where you land — your driver is at the right baggage claim either way.
           </p>
         </div>
       </div>
 
-      <div class="row g-4">
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 text-center shadow-sm">
-            <div class="card-body p-4">
-              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
-                <i class="bi bi-airplane fs-4"></i>
-              </div>
-              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Flight Tracking</h5>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">We monitor your flight and adjust pickup time automatically for delays</p>
-            </div>
+      <div class="row g-4 justify-content-center">
+        <div class="col-lg-5">
+          <div class="seo-benefits-card">
+            <div class="problem-icon"><i class="bi bi-building"></i></div>
+            <h4>Terminals A &amp; B — Main Terminal</h4>
+            <ul class="seo-benefits-list">
+              <li><i class="bi bi-check-lg"></i>Two sides of MCO's main terminal building, serving most domestic carriers.</li>
+              <li><i class="bi bi-check-lg"></i>Your driver meets you at your baggage claim carousel with a name sign.</li>
+              <li><i class="bi bi-check-lg"></i>From bags to vehicle in minutes — no shuttle bus, no parking-garage hunt.</li>
+            </ul>
           </div>
         </div>
-
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 text-center shadow-sm">
-            <div class="card-body p-4">
-              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
-                <i class="bi bi-person-check fs-4"></i>
-              </div>
-              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Meet & Greet</h5>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">Your driver meets you at baggage claim with a personalized sign</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 text-center shadow-sm">
-            <div class="card-body p-4">
-              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
-                <i class="bi bi-shield-check fs-4"></i>
-              </div>
-              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Free Car Seats</h5>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">Complimentary car seats and boosters for children of all ages</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-3">
-          <div class="lux-card h-100 text-center shadow-sm">
-            <div class="card-body p-4">
-              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
-                <i class="bi bi-clock fs-4"></i>
-              </div>
-              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">24/7 Service</h5>
-              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">Available around the clock for early morning and late night flights</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Popular Destinations -->
-  <section class="lux-section lux-section-light">
-    <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-lg-8 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
-          <h2 class="lux-section-title">Popular Destinations from MCO</h2>
-          <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">
-            We serve all of Orlando and beyond - from theme parks to cruise ports and everywhere in between
-          </p>
-        </div>
-      </div>
-
-      <div class="row g-4">
-        <div class="col-md-6 col-lg-4">
-          <div class="destination-card h-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <i class="bi bi-castle destination-icon me-3"></i>
-                <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 0;">Disney World Resorts</h5>
-              </div>
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7;">
-                All Disney properties including Value, Moderate, and Deluxe resorts. Perfect for families with children.
-              </p>
-              <ul class="list-unstyled" style="font-size: 0.9rem;">
-                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Magic Kingdom Area Hotels
-                </li>
-                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Epcot Area Resorts
-                </li>
-                <li style="color: var(--lux-medium-gray);">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Disney Springs Hotels
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="destination-card h-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <i class="bi bi-geo-alt destination-icon me-3"></i>
-                <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 0;">Port Canaveral</h5>
-              </div>
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7;">
-                Reliable transportation to and from all cruise terminals. Perfect for pre and post-cruise stays.
-              </p>
-              <ul class="list-unstyled" style="font-size: 0.9rem;">
-                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Carnival Cruise Line
-                </li>
-                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Disney Cruise Line
-                </li>
-                <li style="color: var(--lux-medium-gray);">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Royal Caribbean
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="destination-card h-100 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <i class="bi bi-film destination-icon me-3"></i>
-                <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 0;">Universal Studios</h5>
-              </div>
-              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7;">
-                Universal Orlando hotels and nearby accommodations. Close to Universal Studios and Islands of Adventure.
-              </p>
-              <ul class="list-unstyled" style="font-size: 0.9rem;">
-                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal Hotels
-                </li>
-                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>International Drive
-                </li>
-                <li style="color: var(--lux-medium-gray);">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Convention Center Area
-                </li>
-              </ul>
-            </div>
+        <div class="col-lg-5">
+          <div class="seo-benefits-card">
+            <div class="problem-icon"><i class="bi bi-buildings"></i></div>
+            <h4>Terminal C — The New Terminal</h4>
+            <ul class="seo-benefits-list">
+              <li><i class="bi bi-check-lg"></i>MCO's newest terminal sits in its own building with its own roadways and baggage claim.</li>
+              <li><i class="bi bi-check-lg"></i>Serves many international flights and newer carriers — easy to end up here without realizing it.</li>
+              <li><i class="bi bi-check-lg"></i>We confirm your terminal from your flight number, so there is never a wrong-building mix-up.</li>
+            </ul>
           </div>
         </div>
       </div>
 
-      <!-- Additional destinations note -->
-      <div class="row mt-5">
-        <div class="col-12 text-center">
-          <div class="lux-card p-5 shadow-sm" style="background: var(--lux-white); border-left: 3px solid var(--lux-gold);">
-            <h5 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">We Go Everywhere</h5>
-            <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0; max-width: 700px; margin-left: auto; margin-right: auto;">
-              From theme parks to business districts, residential areas to shopping centers - if it's in Orlando or Central Florida, we can get you there safely and comfortably.
+      <div class="row justify-content-center mt-4">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <p>
+              Landing at the new terminal? Read our dedicated <a href="{% url 'mco_terminal_c_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">MCO Terminal C transportation guide</a> for exactly where to meet your driver and how Terminal C pickups work.
             </p>
           </div>
         </div>
@@ -914,138 +565,432 @@
     </div>
   </section>
 
-  <!-- Pricing Section -->
-  <section class="lux-section" style="background: var(--lux-white);">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: PRICING TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
     <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-lg-8 text-center mb-5">
-          <p class="lux-eyebrow" style="color: var(--lux-gold);">Pricing</p>
-          <h2 class="lux-section-title">Transparent Pricing</h2>
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Transparent Pricing</p>
+          <h2 class="lux-section-title">MCO Airport Car Service Rates</h2>
           <div class="lux-divider"></div>
-          <p class="lux-section-subtitle">All-inclusive rates with no hidden fees</p>
+          <p class="lux-section-subtitle">
+            Every rate below is the full, final price for the whole vehicle — never per person. Fares shown as one-way / round-trip.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-12">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Route from MCO</th>
+                  <th>Executive Sedan<br />(up to 4)</th>
+                  <th>Family Minivan<br />(up to 5)</th>
+                  <th>Luxury SUV<br />(up to 6)</th>
+                  <th>Passenger Van<br />(up to 10)</th>
+                  <th>Sprinter Van<br />(up to 14)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Disney World resorts</td>
+                  <td>$105 / $195</td>
+                  <td>$120 / $230</td>
+                  <td>$140 / $275</td>
+                  <td>$175 / $340</td>
+                  <td>$225 / $440</td>
+                </tr>
+                <tr>
+                  <td>Universal Orlando area hotels</td>
+                  <td>$105 / $195</td>
+                  <td>$120 / $230</td>
+                  <td>$140 / $275</td>
+                  <td>$175 / $340</td>
+                  <td>$225 / $440</td>
+                </tr>
+                <tr>
+                  <td>International Drive hotels</td>
+                  <td>$105 / $195</td>
+                  <td>$120 / $230</td>
+                  <td>$140 / $275</td>
+                  <td>$175 / $340</td>
+                  <td>$225 / $440</td>
+                </tr>
+                <tr>
+                  <td>Kissimmee (Hwy 192 area)</td>
+                  <td>$115 / $220</td>
+                  <td>$135 / $260</td>
+                  <td>$155 / $300</td>
+                  <td>$180 / $350</td>
+                  <td>$245 / $475</td>
+                </tr>
+                <tr>
+                  <td>Championsgate &amp; Reunion</td>
+                  <td>$130 / $250</td>
+                  <td>$145 / $280</td>
+                  <td>$165 / $320</td>
+                  <td>$185 / $355</td>
+                  <td>$260 / $505</td>
+                </tr>
+                <tr>
+                  <td>Port Canaveral cruise terminals</td>
+                  <td>$160 / $315</td>
+                  <td>$190 / $360</td>
+                  <td>$200 / $395</td>
+                  <td>$235 / $460</td>
+                  <td>$295 / $575</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="seo-highlight-box mt-4">
+            <p>
+              Every fare includes tolls, taxes, baggage-claim meet &amp; greet, real-time flight tracking, free Graco car seats, and a free 20-minute Publix grocery stop on airport pickups. Typical drive times: Disney 25-35 minutes, Universal and I-Drive 20-25 minutes, Port Canaveral 45-55 minutes via FL-528. For Sanford (SFB) routes, Flamingo Crossings (from <strong>$110</strong> one-way), and every other Orlando route, <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">see the full rate table</a>.
+            </p>
+          </div>
+
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">See All Rates &amp; Book</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Compare Options</p>
+          <h2 class="lux-section-title">Private Car vs. Mears Connect vs. Uber</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Here is how the three most common ways to leave MCO actually stack up for a family heading to Disney.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="highlight-col">Grayson Towncar</th>
+                  <th>Mears Connect</th>
+                  <th>Uber / Lyft</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Price for a family of 4</td>
+                  <td class="highlight-col">$105 flat, one private vehicle</td>
+                  <td>About $70.40 one-way (per-person)</td>
+                  <td>$30-$60+, surge at peak times</td>
+                </tr>
+                <tr>
+                  <td>Travel time to Disney</td>
+                  <td class="highlight-col">~25-35 min direct</td>
+                  <td>60-90 min multi-stop</td>
+                  <td>~25-35 min direct</td>
+                </tr>
+                <tr>
+                  <td>Direct to your resort</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                </tr>
+                <tr>
+                  <td>Driver meets you</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Baggage claim with a name sign</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> You find the bus stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Curb pickup</td>
+                </tr>
+                <tr>
+                  <td>Flight tracking</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Automatic</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+                <tr>
+                  <td>Car seats</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free Graco, pre-installed</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                </tr>
+                <tr>
+                  <td>Grocery stop</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free 20-min Publix stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                </tr>
+                <tr>
+                  <td>Vehicle</td>
+                  <td class="highlight-col">Private, your group only</td>
+                  <td>Shared shuttle</td>
+                  <td>Private, random driver</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="seo-highlight-box mt-4">
+            <p>
+              For a family of four, the math is simple. A private sedan to Disney is <strong>$105</strong> flat. Mears Connect charges per person — about <strong>$70.40</strong> one-way for four adults on a shared bus that makes multiple hotel stops. For roughly $35 more, a private car saves up to an hour each way, meets you at baggage claim, and includes car seats and a grocery stop. Compare every vehicle and route — <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">see the full rate table</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Where does my driver meet me at MCO airport?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Your driver meets you inside the terminal at baggage claim, holding a sign with your name. We track your flight in real time and text you the moment you land, so your driver is already in position when you walk out. This applies to every MCO terminal — A, B, and C. Once you have your bags, your driver helps with luggage and walks you to the vehicle. There is no app to refresh and no curb pickup zone to find.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What happens if my flight is delayed?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Nothing changes for you. We track your flight in real time, and your pickup automatically adjusts to your actual arrival time at no extra charge. Whether you land 20 minutes early or three hours late, your driver is waiting at baggage claim when you walk out. Free pickup adjustment for delayed flights is included in every fare.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much does a private car from MCO cost?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A private car from Orlando International Airport starts at <strong>$105</strong> one-way for an Executive Sedan (up to 4 passengers) to Walt Disney World, Universal Orlando, or International Drive hotels. Kissimmee starts at <strong>$115</strong>, Championsgate at <strong>$130</strong>, and Port Canaveral at <strong>$160</strong> one-way. Round trips start at <strong>$195</strong>. Every fare is all-inclusive — tolls, taxes, free Graco car seats, baggage-claim meet &amp; greet, and flight tracking included, with no surge pricing and no mandatory gratuity. For every route and vehicle, <a href="{% url 'rates' %}" style="color: var(--lux-gold);">see the full rate table</a>.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can you pick up from both MCO Terminal B and Terminal C?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We pick up from every MCO terminal — A, B, and C. Terminals A and B share the main terminal building, while Terminal C is the newer terminal in its own building with its own baggage claim. Your flight number tells us exactly where you land, and your driver meets you at the correct baggage claim with a name sign either way. See our <a href="{% url 'mco_terminal_c_transportation' %}" style="color: var(--lux-gold);">MCO Terminal C guide</a> for details on the new terminal.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How early should I book my airport transfer?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Book as soon as you have your flight details — that locks in your vehicle and your fixed price. Holiday weeks, cruise weekends, and school breaks fill fastest, especially for larger vehicles like the 10-passenger Van and 14-passenger Sprinter. We operate 24/7 and can often accommodate same-day requests; call <a href="tel:+14072127190" style="color: var(--lux-gold);">407-212-7190</a> to check availability.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats for airport pickups?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes — free Graco car seats are included on every booking. Choose infant, toddler, or booster seats when you reserve, and they are professionally installed in your vehicle before your driver arrives at the airport. There is no rental fee and no need to haul your own seats through the terminal. <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold);">Learn more about our free car seat program.</a></p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: REVIEWS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Verified Reviews</p>
+          <h2 class="lux-section-title">Rated 4.8 out of 5 by Orlando Travelers</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Based on 1,500+ verified Google reviews from families, cruise travelers, and business flyers who landed at MCO and rode with us.
+          </p>
+          <div class="d-flex align-items-center justify-content-center mt-3 mb-2">
+            <span class="me-2" aria-hidden="true">
+              <i class="bi bi-star-fill" style="color: #fbbc04;"></i>
+              <i class="bi bi-star-fill" style="color: #fbbc04;"></i>
+              <i class="bi bi-star-fill" style="color: #fbbc04;"></i>
+              <i class="bi bi-star-fill" style="color: #fbbc04;"></i>
+              <i class="bi bi-star-half" style="color: #fbbc04;"></i>
+            </span>
+            <span style="font-size: 1.75rem; font-weight: 300; color: var(--lux-charcoal);">4.8</span>
+            <span class="ms-2" style="color: var(--lux-medium-gray); font-size: 0.9rem;">/ 5 on Google</span>
+          </div>
         </div>
       </div>
 
       <div class="row g-4 justify-content-center">
         <div class="col-md-6 col-lg-4">
-          <div class="pricing-card h-100 shadow-sm">
-            <div class="card-body p-5 text-center">
-              <p class="pricing-title">MCO to Disney World</p>
-              <div class="pricing-amount mb-2">$105</div>
-              <p style="color: var(--lux-medium-gray); font-size: 0.85rem; margin-bottom: 2rem;">Starting price • One-way transfer</p>
-              <ul class="list-unstyled text-start" style="font-size: 0.9rem;">
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Meet & Greet Service
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Flight Tracking
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Free Car Seats
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Luggage Assistance
-                </li>
-                <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>No Hidden Fees
-                </li>
-              </ul>
+          <div class="testimonial-card">
+            <div class="stars" aria-hidden="true">
+              <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
             </div>
+            <p class="quote">"Our drivers Oualid and Ray were wonderful! Polite and professional! They provided text reminders before pick up and were constantly in communication with us. Always on time and the car was very clean and smooth! We went right from baggage claim to the car in about 2 minutes. I would 100% recommend this service from the Orlando airport to Disney. It was one less stress to worry about and knowing my family was safe was the best! Another plus was them having a car seat for us!"</p>
+            <div class="reviewer">Emily Harp</div>
+            <div class="reviewer-meta">Disney family trip — Google review</div>
           </div>
         </div>
-
         <div class="col-md-6 col-lg-4">
-          <div class="pricing-card h-100 shadow-sm" style="border-top: 3px solid var(--lux-gold);">
-            <div class="card-body p-5 text-center">
-              <p class="pricing-title">MCO to Universal</p>
-              <div class="pricing-amount mb-2">$105</div>
-              <p style="color: var(--lux-medium-gray); font-size: 0.85rem; margin-bottom: 2rem;">Starting price • One-way transfer</p>
-              <ul class="list-unstyled text-start" style="font-size: 0.9rem;">
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Meet & Greet Service
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Flight Tracking
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Free Car Seats
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Luggage Assistance
-                </li>
-                <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>No Hidden Fees
-                </li>
-              </ul>
+          <div class="testimonial-card">
+            <div class="stars" aria-hidden="true">
+              <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
             </div>
+            <p class="quote">"We had the opportunity to have Graysons transfer us from MCO to our Disney resort. They did not disappoint! Our driver was patiently waiting for us even though our flight was delayed on the tarmac AND while it took forever to get our checked bags. He walked our luggage to the car for us and had bottles of water waiting. It felt so nice to have a stress free, private ride. If you're looking for a great black car transfer service, these are your guys!"</p>
+            <div class="reviewer">Corey Page</div>
+            <div class="reviewer-meta">Travel agent — Google review</div>
           </div>
         </div>
-
         <div class="col-md-6 col-lg-4">
-          <div class="pricing-card h-100 shadow-sm">
-            <div class="card-body p-5 text-center">
-              <p class="pricing-title">MCO to Port Canaveral</p>
-              <div class="pricing-amount mb-2">$160</div>
-              <p style="color: var(--lux-medium-gray); font-size: 0.85rem; margin-bottom: 2rem;">Starting price • One-way transfer</p>
-              <ul class="list-unstyled text-start" style="font-size: 0.9rem;">
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Meet & Greet Service
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Flight Tracking
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Free Car Seats
-                </li>
-                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Luggage Assistance
-                </li>
-                <li style="color: var(--lux-dark-gray); font-weight: 300;">
-                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>No Hidden Fees
-                </li>
-              </ul>
+          <div class="testimonial-card">
+            <div class="stars" aria-hidden="true">
+              <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
             </div>
+            <p class="quote">"This was our first Disney trip and Grayson Towncar made it so smooth from the start. Our driver was on time, very professional, and super friendly. The car was clean and comfortable. We will definitely use them again!"</p>
+            <div class="reviewer">Judy Hoops</div>
+            <div class="reviewer-meta">First Disney trip — Google review</div>
           </div>
         </div>
-      </div>
-
-      <div class="text-center mt-5">
-        <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark"><i class="bi bi-calculator me-2"></i>View All Rates</a>
       </div>
     </div>
   </section>
 
-  <!-- CTA Section -->
-  <section class="lux-section lux-section-dark" style="padding: 5rem 0;">
+  <!-- ═══════════════════════════════════════════════
+       SECTION 9: RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Popular Routes &amp; Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World Transportation</h5>
+            <p>Private transfers to every Disney resort from $105 one-way.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'mco_to_disney_world' %}" class="seo-link-card">
+            <h5><i class="bi bi-signpost me-2" style="color: var(--lux-gold);"></i>MCO to Disney World</h5>
+            <p>The full route guide: drive times, prices, and pickup details.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'port_canaveral_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-water me-2" style="color: var(--lux-gold);"></i>Port Canaveral Transfers</h5>
+            <p>Cruise transfers from MCO, Disney, and Universal hotels.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'sanford_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>Sanford Airport (SFB)</h5>
+            <p>Private transfers from Sanford to Disney, Universal, and the port.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 10: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
     <div class="container">
       <div class="row justify-content-center text-center">
         <div class="col-lg-8">
-          <p class="lux-eyebrow">Reserve Your Transfer</p>
-          <h2 style="font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 200; letter-spacing: -0.02em; margin-bottom: 1.5rem;">Ready to Book Your MCO Transfer?</h2>
-          <div class="lux-divider" style="background: var(--lux-gold);"></div>
-          <p style="font-weight: 300; font-size: 1.1rem; color: rgba(255,255,255,0.7); margin-bottom: 2.5rem;">Get your instant quote above or call us for immediate assistance</p>
-          <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
-            <a href="tel:407-212-7190" class="lux-btn lux-btn-primary"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
-            <a href="{% url 'rates' %}" class="lux-btn lux-btn-outline"><i class="bi bi-calculator me-2"></i>View All Rates</a>
+          <h2>Book Your Orlando Airport Transfer</h2>
+          <p class="mb-4">Fixed all-inclusive pricing from $105. Your driver meets you at baggage claim — flight tracking, free car seats, and a Publix grocery stop included.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
           </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
         </div>
       </div>
     </div>
   </section>
+
+</div><!-- /.seo-page -->
 {% endblock %}
 
 {% block extra_js %}
-  <!-- Quote Form JavaScript -->
-  <script src="{% static 'js/quote_form.js' %}"></script>
-  <script>
-      // Initialize quote form when DOM is loaded
-      document.addEventListener('DOMContentLoaded', function() {
-          // Find all quote forms on the page
-          const quoteForms = document.querySelectorAll('.quote-form')
+<script src="{% static 'js/quote_form.js' %}"></script>
+<script>
+// Initialize quote form when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Find all quote forms on the page
+  const quoteForms = document.querySelectorAll('.quote-form')
 
-          quoteForms.forEach(function(form) {
-              new QuoteFormHandler(form)
-          })
-      })
-  </script>
+  quoteForms.forEach(function(form) {
+    new QuoteFormHandler(form)
+  })
+})
+</script>
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
 {% endblock %}

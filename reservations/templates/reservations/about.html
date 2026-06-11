@@ -4,6 +4,38 @@
 {% block head_extra %}
   <link rel="canonical"
         href="https://www.graysontowncar.com/about-grayson-towncar-services/" />
+
+  <!-- AboutPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "url": "https://www.graysontowncar.com/about-grayson-towncar-services/",
+    "mainEntity": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "foundingDate": "2022",
+      "description": "Family-owned luxury private transportation in Orlando, FL specializing in MCO airport transfers, Disney World, Universal Orlando, Epic Universe, and Port Canaveral cruise transfers.",
+      "url": "https://www.graysontowncar.com",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "telephone": "+14072127190",
+      "email": "reservations@graysontowncar.com",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "postalCode": "32827",
+        "addressCountry": "US"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "bestRating": "5",
+        "reviewCount": "1500"
+      }
+    }
+  }
+  </script>
 {% endblock %}
 {% block meta_description %}
   <meta name="description"

@@ -52,8 +52,30 @@ class ServicePagesSitemap(Sitemap):
         return reverse(item)
 
 
+class LandingPagesSitemap(Sitemap):
+    """Top-level SEO landing pages (route and area pages at the site root)."""
+
+    changefreq = "monthly"
+    priority = 0.8
+    protocol = "https"
+
+    def items(self):
+        return [
+            "mco_to_disney_world",
+            "mears_alternative_orlando",
+            "sanford_airport_transportation",
+            "orlando_car_service_international_drive",
+            "orlando_car_service_kissimmee",
+            "car_service_lake_buena_vista",
+            "car_service_championsgate_reunion",
+        ]
+
+    def location(self, item):
+        return reverse(item)
+
+
 class BlogPostSitemap(Sitemap):
-    changefreq = "yearly"
+    changefreq = "monthly"
     priority = 0.6
     protocol = "https"
 

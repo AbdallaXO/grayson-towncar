@@ -1,0 +1,691 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Sanford Airport (SFB) Car Service | From $165 | Grayson Towncar{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Private car service from Orlando Sanford Airport (SFB). Disney World from $165, Port Canaveral from $235 — all-inclusive rates, free car seats, no surge." />
+{% endblock %}
+
+{% block social_meta %}
+  <meta property="og:title" content="Sanford Airport (SFB) Car Service | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from Orlando Sanford Airport to Disney World, Universal, and Port Canaveral. Fixed all-inclusive rates from $165, free car seats, baggage-claim meet & greet." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.graysontowncar.com/sanford-airport-transportation/" />
+  <meta property="og:image" content="https://www.graysontowncar.com{% static 'images/towncar.webp' %}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Sanford Airport (SFB) Car Service | Grayson Towncar" />
+  <meta name="twitter:description" content="Private transfers from Orlando Sanford Airport to Disney World, Universal, and Port Canaveral. Fixed all-inclusive rates from $165 with free car seats." />
+  <meta name="twitter:image" content="https://www.graysontowncar.com{% static 'images/towncar.webp' %}" />
+{% endblock %}
+
+{% block head_extra %}
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Sanford Airport Transportation",
+        "item": "https://www.graysontowncar.com/sanford-airport-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How far is Sanford Airport from Disney World?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Orlando Sanford International Airport (SFB) is about 55 miles from Disney World — a 50 to 65 minute drive. Universal Orlando is about 45 miles away, or 45 to 55 minutes. During peak holiday traffic, add 15 to 20 minutes. A private car service makes the trip door to door with no stops."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much is a car service from SFB to Disney?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A private car from Sanford Airport to Disney World starts at $165 one-way or $315 round-trip for an Executive Sedan seating up to 4 passengers. A Family Minivan (up to 5) is $195/$370, a Luxury SUV (up to 6) is $195/$380, a Passenger Van (up to 10) is $245/$475, and a Sprinter Van (up to 14) is $310/$595. Every rate is per vehicle and all-inclusive — tolls, taxes, flight tracking, and free car seats included. No surge pricing."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does Mears Connect serve Sanford Airport?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Mears Connect's shuttle service is built around Orlando International Airport (MCO); SFB arrivals generally rely on private transfers, rideshare, or rental cars. Grayson Towncar provides private door-to-door transfers from Sanford Airport to Disney World, Universal Orlando, and Port Canaveral, with your driver meeting you at baggage claim."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Where does my driver meet me at SFB?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "SFB is a compact, single-terminal airport, which makes pickup simple. Your driver tracks your flight, texts you when you land, and meets you at baggage claim holding a name sign. They help with your luggage and walk you straight to your vehicle — no shuttle lines and no rideshare zones to find."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats for SFB pickups?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Free Graco car seats — infant, toddler, and booster — are professionally installed on every booking at no extra charge. Just tell us the ages of your children when you book, and the seats will be ready in the vehicle when your driver meets you at Sanford Airport."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What happens if my Allegiant flight is delayed?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Nothing — your pickup adjusts automatically. We track every Allegiant flight in real time, so if your arrival is delayed, your driver shifts to the actual landing time at no extra charge. You will get a text when you land confirming your driver is in place at baggage claim."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Sanford Airport (SFB) Car Service",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando Sanford International Airport (SFB) to Disney World, Universal Orlando, and Port Canaveral. Fixed all-inclusive pricing, baggage-claim meet and greet, real-time flight tracking, and free car seats.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Sanford"},
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Walt Disney World Resort"},
+      {"@type": "Place", "name": "Universal Orlando Resort"},
+      {"@type": "Place", "name": "Port Canaveral"},
+      {"@type": "Airport", "name": "Orlando Sanford International Airport", "iataCode": "SFB"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Sanford Airport Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Sanford Airport (SFB) to Disney World Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Sanford Airport (SFB) to Universal Orlando Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Sanford Airport (SFB) to Port Canaveral Transfer"
+          }
+        }
+      ]
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "165",
+      "priceCurrency": "USD",
+      "description": "Sanford Airport (SFB) to Disney World one-way, Executive Sedan"
+    },
+    "url": "https://www.graysontowncar.com/sanford-airport-transportation/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+    .rate-table-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--lux-charcoal);
+      margin: 2.25rem 0 0.75rem;
+    }
+    .rate-table-title i {
+      color: var(--lux-gold);
+      margin-right: 0.5rem;
+    }
+    .review-stars i {
+      color: var(--lux-gold);
+      font-size: 1.5rem;
+      margin: 0 0.1rem;
+    }
+    .review-score {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 3rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/towncar.webp' %}"
+         width="1920" height="1080"
+         alt="Private chauffeured car service from Orlando Sanford Airport (SFB)"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">Orlando Sanford International Airport</p>
+          <h1 class="lux-title mb-3">Private Car Service from Orlando Sanford Airport (SFB)</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Allegiant landed you about 45-55 miles from the parks. We close the gap — your driver meets you at baggage claim and drives you straight to Disney World, Universal, or your cruise terminal. Fixed all-inclusive rates from $165.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your SFB Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-airplane"></i> Real-time Allegiant flight tracking</span>
+            <span><i class="bi bi-person-badge"></i> Meet &amp; greet at baggage claim</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing, no surge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Sanford Airport Transportation</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: THE OTHER ORLANDO AIRPORT
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Other Orlando Airport</p>
+          <h2 class="lux-section-title">Landing at Sanford? You're 45-55 Miles from the Parks</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Orlando Sanford International Airport (SFB) is Allegiant Air's Orlando base — a smaller, calmer alternative to MCO that handles millions of budget travelers every year. There's a catch most first-time visitors discover only after they land: SFB sits northeast of Orlando, about 45-55 miles from the tourist corridor. The "Orlando" on your boarding pass is actually a 50-to-65-minute drive from Disney World.
+          </p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;">
+            Unlike MCO, Sanford arrivals can't count on a shared Disney shuttle — most travelers use private transfers, rideshare, or rental cars. For families with luggage and car seats — or anyone who just spent a flight in an Allegiant seat — a private car already waiting at baggage claim is the practical choice. You book once, the price is locked, and the driver handles the rest.
+          </p>
+
+          <div class="seo-highlight-box mt-4">
+            <h3 style="font-size: 1.35rem;">How much is a car service from Sanford Airport?</h3>
+            <p>
+              Grayson Towncar's private transfer from Sanford Airport (SFB) to Disney World starts at <strong>$165 one-way</strong> / <strong>$315 round-trip</strong> for an Executive Sedan, seating up to 4 passengers. Universal Orlando area hotels are <strong>$165 / $315</strong>, and Port Canaveral cruise terminals are <strong>$235 / $460</strong>. Every rate is all-inclusive — tolls, taxes, real-time flight tracking, baggage-claim meet &amp; greet, and free Graco car seats. No surge pricing, no mandatory gratuity add-on, no hidden fees.
+            </p>
+          </div>
+
+          <ul class="seo-benefits-list mt-3">
+            <li><i class="bi bi-check-circle-fill"></i> Driver meets you inside at baggage claim with a name sign</li>
+            <li><i class="bi bi-check-circle-fill"></i> Your Allegiant flight is tracked in real time — delays never cost you a dime</li>
+            <li><i class="bi bi-check-circle-fill"></i> Free Graco car seats (infant, toddler, booster) professionally installed</li>
+            <li><i class="bi bi-check-circle-fill"></i> Free 20-minute grocery stop available on airport pickups</li>
+            <li><i class="bi bi-check-circle-fill"></i> Per-vehicle pricing, never per-person — and we run 24/7</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: TRAVEL TIMES
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Route</p>
+          <h2 class="lux-section-title">How Long Is the Drive from SFB?</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~55</div>
+            <div class="route-label">Miles to Disney World</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">50-65</div>
+            <div class="route-label">Minutes to Disney</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~45</div>
+            <div class="route-label">Miles to Universal</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">45-55</div>
+            <div class="route-label">Minutes to Universal</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <p>
+              Plan on <strong>50-65 minutes to Disney World</strong> (about 55 miles) and <strong>45-55 minutes to the Universal area</strong> (about 45 miles). During peak holiday traffic, add 15-20 minutes. It's a longer ride than from MCO — which is exactly why a comfortable private vehicle with a professional driver beats wrestling a rental car after a long flight.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: PRICING TABLES
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-2">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Transparent Pricing</p>
+          <h2 class="lux-section-title">Sanford Airport Transfer Rates</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Per vehicle, never per person. Tolls and taxes included. The price you book is the price you pay.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+          <h3 class="rate-table-title"><i class="bi bi-magic"></i>SFB to Disney World Resorts</h3>
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$165</strong></td><td>$315</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$195</td><td>$370</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$195</td><td>$380</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$245</td><td>$475</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$310</td><td>$595</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="rate-table-title"><i class="bi bi-stars"></i>SFB to Universal Orlando Area Hotels</h3>
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$165</strong></td><td>$315</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$195</td><td>$370</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$195</td><td>$380</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$245</td><td>$475</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$310</td><td>$595</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="rate-table-title"><i class="bi bi-water"></i>SFB to Port Canaveral Cruise Terminals</h3>
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Passengers</th>
+                  <th>One-Way</th>
+                  <th>Round-Trip</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Executive Sedan</td><td>Up to 4</td><td><strong>$235</strong></td><td>$460</td></tr>
+                <tr><td>Family Minivan</td><td>Up to 5</td><td>$255</td><td>$495</td></tr>
+                <tr><td>Luxury SUV</td><td>Up to 6</td><td>$285</td><td>$560</td></tr>
+                <tr><td>Passenger Van</td><td>Up to 10</td><td>$320</td><td>$575</td></tr>
+                <tr><td>Sprinter Van</td><td>Up to 14</td><td>$395</td><td>$725</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="mt-4 text-center" style="font-weight: 300; color: var(--lux-dark-gray);">
+            Need a different route or vehicle? <a href="{% url 'rates' %}" style="color: var(--lux-gold); font-weight: 500;">See the full rate table</a> for every destination we serve, or call <a href="tel:+14072127190" style="color: var(--lux-gold); font-weight: 500;">407-212-7190</a> for a quote.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: HOW PICKUP WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">Your SFB Pickup in 4 Simple Steps</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            SFB is a compact, single-terminal airport — there's one baggage claim area, so your driver is easy to find.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book with Your Flight Number</h4>
+            <p>Reserve online or by phone with your Allegiant flight details. We track your arrival in real time from that moment on.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>Land &amp; Get a Text</h4>
+            <p>Your driver texts you the moment you land. If your flight is delayed, your pickup adjusts automatically — at no charge.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Meet at Baggage Claim</h4>
+            <p>Your driver is waiting at baggage claim with a name sign. They help with your bags and walk you straight to the vehicle.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Ride Direct</h4>
+            <p>Straight to your resort, hotel, or cruise terminal. Want groceries? A free 20-minute Publix stop is included on airport pickups.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How far is Sanford Airport from Disney World?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Orlando Sanford International Airport (SFB) is about 55 miles from Disney World — a 50 to 65 minute drive. Universal Orlando is about 45 miles away, or 45 to 55 minutes. During peak holiday traffic, add 15 to 20 minutes. A private car service makes the trip door to door with no stops.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much is a car service from SFB to Disney?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>A private car from Sanford Airport to Disney World starts at <strong>$165 one-way</strong> or <strong>$315 round-trip</strong> for an Executive Sedan seating up to 4 passengers. A Family Minivan (up to 5) is $195/$370, a Luxury SUV (up to 6) is $195/$380, a Passenger Van (up to 10) is $245/$475, and a Sprinter Van (up to 14) is $310/$595. Every rate is per vehicle and all-inclusive — tolls, taxes, flight tracking, and free car seats included. No surge pricing. <a href="{% url 'rates' %}" style="color: var(--lux-gold);">See the full rate table.</a></p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Does Mears Connect serve Sanford Airport?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Mears Connect's shuttle service is built around Orlando International Airport (MCO); SFB arrivals generally rely on private transfers, rideshare, or rental cars. Grayson Towncar provides private door-to-door transfers from Sanford Airport to Disney World, Universal Orlando, and Port Canaveral, with your driver meeting you at baggage claim.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Where does my driver meet me at SFB?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>SFB is a compact, single-terminal airport, which makes pickup simple. Your driver tracks your flight, texts you when you land, and meets you at baggage claim holding a name sign. They help with your luggage and walk you straight to your vehicle — no shuttle lines and no rideshare zones to find.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats for SFB pickups?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Free Graco car seats — infant, toddler, and booster — are professionally installed on every booking at no extra charge. Just tell us the ages of your children when you book, and the seats will be ready in the vehicle when your driver meets you at Sanford Airport. <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold);">Learn more about our car seat program.</a></p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What happens if my Allegiant flight is delayed?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Nothing — your pickup adjusts automatically. We track every Allegiant flight in real time, so if your arrival is delayed, your driver shifts to the actual landing time at no extra charge. You'll get a text when you land confirming your driver is in place at baggage claim.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: REVIEWS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Verified Reviews</p>
+          <h2 class="lux-section-title">Rated 4.8 out of 5 by Orlando Travelers</h2>
+          <div class="lux-divider"></div>
+          <div class="d-flex align-items-center justify-content-center gap-3 mt-4 mb-3">
+            <span class="review-score">4.8</span>
+            <span class="review-stars">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-half"></i>
+            </span>
+          </div>
+          <p style="color: var(--lux-medium-gray); font-size: 0.9rem;">Based on 1,500+ Google reviews</p>
+          <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8;" class="mt-3">
+            Grayson Towncar is a family-owned Orlando company, founded in 2022 and operating 24/7. Travelers consistently mention the same things in their reviews: the driver was already there, the price never changed, and the car seats were installed before pickup. That's the standard for every SFB transfer we run.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Related Routes &amp; Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Transfers</h5>
+            <p>Flying into Orlando International instead? All MCO routes and rates.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World</h5>
+            <p>Private transfers to every Disney World resort and Disney Springs hotel.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'port_canaveral_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-water me-2" style="color: var(--lux-gold);"></i>Port Canaveral</h5>
+            <p>Cruise terminal transfers timed to your ship's boarding window.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your Sanford Airport Transfer</h2>
+          <p class="mb-4">Fixed all-inclusive rates from $165. Your driver meets you at baggage claim — straight to Disney World, Universal, or your cruise ship.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}
