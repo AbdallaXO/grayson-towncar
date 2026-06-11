@@ -625,6 +625,8 @@
       </div>
     </div>
 
+    {% include 'dispatching/includes/_draft_banner.html' %}
+
     <!-- Driver Coverage Bar -->
     {% if driver_coverage.total > 0 %}
       <div class="card border-0 shadow-sm mb-3">
@@ -1389,9 +1391,21 @@
                             {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
                           </span>
                         {% endif %}
+                        {% if is_held and leg.draft_proposed %}
+                          <span class="draft-proposed-badge mb-1" title="Staged in draft — was {{ leg.draft_live_driver|default:'Unassigned' }}">◇ PROPOSED</span>
+                        {% endif %}
+                        {% if is_held and leg.draft_new_attention %}
+                          <span class="badge bg-warning text-dark mb-1" style="font-size:0.6rem;" title="Booked after the draft opened — needs assignment">NEW</span>
+                        {% endif %}
+                        {% if is_held and leg.draft_live_conflict %}
+                          <span class="draft-conflict-badge mb-1" title="Live now: {{ leg.driver|default:'Unassigned' }}{% if leg.draft_live_by_label %} (set by {{ leg.draft_live_by_label }}){% endif %} · you staged {{ leg.draft_staged_label|default:'Unassigned' }} — publishing overwrites the live driver">⚠ CHANGED LIVE</span>
+                        {% endif %}
+                        {% if is_held and leg.draft_time_changed %}
+                          <span class="draft-conflict-badge mb-1" style="background:#7b1fa2;" title="Pickup time changed live since you opened the draft">⏰ TIME CHANGED</span>
+                        {% endif %}
                         <select class="form-select form-select-sm mb-1 driver-select"
                                 name="driver"
-                                data-leg-id="{{ leg.id }}">
+                                data-leg-id="{{ leg.id }}"{% if board_locked %} disabled title="Draft is in review — editing is locked"{% endif %}>
                           <option value="">Select Driver</option>
                           {% if inhouse_drivers_list %}
                             <optgroup label="In-House">
@@ -1979,7 +1993,8 @@
                       body: JSON.stringify({
                           leg_id: legId,
                           field: selectName,
-                          value: selectValue
+                          value: selectValue,
+                          live_override: !!window._draftEditLive
                       })
                   })
                   .then(response => {

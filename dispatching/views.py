@@ -84,6 +84,17 @@ def can_view_statistics(user):
     return user.is_superuser
 
 
+def can_use_sandbox(user):
+    """Whether a user may build/hold sandbox (draft) schedules.
+
+    Superusers (managers) always can. Other dispatchers need the
+    'reservations.use_schedule_sandbox' permission, granted per-user (or via a
+    group) in the Django admin. Users WITHOUT it edit the live schedule exactly as
+    before — a held day never affects them.
+    """
+    return bool(getattr(user, "is_authenticated", False) and user.has_perm("reservations.use_schedule_sandbox"))
+
+
 class DateForm(forms.Form):
     """Simple form for date selection."""
 
@@ -171,6 +182,14 @@ def index(request):
     # PERF TEMP START
     _perf.info("DASHBOARD queryset eval: %.0fms (%d legs)", (_time.monotonic()-_t_qs)*1000, len(_all_day_legs))
     # PERF TEMP END
+
+    # ── Sandbox draft overlay (shared with board + planner) ──
+    # When the day is held, re-point each leg's in-memory driver to its proposed
+    # draft value so the table/counts/coverage show the PROPOSED world. The overlay
+    # carries its own proposed_driver objects, so no driver list is needed here.
+    # Live Leg.driver in the DB is untouched.
+    _draft_ctx = _draft_view_context(request, selected_date)
+    _apply_draft_overlay(_draft_ctx["draft"], _all_day_legs, None)
 
     # Apply filters in Python to avoid a second DB query
     legs = _all_day_legs
@@ -787,6 +806,8 @@ def index(request):
         "timeline_hours": timeline_hours,
         "unassigned_timeline_slots": _unassigned_timeline_slots,
         "highlight_leg_id": int(highlight_leg_id) if highlight_leg_id and highlight_leg_id.isdigit() else None,
+        # ── Sandbox draft context (banner, review modal, controls) ──
+        **_draft_ctx,
     }
 
     # PERF TEMP START
@@ -881,6 +902,15 @@ def schedule_board(request):
             assignments[d.id].vehicle.vehicle_number if d.id in assignments else 999,
         )
     )
+
+    # ── Sandbox draft overlay (shared with dashboard + planner) ──
+    # If this date is held by an active draft, render the PROPOSED world: re-point
+    # each leg's IN-MEMORY driver to its effective draft driver (never saved) so the
+    # existing pipeline buckets legs into the proposed lanes. Live Leg.driver untouched.
+    _draft_ctx = _draft_view_context(request, selected_date)
+    is_held = _draft_ctx["is_held"]
+    _leg_by_id_overlay = {l.id: l for l in all_legs}
+    _apply_draft_overlay(_draft_ctx["draft"], all_legs, inhouse_drivers)
 
     # Build schedules
     _driver_schedules = build_driver_schedules(all_legs, inhouse_drivers, selected_date)
@@ -1045,6 +1075,15 @@ def schedule_board(request):
             slot.status_label = _sinfo['status_label'] if _sinfo else ''
             slot.status_time = _sinfo['status_time'] if _sinfo else ''
             slot.status_ago = _sinfo['status_ago'] if _sinfo else ''
+            # Draft overlay flags (held days only)
+            _sleg = _leg_by_id_overlay.get(slot.leg_id)
+            slot.is_proposed = bool(getattr(_sleg, 'draft_proposed', False)) if _sleg else False
+            slot.live_driver_label = _driver_label(getattr(_sleg, 'draft_live_driver', None)) if _sleg else None
+            slot.live_conflict = bool(getattr(_sleg, 'draft_live_conflict', False)) if _sleg else False
+            slot.staged_label = getattr(_sleg, 'draft_staged_label', None) if _sleg else None
+            slot.live_by_label = getattr(_sleg, 'draft_live_by_label', None) if _sleg else None
+            slot.time_changed = bool(getattr(_sleg, 'draft_time_changed', False)) if _sleg else False
+            slot.old_time = getattr(_sleg, 'draft_old_time', None) if _sleg else None
         inhouse_timeline.append({
             'driver': driver,
             'schedule': sched,
@@ -1194,6 +1233,15 @@ def schedule_board(request):
             'reservation_id': leg.reservation_id,
             'extra_stop_count': len(getattr(leg, 'legstop_set').all()) if leg.pk else 0,
             'secondary_flight_count': max(len(getattr(leg, 'legflight_set').all()) - 1, 0) if leg.pk else 0,
+            # Draft overlay flags (held days only)
+            'is_proposed': bool(getattr(leg, 'draft_proposed', False)),
+            'is_new_attention': bool(getattr(leg, 'draft_new_attention', False)),
+            'live_driver_label': _driver_label(getattr(leg, 'draft_live_driver', None)),
+            'live_conflict': bool(getattr(leg, 'draft_live_conflict', False)),
+            'staged_label': getattr(leg, 'draft_staged_label', None),
+            'live_by_label': getattr(leg, 'draft_live_by_label', None),
+            'time_changed': bool(getattr(leg, 'draft_time_changed', False)),
+            'old_time': getattr(leg, 'draft_old_time', None),
         })
 
     # Sort unassigned slots: bigger vehicles first, then by pickup time
@@ -1240,6 +1288,8 @@ def schedule_board(request):
         "assigned_count": assigned_count,
         "unassigned_count": unassigned_count,
         "available_no_jobs": available_no_jobs,
+        # ── Sandbox draft context (banner, review modal, controls) ──
+        **_draft_ctx,
     }
     return render(request, "dispatching/schedule_board.html", context)
 
@@ -2106,28 +2156,48 @@ def update_leg_assignment(request):
                 pending_refund_warning = "Warning: This reservation has a pending refund request."
 
         if field == "driver":
+            # Sandbox gate: route the edit into the draft overlay (invisible to
+            # drivers) ONLY when (a) this date is held, (b) the editor is a granted
+            # sandbox user, and (c) they didn't force a live edit. Everyone else —
+            # including non-granted dispatchers — writes Leg.driver live, exactly
+            # as before; a held day never affects them.
+            draft = _active_draft_for_date(leg.pickup_date)
+            live_override = bool(data.get("live_override"))
+            _can_sb = can_use_sandbox(request.user)
+            use_overlay = bool(draft) and _can_sb and not live_override
             if value:
                 try:
                     driver = Driver.objects.get(id=value)
-                    logger.info(f"Found driver with ID {value}")
-                    leg.driver = driver
-                    # Track who assigned the driver and when
-                    leg.driver_assigned_by = request.user
-                    leg.driver_assigned_at = timezone.now()
-                    # Attribute any conflict/tight-turn task auto-close to this user
-                    # so it shows in the task activity feed (ops/signals.py).
-                    leg._reassigned_by = request.user
-                    # Single save: Leg.save() auto-fills pay when driver changes
-                    leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
-                    cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
-                    logger.info(
-                        f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
-                    )
                 except Driver.DoesNotExist:
                     logger.warning(f"Driver with ID {value} not found")
                     return JsonResponse(
                         {"success": False, "error": "Driver not found"}, status=404
                     )
+                try:
+                    if use_overlay:
+                        # Stage in the draft overlay; do NOT touch Leg.driver.
+                        _upsert_draft_assignment(draft, leg, driver, request.user)
+                        logger.info(
+                            f"Staged leg {leg_id} -> driver {driver.id} in draft {draft.id} by {request.user.username}"
+                        )
+                    else:
+                        leg.driver = driver
+                        # Track who assigned the driver and when
+                        leg.driver_assigned_by = request.user
+                        leg.driver_assigned_at = timezone.now()
+                        # Attribute any conflict/tight-turn task auto-close to this user
+                        # so it shows in the task activity feed (ops/signals.py).
+                        leg._reassigned_by = request.user
+                        # Single save: Leg.save() auto-fills pay when driver changes
+                        leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
+                        cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
+                        # Emergency live edit on a held day by a granted user: mirror
+                        # into the overlay so a later publish won't revert this fix.
+                        if draft and live_override and _can_sb:
+                            _upsert_draft_assignment(draft, leg, driver, request.user, live_override=True)
+                        logger.info(
+                            f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
+                        )
                 except AttributeError as e:
                     logger.error(
                         f"Attribute error: {str(e)} - check if driver has profile attribute"
@@ -2143,18 +2213,25 @@ def update_leg_assignment(request):
                         status=500,
                     )
             else:
-                leg.driver = None
-                # Track who unassigned the driver
-                leg.driver_assigned_by = request.user
-                leg.driver_assigned_at = timezone.now()
-                # Attribute the auto-reset of leg.status (handled in Leg.save)
-                # to the user performing the unassign.
-                leg._status_change_user = request.user
-                # Attribute conflict/tight-turn task auto-close (ops/signals.py).
-                leg._reassigned_by = request.user
-                leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
-                logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
-                cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
+                if use_overlay:
+                    # Stage an unassignment in the overlay (proposed_driver=NULL).
+                    _upsert_draft_assignment(draft, leg, None, request.user)
+                    logger.info(f"Staged leg {leg_id} unassign in draft {draft.id} by {request.user.username}")
+                else:
+                    leg.driver = None
+                    # Track who unassigned the driver
+                    leg.driver_assigned_by = request.user
+                    leg.driver_assigned_at = timezone.now()
+                    # Attribute the auto-reset of leg.status (handled in Leg.save)
+                    # to the user performing the unassign.
+                    leg._status_change_user = request.user
+                    # Attribute conflict/tight-turn task auto-close (ops/signals.py).
+                    leg._reassigned_by = request.user
+                    leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
+                    if draft and live_override and _can_sb:
+                        _upsert_draft_assignment(draft, leg, None, request.user, live_override=True)
+                    logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
+                    cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
         elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
@@ -2222,6 +2299,10 @@ def update_leg_assignment(request):
         response_data = {"success": True}
         if pending_refund_warning:
             response_data["warning"] = pending_refund_warning
+        if field == "driver":
+            # Tell the caller whether this edit was staged in a draft (held day,
+            # granted user) vs written live, so the UI can badge it accordingly.
+            response_data["held"] = use_overlay
         return JsonResponse(response_data)
 
     except Exception as e:
@@ -8710,6 +8791,13 @@ def capacity_planner(request):
     )
     legs_list = list(legs)
 
+    # ── Sandbox draft overlay (shared with board + dashboard) ──
+    # When the day is held, re-point each leg's in-memory driver to its proposed
+    # draft value so capacity/coverage/suggestions reflect the PROPOSED world.
+    # Live Leg.driver in the DB is untouched.
+    _draft_ctx = _draft_view_context(request, selected_date)
+    _apply_draft_overlay(_draft_ctx["draft"], legs_list, None)
+
     # Get drivers — inactive drivers are excluded from the planner + vehicle
     # assignment (they remain visible only in the driver directory).
     inhouse_drivers = (
@@ -8840,7 +8928,10 @@ def capacity_planner(request):
     # LocMemCache (single worker) stores Python objects directly; no serialization needed.
     # Suggestions reference leg IDs, not ORM instances, so cached results are safe to reuse.
     _sched_cache_key = f"capacity_planner_{selected_date.isoformat()}"
-    _cached_sched = cache.get(_sched_cache_key)
+    # While a day is held, bypass the cache so the proposed-overlay state is always
+    # fresh (and never pollutes the live-state cache).
+    _is_held = _draft_ctx["is_held"]
+    _cached_sched = None if _is_held else cache.get(_sched_cache_key)
 
     _unassigned_legs = [leg for leg in legs_list if leg.driver is None]
 
@@ -8851,7 +8942,8 @@ def capacity_planner(request):
         _inhouse_for_suggestions = {did: s for did, s in driver_schedules.items() if s.driver_type == 'inhouse'}
         suggestions = suggest_assignments_clustered(_unassigned_legs, _inhouse_for_suggestions, selected_date)
         coverage = get_coverage_stats(legs_list)
-        cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
+        if not _is_held:
+            cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
 
     inhouse_schedules = {
         did: sched for did, sched in driver_schedules.items()
@@ -9137,6 +9229,8 @@ def capacity_planner(request):
         'inhouse_vehicles': inhouse_vehicles,
         'vehicle_assign_rows': vehicle_assign_rows,
         'driver_availability_json': json.dumps(driver_availability),
+        # ── Sandbox draft context (banner, review modal, controls) ──
+        **_draft_ctx,
     }
 
     clear_timing_cache()
@@ -9173,6 +9267,703 @@ def _create_schedule_snapshot(target_date, user, trigger):
     ]
     ScheduleSnapshotEntry.objects.bulk_create(entries)
     return snapshot
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Sandbox scheduling (draft / review / publish)
+#
+# While a date has an active ScheduleDraft, dispatcher edits for that date are
+# routed into the DraftAssignment overlay instead of Leg.driver — so nothing
+# reaches drivers until a manager publishes. The two helpers below are the gate
+# (is this date held?) and the overlay writer (never calls leg.save()).
+# ──────────────────────────────────────────────────────────────────────────
+
+def _active_draft_for_date(target_date):
+    """Return the active (non-terminal) ScheduleDraft for a date, or None.
+
+    One cheap indexed lookup on (schedule_date, state). The partial unique
+    constraint guarantees at most one active draft per date, so .first() is exact.
+    """
+    if target_date is None:
+        return None
+    from reservations.models import ScheduleDraft
+    return ScheduleDraft.objects.filter(
+        schedule_date=target_date,
+        state__in=ScheduleDraft.ACTIVE_STATES,
+    ).first()
+
+
+def _log_draft_event(draft, event_type, actor=None, note="", **metadata):
+    """Append a ScheduleDraftEvent to the draft timeline (audit + feedback)."""
+    from reservations.models import ScheduleDraftEvent
+    return ScheduleDraftEvent.objects.create(
+        draft=draft,
+        event_type=event_type,
+        actor=actor,
+        note=note or "",
+        metadata=metadata or {},
+    )
+
+
+def _upsert_draft_assignment(draft, leg, driver, user, **event_meta):
+    """Write the overlay delta for one leg WITHOUT touching Leg.driver.
+
+    This is the side-effect firewall: it never calls leg.save(), so none of the
+    Leg.save() side effects (pay calc, gratuity split, NTFY status signal, ops
+    task-close) fire during drafting. They fire correctly at publish time.
+
+    `driver` may be None to mean "draft says unassigned" (a row with
+    proposed_driver=NULL), which is distinct from "no row" (defer to live).
+    Extra kwargs are merged into the logged event's metadata (e.g. live_override).
+    """
+    from reservations.models import DraftAssignment, ScheduleDraftEvent
+    da, _ = DraftAssignment.objects.update_or_create(
+        draft=draft,
+        leg=leg,
+        defaults={
+            "proposed_driver": driver,
+            "assigned_by": user,
+            "assigned_at": timezone.now(),
+        },
+    )
+    meta = {"leg_id": leg.id, "to_driver": driver.id if driver else None}
+    meta.update(event_meta)
+    _log_draft_event(draft, ScheduleDraftEvent.EventType.EDITED, actor=user, **meta)
+    return da
+
+
+def _driver_label(driver):
+    """Human label for a Driver (full name, else username)."""
+    if not driver:
+        return None
+    try:
+        return driver.profile.get_full_name() or driver.profile.username
+    except Exception:
+        return f"Driver {driver.id}"
+
+
+def _user_label(user):
+    """Human label for an auth User (full name, else username)."""
+    if not user:
+        return None
+    try:
+        return user.get_full_name() or user.username
+    except Exception:
+        return None
+
+
+def _fmt_t(hhmm):
+    """Format an 'HH:MM' string (or time) as '7:30 AM'."""
+    try:
+        if hasattr(hhmm, "strftime"):
+            t = hhmm
+        else:
+            from datetime import datetime as _dt
+            t = _dt.strptime(hhmm, "%H:%M").time()
+        return t.strftime("%I:%M %p").lstrip("0")
+    except Exception:
+        return str(hhmm or "")
+
+
+def _compute_draft_diff(draft):
+    """Diff the draft overlay against the live schedule for the manager review.
+
+    Returns reassignments / new_assignments / unassignments (what publishing will
+    change for drivers) plus needs_attention (legs booked after the draft opened
+    that have no proposed driver yet — the live-merge surface). Each row keeps the
+    Leg object (for template rendering) alongside scalar fields.
+    """
+    from reservations.models import DraftAssignment
+
+    legs = (
+        Leg.objects.filter(pickup_date=draft.schedule_date)
+        .exclude(reservation__status="cancelled")
+        .exclude(status="cancelled")
+        .select_related("driver", "driver__profile", "driver_assigned_by",
+                        "reservation", "reservation__customer")
+        .order_by("pickup_time")
+    )
+    overlay = {
+        da.leg_id: da
+        for da in DraftAssignment.objects.filter(draft=draft).select_related(
+            "proposed_driver", "proposed_driver__profile", "assigned_by"
+        )
+    }
+    baseline = set(draft.baseline_leg_ids or [])
+    base_legs = draft.baseline_legs or {}   # per-leg fields at hold time
+
+    reassignments, new_assignments, unassignments, needs_attention = [], [], [], []
+    live_conflicts, field_changes = [], []
+
+    def _row(leg, live_driver, proposed):
+        customer = ""
+        try:
+            if leg.reservation and leg.reservation.customer:
+                customer = leg.reservation.customer.get_full_name()
+        except Exception:
+            pass
+        return {
+            "leg": leg,
+            "leg_id": leg.id,
+            "time": leg.pickup_time,
+            "pickup": leg.pickup_location,
+            "dropoff": leg.dropoff_location,
+            "customer": customer,
+            "live_driver": _driver_label(live_driver),
+            "proposed_driver": _driver_label(proposed),
+        }
+
+    for leg in legs:
+        b = base_legs.get(str(leg.id))
+        da = overlay.get(leg.id)
+        live_driver = leg.driver
+        live_id = live_driver.id if live_driver else None
+
+        # ── pickup-time changed live since hold (informational; publish doesn't
+        #    touch time, so this is a notice, not a publish blocker) ──
+        if b and b.get("pickup_time"):
+            cur_t = leg.pickup_time.strftime("%H:%M") if leg.pickup_time else None
+            if cur_t and cur_t != b["pickup_time"]:
+                fc = _row(leg, live_driver, da.proposed_driver if da else None)
+                fc["field"] = "Pickup time"
+                fc["old"] = _fmt_t(b["pickup_time"])
+                fc["new"] = _fmt_t(leg.pickup_time)
+                field_changes.append(fc)
+
+        if da is not None:
+            proposed = da.proposed_driver
+            prop_id = proposed.id if proposed else None
+            base_id = b.get("driver_id") if b else None
+            is_conflict = (live_id != base_id) and (live_id != prop_id)
+            if is_conflict:
+                # Someone changed the live driver under this staged leg. Show the
+                # full picture: who's live now (+when) and what you staged (+when).
+                # Publishing will overwrite the live driver with your staged pick.
+                cb = leg.driver_assigned_by
+                row = _row(leg, live_driver, proposed)          # live_driver=live, proposed=your pick
+                row["changed_by"] = _user_label(cb)
+                row["changed_at"] = leg.driver_assigned_at
+                row["staged_by"] = _user_label(da.assigned_by)
+                row["staged_at"] = da.assigned_at
+                live_conflicts.append(row)
+            elif prop_id != live_id:
+                row = _row(leg, live_driver, proposed)
+                if live_driver and proposed:
+                    reassignments.append(row)
+                elif proposed and not live_driver:
+                    new_assignments.append(row)
+                else:  # live_driver and not proposed
+                    unassignments.append(row)
+        else:
+            # No draft opinion. If the leg appeared after the draft opened and is
+            # still unassigned, flag it for triage (live-merge).
+            if leg.id not in baseline and not live_driver:
+                needs_attention.append(_row(leg, live_driver, None))
+
+    # Attribute time changes to whoever last edited the leg since the hold opened.
+    if field_changes:
+        try:
+            changed_ids = [fc["leg_id"] for fc in field_changes]
+            latest = {}
+            for h in (Leg.history.filter(id__in=changed_ids, history_date__gt=draft.created_at)
+                      .select_related("history_user").order_by("id", "-history_date")):
+                if h.id not in latest:
+                    latest[h.id] = h
+            for fc in field_changes:
+                h = latest.get(fc["leg_id"])
+                if h:
+                    fc["changed_by"] = _user_label(h.history_user)
+                    fc["changed_at"] = h.history_date
+        except Exception:
+            pass
+
+    return {
+        "reassignments": reassignments,
+        "new_assignments": new_assignments,
+        "unassignments": unassignments,
+        "needs_attention": needs_attention,
+        "live_conflicts": live_conflicts,
+        "field_changes": field_changes,
+        "proposed_change_count": len(reassignments) + len(new_assignments) + len(unassignments),
+        "needs_attention_count": len(needs_attention),
+        "live_conflict_count": len(live_conflicts),
+        "field_change_count": len(field_changes),
+    }
+
+
+def _apply_draft_overlay(draft, legs, drivers):
+    """Re-point each leg's IN-MEMORY driver to its effective draft value (never saved)
+    and tag it for the template's draft visual treatment. Live Leg.driver is untouched.
+
+    Sets on every leg (non-underscore names so Django templates can read them):
+    `draft_proposed` (staged change shown as proposed), `draft_new_attention`
+    (booked after hold, still unassigned), `draft_live_conflict` (a staged leg whose
+    LIVE driver was changed under the draft — we then show the LIVE driver, not the
+    proposed one, plus `draft_staged_label`/`draft_staged_at` = your pick & when, and
+    `draft_live_by_label`/`draft_live_at` = who set live & when), and
+    `draft_time_changed`/`draft_old_time` (pickup time moved live since hold).
+    Shared by the board, dashboard and planner so all three render the same world.
+    """
+    from reservations.models import DraftAssignment
+    for leg in legs:
+        leg.draft_live_driver = leg.driver
+        leg.draft_proposed = False
+        leg.draft_new_attention = False
+        leg.draft_live_conflict = False
+        leg.draft_staged_label = None
+        leg.draft_staged_at = None
+        leg.draft_live_by_label = None
+        leg.draft_live_at = None
+        leg.draft_time_changed = False
+        leg.draft_old_time = None
+    if draft is None:
+        return
+    overlay = {
+        da.leg_id: da
+        for da in DraftAssignment.objects.filter(draft=draft).select_related(
+            "proposed_driver", "proposed_driver__profile"
+        )
+    }
+    baseline = set(draft.baseline_leg_ids or [])
+    base_legs = draft.baseline_legs or {}
+    by_id = {d.id: d for d in (drivers or [])}
+    for leg in legs:
+        b = base_legs.get(str(leg.id))
+        # ── field-change awareness: pickup time moved live since hold ──
+        if b and b.get("pickup_time"):
+            cur_t = leg.pickup_time.strftime("%H:%M") if leg.pickup_time else None
+            if cur_t and cur_t != b["pickup_time"]:
+                leg.draft_time_changed = True
+                leg.draft_old_time = b["pickup_time"]
+        # ── driver overlay ──
+        da = overlay.get(leg.id)
+        if da is not None:
+            prop = da.proposed_driver
+            live_id = leg.driver.id if leg.driver else None   # current LIVE driver
+            prop_id = prop.id if prop else None
+            base_id = b.get("driver_id") if b else None
+            if live_id != base_id and live_id != prop_id:
+                # Someone changed the live driver under this staged leg. Show the
+                # LIVE driver (reality) and remember your staged pick + who/when.
+                leg.draft_live_conflict = True
+                leg.draft_staged_label = _driver_label(prop)
+                leg.draft_staged_at = da.assigned_at
+                leg.draft_live_by_label = _user_label(leg.driver_assigned_by)
+                leg.draft_live_at = leg.driver_assigned_at
+                # leave leg.driver = live (do NOT re-point to the proposed value)
+            else:
+                leg.draft_proposed = prop_id != live_id
+                leg.driver = by_id.get(prop_id, prop) if prop else None
+        else:
+            leg.draft_new_attention = (leg.id not in baseline) and (leg.driver is None)
+
+
+def _draft_view_context(request, selected_date):
+    """Shared draft banner/review context for any dispatcher page (board, dashboard,
+    planner). Does NOT mutate legs — call _apply_draft_overlay() separately to render
+    the proposed assignments. Returns a dict ready to merge into the page context.
+    """
+    from reservations.models import ScheduleDraft as _SD
+    is_manager = request.user.is_superuser
+
+    # Users without the sandbox grant edit the live schedule exactly as before:
+    # no banner, no overlay, no "held" — return a fully inert context.
+    if not can_use_sandbox(request.user):
+        return {
+            "selected_date": selected_date, "draft": None, "is_held": False,
+            "draft_state": None, "draft_holder": None, "is_manager": is_manager,
+            "board_locked": False, "draft_diff": None, "draft_events": [],
+            "proposed_change_count": 0, "needs_attention_count": 0,
+            "live_conflict_count": 0, "field_change_count": 0,
+            "published_draft": None, "today": timezone.localdate(),
+            "can_sandbox": False,
+        }
+
+    draft = _active_draft_for_date(selected_date)
+    is_held = draft is not None
+    draft_diff = _compute_draft_diff(draft) if is_held else None
+    draft_events = list(draft.events.select_related("actor").all()) if is_held else []
+    published_draft = None
+    if not is_held:
+        published_draft = (
+            _SD.objects.filter(schedule_date=selected_date, state=_SD.State.PUBLISHED, notified_at__isnull=True)
+            .order_by("-published_at").first()
+        )
+    return {
+        "selected_date": selected_date,
+        "draft": draft,
+        "is_held": is_held,
+        "draft_state": draft.state if is_held else None,
+        "draft_holder": draft.created_by if is_held else None,
+        "is_manager": is_manager,
+        "board_locked": bool(is_held and draft.state == _SD.State.IN_REVIEW and not is_manager),
+        "draft_diff": draft_diff,
+        "draft_events": draft_events,
+        "proposed_change_count": draft_diff["proposed_change_count"] if draft_diff else 0,
+        "needs_attention_count": draft_diff["needs_attention_count"] if draft_diff else 0,
+        "live_conflict_count": draft_diff["live_conflict_count"] if draft_diff else 0,
+        "field_change_count": draft_diff["field_change_count"] if draft_diff else 0,
+        "published_draft": published_draft,
+        "today": timezone.localdate(),
+        "can_sandbox": True,
+    }
+
+
+# ── Draft lifecycle endpoints ──────────────────────────────────────────────
+
+@login_required
+@require_POST
+def open_draft(request):
+    """Put a date on HOLD: open a sandbox draft so further edits stage privately."""
+    if not can_use_sandbox(request.user):
+        return JsonResponse({"success": False, "error": "You don't have access to the scheduling sandbox"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    date_str = data.get("date")
+    if not date_str:
+        return JsonResponse({"success": False, "error": "Date required"}, status=400)
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    from reservations.models import ScheduleDraft, ScheduleDraftEvent
+
+    existing = _active_draft_for_date(target_date)
+    if existing:
+        return JsonResponse({
+            "success": True, "draft_id": existing.id, "state": existing.state,
+            "already_held": True, "message": f"{date_str} is already held.",
+        })
+
+    with transaction.atomic():
+        hold_legs = list(
+            Leg.objects.filter(pickup_date=target_date)
+            .exclude(reservation__status="cancelled").exclude(status="cancelled")
+        )
+        baseline_ids = [l.id for l in hold_legs]
+        # Snapshot schedule-critical fields at hold time, so we can later show what
+        # a non-sandbox user changed LIVE while the draft was open (driver/time/date).
+        baseline_legs = {
+            str(l.id): {
+                "driver_id": l.driver_id,
+                "pickup_time": l.pickup_time.strftime("%H:%M") if l.pickup_time else None,
+                "pickup_date": l.pickup_date.isoformat() if l.pickup_date else None,
+                "pickup_location": l.pickup_location or "",
+                "dropoff_location": l.dropoff_location or "",
+            }
+            for l in hold_legs
+        }
+        snapshot = _create_schedule_snapshot(target_date, request.user, 'manual')
+        draft = ScheduleDraft.objects.create(
+            schedule_date=target_date,
+            state=ScheduleDraft.State.DRAFT,
+            base_snapshot=snapshot,
+            baseline_leg_ids=baseline_ids,
+            baseline_legs=baseline_legs,
+            created_by=request.user,
+        )
+        _log_draft_event(draft, ScheduleDraftEvent.EventType.CREATED, actor=request.user)
+
+    return JsonResponse({
+        "success": True, "draft_id": draft.id, "state": draft.state,
+        "message": f"{date_str} is now held — edits are private until published.",
+    })
+
+
+@login_required
+@require_POST
+def submit_draft(request):
+    """Dispatcher submits a draft for manager review."""
+    if not can_use_sandbox(request.user):
+        return JsonResponse({"success": False, "error": "You don't have access to the scheduling sandbox"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from reservations.models import ScheduleDraft, ScheduleDraftEvent
+    draft = ScheduleDraft.objects.filter(id=data.get("draft_id")).first()
+    if not draft:
+        return JsonResponse({"success": False, "error": "Draft not found"}, status=404)
+    if draft.state not in (ScheduleDraft.State.DRAFT, ScheduleDraft.State.CHANGES_REQUESTED):
+        return JsonResponse({"success": False, "error": "Draft is not in an editable state"}, status=409)
+
+    draft.state = ScheduleDraft.State.IN_REVIEW
+    draft.submitted_by = request.user
+    draft.submitted_at = timezone.now()
+    draft.save(update_fields=["state", "submitted_by", "submitted_at"])
+    _log_draft_event(draft, ScheduleDraftEvent.EventType.SUBMITTED, actor=request.user,
+                     note=(data.get("note") or "").strip())
+    return JsonResponse({"success": True, "state": draft.state, "message": "Submitted for manager review."})
+
+
+@login_required
+@require_POST
+def reject_draft(request):
+    """Manager requests changes (rejects) with required notes."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Manager approval required"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    note = (data.get("note") or "").strip()
+    if not note:
+        return JsonResponse({"success": False, "error": "A note explaining the requested changes is required"}, status=400)
+
+    from reservations.models import ScheduleDraft, ScheduleDraftEvent
+    draft = ScheduleDraft.objects.filter(id=data.get("draft_id")).first()
+    if not draft:
+        return JsonResponse({"success": False, "error": "Draft not found"}, status=404)
+    if draft.state != ScheduleDraft.State.IN_REVIEW:
+        return JsonResponse({"success": False, "error": "Draft is not awaiting review"}, status=409)
+
+    draft.state = ScheduleDraft.State.CHANGES_REQUESTED
+    draft.reviewed_by = request.user
+    draft.reviewed_at = timezone.now()
+    draft.save(update_fields=["state", "reviewed_by", "reviewed_at"])
+    _log_draft_event(draft, ScheduleDraftEvent.EventType.REJECTED, actor=request.user, note=note)
+    return JsonResponse({"success": True, "state": draft.state, "message": "Changes requested."})
+
+
+@login_required
+@require_POST
+def discard_draft(request):
+    """Discard a draft without publishing. Drivers are unaffected (live untouched)."""
+    if not can_use_sandbox(request.user):
+        return JsonResponse({"success": False, "error": "You don't have access to the scheduling sandbox"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from reservations.models import ScheduleDraft, ScheduleDraftEvent
+    draft = ScheduleDraft.objects.filter(id=data.get("draft_id")).first()
+    if not draft:
+        return JsonResponse({"success": False, "error": "Draft not found"}, status=404)
+    if not draft.is_active:
+        return JsonResponse({"success": False, "error": "Draft is already closed"}, status=409)
+
+    # Managers may discard any active draft; dispatchers only their own un-submitted draft.
+    allowed = request.user.is_superuser or (
+        draft.created_by_id == request.user.id and draft.state == ScheduleDraft.State.DRAFT
+    )
+    if not allowed:
+        return JsonResponse({"success": False, "error": "Only a manager can discard a submitted draft"}, status=403)
+
+    draft.state = ScheduleDraft.State.DISCARDED
+    draft.save(update_fields=["state"])
+    _log_draft_event(draft, ScheduleDraftEvent.EventType.DISCARDED, actor=request.user)
+    return JsonResponse({"success": True, "state": draft.state, "message": "Draft discarded. Live schedule unchanged."})
+
+
+@login_required
+def draft_review(request):
+    """Manager-only JSON: the publish diff + the event timeline for a draft."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Manager approval required"}, status=403)
+
+    from reservations.models import ScheduleDraft
+    draft = ScheduleDraft.objects.filter(id=request.GET.get("draft_id")).first()
+    if not draft:
+        return JsonResponse({"success": False, "error": "Draft not found"}, status=404)
+
+    diff = _compute_draft_diff(draft)
+
+    def _serialize_rows(rows):
+        return [{
+            "leg_id": r["leg_id"],
+            "time": r["time"].strftime("%I:%M %p").lstrip("0") if r["time"] else "",
+            "pickup": r["pickup"], "dropoff": r["dropoff"], "customer": r["customer"],
+            "live_driver": r["live_driver"], "proposed_driver": r["proposed_driver"],
+        } for r in rows]
+
+    events = [{
+        "type": e.event_type,
+        "type_display": e.get_event_type_display(),
+        "actor": (e.actor.get_full_name() or e.actor.username) if e.actor else "System",
+        "note": e.note,
+        "metadata": e.metadata,
+        "when": timezone.localtime(e.created_at).strftime("%b %d, %I:%M %p").replace(" 0", " "),
+    } for e in draft.events.select_related("actor").all()]
+
+    return JsonResponse({
+        "success": True,
+        "draft_id": draft.id,
+        "state": draft.state,
+        "schedule_date": draft.schedule_date.isoformat(),
+        "reassignments": _serialize_rows(diff["reassignments"]),
+        "new_assignments": _serialize_rows(diff["new_assignments"]),
+        "unassignments": _serialize_rows(diff["unassignments"]),
+        "needs_attention": _serialize_rows(diff["needs_attention"]),
+        "proposed_change_count": diff["proposed_change_count"],
+        "needs_attention_count": diff["needs_attention_count"],
+        "events": events,
+    })
+
+
+@login_required
+@require_POST
+def publish_draft(request):
+    """Manager approves & publishes: apply the overlay onto live Leg.driver."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Manager approval required"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    force = bool(data.get("force"))
+    from reservations.models import ScheduleDraft, ScheduleDraftEvent
+
+    with transaction.atomic():
+        draft = ScheduleDraft.objects.select_for_update().filter(id=data.get("draft_id")).first()
+        if not draft:
+            return JsonResponse({"success": False, "error": "Draft not found"}, status=404)
+        # A manager may publish from in_review/changes_requested, or directly from
+        # their own draft (skip-review path).
+        publishable = draft.state in (ScheduleDraft.State.IN_REVIEW, ScheduleDraft.State.CHANGES_REQUESTED) or (
+            draft.state == ScheduleDraft.State.DRAFT
+        )
+        if not publishable:
+            return JsonResponse({"success": False, "error": "Draft is not in a publishable state"}, status=409)
+
+        # ── Conflict detection (three-way: baseline vs live-now vs proposed) ──
+        base = {}
+        if draft.base_snapshot_id:
+            base = {e.leg_id: e.driver_id for e in draft.base_snapshot.entries.all()}
+        deltas = list(draft.assignments.select_related("leg", "leg__reservation", "proposed_driver"))
+        touched_ids = [d.leg_id for d in deltas]
+        live_now = dict(Leg.objects.filter(id__in=touched_ids).values_list("id", "driver_id"))
+
+        conflicts = []
+        for d in deltas:
+            # Baseline = the leg's driver when the draft opened. base_snapshot only
+            # records ASSIGNED legs, so a leg missing from it was unassigned (or did
+            # not exist) at hold → baseline None. We must NOT skip those: if someone
+            # set them live since (e.g. a non-sandbox dispatcher assigned a fresh
+            # leg), publishing the overlay would silently overwrite that change.
+            base_driver = base.get(d.leg_id)            # None = unassigned/new at hold
+            live_driver = live_now.get(d.leg_id)        # current live value
+            if live_driver != base_driver and live_driver != d.proposed_driver_id:
+                conflicts.append({
+                    "leg_id": d.leg_id,
+                    "base_driver": base_driver,
+                    "live_now": live_driver,
+                    "draft_wants": d.proposed_driver_id,
+                })
+        if conflicts:
+            # Enrich with human labels + WHO changed the live value (from
+            # Leg.driver_assigned_by), so the publisher can reconcile — e.g.
+            # "9:00 MCO→Universal: draft wants Carlos, but Mike was set live by
+            # Person Y". Driver pay/identity is read-only here.
+            from drivers.models import Driver as _Drv
+            _ids = set()
+            for c in conflicts:
+                _ids.update([c["base_driver"], c["live_now"], c["draft_wants"]])
+            _ids.discard(None)
+            _labels = {dv.id: _driver_label(dv) for dv in _Drv.objects.filter(id__in=_ids).select_related("profile")}
+            _legmeta = {
+                l.id: l for l in Leg.objects.filter(id__in=[c["leg_id"] for c in conflicts])
+                .select_related("driver_assigned_by")
+            }
+            for c in conflicts:
+                c["base_label"] = _labels.get(c["base_driver"]) or "Unassigned"
+                c["live_label"] = _labels.get(c["live_now"]) or "Unassigned"
+                c["wants_label"] = _labels.get(c["draft_wants"]) or "Unassigned"
+                lm = _legmeta.get(c["leg_id"])
+                if lm:
+                    cb = lm.driver_assigned_by
+                    c["changed_by"] = (cb.get_full_name() or cb.username) if cb else None
+                    c["time"] = lm.pickup_time.strftime("%I:%M %p").lstrip("0") if lm.pickup_time else ""
+                    c["route"] = f"{lm.pickup_location or ''} → {lm.dropoff_location or ''}".strip(" →")
+        if conflicts and not force:
+            _log_draft_event(draft, ScheduleDraftEvent.EventType.CONFLICT, actor=request.user, conflicts=conflicts)
+            return JsonResponse({"success": False, "conflicts": conflicts,
+                                 "error": "The live schedule changed under this draft. Review the conflicts."}, status=409)
+
+        # ── Apply overlay onto live ──
+        now = timezone.now()
+        applied = 0
+        skipped = 0
+        affected = set()
+        for d in deltas:
+            leg = d.leg
+            # Skip legs cancelled or drifted off this date since the draft opened.
+            if leg.status == "cancelled" or leg.reservation.status == "cancelled":
+                skipped += 1
+                continue
+            if leg.pickup_date != draft.schedule_date:
+                _log_draft_event(draft, ScheduleDraftEvent.EventType.CONFLICT, actor=request.user,
+                                 leg_id=leg.id, reason="leg_moved_off_date")
+                skipped += 1
+                continue
+            old_driver_id = leg.driver_id
+            if old_driver_id == d.proposed_driver_id:
+                continue  # no-op; never re-save (avoids redundant pay/NTFY)
+            leg.driver = d.proposed_driver
+            leg.driver_assigned_by = d.assigned_by or request.user
+            leg.driver_assigned_at = now
+            leg._reassigned_by = request.user
+            leg._status_change_user = request.user
+            # FULL save (no update_fields) so pay/gratuity/night-bonus/NTFY recompute now.
+            leg.save()
+            applied += 1
+            if old_driver_id:
+                affected.add(old_driver_id)
+            if d.proposed_driver_id:
+                affected.add(d.proposed_driver_id)
+
+        draft.state = ScheduleDraft.State.PUBLISHED
+        draft.reviewed_by = draft.reviewed_by or request.user
+        draft.reviewed_at = draft.reviewed_at or now
+        draft.published_by = request.user
+        draft.published_at = now
+        draft.save(update_fields=["state", "reviewed_by", "reviewed_at", "published_by", "published_at"])
+        _log_draft_event(draft, ScheduleDraftEvent.EventType.PUBLISHED, actor=request.user,
+                         applied=applied, affected_driver_ids=sorted(affected))
+        cache.delete(f"capacity_planner_{draft.schedule_date.isoformat()}")
+
+    return JsonResponse({
+        "success": True, "applied": applied, "skipped": skipped,
+        "affected_driver_count": len(affected),
+        "message": f"Published {applied} assignment(s) to drivers.",
+    })
+
+
+@login_required
+@require_POST
+def notify_drivers(request):
+    """Manager-triggered Twilio text to drivers affected by a published draft."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Manager approval required"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from reservations.models import ScheduleDraft
+
+    with transaction.atomic():
+        draft = ScheduleDraft.objects.select_for_update().filter(id=data.get("draft_id")).first()
+        if not draft:
+            return JsonResponse({"success": False, "error": "Draft not found"}, status=404)
+        if draft.state != ScheduleDraft.State.PUBLISHED:
+            return JsonResponse({"success": False, "error": "Only a published schedule can be sent to drivers"}, status=409)
+        if draft.notified_at:
+            return JsonResponse({"success": True, "already_sent": True, "message": "Drivers were already notified."})
+        # Claim before spawning the background send so a double-click can't double-send.
+        draft.notified_by = request.user
+        draft.notified_at = timezone.now()
+        draft.save(update_fields=["notified_by", "notified_at"])
+
+    from .confirmation_sms import notify_drivers_of_release
+    _run_in_background(notify_drivers_of_release, draft.id, actor_id=request.user.id)
+    return JsonResponse({"success": True, "message": "Texting affected drivers in the background."})
 
 
 @login_required
@@ -9529,13 +10320,35 @@ def auto_assign_drivers(request):
     remaining = len(unassigned) - assigned_count
 
     if apply_mode:
-        # ── Apply mode: save assignments to DB ──
-        _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
-
         # Filter to selected drivers only if specified
         if apply_driver_ids is not None:
             selected_dids = set(int(d) for d in apply_driver_ids)
             final_assignments = {lid: did for lid, did in final_assignments.items() if did in selected_dids}
+
+        # Sandbox gate: if this date is held AND the runner is a granted sandbox
+        # user, apply auto-assign results into the draft overlay instead of live.
+        # Non-granted dispatchers auto-assign live, exactly as before.
+        draft = _active_draft_for_date(target_date)
+        if draft and can_use_sandbox(request.user):
+            from reservations.models import DraftAssignment
+            now = timezone.now()
+            for lid, did in final_assignments.items():
+                DraftAssignment.objects.update_or_create(
+                    draft=draft, leg_id=lid,
+                    defaults={"proposed_driver_id": did, "assigned_by": request.user, "assigned_at": now},
+                )
+            _log_draft_event(draft, "edited", actor=request.user,
+                             source="auto_assign", count=len(final_assignments))
+            return JsonResponse({
+                "success": True,
+                "assigned": len(final_assignments),
+                "remaining": len(unassigned) - len(final_assignments),
+                "held": True,
+                "message": f"Staged {len(final_assignments)} assignments in the draft for {target_date.isoformat()}.",
+            })
+
+        # ── Apply mode (live): save assignments to DB ──
+        _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
 
         # PERF TEMP START
         import time as _time; _t_assign = _time.monotonic()
@@ -9865,6 +10678,31 @@ def reset_schedule(request):
         target_date = dt.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    # Sandbox gate: a granted sandbox user resetting a held day clears the DRAFT to
+    # all-unassigned (proposed_driver=NULL), leaving live Leg.driver untouched.
+    # Non-granted dispatchers reset the live schedule, exactly as before.
+    draft = _active_draft_for_date(target_date)
+    if draft and can_use_sandbox(request.user):
+        from reservations.models import DraftAssignment
+        legs = Leg.objects.filter(
+            pickup_date=target_date
+        ).exclude(reservation__status="cancelled").exclude(status="cancelled")
+        DraftAssignment.objects.filter(draft=draft).delete()
+        now = timezone.now()
+        DraftAssignment.objects.bulk_create([
+            DraftAssignment(draft=draft, leg=leg, proposed_driver=None,
+                            assigned_by=request.user, assigned_at=now)
+            for leg in legs
+        ])
+        count = legs.count()
+        _log_draft_event(draft, "edited", actor=request.user, source="reset_in_draft", count=count)
+        return JsonResponse({
+            "success": True,
+            "reset_count": count,
+            "held": True,
+            "message": f"Reset the draft for {date_str} to all-unassigned ({count} legs). Live schedule unchanged.",
+        })
 
     # Auto-snapshot before resetting
     snapshot = _create_schedule_snapshot(target_date, request.user, 'before_reset')

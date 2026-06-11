@@ -1,0 +1,388 @@
+{% comment %}
+Reusable sandbox-draft UI for any dispatcher page (schedule board, legs dashboard,
+capacity planner). Self-contained: ships its own CSS + banner + review modal + JS.
+
+Requires these context keys (provide via dispatching.views._draft_view_context):
+  selected_date, is_held, draft, draft_state, draft_holder, is_manager, board_locked,
+  draft_diff, draft_events, proposed_change_count, needs_attention_count,
+  published_draft, today, can_sandbox
+Renders NOTHING for users without the sandbox grant (can_sandbox=False) — they
+see and edit the live schedule exactly as before.
+{% endcomment %}
+{% if can_sandbox %}
+
+{% csrf_token %}
+
+<style>
+  .draft-banner { border-radius:8px; padding:9px 14px; margin-bottom:12px;
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .draft-banner .db-left { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .draft-banner .db-state { font-weight:800; text-transform:uppercase; letter-spacing:.04em; font-size:.78rem; }
+  .draft-banner.db-live { background:#f6f7f9; border:1px solid #e3e6ea; color:#5a6472; }
+  .draft-banner.db-draft { background:#fff9f0; border:1px solid #f0e2c8; border-left:4px solid #C9A227; }
+  .draft-banner.db-draft .db-state { color:#9a7b1f; }
+  .draft-banner.db-in_review { background:#eef7ff; border:1px solid #cfe8fb; border-left:4px solid #40c4ff; }
+  .draft-banner.db-in_review .db-state { color:#1a73a8; }
+  .draft-banner.db-changes_requested { background:#fff4e8; border:1px solid #ffe0bf; border-left:4px solid #ff9100; }
+  .draft-banner.db-changes_requested .db-state { color:#c8650a; }
+  .draft-warn { background:#fff4e8; border:1px solid #ffd9ad; border-radius:6px; color:#9a4a00;
+      font-size:.78rem; padding:6px 12px; margin-bottom:12px; }
+  .draft-live-conflict-warn { background:#fdecea; border:1px solid #f5c2c0; border-left:4px solid #d32f2f;
+      border-radius:6px; color:#a01818; font-size:.8rem; padding:10px 12px; margin-bottom:12px; }
+  .lcw-card { background:#fff; border:1px solid #f1c9c7; border-radius:6px; padding:7px 10px; margin-top:7px; }
+  .lcw-when { font-size:.72rem; font-weight:700; color:#5a6472; margin-bottom:3px; }
+  .lcw-line { display:flex; align-items:center; gap:7px; font-size:.82rem; color:#1a2332; padding:1px 0; }
+  .lcw-tag { font-size:.58rem; font-weight:800; letter-spacing:.03em; border-radius:3px; padding:1px 5px; color:#fff; min-width:74px; text-align:center; }
+  .lcw-tag-live { background:#d32f2f; }
+  .lcw-tag-staged { background:#C9A227; color:#1a2332; }
+  .lcw-meta { color:#8a8a8a; font-size:.74rem; }
+  .lcw-result { font-size:.74rem; color:#7a1414; margin-top:4px; }
+  .lcw-strike { text-decoration:line-through; color:#b06a6a; }
+  .draft-fieldchange-warn { background:#f5edfb; border:1px solid #e1c9f0; border-left:4px solid #7b1fa2;
+      border-radius:6px; color:#5e1480; font-size:.8rem; padding:8px 12px; margin-bottom:12px; }
+  .draft-fieldchange-warn .fcw-item { font-size:.78rem; color:#5e1480; }
+  /* a staged leg whose live driver was changed under the draft by someone else */
+  .timeline-slot.tl-live-conflict { outline:2px solid #d32f2f !important; outline-offset:-2px; }
+  .timeline-slot.tl-time-changed { box-shadow:inset 0 0 0 2px #7b1fa2; }
+  .draft-conflict-badge { background:#d32f2f; color:#fff; font-size:.58rem; font-weight:700;
+      border-radius:3px; padding:0 4px; }
+  /* slot treatments while held (board timeline) */
+  .timeline-slot.tl-proposed { outline:2px dashed #C9A227; outline-offset:-2px; }
+  .timeline-slot.tl-proposed::after { content:'\25C7'; position:absolute; top:-2px; right:2px; font-size:.6rem; color:#C9A227; }
+  .timeline-slot.tl-new-attention { outline:2px solid #ff9100; outline-offset:-2px; animation: tlAttn 1.5s ease-in-out infinite; }
+  @keyframes tlAttn { 0%,100%{ box-shadow:0 0 0 0 rgba(255,145,0,.55);} 50%{ box-shadow:0 0 0 4px rgba(255,145,0,0);} }
+  /* "proposed" inline badge for table/list views (dashboard) */
+  .draft-proposed-badge { background:#fff3cd; color:#9a7b1f; border:1px solid #C9A227;
+      font-size:.6rem; font-weight:700; border-radius:3px; padding:0 4px; }
+  /* review modal diff + timeline */
+  .draft-diff-group { margin-bottom:14px; }
+  .draft-diff-group h6 { font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:#5a6472; }
+  .draft-diff-row { display:flex; gap:10px; align-items:center; font-size:.82rem; padding:4px 0; border-bottom:1px solid #f0f1f3; }
+  .draft-diff-row .ddr-time { font-weight:700; min-width:64px; color:#1a2332; }
+  .ddr-from { color:#c0392b; text-decoration:line-through; }
+  .ddr-to { color:#1e7e34; font-weight:600; }
+  .draft-timeline { position:relative; padding-left:22px; }
+  .draft-timeline::before { content:''; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:linear-gradient(#b8956c,#e0e0e0); }
+  .dtl-item { position:relative; padding:0 0 12px 0; }
+  .dtl-marker { position:absolute; left:-19px; top:2px; width:12px; height:12px; border-radius:50%; background:#e0e0e0; border:2px solid #fff; box-shadow:0 0 0 1px #ccc; }
+  .dtl-item.latest .dtl-marker { background:#b8956c; box-shadow:0 0 0 1px #b8956c; }
+  .dtl-title { font-size:.82rem; font-weight:700; color:#1a2332; }
+  .dtl-meta { font-size:.72rem; color:#8a8a8a; }
+  .dtl-note { font-size:.8rem; color:#444; margin-top:3px; padding-left:8px; border-left:3px solid #ffc107; }
+  .draft-toast { position:fixed; bottom:20px; right:20px; z-index:1080; background:#1a2332; color:#fff;
+      padding:10px 16px; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.4); font-size:.85rem;
+      border:1px solid rgba(201,162,39,.3); }
+</style>
+
+{% if is_held %}
+  <div class="draft-banner db-{{ draft_state }}">
+    <div class="db-left">
+      {% if draft_state == 'draft' %}<span class="db-state"><i class="bi bi-pencil-square me-1"></i>Draft — building</span>
+      {% elif draft_state == 'in_review' %}<span class="db-state"><i class="bi bi-hourglass-split me-1"></i>Awaiting manager review</span>
+      {% elif draft_state == 'changes_requested' %}<span class="db-state"><i class="bi bi-exclamation-triangle me-1"></i>Changes requested</span>{% endif %}
+      <span class="text-muted small">Held by {{ draft_holder|default:'—' }} · {{ draft.created_at|timesince }} ago</span>
+      <span class="badge bg-secondary">{{ proposed_change_count }} proposed change{{ proposed_change_count|pluralize }}</span>
+      {% if needs_attention_count %}<span class="badge bg-warning text-dark">{{ needs_attention_count }} need attention</span>{% endif %}
+      {% if live_conflict_count %}<span class="badge bg-danger"><i class="bi bi-exclamation-octagon-fill me-1"></i>{{ live_conflict_count }} changed live</span>{% endif %}
+      {% if field_change_count %}<span class="badge" style="background:#7b1fa2;"><i class="bi bi-clock-history me-1"></i>{{ field_change_count }} time change{{ field_change_count|pluralize }}</span>{% endif %}
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary" id="viewChangesBtn"><i class="bi bi-list-check me-1"></i>Changes &amp; activity</button>
+      {% if draft_state == 'draft' or draft_state == 'changes_requested' %}
+        <button class="btn btn-sm btn-warning" data-draft-action="submit" data-draft-id="{{ draft.id }}">
+          <i class="bi bi-send me-1"></i>{% if draft_state == 'changes_requested' %}Resubmit{% else %}Submit for review{% endif %}
+        </button>
+      {% elif draft_state == 'in_review' and not is_manager %}
+        <span class="badge bg-info text-dark py-2 px-3"><i class="bi bi-lock me-1"></i>Submitted — pending review</span>
+      {% endif %}
+      {% if is_manager %}
+        <button class="btn btn-sm btn-success" data-draft-action="publish" data-draft-id="{{ draft.id }}">
+          <i class="bi bi-broadcast me-1"></i>Approve &amp; Publish
+        </button>
+      {% endif %}
+      {% if is_manager or draft_state == 'draft' %}
+        <button class="btn btn-sm btn-outline-danger" data-draft-action="discard" data-draft-id="{{ draft.id }}">
+          <i class="bi bi-x-circle me-1"></i>Discard
+        </button>
+      {% endif %}
+    </div>
+  </div>
+  {% if selected_date <= today %}
+    <div class="draft-warn d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <span><i class="bi bi-exclamation-triangle-fill me-1"></i>
+        This date is <strong>held</strong> — edits are staged privately and will <strong>not</strong> reach drivers until a manager publishes.</span>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="editLiveToggle">
+        <label class="form-check-label small fw-bold text-danger" for="editLiveToggle">Edit live (emergency — pushes changes straight to the driver)</label>
+      </div>
+    </div>
+  {% endif %}
+  {% if draft_diff.live_conflicts %}
+    <div class="draft-live-conflict-warn">
+      <div class="fw-bold mb-2"><i class="bi bi-exclamation-octagon-fill me-1"></i>{{ draft_diff.live_conflicts|length }} job{{ draft_diff.live_conflicts|length|pluralize }} you staged {{ draft_diff.live_conflicts|length|pluralize:'was,were' }} re-assigned LIVE by someone else after you started. The board shows who's live now — publishing replaces them with your pick.</div>
+      {% for c in draft_diff.live_conflicts %}
+        <div class="lcw-card">
+          <div class="lcw-when">{{ c.time|time:'g:i A' }} · {{ c.pickup }} → {{ c.dropoff }}</div>
+          <div class="lcw-line">
+            <span class="lcw-tag lcw-tag-live">LIVE NOW</span>
+            <strong>{{ c.live_driver|default:'Unassigned' }}</strong>
+            <span class="lcw-meta">— {{ c.changed_by|default:'someone' }}{% if c.changed_at %} · {{ c.changed_at|date:'g:i A' }}{% endif %}</span>
+          </div>
+          <div class="lcw-line">
+            <span class="lcw-tag lcw-tag-staged">YOU STAGED</span>
+            <strong>{{ c.proposed_driver|default:'Unassigned' }}</strong>
+            <span class="lcw-meta">— {{ c.staged_by|default:'you' }}{% if c.staged_at %} · {{ c.staged_at|date:'g:i A' }}{% endif %}</span>
+          </div>
+          <div class="lcw-result">On publish: <span class="lcw-strike">{{ c.live_driver|default:'Unassigned' }}</span> → <strong>{{ c.proposed_driver|default:'Unassigned' }}</strong></div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if draft_diff.field_changes %}
+    <div class="draft-fieldchange-warn">
+      <div class="fw-bold mb-1"><i class="bi bi-clock-history me-1"></i>{{ draft_diff.field_changes|length }} schedule change{{ draft_diff.field_changes|length|pluralize }} since you opened the draft (not part of your draft — just so you know):</div>
+      {% for f in draft_diff.field_changes %}
+        <div class="fcw-item">• {{ f.pickup }} → {{ f.dropoff }}: <strong>{{ f.field }}</strong> <span class="lcw-strike">{{ f.old }}</span> → <strong>{{ f.new }}</strong>{% if f.changed_by %} <span class="lcw-meta">— {{ f.changed_by }}{% if f.changed_at %} · {{ f.changed_at|date:'g:i A' }}{% endif %}</span>{% endif %}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% else %}
+  <div class="draft-banner db-live">
+    <div class="db-left"><i class="bi bi-broadcast"></i><span>Live schedule — drivers see these assignments in real time.</span></div>
+    <div class="d-flex align-items-center gap-2">
+      {% if published_draft %}
+        <span class="badge bg-success"><i class="bi bi-check2-circle me-1"></i>Published {{ published_draft.published_at|timesince }} ago</span>
+        {% if is_manager %}
+        <button class="btn btn-sm btn-primary" data-draft-action="notify" data-draft-id="{{ published_draft.id }}">
+          <i class="bi bi-chat-dots me-1"></i>Text drivers
+        </button>
+        {% endif %}
+      {% endif %}
+      <button class="btn btn-sm btn-outline-dark" data-draft-action="hold" data-date="{{ selected_date|date:'Y-m-d' }}">
+        <i class="bi bi-pause-circle me-1"></i>Hold this day
+      </button>
+    </div>
+  </div>
+{% endif %}
+
+{% if is_held %}
+<div class="modal fade" id="draftReviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-list-check me-2"></i>Draft changes — {{ selected_date|date:"D, M j" }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {% with d=draft_diff %}
+          {% if d.reassignments %}
+            <div class="draft-diff-group"><h6>Reassignments ({{ d.reassignments|length }})</h6>
+              {% for r in d.reassignments %}
+                <div class="draft-diff-row"><span class="ddr-time">{{ r.time|time:'g:i A' }}</span>
+                  <span class="ddr-change">{{ r.pickup }} → {{ r.dropoff }} · <span class="ddr-from">{{ r.live_driver }}</span> <i class="bi bi-arrow-right"></i> <span class="ddr-to">{{ r.proposed_driver }}</span></span></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if d.new_assignments %}
+            <div class="draft-diff-group"><h6>New assignments ({{ d.new_assignments|length }})</h6>
+              {% for r in d.new_assignments %}
+                <div class="draft-diff-row"><span class="ddr-time">{{ r.time|time:'g:i A' }}</span>
+                  <span class="ddr-change">{{ r.pickup }} → {{ r.dropoff }} · <span class="ddr-to">{{ r.proposed_driver }}</span></span></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if d.unassignments %}
+            <div class="draft-diff-group"><h6>Unassignments ({{ d.unassignments|length }})</h6>
+              {% for r in d.unassignments %}
+                <div class="draft-diff-row"><span class="ddr-time">{{ r.time|time:'g:i A' }}</span>
+                  <span class="ddr-change">{{ r.pickup }} → {{ r.dropoff }} · <span class="ddr-from">{{ r.live_driver }}</span> <i class="bi bi-arrow-right"></i> <span class="text-muted">Unassigned</span></span></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if d.needs_attention %}
+            <div class="draft-diff-group"><h6 style="color:#c8650a;">Needs attention — booked after draft opened ({{ d.needs_attention|length }})</h6>
+              {% for r in d.needs_attention %}
+                <div class="draft-diff-row"><span class="ddr-time">{{ r.time|time:'g:i A' }}</span>
+                  <span class="ddr-change">{{ r.pickup }} → {{ r.dropoff }} · <span class="text-muted">{{ r.customer }}</span></span></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if d.live_conflicts %}
+            <div class="draft-diff-group"><h6 style="color:#d32f2f;"><i class="bi bi-exclamation-octagon-fill me-1"></i>Re-assigned live by someone else — publishing overwrites ({{ d.live_conflicts|length }})</h6>
+              {% for r in d.live_conflicts %}
+                <div class="draft-diff-row" style="flex-direction:column;align-items:flex-start;">
+                  <div class="fw-bold" style="font-size:.78rem;">{{ r.time|time:'g:i A' }} · {{ r.pickup }} → {{ r.dropoff }}</div>
+                  <div style="font-size:.78rem;">Live now: <span class="ddr-to">{{ r.live_driver|default:'Unassigned' }}</span> <span class="text-muted">— {{ r.changed_by|default:'someone' }}{% if r.changed_at %} · {{ r.changed_at|date:'g:i A' }}{% endif %}</span></div>
+                  <div style="font-size:.78rem;">You staged: <strong>{{ r.proposed_driver|default:'Unassigned' }}</strong> <span class="text-muted">— {{ r.staged_by|default:'you' }}{% if r.staged_at %} · {{ r.staged_at|date:'g:i A' }}{% endif %}</span></div>
+                  <div style="font-size:.72rem;color:#7a1414;">On publish: <span class="ddr-from">{{ r.live_driver|default:'Unassigned' }}</span> → <strong>{{ r.proposed_driver|default:'Unassigned' }}</strong></div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if d.field_changes %}
+            <div class="draft-diff-group"><h6 style="color:#7b1fa2;"><i class="bi bi-clock-history me-1"></i>Schedule changed live since you started — FYI ({{ d.field_changes|length }})</h6>
+              {% for f in d.field_changes %}
+                <div class="draft-diff-row"><span class="ddr-time">{{ f.time|time:'g:i A' }}</span>
+                  <span class="ddr-change">{{ f.pickup }} → {{ f.dropoff }} · {{ f.field }}: <span class="ddr-from">{{ f.old }}</span> <i class="bi bi-arrow-right"></i> <strong>{{ f.new }}</strong>{% if f.changed_by %} <span class="text-muted">({{ f.changed_by }}{% if f.changed_at %} · {{ f.changed_at|date:'g:i A' }}{% endif %})</span>{% endif %}</span></div>
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if not d.proposed_change_count and not d.needs_attention_count %}
+            <p class="text-muted mb-3">No changes staged yet.</p>
+          {% endif %}
+        {% endwith %}
+        <hr>
+        <h6 class="text-uppercase" style="font-size:.78rem;color:#5a6472;">Activity</h6>
+        <div class="draft-timeline">
+          {% for e in draft_events reversed %}
+            <div class="dtl-item{% if forloop.first %} latest{% endif %}">
+              <span class="dtl-marker"></span>
+              <div class="dtl-title">{{ e.get_event_type_display }}</div>
+              <div class="dtl-meta">{{ e.created_at|date:"M j, g:i A" }} · by {{ e.actor|default:'System' }}</div>
+              {% if e.note %}<div class="dtl-note">{{ e.note }}</div>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        {% if is_manager %}
+          <button class="btn btn-outline-danger me-auto" data-draft-action="reject" data-draft-id="{{ draft.id }}"><i class="bi bi-arrow-counterclockwise me-1"></i>Request changes</button>
+          <button class="btn btn-success" data-draft-action="publish" data-draft-id="{{ draft.id }}"><i class="bi bi-broadcast me-1"></i>Approve &amp; Publish</button>
+        {% else %}
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+  (function () {
+    if (window._draftControlsWired) return;   // idempotent if included twice
+    window._draftControlsWired = true;
+
+    function csrf() {
+      var el = document.querySelector('[name=csrfmiddlewaretoken]');
+      if (el) return el.value;
+      var m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : '';
+    }
+    function post(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      }).then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j }; }); });
+    }
+    function toast(msg) {
+      var t = document.createElement('div');
+      t.className = 'draft-toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function () { t.remove(); }, 3500);
+    }
+    window.showBoardLockedNotice = function () { toast('This draft is awaiting manager review — editing is locked.'); };
+
+    // Held-day "Edit live" emergency toggle (read by board DnD + dashboard/planner assign JS).
+    window._draftEditLive = false;
+    var editLive = document.getElementById('editLiveToggle');
+    if (editLive) {
+      editLive.addEventListener('change', function () {
+        window._draftEditLive = editLive.checked;
+        if (editLive.checked) toast('Edit-live ON — changes now go LIVE to drivers.');
+      });
+    }
+
+    var viewBtn = document.getElementById('viewChangesBtn');
+    if (viewBtn) {
+      viewBtn.addEventListener('click', function () {
+        var el = document.getElementById('draftReviewModal');
+        if (el && window.bootstrap) { new bootstrap.Modal(el).show(); }
+        else if (el) { el.style.display = 'block'; el.classList.add('show'); }
+      });
+    }
+
+    function handleAction(btn) {
+      var action = btn.dataset.draftAction;
+      var draftId = btn.dataset.draftId;
+      var date = btn.dataset.date;
+      btn.disabled = true;
+      var reEnable = function () { btn.disabled = false; };
+
+      if (action === 'hold') {
+        post('/dispatching/open-draft/', { date: date })
+          .then(function (r) { if (r.data.success) location.reload(); else { toast(r.data.error || 'Failed'); reEnable(); } })
+          .catch(function () { toast('Network error'); reEnable(); });
+
+      } else if (action === 'submit') {
+        var note = prompt('Optional note for the manager (what did you change / anything to flag)?', '');
+        if (note === null) { reEnable(); return; }
+        post('/dispatching/submit-draft/', { draft_id: draftId, note: note })
+          .then(function (r) { if (r.data.success) location.reload(); else { toast(r.data.error || 'Failed'); reEnable(); } })
+          .catch(function () { toast('Network error'); reEnable(); });
+
+      } else if (action === 'reject') {
+        var rnote = '';
+        while (!rnote) {
+          rnote = prompt('Explain what needs to be fixed (required):', '');
+          if (rnote === null) { reEnable(); return; }
+          rnote = (rnote || '').trim();
+        }
+        post('/dispatching/reject-draft/', { draft_id: draftId, note: rnote })
+          .then(function (r) { if (r.data.success) location.reload(); else { toast(r.data.error || 'Failed'); reEnable(); } })
+          .catch(function () { toast('Network error'); reEnable(); });
+
+      } else if (action === 'discard') {
+        if (!confirm('Discard this draft? Staged changes are lost; the live schedule is unaffected.')) { reEnable(); return; }
+        post('/dispatching/discard-draft/', { draft_id: draftId })
+          .then(function (r) { if (r.data.success) location.reload(); else { toast(r.data.error || 'Failed'); reEnable(); } })
+          .catch(function () { toast('Network error'); reEnable(); });
+
+      } else if (action === 'publish') {
+        if (!confirm('Publish this schedule to drivers now? Their app updates immediately.')) { reEnable(); return; }
+        var doPublish = function (force) {
+          post('/dispatching/approve-draft/', { draft_id: draftId, force: !!force })
+            .then(function (r) {
+              if (r.data.success) { location.reload(); return; }
+              if (r.status === 409 && r.data.conflicts) {
+                var cs = r.data.conflicts;
+                var lines = cs.slice(0, 6).map(function (c) {
+                  var who = c.changed_by ? (' [changed live by ' + c.changed_by + ']') : '';
+                  return '• ' + (c.time ? c.time + ' ' : '') + (c.route || ('leg ' + c.leg_id)) +
+                         ': live is ' + (c.live_label || '?') + who + ', draft wants ' + (c.wants_label || '?');
+                });
+                if (cs.length > 6) lines.push('…and ' + (cs.length - 6) + ' more');
+                var msg = 'The live schedule changed under this draft (' + cs.length + ' conflict' + (cs.length > 1 ? 's' : '') + '):\n\n' +
+                          lines.join('\n') + '\n\nPublish anyway and OVERWRITE these live values with the draft?';
+                if (confirm(msg)) { doPublish(true); return; }
+                reEnable(); return;
+              }
+              toast(r.data.error || 'Publish failed'); reEnable();
+            })
+            .catch(function () { toast('Network error'); reEnable(); });
+        };
+        doPublish(false);
+
+      } else if (action === 'notify') {
+        if (!confirm('Text the affected drivers that their schedule was updated?')) { reEnable(); return; }
+        post('/dispatching/notify-drivers/', { draft_id: draftId })
+          .then(function (r) {
+            if (r.data.success) { toast(r.data.already_sent ? 'Drivers were already notified.' : (r.data.message || 'Texting drivers…')); setTimeout(function () { location.reload(); }, 1200); }
+            else { toast(r.data.error || 'Failed'); reEnable(); }
+          })
+          .catch(function () { toast('Network error'); reEnable(); });
+      } else {
+        reEnable();
+      }
+    }
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-draft-action]');
+      if (!btn) return;
+      e.preventDefault();
+      handleAction(btn);
+    });
+  })();
+</script>
+{% endif %}

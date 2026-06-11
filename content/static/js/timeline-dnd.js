@@ -48,6 +48,8 @@
   }
 
   // ── Assignment API call ──
+  // live_override (set via the held-day "Edit live" toggle) forces a write to the
+  // live schedule even when the date is held — for emergency same-day changes.
   function assignLeg(legId, driverId) {
     return fetch('/dispatching/update-leg-assignment/', {
       method: 'POST',
@@ -55,7 +57,7 @@
         'X-CSRFToken': getCSRF(),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ leg_id: legId, field: 'driver', value: driverId }),
+      body: JSON.stringify({ leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive }),
     }).then(function (r) { return r.json(); });
   }
 
@@ -67,7 +69,7 @@
         'X-CSRFToken': getCSRF(),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ leg_id: legId, field: 'driver', value: '' }),
+      body: JSON.stringify({ leg_id: legId, field: 'driver', value: '', live_override: !!window._draftEditLive }),
     }).then(function (r) { return r.json(); });
   }
 
@@ -320,6 +322,13 @@
       var slot = e.target.closest('[draggable="true"]');
       if (!slot) { e.preventDefault(); return; }
       if (window._gapPopupActive) { e.preventDefault(); return; }
+      // Board locked: a draft submitted for review is read-only until the
+      // manager approves or requests changes.
+      if (container.dataset.boardLocked === '1') {
+        e.preventDefault();
+        if (window.showBoardLockedNotice) window.showBoardLockedNotice();
+        return;
+      }
 
       draggedEl = slot;
       draggedLegId = slot.dataset.legId;
