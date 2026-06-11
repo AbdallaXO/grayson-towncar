@@ -2,13 +2,18 @@
 
 PURE functions of the report dict produced by
 ``dispatching.farmout_optimizer.summarize_savings_range`` and its Recommendation objects --
-no Django request/response, no ORM, no I/O. Used by BOTH the management command
-``analyze_farmout_savings`` (which writes a self-contained ``.html`` artifact) and the staff
-web view (which serves the same document into an iframe), so they MUST produce identical bytes.
+no Django request/response, no ORM, no I/O. Two consumers:
 
-Strictly read-only display. This module never writes to the database or mutates the schedule.
+  * ``render_report_page`` -- the management command ``analyze_farmout_savings``'s
+    self-contained ``.html`` artifact (range reports).
+  * ``build_page_context`` -- the staff page's template context (single date), including the
+    ready-to-POST apply plans / affiliate options each card carries (formatting + selection
+    only; every dollar comes verbatim from the engine, and the apply endpoint re-derives them).
+
+This module itself never writes to the database or mutates the schedule.
 """
 import html as _html
+import json as _json
 import re
 
 _AIRPORT_CODE_RE = re.compile(r"\(([A-Z]{3})\)")
@@ -520,9 +525,11 @@ def _timeline(rec):
     return out
 
 
-def _swap_card(rec, num):
+def _swap_card(rec, num, date_iso):
     """One keep-in-house recommendation (free rescue / opportunity swap / policy departure) as a
-    template-ready card dict. Dollars taken verbatim from the optimizer -- no recompute."""
+    template-ready card dict. Dollars taken verbatim from the optimizer -- no recompute. Carries
+    the engine's ready-to-POST apply plan (ids only) plus the affiliate-override options so the
+    page's Apply buttons can act on it; the endpoint re-validates everything server-side."""
     disp = (rec.detail or {}).get("display", {}) or {}
     target = disp.get("target") or {}
     displaced = disp.get("displaced") or {}
@@ -534,6 +541,19 @@ def _swap_card(rec, num):
     # A "free" rescue can still require shuffling other in-house jobs to clear room. Count them so the
     # panel says "shifts N jobs to make room" instead of the misleading "no swap needed" when it isn't true.
     reshuffle_count = len(disp.get("reshuffled") or [])
+
+    plan = dict((rec.detail or {}).get("apply") or {})
+    if plan:
+        plan["date"] = date_iso
+    suggested_id = plan.get("suggested_affiliate_id")
+    farm_options = [{
+        "driver_id": o["driver_id"],
+        "label": f"{o['name']} — {_money0(o['base'])}"
+                 + (" · suggested" if o["driver_id"] == suggested_id else ""),
+        "suggested": o["driver_id"] == suggested_id,
+    } for o in (rec.detail or {}).get("farm_options") or []]
+    cur = (rec.detail or {}).get("target_current") or {}
+
     return {
         "num": num,
         "kind": rec.kind,
@@ -553,6 +573,13 @@ def _swap_card(rec, num):
         "affiliate": disp.get("affiliate") or "",
         "after_price": "$0" if is_free else _money0(rec.state_b_farm_base),
         "timeline": _timeline(rec),
+        # --- apply actions ---
+        "leg_id": rec.target_leg_id,
+        "can_apply": bool(plan),
+        "plan_json": _json.dumps(plan, default=str) if plan else "",
+        "farm_options": farm_options,
+        "is_currently_farmed": bool(cur.get("driver_id")),
+        "current_name": cur.get("name") or "",
     }
 
 
@@ -565,13 +592,56 @@ def build_page_context(report) -> dict:
     day = (report["days"] or [{}])[0]
 
     start = rng["start"]
+    has_iso = hasattr(start, "isoformat")
+    date_iso = start.isoformat() if has_iso else str(start)
     try:
         date_str = f"{_DOW[start.weekday()]}, {_MON[start.month - 1]} {start.day}, {start.year}"
     except Exception:
         date_str = str(start)
 
     recs = day.get("recommendations") or []
-    cards = [_swap_card(rec, i + 1) for i, rec in enumerate(recs)]
+    cards = [_swap_card(rec, i + 1, date_iso) for i, rec in enumerate(recs)]
+
+    # ── Farm-as-planned items (the page's per-job Farm buttons) ─────────────────────────
+    # Three buckets: actionable (unassigned, farmable -> select + Farm button), already farmed
+    # (display-only confirmation), and blocked (VIP / departure / no priceable affiliate --
+    # listed with the reason, never given a farm action; hard rules live server-side too).
+    farm_rows, farmed_rows = [], []
+    for it in (day.get("farm_items") or []):
+        d_ = it.get("display") or {}
+        options = it.get("options") or []
+        blocked = ("VIP — never farmed" if it.get("vip")
+                   else "Departure — keep in-house, never farmed" if it.get("is_departure")
+                   else "No affiliate can price this job" if not options
+                   else "")
+        plan = {
+            "kind": "farm_direct",
+            "date": date_iso,
+            "target_leg_id": it["leg_id"],
+            "farm_affiliate_id": (options[0]["driver_id"] if options else None),
+            "expected": {str(it["leg_id"]): it.get("current_driver_id")},
+        }
+        row = {
+            "leg_id": it["leg_id"],
+            "route": f"{_short_loc(d_.get('pickup'))} → {_short_loc(d_.get('dropoff'))}",
+            "time": d_.get("time") or "",
+            "vehicle": _title_vehicle(d_.get("vehicle_type")),
+            "customer": d_.get("customer") or "",
+            "tag": d_.get("direction_tag") or "",
+            "abstained_far": bool(it.get("abstained_far")),
+            "blocked": blocked,
+            "options": [{"driver_id": o["driver_id"],
+                         "label": f"{o['name']} — {_money0(o['base'])}"
+                                  + (" · cheapest" if i == 0 else "")}
+                        for i, o in enumerate(options)],
+            "plan_json": _json.dumps(plan, default=str) if (options and not blocked) else "",
+        }
+        if it.get("already_farmed"):
+            row["farmed_to"] = it.get("current_driver_name") or "an affiliate"
+            farmed_rows.append(row)
+        else:
+            farm_rows.append(row)
+    farm_actionable = sum(1 for r in farm_rows if r["plan_json"])
 
     targets = t.get("targets", 0)
     keep_count = t.get("recommendations", 0)
@@ -642,9 +712,8 @@ def build_page_context(report) -> dict:
          "count": audit.get("vip_targets_seen", 0)},
     ]
 
-    has_iso = hasattr(start, "isoformat")
     return {
-        "date_iso": start.isoformat() if has_iso else str(start),
+        "date_iso": date_iso,
         "prev_iso": (start - timedelta(days=1)).isoformat() if has_iso else "",
         "next_iso": (start + timedelta(days=1)).isoformat() if has_iso else "",
         "date_str": date_str,
@@ -663,6 +732,9 @@ def build_page_context(report) -> dict:
         "swap_count": swap_count,
         "farm_only": farm_only,
         "cards": cards,
+        "farm_rows": farm_rows,
+        "farmed_rows": farmed_rows,
+        "farm_actionable": farm_actionable,
         "roster_rows": roster_rows,
         "roster_count": len(roster),
         "audit_rows": audit_rows,

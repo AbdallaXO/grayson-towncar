@@ -132,7 +132,17 @@ def calculate_driver_pay(leg):
         return route.inhouse_base_pay  # May be None
 
     elif driver.driver_type == "affiliate":
-        return _find_rate(driver, route, vehicle, direction)
+        rate = _find_rate(driver, route, vehicle, direction)
+        if rate is None and (leg.effective_vehicle_type or "") == "mini_van":
+            # minivan == SUV pricing equivalence (founder rule — see the farm-out optimizer's
+            # loud header): an affiliate with no minivan row is paid their SUV rate. FALLBACK
+            # only — an explicit minivan row above always wins. Keeps the booked pay equal to
+            # the farm-out page's quote for per-vehicle-carded affiliates.
+            from rates.models import Vehicle
+            suv = Vehicle.objects.filter(vehicle_type="suv").first()
+            if suv is not None:
+                rate = _find_rate(driver, route, suv, direction)
+        return rate
 
     return None
 

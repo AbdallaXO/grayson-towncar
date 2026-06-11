@@ -48,6 +48,7 @@ urlpatterns = [
     path("fleet-intel/", views.fleet_intel_dashboard, name="fleet_intel_dashboard"),
     path("fleet-intel/legs/", views.fleet_intel_leaks, name="fleet_intel_leaks"),
     path("farmout-optimizer/", views.farmout_optimizer, name="farmout_optimizer"),
+    path("farmout-optimizer/apply/", views.farmout_apply, name="farmout_apply"),
     path("route-timing/legs/", views.route_timing_leg_details, name="route_timing_leg_details"),
     path("route-timing/exclude-leg/", views.route_timing_exclude_leg, name="route_timing_exclude_leg"),
     path("recalculate-route-metrics/", views.recalculate_route_metrics, name="recalculate_route_metrics"),

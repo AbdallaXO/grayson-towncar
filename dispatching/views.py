@@ -12433,8 +12433,9 @@ def farmout_optimizer(request):
 
     Pick a service date (and optional min-savings threshold); for each job headed for farm-out it
     shows whether it's cheaper to keep it in-house (free, or by swapping a lower-cost leg out). The
-    engine is read-only and the rendered context is cached 5 min per (date, threshold) (the engine
-    replays the board, ~1-2s). Strictly display-only — nothing here mutates the schedule.
+    ANALYSIS is read-only and the rendered context is cached 5 min per (date, threshold, version)
+    (the engine replays the board, ~1-2s). Mutations happen only through the page's Apply/Farm
+    buttons -> ``farmout_apply`` below, which re-validates live state before writing.
     """
     if not request.user.is_staff:
         return redirect("dashboard")
@@ -12450,13 +12451,38 @@ def farmout_optimizer(request):
         d = timezone.localdate()
 
     ms = _farmout_min_savings(request)
-    cache_key = f"farmout_page_{d.isoformat()}_{ms}"
+    # Per-date version token: bumped by farmout_apply so an Apply invalidates every cached
+    # threshold's entry for the date at once (min_savings varies, keys can't be enumerated).
+    from dispatching.farmout_actions import farmout_page_cache_version
+    cache_key = f"farmout_page_{d.isoformat()}_{ms}_v{farmout_page_cache_version(d)}"
     context = cache.get(cache_key)
     if context is None:
         report = fo.summarize_savings_range(d, d, min_savings=ms)
         context = farmout_report.build_page_context(report)
         cache.set(cache_key, context, 300)
     return render(request, "dispatching/farmout_optimizer.html", context)
+
+
+@login_required
+@require_POST
+def farmout_apply(request):
+    """Apply one Farm-Out Optimizer plan (keep / swap / farm) — the page's write endpoint.
+
+    Thin JSON shim over ``dispatching.farmout_actions.apply_farmout_plan``, which re-validates
+    CURRENT state (staleness guard, VIP/departure hard rules, affiliate eligibility + real
+    capacity, live-board feasibility) and writes through ``set_leg_driver`` (front door), so
+    held-day staging and all assignment side effects behave like any dispatch-board edit.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from dispatching.farmout_actions import apply_farmout_plan
+    status, payload = apply_farmout_plan(data, request.user)
+    return JsonResponse(payload, status=status)
 
 
 # ============================================================================

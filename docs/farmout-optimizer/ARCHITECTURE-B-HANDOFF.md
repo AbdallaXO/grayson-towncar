@@ -6,10 +6,13 @@
 top of `dispatching/farmout_optimizer.py` (lines ~85-150). Design doc:
 `~/.claude/plans/you-are-continuing-the-composed-goose.md`.
 
-This is a **read-only, retrospective, recommend-only** tool. It answers the one comparison the
-founder makes by hand and nothing else in the codebase does: *"is it cheaper to farm this leg, or
+The ANALYSIS ENGINE is **read-only, retrospective, recommend-only**. It answers the one comparison
+the founder makes by hand and nothing else in the codebase does: *"is it cheaper to farm this leg, or
 keep it in-house and farm something cheaper instead?"* It judges a PAST day's farm decisions on
-information known WHEN THE SCHEDULE WAS BUILT. It NEVER un-farms a committed leg and NEVER runs live.
+information known WHEN THE SCHEDULE WAS BUILT, and never RECOMMENDS un-farming a committed leg.
+Since 2026-06-11 the staff PAGE can also EXECUTE plans through the separate write path
+`dispatching/farmout_actions.py` (see **§6**) — including an explicit, confirm-gated pull-back of a
+committed farm-out (`confirm_pullback`), which is a deliberate human action, never a recommendation.
 
 ---
 
@@ -31,7 +34,7 @@ Built and validated against archetype days (busy/slow/cruise) 2026-05-01..07:
 | Capacity-aware farm-cost **waterfall** | `price_farm_waterfall`, `_price_one_leg`, `WaterfallLedger` | done |
 | **Opportunity-cost** eval (depth-1 displacement: keep arrival / farm return) | `evaluate_target`, `summarize_savings_range` | done |
 | Pricing from **real `DriverPayRate`** rows (vehicle+direction aware), never a constant | `_find_rate` -> `pay_calc._find_rate` | done |
-| **minivan == SUV** pricing collapse (distinct from capability tiers) | `_pricing_vehicle` | done |
+| **minivan == SUV** pricing equivalence as a FALLBACK (explicit minivan row wins; mirrored in `pay_calc.calculate_driver_pay` so booked pay == quote) | `_pricing_vehicles`, `_gate_affiliate` | done |
 | **Port Canaveral & Sanford = own categories** (NOT departures) + directional drop-off rule | `is_departure`, `is_port_or_sanford`, `port_sanford_direction_tag` | done |
 | **Scheduled-time** (decision-time) flight eval, not hindsight actual/estimated | `analytics.scheduled_flight_arrival_local` + `scheduler.USE_SCHEDULED_ARRIVAL_FOR_EVAL` + `_apply_decision_time_pickups` | done |
 | **Real driver availability** (worked-leg span, not the stub) | `_worked_span_window` + `find_swaps(driver_windows=)` | done |
@@ -151,6 +154,38 @@ module today — see the loud header; Architecture B turns these into data):
    actually generate >=$100 recommendations. **Architecture B is what turns on the swap engine.**
 
 ---
+
+## 6. APPLY ACTIONS (2026-06-11) — the page is now actionable
+
+The staff page (`/dispatching/farmout-optimizer/`) can now EXECUTE its recommendations. The
+ENGINE stays strictly read-only; writes live in the separate module **`dispatching/farmout_actions.py`**
+behind the JSON endpoint `farmout-optimizer/apply/` (`views.farmout_apply`).
+
+- **Plans, not dollars.** Each Recommendation carries `detail["apply"]` (ids + an
+  `expected` {leg_id: driver_id-at-analysis-time} map). `farm_items` (no-rec targets) carry
+  `farm_direct` plans. The server re-derives every dollar; clients only pick ids.
+- **Actions:** apply a swap as recommended; farm the displaced leg to a DIFFERENT affiliate
+  (`quote_affiliate_options` lists every eligible one, same gates as the waterfall via the shared
+  `_gate_affiliate`); keep-only (`keep_unassign` — displaced leg back to unassigned); per-job
+  `farm_direct` from the itemized Farm-as-planned list; sequential bulk Apply-all / Farm-all.
+- **Validation at apply time:** staleness (`expected` vs live ⇒ 409 "re-run Analyze"), VIP +
+  true-departure never farmed, affiliate gates + REAL day capacity (actual assigned legs, not the
+  replay ledger), in-house feasibility re-validated on the live board
+  (`_revalidate_inhouse`, mirror of `views._revalidate_swap_feasibility` + vehicle-class compat).
+- **Writes go through `set_leg_driver`** (sandbox front door): held day + granted user ⇒ the whole
+  plan STAGES into the draft overlay (`held: true`; live board untouched — no-leak invariant);
+  otherwise live, with pay auto-filled from the affiliate's real card by `Leg.save()`.
+- **Cache:** the page context cache key carries a per-date version
+  (`farmout_actions.farmout_page_cache_version`); every apply bumps it (plus
+  `capacity_planner_<date>` delete), so a reload reflects the new board.
+- **Bulk ordering caveat:** recs are computed on a SHARED mutating board, so each plan's
+  `expected` map assumes earlier recs were applied — Apply-all runs strictly in card order;
+  out-of-order single applies may 409 (correct, not a bug).
+- **Tests:** `dispatching/tests_farmout_apply.py` (17: happy paths, staleness, VIP/departure,
+  capacity, atomic infeasibility rollback, held-day staging, page render).
+- **Local test gotcha:** the dev `.env` sets `ENABLE_DEBUG_TOOLBAR=1`, which breaks ALL endpoint
+  tests with `'djdt' is not a registered namespace`. Run tests with the var overridden:
+  `$env:ENABLE_DEBUG_TOOLBAR='0'; python manage.py test ...`
 
 ## Key files & anchors
 - `dispatching/farmout_optimizer.py` — `_price_one_leg` (roster + capability, ~330), `WaterfallLedger`

@@ -137,11 +137,37 @@
   .move-note{font-family:'DM Mono',monospace;font-weight:500;color:var(--move);margin-left:6px;font-size:11px}
   .dim{color:var(--faint)}
 
+  /* apply actions */
+  .actbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px 13px;border-top:1px solid var(--line-soft);margin-top:10px}
+  .btn{font-family:'Montserrat',sans-serif;font-size:12.5px;font-weight:600;border-radius:9px;padding:8px 15px;cursor:pointer;transition:background .15s,color .15s,border-color .15s,transform .1s;border:1px solid transparent}
+  .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:.45;cursor:default;pointer-events:none}
+  .btn-apply{color:#fff;background:var(--navy)}
+  .btn-apply:hover{background:#16264f}
+  .btn-ghost{color:var(--muted);background:none;border-color:var(--line)}
+  .btn-ghost:hover{color:var(--navy);border-color:var(--gold)}
+  .aff-pick{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink);border:1px solid var(--line);background:var(--card);border-radius:9px;padding:7px 9px;outline:none;max-width:250px}
+  .aff-pick:focus{border-color:var(--gold)}
+  .aff-pick[disabled]{opacity:.45}
+  .act-warn{font-size:11px;color:var(--gold-deep);background:#faf4e6;border-radius:6px;padding:3px 9px}
+  .act-status{font-size:12px;font-weight:600;margin-left:auto;white-space:nowrap}
+  .act-status.ok{color:var(--save)} .act-status.err{color:var(--cost)} .act-status.staged{color:var(--gold-deep)}
+  .sec-head .sec-action{margin-left:auto}
+
   /* farm as planned */
   .planfarm{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;display:flex;align-items:center;gap:14px}
   .pf-icon{width:32px;height:32px;border-radius:9px;background:var(--farm-soft);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold-deep)}
   .pf-text{font-size:13.5px;color:var(--muted)}
   .pf-text b{color:var(--ink);font-weight:600}
+  .farm-list{display:flex;flex-direction:column;gap:9px}
+  .farm-row{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .fr-main{flex:1 1 240px;min-width:0}
+  .fr-route{font-size:13.5px;font-weight:600;color:var(--ink)}
+  .fr-meta{font-size:11px;color:var(--faint);font-family:'DM Mono',monospace;margin-top:2px}
+  .fr-block{font-size:11px;font-weight:600;color:var(--gold-deep);background:#faf4e6;border-radius:6px;padding:3px 9px}
+  .fr-farmed{font-size:12px;color:var(--save);font-weight:600;font-family:'DM Mono',monospace}
+  .farm-bulk{display:flex;justify-content:flex-end;margin-top:12px}
+  .farm-note{font-size:12px;color:var(--faint);margin:18px 0 8px;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 
   /* accordions */
   .details{padding:38px 0 60px}
@@ -254,8 +280,10 @@
 
     <!-- KEEP & SWAP -->
     <section class="section">
-      <div class="sec-head"><h2>Keep &amp; swap</h2><span class="sec-count">{{ keep_count }}</span></div>
-      <p class="sec-sub">Cheaper to run on your own drivers — keep these in-house instead of farming.</p>
+      <div class="sec-head"><h2>Keep &amp; swap</h2><span class="sec-count">{{ keep_count }}</span>
+        {% if cards|length > 1 %}<button class="btn btn-ghost sec-action" type="button" onclick="applyAll(this)">Apply all {{ cards|length }} in order</button>{% endif %}
+      </div>
+      <p class="sec-sub">Cheaper to run on your own drivers — apply a plan to make it real, or pick a different affiliate first.</p>
 
       {% if cards %}
       {% for c in cards %}
@@ -299,6 +327,19 @@
           </div></div>
         </div>
         {% endif %}
+        {% if c.can_apply %}
+        <div class="actbar" data-plan="{{ c.plan_json }}" data-farmed="{{ c.is_currently_farmed|yesno:'1,0' }}" data-current="{{ c.current_name }}">
+          <button class="btn btn-apply" type="button" onclick="applyCard(this)">{% if c.is_free %}Apply — keep on {{ c.keep_driver_first }} (free){% else %}Apply — keep on {{ c.keep_driver_first }} + farm to selected{% endif %}</button>
+          {% if not c.is_free %}
+          <select class="aff-pick" title="Affiliate to farm {{ c.after_farm_route }} to" aria-label="Affiliate to farm {{ c.after_farm_route }} to">
+            {% for o in c.farm_options %}<option value="{{ o.driver_id }}" {% if o.suggested %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </select>
+          <button class="btn btn-ghost" type="button" onclick="applyKeepOnly(this)" title="Seat the kept job in-house and leave {{ c.after_farm_route }} unassigned to decide later">Keep only — decide other job later</button>
+          {% endif %}
+          {% if c.is_currently_farmed %}<span class="act-warn">currently farmed to {{ c.current_name }} — applying pulls it back</span>{% endif %}
+          <span class="act-status" role="status" aria-live="polite"></span>
+        </div>
+        {% endif %}
       </article>
       {% endfor %}
       {% else %}
@@ -308,12 +349,46 @@
 
     <!-- FARM AS PLANNED -->
     <section class="section">
-      <div class="sec-head"><h2>Farm as planned</h2><span class="sec-count">{{ farm_only }}</span></div>
-      <p class="sec-sub">No cheaper in-house play — send these out as you planned.</p>
-      <div class="planfarm reveal">
-        <div class="pf-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13L13 3M13 3H6M13 3V10"/></svg></div>
-        <div class="pf-text"><b>{{ farm_only }} job{{ farm_only|pluralize }}</b> had no in-house room and no lower-cost swap. Farming {% if farm_only == 1 %}it{% else %}them{% endif %} is the right call — nothing to change.</div>
+      <div class="sec-head"><h2>Farm as planned</h2><span class="sec-count">{{ farm_rows|length }}</span>
+        {% if farm_actionable > 1 %}<button class="btn btn-ghost sec-action" type="button" onclick="farmAll(this)">Farm all {{ farm_actionable }} (selected affiliates)</button>{% endif %}
       </div>
+      <p class="sec-sub">No cheaper in-house play — pick the affiliate (cheapest preselected) and send them out from here.</p>
+      {% if farm_rows %}
+      <div class="farm-list reveal">
+        {% for f in farm_rows %}
+        <div class="farm-row"{% if f.plan_json %} data-plan="{{ f.plan_json }}"{% endif %}>
+          <div class="fr-main">
+            <div class="fr-route">{{ f.route }}{% if f.tag %}<span class="tag">{{ f.tag }}</span>{% endif %}{% if f.abstained_far %}<span class="tag" title="Drive time uncomputable — excluded from keep-in-house analysis, but the farm price is real">far / unknown</span>{% endif %}</div>
+            <div class="fr-meta">{% if f.customer %}{{ f.customer }} · {% endif %}{{ f.time }}{% if f.vehicle %} · {{ f.vehicle }}{% endif %} · leg {{ f.leg_id }}</div>
+          </div>
+          {% if f.blocked %}
+          <span class="fr-block">{{ f.blocked }}</span>
+          {% else %}
+          <select class="aff-pick" aria-label="Affiliate for {{ f.route }}">{% for o in f.options %}<option value="{{ o.driver_id }}">{{ o.label }}</option>{% endfor %}</select>
+          <button class="btn btn-apply" type="button" onclick="farmRow(this)">Farm it</button>
+          {% endif %}
+          <span class="act-status" role="status" aria-live="polite"></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">Nothing left to farm — every remaining job is covered or already farmed.</div>
+      {% endif %}
+
+      {% if farmed_rows %}
+      <div class="farm-note">Already farmed — no change suggested</div>
+      <div class="farm-list">
+        {% for f in farmed_rows %}
+        <div class="farm-row">
+          <div class="fr-main">
+            <div class="fr-route">{{ f.route }}</div>
+            <div class="fr-meta">{% if f.customer %}{{ f.customer }} · {% endif %}{{ f.time }}{% if f.vehicle %} · {{ f.vehicle }}{% endif %} · leg {{ f.leg_id }}</div>
+          </div>
+          <span class="fr-farmed">✓ {{ f.farmed_to }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
     </section>
     {% endif %}
 
@@ -364,7 +439,7 @@
         <button class="acc-btn" type="button" onclick="toggle(this)"><span>How this works</span><span class="right"><span class="meta">planning aid</span><span class="chev">▸</span></span></button>
         <div class="acc-body"><div class="acc-inner"><div class="acc-pad">
           <div class="prose">
-            <p>Run this <b>after you build the board, before you farm anything out</b>. It never changes the schedule — it prices the farm-outs you're about to commit and flags the ones worth keeping.</p>
+            <p>Run this <b>after you build the board, before you farm anything out</b>. The analysis itself never changes the schedule — it prices the farm-outs you're about to commit and flags the ones worth keeping. Only the <b>Apply / Farm buttons</b> write, and each one re-checks the live board first (and is rejected if the schedule changed since the page was computed).</p>
             <p>For every job headed to an affiliate, it prices the trip against the <b>whole roster</b> ({{ roster_count }} carded affiliates) using your real DriverPayRate cards, then checks whether keeping it on one of your own drivers — and farming a cheaper leg to make room — costs less.</p>
             <p>Feasibility uses the <b>scheduled flight arrival</b>, not hindsight, and fits each kept job inside the driver's actual working day. Far or unknown destinations are left uncomputed, so no recommendation rests on a guessed drive time.</p>
             <p class="muted">Drive times calibrated to real Orlando routes:</p>
@@ -376,7 +451,7 @@
     </section>
 
     <footer class="foot">
-      <p>Planning aid · prices each job you're about to farm against your full affiliate roster before you commit. Nothing here changes the schedule.</p>
+      <p>Planning aid · prices each job you're about to farm against your full affiliate roster before you commit. Apply &amp; Farm buttons assign through the same front door as the dispatch board — on a held day they stage into the draft instead of going live.</p>
     </footer>
 
   </main>
@@ -392,6 +467,148 @@
     var d = document.getElementById('d');
     d.value = iso;
     if (d.form.requestSubmit) { d.form.requestSubmit(); } else { d.form.submit(); }
+  }
+
+  /* ── Apply actions ───────────────────────────────────────────────────────────
+     Each action bar / farm row carries a data-plan payload (ids only) built by the
+     engine. POSTs go to farmout_apply, which re-validates CURRENT state server-side
+     (staleness, VIP/departure rules, affiliate eligibility + real capacity, board
+     feasibility) before writing through the assignment front door. A 409 means the
+     schedule moved on since this page was computed — re-run Analyze. On a held day
+     the plan is staged into the draft (badge says so; live board unchanged). */
+  var CSRF = '{{ csrf_token }}';
+  var APPLY_URL = '{% url "farmout_apply" %}';
+
+  function postPlan(plan){
+    return fetch(APPLY_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(plan)
+    }).then(function(r){
+      return r.json().catch(function(){ return {success:false, error:'Unexpected server response'}; });
+    }).catch(function(){ return {success:false, error:'Network error — nothing was changed'}; });
+  }
+
+  function setStatus(box, cls, txt){
+    var el = box.querySelector('.act-status');
+    if(!el) return;
+    el.className = 'act-status' + (cls ? ' ' + cls : '');
+    el.textContent = txt;
+  }
+
+  // Run one plan against its action box. Always resolves to the response object ({success: bool}).
+  function runPlan(box, plan, opts){
+    opts = opts || {};
+    var controls = box.querySelectorAll('button,select');
+    controls.forEach(function(c){ c.disabled = true; });
+    setStatus(box, '', 'Applying…');
+    return postPlan(plan).then(function(j){
+      if(j.success){
+        box.dataset.applied = '1';
+        if(j.held){
+          setStatus(box, 'staged', 'Staged in draft ✓ (publish to go live)');
+        } else {
+          setStatus(box, 'ok', opts.noReload ? 'Applied ✓' : 'Applied ✓ — refreshing…');
+          if(!opts.noReload){ setTimeout(function(){ location.reload(); }, 700); }
+        }
+      } else {
+        setStatus(box, 'err', j.error || 'Failed');
+        controls.forEach(function(c){ c.disabled = false; });
+      }
+      return j;
+    });
+  }
+
+  function confirmPullback(bar){
+    if(bar.dataset.farmed !== '1') return true;
+    return confirm('This job is currently farmed to ' + (bar.dataset.current || 'an affiliate') +
+                   '. Applying pulls it back in-house — only do this if you have NOT already confirmed it with them. Continue?');
+  }
+
+  // The server independently requires confirm_pullback before un-farming a committed leg, so a
+  // stale/forged payload can never silently pull a job back.
+  function withSelectedAffiliate(plan, box){
+    var sel = box.querySelector('.aff-pick');
+    if(sel){
+      var v = parseInt(sel.value, 10);
+      if(Number.isFinite(v)){ plan.farm_affiliate_id = v; }
+    }
+    return plan;
+  }
+
+  function barPlan(bar){
+    var plan = withSelectedAffiliate(JSON.parse(bar.dataset.plan), bar);
+    if(bar.dataset.farmed === '1'){ plan.confirm_pullback = true; }
+    return plan;
+  }
+
+  function applyCard(btn){
+    var bar = btn.closest('.actbar');
+    if(!confirmPullback(bar)) return;
+    runPlan(bar, barPlan(bar));
+  }
+
+  function applyKeepOnly(btn){
+    var bar = btn.closest('.actbar');
+    var p = JSON.parse(bar.dataset.plan);
+    if(!confirmPullback(bar)) return;
+    if(!confirm('Keep the job in-house and leave the swapped-out job UNASSIGNED to decide later?')) return;
+    runPlan(bar, {kind:'keep_unassign', date:p.date, target_leg_id:p.target_leg_id,
+                  keep_driver_id:p.keep_driver_id, farm_leg_id:p.farm_leg_id, expected:p.expected,
+                  confirm_pullback: bar.dataset.farmed === '1'});
+  }
+
+  function farmRow(btn){
+    var row = btn.closest('.farm-row');
+    runPlan(row, withSelectedAffiliate(JSON.parse(row.dataset.plan), row));
+  }
+
+  // Sequential bulk apply, strictly in card order — recommendations were computed on a shared
+  // board, so each plan's staleness expectations assume the earlier ones already applied.
+  // ALL apply controls on the page are frozen while a queue runs (a lone live apply mid-queue
+  // would otherwise reload the page under it).
+  function allControls(){
+    return document.querySelectorAll('.actbar button,.actbar select,.farm-row button,.farm-row select,.sec-action');
+  }
+  function runQueue(boxes, planOf, btn){
+    allControls().forEach(function(c){ c.disabled = true; });
+    var anyLive = false, idx = 0;
+    function finish(failMsg){
+      if(anyLive){
+        if(failMsg){ alert('Stopped: ' + failMsg + '\nRefreshing to show what WAS applied.'); }
+        location.reload();
+        return;
+      }
+      allControls().forEach(function(c){
+        if(!c.closest('[data-applied="1"]')){ c.disabled = false; }
+      });
+      if(failMsg){ alert('Stopped: ' + failMsg); }
+    }
+    function nextOne(){
+      if(idx >= boxes.length){ return finish(null); }
+      var box = boxes[idx++];
+      if(box.dataset.applied === '1'){ return nextOne(); }
+      if(box.classList.contains('actbar') && !confirmPullback(box)){ return nextOne(); }
+      runPlan(box, planOf(box), {noReload:true}).then(function(j){
+        if(!j.success){ return finish(j.error || 'apply failed'); }
+        if(!j.held){ anyLive = true; }
+        nextOne();
+      });
+    }
+    nextOne();
+  }
+
+  function applyAll(btn){
+    runQueue(Array.prototype.slice.call(document.querySelectorAll('.actbar[data-plan]')), barPlan, btn);
+  }
+
+  function farmAll(btn){
+    runQueue(Array.prototype.slice.call(document.querySelectorAll('.farm-row[data-plan]')), function(row){
+      var plan = JSON.parse(row.dataset.plan);
+      var sel = row.querySelector('.aff-pick');
+      if(sel){ plan.farm_affiliate_id = parseInt(sel.value, 10); }
+      return plan;
+    }, btn);
   }
 </script>
 </body>

@@ -7,11 +7,17 @@ instead?"** Farming is expensive ($70–230 vs $25–50 in-house — a $45–180
 ``docs/scheduler-automation/scheduler_automation_phase2_5_findings.md`` §A.4), so *which* legs
 we farm is real money.
 
-POSTURE: strictly read-only. No model writes, no migrations. Recommend-only, exactly like
+POSTURE: THIS MODULE is strictly read-only. No model writes, no migrations — exactly like
 ``dispatching/fleet_intel.py`` (whose cost primitives this module reuses). It is a RETROSPECTIVE
 grading tool — it judges a PAST day's farm decisions on the information available WHEN THE SCHEDULE
 WAS BUILT (scheduled/decision-time flight arrival + each driver's real worked-day availability) and
 NEVER suggests un-farming a committed leg. See the loud header below.
+
+ACTING ON RECOMMENDATIONS: each Recommendation carries a ready-to-POST plan in
+``detail["apply"]`` (ids + expected-assignment staleness map only — never dollars). The page's
+Apply/Farm buttons send it to the SEPARATE write path ``dispatching/farmout_actions.py``, which
+re-validates current DB state and writes through ``dispatching.assignment.set_leg_driver`` (the
+sandbox front door). The analysis/pricing engine here stays write-free.
 
 THE OBJECTIVE (design doc ``~/.claude/plans/you-are-continuing-the-composed-goose.md`` §3.1):
 For a residual would-be-farmed "target" leg, compare two end-states that cover the SAME legs:
@@ -126,7 +132,9 @@ ZERO = Decimal("0.00")
 # automatic in-house protection (see ``is_departure``) — judged purely on the net-farm-spend math. Only
 # a TRUE departure (non-Port/Sanford dropoff = airport) keeps its "belongs in-house" protection.
 #
-# The minivan==SUV pricing collapse (_pricing_vehicle) lets a minivan leg quote an affiliate's SUV row.
+# The minivan==SUV pricing equivalence (_pricing_vehicles) lets a minivan leg quote an affiliate's SUV
+# row as a FALLBACK (an explicit minivan row wins) — mirrored in pay_calc.calculate_driver_pay so the
+# auto-filled pay on a real assignment equals the quote.
 # IF AN AFFILIATE'S RATES, CAPABILITY, CAPACITY, OR PERMITS CHANGE, update their DriverPayRate rows and
 # AffiliateProfile — the engine reads them live; no code change is needed.
 #
@@ -360,17 +368,18 @@ def _suv_vehicle():
     return _SUV_VEHICLE_CACHE[0]
 
 
-def _pricing_vehicle(leg):
-    """The rates.Vehicle to PRICE this leg at. PRICING-TIER EQUIVALENCE: minivan == SUV for farm-out
-    pricing (distinct from VEHICLE_TIER_ORDER capability tiers), so a minivan leg is quoted at the
-    affiliate's SUV rate. Flat all-vehicle affiliates (Oualid/Anthony) are unaffected (their NULL-
-    vehicle row is hit regardless of the vehicle passed); per-class affiliates (Cheapo) then quote
-    their SUV row instead of returning None for an absent minivan row. pay_calc uses
-    reservation.vehicle, so we mirror that as the base."""
+def _pricing_vehicles(leg):
+    """``(primary, fallback)`` rates.Vehicles to PRICE this leg at. PRICING-TIER EQUIVALENCE:
+    minivan == SUV for farm-out pricing (distinct from VEHICLE_TIER_ORDER capability tiers) — a
+    minivan leg whose affiliate has NO minivan row is quoted at their SUV rate. Implemented as a
+    FALLBACK (primary = the raw reservation vehicle, exactly what pay_calc books; SUV second) so
+    an explicit minivan row always wins and the quote equals the pay Leg.save will actually
+    auto-fill — ``pay_calc.calculate_driver_pay`` applies the SAME fallback. Flat all-vehicle
+    affiliates (NULL-vehicle row) are unaffected either way."""
     base_vehicle = leg.reservation.vehicle if leg.reservation_id else None
     if (leg.effective_vehicle_type or "") == "mini_van":
-        return _suv_vehicle() or base_vehicle
-    return base_vehicle
+        return base_vehicle, _suv_vehicle()
+    return base_vehicle, None
 
 
 def _commit_chain(capst, leg, day):
@@ -387,48 +396,72 @@ def _commit_count(capst):
     return _c
 
 
+def _leg_pricing_ctx(leg) -> dict:
+    """Per-leg facts the affiliate gates need, computed once per leg (route / direction /
+    pricing-vehicle collapse / capability tier / Port-Sanford origination)."""
+    from drivers.pay_calc import _determine_direction
+
+    pveh, pveh_fallback = _pricing_vehicles(leg)  # raw vehicle first, SUV fallback for minivan
+    return {
+        "route": leg.route if leg.route_id else None,
+        "direction": _determine_direction(leg),
+        "pveh": pveh,
+        "pveh_fallback": pveh_fallback,
+        "tier": get_vehicle_tier(leg.effective_vehicle_type or ""),
+        "pickup_port_sanford": is_port_or_sanford(leg.pickup_location),
+    }
+
+
+def _gate_affiliate(ctx, drv, prof):
+    """The CAPABILITY / PERMIT / RATE gates (steps 1-3 of the waterfall), shared by the engine
+    (_price_one_leg), the page's override picker (quote_affiliate_options), and the apply
+    endpoint's server-side re-validation — one implementation so they can never disagree.
+    Returns ``(base, None)`` when the affiliate can be quoted, else ``(None, reason)`` with
+    reason in {'vehicle_tier', 'port_pickup_permit', 'no_rate'}."""
+    # 1. CAPABILITY tier cap (explicit; load-bearing for flat all-vehicle cards).
+    if prof and prof.max_vehicle_tier:
+        ptier = get_vehicle_tier(prof.max_vehicle_tier)
+        if ctx["tier"] == -1 or ptier == -1 or ctx["tier"] > ptier:
+            return None, "vehicle_tier"
+    # 2. PERMIT — drop-off-only at Port/Sanford => never originate there.
+    if prof and prof.no_pickup_at_port_sanford and ctx["pickup_port_sanford"]:
+        return None, "port_pickup_permit"
+    # 3. RATE from the real card (positive only; a $0 row is dirty data -> treated as uncarded).
+    # Primary lookup uses the RAW reservation vehicle (= what pay_calc books); the minivan->SUV
+    # equivalence is a FALLBACK, mirrored in pay_calc, so quote == auto-filled pay.
+    base = _find_rate(drv, ctx["route"], ctx["pveh"], ctx["direction"])
+    if (base is None or base <= 0) and ctx["pveh_fallback"] is not None:
+        base = _find_rate(drv, ctx["route"], ctx["pveh_fallback"], ctx["direction"])
+    if base is None or base <= 0:
+        return None, "no_rate"
+    return base, None
+
+
 def _price_one_leg(leg, day, ledger, roster) -> dict:
     """Price ONE leg by the CHEAPEST ELIGIBLE affiliate across the whole roster, each quoted from
     their REAL DriverPayRate rows via _find_rate (vehicle+direction aware) with the minivan->SUV
     pricing collapse. MUTATES ``ledger`` only on a successful assignment. Returns
-    {status, affiliate, base, night, total, leg_id}.
+    {status, affiliate, affiliate_id, base, night, total, leg_id}.
 
-    ``roster`` = list of (Driver, AffiliateProfile|None). Eligibility per affiliate:
-      1. CAPABILITY — if the profile sets ``max_vehicle_tier``, the leg's tier must be <= it
-         (load-bearing for FLAT all-vehicle cards; per-vehicle cards self-gate via _find_rate).
-      2. PERMIT — ``no_pickup_at_port_sanford`` excludes a leg ORIGINATING at Port/Sanford.
-      3. RATE — _find_rate must return a POSITIVE base (a $0 row is dirty data -> treated as uncarded).
+    ``roster`` = list of (Driver, AffiliateProfile|None). Eligibility per affiliate: the shared
+    ``_gate_affiliate`` CAPABILITY / PERMIT / RATE gates, then
       4. CAPACITY — single_chain: the leg must fit the growing feasibility chain (check_feasibility);
          count_cap/fleet: remaining seats > 0.
     Cheapest base (then cheapest night bonus) wins. check_feasibility has NO vehicle gate, so the
-    capability check above is load-bearing."""
-    from drivers.pay_calc import _determine_direction, calculate_night_bonus
+    capability gate is load-bearing."""
+    from drivers.pay_calc import calculate_night_bonus
 
-    route = leg.route if leg.route_id else None
-    if route is None:
-        return {"status": _UNCARDED, "leg_id": leg.id, "affiliate": None,
+    ctx = _leg_pricing_ctx(leg)
+    if ctx["route"] is None:
+        return {"status": _UNCARDED, "leg_id": leg.id, "affiliate": None, "affiliate_id": None,
                 "base": None, "night": None, "total": None}
 
-    direction = _determine_direction(leg)
-    pveh = _pricing_vehicle(leg)  # minivan -> SUV collapse
-    leg_tier = get_vehicle_tier(leg.effective_vehicle_type or "")
-    pickup_is_port_sanford = is_port_or_sanford(leg.pickup_location)
-
-    eligible = []            # (base, affiliate_name, night, commit_callable)
+    eligible = []            # (base, affiliate_name, night, commit_callable, driver_id)
     carded_but_full = False  # some affiliate cards the route but has no remaining capacity
 
     for drv, prof in roster:
-        # 1. CAPABILITY tier cap (explicit; load-bearing for flat all-vehicle cards).
-        if prof and prof.max_vehicle_tier:
-            ptier = get_vehicle_tier(prof.max_vehicle_tier)
-            if leg_tier == -1 or ptier == -1 or leg_tier > ptier:
-                continue
-        # 2. PERMIT — drop-off-only at Port/Sanford => never originate there.
-        if prof and prof.no_pickup_at_port_sanford and pickup_is_port_sanford:
-            continue
-        # 3. RATE from the real card (positive only).
-        base = _find_rate(drv, route, pveh, direction)
-        if base is None or base <= 0:
+        base, _reason = _gate_affiliate(ctx, drv, prof)
+        if base is None:
             continue
         capst = ledger.caps.get(drv.id)
         if capst is None:
@@ -437,25 +470,25 @@ def _price_one_leg(leg, day, ledger, roster) -> dict:
         # 4. CAPACITY.
         if capst.mode == _CAP_SINGLE_CHAIN:
             if check_feasibility(capst.chain, leg, day).feasible:
-                eligible.append((base, capst.name, night, _commit_chain(capst, leg, day)))
+                eligible.append((base, capst.name, night, _commit_chain(capst, leg, day), drv.id))
             else:
                 carded_but_full = True
         else:  # count_cap / fleet
             if capst.cap is None or capst.count < capst.cap:
-                eligible.append((base, capst.name, night, _commit_count(capst)))
+                eligible.append((base, capst.name, night, _commit_count(capst), drv.id))
             else:
                 carded_but_full = True
 
     if eligible:
         eligible.sort(key=lambda c: (c[0], c[2]))  # cheapest base, then cheapest night
-        base, name, night, commit = eligible[0]
+        base, name, night, commit, drv_id = eligible[0]
         commit()
-        return {"status": _OK, "leg_id": leg.id, "affiliate": name,
+        return {"status": _OK, "leg_id": leg.id, "affiliate": name, "affiliate_id": drv_id,
                 "base": base, "night": night, "total": base + night}
     if carded_but_full:
-        return {"status": _OVER_CAP, "leg_id": leg.id, "affiliate": None,
+        return {"status": _OVER_CAP, "leg_id": leg.id, "affiliate": None, "affiliate_id": None,
                 "base": None, "night": None, "total": None}
-    return {"status": _UNCARDED, "leg_id": leg.id, "affiliate": None,
+    return {"status": _UNCARDED, "leg_id": leg.id, "affiliate": None, "affiliate_id": None,
             "base": None, "night": None, "total": None}
 
 
@@ -508,6 +541,44 @@ def cheapest_affiliate_for_leg(leg, day, ledger, roster) -> dict:
     day capacity in ``ledger`` (priced on a COPY — does not consume capacity). Returns the per-leg
     waterfall dict (status/affiliate/base/night/total)."""
     return _price_one_leg(leg, day, ledger.copy(), roster)
+
+
+def quote_affiliate_options(leg, day, ledger, roster):
+    """EVERY eligible affiliate's quote for farming ``leg`` against the remaining day capacity in
+    ``ledger`` — READ-ONLY (nothing committed). The engine's own decisions stay cheapest-first
+    (_price_one_leg); this exists so the founder can deliberately farm to a NON-cheapest affiliate
+    from the page (a human override, fully priced). Returns ``(options, skipped)``:
+
+      * ``options`` = [{driver_id, name, base, night, total}] sorted (base, night) — same
+        eligibility gates AND capacity check as _price_one_leg, so anything listed here is a
+        choice the waterfall itself would have accepted.
+      * ``skipped`` = [{driver_id, name, reason}] with reason in {'no_route', 'vehicle_tier',
+        'port_pickup_permit', 'no_rate', 'over_capacity'} — audit/display only.
+    """
+    from drivers.pay_calc import calculate_night_bonus
+
+    ctx = _leg_pricing_ctx(leg)
+    options, skipped = [], []
+    if ctx["route"] is None:
+        return options, [{"driver_id": d.id, "name": str(d), "reason": "no_route"}
+                         for d, _ in roster]
+    for drv, prof in roster:
+        base, reason = _gate_affiliate(ctx, drv, prof)
+        if base is not None:
+            capst = ledger.caps.get(drv.id)
+            has_capacity = (capst is not None
+                            and (check_feasibility(capst.chain, leg, day).feasible
+                                 if capst.mode == _CAP_SINGLE_CHAIN
+                                 else (capst.cap is None or capst.count < capst.cap)))
+            if has_capacity:
+                night = calculate_night_bonus(drv, leg.pickup_time)
+                options.append({"driver_id": drv.id, "name": capst.name,
+                                "base": base, "night": night, "total": base + night})
+                continue
+            reason = "over_capacity"
+        skipped.append({"driver_id": drv.id, "name": str(drv), "reason": reason})
+    options.sort(key=lambda o: (o["base"], o["night"]))
+    return options, skipped
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -858,6 +929,27 @@ def evaluate_target(target, ctx, ledger, roster, *,
                     detail={
                         "moves": [(mv.leg_id, mv.to_driver_id) for mv in sol.moves],
                         "boards": _boards,
+                        # Ready-to-POST plan for the page's Apply button (ids only — the apply
+                        # endpoint re-validates state and re-derives every dollar server-side).
+                        # ``expected`` = each touched leg's CURRENT driver, the staleness guard:
+                        # apply is rejected if the live board moved on since this was computed.
+                        "apply": {
+                            "kind": "free_rescue",
+                            "target_leg_id": target.id,
+                            "keep_driver_id": sol.target_driver_id,
+                            "moves": [[mv.leg_id, mv.to_driver_id] for mv in sol.moves],
+                            "expected": {
+                                str(mv.leg_id): ((target.driver_id or None)
+                                                 if mv.leg_id == target.id
+                                                 else mv.from_driver_id)
+                                for mv in sol.moves
+                            },
+                        },
+                        "target_current": {
+                            "driver_id": target.driver_id or None,
+                            "name": (str(target.driver)
+                                     if getattr(target, "driver_id", None) else ""),
+                        },
                         "display": {
                             "target": _leg_display(target),
                             "keep_driver_name": _driver_name(ctx, sol.target_driver_id),
@@ -932,6 +1024,22 @@ def evaluate_target(target, ctx, ledger, roster, *,
                         "displaced_route": f"{displaced.pickup_location} -> {displaced.dropoff_location}",
                         "b_with_night": b_quote.total_with_night,
                         "requote_base": requote_base,  # secondary: cheapest-affiliate re-quote of the target
+                        # Ready-to-POST plan (ids only; server re-validates everything). The page
+                        # may override suggested_affiliate_id with any quote_affiliate_options pick.
+                        "apply": {
+                            "kind": "policy_departure_rescue" if target_dep else "opportunity_swap",
+                            "target_leg_id": target.id,
+                            "keep_driver_id": drv.id,
+                            "farm_leg_id": displaced.id,
+                            "suggested_affiliate_id": b_quote.per_leg[0].get("affiliate_id"),
+                            "expected": {str(target.id): target.driver_id or None,
+                                         str(displaced.id): drv.id},
+                        },
+                        "target_current": {
+                            "driver_id": target.driver_id or None,
+                            "name": (str(target.driver)
+                                     if getattr(target, "driver_id", None) else ""),
+                        },
                         "display": {
                             "target": _leg_display(target),
                             "displaced": _leg_display(displaced),
@@ -950,6 +1058,10 @@ def evaluate_target(target, ctx, ledger, roster, *,
     # ── Decision gate: hard-rule (departure) rescues bypass the $ threshold; others need >= min. ──
     def _accept(reason_fn):
         rec.reason = reason_fn()
+        # Affiliate-override picker for the page: every eligible alternative for the displaced leg,
+        # priced BEFORE this bundle's capacity is committed (so the suggested affiliate is listed).
+        rec.detail["farm_options"], _ = quote_affiliate_options(
+            legs_by_id[rec.farmed_leg_ids[0]], day, ledger, roster)
         # commit AFFILIATE capacity (displaced bundle now farmed) AND the in-house BOARD change
         # (displaced leg leaves the board; target seated in-house) so later targets stay honest.
         _commit(ledger, [legs_by_id[lid] for lid in rec.farmed_leg_ids], day, roster)
@@ -1213,14 +1325,37 @@ def summarize_savings_range(start: date, end: date, *,
             far_ids = {a["leg_id"] for a in abstained_far}
             day_farm_only = day_stuck = 0
             _fresh_ledger = WaterfallLedger.for_roster(roster)
+            farm_items = []
             for t in targets:
-                if t.id in rec_ids or t.id in far_ids:
+                if t.id in rec_ids:
                     continue
-                day_farm_only += 1
-                if not getattr(t, "driver_id", None):
-                    q = cheapest_affiliate_for_leg(t, day, _fresh_ledger, roster)
-                    if q.get("status") != _OK:
-                        day_stuck += 1
+                is_far = t.id in far_ids
+                if not is_far:
+                    day_farm_only += 1
+                    if not getattr(t, "driver_id", None):
+                        q = cheapest_affiliate_for_leg(t, day, _fresh_ledger, roster)
+                        if q.get("status") != _OK:
+                            day_stuck += 1
+                # ACTIONABLE farm list (the page's write actions): every evaluated target that got
+                # NO keep-in-house rec, incl. far-abstained ones (their reshuffle feasibility was
+                # uncomputable, but a farm PRICE is still real and the job still has to be served).
+                # Options are quoted against the END-state ledger so capacity already consumed by
+                # accepted recommendations is respected. VIP / departure legs are listed but the
+                # page renders them action-less (never farmed — hard rules).
+                options, _skipped = quote_affiliate_options(t, day, ledger, roster)
+                farm_items.append({
+                    "leg_id": t.id,
+                    "display": _leg_display(t),
+                    "current_driver_id": t.driver_id or None,
+                    "current_driver_name": (str(t.driver) if t.driver_id else ""),
+                    "already_farmed": bool(t.driver_id),
+                    "is_departure": is_departure(t),
+                    "vip": t.id in protected_ids,
+                    "abstained_far": is_far,
+                    "options": options,
+                })
+            farm_items.sort(key=lambda it: ((legs_by_id[it["leg_id"]].pickup_time or time.min),
+                                            it["leg_id"]))
             totals["farm_only"] += day_farm_only
             totals["stuck"] += day_stuck
 
@@ -1235,6 +1370,7 @@ def summarize_savings_range(start: date, end: date, *,
                 "inhouse_deployable": len(deployable),
                 "inhouse_total": len(inhouse_drivers),
                 "recommendations": recs,
+                "farm_items": farm_items,           # actionable no-rec targets (page farm buttons)
                 "ledger_load": ledger.load_by_name(),  # {affiliate_name: legs farmed to them this day}
                 "abstained": abstained,
                 "abstained_far": abstained_far,  # Approach A: targets skipped (far/unknown drive time)
