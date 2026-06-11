@@ -9300,7 +9300,9 @@ def auto_assign_drivers(request):
             driver_max_hours.setdefault(d.id, float(full_avail["max_hours"]))
 
     # ── Span Governor: one cap-clamped, modal-aware window per working driver ──
-    # max_hours = min(stub, modal/DB, global 17h default) via the get_effective_window funnel.
+    # max_hours via the get_effective_window funnel: min(stub, 15h default) — but a
+    # modal-typed/DB per-driver value is INTENT and may raise past the default, up to
+    # the 17h absolute ceiling.
     # Built for EVERY working driver and handed to the swap + rescue passes (find_swaps
     # restricts its receiver pool to this dict's keys, so a partial map would silently
     # shrink swap recovery). The greedy + gap passes get the same caps through their own
@@ -9757,8 +9759,9 @@ def auto_assign_drivers(request):
                 "level": "strict", "leg_id": _w["leg_id"],
                 "text": (f"Leg #{_w['leg_id']} ({_w['pickup']}) left for affiliates: keeping it in-house "
                          f"would stretch {_w['driver_name']} to {_w['span_after']}h — past the "
-                         f"{_w['cap_hours']:.0f}h absolute day ceiling. Cover it with a second-shift "
-                         f"driver or an affiliate."),
+                         f"{_w['cap_hours']:g}h day ceiling. Type a Max hrs on a driver (up to "
+                         f"{fg.SPAN_ABS_CEILING_HOURS:g}h) to allow a longer day, or cover it with "
+                         f"a second-shift driver / an affiliate."),
             })
 
     # ── Second-Shift Advisor (Phase 5) ──

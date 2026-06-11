@@ -952,3 +952,30 @@ date        legs bucket   founder     runA     runB  B-A  drvA/B  carA/B   worst
   `USE_LIVE_DISTANCE=1` (the harness runs it for parity with published numbers; some
   drive times are live-API-dependent). Within one sweep, A and B share identical
   conditions, so the gates compare like with like.
+
+# PART 8 — 2026-06-11: founder sets the default cap to 15h (+ typed-raise semantics)
+
+Decision from the live-Saturday sandbox + 18-day sweep (06-13..06-30, 4 strategies/day,
+72 builds, byte-identical restores; results: docs/scheduler-audit/0613-sandbox-results.md):
+
+- `SPAN_HARD_HOURS_DEFAULT` 17.0 -> **15.0** ("let's have the default fifteen"). Sweep:
+  costs ~1 in-house job/day on medium days, ~2.5/day busy, ~0 slow; removes every 15h+
+  day including 16-17h days the 17h default still built on SLOW boards.
+- NEW `SPAN_ABS_CEILING_HOURS = 17.0` — the inhumane bound lives on as a separate
+  constant. NOTHING exceeds it.
+- NEW `_capped_max_hours` semantics: a dispatcher-typed/saved per-driver Max hrs is
+  INTENT ("a typed number means it") and may RAISE the cap past the 15h default up to
+  the 17h absolute ceiling. The optimistic observed-history stub still only tightens.
+  Saved DB values (all 12-14h today) behave identically to before.
+- `SPAN_RESCUE_CEILING_HOURS` still tracks the default (15): the AUTOMATIC rescue never
+  builds past policy; only explicit dispatcher intent goes higher.
+- Rescue warning routing fixed (adversarial review): a strict-typed driver whose window
+  already reaches/exceeds the rescue ceiling now reports `strict_blocked` with HIS typed
+  cap, never a misleading `ceiling_blocked@15`; ceiling_blocked copy now names the policy
+  ceiling and the remedy (type a Max hrs up to 17h).
+- Suite: dispatching 340 green; full suite green except the known test_ghl_full cp1252
+  import error. Live verify: 06-13 preview = 105 in-house / worst 14.9h under the new
+  default; typed 16 binds at 16.
+- Known tension (review INFO): the trim pass (raw>15 donor trigger) will try to peel a
+  typed 16-17h day back when receivers exist — typed intent survives only when nobody
+  can take the tail. Acceptable for now; revisit if founder complains.

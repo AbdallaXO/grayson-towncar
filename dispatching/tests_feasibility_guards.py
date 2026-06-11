@@ -145,7 +145,7 @@ class EffectiveWindowTests(SimpleTestCase):
         # NOT silently disable the guard (return None).
         configured = {"start": 6, "end": 17, "max_hours": 12.0, "flexible": False}
         with patch.object(fg, "USE_STUB_WINDOWS", False):
-            # max_hours 12 < the 17h global cap, so the capped window equals configured
+            # max_hours 12 < the global default cap, so the capped window equals configured
             # (plus the night_exempt marker: False on the auto path, True on the
             # manual-sovereign enforce_cap=False path).
             self.assertEqual(fg.get_effective_window(46, configured=configured),

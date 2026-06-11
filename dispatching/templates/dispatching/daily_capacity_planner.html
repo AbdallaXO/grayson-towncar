@@ -2431,7 +2431,7 @@
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:140px;">Start</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:140px;">End</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:170px;">Prefer</th>
-                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:80px;text-align:center;" title="Hard cap on this driver's day (first pickup to last clear), in hours. Blank = the global 17h backstop. A number you type is STRICT: a leg that doesn't fit goes to Need Affiliates with a note, never silently stretched.">Max hrs</th>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:80px;text-align:center;" title="Hard cap on this driver's day (first pickup to last clear), in hours. Blank = the global 15h default. A number you type is STRICT and may exceed the default, up to the 17h absolute ceiling: a leg that doesn't fit goes to Need Affiliates with a note, never silently stretched.">Max hrs</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:75px;text-align:center;" title="Build this driver's FULL day first, then fill everyone else around them (for fixed schedules that can't compromise)">Build 1st</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:70px;text-align:center;" title="Driver works anytime — Start/End ignored, system picks hours">Flexible</th>
                                     <th style="padding:0.5rem 0.75rem;font-weight:600;width:60px;text-align:center;">Off</th>
@@ -2512,7 +2512,7 @@
                                         </select>
                                     </td>
                                     <td style="padding:0.4rem 0.75rem;text-align:center;">
-                                        <input type="number" class="form-control form-control-sm aa-max-hours" min="4" max="24" step="0.5" placeholder="17" style="width:64px;font-size:0.8rem;text-align:center;margin:0 auto;" title="Hard cap on this driver's day in hours. Blank = global 17h backstop. A typed number is STRICT (never silently exceeded).">
+                                        <input type="number" class="form-control form-control-sm aa-max-hours" min="4" max="17" step="0.5" placeholder="15" style="width:64px;font-size:0.8rem;text-align:center;margin:0 auto;" title="Hard cap on this driver's day in hours. Blank = global 15h default. A typed number is STRICT and may exceed the default, up to the 17h absolute ceiling.">
                                     </td>
                                     <td style="padding:0.4rem 0.75rem;text-align:center;">
                                         <input type="checkbox" class="form-check-input aa-build-first" title="Build this driver's full day FIRST (fixed schedules that can't compromise), then fill everyone else around them">

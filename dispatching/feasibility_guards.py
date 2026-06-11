@@ -52,10 +52,18 @@ USE_STUB_WINDOWS = True
 # ENFORCE_SPAN_CAPS=False restores byte-identical pre-cap behavior everywhere.
 ENFORCE_SPAN_CAPS = True
 # HARD ceiling on RAW span (first pickup -> last clear), enforced via window_check.
-# 17h never blocks anything the founder built himself (his max: 16.5h, a split-day); it
-# trims only the optimistic stub values (David 24h, roberto/neuma 23h, ...). A tighter
-# stub/configured/modal value still wins via min().
-SPAN_HARD_HOURS_DEFAULT = 17.0
+# 2026-06-11 FOUNDER PICK: 15.0 (was 17.0). 18-day sandbox sweep 06-13..06-30
+# (docs/scheduler-audit/0613-sandbox-results.md): 15h costs ~1 in-house job/day on
+# medium days, ~2.5/day on busy, ~0 on slow — and removes every 15h+ day, including
+# the 16-17h days the 17h default still built on SLOW boards. A tighter stub/
+# configured/modal value still wins via min(). An INTENTIONAL longer day is the
+# dispatcher's call: a typed per-driver Max hrs RAISES the cap past this default
+# ("a typed number means it"), bounded by SPAN_ABS_CEILING_HOURS below.
+SPAN_HARD_HOURS_DEFAULT = 15.0
+# ABSOLUTE inhumane bound (founder 2026-06-10: "no driver ever gets an inhumane
+# day"; his own hand-built max was 16.5h). The pre-2026-06-11 17h default lives on
+# here as the ceiling a dispatcher-typed Max hrs can reach — NOTHING exceeds it.
+SPAN_ABS_CEILING_HOURS = 17.0
 # SOFT steering on EFFECTIVE span (raw span minus one PRE-EXISTING internal break of
 # >= SPAN_GAP_CREDIT_MIN_MIN minutes, credit capped at SPAN_GAP_CREDIT_MAX_MIN). Marginal
 # progressive pricing in the builder scoring: free under FREE_HOURS, SPAN_SOFT_RATE pts/hr
@@ -71,12 +79,14 @@ SPAN_SEEDER_RATE_SCALE = 0.5  # build_smart_schedule seats only on score>0 — h
 SPAN_GAP_CREDIT_MIN_MIN = 120  # a >=2h hole is a real off-duty break (founder split-days: 3-5h)
 SPAN_GAP_CREDIT_MAX_MIN = 300  # cap the credit so one 6h hole can't excuse a 20h day
 
-# ABSOLUTE ceiling for the span-cap coverage rescue (founder 2026-06-10: "no driver ever
-# gets an inhumane day"). The rescue pass may lift a driver's personal/default cap to keep
-# a leg in-house (red badge), but NEVER past this raw-span ceiling — before this rule the
-# lift was unbounded and built 17.8h (shelley) and 18.3h (Aftab) days around the 00:0x
-# airport arrivals on 2026-05-16. A leg that fits nobody under the ceiling farms with a
-# named reason, exactly like the founder does by hand.
+# Ceiling for the AUTOMATIC span-cap coverage rescue. The rescue pass may lift a
+# driver's personal/default cap to keep a leg in-house (red badge), but NEVER past
+# this — before this rule the lift was unbounded and built 17.8h (shelley) and 18.3h
+# (Aftab) days around the 00:0x airport arrivals on 2026-05-16. Tracks the policy
+# default (15h): the engine never AUTOMATICALLY builds past policy; only an explicit
+# dispatcher-typed Max hrs goes higher (up to SPAN_ABS_CEILING_HOURS). A leg that
+# fits nobody under the ceiling farms with a named reason, exactly like the founder
+# does by hand.
 SPAN_RESCUE_CEILING_HOURS = SPAN_HARD_HOURS_DEFAULT
 
 # Night-duty boundary (founder rule 2026-06-10): a pickup BEFORE this hour is night work
@@ -168,11 +178,21 @@ def is_airport_arrival(trip_type, pickup_category):
 # ════════════════════════════════════════════════════════════════════════════
 # GUARD C — per-driver window (stub-backed)
 # ════════════════════════════════════════════════════════════════════════════
-def _capped_max_hours(*values):
-    """min() over the non-None candidate max_hours values plus the global hard default."""
-    candidates = [float(v) for v in values if v is not None]
-    candidates.append(float(SPAN_HARD_HOURS_DEFAULT))
-    return min(candidates)
+def _capped_max_hours(stub_mh=None, configured_mh=None):
+    """Effective duty cap for one driver.
+
+    The dispatcher's per-driver value (modal-typed Max hrs or saved availability
+    max_hours) is INTENT — "a typed number means it" — so it may RAISE the cap past
+    SPAN_HARD_HOURS_DEFAULT, bounded by SPAN_ABS_CEILING_HOURS (typed 16 binds at 16;
+    typed 18 binds at 17). Without one, the global default holds. The observed-history
+    stub is OPTIMISTIC data, not intent: it only ever tightens, never raises."""
+    if configured_mh is not None:
+        cap = min(float(configured_mh), float(SPAN_ABS_CEILING_HOURS))
+    else:
+        cap = float(SPAN_HARD_HOURS_DEFAULT)
+    if stub_mh is not None:
+        cap = min(cap, float(stub_mh))
+    return cap
 
 
 def get_effective_window(driver_id, configured=None, enforce_cap=True):
@@ -183,10 +203,11 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
     binds during testing). Otherwise use the caller-supplied `configured` window (the real
     DriverWeeklySchedule-derived dict). Returns None if nothing is known (=> no window guard).
 
-    enforce_cap (with ENFORCE_SPAN_CAPS): clamp max_hours to
-    min(stub, configured, SPAN_HARD_HOURS_DEFAULT) — the stub values are OPTIMISTIC observed
-    history (David 24h, roberto 23h, ...), which is exactly what let auto-assign build 15-18h
-    days. Unknown drivers get a cap-only synthetic window whose start/end stay None (a
+    enforce_cap (with ENFORCE_SPAN_CAPS): clamp max_hours via _capped_max_hours —
+    min(stub, default) without a per-driver value; a dispatcher-typed/saved value may
+    raise past the default up to SPAN_ABS_CEILING_HOURS. The stub values are OPTIMISTIC
+    observed history (David 24h, roberto 23h, ...), which is exactly what let auto-assign
+    build 15-18h days. Unknown drivers get a cap-only synthetic window whose start/end stay None (a
     non-None end would NEWLY enforce a clear-by on drivers who today have no window at all).
     Pass enforce_cap=False on analytics / manual-sovereign paths (fleet_intel, the manual
     swap-validation endpoint) so the cap never silently changes shipped numbers or blocks a
@@ -208,11 +229,14 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
             if not cap_on:
                 return None
             return {"start": None, "end": None,
-                    "max_hours": _capped_max_hours(configured.get("max_hours") if configured else None),
+                    "max_hours": _capped_max_hours(
+                        configured_mh=configured.get("max_hours") if configured else None),
                     "flexible": flexible, "night_exempt": night_exempt}
         max_h = w["max_hours"]
         if cap_on:
-            max_h = _capped_max_hours(max_h, configured.get("max_hours") if configured else None)
+            max_h = _capped_max_hours(
+                stub_mh=max_h,
+                configured_mh=configured.get("max_hours") if configured else None)
         return {"start": w["start"], "end": w["end"], "max_hours": max_h,
                 "flexible": flexible, "night_exempt": night_exempt}
     if not cap_on:
@@ -223,7 +247,7 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
         return {"start": None, "end": None, "max_hours": _capped_max_hours(),
                 "flexible": False, "night_exempt": night_exempt}
     capped = dict(configured)
-    capped["max_hours"] = _capped_max_hours(configured.get("max_hours"))
+    capped["max_hours"] = _capped_max_hours(configured_mh=configured.get("max_hours"))
     capped["night_exempt"] = night_exempt
     return capped
 
