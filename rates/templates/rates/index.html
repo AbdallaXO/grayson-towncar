@@ -3,236 +3,224 @@
 {% load seo_tags %}
 {% block head_extra %}
   <link rel="canonical" href="https://www.graysontowncar.com/rates-booking/" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&display=swap"
+        rel="stylesheet" />
 {% endblock %}
 {% block title %}
   Orlando Car Service Rates & Pricing | Grayson Towncar
 {% endblock %}
 {% block meta_description %}
-  <meta name="description" content="Transparent Orlando airport transportation rates. MCO to Disney Prices Starting at $95. No hidden fees. Free car seats & grocery stop included." />
+  <meta name="description" content="Transparent, all-inclusive Orlando car service rates — MCO, Disney, Universal & Port Canaveral. Tolls, taxes, free car seats & grocery stop included. 5.0-rated, 24/7." />
 {% endblock %}
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static 'css/rates_test.css' %}" media="all" />
+  <link rel="stylesheet" href="{% static 'css/rates-luxe.css' %}" />
 {% endblock %}
 {% block content %}
   {% block schema %}
-    {% structured_data additional_data=structured_data %}
+    {% structured_data additional_data=additional_data %}
   {% endblock %}
 
-  <!-- Enhanced hero section with better messaging -->
-  <section class="py-5 position-relative hero-section" aria-labelledby="vehicle-options-heading">
-    <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
-    <div class="container px-4 px-lg-5 my-4 position-relative">
-      <div class="row gx-4 gx-lg-5 justify-content-center">
-        <div class="col-12 col-lg-10">
-          <div class="text-center mb-5 fade-in">
-            <h1 id="vehicle-options-heading" class="display-4 fw-light mb-3">Orlando Transportation Rates & Fleet</h1>
-            <p class="lead fs-4 fw-light text-muted mb-4 mx-auto" style="max-width: 700px; letter-spacing: 0.3px">Best Orlando transportation to Disney and Port Canaveral. Luxury fleet with transparent pricing. Sanford airport, Universal, and all other Orlando destinations.</p>
-            <div class="d-flex align-items-center justify-content-center gap-3 mb-4">
-              <div class="d-flex align-items-center bg-white rounded-pill px-3 py-2 shadow-sm">
-                <div class="d-flex gap-1 me-2">
-                  <i class="fas fa-star text-warning" style="font-size: 0.9rem;"></i>
-                  <i class="fas fa-star text-warning" style="font-size: 0.9rem;"></i>
-                  <i class="fas fa-star text-warning" style="font-size: 0.9rem;"></i>
-                  <i class="fas fa-star text-warning" style="font-size: 0.9rem;"></i>
-                  <i class="fas fa-star text-warning" style="font-size: 0.9rem;"></i>
-                </div>
-                <span class="fw-semibold text-dark" style="font-size: 0.9rem;">5.0</span>
-              </div>
-              <div class="d-flex align-items-center">
-                <span class="text-muted small fw-semibold">Google Reviews</span>
-              </div>
-            </div>
-          </div>
+  <main class="rl-page" id="rl-page">
 
-          <!-- Quick Stats Section -->
-          <div class="row g-4 mb-5 fade-in" style="animation-delay: 0.2s;">
-            <div class="col-6 col-md-3">
-              <div class="text-center">
-                <div class="fs-1 fw-bold mb-1">24/7</div>
-                <div class="fs-6 text-muted">Service Available</div>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="text-center">
-                <div class="fs-1 fw-bold mb-1">100%</div>
-                <div class="fs-6 text-muted">Satisfaction</div>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="text-center">
-                <div class="fs-1 fw-bold mb-1">Free</div>
-                <div class="fs-6 text-muted">Car Seats</div>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="text-center">
-                <div class="fs-1 fw-bold mb-1">No</div>
-                <div class="fs-6 text-muted">Hidden Fees</div>
-              </div>
-            </div>
-          </div>
+    <!-- ===================== MASTHEAD (ink) ===================== -->
+    <header class="rl-mast">
+      <div class="container px-4">
+        <span class="rl-eyebrow">Rates &amp; Reservations</span>
+        <h1 class="rl-title">Orlando Car Service <em>Rates</em></h1>
+        <p class="rl-sub">
+          Flat, all-inclusive fares for Orlando International (MCO), Disney World,
+          Universal and Port Canaveral. Tolls, taxes, meet &amp; greet, car seats and
+          a grocery stop are already in every price &mdash; the fare you see is the
+          fare you pay.
+        </p>
+        <p class="rl-trust">
+          <span><i class="bi bi-star-fill" aria-hidden="true"></i> 5.0 &middot; 1,500+ Google Reviews</span>
+          <span class="rl-trust-dot" aria-hidden="true"></span>
+          <span>No hidden fees</span>
+          <span class="rl-trust-dot" aria-hidden="true"></span>
+          <span>24/7 service</span>
+        </p>
+      </div>
+    </header>
 
-          <!-- Vehicle tabs and route filters will be inserted here by JavaScript -->
-          <section class="py-4" aria-labelledby="vehicle-rates-heading">
-            <div class="container p-0">
-              <div class="row">
-                <div class="col-12">
-                  {% for vehicle in vehicles %}
-                    <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in" data-vehicle-image="{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}" data-capacity="{{ vehicle.capacity }}" data-luggage="{{ vehicle.luggage_capacity }}" data-carseats="{{ vehicle.carseats_display }}" data-vehicle-type="{{ vehicle.get_vehicle_type_display }}">
-                      <header id="{{ vehicle.get_vehicle_type_display|slugify }}-heading" class="card-header bg-rates-dark text-white text-center py-3 position-relative">
-                        <div class="header-accent"></div>
-                        <h2 class="h4 fw-bold mb-0">{{ vehicle.get_vehicle_type_display }} Transportation Rates</h2>
-                      </header>
-                      <div class="card-body p-0">
-                        <!-- Mobile-friendly price cards -->
-                        <div class="d-md-none">
-                          {% regroup vehicle.rates.all by get_route_category as grouped_rates %}
-                          {% for category_group in grouped_rates %}
-                            {% for v in category_group.list %}
-                              <div class="mobile-rate-card p-3 border-bottom" data-section="{{ category_group.grouper|slugify }}">
-                                <h3 class="h5 fw-semibold mb-3">{{ v.route }}</h3>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                  <div>
-                                    <small class="text-muted d-block fw-bolder">One-Way</small>
-                                    <span class="fw-semibold pricing-text">${{ v.oneway_price }}</span>
-                                  </div>
-                                  <a href="{% url 'reserve' v.id %}?round=1" class="btn btn-dark btn-sm rounded-pill shadow-sm" aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">Reserve One Way</a>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center">
-                                  <div>
-                                    <small class="text-muted fw-bold d-block">Round Trip</small>
-                                    <span class="fw-semibold pricing-text">${{ v.round_trip_price }}</span>
-                                  </div>
-                                  <a href="{% url 'reserve' v.id %}?round=2" class="btn btn-dark btn-sm rounded-pill shadow-sm px-2 fw-semibold" aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">Reserve Round-Trip</a>
-                                </div>
-                              </div>
-                            {% endfor %}
-                          {% endfor %}
-                        </div>
-
-                        <div class="table-responsive d-none d-md-block">
-                          <table class="table table-striped table-hover align-middle mb-0">
-                            <thead class="bg-light">
-                              <tr>
-                                <th scope="col" class="py-3 col-4">Route</th>
-                                <th scope="col" class="text-center py-3 col-4">One Way</th>
-                                <th scope="col" class="text-center py-3 col-4">Round Trip</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {% regroup vehicle.rates.all by get_route_category as grouped_rates %}
-                              {% for category_group in grouped_rates %}
-                                {% for v in category_group.list %}
-                                  <tr class="rate-row" data-section="{{ category_group.grouper|slugify }}">
-                                    <td class="align-middle py-3">
-                                      <span class="fw-bold fs-5">{{ v.route }}</span>
-                                    </td>
-                                    <td class="text-center py-3">
-                                      <div class="d-flex flex-column flex-md-row align-items-center justify-content-center gap-2">
-                                        <span class="one-way-price fw-bold py-2 px-3 align-middle">${{ v.oneway_price }}</span>
-                                        <a href="{% url 'reserve' v.id %}?round=1" class="fw-bold btn2 rounded-pill px-3 py-2 fs-6 align-middle" aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">Book One-way</a>
-                                      </div>
-                                    </td>
-                                    <td class="text-center py-3">
-                                      <div class="d-flex flex-column flex-md-row align-items-center justify-content-center gap-2">
-                                        <span class="round-trip-price fs-6 py-2 px-3 align-middle">${{ v.round_trip_price }}</span>
-                                        <a href="{% url 'reserve' v.id %}?round=2" class="fw-bold btn2 rounded-pill px-3 py-2 fs-6 align-middle" aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">Book Roundtrip</a>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                {% endfor %}
-                              {% endfor %}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </article>
-                  {% endfor %}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <div class="bg-white p-4 rounded shadow-sm mb-5 position-relative overflow-hidden contact-box fade-in">
-            <div class="contact-box-decoration"></div>
-            <div class="position-relative">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-warning text-white d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px" aria-hidden="true">
-                  <i class="bi bi-info fs-1" aria-hidden="true"></i>
-                </div>
-                <h2 class="h4 fw-light mb-0 ms-3">Custom Orlando Transportation Routes</h2>
-              </div>
-              <p class="text-muted mb-4" style="letter-spacing: 0.2px;">Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.</p>
-              <div class="d-flex flex-column flex-md-row gap-2">
-                <a href="tel:+14072127190" aria-label="Call Grayson Towncar at 407-212-7190" class="btn btn-sm btn-warning me-md-2 mb-2 mb-md-0 d-flex align-items-center justify-content-center"><i class="bi bi-telephone me-2" aria-hidden="true"></i> (407) 212-7190</a>
-                <a href="mailto:reservations@graysontowncar.com" aria-label="Email Grayson Towncar for reservations" class="btn btn-sm btn-outline-dark d-flex align-items-center justify-content-center"><i class="bi bi-envelope me-2" aria-hidden="true"></i> reservations@graysontowncar.com</a>
-              </div>
-            </div>
-          </div>
-
-          <!-- Inclusions Section -->
-          <section class="container my-4 fade-in">
-            <h2 class="text-center mb-3">Orlando Transportation Inclusions</h2>
-            <div class="row row-cols-1 row-cols-md-3 g-3">
-              <!-- Card 1 -->
-              <div class="col">
-                <div class="card h-100 border-0 shadow-sm inclusion-item">
-                  <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/handshake.webp' %}" alt="check icon" class="img-fluid" style="width: 2em; height: 2em" /></i>
-                    <p class="card-text mb-0">Free meet and greet at MCO</p>
-                  </div>
-                </div>
-              </div>
-              <!-- Card 2 -->
-              <div class="col">
-                <div class="card h-100 border-0 shadow-sm inclusion-item">
-                  <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/carseat.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
-                    <p class="card-text mb-0">Complimentary car seats and booster seats</p>
-                  </div>
-                </div>
-              </div>
-              <!-- Card 3 -->
-              <div class="col">
-                <div class="card h-100 border-0 shadow-sm inclusion-item">
-                  <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/groceries.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
-                    <p class="card-text mb-0">Free 20-minute grocery stop at Publix</p>
-                  </div>
-                </div>
-              </div>
-              <!-- Card 4 -->
-              <div class="col">
-                <div class="card h-100 border-0 shadow-sm inclusion-item">
-                  <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/highway.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
-                    <p class="card-text mb-0">All tolls and taxes included</p>
-                  </div>
-                </div>
-              </div>
-              <!-- Card 5 -->
-              <div class="col">
-                <div class="card h-100 border-0 shadow-sm inclusion-item">
-                  <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/shield.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
-                    <p class="card-text mb-0">Professional, licensed and insured drivers</p>
-                  </div>
-                </div>
-              </div>
-              <!-- Card 6 -->
-              <div class="col">
-                <div class="card h-100 border-0 shadow-sm inclusion-item">
-                  <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/delay.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
-                    <p class="card-text mb-0">Flight delay protection at no extra charge</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+    <!-- ===================== VEHICLE TABS (sticky) ===================== -->
+    <div class="rl-tabs-sentinel" data-tabs-sentinel aria-hidden="true"></div>
+    <nav class="rl-tabs" id="rl-tabs" aria-label="Choose a vehicle to see its fares">
+      <div class="container px-4">
+        <div class="rl-tabs-track">
+          {% for vehicle in vehicles %}
+            <a class="rl-tab{% if vehicle.vehicle_type == 'suv' %} is-active{% endif %}"
+               href="#rates-{{ vehicle.get_vehicle_type_display|slugify }}"
+               data-target="rates-{{ vehicle.get_vehicle_type_display|slugify }}"
+               {% if vehicle.vehicle_type == 'suv' %}aria-current="true"{% endif %}>
+              <img src="{% static vehicle.pres.image %}" alt="" width="84" height="40" />
+              <span class="rl-tab-text">
+                <span class="rl-tab-name">{{ vehicle.get_vehicle_type_display }}</span>
+                <span class="rl-tab-sub">{{ vehicle.pres.party }}</span>
+              </span>
+            </a>
+          {% endfor %}
         </div>
       </div>
+    </nav>
+
+    <!-- ===================== VEHICLE SECTIONS ===================== -->
+    <div class="rl-body">
+      <div class="container px-4">
+        {% for vehicle in vehicles %}
+          <section class="rl-vehicle{% if vehicle.vehicle_type == 'suv' %} is-active{% endif %}"
+                   id="rates-{{ vehicle.get_vehicle_type_display|slugify }}"
+                   aria-label="{{ vehicle.get_vehicle_type_display }} rates">
+
+            <!-- Showcase stage: one large, intentional image -->
+            <div class="rl-stage">
+              <figure class="rl-stage-media">
+                <img src="{% static vehicle.pres.image %}"
+                     alt="{{ vehicle.pres.kicker }} — {{ vehicle.get_vehicle_type_display }}"
+                     {% if vehicle.vehicle_type == 'suv' %}fetchpriority="high"{% else %}loading="lazy"{% endif %} />
+              </figure>
+              <div class="rl-stage-info">
+                <span class="rl-kicker">{{ vehicle.pres.kicker }}</span>
+                <h2 class="rl-name">{{ vehicle.get_vehicle_type_display }}</h2>
+                <p class="rl-blurb">{{ vehicle.pres.blurb }}</p>
+                <ul class="rl-specs">
+                  <li>
+                    <i class="bi bi-people" aria-hidden="true"></i>
+                    <span>Passengers</span>
+                    <strong>Up to {{ vehicle.capacity }}</strong>
+                  </li>
+                  <li>
+                    <i class="bi bi-suitcase2" aria-hidden="true"></i>
+                    <span>Luggage</span>
+                    <strong>{{ vehicle.luggage_capacity }} suitcases</strong>
+                  </li>
+                  {% if vehicle.carseats_display %}
+                    <li>
+                      <i class="bi bi-person-arms-up" aria-hidden="true"></i>
+                      <span>Car seats</span>
+                      <strong>{{ vehicle.carseats_display }} <em>free</em></strong>
+                    </li>
+                  {% endif %}
+                </ul>
+              </div>
+            </div>
+
+            <!-- Tariff -->
+            <div class="rl-tariff">
+              <header class="rl-tariff-head">
+                <h3 class="rl-tariff-title">
+                  {{ vehicle.get_vehicle_type_display }} Fares
+                  <span class="rl-count" data-count></span>
+                </h3>
+                <div class="rl-tools" data-tools hidden>
+                  <div class="rl-chips" role="group" aria-label="Filter routes by destination">
+                    <button type="button" class="rl-chip is-active" data-filter="all">All Routes</button>
+                    <button type="button" class="rl-chip" data-filter="airport">Airports</button>
+                    <button type="button" class="rl-chip" data-filter="disney">Disney</button>
+                    <button type="button" class="rl-chip" data-filter="universal">Universal</button>
+                    <button type="button" class="rl-chip" data-filter="cruise">Port Canaveral</button>
+                  </div>
+                  <label class="rl-search">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input type="search" data-search placeholder="Search routes&hellip;"
+                           autocomplete="off" aria-label="Search routes" />
+                  </label>
+                </div>
+              </header>
+
+              <div class="rl-table">
+                <div class="rl-table-head" aria-hidden="true">
+                  <span>Route</span>
+                  <span class="rl-col">One Way</span>
+                  <span class="rl-col">Round Trip</span>
+                </div>
+
+                {% for rate in vehicle.rate_list %}
+                  <div class="rl-row"
+                       data-cats="{{ rate.category_slugs }}"
+                       data-route="{{ rate.route.origin.name|lower }} {{ rate.route.destination.name|lower }}">
+                    <p class="rl-route">
+                      <span>{{ rate.route.origin.name }}</span>
+                      <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                      <span>{{ rate.route.destination.name }}</span>
+                    </p>
+                    <a href="{% url 'reserve' rate.id %}?round=1" class="rl-fare"
+                       aria-label="Book one-way {{ vehicle.get_vehicle_type_display }}, {{ rate.route }}, ${{ rate.oneway_price|floatformat:0 }}">
+                      <span class="rl-fare-label">One way</span>
+                      <span class="rl-fare-amt">${{ rate.oneway_price|floatformat:0 }}</span>
+                      <span class="rl-fare-book">Book <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                    </a>
+                    <a href="{% url 'reserve' rate.id %}?round=2" class="rl-fare rl-fare--rt"
+                       aria-label="Book round-trip {{ vehicle.get_vehicle_type_display }}, {{ rate.route }}, ${{ rate.round_trip_price|floatformat:0 }}">
+                      <span class="rl-fare-label">Round trip</span>
+                      <span class="rl-fare-amt">${{ rate.round_trip_price|floatformat:0 }}</span>
+                      <span class="rl-fare-book">Book <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                    </a>
+                  </div>
+                {% endfor %}
+
+                <div class="rl-empty" data-empty hidden>
+                  No {{ vehicle.get_vehicle_type_display }} routes match your filter &mdash;
+                  <a href="tel:+14072127190">call (407) 212-7190</a> for a custom quote.
+                </div>
+              </div>
+            </div>
+          </section>
+        {% endfor %}
+      </div>
     </div>
-  </section>
-  <script src="{% static 'js/rates_page.js' %}" defer></script>
+
+    <!-- ===================== ALL-INCLUSIVE BAND (ink) ===================== -->
+    <section class="rl-included" aria-labelledby="inclusions-heading">
+      <div class="container px-4">
+        <div class="rl-included-head">
+          <span class="rl-eyebrow rl-eyebrow--centered">All-Inclusive</span>
+          <h2 id="inclusions-heading" class="rl-included-title">Every fare <em>includes</em></h2>
+        </div>
+        <ul class="rl-included-grid">
+          <li>
+            <span class="rl-included-icon"><i class="bi bi-person-badge" aria-hidden="true"></i></span>
+            <span>Free meet &amp; greet at MCO</span>
+          </li>
+          <li>
+            <span class="rl-included-icon"><i class="bi bi-person-arms-up" aria-hidden="true"></i></span>
+            <span>Complimentary car seats &amp; boosters</span>
+          </li>
+          <li>
+            <span class="rl-included-icon"><i class="bi bi-basket2" aria-hidden="true"></i></span>
+            <span>Free 20-minute grocery stop at Publix</span>
+          </li>
+          <li>
+            <span class="rl-included-icon"><i class="bi bi-receipt" aria-hidden="true"></i></span>
+            <span>All tolls and taxes included</span>
+          </li>
+          <li>
+            <span class="rl-included-icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
+            <span>Professional, licensed &amp; insured drivers</span>
+          </li>
+          <li>
+            <span class="rl-included-icon"><i class="bi bi-airplane" aria-hidden="true"></i></span>
+            <span>Flight delay protection at no extra charge</span>
+          </li>
+        </ul>
+
+        <div class="rl-custom">
+          <div class="rl-custom-text">
+            <h2>Don&rsquo;t see your route?</h2>
+            <p>We cover all of Central Florida. Tell us where you&rsquo;re headed and we&rsquo;ll quote a tailored fare.</p>
+          </div>
+          <div class="rl-custom-actions">
+            <a href="tel:+14072127190" class="rl-btn" aria-label="Call Grayson Towncar at 407-212-7190">
+              <i class="bi bi-telephone" aria-hidden="true"></i> (407) 212-7190
+            </a>
+            <a href="mailto:reservations@graysontowncar.com" class="rl-btn rl-btn--ghost" aria-label="Email Grayson Towncar for reservations">
+              <i class="bi bi-envelope" aria-hidden="true"></i> Email us
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="{% static 'js/rates-luxe.js' %}" defer></script>
 {% endblock %}
