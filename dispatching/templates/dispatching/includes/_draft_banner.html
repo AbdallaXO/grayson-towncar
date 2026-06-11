@@ -85,6 +85,7 @@ see and edit the live schedule exactly as before.
       {% if needs_attention_count %}<span class="badge bg-warning text-dark">{{ needs_attention_count }} need attention</span>{% endif %}
       {% if live_conflict_count %}<span class="badge bg-danger"><i class="bi bi-exclamation-octagon-fill me-1"></i>{{ live_conflict_count }} changed live</span>{% endif %}
       {% if field_change_count %}<span class="badge" style="background:#7b1fa2;"><i class="bi bi-clock-history me-1"></i>{{ field_change_count }} time change{{ field_change_count|pluralize }}</span>{% endif %}
+      <span class="text-muted small" title="Job assignments stage privately in this draft. Vehicle assignments (Day Setup / car changes) are not staged yet and still go live — drivers can see their assigned car change."><i class="bi bi-car-front me-1"></i>Car plan still goes live</span>
     </div>
     <div class="d-flex align-items-center gap-2">
       <button class="btn btn-sm btn-outline-secondary" id="viewChangesBtn"><i class="bi bi-list-check me-1"></i>Changes &amp; activity</button>
