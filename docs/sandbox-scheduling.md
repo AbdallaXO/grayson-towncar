@@ -5,13 +5,50 @@ driver schedules, plus live-change awareness so drafters never get blindsided.
 
 ## Status & roadmap (read this first)
 
-**v1 — DONE, but UNCOMMITTED.** Everything in this doc is implemented and tested in the
-working tree on `main` (migrations `reservations/0110`, `0111`, `0112` applied to the dev DB).
-It has **not** been committed or pushed yet — we were about to push it to a `sandbox` branch
-and paused. Next step when resuming: branch off `main`, commit the working tree, push.
+**v1.5 — 2026-06-11, branch `schedule-sandbox-merge`: v1 merged onto current main +
+write-side ENFORCEMENT.** What changed since the v1 snapshot below:
+
+- **Merged onto main @ `ea4f81ef`** (demand-aware staffing arc). Conflicts were unions
+  (schedule_board slot attrs, capacity_planner overlay + inactive-driver filter). The v1
+  migrations `0110–0112` collided with main's (VIP, Samsara dispatch fields) and were
+  regenerated as a single **`reservations/0114`** — v1's numbers were never applied
+  anywhere that still exists (dev DB re-mirrored from prod 2026-06-11).
+- **The front door (`dispatching/assignment.py`).** `set_leg_driver()` is now the ONLY
+  sanctioned way to change who drives a leg; the held-day routing decision (overlay vs
+  live vs live_override + mirror) lives there alone. All production write paths route
+  through it: manual assign/unassign, auto-assign apply, swaps (`execute_swap` /
+  `execute_takeback` — NEW, ungated in v1), the Build-1st builder (NEW), snapshot
+  restore (NEW — loads INTO the draft on a held day), reset-day. Refund/cancellation
+  unassigns are deliberate fact-writes wrapped in `sanctioned_live_write()` (founder
+  ruling: facts go live + notice; decisions get staged).
+- **The tripwire.** A `pre_save` guard on Leg (connected in `DispatchingConfig.ready`)
+  catches any direct `Leg.driver` write on a held day outside the front door:
+  raises `SandboxLeakError` in DEBUG/tests, logs an error in prod
+  (`SANDBOX_TRIPWIRE_STRICT` env overrides). Leaks are now impossible-by-construction,
+  not convention.
+- **Tests at last:** `dispatching/tests_sandbox.py` — 20 tests covering the leak
+  invariant per endpoint, front-door routing, the tripwire, the full lifecycle
+  (hold → stage → submit → request-changes → resubmit → publish), discard, and
+  publish conflict + force. Full suite 647: only the pre-existing `test_ghl_full`
+  import error + 1 expected skip.
+- **Vehicles (DVA) are NOT staged — deliberately, for now.** On this branch drivers
+  cannot see vehicle assignments at all (the assigned-vehicle display lives in the
+  driver-portal work still uncommitted in the founder's main tree), so Day Setup /
+  `update_inhouse_vehicle_assignment` / copy-previous writing live DVA rows on a held
+  day leaks nothing to drivers and keeps the planner's vehicle UI truthful.
+  **HARD REQUIREMENT: a DVA staging layer (DraftRosterEntry) must land WITH or BEFORE
+  the driver-portal vehicle display when that branch merges** — at that moment live
+  DVA writes become driver-visible and Day Setup on a held day would leak the roster.
+- Next (Phase 2, founder-agreed): publish/notify → **Web Push** (push-first, Twilio
+  fallback) + per-day "posted / not posted yet" indicator in the driver portal.
+
+**v1 history (superseded by the above): DONE as commit `27cc5586` on `origin/sandbox`.**
 
 **v2 — PLANNED & APPROVED, NOT STARTED: "Sandbox POV Review Mode" (per-user private sandboxes).**
-The plan is approved and saved at `~/.claude/plans/tingly-petting-bengio.md`. It replaces the
+(The original plan file `~/.claude/plans/tingly-petting-bengio.md` no longer exists; this
+summary is the surviving record. 2026-06-11 founder decision: DEFER v2 until the shared
+draft actually causes a collision — the audit trail already records who staged what.)
+It replaces the
 current *one-shared-draft-per-date* model with *one private sandbox per (date, owner)*:
 - New `ScheduleDraft` fields: `owner`, `superseded_by`, `superseded_at`, `last_activity_at`;
   new state `superseded`; constraint `uniq_active_draft_per_date` → `(schedule_date, owner)`;
