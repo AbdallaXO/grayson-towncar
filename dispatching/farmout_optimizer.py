@@ -718,6 +718,11 @@ def _capture_boards(ctx, day, *, target_id, inhouse_moves, farmed_out, protected
     the donor AND 'moved_in' on the receiver, farmed displaced legs show 'farmed_out', the rest
     'existing'. 'kept'/'moved_in' rows carry the feasibility math. VIP from protected_ids (never leg.is_vip)."""
     moved_in = {(leg_id, to_did) for (leg_id, _f, to_did) in inhouse_moves if leg_id != target_id}
+    # donor name per moved-in leg, so the receiver row can show "<- from <driver>" (the mirror of the
+    # donor's "-> <receiver>" moved_out note) -- makes a multi-leg cascade traceable across boards.
+    moved_in_from = {leg_id: _driver_name(ctx, f_did)
+                     for (leg_id, f_did, _t) in inhouse_moves
+                     if f_did is not None and leg_id != target_id}
     moved_out: Dict[int, list] = {}
     for (leg_id, f_did, to_did) in inhouse_moves:
         if f_did is not None and leg_id != target_id:
@@ -731,12 +736,12 @@ def _capture_boards(ctx, day, *, target_id, inhouse_moves, farmed_out, protected
     affected.update(f for (_l, f, _t) in inhouse_moves if f is not None)
     affected.update(farmed_by_donor.keys())
 
-    def _slot_row(slot, role, sched):
+    def _slot_row(slot, role, sched, note=""):
         return {"leg_id": slot.leg_id, "_sort": slot.pickup_time,
                 "pickup": _fmt_time(slot.pickup_time), "clear": _fmt_time(slot.estimated_end_time.time()),
                 "from": slot.pickup_location, "to": slot.dropoff_location,
                 "vehicle": slot.vehicle_type or "", "role": role,
-                "vip": slot.leg_id in protected_ids, "note": "",
+                "vip": slot.leg_id in protected_ids, "note": note,
                 "feas": _placement_feasibility(sched.slots, slot, day) if role in ("kept", "moved_in") else None}
 
     def _leg_row(leg, role, note):
@@ -754,13 +759,16 @@ def _capture_boards(ctx, day, *, target_id, inhouse_moves, farmed_out, protected
             continue
         rows = []
         for slot in sched.slots:
+            note = ""
             if slot.leg_id == target_id:
                 role = "kept"
             elif (slot.leg_id, did) in moved_in:
                 role = "moved_in"
+                donor = moved_in_from.get(slot.leg_id)
+                note = f"← {donor}" if donor else ""
             else:
                 role = "existing"
-            rows.append(_slot_row(slot, role, sched))
+            rows.append(_slot_row(slot, role, sched, note))
         for (leg_id, receiver_name) in moved_out.get(did, []):
             leg = legs_by_id.get(leg_id)
             if leg is not None:

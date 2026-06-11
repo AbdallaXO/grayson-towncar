@@ -14,6 +14,7 @@
     --gold:#C8A24A;--gold-deep:#a8842f;
     --save:#1f7a4d;--save-soft:#eef6f1;--cost:#a8503d;--cost-soft:#fbf2ef;
     --keep-soft:#eef6f1;--farm-soft:#fbf5ec;
+    --move:#3a5ccc;--move-soft:#edf0fc;
     --shadow:0 1px 2px rgba(15,27,61,.035), 0 6px 18px rgba(15,27,61,.045);
     --shadow-hover:0 2px 4px rgba(15,27,61,.05), 0 12px 30px rgba(15,27,61,.08);
     --r:14px;
@@ -117,6 +118,8 @@
   .tl-row:last-child{border-bottom:none}
   .tl-row.keep{background:var(--keep-soft)}
   .tl-row.farm{background:var(--farm-soft)}
+  .tl-row.movein{background:var(--move-soft)}
+  .tl-row.moveout{background:var(--line-soft)}
   .tl-time{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
   .tl-route{color:var(--ink)}
   .tl-route .dim{color:var(--faint)}
@@ -124,10 +127,15 @@
   .tl-badge{font-size:9px;font-weight:700;letter-spacing:.05em;border-radius:5px;padding:1px 6px;margin-left:7px;vertical-align:1px;display:inline-block}
   .tl-badge.k{background:var(--save);color:#fff}
   .tl-badge.f{background:var(--gold);color:#3a2c08}
+  .tl-badge.mi{background:var(--move);color:#fff}
+  .tl-badge.mo{background:var(--faint);color:#fff}
   .tl-fit{grid-column:1 / -1;font-family:'DM Mono',monospace;font-size:10.5px;color:var(--faint);padding-top:4px;line-height:1.4}
   .tl-fit b{color:var(--save);font-weight:500}
   .struck{text-decoration:line-through;text-decoration-style:dashed;text-decoration-color:var(--gold-deep);text-decoration-thickness:1.5px;color:var(--muted)}
+  .struck.mv{text-decoration-color:var(--faint)}
   .farm-to{font-family:'Montserrat',sans-serif;font-weight:600;color:var(--gold-deep);margin-left:6px;font-size:11.5px}
+  .move-note{font-family:'DM Mono',monospace;font-weight:500;color:var(--move);margin-left:6px;font-size:11px}
+  .dim{color:var(--faint)}
 
   /* farm as planned */
   .planfarm{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;display:flex;align-items:center;gap:14px}
@@ -267,23 +275,23 @@
           <div class="side side--after">
             <div class="side-eyebrow"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 8.5l3.5 3.5L13 5"/></svg>Keep it in-house</div>
             <div class="row">Run on <b>{{ c.keep_driver }}</b></div>
-            {% if c.after_farm_route %}<div class="row">Farm <b>{{ c.after_farm_route }}</b> to <b>{{ c.affiliate }}</b></div>{% else %}<div class="row">No swap needed — slots into a gap</div>{% endif %}
+            {% if c.after_farm_route %}<div class="row">Farm <b>{{ c.after_farm_route }}</b> to <b>{{ c.affiliate }}</b></div>{% elif c.reshuffle_count %}<div class="row">Shifts <b>{{ c.reshuffle_count }}</b> in-house job{{ c.reshuffle_count|pluralize }} to make room <span class="dim">— see timeline</span></div>{% else %}<div class="row">No swap needed — slots into a gap</div>{% endif %}
             <div class="price">{{ c.after_price }}</div>
           </div>
         </div>
         {% if c.timeline %}
         <div class="disclose" data-open="false">
-          <button class="disclose-btn" type="button" onclick="toggle(this)"><span class="chev">▸</span> How it fits {{ c.keep_driver_first }}'s day</button>
+          <button class="disclose-btn" type="button" onclick="toggle(this)"><span class="chev">▸</span> How it fits {{ c.keep_driver_first }}'s day{% if c.timeline|length > 1 %} <span class="dim">+ {{ c.timeline|length|add:"-1" }} other driver{{ c.timeline|length|add:"-1"|pluralize }}</span>{% endif %}</button>
           <div class="disclose-body"><div class="disclose-inner">
             {% for tl in c.timeline %}
             <div class="tl">
               <div class="tl-head">{{ tl.head_name }} {% if tl.head_vehicle %}<span class="veh">· {{ tl.head_vehicle }}</span>{% endif %}</div>
               {% for r in tl.rows %}
-              <div class="tl-row{% if r.kind == 'keep' %} keep{% elif r.kind == 'farm' %} farm{% endif %}">
+              <div class="tl-row{% if r.kind == 'keep' %} keep{% elif r.kind == 'farm' %} farm{% elif r.kind == 'movein' %} movein{% elif r.kind == 'moveout' %} moveout{% endif %}">
                 <span class="tl-time">{{ r.time }}</span>
-                <span class="tl-route">{% if r.kind == 'farm' %}<span class="struck">{{ r.route }}</span><span class="tl-badge f">FARM</span>{% if r.farm_to %}<span class="farm-to">→ {{ r.farm_to }}</span>{% endif %}{% elif r.kind == 'keep' %}{{ r.route }}<span class="tl-badge k">KEEP</span>{% else %}{{ r.route }} <span class="dim">…</span>{% endif %}</span>
+                <span class="tl-route">{% if r.kind == 'farm' %}<span class="struck">{{ r.route }}</span><span class="tl-badge f">FARM</span>{% if r.farm_to %}<span class="farm-to">→ {{ r.farm_to }}</span>{% endif %}{% elif r.kind == 'keep' %}{{ r.route }}<span class="tl-badge k">KEEP</span>{% elif r.kind == 'movein' %}{{ r.route }}<span class="tl-badge mi">MOVED HERE</span>{% if r.note %}<span class="move-note">{{ r.note }}</span>{% endif %}{% elif r.kind == 'moveout' %}<span class="struck mv">{{ r.route }}</span><span class="tl-badge mo">MOVED OUT</span>{% if r.note %}<span class="move-note">{{ r.note }}</span>{% endif %}{% else %}{{ r.route }} <span class="dim">…</span>{% endif %}</span>
                 <span class="tl-veh">{{ r.vehicle }}</span>
-                {% if r.kind == 'keep' and r.fit %}<span class="tl-fit">{{ r.fit }}</span>{% endif %}
+                {% if r.fit %}<span class="tl-fit">{{ r.fit }}</span>{% endif %}
               </div>
               {% endfor %}
             </div>

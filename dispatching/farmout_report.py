@@ -487,20 +487,29 @@ def _fit_note(feas) -> str:
 
 
 def _timeline(rec):
-    """The affected driver's real day from rec.detail['boards'], kept/farm rows flagged."""
+    """The affected driver's real day from rec.detail['boards'], with each row's role flagged so the
+    one job actually being KEPT in-house is visually distinct from the make-room shuffle around it:
+      keep    -> the recommendation's target (the single job we keep in-house)
+      movein  -> a different job relocated ONTO this driver to clear room (note = '<- from <donor>')
+      moveout -> a job leaving this driver to a receiver (note = '-> <receiver>')
+      farm    -> a displaced job sent to an affiliate (farm_to = affiliate)
+    Collapsing movein into keep (the old behavior) made a cascade read as several separate KEEPs."""
     aff = ((rec.detail or {}).get("display", {}) or {}).get("affiliate", "")
+    _KIND = {"kept": "keep", "moved_in": "movein", "moved_out": "moveout", "farmed_out": "farm"}
     out = []
     for bd in (rec.detail or {}).get("boards") or []:
         rows = []
         for r in bd.get("rows", []):
-            role = r.get("role")
-            kind = "keep" if role in ("kept", "moved_in") else ("farm" if role == "farmed_out" else "")
+            kind = _KIND.get(r.get("role"), "")
             rows.append({
                 "time": _compact_range(r.get("pickup"), r.get("clear")),
                 "route": f"{_short_loc(r.get('from'))} → {_short_loc(r.get('to'))}",
                 "vehicle": _title_vehicle(r.get("vehicle")),
                 "kind": kind,
-                "fit": _fit_note(r.get("feas")) if kind == "keep" else "",
+                # feasibility fit is only meaningful where a leg was actually placed (target or relocated-in)
+                "fit": _fit_note(r.get("feas")) if kind in ("keep", "movein") else "",
+                # where a moved leg came from / went to ('<- from X' / '-> X'), already built upstream
+                "note": r.get("note", "") if kind in ("movein", "moveout") else "",
                 "farm_to": aff if kind == "farm" else "",
             })
         out.append({
@@ -522,10 +531,14 @@ def _swap_card(rec, num):
     keep_name = disp.get("keep_driver_name") or f"driver {rec.keep_in_house_driver_id}"
     is_free = (rec.kind == "free_rescue")
     save_val = now_cost if is_free else rec.net_savings
+    # A "free" rescue can still require shuffling other in-house jobs to clear room. Count them so the
+    # panel says "shifts N jobs to make room" instead of the misleading "no swap needed" when it isn't true.
+    reshuffle_count = len(disp.get("reshuffled") or [])
     return {
         "num": num,
         "kind": rec.kind,
         "is_free": is_free,
+        "reshuffle_count": reshuffle_count,
         "keep_driver": keep_name,
         "keep_driver_first": (keep_name.split() or [keep_name])[0],
         "save": _money0(save_val),
