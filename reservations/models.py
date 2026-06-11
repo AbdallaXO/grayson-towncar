@@ -3047,6 +3047,170 @@ class ScheduleSnapshotEntry(models.Model):
         return f"Snapshot entry: Leg #{self.leg_id} → Driver {self.driver_id}"
 
 
+class ScheduleDraft(models.Model):
+    """
+    A per-date sandbox draft of driver assignments.
+
+    Drivers see the LIVE schedule via Leg.driver. While a date has an *active*
+    (non-terminal) ScheduleDraft, dispatcher edits for that date are routed into
+    the DraftAssignment overlay instead of Leg.driver — so nothing reaches drivers
+    until a manager publishes. Publishing applies the overlay onto Leg.driver.
+
+    State machine:
+        draft → in_review → published          (approve + publish)
+        in_review → changes_requested → in_review (reject with notes, resubmit)
+        draft / changes_requested → discarded
+    `published` and `discarded` are terminal. The partial unique constraint allows
+    a NEW draft to be opened over a previously published/discarded one for the same
+    date (publish, then re-hold).
+    """
+
+    class State(models.TextChoices):
+        DRAFT = "draft", "Draft (building)"
+        IN_REVIEW = "in_review", "Submitted for review"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        PUBLISHED = "published", "Published"
+        DISCARDED = "discarded", "Discarded"
+
+    # States in which a draft is "active" (the date is held; edits go to overlay).
+    ACTIVE_STATES = (State.DRAFT, State.IN_REVIEW, State.CHANGES_REQUESTED)
+
+    schedule_date = models.DateField(db_index=True, help_text="The date this draft holds")
+    state = models.CharField(max_length=20, choices=State.choices, default=State.DRAFT)
+
+    # Baseline captured at hold-time, used for the review diff and conflict detection.
+    base_snapshot = models.ForeignKey(
+        ScheduleSnapshot, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drafts",
+    )
+    # Set of leg IDs present on the date when the draft was opened. Any leg on the
+    # date NOT in this set is "new since draft started" → needs attention (live-merge).
+    baseline_leg_ids = models.JSONField(default=list, blank=True)
+    # Per-leg snapshot of schedule-critical fields at hold time, keyed by str(leg.id):
+    # {driver_id, pickup_time "HH:MM", pickup_date "YYYY-MM-DD", pickup_location,
+    # dropoff_location}. Used to detect what a non-sandbox user changed LIVE while
+    # the draft was open (driver, time, date moves) and surface it in the summary.
+    baseline_legs = models.JSONField(default=dict, blank=True)
+
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drafts_created",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    submitted_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drafts_submitted",
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drafts_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    published_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drafts_published",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    notified_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="drafts_notified",
+    )
+    notified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["schedule_date", "state"])]
+        permissions = [
+            # Grant to the few dispatchers allowed to build/hold sandbox schedules.
+            # Superusers (managers) always have it. Everyone else edits live as before.
+            ("use_schedule_sandbox", "Can build/hold sandbox schedules"),
+        ]
+        constraints = [
+            # At most one ACTIVE (non-terminal) draft per date. Terminal drafts
+            # (published/discarded) may coexist for the same date as history.
+            models.UniqueConstraint(
+                fields=["schedule_date"],
+                condition=models.Q(
+                    state__in=["draft", "in_review", "changes_requested"]
+                ),
+                name="uniq_active_draft_per_date",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Draft for {self.schedule_date} ({self.get_state_display()})"
+
+    @property
+    def is_active(self):
+        return self.state in self.ACTIVE_STATES
+
+
+class DraftAssignment(models.Model):
+    """
+    The delta overlay: one row per leg a dispatcher TOUCHED inside a draft.
+
+    Effective draft driver for a leg = proposed_driver if a row exists, else the
+    live Leg.driver. Three meaningful states:
+        row with proposed_driver  → "draft assigns this driver"
+        row with proposed_driver=NULL → "draft says unassigned"
+        no row                    → "no draft opinion; show live Leg.driver"
+    """
+    draft = models.ForeignKey(
+        ScheduleDraft, on_delete=models.CASCADE, related_name="assignments",
+    )
+    leg = models.ForeignKey("Leg", on_delete=models.CASCADE, related_name="draft_assignments")
+    proposed_driver = models.ForeignKey(
+        "drivers.Driver", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="draft_assignments",
+    )
+    assigned_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    assigned_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["draft", "leg"], name="uniq_draft_leg"),
+        ]
+        indexes = [models.Index(fields=["draft", "leg"])]
+
+    def __str__(self):
+        return f"Draft #{self.draft_id}: Leg #{self.leg_id} → Driver {self.proposed_driver_id}"
+
+
+class ScheduleDraftEvent(models.Model):
+    """Unified timeline for a draft: audit trail (who did what) + review feedback."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Draft opened"
+        EDITED = "edited", "Assignment edited"
+        SUBMITTED = "submitted", "Submitted for review"
+        APPROVED = "approved", "Approved & published"
+        REJECTED = "rejected", "Changes requested"
+        PUBLISHED = "published", "Published to live"
+        NOTIFIED = "notified", "Drivers notified (SMS)"
+        DISCARDED = "discarded", "Draft discarded"
+        CONFLICT = "conflict", "Conflict detected"
+
+    draft = models.ForeignKey(ScheduleDraft, on_delete=models.CASCADE, related_name="events")
+    event_type = models.CharField(max_length=20, choices=EventType.choices)
+    actor = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="draft_events",
+    )
+    note = models.TextField(blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["draft", "created_at"])]
+
+    def __str__(self):
+        return f"Draft #{self.draft_id} {self.event_type} @ {self.created_at}"
+
+
 class RouteTimingMetric(models.Model):
     """
     Stores calculated average timing metrics for specific route patterns.

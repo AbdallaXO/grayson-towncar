@@ -7,6 +7,12 @@ class DispatchingConfig(AppConfig):
     name = "dispatching"
 
     def ready(self):
+        # Sandbox tripwire: alarm on live Leg.driver writes that bypass the
+        # assignment front door while a day is held. Connected in EVERY
+        # process type — tests are exactly where it must be active.
+        from dispatching.assignment import install_tripwire
+        install_tripwire()
+
         # Start the Samsara live-position poller. Only in the main serving
         # process, never in management commands. Mirrors the guard in
         # ghl_integration/apps.py.
