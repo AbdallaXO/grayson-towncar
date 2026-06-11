@@ -42,15 +42,42 @@ def _sched(driver_id, slots, name=None):
 # ════════════════════════════════════════════════════════════════════════════
 class EffectiveWindowCapTests(SimpleTestCase):
     def test_optimistic_stub_clamped_to_default(self):
-        # David Encarancion stub max 24h -> 17h; start/end untouched.
+        # David Encarancion stub max 24h -> the global default; start/end untouched.
         w = fg.get_effective_window(51)
-        self.assertEqual(w["max_hours"], 17.0)
+        self.assertEqual(w["max_hours"], float(fg.SPAN_HARD_HOURS_DEFAULT))
         self.assertEqual(w["start"], fg.STUB_DRIVER_WINDOWS[51]["start"])
         self.assertEqual(w["end"], fg.STUB_DRIVER_WINDOWS[51]["end"])
 
+    def test_default_is_founder_pick_15(self):
+        # 2026-06-11 founder pick from the 18-day sweep: 15h default policy cap,
+        # 17h absolute ceiling. Deliberate values — changing them is a decision.
+        self.assertEqual(fg.SPAN_HARD_HOURS_DEFAULT, 15.0)
+        self.assertEqual(fg.SPAN_ABS_CEILING_HOURS, 17.0)
+        self.assertEqual(fg.SPAN_RESCUE_CEILING_HOURS, fg.SPAN_HARD_HOURS_DEFAULT)
+
     def test_tighter_stub_wins(self):
-        # mesfin stub max 13h < 17h default -> 13 stays.
+        # mesfin stub max 13h < default -> 13 stays.
         self.assertEqual(fg.get_effective_window(63)["max_hours"], 13.0)
+
+    def test_typed_value_raises_above_default(self):
+        # "A typed number means it": a dispatcher's 16h Max hrs on a long-leash
+        # driver binds at 16 even though the default is lower (founder 2026-06-11:
+        # "let's have the default fifteen ... I can always tweak that").
+        w = fg.get_effective_window(51, configured={"start": 6, "end": 22,
+                                                    "max_hours": 16.0, "flexible": False})
+        self.assertEqual(w["max_hours"], 16.0)
+
+    def test_typed_value_never_exceeds_absolute_ceiling(self):
+        # The inhumane bound holds against any typed value.
+        w = fg.get_effective_window(51, configured={"start": 6, "end": 22,
+                                                    "max_hours": 18.0, "flexible": False})
+        self.assertEqual(w["max_hours"], float(fg.SPAN_ABS_CEILING_HOURS))
+
+    def test_stub_still_tightens_below_typed(self):
+        # mesfin stub 13h: a typed 16 cannot raise observed reality — typed values
+        # raise only the DEFAULT bound, never a tighter stub.
+        w = fg.get_effective_window(63, configured={"max_hours": 16.0, "flexible": False})
+        self.assertEqual(w["max_hours"], 13.0)
 
     def test_modal_cap_wins_when_tighter(self):
         w = fg.get_effective_window(51, configured={"start": 6, "end": 20,
@@ -70,14 +97,16 @@ class EffectiveWindowCapTests(SimpleTestCase):
         # start/end MUST stay None — a non-None end would newly enforce a clear-by on a
         # driver who today has no window at all.
         w = fg.get_effective_window(999999, configured={"flexible": True})
-        self.assertEqual(w, {"start": None, "end": None, "max_hours": 17.0,
+        self.assertEqual(w, {"start": None, "end": None,
+                             "max_hours": float(fg.SPAN_HARD_HOURS_DEFAULT),
                              "flexible": True, "night_exempt": False})
 
     def test_stub_off_configured_clamped(self):
+        # A typed 23h is intent, but intent stops at the absolute ceiling.
         with patch.object(fg, "USE_STUB_WINDOWS", False):
             w = fg.get_effective_window(1, configured={"start": 5, "end": 22,
                                                        "max_hours": 23.0, "flexible": False})
-            self.assertEqual(w["max_hours"], 17.0)
+            self.assertEqual(w["max_hours"], float(fg.SPAN_ABS_CEILING_HOURS))
             self.assertEqual(w["start"], 5)
 
     def test_flexible_flag_still_honored_under_stub(self):
@@ -296,10 +325,11 @@ class RescuePassTests(TestCase):
                 8: {"start": None, "end": None, "max_hours": cap8, "flexible": False}}
 
     def test_span_blocked_leg_rescued_with_warning(self):
-        # Driver 7 works 05:00-13:30 (8.5h); a 19:00 leg stretches him to ~15.5h > 10h cap.
-        # Driver 8 is windowed out by modal hours. Rescue must lift 7's (non-strict) cap.
+        # Driver 7 works 05:00-13:30 (8.5h); an 18:00 leg stretches him to ~14.5h:
+        # over his 10h cap, under the rescue ceiling (15h default). Driver 8 is
+        # windowed out by modal hours. Rescue must lift 7's (non-strict) cap.
         base = {1: 7}
-        legs_by_id = {1: _leg(1, 5), 2: _leg(2, 12), 99: _leg(99, 19)}
+        legs_by_id = {1: _leg(1, 5), 2: _leg(2, 12), 99: _leg(99, 18)}
         legs_by_id[2].driver_id = 7   # pre-existing
         base = {1: 7, 2: 7}
         fa, rescued, warnings = sch.rescue_span_blocked_residuals(
@@ -313,7 +343,9 @@ class RescuePassTests(TestCase):
         self.assertEqual(warnings[0]["driver_id"], 7)
 
     def test_strict_cap_never_lifted(self):
-        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 19)}
+        # 18:00 leg = ~14.5h, UNDER the rescue ceiling, so the strict gate (not the
+        # ceiling) is what blocks: a typed Max hrs is authoritative.
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 18)}
         fa, rescued, warnings = sch.rescue_span_blocked_residuals(
             {1: 7, 2: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
             self._windows(), driver_hours={7: (4, 23), 8: (4, 10)},
@@ -356,10 +388,10 @@ class RescuePassTests(TestCase):
 
     def test_rescue_never_exceeds_absolute_ceiling(self):
         # Driver 7 works 05:00-06:30; a 23:00 leg would make a ~19.5h day. The lift stops
-        # at SPAN_RESCUE_CEILING_HOURS (17h): the leg must stay residual and FARM rather
-        # than build an inhumane day (founder rule 2026-06-10) — and the farm must be
-        # LOUD: a ceiling_blocked warning, never a silent disappearance. Driver 8
-        # windowed out.
+        # at SPAN_RESCUE_CEILING_HOURS (= the 15h policy default): the leg must stay
+        # residual and FARM rather than build an inhumane day (founder rule 2026-06-10)
+        # — and the farm must be LOUD: a ceiling_blocked warning, never a silent
+        # disappearance. Driver 8 windowed out.
         legs_by_id = {1: _leg(1, 5, driver_id=7), 99: _leg(99, 23)}
         fa, rescued, warnings = sch.rescue_span_blocked_residuals(
             {1: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
@@ -387,9 +419,9 @@ class RescuePassTests(TestCase):
         self.assertEqual(warnings[0]["kind"], "ceiling_blocked")
 
     def test_rescue_below_ceiling_still_works(self):
-        # 05:00-13:30 + 19:00 leg = ~15.5h: above the 10h cap, below the 17h ceiling ->
+        # 05:00-13:30 + 18:00 leg = ~14.5h: above the 10h cap, below the 15h ceiling ->
         # rescued with the red badge exactly as before the ceiling existed.
-        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 19)}
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 18)}
         fa, rescued, warnings = sch.rescue_span_blocked_residuals(
             {1: 7, 2: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
             self._windows(), driver_hours={7: (4, 23), 8: (4, 10)},
@@ -408,8 +440,24 @@ class RescuePassTests(TestCase):
         self.assertEqual(rescued, [])
         self.assertEqual(warnings, [])
 
+    def test_typed_cap_at_or_above_ceiling_reports_strict_not_ceiling(self):
+        # Typed 16h (>= the 15h rescue ceiling): nothing to lift, and the warning must
+        # name HIS typed cap (strict_blocked @ 16), never claim the policy ceiling —
+        # the tooltip promises typed values up to the 17h absolute ceiling work.
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 21)}
+        fa, rescued, warnings = sch.rescue_span_blocked_residuals(
+            {1: 7, 2: 7}, [99], legs_by_id, self.drivers, self.drivers_by_id, D, self.dvtypes,
+            self._windows(cap7=16.0), driver_hours={7: (4, 23), 8: (4, 10)},
+            flexible_drivers=None, strict_cap_driver_ids={7}, locked_leg_ids=set())
+        self.assertEqual(rescued, [])
+        self.assertNotIn(99, fa)
+        self.assertEqual(warnings[0]["kind"], "strict_blocked")
+        self.assertEqual(warnings[0]["cap_hours"], 16.0)
+
     def test_deterministic(self):
-        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 19)}
+        # 18:00 leg (~14.5h) keeps this on the RESCUED branch it was written to pin
+        # (a 19:00 leg would now exercise ceiling-block determinism instead).
+        legs_by_id = {1: _leg(1, 5, driver_id=7), 2: _leg(2, 12, driver_id=7), 99: _leg(99, 18)}
         runs = []
         for _ in range(2):
             fa, rescued, warnings = sch.rescue_span_blocked_residuals(

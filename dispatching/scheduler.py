@@ -1950,11 +1950,22 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
             # day"). A leg that fits nobody under the ceiling farms — LOUDLY, via the
             # ceiling_blocked warning below, never silently.
             ceiling = float(fg.SPAN_RESCUE_CEILING_HOURS)
-            within_ceiling = False
-            if float(window["max_hours"]) < ceiling:
-                probe_c = dict(window); probe_c["max_hours"] = ceiling
-                within_ceiling = check_feasibility(
-                    sched, leg, target_date, driver_window=probe_c).feasible
+            win_cap = float(window["max_hours"])
+            if win_cap >= ceiling:
+                # The window already reaches (or, via a typed Max hrs, exceeds) the
+                # automatic rescue ceiling — there is nothing to lift. A TYPED cap
+                # is the binding constraint and must be NAMED (strict_blocked with
+                # HIS number, e.g. 16h), never misreported as the policy ceiling.
+                if did in strict:
+                    if strict_only_block is None or did < strict_only_block[0]:
+                        strict_only_block = (did, span_after, win_cap)
+                else:
+                    if ceiling_block is None or did < ceiling_block[0]:
+                        ceiling_block = (did, span_after, ceiling)
+                continue
+            probe_c = dict(window); probe_c["max_hours"] = ceiling
+            within_ceiling = check_feasibility(
+                sched, leg, target_date, driver_window=probe_c).feasible
             if not within_ceiling:
                 if ceiling_block is None or did < ceiling_block[0]:
                     ceiling_block = (did, span_after, ceiling)
