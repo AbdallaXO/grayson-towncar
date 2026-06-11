@@ -285,11 +285,26 @@ see and edit the live schedule exactly as before.
     window.showBoardLockedNotice = function () { toast('This draft is awaiting manager review — editing is locked.'); };
 
     // Held-day "Edit live" emergency toggle (read by board DnD + dashboard/planner assign JS).
+    // State survives a refresh via sessionStorage (per draft, per tab): mid-emergency, a
+    // reload silently flipping back to staged mode would hide the next fix from the driver.
+    // Dies with the tab; a NEW draft (different id) never inherits it.
     window._draftEditLive = false;
     var editLive = document.getElementById('editLiveToggle');
     if (editLive) {
+      var elKey = 'sandboxEditLive:{{ draft.id }}';
+      try {
+        if (sessionStorage.getItem(elKey) === '1') {
+          editLive.checked = true;
+          window._draftEditLive = true;
+          toast('Edit-live is still ON — changes go LIVE to drivers.');
+        }
+      } catch (e) {}
       editLive.addEventListener('change', function () {
         window._draftEditLive = editLive.checked;
+        try {
+          if (editLive.checked) sessionStorage.setItem(elKey, '1');
+          else sessionStorage.removeItem(elKey);
+        } catch (e) {}
         if (editLive.checked) toast('Edit-live ON — changes now go LIVE to drivers.');
       });
     }
