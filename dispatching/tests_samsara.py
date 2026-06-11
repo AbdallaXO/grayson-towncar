@@ -411,6 +411,28 @@ class EvaluateTests(TestCase):
         self.assertEqual(r["dispatch_risk_status"], "unknown")
         self.assertIsNone(r["dispatch_eta_minutes"])
 
+    def test_stale_but_parked_position_still_usable(self):
+        # Ignition-off gateways report sparsely; a parked car's old fix is still
+        # where the car sits, so the ETA must compute instead of going unknown.
+        v = _veh_ns(fresh=False, movement="idle")
+        v.samsara_last_seen_at = timezone.now() - timedelta(minutes=40)
+        r = self._eval(self._target(minutes_out=60), v, drive_min=10)
+        self.assertEqual(r["dispatch_risk_status"], "on_time")
+        self.assertEqual(r["dispatch_eta_minutes"], 10)
+
+    def test_stale_parked_beyond_cap_is_unknown(self):
+        v = _veh_ns(fresh=False, movement="idle")
+        v.samsara_last_seen_at = timezone.now() - timedelta(hours=9)
+        r = self._eval(self._target(), v)
+        self.assertEqual(r["dispatch_risk_status"], "unknown")
+
+    def test_stale_while_driving_is_unknown(self):
+        # A moving car with a stale fix really is lost — could be anywhere.
+        v = _veh_ns(fresh=False, movement="driving")
+        v.samsara_last_seen_at = timezone.now() - timedelta(minutes=40)
+        r = self._eval(self._target(), v)
+        self.assertEqual(r["dispatch_risk_status"], "unknown")
+
     def test_dropoff_eta_only(self):
         r = self._eval(self._target(kind="dropoff", minutes_out=None, status="picked-up"), _veh_ns(), drive_min=12)
         self.assertEqual(r["dispatch_risk_status"], "")
@@ -614,6 +636,76 @@ class PanelStateTests(TestCase):
         self.assertEqual(p["state"], "on_track")
         self.assertEqual(p["headline"], "Arrives ~50 min early")
 
+    def test_far_future_pickup_shows_waiting_card(self):
+        # Founder case: 8:30 AM pickup viewed at ~4:20 AM read "Arrives ~231 min
+        # early" — noise, the driver isn't en route. Waiting card instead.
+        p = build_panel_context(
+            self._leg(dispatch_eta_minutes=18,
+                      dispatch_eta_target_time=self.now + timedelta(minutes=249)),
+            self.now)
+        self.assertEqual(p["state"], "on_track")
+        self.assertIs(p["waiting"], True)
+        self.assertEqual(p["headline"], "Pickup in 4h 9m")
+        self.assertIsNone(p["eta_clock"])       # no arrival projection
+        self.assertEqual(p["eta_minutes"], 18)  # vehicle distance still shown
+
+    def test_moderate_slack_keeps_projection(self):
+        # slack 50 (<= PANEL_WAIT_SLACK_MIN) -> normal projection, not waiting.
+        p = build_panel_context(
+            self._leg(dispatch_eta_minutes=10, dispatch_eta_target_time=self.now + timedelta(minutes=60)),
+            self.now)
+        self.assertNotIn("waiting", p)
+        self.assertEqual(p["headline"], "Arrives ~50 min early")
+
+    def test_far_future_infeasible_still_warns(self):
+        # Pickup 3h out but the car is 4h of driving away -> at_risk regardless
+        # of how far in the future the pickup is.
+        p = build_panel_context(
+            self._leg(dispatch_eta_minutes=240, dispatch_eta_target_time=self.now + timedelta(minutes=180)),
+            self.now)
+        self.assertEqual(p["state"], "at_risk")
+
+    def test_stopped_label_formats_hours(self):
+        p = build_panel_context(
+            self._leg(dispatch_is_moving=False, dispatch_stationary_minutes=385,
+                      dispatch_eta_minutes=18, dispatch_eta_target_time=self.now + timedelta(minutes=249)),
+            self.now)
+        self.assertEqual(p["stopped_label"], "6h 25m")
+
+    def test_clock_times_and_motion_in_context(self):
+        # The dispatcher-facing fields: arrival as a wall-clock time, the target's
+        # clock time, and the movement snapshot.
+        p = build_panel_context(
+            self._leg(dispatch_eta_minutes=10, dispatch_eta_target_time=self.now + timedelta(minutes=60),
+                      dispatch_is_moving=True, dispatch_vehicle_label="003"),
+            self.now)
+        self.assertEqual(p["eta_clock"], self.now + timedelta(minutes=10))
+        self.assertEqual(p["target_clock"], self.now + timedelta(minutes=60))
+        self.assertEqual(p["target_label"], "pickup")
+        self.assertIs(p["moving"], True)
+        self.assertEqual(p["vehicle"], "003")
+
+    def test_stopped_motion_in_context(self):
+        p = build_panel_context(
+            self._leg(dispatch_is_moving=False, dispatch_stationary_minutes=12), self.now)
+        self.assertIs(p["moving"], False)
+        self.assertEqual(p["stationary_minutes"], 12)
+
+    def test_mapped_but_no_gps_shows_no_signal(self):
+        # eta None + risk "unknown" = vehicle IS mapped but telematics are stale:
+        # grey chip, not silence.
+        p = build_panel_context(
+            self._leg(dispatch_eta_minutes=None, dispatch_risk_status="unknown",
+                      dispatch_risk_reason="Vehicle telematics stale (>15 min)",
+                      dispatch_vehicle_label="007"),
+            self.now)
+        self.assertEqual(p["state"], "no_signal")
+        self.assertEqual(p["vehicle"], "007")
+        self.assertIn("stale", p["evidence"])
+
+    def test_eta_none_without_unknown_renders_nothing(self):
+        self.assertIsNone(build_panel_context(self._leg(dispatch_eta_minutes=None), self.now))
+
 
 class PanelRenderTests(TestCase):
     def _render(self, panel):
@@ -634,6 +726,50 @@ class PanelRenderTests(TestCase):
 
     def test_none_renders_nothing(self):
         self.assertEqual(self._render(None).strip(), "")
+
+    def test_clock_line_and_motion_chip_render(self):
+        now = timezone.make_aware(datetime(2026, 6, 11, 3, 54))
+        html = self._render({"state": "tight", "headline": "5 min buffer",
+                             "evidence": "ETA 14 min · pickup in 19 min",
+                             "eta_minutes": 14, "eta_clock": now + timedelta(minutes=14),
+                             "target_clock": now + timedelta(minutes=19), "target_label": "pickup",
+                             "moving": True, "stationary_minutes": 0, "vehicle": "003"})
+        self.assertIn("Arrives ~4:08 AM", html)
+        self.assertIn("pickup 4:13 AM", html)
+        self.assertIn("Moving", html)
+        self.assertIn("#003", html)
+        self.assertIn("14 min", html)
+
+    def test_waiting_card_renders(self):
+        now = timezone.make_aware(datetime(2026, 6, 11, 4, 21))
+        html = self._render({"state": "on_track", "waiting": True, "headline": "Pickup in 4h 9m",
+                             "evidence": "ETA 18 min · pickup in 249 min",
+                             "eta_minutes": 18, "eta_clock": None,
+                             "target_clock": now + timedelta(minutes=249), "target_label": "pickup",
+                             "moving": False, "stationary_minutes": 385, "stopped_label": "6h 25m"})
+        self.assertIn("Pickup in 4h 9m", html)
+        self.assertIn("Pickup 8:30 AM", html)
+        self.assertIn("vehicle ~18 min away", html)
+        self.assertIn("Stopped 6h 25m", html)
+        self.assertNotIn("Arrives ~", html)
+
+    def test_stopped_chip_renders_duration(self):
+        html = self._render({"state": "on_track", "headline": "Arrives ~50 min early",
+                             "moving": False, "stationary_minutes": 12})
+        self.assertIn("Stopped 12m", html)
+
+    def test_no_motion_key_renders_no_chip(self):
+        # A dict without the moving key (or moving=None) must not show a phantom chip.
+        html = self._render({"state": "at_risk", "headline": "~5 min late", "evidence": "x"})
+        self.assertNotIn("stp-motion", html)
+
+    def test_no_signal_renders_grey_chip(self):
+        html = self._render({"state": "no_signal", "headline": "No live GPS",
+                             "evidence": "Vehicle telematics stale (>15 min)",
+                             "vehicle": "007", "moving": None})
+        self.assertIn("stp-no_signal", html)
+        self.assertIn("No signal", html)
+        self.assertIn("#007", html)
 
     def test_tag_renders_panel(self):
         from django.template import Template, Context

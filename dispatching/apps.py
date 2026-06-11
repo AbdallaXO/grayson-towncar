@@ -23,8 +23,10 @@ class DispatchingConfig(AppConfig):
         is_gunicorn = "gunicorn" in sys.modules
 
         if is_runserver:
-            # Only the reloader child serves requests (RUN_MAIN='true').
-            if os.environ.get("RUN_MAIN") != "true":
+            # With the auto-reloader two processes run and only the child
+            # (RUN_MAIN='true') serves requests. With --noreload there is a
+            # single serving process and RUN_MAIN is never set — start directly.
+            if "--noreload" not in sys.argv and os.environ.get("RUN_MAIN") != "true":
                 return
         elif not is_gunicorn:
             # Unknown context — don't start.

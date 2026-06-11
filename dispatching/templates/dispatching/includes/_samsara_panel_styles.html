@@ -11,7 +11,7 @@ once per page (inside {% block extra_css %}).{% endcomment %}
     border-radius: 7px;
     border-left: 3px solid transparent;
     background: #f6f1e7;                 /* parchment */
-    max-width: 216px;
+    max-width: 248px;
   }
   .stp-top { display: flex; align-items: center; gap: 5px; margin-bottom: 1px; }
   .stp-dot {
@@ -23,11 +23,22 @@ once per page (inside {% block extra_css %}).{% endcomment %}
     font-size: 8.5px; font-weight: 700; letter-spacing: .07em;
     text-transform: uppercase; color: #6b675e;
   }
+  /* Moving / Stopped chip — always visible so a parked car is obvious at a glance. */
+  .stp-motion {
+    font-size: 8px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 1px 5px; border-radius: 4px; flex: 0 0 auto; white-space: nowrap;
+  }
+  .stp-motion-on  { color: #1b6e3f; background: #e2f2e8; }
+  .stp-motion-off { color: #8a4a00; background: #f3e3cd; }
   .stp-veh {
     margin-left: auto; flex: 0 0 auto;
-    font-size: 9.5px; font-weight: 700; letter-spacing: .02em; color: #5d594f;
+    font-size: 11px; font-weight: 700; letter-spacing: .02em; color: #3f3b32;
   }
   .stp-headline { font-size: 12px; font-weight: 700; color: #2d2a24; line-height: 1.15; }
+  /* Wall-clock line: when the car arrives vs when the pickup is. */
+  .stp-times { font-size: 11px; font-weight: 600; color: #4a463d; margin-top: 2px; line-height: 1.25; }
+  .stp-times .stp-mins { color: #8a857a; font-weight: 500; }
+  .stp-times .stp-target { color: #6b675e; font-weight: 500; }
   .stp-evidence { font-size: 10px; font-weight: 500; color: #8a857a; margin-top: 1px; line-height: 1.2; }
   @keyframes stp-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
@@ -48,8 +59,14 @@ once per page (inside {% block extra_css %}).{% endcomment %}
   .stp-tight .stp-veh { color: #9a6b00; }
   .stp-tight .stp-headline { color: #7a5600; }
 
-  /* On track — visually silent: no fill / border, tight, just the live green pulse */
-  .stp-on_track { background: transparent; border-left-color: transparent; padding: 2px 0 0; margin-top: 5px; }
+  /* On track — calm: light fill, green pulse, full info still readable */
+  .stp-on_track { background: #f2f5f0; border-left-color: #2e9e5b; }
   .stp-on_track .stp-dot { background: #2e9e5b; }
-  .stp-on_track .stp-pill { color: #9aa0a6; }
+  .stp-on_track .stp-pill { color: #2e7d4f; }
+
+  /* No signal — grey: vehicle mapped to Samsara but no usable GPS/ETA */
+  .stp-no_signal { background: #f1f1ef; border-left-color: #9aa0a6; }
+  .stp-no_signal .stp-dot { background: #9aa0a6; animation: none; }
+  .stp-no_signal .stp-pill { color: #6b675e; }
+  .stp-no_signal .stp-headline { color: #5d594f; font-weight: 600; }
 </style>

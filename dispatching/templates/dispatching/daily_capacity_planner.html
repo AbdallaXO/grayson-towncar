@@ -138,13 +138,6 @@
         white-space: nowrap;
     }
     .shift-pref-text { color: #6366f1; font-size: 0.6rem; font-weight: 600; white-space: nowrap; }
-    /* Previous-night clear time on the assignment card — prominent rest signal */
-    .va-cleared-line {
-        display: flex; align-items: center; gap: 4px; margin: 3px 0 1px;
-        font-size: 0.66rem; font-weight: 700; color: #b45309;
-        background: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; padding: 2px 6px;
-    }
-    .va-cleared-line .bi { color: #ea580c; }
     /* One-time UNAVAILABLE window shaded on the grid (below job slots, can't block drag) */
     .tl-unavail-band {
         position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none;
@@ -689,6 +682,7 @@
         --va-mono: 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo, Consolas, ui-monospace, monospace;
         --va-sans: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         --va-state-has: #16a34a;
+        --va-state-needs: #d6605c;
         --va-state-empty: var(--gold);
         --va-state-override: #ea580c;
         --va-state-off: #d1d5db;
@@ -729,45 +723,50 @@
         text-transform: uppercase; color: var(--va-ink-3);
     }
 
-    /* Vehicle pool — flat row, no groups, no chrome */
-    .va-pool-wrap {
-        display: flex; align-items: center; gap: 0.65rem;
-        margin: 0.85rem 0 1rem;
-    }
+    /* Fleet pool — label line + chip row (mockup style). Open units are
+       highlighted gold so the dispatcher instantly sees what's still free;
+       in-use units fall back to quiet gray. */
+    .va-pool-wrap { margin: 0.8rem 0 1rem; }
     .va-pool-label {
-        flex-shrink: 0;
-        font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
-        text-transform: uppercase; color: var(--va-ink-2);
-        display: inline-flex; align-items: center; gap: 0.35rem;
-        padding-right: 0.7rem;
-        border-right: 1px solid var(--va-rule);
+        display: flex; align-items: center; gap: 0.5rem;
+        margin-bottom: 0.45rem;
     }
-    .va-pool-label .bi { color: var(--gold); font-size: 0.75rem; }
-    .va-pool-cards { display: flex; flex-wrap: wrap; gap: 0.35rem; flex: 1; min-width: 0; }
+    .va-lab-tick {
+        width: 4px; height: 14px; border-radius: 2px;
+        background: var(--gold); flex: none;
+    }
+    .va-pool-label .va-pool-k {
+        font-size: 0.66rem; font-weight: 700; letter-spacing: 0.11em;
+        text-transform: uppercase; color: var(--va-ink-2);
+    }
+    .va-pool-note { font-size: 0.74rem; font-weight: 500; color: var(--va-ink-3); }
+    .va-pool-note b { color: #8a6c1f; font-weight: 600; }
+    .va-pool-cards { display: flex; flex-wrap: wrap; gap: 0.32rem; }
 
     /* Vehicle cards in the pool */
     .va-veh-card {
         display: inline-flex; align-items: center; gap: 0.35rem;
-        padding: 0.26rem 0.5rem 0.26rem 0.38rem;
-        background: #fff;
-        border: 1px solid #e1e4e8;
-        border-radius: 6px;
+        padding: 0.22rem 0.5rem 0.22rem 0.4rem;
+        background: #faf5e7;
+        border: 1px solid #e6dab6;
+        border-radius: 7px;
         cursor: grab; user-select: none;
         font-family: var(--va-sans);
-        font-size: 0.76rem; line-height: 1.2;
+        font-size: 0.72rem; line-height: 1.2;
         transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease, opacity .12s ease;
     }
     .va-veh-card:hover {
         border-color: var(--gold);
-        box-shadow: 0 2px 6px -1px rgba(201,162,39,0.25);
+        box-shadow: 0 2px 6px -1px rgba(201,162,39,0.3);
     }
     .va-veh-card:active { cursor: grabbing; }
     .va-veh-card.va-dragging, .va-assigned-chip.va-dragging { opacity: .3; }
     .va-veh-card.va-in-use {
-        opacity: .35; cursor: not-allowed;
-        background: #f8f9fa;
+        background: #fff;
+        border-color: #e7eaf0;
+        opacity: .55; cursor: not-allowed;
     }
-    .va-veh-card.va-in-use:hover { border-color: #e1e4e8; box-shadow: none; }
+    .va-veh-card.va-in-use:hover { border-color: #e7eaf0; box-shadow: none; }
     .va-veh-card.va-has-notes {
         border-color: #f59e0b;
         background: #fffbeb;
@@ -807,34 +806,38 @@
     /* Driver grid */
     .va-drivers-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
-        gap: 0.45rem;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.5rem;
     }
 
-    /* Driver card — compact, single thin border. State carried by a
-       4px left edge bar so the eye can sweep the whole grid in one pass. */
+    /* Driver card — header (name + vehicle chip) over labeled detail rows.
+       State carried by a 4px left edge bar: green = assigned,
+       red = still needs a vehicle. */
     .va-driver-slot {
-        position: relative;
+        position: relative; overflow: hidden;
         background: #fff;
         border: 1px solid var(--va-rule);
-        border-radius: 8px;
-        padding: 0.5rem 0.6rem 0.55rem 0.8rem;
-        order: 1;
+        border-radius: 9px;
+        padding: 0.5rem 0.6rem 0.5rem 0.75rem;
         display: flex; flex-direction: column;
         font-family: var(--va-sans);
-        transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+        box-shadow: 0 1px 2px rgba(26,36,64,.04), 0 8px 16px -14px rgba(26,36,64,.12);
+        transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+    }
+    .va-driver-slot:hover {
+        border-color: #d9dde6;
+        box-shadow: 0 2px 4px rgba(26,36,64,.05), 0 12px 22px -14px rgba(26,36,64,.24);
+        transform: translateY(-1px);
     }
     .va-driver-slot::before {
         content: '';
-        position: absolute; left: 0; top: -1px; bottom: -1px;
+        position: absolute; left: 0; top: 0; bottom: 0;
         width: 4px;
-        border-radius: 8px 0 0 8px;
         background: var(--va-state-off);
     }
-    .va-driver-slot.va-has { border-color: #d1fae5; }
     .va-driver-slot.va-has::before { background: var(--va-state-has); }
-    .va-driver-slot.va-empty { border-color: #fde68a; }
-    .va-driver-slot.va-empty::before { background: var(--va-state-empty); }
+    .va-driver-slot.va-empty { border-color: #f0cecc; }
+    .va-driver-slot.va-empty::before { background: var(--va-state-needs); }
     .va-driver-slot.va-off-override { border-color: #fdba74 !important; }
     .va-driver-slot.va-off-override::before { background: var(--va-state-override) !important; }
     .va-driver-slot.va-drag-over {
@@ -844,69 +847,57 @@
     }
     .va-driver-slot.va-drag-over::before { background: var(--va-state-has) !important; }
 
-    /* Driver name — secondary to the time */
+    /* Card header: name left, vehicle chip right */
+    .va-c-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 0.4rem;
+        padding-bottom: 0.38rem; margin-bottom: 0.42rem;
+        border-bottom: 1px solid #eef0f4;
+    }
     .va-drv-name {
-        font-weight: 600; font-size: 0.78rem;
-        color: var(--va-ink); line-height: 1.2;
-        margin-bottom: 0.3rem;
-        display: flex; align-items: center; gap: 0.35rem;
+        font-weight: 600; font-size: 0.8rem;
+        color: var(--va-ink); line-height: 1.2; letter-spacing: -0.01em;
+        display: flex; align-items: center; gap: 0.3rem;
+        min-width: 0; flex: 1;
     }
-    .va-off .va-drv-name {
-        color: var(--va-ink-3);
-        text-decoration: line-through;
-        text-decoration-color: #cbd5e1;
-    }
+    .va-drv-name .va-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .va-off .va-drv-name { color: var(--va-ink-3); }
 
-    /* THE TIME — hero element. Block-style, full-width within the
-       card, mono numerals, slightly tinted background. This is what
-       the dispatcher's eye should land on first. */
-    .va-time-pill {
-        display: flex; align-items: center; gap: 0.4rem;
-        font-family: var(--va-sans);
-        font-size: 0.78rem; font-weight: 600;
-        padding: 0.28rem 0.5rem;
-        border-radius: 6px;
-        background: #f4f5f7;
-        color: var(--va-ink);
+    /* Labeled detail rows: Availability / Last cleared / Night veh. / Legs today */
+    .va-rows { display: flex; flex-direction: column; gap: 0.26rem; }
+    .va-row { display: flex; align-items: baseline; gap: 0.5rem; }
+    .va-row .va-lbl {
+        flex: none; width: 72px;
+        font-size: 0.55rem; font-weight: 700; letter-spacing: 0.07em;
+        text-transform: uppercase; color: var(--va-ink-2);
+    }
+    .va-row .va-val {
+        font-size: 0.72rem; font-weight: 600; color: var(--va-ink);
+        min-width: 0; overflow: hidden;
+        display: flex; align-items: baseline; gap: 0.28rem;
         font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
-        line-height: 1.15;
-        margin-bottom: 0.4rem;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
-    .va-time-pill .bi-clock,
-    .va-time-pill .bi-infinity {
-        font-size: 0.82rem; opacity: 0.55;
-        flex-shrink: 0;
+    .va-row .va-val .q { font-weight: 400; color: var(--va-ink-3); }
+    .va-row .va-val.va-dash { color: #c2c8d4; font-weight: 500; }
+    .va-row .va-val.va-window { color: #8a6c1f; }
+    .va-row .va-val .va-time { font-size: 0.78rem; font-weight: 700; color: var(--va-ink); }
+    .va-late-pill {
+        font-size: 0.5rem; font-weight: 700; letter-spacing: 0.07em;
+        text-transform: uppercase; color: #8a6c1f;
+        background: #faf5e7; border: 1px solid #e6dab6;
+        border-radius: 4px; padding: 0 4px; align-self: center;
     }
-    .va-time-pill .va-time-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .va-time-pill .va-lock,
-    .va-time-pill .va-unlock { font-size: 0.7rem; flex-shrink: 0; opacity: 0.7; }
-    .va-time-pill .va-lock { color: #be123c; }
-    .va-time-pill .va-unlock { color: #059669; }
-    .va-time-pill .va-maxhrs {
-        font-size: 0.62rem; font-weight: 500; opacity: 0.6;
-        flex-shrink: 0;
-    }
-    /* Neutral body (Option B): availability stays one calm gray for every shift —
-       status is carried by the left edge bar, not by tinting each pill. */
+    .va-val .va-lock { color: #be123c; font-size: 0.6rem; align-self: center; }
+    .va-val .va-unlock { color: #059669; font-size: 0.6rem; align-self: center; }
+    .va-val .va-maxhrs { font-size: 0.6rem; font-weight: 500; color: var(--va-ink-3); }
 
-    /* Inline secondary meta (legs count, preference badge) */
+    /* Preference badge (kept below the rows when present) */
     .va-drv-meta {
         display: flex; flex-wrap: wrap; align-items: center;
-        gap: 0.3rem; margin-bottom: 0.4rem;
+        gap: 0.3rem; margin-top: 0.32rem;
         font-size: 0.66rem;
     }
-    .va-legs-pill {
-        display: inline-flex; align-items: center; gap: 0.22rem;
-        font-family: var(--va-sans);
-        font-size: 0.65rem; font-weight: 600;
-        color: var(--va-ink-2);
-        font-variant-numeric: tabular-nums;
-    }
-    .va-legs-pill .bi { font-size: 0.65rem; opacity: 0.65; }
     .va-pref-inline {
         font-size: 0.55rem; font-weight: 700;
         padding: 1px 5px; border-radius: 3px;
@@ -916,34 +907,35 @@
     .va-pref-inline.pref-return  { background: #e8f5e9; color: #2e7d32; }
     .va-pref-inline.pref-cruise  { background: #fff3e0; color: #e65100; }
 
-    /* Vehicle drop area */
-    .va-drv-vehicle { margin-top: auto; }
+    /* Vehicle area lives in the card header */
+    .va-drv-vehicle { flex: none; display: flex; align-items: center; min-width: 0; }
 
-    /* Empty drop hint */
+    /* Empty state — small red pill on the header (whole card is the drop target) */
     .va-drop-hint {
-        display: flex; align-items: center; justify-content: center;
-        padding: 0.4rem 0.5rem;
-        font-size: 0.68rem; font-weight: 600;
-        color: #b45309;
-        background: #fffbeb;
-        border: 1.2px dashed #fcd34d;
+        display: inline-flex; align-items: center;
+        padding: 0.2rem 0.5rem;
+        font-size: 0.6rem; font-weight: 700;
+        color: #bd4d4a;
+        background: #fbeeed;
+        border: 1px solid #f0cecc;
         border-radius: 6px;
-        letter-spacing: 0.01em;
-        font-style: normal;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
         transition: background .12s ease, border-color .12s ease, color .12s ease;
     }
     .va-driver-slot.va-drag-over .va-drop-hint {
         background: #ecfdf5; border-color: var(--va-state-has); color: #047857;
     }
 
-    /* Assigned chip */
+    /* Assigned chip — quiet inline chip in the header: dot + number + type + × */
     .va-assigned-chip {
-        display: flex; align-items: center; gap: 0.4rem;
-        padding: 0.32rem 0.35rem 0.32rem 0.5rem;
+        display: flex; align-items: center; gap: 0.28rem;
+        padding: 0.14rem 0.24rem 0.14rem 0.4rem;
         background: #f8fafc;
         border: 1px solid var(--va-rule);
         border-radius: 6px;
         cursor: grab; user-select: none;
+        white-space: nowrap;
         transition: border-color .12s ease, box-shadow .12s ease;
     }
     .va-assigned-chip:hover {
@@ -952,8 +944,13 @@
     }
     .va-assigned-chip:active { cursor: grabbing; }
     .va-assigned-chip .va-veh-num { color: var(--va-ink); }
+    /* Long type labels (VAN(14 PAX)) yield to the driver name — clip, don't push */
+    .va-assigned-chip .va-veh-type {
+        max-width: 64px; overflow: hidden; text-overflow: ellipsis;
+        display: inline-block; line-height: 1.3;
+    }
     .va-remove-btn {
-        margin-left: auto;
+        margin-left: 1px;
         border: none; background: transparent;
         color: #64748b;
         width: 18px; height: 18px;
@@ -990,25 +987,45 @@
     }
     .va-override-undo-btn:hover { background: #ffedd5; }
 
-    /* Off-today: order to bottom, collapse to single-line */
+    /* Section tags: "On shift" / "Off today" */
+    .va-section-tag {
+        display: flex; align-items: center; gap: 0.5rem;
+        margin: 0 0 0.5rem 2px;
+        font-size: 0.64rem; font-weight: 700; letter-spacing: 0.11em;
+        text-transform: uppercase; color: var(--va-ink-2);
+    }
+    .va-section-tag .va-sub {
+        font-weight: 500; letter-spacing: 0; text-transform: none;
+        color: var(--va-ink-3); font-size: 0.76rem;
+    }
+
+    /* Off-today: separate section at the bottom — dashed single-line cards */
+    .va-off-wrap {
+        margin-top: 1.1rem; padding-top: 0.9rem;
+        border-top: 1px solid var(--va-rule);
+    }
+    .va-off-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.5rem;
+    }
     .va-driver-slot.va-off {
-        order: 2;
-        padding: 0.32rem 0.5rem 0.32rem 0.7rem;
-        flex-direction: row;
-        align-items: center;
-        gap: 0.4rem;
-        background: #fafafa;
-        border-color: #ececec;
+        flex-direction: row; align-items: center; gap: 0.4rem;
+        padding: 0.42rem 0.55rem;
+        background: rgba(255,255,255,.55);
+        border: 1px dashed var(--va-rule);
+        box-shadow: none;
     }
-    .va-driver-slot.va-off::before { background: var(--va-state-off); }
-    .va-driver-slot.va-off .va-drv-name {
-        font-size: 0.74rem;
-        margin-bottom: 0; flex: 1; min-width: 0;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    .va-driver-slot.va-off:hover { transform: none; box-shadow: none; border-color: #d3d8e1; }
+    .va-driver-slot.va-off::before { display: none; }
+    .va-driver-slot.va-off .va-c-head {
+        flex: 1; min-width: 0;
+        padding-bottom: 0; margin-bottom: 0; border-bottom: none;
     }
+    .va-driver-slot.va-off .va-drv-name { font-size: 0.76rem; }
+    .va-driver-slot.va-off .va-rows,
     .va-driver-slot.va-off .va-drv-meta,
-    .va-driver-slot.va-off .va-time-pill { display: none; }
-    .va-driver-slot.va-off .va-drv-vehicle { margin-top: 0; }
+    .va-driver-slot.va-off .va-exc-line { display: none; }
     .va-driver-slot.va-off .cp-info-icon { display: none; }
 
     .va-off-msg {
@@ -1016,21 +1033,33 @@
         font-size: 0;
     }
     .va-override-btn {
-        font-size: 0.6rem; font-weight: 700;
-        border: 1px solid #d1d5db; background: #fff;
-        color: var(--va-ink-2); border-radius: 4px;
-        padding: 0.15rem 0.45rem; cursor: pointer;
+        font-size: 0.62rem; font-weight: 600;
+        border: 1px solid var(--va-rule); background: #fff;
+        color: var(--va-ink-2); border-radius: 6px;
+        padding: 0.22rem 0.5rem; cursor: pointer;
         display: inline-flex; align-items: center; gap: 0.22rem;
-        text-transform: uppercase; letter-spacing: 0.03em;
+        white-space: nowrap;
+        box-shadow: 0 1px 2px rgba(26,36,64,.04);
         transition: background .12s ease, color .12s ease, border-color .12s ease;
     }
     .va-override-btn:hover {
         background: var(--dark); color: var(--gold);
         border-color: var(--dark);
     }
-    .va-override-btn .bi { font-size: 0.65rem; }
+    .va-override-btn .bi { font-size: 0.7rem; }
 
-    /* Footer hint — single short line */
+    /* Legend + footer hint */
+    .va-legend {
+        margin-top: 0.9rem; padding-top: 0.7rem;
+        border-top: 1px solid var(--va-rule);
+        display: flex; flex-wrap: wrap; align-items: center;
+        gap: 0.4rem 1rem;
+        font-size: 0.66rem; color: var(--va-ink-2); font-weight: 500;
+    }
+    .va-legend .va-leg-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .va-legend .va-leg-stripe { width: 4px; height: 13px; border-radius: 2px; }
+    .va-legend .va-leg-dot { width: 8px; height: 8px; border-radius: 99px; }
+    .va-legend .va-leg-divider { width: 1px; height: 13px; background: var(--va-rule); }
     .va-footer-hint {
         margin-top: 0.7rem;
         font-size: 0.66rem; color: var(--va-ink-3);
@@ -1207,9 +1236,13 @@
             </div>
         </div>
 
-        <!-- Vehicle pool — flat single row -->
+        <!-- Vehicle pool -->
         <div class="va-pool-wrap">
-            <span class="va-pool-label"><i class="bi bi-truck"></i> Pool</span>
+            <div class="va-pool-label">
+                <span class="va-lab-tick"></span>
+                <span class="va-pool-k">Fleet</span>
+                <span class="va-pool-note" id="vaPoolNote"></span>
+            </div>
             <div class="va-pool-cards" id="pVehiclePool">
                 {% for vehicle in inhouse_vehicles %}
                 <div class="va-veh-card {% if vehicle.notes %}va-has-notes{% endif %}"
@@ -1235,93 +1268,51 @@
             </div>
         </div>
 
-        <!-- Driver slots (drop targets) -->
+        <!-- On-shift drivers (drop targets) -->
+        <div class="va-section-tag">
+            <span class="va-lab-tick"></span>
+            On shift <span class="va-sub" id="vaOnSub"></span>
+        </div>
         <div class="va-drivers-grid" id="pDriverGrid">
-            {% for row in vehicle_assign_rows %}
-            <div class="va-driver-slot {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}{% if row.was_scheduled_off and not row.is_off_today %} va-off-override{% endif %}"
+            {% for row in vehicle_assign_rows %}{% if not row.is_off_today %}
+            <div class="va-driver-slot {% if row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}{% if row.was_scheduled_off %} va-off-override{% endif %}"
                  data-driver-id="{{ row.driver.id }}"
                  data-driver-name="{{ row.driver }}"
                  data-was-scheduled-off="{% if row.was_scheduled_off %}1{% else %}0{% endif %}"
                  data-sprinter-ok="{% if row.sprinter_ok %}1{% else %}0{% endif %}"
                  data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
-              <div class="va-drv-name">
-                {{ row.driver }}
-                {% if row.is_off_today %}
-                <span class="va-off-badge">Off</span>
-                {% elif row.was_scheduled_off %}
-                <span class="va-override-warning" title="This driver was scheduled OFF today. Someone clicked 'Work today' to override — double-check this is intentional.">
-                  <i class="bi bi-exclamation-triangle-fill"></i> Scheduled off
-                </span>
-                {% endif %}
-                {% if not row.is_off_today %}
-                <span class="cp-info-icon" data-cp-popup
-                      data-driver-name="{{ row.driver }}"
-                      data-shift-type="{{ row.shift_type }}"
-                      data-shift-start="{{ row.shift_start }}"
-                      data-shift-end="{{ row.shift_end }}"
-                      data-flexible="{{ row.flexible }}"
-                      data-max-hours="{{ row.max_hours|default_if_none:'' }}"
-                      data-preferred-shift="{{ row.preferred_shift }}"
-                      data-preference="{{ row.pref_short }}"
-                      data-driver-phone="{{ row.driver_phone }}"
-                      data-driver-notes="{{ row.driver_notes|escapejs }}"
-                      data-scheduling-notes="{{ row.scheduling_notes|escapejs }}"
-                      data-avail-label="{{ row.shift_display|escapejs }}"
-                      data-avail-tooltip="{{ row.avail_tooltip|escapejs }}"
-                      data-exception-notes="{{ row.exception_notes|escapejs }}"
-                      data-cert-labels="{{ row.cert_labels|join:', ' }}"
-                      data-pref-vehicle="{{ row.pref_vehicle|escapejs }}"
-                      data-shift-pref="{{ row.shift_pref_label|escapejs }}"
-                      data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
-                      data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
-                      data-vehicle-notes="{{ row.vehicle_notes|escapejs }}"
-                      style="margin-left:auto;">i</span>
-                {% endif %}
-              </div>
-              {% if not row.is_off_today %}
-              {% if row.exc_badge %}
-              <div class="va-exc-line">
-                <span class="exc-badge" title="{{ row.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ row.exc_badge }}</span>
-                {% if row.exception_notes %}<span class="exc-note" title="{{ row.exception_notes }}"><i class="bi bi-sticky-fill"></i> {{ row.exception_notes|truncatechars:36 }}</span>{% endif %}
-              </div>
-              {% endif %}
-              {% if row.shift_display %}
-                {% if 'flex' in row.shift_display|lower %}
-                <div class="va-time-pill tp-flex" title="Flexible availability">
-                  <i class="bi bi-infinity"></i>
-                  <span class="va-time-text">{{ row.shift_display }}</span>
-                  {% if row.max_hours %}<span class="va-maxhrs">{{ row.max_hours|floatformat:0 }}h max</span>{% endif %}
-                </div>
-                {% else %}
-                <div class="va-time-pill tp-{{ row.shift_type }}" title="Driver availability window">
-                  <i class="bi bi-clock"></i>
-                  <span class="va-time-text">{{ row.shift_display }}</span>
-                  {% if row.flexible %}<i class="bi bi-unlock va-unlock" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill va-lock" title="Hard limits"></i>{% endif %}
-                  {% if row.max_hours %}<span class="va-maxhrs">{{ row.max_hours|floatformat:0 }}h</span>{% endif %}
-                </div>
-                {% endif %}
-              {% endif %}
-              {% if row.prev_night_cleared %}
-              <div class="va-cleared-line" title="When this driver's last job cleared the night before — watch their rest before an early start">
-                <i class="bi bi-moon-stars-fill"></i> Cleared {{ row.prev_night_cleared }} last night{% if row.prev_night_vehicle %} · {{ row.prev_night_vehicle }}{% endif %}
-              </div>
-              {% endif %}
-              <div class="va-drv-meta">
-                {% if row.leg_count > 0 %}
-                <span class="va-legs-pill"><i class="bi bi-list-check"></i>{{ row.leg_count }} leg{{ row.leg_count|pluralize }}</span>
-                {% endif %}
-                {% if row.pref_short %}<span class="va-pref-inline {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>{% endif %}
-              </div>
-              {% endif %}
-              <div class="va-drv-vehicle" id="p-va-slot-{{ row.driver.id }}">
-                {% if row.is_off_today %}
-                  <span class="va-off-msg">
-                    <span class="va-off-msg-text">Day off</span>
-                    <button class="va-override-btn" onclick="pVaOverrideOff({{ row.driver.id }})" title="Mark this driver as working today">
-                      <i class="bi bi-person-check"></i> Work today
-                    </button>
+              <div class="va-c-head">
+                <span class="va-drv-name">
+                  <span class="va-name-text">{{ row.driver }}</span>
+                  {% if row.was_scheduled_off %}
+                  <span class="va-override-warning" title="This driver was scheduled OFF today. Someone clicked 'Work today' to override — double-check this is intentional.">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Scheduled off
                   </span>
-                {% elif row.assignment and row.assignment.vehicle %}
+                  {% endif %}
+                  <span class="cp-info-icon" data-cp-popup
+                        data-driver-name="{{ row.driver }}"
+                        data-shift-type="{{ row.shift_type }}"
+                        data-shift-start="{{ row.shift_start }}"
+                        data-shift-end="{{ row.shift_end }}"
+                        data-flexible="{{ row.flexible }}"
+                        data-max-hours="{{ row.max_hours|default_if_none:'' }}"
+                        data-preferred-shift="{{ row.preferred_shift }}"
+                        data-preference="{{ row.pref_short }}"
+                        data-driver-phone="{{ row.driver_phone }}"
+                        data-driver-notes="{{ row.driver_notes|escapejs }}"
+                        data-scheduling-notes="{{ row.scheduling_notes|escapejs }}"
+                        data-avail-label="{{ row.shift_display|escapejs }}"
+                        data-avail-tooltip="{{ row.avail_tooltip|escapejs }}"
+                        data-exception-notes="{{ row.exception_notes|escapejs }}"
+                        data-cert-labels="{{ row.cert_labels|join:', ' }}"
+                        data-pref-vehicle="{{ row.pref_vehicle|escapejs }}"
+                        data-shift-pref="{{ row.shift_pref_label|escapejs }}"
+                        data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
+                        data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
+                        data-vehicle-notes="{{ row.vehicle_notes|escapejs }}">i</span>
+                </span>
+                <div class="va-drv-vehicle" id="p-va-slot-{{ row.driver.id }}">
+                  {% if row.assignment and row.assignment.vehicle %}
                   <div class="va-assigned-chip"
                        draggable="true"
                        data-vehicle-id="{{ row.assignment.vehicle_id }}"
@@ -1334,14 +1325,148 @@
                     {% endif %}
                     <button class="va-remove-btn" onclick="pVaRemove({{ row.driver.id }})" title="Remove">&times;</button>
                   </div>
-                {% else %}
-                  <span class="va-drop-hint">Drop vehicle here</span>
-                {% endif %}
+                  {% else %}
+                  <span class="va-drop-hint">Needs vehicle</span>
+                  {% endif %}
+                </div>
               </div>
+              {% if row.exc_badge %}
+              <div class="va-exc-line">
+                <span class="exc-badge" title="{{ row.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ row.exc_badge }}</span>
+                {% if row.exception_notes %}<span class="exc-note" title="{{ row.exception_notes }}"><i class="bi bi-sticky-fill"></i> {{ row.exception_notes|truncatechars:36 }}</span>{% endif %}
+              </div>
+              {% endif %}
+              <div class="va-rows">
+                <div class="va-row">
+                  <span class="va-lbl">Availability</span>
+                  {% if row.shift_display %}
+                    {% if 'flex' in row.shift_display|lower %}
+                    <span class="va-val" title="Flexible availability">{{ row.shift_display }}{% if row.max_hours %} <span class="va-maxhrs">{{ row.max_hours|floatformat:0 }}h max</span>{% endif %}</span>
+                    {% else %}
+                    <span class="va-val va-window" title="Driver availability window">{{ row.shift_display }}
+                      {% if row.flexible %}<i class="bi bi-unlock va-unlock" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill va-lock" title="Hard limits"></i>{% endif %}
+                    </span>
+                    {% endif %}
+                  {% else %}
+                  <span class="va-val va-dash">&mdash;</span>
+                  {% endif %}
+                </div>
+                <div class="va-row">
+                  <span class="va-lbl">Last cleared</span>
+                  {% if row.prev_night_cleared %}
+                  <span class="va-val" title="When this driver's last job cleared the night before — watch their rest before an early start"><span class="va-time">{{ row.prev_night_cleared }}</span> <span class="q">last night</span>{% if row.prev_night_late %}<span class="va-late-pill">late</span>{% endif %}</span>
+                  {% else %}
+                  <span class="va-val va-dash">&mdash;</span>
+                  {% endif %}
+                </div>
+                <div class="va-row">
+                  <span class="va-lbl">Night veh.</span>
+                  {% if row.prev_night_vehicle %}
+                  <span class="va-val" title="Vehicle this driver had the night before">{{ row.prev_night_vehicle }}</span>
+                  {% else %}
+                  <span class="va-val va-dash">&mdash;</span>
+                  {% endif %}
+                </div>
+                <div class="va-row">
+                  <span class="va-lbl">Legs today</span>
+                  {% if row.leg_count > 0 %}
+                  <span class="va-val">{{ row.leg_count }}</span>
+                  {% else %}
+                  <span class="va-val va-dash">&mdash;</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% if row.pref_short %}
+              <div class="va-drv-meta">
+                <span class="va-pref-inline {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>
+              </div>
+              {% endif %}
             </div>
-            {% endfor %}
+            {% endif %}{% endfor %}
         </div>
 
+        <!-- Off today — separated so the working roster reads clean -->
+        {% if va_off_count %}
+        <div class="va-off-wrap">
+            <div class="va-section-tag">
+                <span class="va-lab-tick" style="background: var(--va-ink-3);"></span>
+                Off today <span class="va-sub">{{ va_off_count }} driver{{ va_off_count|pluralize }} &middot; click Work today to add them to the schedule</span>
+            </div>
+            <div class="va-off-grid" id="pOffGrid">
+                {% for row in vehicle_assign_rows %}{% if row.is_off_today %}
+                <div class="va-driver-slot va-off"
+                     data-driver-id="{{ row.driver.id }}"
+                     data-driver-name="{{ row.driver }}"
+                     data-was-scheduled-off="1"
+                     data-sprinter-ok="{% if row.sprinter_ok %}1{% else %}0{% endif %}"
+                     data-assigned-vehicle-id="">
+                  <div class="va-c-head">
+                    <span class="va-drv-name">
+                      <span class="va-name-text">{{ row.driver }}</span>
+                      <span class="va-off-badge">Off</span>
+                    </span>
+                    <div class="va-drv-vehicle" id="p-va-slot-{{ row.driver.id }}">
+                      <span class="va-off-msg">
+                        <button class="va-override-btn" onclick="pVaOverrideOff({{ row.driver.id }})" title="Mark this driver as working today">
+                          <i class="bi bi-person-check"></i> Work today
+                        </button>
+                      </span>
+                    </div>
+                  </div>
+                  {% if row.exc_badge %}
+                  <div class="va-exc-line">
+                    <span class="exc-badge" title="{{ row.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ row.exc_badge }}</span>
+                    {% if row.exception_notes %}<span class="exc-note" title="{{ row.exception_notes }}"><i class="bi bi-sticky-fill"></i> {{ row.exception_notes|truncatechars:36 }}</span>{% endif %}
+                  </div>
+                  {% endif %}
+                  <div class="va-rows">
+                    <div class="va-row">
+                      <span class="va-lbl">Availability</span>
+                      <span class="va-val va-dash">&mdash;</span>
+                    </div>
+                    <div class="va-row">
+                      <span class="va-lbl">Last cleared</span>
+                      {% if row.prev_night_cleared %}
+                      <span class="va-val"><span class="va-time">{{ row.prev_night_cleared }}</span> <span class="q">last night</span>{% if row.prev_night_late %}<span class="va-late-pill">late</span>{% endif %}</span>
+                      {% else %}
+                      <span class="va-val va-dash">&mdash;</span>
+                      {% endif %}
+                    </div>
+                    <div class="va-row">
+                      <span class="va-lbl">Night veh.</span>
+                      {% if row.prev_night_vehicle %}
+                      <span class="va-val">{{ row.prev_night_vehicle }}</span>
+                      {% else %}
+                      <span class="va-val va-dash">&mdash;</span>
+                      {% endif %}
+                    </div>
+                    <div class="va-row">
+                      <span class="va-lbl">Legs today</span>
+                      {% if row.leg_count > 0 %}
+                      <span class="va-val">{{ row.leg_count }}</span>
+                      {% else %}
+                      <span class="va-val va-dash">&mdash;</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                {% endif %}{% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="va-legend">
+            <span class="va-leg-item"><span class="va-leg-stripe" style="background: var(--va-state-has);"></span> Assigned</span>
+            <span class="va-leg-item"><span class="va-leg-stripe" style="background: var(--va-state-needs);"></span> Needs a vehicle</span>
+            <span class="va-leg-item"><span class="va-leg-stripe" style="background: var(--va-state-override);"></span> Scheduled off, working</span>
+            <span class="va-leg-divider"></span>
+            <span class="va-leg-item"><span class="va-leg-dot" style="background: #d97706;"></span> Towncar</span>
+            <span class="va-leg-item"><span class="va-leg-dot" style="background: #2563eb;"></span> SUV</span>
+            <span class="va-leg-item"><span class="va-leg-dot" style="background: #7c3aed;"></span> Mini Van</span>
+            <span class="va-leg-item"><span class="va-leg-dot" style="background: #0d9488;"></span> Van</span>
+            <span class="va-leg-divider"></span>
+            <span class="va-leg-item"><span class="va-late-pill">late</span> Cleared 9&nbsp;PM or later</span>
+        </div>
         <div class="va-footer-hint">
             <i class="bi bi-info-circle"></i>
             Drag vehicles to assign &middot; Drag between drivers to swap &middot; Click &times; to remove
@@ -4588,6 +4713,23 @@
         if (hasEl) hasEl.textContent = has;
         if (totalEl) totalEl.textContent = total;
         if (fillEl) fillEl.style.width = total > 0 ? (100 * has / total) + '%' : '0%';
+        // On-shift section subtitle: driver count + how many still need a vehicle
+        const sub = document.getElementById('vaOnSub');
+        if (sub) {
+            const awaiting = total - has;
+            sub.textContent = total + ' driver' + (total !== 1 ? 's' : '')
+                + (awaiting > 0 ? ' · ' + awaiting + ' awaiting a vehicle' : '');
+        }
+        // Fleet note: open vs assigned units
+        const note = document.getElementById('vaPoolNote');
+        if (note) {
+            const poolTotal = document.querySelectorAll('#pVehiclePool .va-veh-card').length;
+            const inUse = document.querySelectorAll('#pVehiclePool .va-veh-card.va-in-use').length;
+            const open = poolTotal - inUse;
+            note.innerHTML = open > 0
+                ? '<b>' + open + ' vehicle' + (open !== 1 ? 's' : '') + '</b> still available · ' + inUse + ' assigned'
+                : 'all ' + inUse + ' vehicles assigned';
+        }
     }
     pVaMarkInUse();
 
@@ -4611,8 +4753,10 @@
         chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); pVaDrag = null; });
     });
 
-    // Drop targets
-    document.querySelectorAll('#pDriverGrid .va-driver-slot').forEach(slot => {
+    // Drop targets — off-grid slots get handlers too: after "Work today" moves a
+    // card into the on-shift grid it must accept drops (the va-off check below
+    // keeps still-off cards inert).
+    document.querySelectorAll('#pDriverGrid .va-driver-slot, #pOffGrid .va-driver-slot').forEach(slot => {
         slot.addEventListener('dragover', e => {
             if (!pVaDrag || slot.classList.contains('va-off')) return;
             e.preventDefault();
@@ -4672,7 +4816,7 @@
                 });
                 chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); pVaDrag = null; });
             } else {
-                area.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+                area.innerHTML = '<span class="va-drop-hint">Needs vehicle</span>';
                 slot.dataset.assignedVehicleId = '';
                 slot.classList.remove('va-has'); slot.classList.add('va-empty');
             }
@@ -4682,16 +4826,14 @@
 
     window.pVaRemove = function(driverId) { pVaSave(driverId, null); };
     window.pVaOverrideOff = function(driverId) {
-        const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
+        const slot = document.querySelector(`.va-driver-slot[data-driver-id="${driverId}"]`);
         if (!slot) return;
         slot.classList.remove('va-off');
         slot.classList.add('va-empty');
         slot.classList.add('va-off-override');  // keep the scheduled-off warning visible
         const name = slot.querySelector('.va-drv-name');
         if (name) {
-            name.style.textDecoration = 'none';
-            name.style.color = '';
-            // Replace the red "Off" badge with the amber "Scheduled off" warning
+            // Replace the gray "Off" badge with the amber "Scheduled off" warning
             const offBadge = name.querySelector('.va-off-badge');
             if (offBadge) {
                 const warn = document.createElement('span');
@@ -4702,7 +4844,17 @@
             }
         }
         const area = slot.querySelector('.va-drv-vehicle');
-        if (area) area.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+        if (area) area.innerHTML = '<span class="va-drop-hint">Needs vehicle</span>';
+        // Move the card up into the on-shift grid so on/off stay separated
+        const grid = document.getElementById('pDriverGrid');
+        if (grid) grid.appendChild(slot);
+        // If their whole off-section emptied out, drop the section header too
+        const offGrid = document.getElementById('pOffGrid');
+        if (offGrid && !offGrid.querySelector('.va-driver-slot')) {
+            const wrap = offGrid.closest('.va-off-wrap');
+            if (wrap) wrap.remove();
+        }
+        pVaMarkInUse();
     };
 
     // Close on outside click

@@ -9,7 +9,7 @@ The question we answer per driver: "where is the vehicle relative to the
 driver's NEXT relevant stop, and will he make it?"
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.utils import timezone
 
@@ -25,8 +25,18 @@ IDLE_NEAR_PICKUP_MIN = 30   # within this window + not moving => at least "watch
 # overdue by hours that nobody marked done is noise, not a live-ETA signal).
 PAST_PICKUP_GRACE_MIN = 45
 
+# A stale GPS fix from a PARKED car is still usable this long (ignition-off
+# gateways report sparsely; the car hasn't moved, so the old fix is still where
+# it sits). Bounded in case the gateway itself died mid-day.
+PARKED_POSITION_MAX_AGE_HOURS = 8
+
 # Live-tracking PANEL display tunables.
 PANEL_TIGHT_BUFFER_MIN = 10      # spare time under this => "tight"
+# Above this much slack the "arrives N min early" projection is noise (the driver
+# isn't en route yet) -> show a calm waiting card instead: pickup countdown +
+# how far the vehicle sits from it. Risk states ignore this (a far-future pickup
+# the car can't reach in time must still warn).
+PANEL_WAIT_SLACK_MIN = 60
 PANEL_DWELL_MIN = 8              # stationary at least this long => stalled candidate
 PANEL_DEPARTURE_WINDOW_MIN = 45  # only treat "not moving" as a problem this close to pickup
 # For an ALREADY-OVERDUE pickup where the driver isn't on the way (usually just stale
@@ -104,6 +114,24 @@ def choose_active_target(legs, now=None):
     return None
 
 
+def _position_usable(vehicle, now):
+    """
+    True when the vehicle's last GPS fix can back a drive-time estimate. Fresh is
+    always usable. A STALE fix is still usable when the last sample said the car
+    was NOT moving — a parked car's gateway reports sparsely, but any drive
+    produces a new sample, so the old fix is still where the car sits (capped at
+    PARKED_POSITION_MAX_AGE_HOURS). Stale-while-driving stays unusable.
+    """
+    if vehicle.samsara_last_latitude is None or vehicle.samsara_last_longitude is None:
+        return False
+    if vehicle.samsara_is_fresh:
+        return True
+    last_seen = getattr(vehicle, "samsara_last_seen_at", None)
+    if vehicle.samsara_movement_status in ("idle", "off") and last_seen:
+        return (now - last_seen).total_seconds() / 3600 <= PARKED_POSITION_MAX_AGE_HOURS
+    return False
+
+
 def _blank_fields():
     return {
         "dispatch_eta_minutes": None,
@@ -140,8 +168,7 @@ def evaluate(vehicle, target, now=None, eta_override=None):
     fields["dispatch_eta_target_time"] = target["target_time"]
     fields["dispatch_vehicle_label"] = getattr(vehicle, "vehicle_number", "") or ""
 
-    if not vehicle.samsara_is_fresh or vehicle.samsara_last_latitude is None \
-            or vehicle.samsara_last_longitude is None:
+    if not _position_usable(vehicle, now):
         fields["dispatch_risk_status"] = "unknown"
         fields["dispatch_risk_reason"] = "Vehicle telematics stale (>15 min)"
         return fields
@@ -287,6 +314,26 @@ def _pickup_phrase(minutes_to_pickup):
     return f"pickup {abs(minutes_to_pickup)} min ago"
 
 
+def _fmt_duration(minutes):
+    """Compact human duration: 55 -> '55 min', 249 -> '4h 9m', 360 -> '6h'."""
+    minutes = max(0, int(round(minutes)))
+    if minutes < 60:
+        return f"{minutes} min"
+    h, m = divmod(minutes, 60)
+    return f"{h}h {m}m" if m else f"{h}h"
+
+
+def _fmt_stopped(minutes):
+    """Chip-sized stopped duration: 12 -> '12m', 385 -> '6h 25m'."""
+    if minutes is None:
+        return ""
+    minutes = max(0, int(minutes))
+    if minutes < 60:
+        return f"{minutes}m"
+    h, m = divmod(minutes, 60)
+    return f"{h}h {m}m" if m else f"{h}h"
+
+
 def _is_airport_pickup(leg):
     """True when the pickup is AT an airport terminal (an arrival). Pure string
     check on the leg's pickup_location — no DB query, safe at render."""
@@ -304,7 +351,10 @@ def build_panel_context(leg, now=None):
 
       at_risk   — can't make an upcoming pickup, OR overdue and on the way (red)
       tight     — thin slack, or stalled in the departure window (amber)
-      on_track  — comfortable, or en route to a drop-off (visually silent)
+      on_track  — comfortable, or en route to a drop-off (visually quiet);
+                  with > PANEL_WAIT_SLACK_MIN slack it becomes a "waiting" card
+                  (pickup countdown + vehicle distance, no arrival projection)
+      no_signal — vehicle mapped to Samsara but no usable GPS/ETA (grey)
 
     An already-overdue pickup where he is NOT on the way (usually just stale status)
     stays quiet — except an arrival whose flight is at the gate while he's still
@@ -319,22 +369,46 @@ def build_panel_context(leg, now=None):
         return None
     if not bool(getattr(leg, "dispatch_eta_is_fresh", False)):
         return None
-    eta = getattr(leg, "dispatch_eta_minutes", None)
-    if eta is None:
-        return None
 
     vehicle = getattr(leg, "dispatch_vehicle_label", "") or ""
     kind = getattr(leg, "dispatch_eta_target", "") or ""
+    eta = getattr(leg, "dispatch_eta_minutes", None)
+
+    if eta is None:
+        # Vehicle IS mapped to Samsara but we couldn't get an ETA (stale GPS /
+        # no drive time). Say so in grey instead of vanishing — "we should know
+        # where this car is and don't" is itself a signal. Un-mapped / affiliate
+        # vehicles never reach here (the sweep writes nothing for them).
+        if (getattr(leg, "dispatch_risk_status", "") or "") == "unknown":
+            return {"state": "no_signal", "headline": "No live GPS",
+                    "evidence": getattr(leg, "dispatch_risk_reason", "") or "",
+                    "eta_minutes": None, "minutes_to_pickup": None, "vehicle": vehicle,
+                    "eta_clock": None, "target_clock": None, "target_label": "",
+                    "moving": None, "stationary_minutes": None}
+        return None
+
+    # Display extras shared by every state: the ETA as a wall-clock arrival time,
+    # the target's own clock time, and the vehicle's movement snapshot.
+    target_time = getattr(leg, "dispatch_eta_target_time", None)
+    stationary = getattr(leg, "dispatch_stationary_minutes", None)
+    display = {
+        "vehicle": vehicle,
+        "eta_clock": now + timedelta(minutes=eta),
+        "target_clock": target_time,
+        "target_label": {"dropoff": "drop-off", "next_pickup": "next pickup"}.get(kind, "pickup"),
+        "moving": getattr(leg, "dispatch_is_moving", None),
+        "stationary_minutes": stationary,
+        "stopped_label": _fmt_stopped(stationary),
+    }
 
     # Mid-trip current leg: ETA to the drop-off, no deadline (visually silent).
     if kind == "dropoff":
         return {"state": "on_track", "headline": f"~{eta} min to drop-off",
-                "evidence": "", "eta_minutes": eta, "minutes_to_pickup": None, "vehicle": vehicle}
+                "evidence": "", "eta_minutes": eta, "minutes_to_pickup": None, **display}
 
-    target_time = getattr(leg, "dispatch_eta_target_time", None)
     if target_time is None:
         return {"state": "on_track", "headline": f"~{eta} min to pickup",
-                "evidence": "", "eta_minutes": eta, "minutes_to_pickup": None, "vehicle": vehicle}
+                "evidence": "", "eta_minutes": eta, "minutes_to_pickup": None, **display}
 
     minutes_to_pickup = round((target_time - now).total_seconds() / 60)
     slack = minutes_to_pickup - eta
@@ -342,7 +416,7 @@ def build_panel_context(leg, now=None):
     chained_note = " · after current trip" if kind == "next_pickup" else ""
     base = {
         "evidence": f"ETA {eta} min · {_pickup_phrase(minutes_to_pickup)}{chained_note}",
-        "eta_minutes": eta, "minutes_to_pickup": minutes_to_pickup, "vehicle": vehicle,
+        "eta_minutes": eta, "minutes_to_pickup": minutes_to_pickup, **display,
     }
 
     # Won't make it.
@@ -358,12 +432,20 @@ def build_panel_context(leg, now=None):
         return None  # overdue + not started + not an arrival -> stay quiet (stale status)
 
     # Tight: thin slack, or stalled inside the departure window.
-    is_moving = getattr(leg, "dispatch_is_moving", None)
-    stationary = getattr(leg, "dispatch_stationary_minutes", None)
+    is_moving = display["moving"]
     stalled = (is_moving is False and stationary is not None
                and stationary >= PANEL_DWELL_MIN and minutes_to_pickup <= PANEL_DEPARTURE_WINDOW_MIN)
     if slack < PANEL_TIGHT_BUFFER_MIN or stalled:
         headline = "Vehicle not moving" if stalled else f"{slack} min buffer"
         return {"state": "tight", "headline": headline, **base}
+
+    # Comfortable. With lots of slack the driver isn't en route yet — projecting
+    # an arrival ("arrives ~231 min early") is noise. Show a waiting card instead:
+    # pickup countdown + how far the vehicle currently sits from it.
+    if slack > PANEL_WAIT_SLACK_MIN:
+        label = "Next pickup" if kind == "next_pickup" else "Pickup"
+        return {"state": "on_track", "waiting": True,
+                "headline": f"{label} in {_fmt_duration(minutes_to_pickup)}",
+                **{**base, "eta_clock": None}}
 
     return {"state": "on_track", "headline": f"Arrives ~{slack} min early", **base}

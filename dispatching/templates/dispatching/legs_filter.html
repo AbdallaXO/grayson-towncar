@@ -893,9 +893,7 @@
                        (raw position alone was noise; show the schedule-aware signal instead).
                        Hover the vehicle # for the raw GPS position.{% endcomment %}
                     {% if row.live_leg %}
-                      {% with leg=row.live_leg %}
-                        {% include "dispatching/includes/_leg_dispatch_eta.html" %}
-                      {% endwith %}
+                      {% samsara_tracking_panel row.live_leg %}
                     {% endif %}
                   {% else %}
                     <span class="va-drop-hint">Drop vehicle here</span>

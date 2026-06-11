@@ -8835,6 +8835,7 @@ def capacity_planner(request):
             r["assignment"].vehicle.vehicle_number if r["assignment"] and r["assignment"].vehicle else "",
         )
     )
+    va_off_count = sum(1 for r in vehicle_assign_rows if r["is_off_today"])
 
     # Heavy scheduling computation — cache for 60s keyed by date.
     # LocMemCache (single worker) stores Python objects directly; no serialization needed.
@@ -8937,11 +8938,14 @@ def capacity_planner(request):
                 'status_ago': _ago_str,
             }
 
-    # Get previous day's last leg per driver (for overnight turnaround display)
+    # Get previous day's last leg per driver (for overnight turnaround display).
+    # Covers ALL in-house drivers, not just ones already assigned a vehicle —
+    # the assignment board uses last-night clear times to decide who gets a car.
     _cp_prev_day = selected_date - timedelta(days=1)
     _cp_prev_day_last = {}
+    _cp_prev_day_late = {}
     _cp_prev_legs = (
-        Leg.objects.filter(pickup_date=_cp_prev_day, driver__in=eligible_drivers)
+        Leg.objects.filter(pickup_date=_cp_prev_day, driver__in=inhouse_drivers)
         .exclude(status="cancelled")
         # reservation + flight_information are read by estimate_job_end_time
         # (store_stop, flight arrival) — pull them in to avoid a .get() per leg.
@@ -8953,13 +8957,15 @@ def capacity_planner(request):
             try:
                 _cp_end = estimate_job_end_time(_cpl, _cp_prev_day)
                 _cp_prev_day_last[_cpl.driver_id] = _cp_end.strftime('%I:%M %p').lstrip('0')
+                _cp_prev_day_late[_cpl.driver_id] = _cp_end.hour >= 21
             except Exception:
                 _cp_prev_day_last[_cpl.driver_id] = _cpl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
+                _cp_prev_day_late[_cpl.driver_id] = _cpl.pickup_time.hour >= 21
 
     # Get previous day's vehicle assignments
     _cp_prev_day_vehicle = {}
     _cp_prev_assigns = DriverVehicleAssignment.objects.filter(
-        date=_cp_prev_day, driver__in=eligible_drivers
+        date=_cp_prev_day, driver__in=inhouse_drivers
     ).select_related('vehicle', 'vehicle__vehicle_type')
     for _cpda in _cp_prev_assigns:
         if _cpda.vehicle:
@@ -8970,6 +8976,7 @@ def capacity_planner(request):
     # Surface previous-night clear time on the assignment cards too (not just timelines)
     for _var in vehicle_assign_rows:
         _var["prev_night_cleared"] = _cp_prev_day_last.get(_var["driver"].id, "")
+        _var["prev_night_late"] = _cp_prev_day_late.get(_var["driver"].id, False)
         _var["prev_night_vehicle"] = _cp_prev_day_vehicle.get(_var["driver"].id, "")
 
     # Build in-house timeline data — only drivers with vehicles assigned for the day
@@ -9136,6 +9143,7 @@ def capacity_planner(request):
         'eligible_drivers': eligible_drivers,
         'inhouse_vehicles': inhouse_vehicles,
         'vehicle_assign_rows': vehicle_assign_rows,
+        'va_off_count': va_off_count,
         'driver_availability_json': json.dumps(driver_availability),
     }
 
@@ -9876,7 +9884,17 @@ def reset_schedule(request):
         pickup_date=target_date, driver__isnull=False
     ).exclude(reservation__status="cancelled").exclude(status="cancelled")
     count = legs.count()
-    legs.update(driver=None, driver_assigned_by=None, driver_assigned_at=None)
+    # Completed legs lose only the driver (status sticks); everything else
+    # also resets to 'in-progress' — same rule as the per-leg unassign in
+    # Leg.save(), which this bulk update bypasses.
+    legs.filter(status="completed").update(
+        driver=None, driver_assigned_by=None, driver_assigned_at=None
+    )
+    legs.update(
+        driver=None, driver_assigned_by=None, driver_assigned_at=None,
+        status="in-progress", status_changed_by=request.user,
+        status_changed_at=timezone.now(),
+    )
 
     # Invalidate capacity planner cache so it rebuilds with fresh data
     cache.delete(f"capacity_planner_{target_date.isoformat()}")

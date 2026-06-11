@@ -1,18 +1,34 @@
 {% comment %}
 Samsara live-tracking panel — self-contained component for a dispatch leg row.
 Expects `panel` (from the samsara_tracking_panel inclusion tag); renders nothing
-when panel is None. Three-line structure: live indicator + state pill, bold
-headline (the conclusion), muted evidence (ETA vs pickup). Styles + Montserrat
-are loaded once per page via _samsara_panel_styles.html.
+when panel is None. Structure: live indicator + state pill + moving/stopped chip
++ vehicle #, bold headline (the conclusion), then the wall-clock line — when the
+car arrives vs when the pickup is. Raw minute math lives in the hover tooltip.
+Styles + Montserrat are loaded once per page via _samsara_panel_styles.html.
 {% endcomment %}
 {% if panel %}
-<div class="stp stp-{{ panel.state }}">
+<div class="stp stp-{{ panel.state }}"{% if panel.evidence %} title="{{ panel.evidence }}"{% endif %}>
   <div class="stp-top">
     <span class="stp-dot" aria-hidden="true"></span>
-    <span class="stp-pill">{% if panel.state == 'at_risk' %}At risk{% elif panel.state == 'tight' %}Tight{% else %}On track{% endif %}</span>
+    <span class="stp-pill">{% if panel.state == 'at_risk' %}At risk{% elif panel.state == 'tight' %}Tight{% elif panel.state == 'no_signal' %}No signal{% else %}On track{% endif %}</span>
+    {% if panel.moving is True %}
+      <span class="stp-motion stp-motion-on">Moving</span>
+    {% elif panel.moving is False %}
+      <span class="stp-motion stp-motion-off">{% if panel.stopped_label %}Stopped {{ panel.stopped_label }}{% elif panel.stationary_minutes %}Stopped {{ panel.stationary_minutes }}m{% else %}Stopped{% endif %}</span>
+    {% endif %}
     {% if panel.vehicle %}<span class="stp-veh">#{{ panel.vehicle }}</span>{% endif %}
   </div>
   <div class="stp-headline">{{ panel.headline }}</div>
-  {% if panel.evidence %}<div class="stp-evidence">{{ panel.evidence }}</div>{% endif %}
+  {% if panel.eta_clock %}
+    <div class="stp-times">
+      <span class="stp-arrive">Arrives ~{{ panel.eta_clock|time:"g:i A" }}</span><span class="stp-mins"> ({{ panel.eta_minutes }} min)</span>{% if panel.target_clock %}<span class="stp-target"> · {{ panel.target_label }} {{ panel.target_clock|time:"g:i A" }}</span>{% endif %}
+    </div>
+  {% elif panel.waiting %}
+    <div class="stp-times">
+      {% if panel.target_clock %}<span class="stp-arrive">{{ panel.target_label|capfirst }} {{ panel.target_clock|time:"g:i A" }}</span><span class="stp-target"> · </span>{% endif %}<span class="stp-target">vehicle ~{{ panel.eta_minutes }} min away</span>
+    </div>
+  {% elif panel.evidence %}
+    <div class="stp-evidence">{{ panel.evidence }}</div>
+  {% endif %}
 </div>
 {% endif %}
