@@ -131,6 +131,8 @@
   .tl-badge.mo{background:var(--faint);color:#fff}
   .tl-fit{grid-column:1 / -1;font-family:'DM Mono',monospace;font-size:10.5px;color:var(--faint);padding-top:4px;line-height:1.4}
   .tl-fit b{color:var(--save);font-weight:500}
+  .tl-legid{font-family:'DM Mono',monospace;font-size:9.5px;color:var(--faint);margin-left:7px}
+  .hypo-note{font-size:9.5px;font-weight:600;color:var(--gold-deep);background:#faf4e6;border-radius:4px;padding:1px 6px;margin-left:6px}
   .struck{text-decoration:line-through;text-decoration-style:dashed;text-decoration-color:var(--gold-deep);text-decoration-thickness:1.5px;color:var(--muted)}
   .struck.mv{text-decoration-color:var(--faint)}
   .farm-to{font-family:'Montserrat',sans-serif;font-weight:600;color:var(--gold-deep);margin-left:6px;font-size:11.5px}
@@ -254,7 +256,7 @@
 
     <!-- VERDICT -->
     <section class="verdict">
-      <div class="verdict-date reveal">Before you farm out · <b>{{ date_str }}</b></div>
+      <div class="verdict-date reveal">Before you farm out · <b>{{ date_str }}</b>{% if computed_at %} <span style="text-transform:none;letter-spacing:0;color:var(--faint);font-weight:400">· analyzed at {{ computed_at }} — a snapshot; hit Analyze again after board changes</span>{% endif %}</div>
       {% if unbuilt %}
       <div class="notice reveal d1">
         <div class="notice-ic">!</div>
@@ -284,13 +286,14 @@
       <div class="sec-head"><h2>Keep &amp; swap</h2><span class="sec-count">{{ keep_count }}</span>
         {% if cards|length > 1 %}<button class="btn btn-ghost sec-action" type="button" onclick="applyAll(this)">Apply all {{ cards|length }} in order</button>{% endif %}
       </div>
-      <p class="sec-sub">Cheaper to run on your own drivers — apply a plan to make it real, or pick a different affiliate first.</p>
+      <p class="sec-sub">Cheaper to run on your own drivers — apply a plan to make it real, or pick a different affiliate first.
+        {% if cards|length > 1 %}<br>Plans build on each other: a later card's timeline assumes the cards above it are applied (rows from an earlier card are marked). Apply top-to-bottom.{% endif %}</p>
 
       {% if cards %}
       {% for c in cards %}
       <article class="swap reveal{% if forloop.counter == 1 %} d1{% elif forloop.counter == 2 %} d2{% endif %}">
         <div class="swap-top">
-          <div class="swap-id"><span class="swap-num">#{{ c.num }}</span><span class="swap-leg">{{ c.keep_driver }}</span></div>
+          <div class="swap-id"><span class="swap-num">#{{ c.num }}</span><span class="swap-leg">{{ c.keep_driver }} · leg {{ c.leg_id }}</span></div>
           <span class="saved-pill">{{ c.save_label }} <span class="amt">{{ c.save }}</span></span>
         </div>
         <div class="swap-route">{{ c.route }} <span class="dim">· {{ c.time }} · {{ c.vehicle }}</span>{% if c.tag %}<span class="tag">{{ c.tag }}</span>{% endif %}</div>
@@ -304,7 +307,7 @@
           <div class="side side--after">
             <div class="side-eyebrow"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 8.5l3.5 3.5L13 5"/></svg>Keep it in-house</div>
             <div class="row">Run on <b>{{ c.keep_driver }}</b>{% if c.keep_vehicle %} <span class="dim">· driving a {{ c.keep_vehicle }} that day</span>{% endif %}</div>
-            {% if c.after_farm_route %}<div class="row">Farm <b>{{ c.after_farm_route }}</b> to <b>{{ c.affiliate }}</b></div>{% elif c.reshuffle_count %}<div class="row">Shifts <b>{{ c.reshuffle_count }}</b> in-house job{{ c.reshuffle_count|pluralize }} to make room <span class="dim">— see timeline</span></div>{% else %}<div class="row">No swap needed — slots into a gap</div>{% endif %}
+            {% if c.after_farm_route %}<div class="row">Farm <b>{{ c.after_farm_route }}</b>{% if c.farm_leg_id %} <span class="dim">(leg {{ c.farm_leg_id }})</span>{% endif %} to <b>{{ c.affiliate }}</b></div>{% elif c.reshuffle_count %}<div class="row">Shifts <b>{{ c.reshuffle_count }}</b> in-house job{{ c.reshuffle_count|pluralize }} to make room <span class="dim">— see timeline</span></div>{% else %}<div class="row">No swap needed — slots into a gap</div>{% endif %}
             <div class="price">{{ c.after_price }}</div>
           </div>
         </div>
@@ -318,7 +321,7 @@
               {% for r in tl.rows %}
               <div class="tl-row{% if r.kind == 'keep' %} keep{% elif r.kind == 'farm' %} farm{% elif r.kind == 'movein' %} movein{% elif r.kind == 'moveout' %} moveout{% endif %}">
                 <span class="tl-time">{{ r.time }}</span>
-                <span class="tl-route">{% if r.kind == 'farm' %}<span class="struck">{{ r.route }}</span><span class="tl-badge f">FARM</span>{% if r.farm_to %}<span class="farm-to">→ {{ r.farm_to }}</span>{% endif %}{% elif r.kind == 'keep' %}{{ r.route }}<span class="tl-badge k">KEEP</span>{% elif r.kind == 'movein' %}{{ r.route }}<span class="tl-badge mi">MOVED HERE</span>{% if r.note %}<span class="move-note">{{ r.note }}</span>{% endif %}{% elif r.kind == 'moveout' %}<span class="struck mv">{{ r.route }}</span><span class="tl-badge mo">MOVED OUT</span>{% if r.note %}<span class="move-note">{{ r.note }}</span>{% endif %}{% else %}{{ r.route }} <span class="dim">…</span>{% endif %}</span>
+                <span class="tl-route">{% if r.kind == 'farm' %}<span class="struck">{{ r.route }}</span><span class="tl-badge f">FARM</span>{% if r.farm_to %}<span class="farm-to">→ {{ r.farm_to }}</span>{% endif %}{% elif r.kind == 'keep' %}{{ r.route }}<span class="tl-badge k">KEEP</span>{% elif r.kind == 'movein' %}{{ r.route }}<span class="tl-badge mi">MOVED HERE</span>{% if r.note %}<span class="move-note">{{ r.note }}</span>{% endif %}{% elif r.kind == 'moveout' %}<span class="struck mv">{{ r.route }}</span><span class="tl-badge mo">MOVED OUT</span>{% if r.note %}<span class="move-note">{{ r.note }}</span>{% endif %}{% else %}{{ r.route }}{% if r.note %} <span class="hypo-note">{{ r.note }}</span>{% else %} <span class="dim">…</span>{% endif %}{% endif %}{% if r.leg_id %}<span class="tl-legid">#{{ r.leg_id }}</span>{% endif %}</span>
                 <span class="tl-veh">{{ r.vehicle }}</span>
                 {% if r.fit %}<span class="tl-fit">{{ r.fit }}</span>{% endif %}
               </div>

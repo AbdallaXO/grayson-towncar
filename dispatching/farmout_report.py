@@ -507,14 +507,16 @@ def _timeline(rec):
         for r in bd.get("rows", []):
             kind = _KIND.get(r.get("role"), "")
             rows.append({
+                "leg_id": r.get("leg_id"),
                 "time": _compact_range(r.get("pickup"), r.get("clear")),
                 "route": f"{_short_loc(r.get('from'))} → {_short_loc(r.get('to'))}",
                 "vehicle": _title_vehicle(r.get("vehicle")),
                 "kind": kind,
                 # feasibility fit is only meaningful where a leg was actually placed (target or relocated-in)
                 "fit": _fit_note(r.get("feas")) if kind in ("keep", "movein") else "",
-                # where a moved leg came from / went to ('<- from X' / '-> X'), already built upstream
-                "note": r.get("note", "") if kind in ("movein", "moveout") else "",
+                # where a moved leg came from / went to ('<- from X' / '-> X') — or, for a plain
+                # row, the provenance note ('if earlier card applied — now: X'), built upstream
+                "note": r.get("note", "") if kind in ("movein", "moveout", "") else "",
                 "farm_to": aff if kind == "farm" else "",
             })
         out.append({
@@ -596,6 +598,7 @@ def _swap_card(rec, num, date_iso):
         "timeline": _timeline(rec),
         # --- apply actions ---
         "leg_id": rec.target_leg_id,
+        "farm_leg_id": plan.get("farm_leg_id") or "",
         "can_apply": bool(plan),
         "plan_json": _json.dumps(plan, default=str) if plan else "",
         "farm_options": farm_options,

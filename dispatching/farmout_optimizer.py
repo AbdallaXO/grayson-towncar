@@ -862,6 +862,15 @@ def _capture_boards(ctx, day, *, target_id, inhouse_moves, farmed_out, protected
                 note = f"← {donor}" if donor else ""
             else:
                 role = "existing"
+                # PROVENANCE: recommendations are computed in order on a SHARED board, so a later
+                # card's timeline can contain a leg an EARLIER card moved here (hypothetically).
+                # If this slot's leg lives somewhere else in the DATABASE, say so — otherwise the
+                # founder compares this timeline to the live board and concludes it's lying.
+                leg = legs_by_id.get(slot.leg_id)
+                if leg is not None and (leg.driver_id or None) != did:
+                    live_on = (str(leg.driver) if getattr(leg, "driver_id", None)
+                               else "unassigned")
+                    note = f"if earlier card applied — now: {live_on}"
             rows.append(_slot_row(slot, role, sched, note))
         for (leg_id, receiver_name) in moved_out.get(did, []):
             leg = legs_by_id.get(leg_id)

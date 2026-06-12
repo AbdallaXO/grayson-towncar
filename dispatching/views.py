@@ -12459,6 +12459,10 @@ def farmout_optimizer(request):
     if context is None:
         report = fo.summarize_savings_range(d, d, min_savings=ms)
         context = farmout_report.build_page_context(report)
+        # Freshness stamp: the page is a SNAPSHOT (cached, and it sits open in a tab) — showing
+        # when it was computed stops "the timeline doesn't match my live board" confusion.
+        _now = timezone.localtime()
+        context["computed_at"] = _now.strftime("%I:%M %p").lstrip("0")
         cache.set(cache_key, context, 300)
     return render(request, "dispatching/farmout_optimizer.html", context)
 
