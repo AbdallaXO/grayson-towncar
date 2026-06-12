@@ -152,6 +152,7 @@
   .act-warn{font-size:11px;color:var(--gold-deep);background:#faf4e6;border-radius:6px;padding:3px 9px}
   .act-status{font-size:12px;font-weight:600;margin-left:auto;white-space:nowrap}
   .act-status.ok{color:var(--save)} .act-status.err{color:var(--cost)} .act-status.staged{color:var(--gold-deep)}
+  .excl{flex-basis:100%;font-size:10.5px;color:var(--faint);line-height:1.5;margin-top:2px}
   .sec-head .sec-action{margin-left:auto}
 
   /* farm as planned */
@@ -302,7 +303,7 @@
           <div class="arrow"><span>→</span></div>
           <div class="side side--after">
             <div class="side-eyebrow"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 8.5l3.5 3.5L13 5"/></svg>Keep it in-house</div>
-            <div class="row">Run on <b>{{ c.keep_driver }}</b></div>
+            <div class="row">Run on <b>{{ c.keep_driver }}</b>{% if c.keep_vehicle %} <span class="dim">· driving a {{ c.keep_vehicle }} that day</span>{% endif %}</div>
             {% if c.after_farm_route %}<div class="row">Farm <b>{{ c.after_farm_route }}</b> to <b>{{ c.affiliate }}</b></div>{% elif c.reshuffle_count %}<div class="row">Shifts <b>{{ c.reshuffle_count }}</b> in-house job{{ c.reshuffle_count|pluralize }} to make room <span class="dim">— see timeline</span></div>{% else %}<div class="row">No swap needed — slots into a gap</div>{% endif %}
             <div class="price">{{ c.after_price }}</div>
           </div>
@@ -338,6 +339,7 @@
           {% endif %}
           {% if c.is_currently_farmed %}<span class="act-warn">currently farmed to {{ c.current_name }} — applying pulls it back</span>{% endif %}
           <span class="act-status" role="status" aria-live="polite"></span>
+          {% if c.farm_skipped_line %}<div class="excl">Not eligible for this job: {{ c.farm_skipped_line }}</div>{% endif %}
         </div>
         {% endif %}
       </article>
@@ -360,6 +362,7 @@
           <div class="fr-main">
             <div class="fr-route">{{ f.route }}{% if f.tag %}<span class="tag">{{ f.tag }}</span>{% endif %}{% if f.abstained_far %}<span class="tag" title="Drive time uncomputable — excluded from keep-in-house analysis, but the farm price is real">far / unknown</span>{% endif %}</div>
             <div class="fr-meta">{% if f.customer %}{{ f.customer }} · {% endif %}{{ f.time }}{% if f.vehicle %} · {{ f.vehicle }}{% endif %} · leg {{ f.leg_id }}</div>
+            {% if f.skipped_line and not f.blocked %}<div class="excl">Not eligible: {{ f.skipped_line }}</div>{% endif %}
           </div>
           {% if f.blocked %}
           <span class="fr-block">{{ f.blocked }}</span>

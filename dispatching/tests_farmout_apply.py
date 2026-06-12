@@ -339,6 +339,37 @@ class MinivanPayParityTests(_FarmoutApplyFixture):
         self.assertEqual(leg.driver_base_pay, Decimal("80.00"))
 
 
+class QuoteSkipReasonTests(_FarmoutApplyFixture):
+    """quote_affiliate_options must report WHY each roster affiliate is ineligible for a leg —
+    the page surfaces these so 'why isn't Oualid offered for this Port pickup?' answers itself."""
+
+    def test_port_pickup_permit_exclusion_is_reported_with_reason(self):
+        from dispatching import farmout_optimizer as fo
+        AffiliateProfile.objects.filter(driver=self.waleed).update(
+            no_pickup_at_port_sanford=True)
+        leg = self._leg(pickup_location="Port Canaveral - Carnival Mardi Gras Terminal",
+                        dropoff_location="Disney's Pop Century Resort")
+        roster, _w, _f = fo.resolve_affiliate_roster()
+        ledger = fo.WaterfallLedger.for_roster(roster)
+        options, skipped = fo.quote_affiliate_options(leg, FUTURE, ledger, roster)
+        self.assertNotIn(str(self.waleed), {o["name"] for o in options})
+        self.assertIn(str(self.anthony), {o["name"] for o in options})  # count_cap unaffected
+        reasons = {s["name"]: s["reason"] for s in skipped}
+        self.assertEqual(reasons.get(str(self.waleed)), "port_pickup_permit")
+
+    def test_single_chain_time_conflict_is_reported_as_over_capacity(self):
+        from dispatching import farmout_optimizer as fo
+        leg_a = self._leg(pickup_time=time(9, 0))
+        leg_b = self._leg(pickup_time=time(9, 0))  # same slot — one vehicle can't do both
+        roster, _w, _f = fo.resolve_affiliate_roster()
+        ledger = fo.WaterfallLedger.for_roster(roster)
+        first = fo.price_farm_waterfall([leg_a], FUTURE, ledger, roster)  # consumes the chain
+        self.assertEqual(first.by_affiliate, {str(self.waleed): 1})
+        _options, skipped = fo.quote_affiliate_options(leg_b, FUTURE, ledger, roster)
+        reasons = {s["name"]: s["reason"] for s in skipped}
+        self.assertEqual(reasons.get(str(self.waleed)), "over_capacity")
+
+
 class PageRenderTests(_FarmoutApplyFixture):
     def test_page_renders_actionable_farm_rows_with_embedded_plans(self):
         cache.clear()

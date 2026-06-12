@@ -953,6 +953,9 @@ def evaluate_target(target, ctx, ledger, roster, *,
                         "display": {
                             "target": _leg_display(target),
                             "keep_driver_name": _driver_name(ctx, sol.target_driver_id),
+                            # the driver's ACTUAL vehicle that day — shown next to "Run on X" so a
+                            # towncar-class job seated in a (higher-tier) van reads as intended
+                            "keep_driver_vehicle": ctx.dvtypes.get(sol.target_driver_id) or "",
                             "reshuffled": [
                                 {"leg": (_leg_display(ctx.legs_by_id[mv.leg_id])
                                          if mv.leg_id in ctx.legs_by_id else {"leg_id": mv.leg_id}),
@@ -1044,6 +1047,7 @@ def evaluate_target(target, ctx, ledger, roster, *,
                             "target": _leg_display(target),
                             "displaced": _leg_display(displaced),
                             "keep_driver_name": _driver_name(ctx, drv.id),
+                            "keep_driver_vehicle": ctx.dvtypes.get(drv.id) or "",
                             "affiliate": next(iter(b_quote.by_affiliate), "an affiliate"),
                         }},
             )
@@ -1060,7 +1064,9 @@ def evaluate_target(target, ctx, ledger, roster, *,
         rec.reason = reason_fn()
         # Affiliate-override picker for the page: every eligible alternative for the displaced leg,
         # priced BEFORE this bundle's capacity is committed (so the suggested affiliate is listed).
-        rec.detail["farm_options"], _ = quote_affiliate_options(
+        # ``farm_skipped`` = the rest of the roster WITH the exclusion reason (permit / tier / no
+        # rate / capacity), surfaced on the page so "why isn't X offered?" answers itself.
+        rec.detail["farm_options"], rec.detail["farm_skipped"] = quote_affiliate_options(
             legs_by_id[rec.farmed_leg_ids[0]], day, ledger, roster)
         # commit AFFILIATE capacity (displaced bundle now farmed) AND the in-house BOARD change
         # (displaced leg leaves the board; target seated in-house) so later targets stay honest.
@@ -1342,7 +1348,7 @@ def summarize_savings_range(start: date, end: date, *,
                 # Options are quoted against the END-state ledger so capacity already consumed by
                 # accepted recommendations is respected. VIP / departure legs are listed but the
                 # page renders them action-less (never farmed — hard rules).
-                options, _skipped = quote_affiliate_options(t, day, ledger, roster)
+                options, skipped = quote_affiliate_options(t, day, ledger, roster)
                 farm_items.append({
                     "leg_id": t.id,
                     "display": _leg_display(t),
@@ -1353,6 +1359,7 @@ def summarize_savings_range(start: date, end: date, *,
                     "vip": t.id in protected_ids,
                     "abstained_far": is_far,
                     "options": options,
+                    "skipped": skipped,  # ineligible affiliates + reason (page transparency)
                 })
             farm_items.sort(key=lambda it: ((legs_by_id[it["leg_id"]].pickup_time or time.min),
                                             it["leg_id"]))

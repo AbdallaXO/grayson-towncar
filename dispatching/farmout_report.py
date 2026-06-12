@@ -525,6 +525,26 @@ def _timeline(rec):
     return out
 
 
+# Human wording for quote_affiliate_options skip reasons — shown under the affiliate pickers so
+# "why isn't X offered for this job?" is answered on the page (permit rules, capability tiers,
+# missing rate cards and consumed capacity are otherwise invisible to the founder).
+_SKIP_REASONS = {
+    "no_route": "no matched route",
+    "vehicle_tier": "can't take this vehicle class",
+    "port_pickup_permit": "no Port/Sanford pickup permit",
+    "no_rate": "no rate for this route/vehicle",
+    "over_capacity": "no capacity left that day (or time conflict)",
+}
+
+
+def _skipped_line(skipped) -> str:
+    """'Oualid — no Port/Sanford pickup permit · Anthony — no capacity left…' ('' if none)."""
+    if not skipped:
+        return ""
+    return " · ".join(f"{s.get('name', '?')} — {_SKIP_REASONS.get(s.get('reason'), s.get('reason'))}"
+                      for s in skipped)
+
+
 def _swap_card(rec, num, date_iso):
     """One keep-in-house recommendation (free rescue / opportunity swap / policy departure) as a
     template-ready card dict. Dollars taken verbatim from the optimizer -- no recompute. Carries
@@ -578,6 +598,8 @@ def _swap_card(rec, num, date_iso):
         "can_apply": bool(plan),
         "plan_json": _json.dumps(plan, default=str) if plan else "",
         "farm_options": farm_options,
+        "farm_skipped_line": _skipped_line((rec.detail or {}).get("farm_skipped")),
+        "keep_vehicle": _title_vehicle(disp.get("keep_driver_vehicle")),
         "is_currently_farmed": bool(cur.get("driver_id")),
         "current_name": cur.get("name") or "",
     }
@@ -634,6 +656,7 @@ def build_page_context(report) -> dict:
                          "label": f"{o['name']} — {_money0(o['base'])}"
                                   + (" · cheapest" if i == 0 else "")}
                         for i, o in enumerate(options)],
+            "skipped_line": _skipped_line(it.get("skipped")),
             "plan_json": _json.dumps(plan, default=str) if (options and not blocked) else "",
         }
         if it.get("already_farmed"):
