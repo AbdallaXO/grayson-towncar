@@ -383,9 +383,12 @@ def _pricing_vehicles(leg):
 
 
 def _commit_chain(capst, leg, day):
-    """Closure that appends ``leg`` to a single_chain affiliate's growing day chain."""
+    """Closure that appends ``leg`` to a single_chain affiliate's growing day chain (idempotent —
+    a leg already in the chain, e.g. seeded as a committed assignment, is never duplicated)."""
     def _c():
-        capst.chain.slots.append(_leg_to_slot(leg, day))
+        if not any(s.leg_id == leg.id for s in capst.chain.slots):
+            capst.chain.slots.append(_leg_to_slot(leg, day))
+            capst.chain.slots.sort(key=lambda s: s.pickup_time)
     return _c
 
 
@@ -394,6 +397,45 @@ def _commit_count(capst):
     def _c():
         capst.count += 1
     return _c
+
+
+def _chain_without(chain, leg_id):
+    """The affiliate's chain minus this leg's OWN slot — pricing a leg already committed to the
+    affiliate must not collide with itself ('can oualid do this job?' must never answer 'no,
+    he's busy doing this job')."""
+    if chain is None or not any(s.leg_id == leg_id for s in chain.slots):
+        return chain
+    return DriverDaySchedule(chain.driver_id, chain.driver_name, chain.driver_type,
+                             [s for s in chain.slots if s.leg_id != leg_id])
+
+
+def _has_remaining_capacity(capst, leg, day) -> bool:
+    """Step 4 (CAPACITY) of the waterfall, self-exclusion aware, shared by _price_one_leg and
+    quote_affiliate_options. single_chain: the leg must fit the chain (which now includes the
+    affiliate's REAL committed day via seed_committed_farmouts); count modes: committed + newly
+    priced legs must stay under the cap, not double-counting the leg itself."""
+    if capst.mode == _CAP_SINGLE_CHAIN:
+        return check_feasibility(_chain_without(capst.chain, leg.id), leg, day).feasible
+    used = capst.count - (1 if getattr(leg, "driver_id", None) == capst.driver_id else 0)
+    return capst.cap is None or used < capst.cap
+
+
+def seed_committed_farmouts(ledger, day_legs, day) -> None:
+    """Load each affiliate's REAL committed assignments into the day ledger BEFORE anything
+    hypothetical is priced. Without this the ledger starts empty and a one-man single_chain
+    affiliate with a committed 12:54 run gets quoted for a 12:58 job (the oualid bug); a
+    count_cap affiliate's committed legs wouldn't count against the daily cap either."""
+    for leg in day_legs:
+        capst = ledger.caps.get(getattr(leg, "driver_id", None) or -1)
+        if capst is None:
+            continue  # unassigned or in-house — not an affiliate's load
+        if capst.mode == _CAP_SINGLE_CHAIN:
+            capst.chain.slots.append(_leg_to_slot(leg, day))
+        else:
+            capst.count += 1
+    for capst in ledger.caps.values():
+        if capst.chain is not None:
+            capst.chain.slots.sort(key=lambda s: s.pickup_time)
 
 
 def _leg_pricing_ctx(leg) -> dict:
@@ -490,17 +532,13 @@ def _price_one_leg(leg, day, ledger, roster) -> dict:
         if capst is None:
             continue
         night = calculate_night_bonus(drv, leg.pickup_time)
-        # 4. CAPACITY.
-        if capst.mode == _CAP_SINGLE_CHAIN:
-            if check_feasibility(capst.chain, leg, day).feasible:
-                eligible.append((base, capst.name, night, _commit_chain(capst, leg, day), drv.id))
-            else:
-                carded_but_full = True
-        else:  # count_cap / fleet
-            if capst.cap is None or capst.count < capst.cap:
-                eligible.append((base, capst.name, night, _commit_count(capst), drv.id))
-            else:
-                carded_but_full = True
+        # 4. CAPACITY (committed-day aware, self-exclusion aware).
+        if _has_remaining_capacity(capst, leg, day):
+            commit = (_commit_chain(capst, leg, day) if capst.mode == _CAP_SINGLE_CHAIN
+                      else _commit_count(capst))
+            eligible.append((base, capst.name, night, commit, drv.id))
+        else:
+            carded_but_full = True
 
     if eligible:
         eligible.sort(key=lambda c: (c[0], c[2]))  # cheapest base, then cheapest night
@@ -589,10 +627,7 @@ def quote_affiliate_options(leg, day, ledger, roster):
         base, reason = _gate_affiliate(ctx, drv, prof)
         if base is not None:
             capst = ledger.caps.get(drv.id)
-            has_capacity = (capst is not None
-                            and (check_feasibility(capst.chain, leg, day).feasible
-                                 if capst.mode == _CAP_SINGLE_CHAIN
-                                 else (capst.cap is None or capst.count < capst.cap)))
+            has_capacity = capst is not None and _has_remaining_capacity(capst, leg, day)
             if has_capacity:
                 night = calculate_night_bonus(drv, leg.pickup_time)
                 options.append({"driver_id": drv.id, "name": capst.name,
@@ -1267,6 +1302,10 @@ def summarize_savings_range(start: date, end: date, *,
             if anthony_cap is not None and ANTHONY_DRIVER_ID in ledger.caps:
                 _ac = ledger.caps[ANTHONY_DRIVER_ID]
                 _ac.mode, _ac.chain, _ac.cap = _CAP_COUNT, None, anthony_cap
+            # Each affiliate's REAL committed day consumes capacity before anything hypothetical
+            # is priced — without this a one-man affiliate gets quoted on top of jobs he is
+            # already doing (the oualid 12:54-vs-12:58 case).
+            seed_committed_farmouts(ledger, day_legs, day)
 
             # TARGETS = legs to evaluate keep-in-house vs farm. Two kinds, handled per-leg:
             #   • FARM_OUT  — already farmed to an affiliate (retrospective grading of a PAST decision).
@@ -1410,7 +1449,7 @@ def summarize_savings_range(start: date, end: date, *,
                 "inhouse_total": len(inhouse_drivers),
                 "recommendations": recs,
                 "farm_items": farm_items,           # actionable no-rec targets (page farm buttons)
-                "ledger_load": ledger.load_by_name(),  # {affiliate_name: legs farmed to them this day}
+                "ledger_load": ledger.load_by_name(),  # {affiliate: committed + rec-farmed legs this day}
                 "abstained": abstained,
                 "abstained_far": abstained_far,  # Approach A: targets skipped (far/unknown drive time)
             })

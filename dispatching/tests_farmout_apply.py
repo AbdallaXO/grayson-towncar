@@ -433,6 +433,46 @@ class VanCapabilityGateTests(_FarmoutApplyFixture):
         self.assertIn(str(self.shaq), {o["name"] for o in options})
 
 
+class CommittedCapacityTests(_FarmoutApplyFixture):
+    """An affiliate's REAL committed day must consume ledger capacity before anything
+    hypothetical is priced (the oualid 12:54-vs-12:58 bug), without colliding with itself."""
+
+    def _setup(self):
+        from dispatching import farmout_optimizer as fo
+        roster, _w, _f = fo.resolve_affiliate_roster()
+        return fo, roster, fo.WaterfallLedger.for_roster(roster)
+
+    def test_committed_job_blocks_same_time_suggestion_for_single_chain(self):
+        fo, roster, ledger = self._setup()
+        committed = self._leg(pickup_time=time(12, 54), driver=self.waleed)
+        fo.seed_committed_farmouts(ledger, [committed], FUTURE)
+        options, skipped = fo.quote_affiliate_options(
+            self._leg(pickup_time=time(12, 58)), FUTURE, ledger, roster)
+        self.assertNotIn(str(self.waleed), {o["name"] for o in options})
+        reasons = {s["name"]: s["reason"] for s in skipped}
+        self.assertEqual(reasons.get(str(self.waleed)), "over_capacity")
+
+    def test_committed_leg_does_not_collide_with_itself(self):
+        fo, roster, ledger = self._setup()
+        committed = self._leg(pickup_time=time(12, 54), driver=self.waleed)
+        fo.seed_committed_farmouts(ledger, [committed], FUTURE)
+        options, _sk = fo.quote_affiliate_options(committed, FUTURE, ledger, roster)
+        self.assertIn(str(self.waleed), {o["name"] for o in options})
+
+    def test_committed_count_legs_consume_the_daily_cap(self):
+        fo, roster, ledger = self._setup()
+        committed = [self._leg(pickup_time=time(8, 0), driver=self.anthony),
+                     self._leg(pickup_time=time(12, 0), driver=self.anthony)]  # cap = 2
+        fo.seed_committed_farmouts(ledger, committed, FUTURE)
+        _opts, skipped = fo.quote_affiliate_options(
+            self._leg(pickup_time=time(15, 0)), FUTURE, ledger, roster)
+        reasons = {s["name"]: s["reason"] for s in skipped}
+        self.assertEqual(reasons.get(str(self.anthony)), "over_capacity")
+        # ...but one of his own committed legs re-quotes fine (self-exclusion: 1 < 2).
+        opts2, _sk2 = fo.quote_affiliate_options(committed[0], FUTURE, ledger, roster)
+        self.assertIn(str(self.anthony), {o["name"] for o in opts2})
+
+
 class PageRenderTests(_FarmoutApplyFixture):
     def test_page_renders_actionable_farm_rows_with_embedded_plans(self):
         cache.clear()
