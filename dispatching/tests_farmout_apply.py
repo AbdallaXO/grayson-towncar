@@ -370,6 +370,69 @@ class QuoteSkipReasonTests(_FarmoutApplyFixture):
         self.assertEqual(reasons.get(str(self.waleed)), "over_capacity")
 
 
+class VanCapabilityGateTests(_FarmoutApplyFixture):
+    """A flat all-vehicle card must NEVER auto-claim van / 14-pax jobs when the affiliate has
+    no capability cap on file (the Shaq case: SUV-only affiliate, flat card, no profile —
+    wrongly quoted for van jobs at the SUV price). Proof of van capability = an explicit
+    van-class rate row OR a profile max_vehicle_tier that allows it."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.van = Vehicle.objects.create(vehicle_type="van", capacity=10, luggage_capacity=10)
+        # Shaq: flat NULL-vehicle card, NO AffiliateProfile (capability unknown).
+        cls.shaq = Driver.objects.create(
+            profile=User.objects.create_user("fo_shaq", first_name="Shaq"),
+            driver_type="affiliate")
+        DriverPayRate.objects.create(driver=cls.shaq, route=cls.route, vehicle=None,
+                                     direction="both", base_pay=Decimal("80.00"))
+
+    def _van_leg(self):
+        res = Reservation.objects.create(
+            trip_type="one-way", customer=self.customer, rate=self.rate,
+            vehicle=self.van, base_price=Decimal("200.00"), total_price=Decimal("200.00"))
+        return Leg.objects.create(
+            reservation=res, pickup_date=FUTURE, pickup_time=time(9, 0),
+            pickup_location="MCO", dropoff_location="Disney", route=self.route,
+            status="confirmed")
+
+    def _quotes(self, leg):
+        from dispatching import farmout_optimizer as fo
+        roster, _w, _f = fo.resolve_affiliate_roster()
+        ledger = fo.WaterfallLedger.for_roster(roster)
+        return fo.quote_affiliate_options(leg, FUTURE, ledger, roster)
+
+    def test_profileless_flat_card_is_not_offered_van_jobs(self):
+        options, skipped = self._quotes(self._van_leg())
+        self.assertNotIn(str(self.shaq), {o["name"] for o in options})
+        reasons = {s["name"]: s["reason"] for s in skipped}
+        self.assertEqual(reasons.get(str(self.shaq)), "van_unproven")
+        # ...and the apply endpoint refuses a forced farm to him too.
+        leg = self._van_leg()
+        resp = self._apply(self._farm_plan(leg, self.shaq))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("van", resp.json()["error"].lower())
+
+    def test_profileless_flat_card_still_quotes_below_van_class(self):
+        towncar_leg = self._leg()  # fixture default: towncar reservation
+        options, _skipped = self._quotes(towncar_leg)
+        self.assertIn(str(self.shaq), {o["name"] for o in options})
+
+    def test_explicit_van_rate_row_proves_capability_and_price(self):
+        DriverPayRate.objects.create(driver=self.shaq, route=self.route, vehicle=self.van,
+                                     direction="both", base_pay=Decimal("150.00"))
+        options, _skipped = self._quotes(self._van_leg())
+        by_name = {o["name"]: o for o in options}
+        self.assertIn(str(self.shaq), by_name)
+        self.assertEqual(by_name[str(self.shaq)]["base"], Decimal("150.00"))  # van price, not $80
+
+    def test_profile_max_vehicle_tier_opts_a_flat_card_into_vans(self):
+        AffiliateProfile.objects.create(driver=self.shaq, capacity_mode="single_chain",
+                                        max_vehicle_tier="Van(14 Pax)")
+        options, _skipped = self._quotes(self._van_leg())
+        self.assertIn(str(self.shaq), {o["name"] for o in options})
+
+
 class PageRenderTests(_FarmoutApplyFixture):
     def test_page_renders_actionable_farm_rows_with_embedded_plans(self):
         cache.clear()

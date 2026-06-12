@@ -410,6 +410,12 @@
               {% endfor %}
             </tbody>
           </table>
+          {% if profileless_flat %}
+          <p style="font-size:11.5px;color:var(--gold-deep);background:#faf4e6;border-radius:8px;padding:9px 12px;margin-top:10px">
+            <b>Flat rate card, no max vehicle set:</b> {{ profileless_flat|join:", " }} — their flat row prices sedan/SUV-class jobs only;
+            van &amp; 14-pax quoting stays <b>off</b> until you set their max vehicle (affiliate profile) or add a van rate row.
+          </p>
+          {% endif %}
         </div></div></div></div>
       </div>
 

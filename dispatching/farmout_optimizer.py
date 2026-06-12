@@ -412,17 +412,40 @@ def _leg_pricing_ctx(leg) -> dict:
     }
 
 
+# Tier index of 'van' in VEHICLE_TIER_ORDER — van and Van(14 Pax) are the special-capacity
+# classes a flat card must never auto-claim (see _gate_affiliate step 1b).
+_VAN_TIER = get_vehicle_tier("van")
+
+
+def _has_explicit_vehicle_rate(driver, route, vehicle) -> bool:
+    """True if the affiliate cards THIS route + THIS vehicle class with a dedicated row —
+    the proof of both capability and a real (non-collapsed) price for van-class jobs."""
+    from drivers.models import DriverPayRate
+    if vehicle is None or route is None:
+        return False
+    return DriverPayRate.objects.filter(driver=driver, route=route, vehicle=vehicle).exists()
+
+
 def _gate_affiliate(ctx, drv, prof):
     """The CAPABILITY / PERMIT / RATE gates (steps 1-3 of the waterfall), shared by the engine
     (_price_one_leg), the page's override picker (quote_affiliate_options), and the apply
     endpoint's server-side re-validation — one implementation so they can never disagree.
     Returns ``(base, None)`` when the affiliate can be quoted, else ``(None, reason)`` with
-    reason in {'vehicle_tier', 'port_pickup_permit', 'no_rate'}."""
+    reason in {'vehicle_tier', 'van_unproven', 'port_pickup_permit', 'no_rate'}."""
     # 1. CAPABILITY tier cap (explicit; load-bearing for flat all-vehicle cards).
     if prof and prof.max_vehicle_tier:
         ptier = get_vehicle_tier(prof.max_vehicle_tier)
         if ctx["tier"] == -1 or ptier == -1 or ctx["tier"] > ptier:
             return None, "vehicle_tier"
+    elif ctx["tier"] >= _VAN_TIER:
+        # 1b. NO capability cap on file (no profile, or blank tier): NEVER assume van / 14-pax
+        # capability. A flat all-vehicle row would otherwise quote an SUV-only affiliate for a
+        # van job at the SUV price (the Shaq case — wrong vehicle AND wrong rate). An EXPLICIT
+        # van-class rate row is the proof of both; otherwise the founder opts the affiliate in
+        # by setting AffiliateProfile.max_vehicle_tier. Classes below van keep matching the
+        # flat row (that's what a flat sedan/SUV card means).
+        if not _has_explicit_vehicle_rate(drv, ctx["route"], ctx["pveh"]):
+            return None, "van_unproven"
     # 2. PERMIT — drop-off-only at Port/Sanford => never originate there.
     if prof and prof.no_pickup_at_port_sanford and ctx["pickup_port_sanford"]:
         return None, "port_pickup_permit"

@@ -531,6 +531,7 @@ def _timeline(rec):
 _SKIP_REASONS = {
     "no_route": "no matched route",
     "vehicle_tier": "can't take this vehicle class",
+    "van_unproven": "van/14-pax not on file (add a van rate or set their max vehicle)",
     "port_pickup_permit": "no Port/Sanford pickup permit",
     "no_rate": "no rate for this route/vehicle",
     "over_capacity": "no capacity left that day (or time conflict)",
@@ -758,6 +759,9 @@ def build_page_context(report) -> dict:
         "farm_rows": farm_rows,
         "farmed_rows": farmed_rows,
         "farm_actionable": farm_actionable,
+        # Flat all-vehicle card but no max_vehicle_tier: their van/14-pax quoting is OFF until
+        # the founder sets the profile (or adds van rows) — shown under the roster accordion.
+        "profileless_flat": (report.get("roster_audit") or {}).get("profileless_flat") or [],
         "roster_rows": roster_rows,
         "roster_count": len(roster),
         "audit_rows": audit_rows,

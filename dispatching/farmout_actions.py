@@ -283,6 +283,8 @@ def _check_affiliate(plan: _Plan, legs: dict):
     base, reason = _gate_affiliate(_leg_pricing_ctx(leg), drv, prof)
     if base is None:
         human = {"vehicle_tier": f"{drv} can't serve this vehicle class",
+                 "van_unproven": f"{drv} has no van-class rate on file — add a van rate row "
+                                 f"or set max vehicle on their affiliate profile",
                  "port_pickup_permit": f"{drv} can't pick up at Port Canaveral / Sanford "
                                        f"(no permit)",
                  "no_rate": f"{drv} has no rate for this route/vehicle"}

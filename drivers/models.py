@@ -784,17 +784,27 @@ class AffiliateProfile(models.Model):
         (CAP_COUNT, "Daily leg-count cap (finite seats/day)"),
         (CAP_FLEET, "Fleet (treated as a higher count cap; true parallel chains deferred)"),
     ]
+    # Values MUST equal scheduler.VEHICLE_TIER_ORDER entries exactly — the engine resolves the
+    # cap with a case-sensitive index into that list (a free-typed 'SUV' used to silently
+    # exclude the affiliate from everything). Choices make the admin a dropdown.
+    VEHICLE_TIER_CHOICES = [
+        ("", "— no cap (rate card alone gates; vans still need an explicit van rate row)"),
+        ("towncar", "Towncar"),
+        ("mini_van", "Mini Van"),
+        ("suv", "SUV"),
+        ("van", "Van"),
+        ("Van(14 Pax)", "Van (14 Pax)"),
+    ]
 
     driver = models.OneToOneField(
         "Driver", on_delete=models.CASCADE, related_name="affiliate_profile",
         help_text="The affiliate this config describes (driver_type='affiliate').",
     )
     max_vehicle_tier = models.CharField(
-        max_length=20, blank=True, default="",
-        help_text="Highest vehicle class this affiliate can serve: one of "
-                  "towncar / mini_van / suv / van / Van(14 Pax) (scheduler.VEHICLE_TIER_ORDER). "
-                  "Blank = no capability cap (the rate card alone gates eligibility). REQUIRED for a "
-                  "flat all-vehicle card, whose single NULL-vehicle row otherwise matches every class.",
+        max_length=20, blank=True, default="", choices=VEHICLE_TIER_CHOICES,
+        help_text="Highest vehicle class this affiliate can serve. Blank = no capability cap "
+                  "(the rate card alone gates eligibility — but van/14-pax jobs then require an "
+                  "explicit van rate row; a flat all-vehicle card never auto-claims them).",
     )
     capacity_mode = models.CharField(
         max_length=20, choices=CAPACITY_MODE_CHOICES, default=CAP_SINGLE_CHAIN,
