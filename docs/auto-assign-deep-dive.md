@@ -1005,3 +1005,108 @@ Alex's new schedule: 9:00 Van return [EXACT], 11:20 Van arrival [EXACT], 1:30 Va
 | `dispatching/models.py` | `SchedulerSettings` | All tunable parameters |
 | `dispatching/views.py` | `auto_assign_drivers()` | View that calls suggest_assignments |
 | `dispatching/views.py` | `smart_schedule_builder()` | View that calls build_smart_schedule |
+
+---
+
+## Founder Brain (2026-06): Value Rules, Class Guard, Evict-to-Farm, Static Chain Timing
+
+Design record: `docs/scheduler-automation/founder-brain-implementation.md`. Validated
+end-to-end against the founder's complete manual rework of Sunday 2026-06-14
+(`.analysis/legs_sunday_manual.csv`, scored by `.analysis/analyze_sunday.py` +
+`.analysis/diff_schedules.py`): the engine now covers 526 pax vs the answer key's 483,
+farms 2 departures vs 3, drops 0 V14-class legs vs 2, captures all four of the answer
+key's known misses, with zero buffer/window violations.
+
+### The four founder rules
+
+* **R1 — Crunch rule**: when demand beats driver supply, in-house drivers belong on
+  DEPARTURES/returns (fixed pickup, ~30 driver-min, driver ends at the MCO demand hub);
+  ARRIVALS are the farm-out currency (flight-variable, ~75 driver-min, driver ends
+  stranded at a resort). Affiliates do MCO meet-and-greets fine; a farmed fixed-time
+  hotel pickup that no-shows means a missed flight.
+* **R2 — Eviction**: an assigned leg is not sacred. Farming an assigned arrival to free
+  a driver for an unassigned higher-value leg is correct — value-per-driver-minute plus
+  farmability, NOT passenger count.
+* **R3 — Booked-class matching, both directions**: a vehicle serves its own booked
+  class first. Never let the highest-class vehicle run a lower-class job while a
+  same-class job at a conflicting time goes unassigned (upward); push the lowest-class
+  jobs onto the lowest-class vehicle (downward).
+* **R4 — Same-slot value swap**: when two jobs compete for one driver-slot, keep the
+  higher booked class, then the higher passenger count — never the reverse.
+
+### Where each rule lives
+
+1. **`leg_value(leg)`** — banded scalar: booked class tier (10,000/step) › trip type
+   (3,000/2,000/1,000/0) › revenue_share (≤999) › pax (×0.01). Orders legs inside each
+   (pass, hour, type) bucket — R4 emerges from the ordering — and prices evictions.
+   A scoring term gated by `SchedulerSettings.auto_assign_value_weight` exposes it in
+   candidate scores.
+2. **Class-match-first banding** (`CLASS_MATCH_FIRST`) — in the main loop, feasible
+   candidates split into three bands: exact-class › other non-reserved › reserved
+   fallback. An exact-class driver wins the leg outright (R3 downward).
+3. **Class-match guard** (`CLASS_MATCH_GUARD`) — a driver whose paired class is C is
+   HARD-skipped for a lower-class leg when one of his own class's pending legs would be
+   pushed off his board by it. UNCONDITIONAL: there is deliberately no "another class-C
+   driver still looks free" escape — that test is optimistic at decision time (each
+   class-C driver gets released in turn and the class-C job strands; this is exactly
+   how the 9:15 AM V14 port cruise was lost on 6/14, because the Pass-0 scarcity rule
+   does not fire when 4 drivers hold the type). A driver who cannot serve the class-C
+   leg anyway is not barred.
+4. **Evict-to-farm pass** (`evict_to_farm_for_value`, `AUTO_EVICT_TO_FARM_PASS`) — runs
+   in `auto_assign_drivers` AFTER `recover_residuals_via_swaps` (cheaper cascades
+   first), BEFORE `rescue_span_blocked_residuals` (so the rescue re-seats evicted
+   arrivals anywhere they still fit) and before the trim/gap passes. For each residual
+   in descending `leg_value`: try a free insertion; else find a driver where it fits if
+   exactly ONE engine-proposed leg is removed, requiring (i) the victim is a farmable
+   arrival — `trip_type == 'arrival'`, never `farmout_optimizer.is_departure()`, never
+   locked/manual/seeded/pre-existing; (ii) value gain ≥
+   `SchedulerSettings.displacement_min_value_gain`; (iii) the modified day re-passes
+   the guards end to end (`_chain_ok`: every turnaround + window/max-hours), plus the
+   greedy-parity gates (modal hours, tier compatibility, shared-car occupancy).
+   Bounded by `max_displacements_per_run`; every move is logged with a human-readable
+   reason and returned as `evict_moves` in both the preview and apply responses.
+5. **Final free-insertion sweep** — the same pass re-runs with `free_insert_only=True`
+   AFTER gap compaction: trim/gap relocations open seats that did not exist when
+   coverage was settled, and no leg may stay farmed that fits the final board as-is
+   (the answer key itself missed two such insertions on 6/14).
+
+### Chain timing now uses the founder's static planning model
+
+`CHAIN_STATIC_TIMING` (default True): chain feasibility — `check_feasibility`'s
+preceding/following checks, `_chain_ok`, and every pass that goes through them — runs
+on `chain_clear_dt()`: pickup + 45-min dwell (arrivals and airport-pickup cruises) +
+category-table drive (+ Publix stop), with the anchor pushed LATER by a live flight
+delay but never earlier. Repositioning between jobs uses `chain_repo_minutes()`
+(same-address 0, else the category table; live distance only for unplaceable
+endpoints). Each `ScheduleSlot` carries the precomputed value in `chain_clear_dt`.
+
+Why: the RouteTimingMetric p75 path remains the right tool for DISPLAY clearing
+estimates, but as chain math it both (a) admitted chains on optimistic decision-time
+data — an early-trending flight ETA + a thin p75 bucket let a 7:00 AM fixed-time
+departure chain at zero real slack off a 6:01 arrival the static model says clears
+7:16 (the sereen pair, C4) — and (b) rejected chains the founder builds by hand,
+because p75 of observed in-job drives (MCO→Disney 43 min vs his 30) silently taxed
+every MCO round-trip 10–20 minutes of slack ("tight turns that work in reality must
+NOT be farmed as impossible"). `.analysis/analyze_sunday.py` scores with exactly this
+static model.
+
+`ARRIVAL_CLEAR_STATIC_FLOOR` survives as the fallback when static chain timing is off:
+an arrival's chain clear time is floored at the static model.
+
+### Window semantics
+
+`feasibility_guards.get_effective_window` now merges a typed/configured window with the
+stub by taking the TIGHTER start/end ("the modal is authoritative" — typed 6-18 beats
+the stub's 6-20, which had let auto-assign seat a job clearing 19:15 past a driver's
+clear-by). The stub still tightens a looser configured window, mirroring max_hours.
+
+### Tests and regression fixtures
+
+`dispatching/tests_founder_brain.py` (30 tests) encodes M1–M5 from the 6/14 board as
+synthetic fixtures: leg_value ordering (R3/R4), the class guard both directions with
+flag-off pins, the evict pass (M1 displacement, min-gain churn gate, lock/departure
+protection, chain revalidation, free insertion, bounds), the arrival static floor
+(the sereen pair in both insertion orders), and the type-priority knobs. The
+end-to-end harness is `scratch/founder_brain_0614.py` (seeds the fixture board,
+runs the real `/dispatching/auto-assign-drivers/` apply, exports the board in the
+fixture schema, scores it against the founder scorecard, restores the DB byte-for-byte).

@@ -125,6 +125,7 @@ def _leg_to_slot(leg, target_date: date) -> ScheduleSlot:
 
     leg_vtype = _get_leg_vtype(leg)
 
+    from dispatching.scheduler import chain_clear_dt
     return ScheduleSlot(
         leg_id=leg.id,
         pickup_time=leg.pickup_time,
@@ -140,6 +141,7 @@ def _leg_to_slot(leg, target_date: date) -> ScheduleSlot:
         has_flight=has_flight,
         revenue=leg.revenue_share,
         vehicle_type=str(leg_vtype) if leg_vtype else None,
+        chain_clear_dt=chain_clear_dt(leg, target_date),
     )
 
 

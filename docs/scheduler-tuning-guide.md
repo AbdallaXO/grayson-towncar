@@ -26,15 +26,18 @@ Before scoring, the auto-assign sorts legs in this order:
 | 3rd | Other | Resort-to-resort, misc transfers |
 | 4th | Arrival | Longest jobs (~75 min), flight delay risk |
 
-Within the same priority, legs are sorted by pickup time.
+Within the same priority, legs are sorted by **founder value** (`leg_value()` — booked
+vehicle class first, then trip type, then `revenue_share`, passenger count as the final
+tiebreak), then pickup time. When two 10:00 AM arrivals tie on (hour, type), the
+Van(14 Pax)-class booking reaches the V14 driver before the Van-class one, and the
+3-pax towncar beats the 2-pax (founder rules R3 + R4).
 
 **What this means**: Returns get assigned to drivers first, before arrivals eat up all the capacity. This prevents returns from being pushed to affiliates.
 
-**To tweak**: Search for `_TYPE_PRIORITY` in `suggest_assignments`. Change the numbers (lower = processed first):
-```python
-_TYPE_PRIORITY = {'return': 0, 'cruise': 1, 'other': 2, 'arrival': 3}
-```
-- Want cruise transfers assigned before returns? Set `'cruise': 0, 'return': 1`
+**To tweak**: The type priorities are **SchedulerSettings fields** (admin-tunable, no
+code change): `type_priority_return` (0), `type_priority_cruise` (1),
+`type_priority_other` (2), `type_priority_arrival` (3). Lower = processed first.
+- Want cruise transfers assigned before returns? Set `type_priority_cruise=0, type_priority_return=1`
 - Want everything equal (pure time-based)? Set all to `0`
 
 ---
@@ -315,6 +318,48 @@ Penalty = number_of_existing_legs × 5
 
 ---
 
+## Founder Brain: Value Rules, Class Guard, Evict-to-Farm (2026-06)
+
+Design record: `docs/scheduler-automation/founder-brain-implementation.md`. Four founder
+rules now shape the build; everything below is flag-gated and tunable.
+
+### Leg value (`leg_value()`, scheduler.py)
+
+The founder value of keeping a leg in-house. Band widths guarantee the priority order
+can never invert: **booked vehicle class** (10,000/tier) › **trip type** (return 3,000,
+cruise 2,000, other 1,000, arrival 0) › **revenue_share** (clamped ≤ 999) › **passenger
+count** (×0.01, final tiebreak). A Van(14 Pax) booking with ONE passenger outranks a
+Van booking with eight — revenue and the coverage obligation follow the BOOKED class.
+Used to (a) order legs inside each (pass, hour, type) bucket, (b) rank evict-to-farm
+targets, (c) feed the `auto_assign_value_weight` scoring term.
+
+### New SchedulerSettings knobs (migration 0009)
+
+| Knob | Default | Effect |
+|------|---------|--------|
+| `auto_assign_value_weight` | 1 | Weight of the leg-value scoring term (one class step ≈ 10×weight points). 0 disables. |
+| `displacement_min_value_gain` | 500 | Evict-to-farm: min `leg_value(residual) − leg_value(evicted arrival)`. 1,000 ≈ one trip-type step; 10,000 ≈ one class step. Raise to make eviction rarer. |
+| `max_displacements_per_run` | 10 | Evict-to-farm: eviction cap per auto-assign run. |
+| `type_priority_*` | 0/1/2/3 | Greedy type ordering (see Processing Order above). |
+
+### New module flags (scheduler.py)
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `AUTO_EVICT_TO_FARM_PASS` | True | The R1+R2 pass: a residual leg may displace an engine-proposed ARRIVAL when strictly more valuable. True departures (`farmout_optimizer.is_departure`) are never evicted; manual/seeded/pre-existing are locked; every move re-validates the whole chain. Runs after the swap pass, before the span rescue (which re-seats evicted arrivals elsewhere). A second `free_insert_only` sweep runs after trim/gap so no leg stays farmed that fits the final board as-is. |
+| `CLASS_MATCH_FIRST` | True | R3 downward: a feasible EXACT-class driver wins the leg outright; higher-class drivers stay as fallback. Pushes towncar work onto the towncar, keeping vans/SUVs free for their own class. |
+| `CLASS_MATCH_GUARD` | True | R3 upward, UNCONDITIONAL: a driver is hard-skipped for a lower-class leg when one of his own class's pending jobs would be pushed off his board by it. No "someone else can cover it" escape — that test is optimistic at decision time and stranded the 9:15 V14 port cruise on 6/14. |
+| `CHAIN_STATIC_TIMING` | True | Chain feasibility runs on the founder's static planning model: clear = pickup + 45-min dwell + category-table drive (+ live flight DELAY only), reposition = category table. The p75 metric path stays for display estimates but over-priced chains ~10-20 min (MCO→Disney p75 43 vs the founder's 30) and rejected back-to-back days he builds by hand. |
+| `ARRIVAL_CLEAR_STATIC_FLOOR` | True | Fallback when `CHAIN_STATIC_TIMING` is off: an arrival's chain clear time can never undercut the static model (the sereen 6:01→7:00 admission). |
+
+### Window semantics change
+
+`get_effective_window` now merges the dispatcher's typed modal window with the stub:
+the TIGHTER start/end wins (typed 6-18 beats stub 6-20 — "the modal is authoritative"),
+exactly like max_hours.
+
+---
+
 ## Global Constants
 
 These affect the entire scheduler, not just scoring:
@@ -323,7 +368,7 @@ These affect the entire scheduler, not just scoring:
 |----------|-------|----------|--------|
 | `INTER_JOB_BUFFER` | 10 min | Line 74 | Time gap between jobs (break + uncertainty). Increase = more breathing room but fewer jobs per driver. |
 | `DEFAULT_DRIVE_TIME` | 35 min | Line 71 | Fallback when no route data exists. Increase = more conservative estimates. |
-| `DRIVE_TIME_ESTIMATES` | dict | Lines 20-69 | Hardcoded drive times between location categories. These are fallbacks when route metrics have insufficient data. |
+| `DRIVE_TIME_ESTIMATES` | dict | Lines 20-69 | Hardcoded drive times between location categories. These are fallbacks when route metrics have insufficient data. Includes the hotel↔Port Canaveral pairs at 55 min (added 2026-06 — they previously fell to the 35-min default and scored every to-port chain ~20 min optimistic). |
 
 ---
 

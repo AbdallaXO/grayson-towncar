@@ -123,6 +123,17 @@ class SchedulerSettings(models.Model):
     # ── Driver Pay Management ─────────────────────────────────────
     driver_pay_overdue_days = models.IntegerField(default=14, help_text="Days after which unpaid legs are considered overdue")
 
+    # ── Founder Brain: value-aware assign + evict-to-farm ─────────
+    auto_assign_value_weight = models.IntegerField(default=1, help_text="Weight of the founder leg-value scoring term (booked class › trip type › revenue › pax); one class step ≈ 10×weight points; 0 disables")
+    displacement_min_value_gain = models.IntegerField(default=500, help_text="Evict-to-farm pass: min leg_value(residual) − leg_value(evicted arrival) to displace (1000 ≈ one trip-type step, 10000 ≈ one booked-class step)")
+    max_displacements_per_run = models.IntegerField(default=10, help_text="Evict-to-farm pass: max evictions per auto-assign run")
+
+    # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
+    type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
+    type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")
+    type_priority_other = models.IntegerField(default=2, help_text="Ordering priority for 'other' legs within each hour bucket (also the fallback for unknown types)")
+    type_priority_arrival = models.IntegerField(default=3, help_text="Ordering priority for arrivals within each hour bucket (last: arrivals are the farm-out currency)")
+
     @classmethod
     def get_settings(cls):
         """Return the singleton settings row, cached in memory.

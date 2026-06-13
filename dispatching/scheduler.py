@@ -67,6 +67,14 @@ DRIVE_TIME_ESTIMATES = {
     ('Airport Hotel', 'SFB Terminal'): 45,
     ('SFB Terminal', 'Residential'): 55,
     ('Residential', 'SFB Terminal'): 55,
+    # Hotel → Port Canaveral cruise runs (2026-06 founder-brain C4): these pairs had NO
+    # entry and fell back to the 35-min default vs ~55 real, so every to-port chain was
+    # scored ~20 min optimistic (made David's 9:00→10:00 port chain look +15 when it is
+    # realistically −5 on 6/14).
+    ('Airport Hotel', 'Port Canaveral Area'): 55,
+    ('Port Canaveral Area', 'Airport Hotel'): 55,
+    ('Other Hotel', 'Port Canaveral Area'): 55,
+    ('Port Canaveral Area', 'Other Hotel'): 55,
 }
 
 DEFAULT_DRIVE_TIME = 35  # fallback for unknown routes
@@ -147,6 +155,54 @@ GAP_COMPACT_MAX_MOVES = 25       # safety cap on relocations per run (also bound
 GAP_COMPACT_PROTECT_DONOR_MAX_JOBS = 3  # never pull a job from a donor with this many jobs or fewer
                                         # (keep light drivers' work intact — founder's "give Steven more")
 
+# ── Founder-brain value rules (2026-06: docs/scheduler-automation/founder-brain-implementation.md) ──
+# Evict-to-farm pass (R2 — "an assigned leg is not sacred"): after the greedy + swap passes,
+# a residual leg may displace an engine-proposed ARRIVAL when the residual is strictly more
+# valuable (leg_value). Arrivals are the farm-out currency (R1): affiliates do MCO
+# meet-and-greets fine; a farmed fixed-time departure that no-shows means a missed flight.
+# True departures are never evicted (farm-out optimizer parity via is_departure()).
+# Knobs displacement_min_value_gain / max_displacements_per_run live on SchedulerSettings.
+AUTO_EVICT_TO_FARM_PASS = True
+
+# Class-match-first candidate banding (R3 downward — "a vehicle serves its own booked class
+# first"): among feasible candidates for a leg, a driver whose paired vehicle class EXACTLY
+# matches the leg's booked class wins over any higher-class driver (who remains a fallback
+# when no exact-class driver fits). Pushes towncar arrivals onto the towncar, keeping SUVs/
+# vans free for their own class — the founder rebuilt the towncar driver's whole afternoon
+# this way on 6/14. Unconditional (NOT gated by the Pass-0 scarcity rule).
+CLASS_MATCH_FIRST = True
+
+# Class-match guard (R3 upward — same arc): a driver whose paired class is C is HARD-skipped
+# for a lower-class leg when an unassigned class-C leg conflicts in time with it AND no other
+# compatible driver could still take that class-C leg — never let the highest-class vehicle
+# run a lower-class job while a same-class job at a conflicting time goes unassigned. On 6/14
+# the V14 type wasn't "scarce" by the Pass-0 rule, so nothing protected the sprinter job (M5).
+CLASS_MATCH_GUARD = True
+
+# Arrival clear-time static floor (founder-brain C4 — the sereen 6:01→7:00 hole): an airport
+# arrival's estimated end is anchored on the flight's live ETA + RouteTimingMetric p75
+# buckets, BOTH of which can run optimistic at decision time (an early-trending flight, a
+# thin time-bucket). On 6/14 that admitted a 7:00 AM fixed-time departure chained at zero
+# slack off a 6:01 arrival the static planning model says clears 7:16 (buffer −16). For
+# CHAIN feasibility only, an arrival's clear time is floored at the founder's static model
+# (pickup_time + 45-min dwell + category drive) — the same model .analysis/analyze_sunday.py
+# scores with. A genuinely-delayed flight (dynamic estimate LATER than the floor) keeps the
+# dynamic value. Display/board estimates are untouched.
+ARRIVAL_CLEAR_STATIC_FLOOR = True
+STATIC_FLOOR_DWELL_MIN = 45
+
+# Chain feasibility runs on the FOUNDER'S STATIC PLANNING MODEL (founder-brain 2026-06):
+# clear = pickup + 45-min dwell (arrivals / airport-pickup cruises) + CATEGORY-TABLE drive,
+# pushed later by any live flight delay; repositioning between jobs = category-table drive.
+# The metric path (RouteTimingMetric p75 buckets) stays for DISPLAY/board estimates but is
+# the wrong tool for chain math: p75 of observed in-job drives (MCO→Disney 43 min vs the
+# founder's 30) silently taxed every chain 10–20 min of slack, so back-to-back days the
+# founder builds by hand (+0/+3 buffers on 6/14 — Steven 19312, Raymond 20799) were
+# rejected as impossible. "Tight turns that work in reality must NOT be farmed as
+# 'impossible'" is the project's prime directive; .analysis/analyze_sunday.py scores with
+# exactly this model. Flip off to chain on the metric estimates again.
+CHAIN_STATIC_TIMING = True
+
 # build_smart_schedule optional-fill strategy. False = legacy first-fit (seat the first
 # feasible leg in tier order). True = best-fit (each round seat the highest-SCORING feasible
 # candidate).
@@ -191,6 +247,44 @@ def get_compatible_vehicle_types(driver_vehicle_type: str) -> list:
     if tier < 0:
         return list(VEHICLE_TIER_ORDER)  # unknown = allow all
     return VEHICLE_TIER_ORDER[:tier + 1]
+
+
+# ── Founder leg value (R1/R3/R4) ─────────────────────────────────────────────
+# Band widths chosen so each term can NEVER outrank the one above it:
+# one class tier step (10000) > any type premium (≤3000); one type step (1000) > the
+# revenue clamp (≤999); one revenue dollar (1) > the max pax tiebreak (14 × 0.01).
+LEG_VALUE_TIER_WEIGHT = 10000
+LEG_VALUE_TYPE_PREMIUM = {'return': 3000, 'cruise': 2000, 'other': 1000, 'arrival': 0}
+LEG_VALUE_REVENUE_CLAMP = 999
+
+
+def leg_value(leg) -> float:
+    """Founder value of keeping this leg in-house, for ordering and eviction decisions.
+
+    Priority order (founder rules R1/R3/R4):
+      1. BOOKED vehicle-class tier — revenue and the coverage obligation follow the booked
+         class; no lower class can cover the job. A Van(14 Pax) booking with ONE passenger
+         outranks a Van booking with eight (R3 — never passenger count).
+      2. Trip type — departures/returns are the in-house core (fixed pickup, ~30 driver-min,
+         driver ends at MCO, a farmed no-show means a missed flight); arrivals are the
+         farm-out currency (flight-variable, ~75 driver-min, driver ends stranded) (R1).
+      3. revenue_share, when populated (clamped below one type step).
+      4. Passenger count — FINAL tiebreak only (R4: class first, pax second, never reverse).
+    """
+    vtype = leg.effective_vehicle_type
+    tier = get_vehicle_tier(str(vtype)) if vtype else -1
+    trip = leg.get_trip_type()
+    premium = LEG_VALUE_TYPE_PREMIUM.get(trip, LEG_VALUE_TYPE_PREMIUM['other'])
+    try:
+        rev = float(leg.revenue_share or 0)
+    except (TypeError, ValueError):
+        rev = 0.0
+    rev = min(max(rev, 0.0), LEG_VALUE_REVENUE_CLAMP)
+    try:
+        pax = int(getattr(leg, 'effective_passenger_count', 0) or 0)
+    except (TypeError, ValueError):
+        pax = 0
+    return max(tier, 0) * LEG_VALUE_TIER_WEIGHT + premium + rev + min(pax, 99) * 0.01
 
 
 def get_driver_vehicle_type(driver_id: int, target_date: date) -> Optional[str]:
@@ -369,6 +463,9 @@ class ScheduleSlot:
     luggage_type: str = ""
     carseats_short: str = ""
     store_stop: bool = False
+    # Founder static-model clear time for CHAIN math (CHAIN_STATIC_TIMING); None falls
+    # back to estimated_end_time (+ the arrival static floor).
+    chain_clear_dt: Optional[datetime] = None
     # Trip has a refund in-flight — flag so dispatchers don't assign it by mistake.
     pending_refund: bool = False
     # VIP reservation (manual flag or VIP agency e.g. Small World Big Fun) — gold
@@ -411,6 +508,28 @@ class FeasibilityResult:
     buffer_minutes: int
     warnings: List[str] = field(default_factory=list)
     reason: str = ""
+
+
+def _make_sim_slot(leg, target_date) -> 'ScheduleSlot':
+    """Build the in-memory ScheduleSlot used when simulating an assignment of `leg`
+    (greedy build, class-match guard, evict-to-farm pass)."""
+    from dispatching.analytics import categorize_location
+    return ScheduleSlot(
+        leg_id=leg.id,
+        pickup_time=leg.pickup_time,
+        pickup_location=leg.pickup_location,
+        pickup_category=categorize_location(leg.pickup_location),
+        dropoff_location=leg.dropoff_location,
+        dropoff_category=categorize_location(leg.dropoff_location),
+        trip_type=leg.get_trip_type(),
+        estimated_end_time=estimate_job_end_time(leg, target_date),
+        reservation_id=getattr(leg, 'reservation_id', None) or 0,
+        customer_name="",
+        status=getattr(leg, 'status', None) or 'in-progress',
+        has_flight=False,
+        revenue=getattr(leg, 'revenue_share', None),
+        chain_clear_dt=chain_clear_dt(leg, target_date),
+    )
 
 
 @dataclass
@@ -758,6 +877,74 @@ def predict_driver_available_time(leg, target_date: date) -> datetime:
     return estimate_job_end_time(leg, target_date) + timedelta(minutes=INTER_JOB_BUFFER)
 
 
+def _arrival_static_floor_dt(pickup_time, pickup_category, dropoff_category, target_date):
+    """Static planning clear time for an airport arrival: pickup_time + default dwell +
+    category-table drive — the founder's by-hand model (and .analysis/analyze_sunday.py's).
+    Used as a FLOOR on the dynamic (flight-ETA + p75-bucket) estimate in chain checks; see
+    ARRIVAL_CLEAR_STATIC_FLOOR."""
+    drive = DRIVE_TIME_ESTIMATES.get((pickup_category, dropoff_category), DEFAULT_DRIVE_TIME)
+    return datetime.combine(target_date, pickup_time) + timedelta(
+        minutes=STATIC_FLOOR_DWELL_MIN + drive)
+
+
+def chain_clear_dt(leg, target_date: date) -> datetime:
+    """Clear time used for CHAIN feasibility (CHAIN_STATIC_TIMING — the founder's
+    planning model): pickup + 45-min dwell (arrivals and airport-pickup cruises) +
+    category-table drive (+ Publix stop), with the anchor pushed LATER by a live flight
+    delay (a flight trending past its scheduled slot still protects the next pickup).
+    An early-trending flight never pulls the clear time earlier — that optimism is what
+    admitted the sereen 6:01→7:00 pair (C4)."""
+    from dispatching.analytics import categorize_location
+    pickup_cat = categorize_location(leg.pickup_location)
+    dropoff_cat = categorize_location(leg.dropoff_location)
+    drive = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat), DEFAULT_DRIVE_TIME)
+    anchor = datetime.combine(target_date, leg.pickup_time)
+    trip = leg.get_trip_type()
+    dwell = 0
+    store_stop = 0
+    if trip == 'arrival':
+        dwell = STATIC_FLOOR_DWELL_MIN
+        flight_dt = _get_best_flight_arrival(leg)
+        if flight_dt:
+            anchored = _anchor_flight_dt(flight_dt, anchor)
+            if anchored > anchor:
+                anchor = anchored
+        if (getattr(leg, 'reservation', None) is not None
+                and getattr(leg.reservation, 'store_stop', False)):
+            store_stop = PUBLIX_STOP_MINUTES
+    elif trip == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
+        dwell = STATIC_FLOOR_DWELL_MIN
+    return anchor + timedelta(minutes=dwell + drive + store_stop)
+
+
+def chain_repo_minutes(from_text, to_text, from_category, to_category) -> int:
+    """Repositioning drive for CHAIN feasibility (CHAIN_STATIC_TIMING): same exact
+    address → 0, else the category table — the founder's planning numbers, NOT the p75
+    metric (p75 of observed in-job drives over-prices an empty reposition and was
+    silently rejecting chains the founder builds by hand). Far/unknown endpoints keep
+    the live-distance path when enabled (the table can't place them at all)."""
+    if from_text and to_text and from_text.strip().lower() == to_text.strip().lower():
+        return 0
+    if USE_LIVE_DISTANCE and (from_category in LIVE_DISTANCE_UNKNOWN_CATS
+                              or to_category in LIVE_DISTANCE_UNKNOWN_CATS):
+        return resolve_drive_minutes(from_text, to_text, from_category, to_category)
+    return DRIVE_TIME_ESTIMATES.get((from_category, to_category), DEFAULT_DRIVE_TIME)
+
+
+def _slot_chain_end(slot, target_date: date) -> datetime:
+    """A slot's clear time for chain math: the precomputed founder static-model value
+    when present (CHAIN_STATIC_TIMING), else the dynamic estimate raised to the arrival
+    static floor (legacy fallback for callers that build bare slots)."""
+    if CHAIN_STATIC_TIMING and slot.chain_clear_dt is not None:
+        return slot.chain_clear_dt
+    from dispatching import feasibility_guards as fg
+    end = slot.estimated_end_time
+    if ARRIVAL_CLEAR_STATIC_FLOOR and fg.is_airport_arrival(slot.trip_type, slot.pickup_category):
+        end = max(end, _arrival_static_floor_dt(
+            slot.pickup_time, slot.pickup_category, slot.dropoff_category, target_date))
+    return end
+
+
 def check_feasibility(
     driver_schedule: DriverDaySchedule,
     new_leg,
@@ -788,6 +975,19 @@ def check_feasibility(
     new_pickup_cat = categorize_location(new_leg.pickup_location)
     new_dropoff_cat = categorize_location(new_leg.dropoff_location)
     new_is_arrival = fg.is_airport_arrival(new_leg.get_trip_type(), new_pickup_cat)
+
+    # Founder-brain C4 (the sereen 6:01→7:00 hole) + CHAIN_STATIC_TIMING: chain math
+    # runs on the founder's static planning model, not the flight-ETA/p75 estimate —
+    # optimistic estimates admitted fixed-time follow-ups at zero real slack, and
+    # pessimistic p75 buckets rejected chains the founder builds by hand. A live flight
+    # DELAY still pushes the chain clear time later (never earlier).
+    if CHAIN_STATIC_TIMING:
+        new_chain_end_dt = chain_clear_dt(new_leg, target_date)
+    else:
+        new_chain_end_dt = new_end_dt
+        if ARRIVAL_CLEAR_STATIC_FLOOR and new_is_arrival:
+            new_chain_end_dt = max(new_end_dt, _arrival_static_floor_dt(
+                new_leg.pickup_time, new_pickup_cat, new_dropoff_cat, target_date))
 
     # ── Guard C: per-driver window (start / clear-by / max-hours span) ──
     if driver_window is not None:
@@ -828,17 +1028,22 @@ def check_feasibility(
 
     # Check against preceding slot — context-dependent turnaround (Guard B)
     if preceding:
-        reposition = resolve_drive_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
+        preceding_end = _slot_chain_end(preceding, target_date)
+        if CHAIN_STATIC_TIMING:
+            reposition = chain_repo_minutes(preceding.dropoff_location, new_leg.pickup_location,
+                                            preceding.dropoff_category, new_pickup_cat)
+        else:
+            reposition = resolve_drive_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
         req = fg.required_turnaround(
             reposition, new_is_arrival,
             same_terminal=(preceding.dropoff_category == new_pickup_cat),
             deplaning_grace=deplaning_grace, safety_pad=safety_pad,
         )
-        earliest_available = preceding.estimated_end_time + timedelta(minutes=req)
+        earliest_available = preceding_end + timedelta(minutes=req)
         buffer_minutes = int((new_pickup_dt - earliest_available).total_seconds() / 60)
 
         if buffer_minutes < 0:
-            end_str = preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')
+            end_str = preceding_end.strftime('%I:%M %p').lstrip('0')
             return FeasibilityResult(
                 feasible=False,
                 buffer_minutes=buffer_minutes,
@@ -852,13 +1057,17 @@ def check_feasibility(
     if following:
         following_pickup_dt = datetime.combine(target_date, following.pickup_time)
         following_is_arrival = fg.is_airport_arrival(following.trip_type, following.pickup_category)
-        reposition = resolve_drive_minutes(new_leg.dropoff_location, following.pickup_location, new_dropoff_cat, following.pickup_category)
+        if CHAIN_STATIC_TIMING:
+            reposition = chain_repo_minutes(new_leg.dropoff_location, following.pickup_location,
+                                            new_dropoff_cat, following.pickup_category)
+        else:
+            reposition = resolve_drive_minutes(new_leg.dropoff_location, following.pickup_location, new_dropoff_cat, following.pickup_category)
         req = fg.required_turnaround(
             reposition, following_is_arrival,
             same_terminal=(new_dropoff_cat == following.pickup_category),
             deplaning_grace=deplaning_grace, safety_pad=safety_pad,
         )
-        earliest_for_next = new_end_dt + timedelta(minutes=req)
+        earliest_for_next = new_chain_end_dt + timedelta(minutes=req)
         following_buffer = int((following_pickup_dt - earliest_for_next).total_seconds() / 60)
 
         if following_buffer < 0:
@@ -932,17 +1141,21 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             pass
         _carseats_short = ", ".join(_carseat_parts)
 
-        # Count extra stops + secondary flights. Uses prefetched .all() collections
-        # when available to avoid per-leg COUNT queries; falls back to .count()
-        # for unprefetched legs (rare path).
+        # Count extra stops + secondary flights. Uses the prefetched collection when the
+        # caller prefetched the relation (build_driver_schedules runs MANY times across the
+        # auto-assign passes — without the prefetch this was a per-leg COUNT × every rebuild,
+        # the dominant N+1 on assign-all). `_result_cache` lives on the prefetched QuerySet,
+        # NOT the RelatedManager (the old check was always False → always .count()); read
+        # Django's `_prefetched_objects_cache` instead. Falls back to .count() unprefetched.
+        _pf_cache = getattr(leg, '_prefetched_objects_cache', None) or {}
         try:
-            _ls = leg.legstop_set
-            _legstop_count = len(_ls.all()) if hasattr(_ls, '_result_cache') and _ls._result_cache is not None else _ls.count()
+            _legstop_count = (len(_pf_cache['legstop_set']) if 'legstop_set' in _pf_cache
+                              else leg.legstop_set.count())
         except Exception:
             _legstop_count = 0
         try:
-            _lf = leg.legflight_set
-            _legflight_count = len(_lf.all()) if hasattr(_lf, '_result_cache') and _lf._result_cache is not None else _lf.count()
+            _legflight_count = (len(_pf_cache['legflight_set']) if 'legflight_set' in _pf_cache
+                                else leg.legflight_set.count())
         except Exception:
             _legflight_count = 0
         _secondary_flights = max(_legflight_count - 1, 0) if _legflight_count else 0
@@ -973,6 +1186,7 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             is_vip=leg.is_vip,
             extra_stop_count=_legstop_count,
             secondary_flight_count=_secondary_flights,
+            chain_clear_dt=chain_clear_dt(leg, target_date),
         )
         schedules[leg.driver.id].slots.append(slot)
 
@@ -1202,11 +1416,26 @@ def suggest_assignments(
     suggestions = []
 
     # Sort legs strategically: returns/cruise BEFORE arrivals within each hour.
-    _TYPE_PRIORITY = {'return': 0, 'cruise': 1, 'other': 2, 'arrival': 3}
+    # Tunable via SchedulerSettings (founder-brain C3); defaults return:0 cruise:1
+    # other:2 arrival:3.
+    _TYPE_PRIORITY = {
+        'return': getattr(cfg, 'type_priority_return', 0),
+        'cruise': getattr(cfg, 'type_priority_cruise', 1),
+        'other': getattr(cfg, 'type_priority_other', 2),
+        'arrival': getattr(cfg, 'type_priority_arrival', 3),
+    }
+    _TYPE_PRIORITY_DEFAULT = _TYPE_PRIORITY['other']
+
+    # Founder value per leg (R3/R4): orders legs WITHIN each (pass, hour, type) bucket —
+    # the higher booked class first, then revenue, then pax — so when two jobs tie on
+    # (hour, type) the Van(14 Pax)-class booking deterministically reaches the V14 driver
+    # before the Van-class one (M5), and the 3-pax towncar beats the 2-pax (R4 tiebreak).
+    _value_map = {leg.id: leg_value(leg) for leg in unassigned_legs}
 
     def _assignment_sort_key(leg):
         trip_type = leg.get_trip_type()
-        return (leg.pickup_time.hour, _TYPE_PRIORITY.get(trip_type, 2), leg.pickup_time)
+        return (leg.pickup_time.hour, _TYPE_PRIORITY.get(trip_type, _TYPE_PRIORITY_DEFAULT),
+                -_value_map[leg.id], leg.pickup_time)
 
     sorted_legs = sorted(unassigned_legs, key=_assignment_sort_key)
 
@@ -1353,7 +1582,9 @@ def suggest_assignments(
         # Check time scarcity (Pass 1) — only if not already Pass 0
         if pass_priority == 2 and time_scarcity_map.get(leg.id, 0) > 1.5:
             pass_priority = 1  # Pass 1 (time-scarce)
-        return (pass_priority, leg.pickup_time.hour, _TYPE_PRIORITY_REF.get(trip_type, 2), leg.pickup_time)
+        return (pass_priority, leg.pickup_time.hour,
+                _TYPE_PRIORITY_REF.get(trip_type, _TYPE_PRIORITY_DEFAULT),
+                -_value_map[leg.id], leg.pickup_time)
 
     sorted_legs = sorted(sorted_legs, key=_multi_pass_sort_key)
 
@@ -1364,10 +1595,72 @@ def suggest_assignments(
             for cl_leg in cluster:
                 _leg_cluster_map[cl_leg.id] = ci
 
-    for leg in sorted_legs:
+    # ── Class-match guard (R3 upward) support structures ──
+    # Per exact class: processing-order indices of legs BOOKED in that class, so a
+    # higher-class driver candidate can ask "does one of MY OWN class's still-pending
+    # jobs conflict with this lower-class leg?". `_consumed_leg_ids` tracks legs already
+    # decided (assigned or farmed) as the loop advances.
+    _legs_idx_by_class = {}
+    for _i, _lg in enumerate(sorted_legs):
+        _lv = _lg.effective_vehicle_type
+        if _lv:
+            _legs_idx_by_class.setdefault(str(_lv), []).append(_i)
+    _consumed_leg_ids = set()
+    _ijb = cfg.inter_job_buffer
+    _grace = cfg.arrival_grace_minutes
+
+    def _within_modal_hours(did, pickup_time):
+        """Greedy pickup-hour pre-filter (same semantics as the main candidate loop)."""
+        if not (driver_hours and did in driver_hours):
+            return True
+        if flexible_drivers and did in flexible_drivers:
+            return True
+        dh_start, dh_end = driver_hours[did]
+        return time(dh_start, 0) <= pickup_time <= time(dh_end, 59)
+
+    def _class_guard_blocks(did, driver_vtype, sched, leg, leg_idx):
+        """True when giving `leg` (a LOWER class than this driver's) to him would push a
+        pending leg of HIS exact class off his board — the class-C leg wins,
+        UNCONDITIONALLY (founder R3). No "someone else can cover it" escape: that test
+        is optimistic at decision time (every other class-C driver still looks free,
+        each gets released into lower-class work in turn, and by the class-C leg's own
+        turn nobody can reach it — exactly how the 9:15 V14 port cruise stranded on
+        6/14). A driver who cannot serve the class-C leg anyway is not barred."""
+        for xi in _legs_idx_by_class.get(driver_vtype, ()):
+            if xi <= leg_idx:
+                continue
+            X = sorted_legs[xi]
+            if X.id in _consumed_leg_ids or X.id == leg.id:
+                continue
+            if not _within_modal_hours(did, X.pickup_time):
+                continue
+            feas_now = check_feasibility(sched, X, target_date, inter_job_buffer=_ijb,
+                                         arrival_grace=_grace, driver_window=_driver_windows.get(did))
+            if not feas_now.feasible:
+                continue   # X doesn't fit this driver anyway — `leg` isn't what blocks it
+            # Would X still fit once `leg` is on this driver's board?
+            sim = DriverDaySchedule(
+                driver_id=sched.driver_id, driver_name=sched.driver_name,
+                driver_type=sched.driver_type,
+                slots=sorted(sched.slots + [_make_sim_slot(leg, target_date)],
+                             key=lambda s: s.pickup_time))
+            feas_with = check_feasibility(sim, X, target_date, inter_job_buffer=_ijb,
+                                          arrival_grace=_grace, driver_window=_driver_windows.get(did))
+            if not feas_with.feasible:
+                return True   # `leg` would push the class-C job off this driver
+        return False
+
+    _value_weight = getattr(cfg, 'auto_assign_value_weight', 0)
+
+    for _leg_idx, leg in enumerate(sorted_legs):
         best_id = None
         best_score = float('-inf')
         best_feasibility = None
+        # Class-match-first band (R3 downward): a feasible EXACT-class driver beats any
+        # higher-class driver, which stays available as fallback.
+        best_exact_id = None
+        best_exact_score = float('-inf')
+        best_exact_feasibility = None
         # Fallback: reserved-mismatch drivers (only used if no non-reserved driver fits)
         best_reserved_id = None
         best_reserved_score = float('-inf')
@@ -1411,6 +1704,18 @@ def suggest_assignments(
             # partner's jobs (one physical unit; planned windows alone are not airtight).
             if sharers_conflict(leg, did, sharer_partners, working, target_date):
                 continue
+
+            # ── Class-match guard (R3 upward, unconditional) ──
+            # Never let a higher-class driver take this lower-class leg when one of his
+            # OWN class's pending jobs conflicts with it and nobody else could cover that
+            # job. NOT gated by the Pass-0 scarcity rule (on 6/14 V14 wasn't "scarce" and
+            # the sprinter job went unprotected — M5).
+            if CLASS_MATCH_GUARD and driver_vtype and leg_vtype:
+                _d_tier_g = get_vehicle_tier(driver_vtype)
+                _l_tier_g = get_vehicle_tier(str(leg_vtype))
+                if (_d_tier_g > _l_tier_g >= 0
+                        and _class_guard_blocks(did, driver_vtype, sched, leg, _leg_idx)):
+                    continue
 
             # Check if this driver is reserved for matching jobs but this
             # leg doesn't match their type. These drivers are HARD SKIPPED
@@ -1495,6 +1800,14 @@ def suggest_assignments(
             # In-house retention bonus
             if leg_trip_type in ('return', 'cruise'):
                 score += cfg.retention_bonus
+
+            # Founder value term (R1/R3): booked class › trip type › revenue › pax,
+            # scaled so one class tier step ≈ 10·weight points. Constant across drivers
+            # for a given leg, so it never distorts driver CHOICE — it makes leg value
+            # visible in candidate scores and steers any cross-leg score comparison
+            # (e.g. best-fit builders). Gated by auto_assign_value_weight (0 disables).
+            if _value_weight:
+                score += int(_value_map[leg.id] / 1000 * _value_weight)
 
             # Chain bonus
             chains = chain_map.get(leg.id, 0)
@@ -1612,6 +1925,13 @@ def suggest_assignments(
                     best_reserved_id = did
                     best_reserved_feasibility = feas
             else:
+                # Class-match-first band (R3 downward): an EXACT-class candidate
+                # unconditionally outranks higher-class ones (tracked separately).
+                if (CLASS_MATCH_FIRST and driver_vtype and leg_vtype
+                        and str(leg_vtype) == driver_vtype and score > best_exact_score):
+                    best_exact_score = score
+                    best_exact_id = did
+                    best_exact_feasibility = feas
                 if score > best_score:
                     best_score = score
                     best_id = did
@@ -1619,6 +1939,13 @@ def suggest_assignments(
 
             # Track all candidates for alternatives list
             all_candidates.append((did, score, feas, is_reserved_mismatch))
+
+        # Class-match-first: when any exact-class driver fits, he wins outright; the
+        # higher-class candidates remain visible as alternatives.
+        if best_exact_id:
+            best_id = best_exact_id
+            best_score = best_exact_score
+            best_feasibility = best_exact_feasibility
 
         # Fallback: if no non-reserved driver fits, use the best reserved one.
         # This prevents jobs from going unassigned when only reserved drivers
@@ -1666,23 +1993,7 @@ def suggest_assignments(
             )
 
             # Simulate the assignment
-            dropoff_cat = categorize_location(leg.dropoff_location)
-            end_time = estimate_job_end_time(leg, target_date)
-            sim_slot = ScheduleSlot(
-                leg_id=leg.id,
-                pickup_time=leg.pickup_time,
-                pickup_location=leg.pickup_location,
-                pickup_category=pickup_cat,
-                dropoff_location=leg.dropoff_location,
-                dropoff_category=dropoff_cat,
-                trip_type=leg.get_trip_type(),
-                estimated_end_time=end_time,
-                reservation_id=leg.reservation_id,
-                customer_name="",
-                status=leg.status or 'in-progress',
-                has_flight=False,
-                revenue=leg.revenue_share,
-            )
+            sim_slot = _make_sim_slot(leg, target_date)
             working[best_id].slots.append(sim_slot)
             working[best_id].slots.sort(key=lambda s: s.pickup_time)
 
@@ -1705,6 +2016,7 @@ def suggest_assignments(
                 priority=0,
             )
 
+        _consumed_leg_ids.add(leg.id)   # decided (assigned or farmed) — class guard ignores it
         suggestions.append(suggestion)
 
     return suggestions
@@ -1835,6 +2147,249 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
         recovered.append(target.id)
 
     return final_assignments, recovered
+
+
+def _chain_ok(driver_schedule, target_date, driver_window=None):
+    """End-to-end revalidation of a (simulated) day: every consecutive turnaround must be
+    feasible under the same Guard-B math check_feasibility uses (incl. the arrival
+    static floor), and every slot must respect the driver window + max-hours span.
+    Removing a leg only relaxes a chain, but the evict-to-farm pass also INSERTS one —
+    so the full day is replayed rather than trusting a single pairwise check."""
+    from dispatching import feasibility_guards as fg
+    slots = sorted(driver_schedule.slots, key=lambda s: s.pickup_time)
+    for prev, nxt in zip(slots, slots[1:]):
+        prev_end = _slot_chain_end(prev, target_date)
+        nxt_is_arr = fg.is_airport_arrival(nxt.trip_type, nxt.pickup_category)
+        if CHAIN_STATIC_TIMING:
+            repo = chain_repo_minutes(prev.dropoff_location, nxt.pickup_location,
+                                      prev.dropoff_category, nxt.pickup_category)
+        else:
+            repo = resolve_drive_minutes(prev.dropoff_location, nxt.pickup_location,
+                                         prev.dropoff_category, nxt.pickup_category)
+        req = fg.required_turnaround(repo, nxt_is_arr,
+                                     same_terminal=(prev.dropoff_category == nxt.pickup_category))
+        if datetime.combine(target_date, nxt.pickup_time) < prev_end + timedelta(minutes=req):
+            return False
+    if driver_window and slots:
+        first_pickup = datetime.combine(target_date, slots[0].pickup_time)
+        last_end = max(s.estimated_end_time for s in slots)
+        span = (last_end - first_pickup).total_seconds() / 3600
+        for s in slots:
+            ok, _ = fg.window_check(driver_window, s.pickup_time, s.estimated_end_time,
+                                    span, target_date=target_date)
+            if not ok:
+                return False
+    return True
+
+
+def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
+                            drivers, drivers_by_id, target_date, dvtypes,
+                            locked_leg_ids=None, driver_windows=None,
+                            driver_hours=None, flexible_drivers=None,
+                            sharer_partners=None, free_insert_only=False):
+    """Evict-to-farm value pass (founder brain, rules R1+R2 —
+    docs/scheduler-automation/founder-brain-implementation.md).
+
+    An assigned leg is not sacred: when demand beats driver supply, in-house drivers
+    belong on DEPARTURES/returns (fixed pickup, ~30 driver-min, driver ends at the MCO
+    demand hub) and ARRIVALS are the farm-out currency (flight-variable, ~75 driver-min,
+    driver ends stranded at a resort; affiliates do MCO meet-and-greets fine, while a
+    farmed fixed-time hotel pickup that no-shows means a missed flight).
+
+    For each residual (would-be-farmed) leg U in DESCENDING founder value (leg_value),
+    find a driver where U fits either directly (free insertion — the board changed since
+    the greedy ran) or once exactly ONE assigned leg A is removed. An eviction is
+    accepted only when ALL hold:
+      * A is farmable: trip_type == 'arrival', never a true departure (farm-out
+        optimizer parity via is_departure()), never locked (manual/seeded/pre-existing);
+      * leg_value(U) − leg_value(A) ≥ SchedulerSettings.displacement_min_value_gain
+        (1000 ≈ one trip-type step, 10000 ≈ one booked-class step);
+      * the modified day re-passes the guards END TO END (every turnaround via the
+        Guard-B math incl. the arrival static floor, plus window/max-hours), AND the
+        greedy-parity gates hold (modal pickup-hour window, vehicle tier compatibility,
+        shared-car occupancy).
+    The evicted A returns to the residual pool — the span-rescue pass that runs directly
+    after this one re-seats it anywhere it still fits, otherwise it farms exactly like
+    the founder does by hand. Evictions are bounded by max_displacements_per_run and an
+    evicted leg never re-enters as a target (no ping-pong). Deterministic; read-only wrt
+    the DB. Returns (final_assignments, moves); each move carries a human-readable
+    reason for the preview/provenance trail.
+
+    free_insert_only=True restricts the pass to its free-insertion clause (no
+    evictions) — used as a FINAL sweep after the trim/gap passes, whose relocations can
+    open seats that did not exist when coverage was settled ("leave no leg farmed that
+    fits the final board as-is" — the answer key's missed-free-insertion flaw).
+    """
+    if not AUTO_EVICT_TO_FARM_PASS:
+        return final_assignments, []
+    from dispatching.models import SchedulerSettings
+    from dispatching.farmout_optimizer import is_departure  # lazy: farmout imports scheduler
+    from dispatching import feasibility_guards as fg
+    cfg = SchedulerSettings.get_settings()
+    min_gain = float(getattr(cfg, 'displacement_min_value_gain', 500))
+    max_moves = int(getattr(cfg, 'max_displacements_per_run', 10))
+    ijb = cfg.inter_job_buffer
+    grace = cfg.arrival_grace_minutes
+
+    locked = set(locked_leg_ids or [])
+    # Full board = proposed assignments PLUS pre-existing assignments (occupancy must be
+    # real; pre-existing ones are implicitly locked — never evicted).
+    board = dict(final_assignments)
+    for lid, leg in legs_by_id.items():
+        if lid not in board and getattr(leg, 'driver_id', None):
+            board[lid] = leg.driver_id
+            locked.add(lid)
+
+    residual_ids = [lid for lid in candidate_leg_ids if lid not in board and lid in legs_by_id]
+    if not residual_ids:
+        return final_assignments, []
+    residuals = sorted((legs_by_id[lid] for lid in residual_ids),
+                       key=lambda l: (-leg_value(l), l.id))
+
+    # Window context: prefer the caller's cap-clamped, modal-aware windows (the
+    # auto-assign view passes them); else fall back to the saved-availability funnel
+    # (gap-pass parity) so a programmatic caller still gets the duty-span caps.
+    if driver_windows:
+        windows = driver_windows
+    else:
+        windows = {}
+        for dr in drivers:
+            try:
+                eff = dr.get_effective_availability(target_date)
+                mh = eff.get("max_hours")
+                cfgw = {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
+                        "max_hours": (float(mh) if mh else None),
+                        "flexible": bool(eff.get("flexible"))}
+            except Exception:
+                cfgw = None
+            windows[dr.id] = fg.get_effective_window(dr.id, configured=cfgw)
+
+    def build_schedules():
+        """Reflect the current board onto the leg objects, build schedules, then restore."""
+        saved, ih = {}, []
+        for lid, did in board.items():
+            leg = legs_by_id.get(lid); dr = drivers_by_id.get(did)
+            if leg is None or dr is None:
+                continue
+            saved[lid] = (leg.driver, getattr(leg, 'driver_id', None))
+            leg.driver = dr; leg.driver_id = did
+            ih.append(leg)
+        try:
+            return build_driver_schedules(ih, drivers, target_date)
+        finally:
+            for lid, (drv, drvid) in saved.items():
+                legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
+
+    def _within_modal(did, pickup_time):
+        if not (driver_hours and did in driver_hours):
+            return True
+        if flexible_drivers and did in flexible_drivers:
+            return True
+        dh_start, dh_end = driver_hours[did]
+        return time(dh_start, 0) <= pickup_time <= time(dh_end, 59)
+
+    def _desc(leg):
+        vt = leg.effective_vehicle_type
+        try:
+            pax = int(getattr(leg, 'effective_passenger_count', 0) or 0)
+        except (TypeError, ValueError):
+            pax = 0
+        return (f"leg {leg.id} ({leg.pickup_time.strftime('%I:%M %p').lstrip('0')} "
+                f"{leg.get_trip_type()}, {pax} pax, {vt or 'any vehicle'})")
+
+    moves = []
+    evictions = 0
+    evicted_ids = set()
+    schedules = build_schedules()
+
+    for U in residuals:
+        if evictions >= max_moves:
+            break
+        if U.id in evicted_ids or U.id in board:
+            continue
+        u_val = leg_value(U)
+        u_vtype = U.effective_vehicle_type
+        best = None  # (sort_key, driver_id, evicted_leg_id|None, gain)
+        for dr in sorted(drivers, key=lambda d: d.id):
+            did = dr.id
+            sched = schedules.get(did)
+            if sched is None:
+                continue
+            # Greedy-parity hard gates: modal pickup-hour window, vehicle tier, sharers.
+            if not _within_modal(did, U.pickup_time):
+                continue
+            dvt = dvtypes.get(did)
+            if dvt and u_vtype and str(u_vtype) not in get_compatible_vehicle_types(dvt):
+                continue
+            if sharers_conflict(U, did, sharer_partners, schedules, target_date):
+                continue
+            # 1) Free insertion — U fits as-is (the board changed since the greedy ran).
+            feas0 = check_feasibility(sched, U, target_date, inter_job_buffer=ijb,
+                                      arrival_grace=grace, driver_window=windows.get(did))
+            if feas0.feasible:
+                key = (1, 0.0, feas0.buffer_minutes, -did, 0)  # band 1: free always wins
+                if best is None or key > best[0]:
+                    best = (key, did, None, 0.0)
+                continue
+            if free_insert_only:
+                continue
+            # 2) Eviction — U fits if exactly ONE farmable proposed arrival is removed.
+            for slot in sorted(sched.slots, key=lambda s: s.pickup_time):
+                a_id = slot.leg_id
+                if a_id in locked or a_id not in final_assignments:
+                    continue   # only engine-proposed legs from THIS run are evictable
+                A = legs_by_id.get(a_id)
+                if A is None:
+                    continue
+                if A.get_trip_type() != 'arrival':
+                    continue   # arrivals are the farm currency (R1)
+                if is_departure(A):
+                    continue   # double guard: a true departure is NEVER farmed
+                gain = u_val - leg_value(A)
+                if gain < min_gain:
+                    continue
+                sim = DriverDaySchedule(
+                    driver_id=sched.driver_id, driver_name=sched.driver_name,
+                    driver_type=sched.driver_type,
+                    slots=[s for s in sched.slots if s.leg_id != a_id])
+                feas = check_feasibility(sim, U, target_date, inter_job_buffer=ijb,
+                                         arrival_grace=grace, driver_window=windows.get(did))
+                if not feas.feasible:
+                    continue
+                # End-to-end revalidation of the modified day (turnarounds + window/cap).
+                sim.slots = sorted(sim.slots + [_make_sim_slot(U, target_date)],
+                                   key=lambda s: s.pickup_time)
+                if not _chain_ok(sim, target_date, windows.get(did)):
+                    continue
+                key = (0, gain, feas.buffer_minutes, -did, -a_id)
+                if best is None or key > best[0]:
+                    best = (key, did, a_id, gain)
+
+        if best is None:
+            continue
+        _, did, evict_lid, gain = best
+        dname = str(drivers_by_id.get(did, did))
+        if evict_lid is not None:
+            A = legs_by_id.get(evict_lid)
+            final_assignments.pop(evict_lid, None)
+            board.pop(evict_lid, None)
+            evicted_ids.add(evict_lid)
+            evictions += 1
+            reason = (f"evicted {_desc(A)} from {dname} to the farm pool to cover "
+                      f"{_desc(U)} (value gain +{gain:.0f}; an assigned arrival is the "
+                      f"farm-out currency, the higher-value leg keeps the driver)")
+            moves.append({"kind": "evict", "leg_id": U.id, "driver_id": did,
+                          "evicted_leg_id": evict_lid, "value_gain": round(gain, 2),
+                          "reason": reason})
+        else:
+            reason = f"free insertion: {_desc(U)} fits {dname} as-is on the settled board"
+            moves.append({"kind": "free_insert", "leg_id": U.id, "driver_id": did,
+                          "evicted_leg_id": None, "value_gain": None, "reason": reason})
+        final_assignments[U.id] = did
+        board[U.id] = did
+        schedules = build_schedules()
+
+    return final_assignments, moves
 
 
 def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_id,
@@ -2922,23 +3477,26 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, 
         else:
             preceding = sorted_slots[i - 1]
             new_pickup_dt = datetime.combine(target_date, slot.pickup_time)
-            repo_drive = resolve_drive_minutes(preceding.dropoff_location, slot.pickup_location, preceding.dropoff_category, pickup_cat)
-            # Use the SAME context-aware turnaround as check_feasibility (Guard B) so the
-            # displayed buffer matches reality: an airport-ARRIVAL pickup earns deplaning
-            # grace (pax are still deplaning), and a same-terminal hop needs ~0 reposition.
-            # (Previously this used a flat repo_drive + buffer with no grace, which made
-            # airport pickups read as "late"/negative even when the schedule was feasible.)
+            # Match check_feasibility's chain inputs exactly (founder static model when
+            # CHAIN_STATIC_TIMING) so the displayed buffer == the gate's buffer \u2014 a leg the
+            # gate admits never reads as "late" here, and the prev-end shown is the same
+            # static clear the founder computes by hand.
+            if CHAIN_STATIC_TIMING:
+                repo_drive = chain_repo_minutes(preceding.dropoff_location, slot.pickup_location, preceding.dropoff_category, pickup_cat)
+            else:
+                repo_drive = resolve_drive_minutes(preceding.dropoff_location, slot.pickup_location, preceding.dropoff_category, pickup_cat)
             cur_is_arrival = fg.is_airport_arrival(slot.trip_type, pickup_cat)
             same_terminal = (preceding.dropoff_category == pickup_cat)
             req_turn = fg.required_turnaround(repo_drive, cur_is_arrival, same_terminal=same_terminal)
-            earliest = preceding.estimated_end_time + timedelta(minutes=req_turn)
+            prev_end = _slot_chain_end(preceding, target_date)
+            earliest = prev_end + timedelta(minutes=req_turn)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
             grace_note = (f" (after {repo_drive}min drive \u2212 {fg.DEPLANING_GRACE_MIN}min deplaning grace)"
                           if cur_is_arrival and not same_terminal else "")
 
             details['prev_job'] = {
                 'leg_id': preceding.leg_id,
-                'end_time': preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0'),
+                'end_time': prev_end.strftime('%I:%M %p').lstrip('0'),
                 'dropoff_category': preceding.dropoff_category,
             }
             details['reposition_from'] = preceding.dropoff_category
@@ -2947,7 +3505,7 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, 
             details['required_turnaround'] = max(0, req_turn)  # display: negative = deplaning slack
             details['buffer_minutes'] = buffer
             details['reasoning'] = (
-                f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
+                f"Prev job ends ~{prev_end.strftime('%I:%M %p').lstrip('0')} "
                 f"at {preceding.dropoff_category}. "
                 f"Turnaround needed: {max(0, req_turn)} min{grace_note} = {buffer} min spare. "
                 f"Job drive: {pickup_cat} \u2192 {dropoff_cat} ({drive_time} min)"
@@ -2998,20 +3556,24 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
                 preceding = slot
 
         if preceding:
-            repo_drive = resolve_drive_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
-            # Context-aware turnaround (Guard B) — matches check_feasibility (deplaning
-            # grace for airport arrivals, 0 for same-terminal), not a flat repo + buffer.
+            # Match check_feasibility's chain inputs (founder static model when
+            # CHAIN_STATIC_TIMING) so the displayed buffer == the gate's buffer.
+            if CHAIN_STATIC_TIMING:
+                repo_drive = chain_repo_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
+            else:
+                repo_drive = resolve_drive_minutes(preceding.dropoff_location, new_leg.pickup_location, preceding.dropoff_category, new_pickup_cat)
             cur_is_arrival = fg.is_airport_arrival(new_leg.get_trip_type(), new_pickup_cat)
             same_terminal = (preceding.dropoff_category == new_pickup_cat)
             req_turn = fg.required_turnaround(repo_drive, cur_is_arrival, same_terminal=same_terminal)
-            earliest = preceding.estimated_end_time + timedelta(minutes=req_turn)
+            prev_end = _slot_chain_end(preceding, target_date)
+            earliest = prev_end + timedelta(minutes=req_turn)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
             grace_note = (f" (after {repo_drive}min drive − {fg.DEPLANING_GRACE_MIN}min deplaning grace)"
                           if cur_is_arrival and not same_terminal else "")
 
             details['prev_job'] = {
                 'leg_id': preceding.leg_id,
-                'end_time': preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0'),
+                'end_time': prev_end.strftime('%I:%M %p').lstrip('0'),
                 'dropoff_category': preceding.dropoff_category,
             }
             details['reposition_from'] = preceding.dropoff_category
@@ -3020,7 +3582,7 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
             details['required_turnaround'] = max(0, req_turn)  # display: negative = deplaning slack
             details['buffer_minutes'] = buffer
             details['reasoning'] = (
-                f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
+                f"Prev job ends ~{prev_end.strftime('%I:%M %p').lstrip('0')} "
                 f"at {preceding.dropoff_category}. "
                 f"Turnaround needed: {max(0, req_turn)} min{grace_note} = {buffer} min spare. "
                 f"Job drive: {new_pickup_cat} → {new_dropoff_cat} ({drive_time} min)"
@@ -3178,6 +3740,7 @@ def _add_leg_to_schedule(schedule: DriverDaySchedule, leg, target_date: date):
         has_flight=False,
         revenue=leg.revenue_share,
         vehicle_type=str(leg_vtype) if leg_vtype else None,
+        chain_clear_dt=chain_clear_dt(leg, target_date),
     )
     schedule.slots.append(slot)
     schedule.slots.sort(key=lambda s: s.pickup_time)

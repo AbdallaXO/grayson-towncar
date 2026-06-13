@@ -9961,15 +9961,21 @@ def auto_assign_drivers(request):
     except ValueError:
         return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
 
-    # Get all legs for this date (exclude cancelled reservations)
+    # Get all legs for this date (exclude cancelled reservations).
+    # legstop_set / legflight_set are prefetched: build_driver_schedules counts them per
+    # leg and runs once PER PASS (greedy + swap + evict + rescue + trim + gap), so without
+    # the prefetch each rebuild fired 2 COUNT queries per leg — the dominant assign-all N+1
+    # (thousands of round-trips on a busy day). flight_information is select_related so the
+    # arrival clearing/chain estimates don't lazy-load it per leg either.
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
         .exclude(reservation__status="cancelled")
         .exclude(status="cancelled")
         .select_related("driver", "driver__profile", "reservation", "reservation__vehicle", "vehicle",
-                        "reservation__customer")
+                        "reservation__customer", "flight_information")
         .prefetch_related(
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+            "legstop_set", "legflight_set",
         )
     )
 
@@ -10202,9 +10208,11 @@ def auto_assign_drivers(request):
     # would-be-farmed auto leg in-house via find_swaps. Read-only; updates final_assignments
     # (recovered + any moved legs). Manual + build-first assignments are locked (never relocated).
     _span_warnings = []
+    _evict_moves = []
     if auto_unassigned:
         from dispatching.scheduler import (
-            recover_residuals_via_swaps, rescue_span_blocked_residuals, load_all_driver_vtypes,
+            recover_residuals_via_swaps, rescue_span_blocked_residuals,
+            evict_to_farm_for_value, load_all_driver_vtypes,
         )
         _dvtypes = load_all_driver_vtypes(target_date)
         final_assignments, _swap_recovered = recover_residuals_via_swaps(
@@ -10216,6 +10224,29 @@ def auto_assign_drivers(request):
             flexible_drivers=flexible_drivers or None,
             sharer_partners=sharer_partners or None,
         )
+        # ── Evict-to-farm value pass (founder brain R1+R2) ──
+        # An assigned leg is not sacred: a residual that outvalues an engine-proposed
+        # ARRIVAL (a departure, a higher booked class) evicts it to the farm pool and
+        # takes the seat — arrivals are the farm-out currency; true departures are never
+        # evicted (is_departure parity with the farm-out optimizer). Runs AFTER the swap
+        # pass (cheaper cascades first), BEFORE the span rescue (so the rescue re-seats
+        # evicted arrivals anywhere they still fit) and BEFORE the trim/gap passes
+        # (which polish a settled board). Manual/seeded/pre-existing stay locked; every
+        # move re-validates the whole chain through the guards.
+        final_assignments, _evict_moves = evict_to_farm_for_value(
+            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
+            inhouse_drivers, drivers_by_id, target_date, _dvtypes,
+            locked_leg_ids=locked_ids,
+            driver_windows=capped_windows or None,
+            driver_hours=driver_hours or None,
+            flexible_drivers=flexible_drivers or None,
+            sharer_partners=sharer_partners or None,
+        )
+        if _evict_moves:
+            import logging as _logging
+            _ev_log = _logging.getLogger(__name__)
+            for _mv in _evict_moves:
+                _ev_log.info("AUTO-ASSIGN evict pass: %s", _mv["reason"])
         # ── Span-cap coverage rescue ──
         # Priority #1: the duty-span cap may never cost an in-house job. Any residual whose
         # ONLY blocker was the cap is assigned anyway with a loud RED preview warning —
@@ -10261,6 +10292,26 @@ def auto_assign_drivers(request):
         flexible_drivers=flexible_drivers or None,
         sharer_partners=sharer_partners or None,
     )
+
+    # ── Final free-insertion sweep (founder brain) ──
+    # The trim/gap relocations above can open seats that did not exist when coverage was
+    # settled — never leave a leg farmed that fits the FINAL board as-is (the founder's
+    # answer key missed two such insertions on 6/14; the engine must not). No evictions
+    # here (free_insert_only) — pure coverage wins, every insert re-runs the guards.
+    if auto_unassigned:
+        from dispatching.scheduler import evict_to_farm_for_value as _evict_pass
+        final_assignments, _final_inserts = _evict_pass(
+            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
+            inhouse_drivers, drivers_by_id, target_date,
+            load_all_driver_vtypes(target_date),
+            locked_leg_ids=locked_ids,
+            driver_windows=capped_windows or None,
+            driver_hours=driver_hours or None,
+            flexible_drivers=flexible_drivers or None,
+            sharer_partners=sharer_partners or None,
+            free_insert_only=True,
+        )
+        _evict_moves.extend(_final_inserts)
 
     assigned_count = len(final_assignments)
     remaining = len(unassigned) - assigned_count
@@ -10330,6 +10381,7 @@ def auto_assign_drivers(request):
             "assigned": saved,
             "remaining": len(unassigned) - saved,
             "message": f"Assigned {saved} legs to inhouse drivers.",
+            "evict_moves": _evict_moves,
         })
 
     # ── Preview mode: build proposed schedules without saving ──
@@ -10352,6 +10404,7 @@ def auto_assign_drivers(request):
                 flight_info = str(leg.flight_information)
         except Exception:
             pass
+        from dispatching.scheduler import chain_clear_dt as _chain_clear_dt
         return ScheduleSlot(
             leg_id=leg.id, pickup_time=leg.pickup_time,
             pickup_location=leg.pickup_location, pickup_category=pickup_cat,
@@ -10360,6 +10413,7 @@ def auto_assign_drivers(request):
             reservation_id=leg.reservation_id, customer_name=customer_name,
             status=leg.status or 'pending', has_flight=has_flight,
             flight_info=flight_info, revenue=leg.revenue_share,
+            chain_clear_dt=_chain_clear_dt(leg, target_date),
         )
 
     for lid, did in final_assignments.items():
@@ -10599,6 +10653,7 @@ def auto_assign_drivers(request):
         "driver_list": driver_list,
         "span_warnings": span_warnings_out,
         "trim_moves": len(_trim_moves),
+        "evict_moves": _evict_moves,
         "advisor": advisor_proposals,
     })
 

@@ -237,7 +237,19 @@ def get_effective_window(driver_id, configured=None, enforce_cap=True):
             max_h = _capped_max_hours(
                 stub_mh=max_h,
                 configured_mh=configured.get("max_hours") if configured else None)
-        return {"start": w["start"], "end": w["end"], "max_hours": max_h,
+        # The dispatcher's typed window is INTENT ("the modal is authoritative") and the
+        # stub is OPTIMISTIC observed history — so a TIGHTER configured start/end wins
+        # over the stub (founder-brain 2026-06: Yovanny typed 6-18 in the modal but the
+        # stub's end=20 let auto-assign seat a job clearing 19:15 past his clear-by).
+        # The stub still tightens a LOOSER configured window, exactly like max_hours.
+        start_h, end_h = w["start"], w["end"]
+        if configured is not None:
+            c_start, c_end = configured.get("start"), configured.get("end")
+            if c_start is not None and start_h is not None:
+                start_h = max(start_h, int(c_start))
+            if c_end is not None and end_h is not None:
+                end_h = min(end_h, int(c_end))
+        return {"start": start_h, "end": end_h, "max_hours": max_h,
                 "flexible": flexible, "night_exempt": night_exempt}
     if not cap_on:
         if configured is not None and night_exempt:
