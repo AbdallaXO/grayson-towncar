@@ -3377,7 +3377,7 @@
             // Fold-Out ("can run leaner"). Unknown kinds are skipped defensively — a new
             // card kind must get its own renderer branch, never the residual markup.
             const advisorAll = (data.advisor || []).filter(p => !aaAdvisorDismissed.has(p.signature));
-            const advisorProps = advisorAll.filter(p => p.kind === 'residual' || p.kind === 'overload' || (p.kind === 'info' && String(p.signature).indexOf('_fold') !== 0 && String(p.signature).indexOf('_rebal') !== 0));
+            const advisorProps = advisorAll.filter(p => p.kind === 'residual' || p.kind === 'overload' || (p.kind === 'info' && String(p.signature).indexOf('_fold') !== 0 && String(p.signature).indexOf('_rebal') !== 0 && String(p.signature).indexOf('_rest') !== 0));
             const foldProps = advisorAll.filter(p => p.kind === 'fold_out' || (p.kind === 'info' && String(p.signature).indexOf('_fold') === 0));
             const rebalProps = advisorAll.filter(p => p.kind === 'rebalance' || (p.kind === 'info' && String(p.signature).indexOf('_rebal') === 0));
             if (advisorProps.length > 0) {
@@ -3467,6 +3467,23 @@
                     html += '<div class="d-flex align-items-center gap-2 mt-1">';
                     html += '<button class="btn btn-sm" style="background:#1565c0;color:#fff;font-weight:600;font-size:0.72rem;" onclick="aaRebalAccept(\'' + p.signature + '\', this)"><i class="bi bi-arrow-left-right me-1"></i>Move these ' + p.moves.length + ' job' + (p.moves.length !== 1 ? 's' : '') + '</button>';
                     html += '<button class="btn btn-sm btn-outline-secondary" style="font-size:0.72rem;" onclick="aaAdvisorDismiss(\'' + p.signature + '\')">Keep as is</button>';
+                    html += '</div></div>';
+                });
+                html += '</div>';
+            }
+
+            // Rest Advisor cards — "this driver didn't get enough overnight rest" (teal box:
+            // info-only; the scorer prevents most, this verifies the final board. The
+            // dispatcher sets a later start or accepts).
+            const restProps = advisorAll.filter(p => p.kind === 'rest');
+            if (restProps.length > 0) {
+                html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:2px solid #00695c;overflow:hidden;">';
+                html += '<div class="px-3 py-2" style="background:linear-gradient(135deg,#00695c,#00897b);color:#fff;font-weight:700;font-size:0.85rem;"><i class="bi bi-moon-stars-fill me-2"></i>Rest Advisor — overnight rest</div>';
+                restProps.forEach(function(p) {
+                    html += '<div class="px-3 py-2" style="border-bottom:1px solid #b2dfdb;" data-adv-sig="' + p.signature + '">';
+                    html += '<div style="font-size:0.82rem;color:#333;">' + p.text + '</div>';
+                    html += '<div class="d-flex align-items-center gap-2 mt-1">';
+                    html += '<button class="btn btn-sm btn-outline-secondary" style="font-size:0.72rem;" onclick="aaAdvisorDismiss(\'' + p.signature + '\')">Got it</button>';
                     html += '</div></div>';
                 });
                 html += '</div>';

@@ -32,10 +32,11 @@ FLEXIBLE_RESPECTS_CLEAR_BY = False
 # Guard B — turnaround tuning (minutes).
 # Slack on airport-ARRIVAL pickups. The pickup time is the flight's GATE arrival; the driver only
 # needs to be at baggage claim ~this many minutes after it (they clear the cell-lot/security
-# checkpoint while pax deplane + collect bags, so they meet curbside on time). Founder rule:
-# driver there 10–15 min max after gate; pax curbside 10–20. Set to 15 (top of range) so the
-# engine stops farming legs over phantom 1–15 min "lateness" that never happens in reality.
-DEPLANING_GRACE_MIN = 15
+# checkpoint while pax deplane + collect bags, so they meet curbside on time). Founder rule
+# (2026-06-12): driver there 10 min max after gate (a 10:30 flight => latest curbside 10:40).
+# Credited ONLY when the driver is ALREADY at that airport (same_terminal) — see
+# required_turnaround; a driver repositioning in from a resort gets the full drive, no grace.
+DEPLANING_GRACE_MIN = 10
 # Global pad added on top of every turnaround. Set to 0 by founder decision: dispatch
 # monitors/adjusts jobs live, so the engine should allow tight back-to-back turnarounds
 # (a turnaround needs only the real drive time). check_feasibility still WARNS on tight
@@ -151,12 +152,17 @@ def required_turnaround(reposition_drive_min, next_is_airport_arrival, same_term
     """Minutes required between the previous job's clear time and the next pickup.
 
     Rules:
-      * airport ARRIVAL pickup: the driver only needs to reach the curb by gate-arrival +
-        deplaning grace (pax are deplaning + collecting bags), so the FULL grace is credited —
-        even for a short same-terminal hop. The result may go NEGATIVE, meaning the pickup can be
-        slightly before the driver clears the previous job (he's already at the airport and the
-        pax aren't out yet). This is what stops the engine farming same-airport turns it wrongly
-        called "impossible" (e.g. drop a return at MCO 1:35, grab a 1:34 MCO arrival — fine).
+      * airport ARRIVAL pickup AND the driver is ALREADY at that airport (same_terminal — e.g.
+        he just dropped a return at MCO): credit the deplaning grace (pax are deplaning +
+        collecting bags). base = -grace, which may go NEGATIVE — the pickup can be slightly
+        before he clears the previous job. This is what stops the engine farming genuine
+        same-airport turns it wrongly called "impossible" (drop a return at MCO 1:35, grab a
+        1:34 MCO arrival — fine).
+      * airport ARRIVAL pickup but the driver is repositioning IN from elsewhere (resort / hotel
+        / port — same_terminal False): full real drive time, NO grace. He is not standing at the
+        gate watching them deplane; the deplaning window cannot pay for 25 minutes of driving
+        back to the airport. Without this, the coarse drive table minus a flat grace let the
+        engine chain two arrivals ~25-40 min short (the Roberto / runer overlaps, 2026-06-12).
       * anything -> non-arrival (incl. Port Canaveral / returns / departures): full real drive
         time each way, NO grace (the passenger is waiting, the driver must be on time).
       * + a global safety pad on top of every turnaround.
@@ -164,10 +170,10 @@ def required_turnaround(reposition_drive_min, next_is_airport_arrival, same_term
     """
     dg = DEPLANING_GRACE_MIN if deplaning_grace is None else deplaning_grace
     pad = SAFETY_PAD_MIN if safety_pad is None else safety_pad
-    if next_is_airport_arrival:
-        base = (0 if same_terminal else reposition_drive_min) - dg   # full deplaning credit; may be < 0
+    if next_is_airport_arrival and same_terminal:
+        base = -dg                          # already at the airport; pax deplaning. May be < 0.
     else:
-        base = reposition_drive_min
+        base = reposition_drive_min         # must DRIVE in (or non-arrival): full drive, no grace.
     return base + pad
 
 

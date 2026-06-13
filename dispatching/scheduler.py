@@ -1321,6 +1321,7 @@ def suggest_assignments_clustered(
     flexible_drivers: set = None,
     driver_max_hours: Dict[int, float] = None,
     sharer_partners: Dict[int, set] = None,
+    prev_end_by_driver: Dict[int, datetime] = None,
 ) -> List[AssignmentSuggestion]:
     """Cluster-aware assignment wrapper.
 
@@ -1344,6 +1345,7 @@ def suggest_assignments_clustered(
             driver_hours=driver_hours, driver_preferences=driver_preferences,
             driver_vtypes=driver_vtypes, flexible_drivers=flexible_drivers,
             driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
+            prev_end_by_driver=prev_end_by_driver,
         )
 
     if driver_vtypes is None:
@@ -1366,6 +1368,7 @@ def suggest_assignments_clustered(
         driver_vtypes=driver_vtypes, cluster_hints=cluster_hints,
         clusters=clusters, flexible_drivers=flexible_drivers,
         driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
+        prev_end_by_driver=prev_end_by_driver,
     )
 
 
@@ -1381,6 +1384,7 @@ def suggest_assignments(
     flexible_drivers: set = None,
     driver_max_hours: Dict[int, float] = None,
     sharer_partners: Dict[int, set] = None,
+    prev_end_by_driver: Dict[int, datetime] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -1652,6 +1656,13 @@ def suggest_assignments(
 
     _value_weight = getattr(cfg, 'auto_assign_value_weight', 0)
 
+    # Rest Advisor: soft overnight-rest deficit penalty, charged once per candidate when
+    # the leg would become that driver's FIRST pickup. Off unless a prev-day end map was
+    # threaded in AND the gap/penalty knobs are both > 0 (gap 0 disables the feature).
+    _rest_min_gap_h = (getattr(cfg, 'rest_min_gap_minutes', 0) or 0) / 60.0
+    _rest_pen = getattr(cfg, 'rest_penalty_per_hour', 0) or 0
+    _rest_on = bool(prev_end_by_driver) and _rest_min_gap_h > 0 and _rest_pen > 0
+
     for _leg_idx, leg in enumerate(sorted_legs):
         best_id = None
         best_score = float('-inf')
@@ -1899,6 +1910,21 @@ def suggest_assignments(
                     span_hours = (effective_end - effective_start).total_seconds() / 3600
                     if span_hours > span_threshold:
                         score -= int((span_hours - span_threshold) * span_penalty_rate)
+
+            # Rest Advisor (overnight rest): soft penalty when THIS leg would become the
+            # driver's FIRST pickup and he didn't get the minimum rest since yesterday's
+            # last drop-off. MARGINAL (first-pickup only — mid-day legs never charged) and
+            # SOFT (a score nudge, never a hard skip): a tired driver who is the ONLY option
+            # still covers the leg; he just loses the early-morning TIE to a rested peer.
+            if _rest_on and (not sched.slots
+                             or leg.pickup_time < min(s.pickup_time for s in sched.slots)):
+                _prev_end = prev_end_by_driver.get(did)
+                if _prev_end is not None:
+                    _rest_h = (datetime.combine(target_date, leg.pickup_time)
+                               - _prev_end).total_seconds() / 3600
+                    _deficit = _rest_min_gap_h - _rest_h
+                    if _deficit > 0:
+                        score -= int(_deficit * _rest_pen)
 
             # Per-driver trip type preference
             if driver_preferences and did in driver_preferences:
@@ -3491,8 +3517,10 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, 
             prev_end = _slot_chain_end(preceding, target_date)
             earliest = prev_end + timedelta(minutes=req_turn)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
-            grace_note = (f" (after {repo_drive}min drive \u2212 {fg.DEPLANING_GRACE_MIN}min deplaning grace)"
-                          if cur_is_arrival and not same_terminal else "")
+            grace_note = (f" (already at {pickup_cat}, \u2212{fg.DEPLANING_GRACE_MIN}min deplaning grace)"
+                          if cur_is_arrival and same_terminal
+                          else (f" (full {repo_drive}min drive in, no deplaning credit off-airport)"
+                                if cur_is_arrival else ""))
 
             details['prev_job'] = {
                 'leg_id': preceding.leg_id,
@@ -3568,8 +3596,10 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
             prev_end = _slot_chain_end(preceding, target_date)
             earliest = prev_end + timedelta(minutes=req_turn)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
-            grace_note = (f" (after {repo_drive}min drive − {fg.DEPLANING_GRACE_MIN}min deplaning grace)"
-                          if cur_is_arrival and not same_terminal else "")
+            grace_note = (f" (already at {pickup_cat}, −{fg.DEPLANING_GRACE_MIN}min deplaning grace)"
+                          if cur_is_arrival and same_terminal
+                          else (f" (full {repo_drive}min drive in, no deplaning credit off-airport)"
+                                if cur_is_arrival else ""))
 
             details['prev_job'] = {
                 'leg_id': preceding.leg_id,

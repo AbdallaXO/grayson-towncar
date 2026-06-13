@@ -10175,13 +10175,38 @@ def auto_assign_drivers(request):
                 lg.driver = None; lg.driver_id = None
         auto_unassigned = [l for l in auto_unassigned if l.id not in seeded_assignments]
 
+    # ── Rest Advisor: previous day's last drop-off per working driver ──
+    # Feeds the overnight-rest deficit penalty (suggest_assignments scorer) AND the rest
+    # advisory cards below. max(end) across ALL of yesterday's legs = the real clear time
+    # (a slightly earlier pickup with a longer drive can be the one that clears last).
+    # A driver with no legs yesterday is absent from the map => treated as fully rested.
+    prev_end_by_driver = {}
+    try:
+        from dispatching.scheduler import estimate_job_end_time as _est_end
+        _prev_day = target_date - timedelta(days=1)
+        _wids = set(driver_hours.keys())
+        if _wids:
+            _prev_legs = (Leg.objects.filter(pickup_date=_prev_day, driver_id__in=_wids)
+                          .exclude(status="cancelled")
+                          .select_related("reservation", "flight_information"))
+            for _pl in _prev_legs:
+                try:
+                    _end = _est_end(_pl, _prev_day)
+                except Exception:
+                    continue
+                if _end > prev_end_by_driver.get(_pl.driver_id, datetime.min):
+                    prev_end_by_driver[_pl.driver_id] = _end
+    except Exception:
+        prev_end_by_driver = {}
+
     # Run suggestion engine on remaining unassigned legs
     suggestions = suggest_assignments_clustered(auto_unassigned, assign_board, target_date,
                                                 driver_hours=driver_hours or None,
                                                 driver_preferences=driver_preferences or None,
                                                 flexible_drivers=flexible_drivers or None,
                                                 driver_max_hours=driver_max_hours or None,
-                                                sharer_partners=sharer_partners or None) if auto_unassigned else []
+                                                sharer_partners=sharer_partners or None,
+                                                prev_end_by_driver=prev_end_by_driver or None) if auto_unassigned else []
 
     # Merge: auto suggestions + manual overrides
     valid_suggestions = [
@@ -10642,6 +10667,21 @@ def auto_assign_drivers(request):
     except Exception:
         import logging
         logging.getLogger(__name__).exception("rebalance advisor failed (advisory only)")
+
+    # ── Rest Advisor (overnight rest awareness) ──
+    # Verifies the FINAL board: any working driver pulled to an early first pickup without
+    # the minimum overnight rest (since yesterday's last drop-off) gets a card naming a
+    # rested same-class alternative, or "no alternative — accept/farm". The scorer prevents
+    # most; this catches manual/locked/only-driver cases. NOT gated on residual/fold state
+    # (a rest violation matters whether or not the day is fully covered). Advisory only.
+    try:
+        from dispatching.rest_advisor import build_rest_advisories
+        advisor_proposals.extend(build_rest_advisories(
+            target_date, proposed, prev_end_by_driver,
+            set(driver_hours.keys()), drivers_by_id))
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("rest advisor failed (advisory only)")
 
     return JsonResponse({
         "success": True,

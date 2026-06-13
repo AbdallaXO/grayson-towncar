@@ -1,6 +1,13 @@
 # Rest Advisor — overnight rest awareness for auto-assign
 
-**Status: DESIGNED, NOT IMPLEMENTED** (investigation done 2026-06-12; line numbers below are from that date)
+**Status: IMPLEMENTED 2026-06-12** (uncommitted; founder go pending). Min rest = **8.5h**
+stored as `rest_min_gap_minutes=510` (IntegerField, NOT the design's FloatField — the settings
+save endpoint coerces every value to int, so hours-as-float couldn't round-trip; minutes is
+integer-clean). `rest_penalty_per_hour=40`. Scorer penalty in `suggest_assignments`
+(`prev_end_by_driver` kwarg threaded from `auto_assign_drivers`), advisory cards in
+`dispatching/rest_advisor.py` (alternative match = EXACT vehicle tier, read off the raw
+`vehicle_type` CharField), teal card group in the planner. 12 tests in `tests_rest_advisor.py`
+green. NOT YET: the per-driver-row modal "rested-by" hint (cards + scorer shipped; hint deferred).
 
 > Naming note: `dispatching/shift_advisor.py` is ALREADY TAKEN by the Second-Shift
 > Advisor (Span Governor Phase 5 — "this day needs another driver"). This feature

@@ -128,6 +128,12 @@ class SchedulerSettings(models.Model):
     displacement_min_value_gain = models.IntegerField(default=500, help_text="Evict-to-farm pass: min leg_value(residual) − leg_value(evicted arrival) to displace (1000 ≈ one trip-type step, 10000 ≈ one booked-class step)")
     max_displacements_per_run = models.IntegerField(default=10, help_text="Evict-to-farm pass: max evictions per auto-assign run")
 
+    # ── Rest Advisor (overnight rest gap) ────────────────────────
+    # Stored in MINUTES (not hours) so the integer-only settings save path round-trips
+    # the founder's 8.5h pick exactly (510). 0 disables rest scoring AND the advisory cards.
+    rest_min_gap_minutes = models.IntegerField(default=510, help_text="Min overnight rest: minutes between a driver's last drop-off (prev day) and his first pickup (next day). 510=8.5h. 0 disables rest scoring + advisories.")
+    rest_penalty_per_hour = models.IntegerField(default=40, help_text="Score penalty per hour of overnight-rest deficit, charged ONLY when a leg would become a driver's first pickup of the day (soft — never blocks coverage).")
+
     # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
     type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
     type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")

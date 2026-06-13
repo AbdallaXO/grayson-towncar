@@ -5,38 +5,54 @@ Guard B (turnaround) and Guard C (window) logic is tested here.
 """
 from datetime import datetime, date, time
 from unittest.mock import patch
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from dispatching import feasibility_guards as fg
+from dispatching.scheduler import check_feasibility
+from dispatching.tests_founder_brain import _leg as _fleg, _slot as _fslot, _sched as _fsched, D as _FB_D
 
 
 class TurnaroundTests(SimpleTestCase):
+    def test_deplaning_grace_is_ten(self):
+        # Founder set the deplaning window to 10 min (2026-06-12): a 10:30 flight => latest
+        # curbside 10:40.
+        self.assertEqual(fg.DEPLANING_GRACE_MIN, 10)
+
     def test_non_arrival_full_drive_only(self):
         # anything -> non-arrival (incl. Port): full drive, pad now 0 (live monitoring)
         self.assertEqual(fg.required_turnaround(30, next_is_airport_arrival=False, same_terminal=False), 30)
 
     def test_airport_arrival_same_terminal(self):
-        # same-terminal arrival: 0 reposition, FULL deplaning credit => -grace (driver already at
-        # the airport, pax still deplaning, so pickup can be ~grace min before he clears the prev job)
-        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=True), -15)
+        # same-terminal arrival (driver ALREADY at the airport): -grace, may go negative — the
+        # pickup can be ~grace min before he clears the prev job (pax still deplaning).
+        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=True), -10)
 
-    def test_airport_arrival_from_resort(self):
-        # resort -> airport arrival: drive - deplaning(15), pad 0
-        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=False), 30)
+    def test_airport_arrival_from_resort_no_grace(self):
+        # resort -> airport arrival: he must DRIVE in, so the FULL reposition drive is required
+        # and the deplaning grace is NOT credited (the fix for the Roberto / runer overlaps).
+        self.assertEqual(fg.required_turnaround(45, next_is_airport_arrival=True, same_terminal=False), 45)
 
-    def test_airport_arrival_deplaning_credit_can_go_negative(self):
-        # short hop to an arrival: full deplaning credit, no floor => can go negative
-        self.assertEqual(fg.required_turnaround(10, next_is_airport_arrival=True, same_terminal=False), -5)
+    def test_repositioning_arrival_never_goes_negative(self):
+        # A short drive in from elsewhere still requires the full drive — no negative credit
+        # (only a driver standing at the same terminal earns the deplaning discount).
+        self.assertEqual(fg.required_turnaround(10, next_is_airport_arrival=True, same_terminal=False), 10)
 
     def test_safety_pad_default_is_zero(self):
         self.assertEqual(fg.SAFETY_PAD_MIN, 0)
 
-    def test_custom_params_still_honored(self):
-        # explicit overrides still work (formula: drive - deplaning + pad)
+    def test_custom_grace_honored_same_terminal(self):
+        # explicit grace override applies on the same-terminal (at-airport) path: -grace + pad
+        self.assertEqual(
+            fg.required_turnaround(60, next_is_airport_arrival=True, same_terminal=True,
+                                   deplaning_grace=30, safety_pad=5),
+            -30 + 5)
+
+    def test_custom_pad_honored_repositioning(self):
+        # repositioning in: full drive + pad, grace ignored regardless of its value
         self.assertEqual(
             fg.required_turnaround(60, next_is_airport_arrival=True, same_terminal=False,
                                    deplaning_grace=30, safety_pad=5),
-            60 - 30 + 5)
+            60 + 5)
 
     def test_is_airport_arrival(self):
         self.assertTrue(fg.is_airport_arrival("arrival", "MCO Terminal"))
@@ -153,3 +169,40 @@ class EffectiveWindowTests(SimpleTestCase):
             self.assertEqual(fg.get_effective_window(46, configured=configured, enforce_cap=False),
                              dict(configured, night_exempt=True))
             self.assertIsNone(fg.get_effective_window(46, configured=None, enforce_cap=False))
+
+
+class ArrivalChainOverlapTests(TestCase):
+    """Regression for the 2026-06-12 Roberto / runer overlaps: an arrival that FOLLOWS a job at
+    a different location must require the full reposition drive (no deplaning grace for a driver
+    who is still 25-40 min away). The legitimate same-airport turn stays feasible."""
+
+    def test_runer_resort_to_airport_arrival_rejected(self):
+        # 7:25 MCO->Pop Century arrival (chain-clears ~8:40 static), then 8:55 MCO->Pop Century
+        # arrival. Disney->MCO reposition 30, NO grace => earliest 9:10 > 8:55 => infeasible.
+        # (Under the old -15 grace this slipped through at buffer 0.)
+        prev = _fleg(1, 7, 25, vtype="towncar", trip="arrival",
+                     pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
+        nxt = _fleg(2, 8, 55, vtype="mini_van", trip="arrival",
+                    pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
+        res = check_feasibility(_fsched(6, [_fslot(prev)]), nxt, _FB_D)
+        self.assertFalse(res.feasible)
+
+    def test_roberto_resort_to_airport_arrival_rejected(self):
+        # 9:00 MCO->Hard Rock (Universal) arrival (chain-clears ~10:10 static), then 10:27
+        # MCO->Art of Animation arrival. Universal->MCO 25, NO grace => earliest 10:35 > 10:27.
+        prev = _fleg(1, 9, 0, vtype="van", trip="arrival",
+                     pickup_loc="MCO Terminal", dropoff_loc="Universal Resort")
+        nxt = _fleg(2, 10, 27, vtype="suv", trip="arrival",
+                    pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
+        res = check_feasibility(_fsched(7, [_fslot(prev)]), nxt, _FB_D)
+        self.assertFalse(res.feasible)
+
+    def test_at_airport_turn_still_feasible(self):
+        # Driver drops a return AT MCO (chain-clears ~1:35), then grabs an MCO arrival at 1:34 —
+        # already at the airport (same_terminal), pax deplaning => -10 grace keeps it feasible.
+        prev = _fleg(1, 13, 5, vtype="suv", trip="return",
+                     pickup_loc="Disney Resort", dropoff_loc="MCO Terminal")
+        nxt = _fleg(2, 13, 34, vtype="suv", trip="arrival",
+                    pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
+        res = check_feasibility(_fsched(8, [_fslot(prev)]), nxt, _FB_D)
+        self.assertTrue(res.feasible)
