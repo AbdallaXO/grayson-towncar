@@ -8,16 +8,37 @@ _cache = caches["default"]
 CACHE_TTL = 60 * 60 * 2  # 2 hours
 
 
-def get_drive_time(origin, destination, force_refresh=False):
+def _snap_coord_origin(origin, ndigits=3):
+    """
+    Round a 'lat,lng' origin to ~110m (3 decimals) so a parked car whose GPS jitters
+    a few meters every poll keeps hitting the SAME cache entry instead of paying for a
+    fresh Distance Matrix call each cycle. Opt-in (sweep only). A non-coordinate origin
+    (e.g. an address string) is returned unchanged, so shared callers that pass place
+    names are never affected.
+    """
+    try:
+        lat_s, lng_s = origin.split(",")
+        return f"{round(float(lat_s), ndigits)},{round(float(lng_s), ndigits)}"
+    except (ValueError, AttributeError):
+        return origin
+
+
+def get_drive_time(origin, destination, force_refresh=False, snap_origin=False):
     """
     Call Google Distance Matrix API to get estimated drive time and distance.
     Uses departure_time=now for traffic-aware estimates.
     Returns {"duration_text": "25 mins", "distance_text": "18.3 mi"} or None.
     Results are cached for 2 hours.
+
+    `snap_origin` (opt-in, used by the Samsara sweep) rounds a 'lat,lng' origin to
+    ~110m before it becomes the cache key, so a jittering parked car reuses one entry.
     """
     api_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
     if not api_key or not origin or not destination:
         return None
+
+    if snap_origin:
+        origin = _snap_coord_origin(origin)
 
     # Cache key based on origin + destination hash
     key_raw = f"drivetime:{origin}|{destination}"

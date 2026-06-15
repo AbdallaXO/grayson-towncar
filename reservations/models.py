@@ -1098,6 +1098,22 @@ class Leg(models.Model):
         max_length=50, blank=True, default="",
         help_text="Assigned vehicle number snapshot, shown in the live-tracking panel.",
     )
+    # Cost-control bookkeeping: the inputs the stored dispatch_eta_minutes was last
+    # computed against. The sweep reuses the stored minutes (skipping the paid Google
+    # Distance Matrix call) when the vehicle hasn't moved meaningfully since this GPS
+    # and the target location is unchanged. Risk bands are always recomputed locally.
+    dispatch_eta_origin_lat = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        help_text="Vehicle GPS latitude the stored dispatch_eta_minutes was computed against.",
+    )
+    dispatch_eta_origin_lng = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        help_text="Vehicle GPS longitude the stored dispatch_eta_minutes was computed against.",
+    )
+    dispatch_eta_origin_target = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Target location string the stored ETA was computed against; a change forces a fresh lookup.",
+    )
 
     # How long a computed ETA stays renderable before it's considered stale.
     DISPATCH_ETA_FRESH_MIN = 10

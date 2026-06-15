@@ -9,6 +9,7 @@ The question we answer per driver: "where is the vehicle relative to the
 driver's NEXT relevant stop, and will he make it?"
 """
 import logging
+import math
 from datetime import datetime, timedelta
 
 from django.utils import timezone
@@ -46,6 +47,18 @@ PANEL_STAGE_WARN_MIN = 10
 # Minutes a driver spends at a drop-off before he's free for the next pickup. Used by the
 # chain: time-to-current-dropoff + this + drive(dropoff -> next pickup).
 DROPOFF_SERVICE_MIN = 5
+
+# --- Cost control: gate the PAID Google drive-time call --------------------------
+# The drive-time minutes are stable while a car is parked, but slack shrinks every
+# cycle as the clock advances. So we gate ONLY the paid Google lookup; the free
+# slack/band math always re-runs against the current clock (see evaluate()).
+# Vehicle drift (meters) below which we treat the car as "hasn't moved" and reuse the
+# stored ETA. Parked GPS jitters a few meters per poll — that must NOT count as moved.
+ETA_MOVE_REUSE_M = 150
+# A pickup further out than this renders as the calm "waiting" card (see
+# PANEL_WAIT_SLACK_MIN); no point paying to refresh its ETA every cycle. Reuse the
+# stored value until the leg enters the window.
+ETA_FAR_FUTURE_MIN = 180
 
 # Leg statuses meaning the driver is still heading TO the pickup.
 _HEADING_TO_PICKUP = {"in-progress", "confirmed", "on-the-way", None, ""}
@@ -145,7 +158,55 @@ def _blank_fields():
     }
 
 
-def evaluate(vehicle, target, now=None, eta_override=None):
+def _haversine_m(lat1, lng1, lat2, lng2):
+    """Great-circle distance in meters between two lat/lng points (float or Decimal).
+    Returns +inf if any coordinate is missing, so a missing anchor never reads as
+    'hasn't moved'."""
+    if lat1 is None or lng1 is None or lat2 is None or lng2 is None:
+        return float("inf")
+    r = 6_371_000.0  # Earth radius, meters
+    lat1, lng1, lat2, lng2 = float(lat1), float(lng1), float(lat2), float(lng2)
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _can_reuse_eta(vehicle, leg, target_location, target_time, now, refresh_allowed=True):
+    """
+    True when we may REUSE leg.dispatch_eta_minutes instead of paying for a fresh
+    Google drive-time lookup. Reuse is only safe when the *inputs to the drive time*
+    are effectively unchanged:
+      - a stored ETA exists AND we know the origin GPS it was computed against,
+      - the target location is identical, and one of:
+          * this is a cost-gated "no-refresh" tick (Lever 4 cadence), or
+          * the pickup is beyond ETA_FAR_FUTURE_MIN (Lever 2 window gate), or
+          * the vehicle hasn't moved >= ETA_MOVE_REUSE_M since (Lever 1 drift gate).
+    The caller ALWAYS recomputes the risk band from the stored minutes against the
+    current clock — only the paid call is gated here.
+    """
+    if getattr(leg, "dispatch_eta_minutes", None) is None:
+        return False  # nothing to reuse -> must compute at least once
+    o_lat = getattr(leg, "dispatch_eta_origin_lat", None)
+    o_lng = getattr(leg, "dispatch_eta_origin_lng", None)
+    if o_lat is None or o_lng is None:
+        return False  # no anchor -> can't judge drift -> recompute
+    if (getattr(leg, "dispatch_eta_origin_target", "") or "") != (target_location or ""):
+        return False  # target moved -> must refresh
+    if not refresh_allowed:
+        return True   # Lever 4: cost-gated cycle; reuse (band still recomputes)
+    if target_time is not None:
+        minutes_to_target = (target_time - now).total_seconds() / 60
+        if minutes_to_target > ETA_FAR_FUTURE_MIN:
+            return True  # Lever 2: far-future pickup, don't refresh
+    moved = _haversine_m(o_lat, o_lng,
+                         vehicle.samsara_last_latitude, vehicle.samsara_last_longitude)
+    return moved < ETA_MOVE_REUSE_M  # Lever 1: parked / negligible drift
+
+
+def evaluate(vehicle, target, now=None, eta_override=None, eta_origin=None,
+             refresh_allowed=True):
     """
     Compute the Leg.dispatch_* field values for one driver's chosen target.
 
@@ -181,17 +242,37 @@ def evaluate(vehicle, target, now=None, eta_override=None):
     else:
         fields["dispatch_stationary_minutes"] = 0
 
+    leg = target["leg"]
     if eta_override is not None:
+        # Caller supplied the minutes (the chain). It also tells us which origin the
+        # value is anchored to: carried-forward GPS on reuse, current GPS on a fresh
+        # compute. Falling back to current GPS keeps old call sites working.
         drive_min = eta_override
+        o_lat, o_lng = eta_origin if eta_origin else (
+            vehicle.samsara_last_latitude, vehicle.samsara_last_longitude)
+    elif _can_reuse_eta(vehicle, leg, target["location"], target["target_time"],
+                        now, refresh_allowed):
+        # No paid Google call: reuse the stored minutes. The band math below still
+        # runs against the current clock, so a parked car's slack keeps shrinking and
+        # it flips to at_risk on schedule. Keep the ORIGINAL anchor so drift
+        # accumulates across cycles (a car creeping under the threshold each poll
+        # still recomputes once cumulative drift crosses it).
+        drive_min = leg.dispatch_eta_minutes
+        o_lat = getattr(leg, "dispatch_eta_origin_lat", None)
+        o_lng = getattr(leg, "dispatch_eta_origin_lng", None)
     else:
         origin = f"{vehicle.samsara_last_latitude},{vehicle.samsara_last_longitude}"
-        dt = get_drive_time(origin, target["location"])
+        dt = get_drive_time(origin, target["location"], snap_origin=True)
         if not dt or dt.get("duration_seconds") is None:
             fields["dispatch_risk_status"] = "unknown"
             fields["dispatch_risk_reason"] = "Could not compute drive time"
             return fields
         drive_min = round(dt["duration_seconds"] / 60)
+        o_lat, o_lng = vehicle.samsara_last_latitude, vehicle.samsara_last_longitude
     fields["dispatch_eta_minutes"] = drive_min
+    fields["dispatch_eta_origin_lat"] = o_lat
+    fields["dispatch_eta_origin_lng"] = o_lng
+    fields["dispatch_eta_origin_target"] = target["location"]
 
     # Dropoff target: no hard deadline -> ETA only, no risk band.
     if target["kind"] == "dropoff":
@@ -200,7 +281,6 @@ def evaluate(vehicle, target, now=None, eta_override=None):
 
     # Pickup target: band the slack.
     target_time = target["target_time"]
-    leg = target["leg"]
     if target_time is None:
         fields["dispatch_risk_status"] = "on_time"
         fields["dispatch_risk_reason"] = f"~{drive_min} min to pickup"
@@ -256,7 +336,7 @@ def _within_grace(leg, now):
     return (now - tt).total_seconds() / 60 <= PAST_PICKUP_GRACE_MIN
 
 
-def evaluate_driver(vehicle, legs, now=None):
+def evaluate_driver(vehicle, legs, now=None, refresh_allowed=True):
     """
     Chain-aware per-driver evaluation. Returns {leg_id: fields} for the leg(s) to flag:
       - FREE driver: feasibility to his next upcoming pickup.
@@ -264,6 +344,10 @@ def evaluate_driver(vehicle, legs, now=None):
         PLUS his next pickup, chained through finishing the current job
         (time-to-current-dropoff + DROPOFF_SERVICE_MIN + drive(dropoff -> next pickup)).
     Empty dict = nothing to flag.
+
+    `refresh_allowed` (Lever 4 cadence gate) is threaded into every evaluate() call:
+    when False, stored ETAs are reused without any Google call and only the bands
+    recompute.
     """
     now = now or timezone.now()
     if vehicle is None or not getattr(vehicle, "samsara_enabled", False):
@@ -281,26 +365,38 @@ def evaluate_driver(vehicle, legs, now=None):
         # Current job: ETA to the drop-off he's running (informational, no deadline).
         dropoff_target = {"leg": mid, "kind": "dropoff",
                           "location": mid.dropoff_location, "target_time": None}
-        mid_fields = evaluate(vehicle, dropoff_target, now)
+        mid_fields = evaluate(vehicle, dropoff_target, now, refresh_allowed=refresh_allowed)
         if mid_fields:
             out[mid.id] = mid_fields
         # Next pickup, CHAINED: finish the current drop-off, then drive on to it.
         nxt = next((l for l in open_legs if l.id != mid.id and _within_grace(l, now)), None)
         if nxt is not None:
-            to_dropoff = mid_fields.get("dispatch_eta_minutes") if mid_fields else None
-            dropoff_to_next = _drive_min(mid.dropoff_location, nxt.pickup_location)
-            if to_dropoff is not None and dropoff_to_next is not None:
-                chained = to_dropoff + DROPOFF_SERVICE_MIN + dropoff_to_next
-                pickup_target = {"leg": nxt, "kind": "next_pickup",
-                                 "location": nxt.pickup_location,
-                                 "target_time": effective_pickup_dt(nxt)}
-                nxt_fields = evaluate(vehicle, pickup_target, now, eta_override=chained)
+            nxt_tt = effective_pickup_dt(nxt)
+            pickup_target = {"leg": nxt, "kind": "next_pickup",
+                             "location": nxt.pickup_location, "target_time": nxt_tt}
+            if _can_reuse_eta(vehicle, nxt, nxt.pickup_location, nxt_tt, now, refresh_allowed):
+                # Reuse the stored chained ETA: no Google calls (neither the dropoff
+                # ETA nor the dropoff->next hop). Bands still recompute below.
+                nxt_fields = evaluate(
+                    vehicle, pickup_target, now,
+                    eta_override=nxt.dispatch_eta_minutes,
+                    eta_origin=(getattr(nxt, "dispatch_eta_origin_lat", None),
+                                getattr(nxt, "dispatch_eta_origin_lng", None)),
+                    refresh_allowed=refresh_allowed)
                 if nxt_fields:
                     out[nxt.id] = nxt_fields
+            else:
+                to_dropoff = mid_fields.get("dispatch_eta_minutes") if mid_fields else None
+                dropoff_to_next = _drive_min(mid.dropoff_location, nxt.pickup_location)
+                if to_dropoff is not None and dropoff_to_next is not None:
+                    chained = to_dropoff + DROPOFF_SERVICE_MIN + dropoff_to_next
+                    nxt_fields = evaluate(vehicle, pickup_target, now, eta_override=chained)
+                    if nxt_fields:
+                        out[nxt.id] = nxt_fields
     else:
         target = choose_active_target(open_legs, now)
         if target is not None:
-            fields = evaluate(vehicle, target, now)
+            fields = evaluate(vehicle, target, now, refresh_allowed=refresh_allowed)
             if fields:
                 out[target["leg"].id] = fields
     return out

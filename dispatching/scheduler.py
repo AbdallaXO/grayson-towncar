@@ -5,11 +5,14 @@ Provides feasibility checking, assignment suggestions, and batching detection
 for optimizing in-house driver coverage.
 """
 
+import logging
 import os
 from datetime import datetime, timedelta, time, date
 from decimal import Decimal
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -641,6 +644,15 @@ def resolve_drive_minutes(pickup_text, dropoff_text, pickup_category, dropoff_ca
                      and pickup_category in INTRA_CLUSTER_LIVE_CATS))):
         try:
             from drivers.utils import get_drive_time as _maps_drive_time
+            # SPIKE TRIPWIRE: this is the PAID, synchronous Google Distance Matrix path,
+            # default-OFF in prod. A harness/script that flips USE_LIVE_DISTANCE=1 can fan
+            # this out across thousands of legs (see the 2026-06-10 $593 spike). Log every
+            # invocation under a fixed, greppable tag so a runaway run is instantly visible:
+            #   grep GTC-GOOGLE-LIVE-DISTANCE <logs>
+            logger.warning(
+                "GTC-GOOGLE-LIVE-DISTANCE live Distance Matrix call (USE_LIVE_DISTANCE=1): %s -> %s",
+                pickup_text, dropoff_text,
+            )
             info = _maps_drive_time(pickup_text, dropoff_text)
             if info and info.get("duration_seconds"):
                 return max(1, round(info["duration_seconds"] / 60))

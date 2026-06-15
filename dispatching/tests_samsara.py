@@ -505,6 +505,29 @@ class SweepEtaTests(TestCase):
         self.assertIsNone(leg.dispatch_eta_evaluated_at)
         self.assertEqual(leg.dispatch_risk_status, "")
 
+    def test_parked_car_second_sweep_skips_google(self):
+        # End-to-end cost lever through the DB: first sweep computes + persists the
+        # anchor; the next sweep (vehicle still parked at the same GPS) reuses it with
+        # no Google call but still re-stamps freshness.
+        leg = self._leg(self.now + timedelta(minutes=40))
+        with patch("dispatching.samsara_risk.get_drive_time",
+                   return_value={"duration_seconds": 1200}) as m:  # 20 min
+            sweep_eta(now=self.now)
+        self.assertEqual(m.call_count, 1)
+        leg.refresh_from_db()
+        self.assertEqual(leg.dispatch_eta_minutes, 20)
+        self.assertIsNotNone(leg.dispatch_eta_origin_lat)
+        self.assertEqual(leg.dispatch_eta_origin_target, "MCO")
+
+        later = self.now + timedelta(minutes=3)  # next poll, car hasn't moved
+        with patch("dispatching.samsara_risk.get_drive_time",
+                   return_value={"duration_seconds": 1200}) as m2:
+            sweep_eta(now=later)
+        m2.assert_not_called()
+        leg.refresh_from_db()
+        self.assertEqual(leg.dispatch_eta_minutes, 20)  # reused
+        self.assertGreater(leg.dispatch_eta_evaluated_at, self.now)  # freshness advanced
+
 
 class DispatchEtaPartialRenderTests(TestCase):
     """Render the shared badge partial directly against a leg-like context."""
@@ -834,3 +857,127 @@ class EvaluateDriverChainTests(TestCase):
         p = build_panel_context(nxt, self.now)
         self.assertEqual(p["state"], "at_risk")     # 45-min chained ETA vs pickup in 30
         self.assertIn("after current trip", p["evidence"])
+
+
+def _veh_at(lat="28.44000", lng="-81.31000", movement="idle"):
+    """A Samsara-enabled vehicle namespace at an explicit GPS (lets a test move it)."""
+    return SimpleNamespace(
+        samsara_enabled=True, samsara_is_fresh=True,
+        samsara_last_latitude=Decimal(lat), samsara_last_longitude=Decimal(lng),
+        samsara_movement_status=movement, samsara_stationary_since=None)
+
+
+class EtaReuseCostGateTests(TestCase):
+    """
+    Cost levers: skip the PAID Google drive-time call when its inputs are unchanged,
+    WITHOUT ever skipping the free slack/band recompute.
+      Lever 1 — parked car (no meaningful move) reuses stored ETA.
+      Lever 2 — far-future pickup reuses stored ETA even if the car moved.
+      Lever 4 — a cost-gated cycle (refresh_allowed=False) reuses regardless.
+    A moved car or a changed target still pays for Google.
+    """
+    def setUp(self):
+        self.now = timezone.make_aware(datetime(2026, 6, 1, 12, 0))
+
+    def _stored_leg(self, lid=1, eta=20, pickup="MCO", target="MCO",
+                    origin_lat="28.44000", origin_lng="-81.31000", pickup_in=40,
+                    status="confirmed"):
+        """A leg that already carries a stored ETA + the anchor it was computed against."""
+        when = self.now + timedelta(minutes=pickup_in)
+        return SimpleNamespace(
+            id=lid, status=status, pickup_time=when.time(), pickup_date=when.date(),
+            pickup_location=pickup, dropoff_location="Disney", controlling_flight=None,
+            dispatch_eta_minutes=eta,
+            dispatch_eta_origin_lat=Decimal(origin_lat),
+            dispatch_eta_origin_lng=Decimal(origin_lng),
+            dispatch_eta_origin_target=target)
+
+    def test_parked_car_reuses_without_google(self):
+        leg = self._stored_leg(eta=20, pickup_in=40)
+        with patch("dispatching.samsara_risk.get_drive_time") as m:
+            out = evaluate_driver(_veh_at(), [leg], self.now)
+        m.assert_not_called()                                 # Lever 1: no paid call
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 20)  # reused, not recomputed
+        self.assertEqual(out[1]["dispatch_risk_status"], "on_time")  # slack 20
+
+    def test_parked_car_band_advances_with_clock(self):
+        # CRITICAL SEPARATION: drive-time stays put, but slack shrinks as the clock
+        # moves — the band must flip to at_risk on schedule, with NO Google call.
+        leg = self._stored_leg(eta=20, pickup_in=40)  # pickup at 12:40
+        later = self.now + timedelta(minutes=25)       # now 12:25 -> pickup in 15
+        with patch("dispatching.samsara_risk.get_drive_time") as m:
+            out = evaluate_driver(_veh_at(), [leg], later)
+        m.assert_not_called()
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 20)        # minutes unchanged
+        self.assertEqual(out[1]["dispatch_risk_status"], "at_risk")  # band advanced for free
+
+    def test_moved_car_calls_google(self):
+        # ~1.1 km north of the anchor — well past the 150 m reuse threshold.
+        leg = self._stored_leg(eta=20, pickup_in=40)
+        with patch("dispatching.samsara_risk.get_drive_time",
+                   return_value={"duration_seconds": 900}) as m:
+            out = evaluate_driver(_veh_at(lat="28.45000"), [leg], self.now)
+        m.assert_called_once()
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 15)  # refreshed from Google (900s)
+
+    def test_jitter_under_threshold_still_reuses(self):
+        # ~50 m of parked-car GPS jitter must NOT count as moved.
+        leg = self._stored_leg(eta=20, pickup_in=40)
+        with patch("dispatching.samsara_risk.get_drive_time") as m:
+            out = evaluate_driver(_veh_at(lat="28.44045"), [leg], self.now)
+        m.assert_not_called()
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 20)
+
+    def test_target_changed_calls_google(self):
+        # Car hasn't moved, but the pickup location differs from the stored anchor's.
+        leg = self._stored_leg(eta=20, pickup="HOTEL", target="MCO", pickup_in=40)
+        with patch("dispatching.samsara_risk.get_drive_time",
+                   return_value={"duration_seconds": 900}) as m:
+            out = evaluate_driver(_veh_at(), [leg], self.now)
+        m.assert_called_once()
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 15)
+
+    def test_far_future_pickup_reuses_despite_move(self):
+        # Lever 2: 4 h out -> renders as the waiting card anyway; don't pay to refresh.
+        leg = self._stored_leg(eta=20, pickup_in=240)  # > ETA_FAR_FUTURE_MIN (180)
+        with patch("dispatching.samsara_risk.get_drive_time") as m:
+            out = evaluate_driver(_veh_at(lat="28.46000"), [leg], self.now)  # moved far
+        m.assert_not_called()
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 20)
+        # Anchor is carried forward (the GPS the value was computed against), NOT the
+        # current GPS — so cumulative drift is measured from the real compute point.
+        self.assertEqual(out[1]["dispatch_eta_origin_lat"], Decimal("28.44000"))
+
+    def test_cadence_gate_reuses_even_when_moved(self):
+        # Lever 4: a non-refresh cycle reuses regardless of movement / window.
+        leg = self._stored_leg(eta=20, pickup_in=40)
+        with patch("dispatching.samsara_risk.get_drive_time") as m:
+            out = evaluate_driver(_veh_at(lat="28.50000"), [leg], self.now,
+                                  refresh_allowed=False)
+        m.assert_not_called()
+        self.assertEqual(out[1]["dispatch_eta_minutes"], 20)
+
+    def test_first_compute_always_calls_google(self):
+        # No stored ETA yet -> must compute once even on a cost-gated cycle.
+        when = self.now + timedelta(minutes=40)
+        fresh = SimpleNamespace(
+            id=9, status="confirmed", pickup_time=when.time(), pickup_date=when.date(),
+            pickup_location="MCO", dropoff_location="Disney", controlling_flight=None,
+            dispatch_eta_minutes=None, dispatch_eta_origin_lat=None,
+            dispatch_eta_origin_lng=None, dispatch_eta_origin_target="")
+        with patch("dispatching.samsara_risk.get_drive_time",
+                   return_value={"duration_seconds": 600}) as m:
+            out = evaluate_driver(_veh_at(), [fresh], self.now, refresh_allowed=False)
+        m.assert_called_once()
+        self.assertEqual(out[9]["dispatch_eta_minutes"], 10)
+
+
+class SnapOriginTests(TestCase):
+    """Lever 3: opt-in GPS snapping collapses parked-car jitter onto one cache key."""
+    def test_snap_rounds_coords(self):
+        from drivers.utils import _snap_coord_origin
+        self.assertEqual(_snap_coord_origin("28.441234,-81.312987"), "28.441,-81.313")
+
+    def test_snap_passes_addresses_through(self):
+        from drivers.utils import _snap_coord_origin
+        self.assertEqual(_snap_coord_origin("Hard Rock Hotel"), "Hard Rock Hotel")

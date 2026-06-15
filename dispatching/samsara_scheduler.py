@@ -23,8 +23,16 @@ logger = logging.getLogger(__name__)
 _scheduler_started = False
 _lock = threading.Lock()
 
-# How often we refresh live vehicle positions.
+# How often we refresh live vehicle positions (free Samsara GPS poll).
 INTERVAL_SECONDS = 3 * 60  # 3 minutes
+# How often we recompute the PAID Google drive-time ETAs. Decoupled from GPS so a
+# parked/slow-moving fleet doesn't pay every 3 min. The free slack/band math still
+# re-runs every cycle (see sweep_eta), so risk badges stay live; only the dollar call
+# is throttled.
+ETA_REFRESH_SECONDS = 6 * 60  # 6 minutes
+# monotonic timestamp of the last cycle that was allowed to hit Google. 0.0 => first
+# cycle always refreshes.
+_last_eta_refresh_at = 0.0
 
 # Advisory lock ID — MUST differ from ghl_integration's 737_201.
 _SAMSARA_LOCK_ID = 737_202  # "GTC samsara poller"
@@ -114,6 +122,7 @@ _ETA_FIELDS = [
     "dispatch_eta_minutes", "dispatch_eta_target", "dispatch_eta_target_time",
     "dispatch_risk_status", "dispatch_risk_reason", "dispatch_eta_evaluated_at",
     "dispatch_is_moving", "dispatch_stationary_minutes", "dispatch_vehicle_label",
+    "dispatch_eta_origin_lat", "dispatch_eta_origin_lng", "dispatch_eta_origin_target",
 ]
 
 
@@ -141,15 +150,23 @@ def _clear_eta_fields(leg):
     leg.dispatch_is_moving = None
     leg.dispatch_stationary_minutes = None
     leg.dispatch_vehicle_label = ""
+    leg.dispatch_eta_origin_lat = None
+    leg.dispatch_eta_origin_lng = None
+    leg.dispatch_eta_origin_target = ""
     return True
 
 
-def sweep_eta(now=None) -> dict:
+def sweep_eta(now=None, refresh_eta=True) -> dict:
     """
     For each in-house driver with legs today, compute the schedule-aware ETA +
     late-risk for their single next stop and persist it on that leg; clear any
     previously-flagged sibling legs. Only the next stop carries a badge.
     Never raises — logs and returns a summary. `now` is injectable for tests.
+
+    `refresh_eta` (Lever 4 cadence gate): when False, the PAID Google drive-time
+    lookups are skipped and stored ETAs are reused — only the free slack/band math
+    re-runs against the clock. GPS freshness is unaffected (that's sync_vehicles()).
+    Defaults True so management commands / manual runs always refresh.
     """
     from django.utils import timezone
     from reservations.models import Leg
@@ -176,7 +193,7 @@ def sweep_eta(now=None) -> dict:
     flagged = 0
     for dlegs in by_driver.values():
         vehicle = resolve_assigned_fleet_vehicle(dlegs[0])
-        results = evaluate_driver(vehicle, dlegs, now)  # {leg_id: fields}
+        results = evaluate_driver(vehicle, dlegs, now, refresh_allowed=refresh_eta)  # {leg_id: fields}
         for leg in dlegs:
             fields = results.get(leg.id)
             if fields is not None:
@@ -196,11 +213,18 @@ def _run_scheduler():
     """Daemon loop. Dies with the process. Survives any per-cycle exception."""
     time.sleep(60)  # let Django finish booting
     logger.info(f"Samsara poller started (interval: {INTERVAL_SECONDS}s)")
+    global _last_eta_refresh_at
     while True:
         try:
             if _try_advisory_lock():
-                sync_vehicles()
-                sweep_eta()
+                sync_vehicles()  # free GPS poll, every cycle
+                # Throttle the paid Google ETA recompute to ETA_REFRESH_SECONDS; the
+                # band math inside sweep_eta still runs every cycle either way.
+                now_mono = time.monotonic()
+                refresh = (now_mono - _last_eta_refresh_at) >= ETA_REFRESH_SECONDS
+                sweep_eta(refresh_eta=refresh)
+                if refresh:
+                    _last_eta_refresh_at = now_mono
             else:
                 logger.debug("Another worker holds the Samsara poller lock, skipping cycle")
         except Exception as e:
