@@ -506,3 +506,47 @@ class TypePriorityKnobTests(TestCase):
             out = self._run([arr, dep])
         self.assertEqual(out[arr.id], 1)
         self.assertIsNone(out[dep.id])
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Shared-car gate in the best-fit suggestion engine
+# ════════════════════════════════════════════════════════════════════════════
+class SharedCarSuggestionGuardTests(TestCase):
+    """suggest_assignments() (the engine behind the Unassigned-Jobs 'Best fit' panel and
+    the swap-tester page) must not offer a job to a driver whose car-share PARTNER is
+    using the one physical unit at that time — even though the driver's OWN calendar is
+    free. Reproduces the founder's report: David (006, evenings) gets offered a 09:40 leg
+    while Angel (006) is working 09:00–14:30."""
+
+    DAVID, ANGEL = 10, 20
+
+    def _scenario(self):
+        # Angel holds a 09:00 → 14:30 job; David is idle in the morning (his real jobs are
+        # in the evening, irrelevant to the 09:40 attempt).
+        angel_job = _leg(900, 9, 0, vtype="suv", trip="arrival",
+                         pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
+        angel_sched = _sched(self.ANGEL, [_slot(angel_job,
+                             end_dt=datetime(2026, 6, 14, 14, 30))], name="Angel")
+        scheds = {self.DAVID: _sched(self.DAVID, [], name="David"),
+                  self.ANGEL: angel_sched}
+        target = _leg(1, 9, 40, vtype="suv", trip="arrival",
+                      pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
+        dvtypes = {self.DAVID: "suv", self.ANGEL: "suv"}
+        return target, scheds, dvtypes
+
+    def _run(self, sharer_partners):
+        target, scheds, dvtypes = self._scenario()
+        with mock.patch("dispatching.analytics.categorize_location", lambda loc: loc):
+            out = suggest_assignments([target], scheds, D, driver_vtypes=dvtypes,
+                                      sharer_partners=sharer_partners)
+        return out[0].suggested_driver_id
+
+    def test_without_sharer_map_david_is_wrongly_offered(self):
+        # Baseline / old behavior: David's empty morning makes the 09:40 leg look placeable.
+        self.assertEqual(self._run(sharer_partners=None), self.DAVID)
+
+    def test_shared_car_blocks_david(self):
+        # With the partner map, David shares Angel's car (busy 09:00–14:30) so the 09:40 leg
+        # must NOT be offered to him — and Angel can't take it either, so no driver is suggested.
+        self.assertIsNone(
+            self._run(sharer_partners={self.DAVID: {self.ANGEL}, self.ANGEL: {self.DAVID}}))

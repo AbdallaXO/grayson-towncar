@@ -34,6 +34,7 @@ from dispatching import feasibility_guards as fg
 from dispatching.scheduler import (
     DriverDaySchedule,
     build_driver_schedules,
+    build_sharer_partners,
     check_feasibility,
     estimate_job_end_time,
     get_compatible_vehicle_types,
@@ -250,6 +251,9 @@ class DayContext:
     dvtypes: Dict[int, str]
     legs_by_id: Dict[int, object]
     inhouse_drivers: list
+    # {driver_id: {drivers sharing the same physical car}} — gates swap recovery so a
+    # shared-unit driver isn't credited with a leg that overlaps the partner's jobs.
+    sharer_partners: Optional[Dict[int, set]] = None
 
 
 def build_day_context(day: date, day_legs, inhouse_drivers) -> DayContext:
@@ -258,7 +262,9 @@ def build_day_context(day: date, day_legs, inhouse_drivers) -> DayContext:
     board = build_driver_schedules(day_legs, inhouse_drivers, day)
     dvtypes = load_all_driver_vtypes(day)
     legs_by_id = {l.id: l for l in day_legs}
-    return DayContext(day, board, dvtypes, legs_by_id, list(inhouse_drivers))
+    sharer_partners = build_sharer_partners({d.id for d in inhouse_drivers}, day)
+    return DayContext(day, board, dvtypes, legs_by_id, list(inhouse_drivers),
+                      sharer_partners=sharer_partners)
 
 
 def _reason_category(reason: str) -> str:
@@ -306,6 +312,7 @@ def _swap_can_recover(leg, ctx: DayContext, use_swaps: bool) -> bool:
             leg, ctx.board, ctx.legs_by_id, ctx.dvtypes, ctx.day,
             max_depth=_SWAP_MAX_DEPTH, time_limit_ms=_SWAP_TIME_LIMIT_MS,
             max_iterations=_SWAP_MAX_ITER,
+            sharer_partners=ctx.sharer_partners,
         )
         return bool(result.solutions)
     except Exception:

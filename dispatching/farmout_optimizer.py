@@ -75,6 +75,7 @@ from dispatching.scheduler import (
     LIVE_DISTANCE_UNKNOWN_CATS,
     DriverDaySchedule,
     build_driver_schedules,
+    build_sharer_partners,
     check_feasibility,
     estimate_job_end_time,
     get_compatible_vehicle_types,
@@ -962,7 +963,8 @@ def evaluate_target(target, ctx, ledger, roster, *,
     # (they'd all pile onto the same idle driver) — the marginal-vs-total fallacy this project avoids.
     try:
         sw = find_swaps(target, ctx.board, ctx.legs_by_id, ctx.dvtypes, day,
-                        driver_windows=driver_windows)
+                        driver_windows=driver_windows,
+                        sharer_partners=getattr(ctx, "sharer_partners", None))
     except Exception:
         sw = None
     if sw and sw.solutions:
@@ -1296,7 +1298,9 @@ def summarize_savings_range(start: date, end: date, *,
             worked_windows = {did: w for did, s in board.items()
                               if (w := _worked_span_window(s)) is not None}
             legs_by_id = {l.id: l for l in day_legs}
-            ctx = fi.DayContext(day, board, dvtypes, legs_by_id, deployable)
+            _sharer_partners = build_sharer_partners({d.id for d in deployable}, day)
+            ctx = fi.DayContext(day, board, dvtypes, legs_by_id, deployable,
+                                sharer_partners=_sharer_partners)
             ledger = WaterfallLedger.for_roster(roster)
             # Optional what-if override of Anthony's count cap (back-compat with the --anthony-cap flag).
             if anthony_cap is not None and ANTHONY_DRIVER_ID in ledger.caps:

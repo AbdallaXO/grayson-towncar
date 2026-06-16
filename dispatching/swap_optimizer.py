@@ -29,6 +29,7 @@ from dispatching.scheduler import (
     get_compatible_vehicle_types,
     get_drive_time,
     get_vehicle_tier,
+    sharers_conflict,
 )
 
 logger = logging.getLogger("dispatching.swap")
@@ -164,6 +165,7 @@ def _build_modified_schedule(
         driver_name=schedule.driver_name,
         driver_type=schedule.driver_type,
         slots=new_slots,
+        vehicle_cap=schedule.vehicle_cap,
     )
 
 
@@ -248,6 +250,7 @@ def find_swaps(
     time_limit_ms: int = 5000,
     max_iterations: int = 5000,
     driver_windows: Optional[Dict[int, dict]] = None,
+    sharer_partners: Optional[Dict[int, Set[int]]] = None,
 ) -> SwapSearchResult:
     """
     Search for swap chains that make room for target_leg.
@@ -266,6 +269,10 @@ def find_swaps(
         observed-history stub (feasibility_guards.get_effective_window) entirely, so a rescue
         is only proposed into a driver's REAL worked day (idle/zero-leg drivers, absent from
         the dict, are excluded). When None (the live scheduler), behavior is unchanged.
+    sharer_partners : OPTIONAL {driver_id: {drivers sharing the same physical car}}.
+        When supplied, any placement onto a driver is rejected if the candidate leg would
+        overlap a car-share partner's jobs (one physical unit can't be in two places). Build
+        it with scheduler.build_sharer_partners(). When None, no shared-car gating is applied.
 
     Returns
     -------
@@ -346,6 +353,7 @@ def find_swaps(
             max_iterations=max_iterations,
             time_limit_ms=time_limit_ms,
             windows=_windows,
+            sharer_partners=sharer_partners,
         )
 
         if solutions:
@@ -382,7 +390,7 @@ def find_swaps(
         diagnostic = _build_diagnostic(
             target_leg, target_vtype, inhouse_schedules,
             inhouse_driver_ids, driver_vtypes, all_legs_by_id, target_date, cfg,
-            windows=_windows,
+            windows=_windows, sharer_partners=sharer_partners,
         )
 
     return SwapSearchResult(
@@ -415,6 +423,7 @@ def _search(
     max_iterations: int,
     time_limit_ms: int,
     windows: dict = None,
+    sharer_partners: dict = None,
 ):
     """Recursive DFS: try to place leg_to_place on any compatible driver."""
     if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
@@ -454,6 +463,13 @@ def _search(
 
         schedule = schedules.get(driver_id)
         if schedule is None:
+            continue
+
+        # Skip: one physical car. If placing this leg on driver_id would overlap a
+        # car-share partner's job, no amount of displacing driver_id's OWN legs helps
+        # (the conflict is the partner's car, not this driver's calendar) — skip wholesale.
+        if sharer_partners and sharers_conflict(
+                leg_to_place, driver_id, sharer_partners, schedules, target_date):
             continue
 
         # ── Try direct placement (Guards B turnaround + C window) ──
@@ -558,6 +574,7 @@ def _search(
                 max_iterations=max_iterations,
                 time_limit_ms=time_limit_ms,
                 windows=windows,
+                sharer_partners=sharer_partners,
             )
 
             if len(solutions) >= 20:
@@ -574,6 +591,7 @@ def _build_diagnostic(
     target_date: date,
     cfg,
     windows: dict = None,
+    sharer_partners: dict = None,
 ) -> List[DriverAttempt]:
     """Build a per-driver diagnostic report showing why no swap was found."""
     report = []
@@ -607,6 +625,13 @@ def _build_diagnostic(
         # Vehicle compatibility
         if not _vehicle_compatible(dvtype, target_vtype):
             attempt.skipped_reason = "vehicle_incompatible"
+            report.append(attempt)
+            continue
+
+        # Shared physical car: target overlaps a car-share partner's job
+        if sharer_partners and sharers_conflict(
+                target_leg, driver_id, sharer_partners, inhouse_schedules, target_date):
+            attempt.skipped_reason = "car_share_conflict"
             report.append(attempt)
             continue
 

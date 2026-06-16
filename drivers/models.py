@@ -535,6 +535,23 @@ class FleetVehicle(models.Model):
                   "still render so history is preserved."
     )
 
+    # --- Per-unit scheduling capacity cap (opt-in) ---
+    # SCHEDULER-ONLY: caps what the auto-assign / schedule builder will put on THIS
+    # physical car, even when the booked vehicle TYPE (rates.Vehicle) allows more.
+    # Used for an odd unit out — e.g. an SUV with less seat/cargo room than the rest
+    # of the SUV tier. NULL on either field = inherit the type default; no cap applied.
+    # Does NOT touch booking validation, pricing, or the customer-facing type capacity.
+    max_passenger_capacity = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Scheduler-only passenger cap for this specific unit. "
+                  "NULL = use the vehicle type's capacity (no per-unit cap)."
+    )
+    max_luggage_capacity = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Scheduler-only suitcase cap for this specific unit. "
+                  "NULL = use the vehicle type's luggage capacity (no per-unit cap)."
+    )
+
     # --- Samsara telematics (Phase 1: read-only live vehicle visibility) ---
     # All nullable/blank so un-onboarded in-house cars and affiliate vehicles
     # are unaffected. Written ONLY by the background poller (samsara_scheduler);
