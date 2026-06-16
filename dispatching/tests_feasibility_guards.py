@@ -206,3 +206,49 @@ class ArrivalChainOverlapTests(TestCase):
                     pickup_loc="MCO Terminal", dropoff_loc="Disney Resort")
         res = check_feasibility(_fsched(8, [_fslot(prev)]), nxt, _FB_D)
         self.assertTrue(res.feasible)
+
+
+class GuardAPrimeVehicleCapTests(TestCase):
+    """Guard A' — opt-in per-unit scheduling cap (FleetVehicle.max_*_capacity).
+
+    Fires ONLY when a DriverDaySchedule carries vehicle_cap; an uncapped schedule is
+    untouched (the old blanket Guard A stays removed).
+    """
+
+    def _capped(self, pax=None, lug=None, slots=None):
+        s = _fsched(9, slots or [])
+        s.vehicle_cap = {"pax": pax, "lug": lug, "label": "SUV 009"}
+        return s
+
+    def test_over_passenger_cap_rejected(self):
+        # SUV 009 capped at 5 pax; a 6-pax SUV leg can't go on it (even on an empty board).
+        leg = _fleg(1, 9, 0, vtype="suv", pax=6)
+        res = check_feasibility(self._capped(pax=5, lug=5), leg, _FB_D)
+        self.assertFalse(res.feasible)
+        self.assertIn("exceeds", res.reason)
+
+    def test_at_passenger_cap_allowed(self):
+        # Exactly at the cap (5/5) fits.
+        leg = _fleg(1, 9, 0, vtype="suv", pax=5)
+        leg.effective_luggage_count = 5
+        res = check_feasibility(self._capped(pax=5, lug=5), leg, _FB_D)
+        self.assertTrue(res.feasible)
+
+    def test_over_luggage_cap_rejected(self):
+        leg = _fleg(1, 9, 0, vtype="suv", pax=2)
+        leg.effective_luggage_count = 6
+        res = check_feasibility(self._capped(pax=5, lug=5), leg, _FB_D)
+        self.assertFalse(res.feasible)
+
+    def test_no_cap_set_does_not_block(self):
+        # Without vehicle_cap, a 6-pax leg is fine (booking-time validation owns capacity).
+        leg = _fleg(1, 9, 0, vtype="suv", pax=6)
+        res = check_feasibility(_fsched(9, []), leg, _FB_D)
+        self.assertTrue(res.feasible)
+
+    def test_partial_cap_only_passengers(self):
+        # Only a passenger cap set (lug=None): luggage is never blocked.
+        leg = _fleg(1, 9, 0, vtype="suv", pax=4)
+        leg.effective_luggage_count = 9
+        res = check_feasibility(self._capped(pax=5, lug=None), leg, _FB_D)
+        self.assertTrue(res.feasible)

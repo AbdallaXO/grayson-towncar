@@ -494,6 +494,12 @@ class DriverDaySchedule:
     driver_name: str
     driver_type: str
     slots: List[ScheduleSlot] = field(default_factory=list)
+    # Opt-in per-unit scheduling cap for the physical car this driver holds today
+    # (from FleetVehicle.max_passenger_capacity / max_luggage_capacity via
+    # DriverVehicleAssignment). None = no cap (inherit the booked type's capacity).
+    # Shape: {"pax": int|None, "lug": int|None, "label": str}. Guard A' in
+    # check_feasibility hard-blocks a leg that exceeds either cap.
+    vehicle_cap: Optional[dict] = None
 
     @property
     def total_legs(self):
@@ -976,11 +982,33 @@ def check_feasibility(
     4. Guard C — per-driver window (start / clear-by end / max-hours span).
 
     Guard C only runs when the caller supplies `driver_window` (so other callers keep
-    their behavior). Guard B turnaround applies always. (Guard A / physical-capacity was
-    removed — booking-time validation already enforces party/luggage/car-seat fit.)
+    their behavior). Guard B turnaround applies always.
+
+    Guard A' (per-unit cap) only runs when `driver_schedule.vehicle_cap` is set — an
+    OPT-IN cap for one odd physical unit (e.g. an SUV with less room than the rest of
+    the SUV tier). It is NOT the old blanket Guard A (which was removed for firing false
+    positives off stale per-vehicle seat data); it triggers solely on a deliberate
+    FleetVehicle override, so there is no stale-data risk.
     """
     from dispatching.analytics import categorize_location
     from dispatching import feasibility_guards as fg
+
+    # ── Guard A': per-unit physical capacity cap (opt-in) ──
+    cap = getattr(driver_schedule, "vehicle_cap", None)
+    if cap:
+        leg_pax = getattr(new_leg, "effective_passenger_count", None)
+        leg_lug = getattr(new_leg, "effective_luggage_count", None)
+        max_pax = cap.get("pax")
+        max_lug = cap.get("lug")
+        label = cap.get("label") or "this vehicle"
+        if max_pax is not None and leg_pax is not None and leg_pax > max_pax:
+            return FeasibilityResult(
+                feasible=False, buffer_minutes=-999,
+                reason=f"{leg_pax} passengers exceeds {label} cap ({max_pax}).")
+        if max_lug is not None and leg_lug is not None and leg_lug > max_lug:
+            return FeasibilityResult(
+                feasible=False, buffer_minutes=-999,
+                reason=f"{leg_lug} suitcases exceeds {label} cap ({max_lug}).")
 
     new_pickup_dt = datetime.combine(target_date, new_leg.pickup_time)
     new_end_dt = estimate_job_end_time(new_leg, target_date)
@@ -1101,11 +1129,35 @@ def check_feasibility(
     )
 
 
+def build_vehicle_caps(driver_ids, target_date: date) -> Dict[int, dict]:
+    """Map {driver_id: {"pax", "lug", "label"}} for drivers whose assigned physical
+    car carries an opt-in per-unit scheduling cap (FleetVehicle.max_passenger_capacity
+    / max_luggage_capacity). Drivers on uncapped units are omitted entirely, so the
+    common case adds nothing. Drives Guard A' in check_feasibility — see DriverDaySchedule.
+    """
+    from drivers.models import DriverVehicleAssignment
+
+    caps = {}
+    qs = (DriverVehicleAssignment.objects
+          .filter(date=target_date, vehicle__isnull=False, driver_id__in=list(driver_ids))
+          .select_related("vehicle"))
+    for dva in qs:
+        v = dva.vehicle
+        max_pax = v.max_passenger_capacity
+        max_lug = v.max_luggage_capacity
+        if max_pax is None and max_lug is None:
+            continue  # no per-unit override — inherit the booked type's capacity
+        caps[dva.driver_id] = {"pax": max_pax, "lug": max_lug, "label": v.vehicle_number}
+    return caps
+
+
 def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, DriverDaySchedule]:
     """
     Build a DriverDaySchedule for each driver from the day's assigned legs.
     """
     from dispatching.analytics import categorize_location
+
+    vehicle_caps = build_vehicle_caps([d.id for d in drivers], target_date)
 
     schedules = {}
     for driver in drivers:
@@ -1113,6 +1165,7 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             driver_id=driver.id,
             driver_name=str(driver),
             driver_type=driver.driver_type,
+            vehicle_cap=vehicle_caps.get(driver.id),
         )
 
     for leg in legs:
@@ -1470,6 +1523,7 @@ def suggest_assignments(
             driver_name=sched.driver_name,
             driver_type=sched.driver_type,
             slots=list(sched.slots),
+            vehicle_cap=sched.vehicle_cap,
         )
 
     # Pre-compute scarcity: how many eligible drivers per leg
@@ -1659,7 +1713,8 @@ def suggest_assignments(
                 driver_id=sched.driver_id, driver_name=sched.driver_name,
                 driver_type=sched.driver_type,
                 slots=sorted(sched.slots + [_make_sim_slot(leg, target_date)],
-                             key=lambda s: s.pickup_time))
+                             key=lambda s: s.pickup_time),
+                vehicle_cap=sched.vehicle_cap)
             feas_with = check_feasibility(sim, X, target_date, inter_job_buffer=_ijb,
                                           arrival_grace=_grace, driver_window=_driver_windows.get(did))
             if not feas_with.feasible:
@@ -2390,7 +2445,8 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
                 sim = DriverDaySchedule(
                     driver_id=sched.driver_id, driver_name=sched.driver_name,
                     driver_type=sched.driver_type,
-                    slots=[s for s in sched.slots if s.leg_id != a_id])
+                    slots=[s for s in sched.slots if s.leg_id != a_id],
+                    vehicle_cap=sched.vehicle_cap)
                 feas = check_feasibility(sim, U, target_date, inter_job_buffer=ijb,
                                          arrival_grace=grace, driver_window=windows.get(did))
                 if not feas.feasible:
@@ -3225,6 +3281,7 @@ def build_smart_schedule(
         driver_name=driver_name,
         driver_type='inhouse',
         slots=existing_slots,
+        vehicle_cap=build_vehicle_caps([driver_id], target_date).get(driver_id),
     )
 
     # Time window boundaries

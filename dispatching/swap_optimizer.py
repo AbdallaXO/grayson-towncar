@@ -165,6 +165,7 @@ def _build_modified_schedule(
         driver_name=schedule.driver_name,
         driver_type=schedule.driver_type,
         slots=new_slots,
+        vehicle_cap=schedule.vehicle_cap,
     )
 
 
