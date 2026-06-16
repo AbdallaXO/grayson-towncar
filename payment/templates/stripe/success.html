@@ -48,6 +48,20 @@
 
   <!-- Purchase Event Script -->
   <script>
+      // Microsoft Advertising (Bing) Enhanced Conversions — pass the customer's
+      // own email/phone so Bing can match this conversion. Microsoft hashes the
+      // values (SHA-256) before collecting them, the same privacy-safe way the
+      // Meta advanced-matching block below already does with the same data.
+      // Email is lowercased per Microsoft's formatting rules. Set as early as
+      // possible so it's present when the UET conversion fires on this page.
+      window.uetq = window.uetq || [];
+      {% if reservation.customer.email %}
+      window.uetq.push('set', { 'pid': {
+          'em': '{{ reservation.customer.email|lower|escapejs }}',
+          'ph': '{{ reservation.customer.phone_number|escapejs }}'
+      }});
+      {% endif %}
+
       window.dataLayer = window.dataLayer || [];
 
       // Helper function to get UTM value (cookie first, then database, then null)
@@ -103,5 +117,17 @@
               order_id: '{{ purchase_data.transaction_id|default:"" }}'
           }, {eventID: eventId});
       }
+
+      // Microsoft Advertising (Bing) variable-revenue report — passes the real
+      // per-booking value so the destination-URL Purchase goal reports/optimizes
+      // on actual revenue, the same way the Google dataLayer push above does.
+      // Per Microsoft's "Report variable revenue with UET" spec, a DESTINATION
+      // goal uses an EMPTY action name; the value is associated with the
+      // conversion that fires on this page load.
+      window.uetq = window.uetq || [];
+      window.uetq.push('event', '', {
+          'revenue_value': {{purchase_data.value}},
+          'currency': '{{ purchase_data.currency|default:"USD" }}'
+      });
   </script>
 {% endblock content %}
