@@ -8716,6 +8716,7 @@ def capacity_planner(request):
     from drivers.models import Driver
     from dispatching.scheduler import (
         build_driver_schedules,
+        build_sharer_partners,
         suggest_assignments_clustered,
         get_coverage_stats,
         preload_timing_cache,
@@ -8924,7 +8925,12 @@ def capacity_planner(request):
     else:
         driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
         _inhouse_for_suggestions = {did: s for did, s in driver_schedules.items() if s.driver_type == 'inhouse'}
-        suggestions = suggest_assignments_clustered(_unassigned_legs, _inhouse_for_suggestions, selected_date)
+        # Shared-car gate: a driver who splits one physical unit with a partner can't be
+        # offered a job that overlaps the partner's jobs, even if his own calendar is free.
+        _sharer_partners = build_sharer_partners(set(_inhouse_for_suggestions), selected_date)
+        suggestions = suggest_assignments_clustered(
+            _unassigned_legs, _inhouse_for_suggestions, selected_date,
+            sharer_partners=_sharer_partners)
         coverage = get_coverage_stats(legs_list)
         if not _is_held:
             cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
@@ -14427,7 +14433,7 @@ def swap_tester(request):
         return redirect("dashboard")
 
     from dispatching.scheduler import (
-        build_driver_schedules, suggest_assignments_clustered,
+        build_driver_schedules, build_sharer_partners, suggest_assignments_clustered,
         preload_timing_cache, load_all_driver_vtypes,
         check_feasibility, get_compatible_vehicle_types,
     )
@@ -14470,8 +14476,11 @@ def swap_tester(request):
     # Build schedules and suggestions (pass driver_vtypes to avoid re-query)
     schedules = build_driver_schedules(legs, inhouse_drivers, selected_date)
     unassigned_legs = [l for l in legs if not l.driver]
+    # Shared-car gate: don't offer a split-unit driver a job overlapping his partner's.
+    sharer_partners = build_sharer_partners({d.id for d in inhouse_drivers}, selected_date)
     suggestions = suggest_assignments_clustered(
-        unassigned_legs, schedules, selected_date, driver_vtypes=driver_vtypes
+        unassigned_legs, schedules, selected_date, driver_vtypes=driver_vtypes,
+        sharer_partners=sharer_partners,
     ) if unassigned_legs else []
     suggestion_map = {s.leg_id: s for s in suggestions}
 
