@@ -10063,17 +10063,9 @@ def auto_assign_drivers(request):
     # AM/PM share or an advisor freed-unit accept). Every engine pass gates inserts against
     # the partner's jobs — the planned windows alone are not airtight (modal End is a
     # last-pickup bound; a 14:50 pickup clears past the partner's 15:05 start).
-    sharer_partners = {}
-    _working_set = {d.id for d in inhouse_drivers}
-    _unit_holders = {}
-    for _dva in DriverVehicleAssignment.objects.filter(
-            date=target_date, vehicle__isnull=False, driver_id__in=_working_set):
-        _unit_holders.setdefault(_dva.vehicle_id, []).append(_dva.driver_id)
-    for _vid, _holders in _unit_holders.items():
-        if len(_holders) > 1:
-            for _did in _holders:
-                sharer_partners.setdefault(_did, set()).update(
-                    h for h in _holders if h != _did)
+    from dispatching.scheduler import build_sharer_partners
+    sharer_partners = build_sharer_partners(
+        {d.id for d in inhouse_drivers}, target_date)
 
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
@@ -14097,6 +14089,7 @@ def find_swap_suggestions(request):
 
     from dispatching.scheduler import (
         build_driver_schedules, load_all_driver_vtypes, preload_timing_cache,
+        build_sharer_partners,
     )
     from dispatching.swap_optimizer import find_swaps
     from reservations.models import Leg
@@ -14150,6 +14143,11 @@ def find_swap_suggestions(request):
     driver_vtypes = load_all_driver_vtypes(target_date)
     all_legs_by_id = {leg.id: leg for leg in all_legs}
 
+    # Shared-car partner map: a driver sharing one physical unit can't take a leg that
+    # overlaps the partner's jobs, even if his own calendar is free at that time.
+    sharer_partners = build_sharer_partners(
+        {d.id for d in inhouse_drivers}, target_date)
+
     # Run swap search
     result = find_swaps(
         target_leg=target_leg,
@@ -14157,6 +14155,7 @@ def find_swap_suggestions(request):
         all_legs_by_id=all_legs_by_id,
         driver_vtypes=driver_vtypes,
         target_date=target_date,
+        sharer_partners=sharer_partners,
     )
 
     # Serialize solutions
@@ -14220,7 +14219,10 @@ def _revalidate_swap_feasibility(valid_moves, target_date):
     Only drivers that GAIN a leg need checking (removing a leg can't make a driver's
     remaining legs infeasible). Read-only; mutates only in-memory copies."""
     from reservations.models import Leg as _Leg
-    from dispatching.scheduler import check_feasibility, build_driver_schedules, estimate_job_end_time
+    from dispatching.scheduler import (
+        check_feasibility, build_driver_schedules, estimate_job_end_time,
+        build_sharer_partners, sharers_conflict,
+    )
     from dispatching import feasibility_guards as fg
 
     move_map = {leg_id: to_driver_id for leg_id, to_driver_id in valid_moves}
@@ -14247,6 +14249,20 @@ def _revalidate_swap_feasibility(valid_moves, target_date):
     for l in legs:
         l._estimated_end_dt = estimate_job_end_time(l, target_date)
 
+    # Shared-car gate: a receiving driver who SHARES a physical vehicle with another
+    # working driver can't take a leg that overlaps the partner's jobs — the car is one
+    # unit. Build the partner map over every driver holding a leg, plus post-move
+    # schedules so sharers_conflict() can compare against the partner's real slots.
+    all_leg_driver_ids = {l.driver_id for l in legs if l.driver_id}
+    sharer_partners = build_sharer_partners(all_leg_driver_ids, target_date)
+    if sharer_partners:
+        share_drv_ids = set(all_leg_driver_ids)
+        for _ps in sharer_partners.values():
+            share_drv_ids.update(_ps)
+        share_drv_objs = {d.id: d for d in Driver.objects.filter(id__in=share_drv_ids)}
+        post_move_schedules = build_driver_schedules(
+            legs, list(share_drv_objs.values()), target_date)
+
     def _cfg_window(did):
         d = drv_objs.get(did)
         if not d:
@@ -14267,6 +14283,11 @@ def _revalidate_swap_feasibility(valid_moves, target_date):
             feas = check_feasibility(sched, L, target_date, driver_window=window)
             if not feas.feasible:
                 return False, f"leg {L.id} on driver {did} would be infeasible: {feas.reason}"
+            # One physical car: reject if this leg overlaps a car-share partner's jobs.
+            if sharer_partners and sharers_conflict(
+                    L, did, sharer_partners, post_move_schedules, target_date):
+                return False, (f"leg {L.id} on driver {did} would overlap a car-share "
+                               f"partner's job (shared vehicle)")
     return True, ""
 
 

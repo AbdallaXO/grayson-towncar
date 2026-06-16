@@ -2124,7 +2124,8 @@ def recover_residuals_via_swaps(final_assignments, candidate_leg_ids, legs_by_id
             s._date = target_date
         try:
             return find_swaps(target, sch, {l.id: l for l in ih}, dvtypes, target_date,
-                              driver_windows=driver_windows)
+                              driver_windows=driver_windows,
+                              sharer_partners=sharer_partners)
         finally:
             for lid, (drv, drvid) in saved.items():
                 legs_by_id[lid].driver = drv; legs_by_id[lid].driver_id = drvid
@@ -2839,6 +2840,29 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
 
     assert set(final_assignments.keys()) == keyset_before, "trim pass must never change coverage"
     return final_assignments, moves
+
+
+def build_sharer_partners(driver_ids, target_date):
+    """Map {driver_id: {other drivers sharing the SAME physical vehicle that date}}.
+
+    Built from DriverVehicleAssignment: a vehicle held by >1 working driver is one
+    physical unit split across shifts (Day Setup AM/PM share or an advisor freed-unit
+    accept). Feed the result to sharers_conflict() to gate any insert against the
+    car-share partner's jobs. Mirrors the inline construction in suggest_assignments()."""
+    from drivers.models import DriverVehicleAssignment
+
+    working = set(driver_ids)
+    unit_holders = {}
+    for dva in DriverVehicleAssignment.objects.filter(
+            date=target_date, vehicle__isnull=False, driver_id__in=working):
+        unit_holders.setdefault(dva.vehicle_id, []).append(dva.driver_id)
+    partners = {}
+    for holders in unit_holders.values():
+        if len(holders) > 1:
+            for did in holders:
+                partners.setdefault(did, set()).update(
+                    h for h in holders if h != did)
+    return partners
 
 
 def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
