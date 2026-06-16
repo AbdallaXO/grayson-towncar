@@ -59,6 +59,7 @@
           <a href="?preset=this_month" class="btn {% if active_preset == 'this_month' %}btn-dark{% else %}btn-outline-dark{% endif %}">This month</a>
           <a href="?preset=last_month" class="btn {% if active_preset == 'last_month' %}btn-dark{% else %}btn-outline-dark{% endif %}">Last month</a>
           <a href="?preset=ytd" class="btn {% if active_preset == 'ytd' %}btn-dark{% else %}btn-outline-dark{% endif %}">YTD</a>
+          <a href="?preset=all" class="btn {% if active_preset == 'all' %}btn-dark{% else %}btn-outline-dark{% endif %}">All</a>
         </div>
         <form method="get" class="d-flex align-items-center gap-2 small">
           <label class="text-muted mb-0">From</label>
@@ -144,6 +145,7 @@
             <tr>
               <th>Source</th>
               <th class="num">Created</th>
+              <th class="num">% of Bookings</th>
               <th class="num">Paid</th>
               <th class="num">Conv %</th>
               <th class="num">Paid Revenue</th>
@@ -155,6 +157,7 @@
             <tr>
               <td class="source-label">{{ row.label }}</td>
               <td class="num">{{ row.created|intcomma }}</td>
+              <td class="num">{{ row.pct_of_bookings }}%</td>
               <td class="num">{{ row.paid|intcomma }}</td>
               <td class="num">{{ row.conv_rate }}%</td>
               <td class="num">${{ row.paid_revenue|floatformat:2|intcomma }}</td>
@@ -237,7 +240,9 @@
                   <th>Origin</th>
                   <th>Destination</th>
                   <th class="num">Paid Bookings</th>
+                  <th class="num">% of Bookings</th>
                   <th class="num">Paid Revenue</th>
+                  <th>% of Revenue</th>
                 </tr>
               </thead>
               <tbody>
@@ -246,7 +251,12 @@
                   <td class="source-label">{{ r.rate__route__origin__name|default:"—" }}</td>
                   <td>{{ r.rate__route__destination__name|default:"—" }}</td>
                   <td class="num">{{ r.paid_bookings|intcomma }}</td>
+                  <td class="num">{{ r.pct_of_bookings }}%</td>
                   <td class="num">${{ r.paid_revenue|floatformat:2|intcomma }}</td>
+                  <td>
+                    <span class="pct-bar"><span style="width: {{ r.pct_of_revenue }}%;"></span></span>
+                    <small class="text-muted">{{ r.pct_of_revenue }}%</small>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>

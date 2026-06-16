@@ -2678,7 +2678,7 @@ def revenue_kpis_view(request):
 
     Window selection (querystring):
       ?from=YYYY-MM-DD&to=YYYY-MM-DD   custom inclusive date range
-      ?preset=last_month|this_month|last_7|last_30|last_90|ytd
+      ?preset=last_month|this_month|last_7|last_30|last_90|ytd|all
       ?d=N                             rolling N-day window (legacy/default)
     """
     import json as _json
@@ -2728,6 +2728,12 @@ def revenue_kpis_view(request):
         custom_to = today
         range_mode = "preset"
         range_label = f"Year to date ({today.year})"
+    elif preset == "all":
+        # All-time: leave the start open; resolve_range floors it to 2000-01-01.
+        custom_from = None
+        custom_to = today
+        range_mode = "preset"
+        range_label = "All time"
     elif preset in ("last_7", "last_30", "last_90"):
         days_n = int(preset.split("_")[1])
         custom_to = today
@@ -2773,7 +2779,7 @@ def revenue_kpis_view(request):
     ]
 
     context = {
-        "range_from": custom_from.isoformat(),
+        "range_from": custom_from.isoformat() if custom_from else "",
         "range_to": custom_to.isoformat(),
         "range_label": range_label,
         "range_mode": range_mode,

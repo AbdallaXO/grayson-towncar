@@ -38,7 +38,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db.models import (
-    Count, DecimalField, F, Sum, Value,
+    Case, CharField, Count, DecimalField, F, Sum, Value, When,
 )
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
@@ -168,26 +168,50 @@ def by_source(start, end):
     """
     Per-channel breakdown. Created column is anchored on created_at; all
     paid columns use the cash-basis revenue_at anchor.
+
+    **Effective source — travel agent always wins.** A reservation linked to a
+    travel_agent is counted under 'travel_agent' regardless of any ad/UTM
+    params (gclid/fbclid/utm_source) it also carries, so agent bookings never
+    double-count under Google/Meta. This mirrors the Reservation Sources page,
+    and is independent of the stored ``booking_source`` column (which drifts —
+    it isn't recomputed when an agent is linked after creation).
+
+    Each row also carries ``pct_of_bookings`` (share of all bookings created in
+    the window) and ``pct_of_revenue`` (share of paid revenue).
     """
     label_map = dict(Reservation.BOOKING_SOURCE_CHOICES)
 
+    # travel_agent FK overrides the (drift-prone) stored booking_source.
+    eff_created = Case(
+        When(travel_agent__isnull=False, then=Value("travel_agent")),
+        default=F("booking_source"),
+        output_field=CharField(),
+    )
+    eff_paid = Case(
+        When(reservation__travel_agent__isnull=False, then=Value("travel_agent")),
+        default=F("reservation__booking_source"),
+        output_field=CharField(),
+    )
+
     created_rows = (
         _scoped(Reservation.objects.all(), start, end)
-        .values("booking_source")
+        .annotate(eff_source=eff_created)
+        .values("eff_source")
         .annotate(created=Count("id"))
     )
-    by_src_created = {r["booking_source"]: r["created"] for r in created_rows}
+    by_src_created = {r["eff_source"]: r["created"] for r in created_rows}
 
     paid_rows = (
         payment_revenue_qs(start, end)
-        .values("reservation__booking_source")
+        .annotate(eff_source=eff_paid)
+        .values("eff_source")
         .annotate(
             paid=Count("reservation", distinct=True),
             paid_revenue=_sum_net(),
         )
     )
     by_src_paid = {
-        r["reservation__booking_source"]: {
+        r["eff_source"]: {
             "paid": r["paid"],
             "paid_revenue": r["paid_revenue"],
         }
@@ -208,9 +232,11 @@ def by_source(start, end):
         })
 
     total_revenue = sum((r["paid_revenue"] for r in rows), ZERO)
+    total_created = sum(r["created"] for r in rows)
     for r in rows:
         r["conv_rate"] = round(_safe_div(r["paid"], r["created"]) * 100, 1)
         r["pct_of_revenue"] = round(_safe_div(r["paid_revenue"], total_revenue) * 100, 1)
+        r["pct_of_bookings"] = round(_safe_div(r["created"], total_created) * 100, 1)
     rows.sort(key=lambda r: (r["paid_revenue"], r["created"]), reverse=True)
     return rows
 
@@ -291,8 +317,13 @@ def travel_agent_totals(start, end) -> dict:
 
 
 def by_route(start, end, limit: int = 15):
-    """Top revenue-generating routes (cash-basis)."""
-    raw = (
+    """
+    Top revenue-generating routes (cash-basis). Each row carries its share of
+    paid revenue (``pct_of_revenue``) and of paid bookings (``pct_of_bookings``).
+    Shares are computed against ALL paid routes in the window, not just the
+    top N shown, so the percentages reflect the true route mix.
+    """
+    raw = list(
         payment_revenue_qs(start, end)
         .values(
             "reservation__rate__route__origin__name",
@@ -302,17 +333,24 @@ def by_route(start, end, limit: int = 15):
             paid_bookings=Count("reservation", distinct=True),
             paid_revenue=_sum_net(),
         )
-        .order_by("-paid_revenue")[:limit]
+        .order_by("-paid_revenue")
     )
-    return [
-        {
+    total_revenue = sum((r["paid_revenue"] or ZERO for r in raw), ZERO)
+    total_bookings = sum(r["paid_bookings"] for r in raw)
+
+    rows = []
+    for r in raw[:limit]:
+        pr = r["paid_revenue"] or ZERO
+        pb = r["paid_bookings"]
+        rows.append({
             "rate__route__origin__name": r["reservation__rate__route__origin__name"],
             "rate__route__destination__name": r["reservation__rate__route__destination__name"],
-            "paid_bookings": r["paid_bookings"],
-            "paid_revenue": r["paid_revenue"] or ZERO,
-        }
-        for r in raw
-    ]
+            "paid_bookings": pb,
+            "paid_revenue": pr,
+            "pct_of_revenue": round(_safe_div(pr, total_revenue) * 100, 1),
+            "pct_of_bookings": round(_safe_div(pb, total_bookings) * 100, 1),
+        })
+    return rows
 
 
 def by_vehicle(start, end):
