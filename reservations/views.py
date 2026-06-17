@@ -446,8 +446,6 @@ class QuoteFormHandlerView(View):
 
                     # Set high/medium priority based on trip date
                     if data.get("pickup_date"):
-                        from datetime import date
-
                         today = date.today()
                         pickup_date = date.fromisoformat(data.get("pickup_date"))
                         days_until_trip = (pickup_date - today).days
@@ -548,8 +546,6 @@ class QuoteFormHandlerView(View):
 
                 # Set high/medium priority based on trip date
                 if lead.pickup_date:
-                    from datetime import date
-
                     today = date.today()
                     days_until_trip = (lead.pickup_date - today).days
                     if 0 <= days_until_trip <= 14:

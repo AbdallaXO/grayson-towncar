@@ -20,6 +20,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Hold off on the automated first outreach (SMS / email fallback) until a lead is
+# at least this old. Gives the customer a window to book on their own first — if
+# they convert in that window the lead drops out of the batch (status != NEW /
+# converted=True) and never gets texted. Founder rule: don't text immediately on
+# form submission; wait ~30 min and only reach out if they haven't converted.
+INITIAL_OUTREACH_DELAY_MINUTES = 30
+
 
 def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
     """
@@ -274,11 +281,16 @@ def batch_send_unsent_leads():
 
     # Get leads that haven't been contacted by any channel yet.
     # Only NEW leads — not converted, lost, or already contacted.
+    # Hold off until the lead is at least INITIAL_OUTREACH_DELAY_MINUTES old so we
+    # don't text the instant the form is submitted; a lead that books in that
+    # window converts and is excluded by the status/converted filters above.
+    cutoff = timezone.now() - timedelta(minutes=INITIAL_OUTREACH_DELAY_MINUTES)
     unsent_leads = Lead.objects.filter(
         initial_sms_sent=False,
         initial_email_sent=False,
         status=Lead.StatusChoices.NEW,
         converted=False,
+        created_at__lte=cutoff,
     ).filter(
         Q(phone__isnull=False) & ~Q(phone="") | Q(email__isnull=False) & ~Q(email="")
     ).values_list('id', flat=True)[:50]  # Limit batch size
@@ -305,12 +317,16 @@ def _rescue_stale_leads():
     """
     from reservations.models import Lead
 
+    # Same hold-off as the SMS batch: never reach out (even the email fallback)
+    # before the lead has had its INITIAL_OUTREACH_DELAY_MINUTES window to convert.
+    cutoff = timezone.now() - timedelta(minutes=INITIAL_OUTREACH_DELAY_MINUTES)
     stale = Lead.objects.filter(
         status__in=[Lead.StatusChoices.NEW, Lead.StatusChoices.CONTACTED],
         sequence_active=False,
         converted=False,
         has_replied=False,
         initial_email_sent=False,
+        created_at__lte=cutoff,
     ).exclude(email__isnull=True).exclude(email="").order_by("created_at")[:50]
 
     rescued = 0
