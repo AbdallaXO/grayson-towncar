@@ -125,7 +125,7 @@
                       {% endwith %}
                     </td>
                     <td>
-                      <div class="fw-semibold">{{ rr.requested_by.get_full_name|default:rr.requested_by.username|default:"System" }}</div>
+                      <div class="fw-semibold">{% if rr.requested_by %}{{ rr.requested_by.get_full_name|default:rr.requested_by.username }}{% else %}System{% endif %}</div>
                     </td>
                     <td>
                       {{ rr.requested_at|date:"M d, Y" }}<br>
