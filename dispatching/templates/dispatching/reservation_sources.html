@@ -42,9 +42,8 @@
   .rs-kpi .val.green{color:var(--rs-green);}
 
   /* group grid */
-  .rs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
-  @media(max-width:1100px){.rs-grid{grid-template-columns:repeat(2,1fr);}.rs-kpis{grid-template-columns:1fr;}}
-  @media(max-width:640px){.rs-grid{grid-template-columns:1fr;}}
+  .rs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:24px;}
+  @media(max-width:1100px){.rs-kpis{grid-template-columns:1fr;}}
   .rs-card{background:var(--rs-surface);border:1px solid var(--rs-line);border-radius:12px;padding:16px;
     display:flex;flex-direction:column;text-decoration:none;color:inherit;transition:.12s;position:relative;overflow:hidden;}
   .rs-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c);}
@@ -80,10 +79,12 @@
 
   /* source badge */
   .rs-src{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:999px;white-space:nowrap;}
-  .rs-src.google{background:rgba(201,162,39,0.13);color:#8A6A12;}
-  .rs-src.meta{background:rgba(58,110,165,0.12);color:#2C5580;}
-  .rs-src.ta{background:rgba(46,125,82,0.12);color:#226343;}
-  .rs-src.other{background:rgba(20,22,28,0.06);color:var(--rs-text2);}
+  .rs-src.search{background:rgba(201,162,39,0.13);color:#8A6A12;}
+  .rs-src.ai{background:rgba(124,77,255,0.13);color:#5B34C4;}
+  .rs-src.social{background:rgba(58,110,165,0.12);color:#2C5580;}
+  .rs-src.travel_agents{background:rgba(46,125,82,0.12);color:#226343;}
+  .rs-src.referral{background:rgba(92,107,192,0.13);color:#3F4FA5;}
+  .rs-src.direct{background:rgba(20,22,28,0.06);color:var(--rs-text2);}
 
   /* filter chips */
   .rs-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
@@ -106,6 +107,14 @@
   .rs-fix-btn{padding:8px 15px;border:0;border-radius:8px;background:var(--rs-gold);color:#1A1D21;
     font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
   .rs-fix-btn:hover{background:#BD981F;}
+
+  .rs-tools{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    background:var(--rs-surface);border:1px solid var(--rs-line);border-radius:12px;
+    padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:var(--rs-text2);line-height:1.45;}
+  .rs-tools b{color:var(--rs-text);font-weight:700;}
+  .rs-tools-btn{padding:8px 15px;border:1px solid #1A1D21;border-radius:8px;background:#1A1D21;color:#fff;
+    font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .rs-tools-btn:hover{background:#000;}
 </style>
 {% endblock %}
 
@@ -156,6 +165,21 @@
       </form>
     </div>
     {% endif %}
+
+    <!-- reclassify-all (superuser, in-app, no command line) -->
+    <div class="rs-tools">
+      <div>
+        <b>Reclassify booking sources.</b> Re-tag every past booking under the latest
+        channel rules — pulls older bookings into <b>Bing, ChatGPT, Gemini</b> and the
+        other channels instead of leaving them in “Direct.” Runs instantly, no restart;
+        phone bookings are left untouched. Safe to run anytime.
+      </div>
+      <form method="post" action="{% url 'rederive_booking_sources' %}"
+            onsubmit="return confirm('Reclassify all past bookings under the latest channel rules?');">
+        {% csrf_token %}
+        <button type="submit" class="rs-tools-btn">↻ Reclassify sources</button>
+      </form>
+    </div>
 
     <!-- KPIs -->
     <div class="rs-kpis">
@@ -221,10 +245,9 @@
         <div class="rs-chips">
           {% with d=days_param %}
           <a class="rs-chip {% if channel == 'all' and not agent_id %}on{% endif %}" href="?channel=all&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">All</a>
-          <a class="rs-chip {% if channel == 'google' %}on{% endif %}" href="?channel=google&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Google</a>
-          <a class="rs-chip {% if channel == 'meta' %}on{% endif %}" href="?channel=meta&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Meta</a>
-          <a class="rs-chip {% if channel == 'travel_agents' %}on{% endif %}" href="?channel=travel_agents&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Travel Agents</a>
-          <a class="rs-chip {% if channel == 'other' %}on{% endif %}" href="?channel=other&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">Other</a>
+          {% for g in groups %}
+          <a class="rs-chip {% if channel == g.key %}on{% endif %}" href="?channel={{ g.key }}&days={{ d }}{% if d == 'custom' %}&start={{ start_str }}&end={{ end_str }}{% endif %}">{{ g.label }}</a>
+          {% endfor %}
           {% endwith %}
         </div>
       </div>
@@ -243,12 +266,7 @@
               <td><a href="{% url 'reservation_details' r.id %}" target="_blank" rel="noopener">{{ r.display_number }}</a></td>
               <td class="num" style="text-align:left;">{{ r.created_at|date:"M d, Y" }}</td>
               <td>{{ r.customer.get_full_name|default:"—" }}</td>
-              <td>
-                {% if 'google' in r.source_key %}<span class="rs-src google">{{ r.source_label }}</span>
-                {% elif 'meta' in r.source_key %}<span class="rs-src meta">{{ r.source_label }}</span>
-                {% elif r.source_key == 'travel_agent' %}<span class="rs-src ta">{{ r.source_label }}</span>
-                {% else %}<span class="rs-src other">{{ r.source_label }}</span>{% endif %}
-              </td>
+              <td><span class="rs-src {{ r.source_group }}">{{ r.source_label }}</span></td>
               <td>{% if r.travel_agent %}{{ r.travel_agent.agent_name|default:"—" }}{% else %}<span style="color:var(--rs-text3);">—</span>{% endif %}</td>
               <td>{% if r.rate and r.rate.route %}{{ r.rate.route.origin }} → {{ r.rate.route.destination }}{% else %}—{% endif %}</td>
               <td class="rev">${{ r.total_price|floatformat:2|intcomma }}</td>

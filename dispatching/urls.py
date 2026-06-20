@@ -41,6 +41,7 @@ urlpatterns = [
     path("lead-analytics/", views.lead_analytics, name="lead_analytics"),
     path("reservation-sources/", views.reservation_sources, name="reservation_sources"),
     path("reservation-sources/fix-attribution/", views.fix_booking_source_drift, name="fix_booking_source_drift"),
+    path("reservation-sources/reclassify/", views.rederive_booking_sources, name="rederive_booking_sources"),
     path("route-timing/", views.route_timing_reference, name="route_timing_reference"),
     path("driver-performance/", views.driver_performance, name="driver_performance"),
     path("vehicle-profit/", views.vehicle_profit_report, name="vehicle_profit_report"),

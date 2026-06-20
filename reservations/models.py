@@ -14,6 +14,10 @@ from django.utils.functional import cached_property
 from rates.models import Vehicle, Rate, Route, Location
 from datetime import datetime, timedelta, time
 from simple_history.models import HistoricalRecords
+# Channel taxonomy is the single source of truth for booking_source labels,
+# groups and choices (reservations/attribution.py has no model-level imports,
+# so this is cycle-safe).
+from reservations.attribution import BOOKING_SOURCE_CHOICES
 
 
 class Customer(models.Model):
@@ -213,20 +217,24 @@ class Reservation(models.Model):
         max_length=100, blank=True, null=True, help_text="UTM content parameter"
     )
 
-    # Canonical attribution channel — derived from utm_*/click IDs/travel_agent
-    # in reservations.attribution.derive_booking_source(). Persisted on save so
-    # KPI dashboards can GROUP BY it directly without re-deriving.
-    BOOKING_SOURCE_CHOICES = [
-        ("google_ads", "Google Ads"),
-        ("google_organic", "Google Organic"),
-        ("meta_ads", "Meta Ads"),
-        ("meta_organic", "Meta Organic"),
-        ("travel_agent", "Travel Agent"),
-        ("referral", "Referral"),
-        ("direct", "Direct"),
-        ("phone", "Phone / Dispatcher"),
-        ("other", "Other"),
-    ]
+    # First-touch external referrer host (e.g. "chatgpt.com", "bing.com"),
+    # captured client-side when a visitor arrives with NO utm_source. Lets
+    # derive_booking_source attribute organic AI/search traffic that doesn't
+    # tag itself. Same-origin referrers are dropped client-side, so this is
+    # always an EXTERNAL host or blank.
+    referrer_host = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="First-touch external referrer host (fallback attribution when no UTM source)",
+    )
+
+    # Canonical attribution channel — derived from utm_*/click IDs/referrer/
+    # travel_agent in reservations.attribution.derive_booking_source(). Persisted
+    # on save so KPI dashboards can GROUP BY it directly without re-deriving.
+    # The channel taxonomy (labels, groups, choices) lives in that module so it
+    # never drifts between the model and the dashboards.
     booking_source = models.CharField(
         max_length=32,
         choices=BOOKING_SOURCE_CHOICES,

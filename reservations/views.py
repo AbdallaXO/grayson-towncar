@@ -165,6 +165,7 @@ def reservation_form(
                 "utm_campaign",
                 "utm_term",
                 "utm_content",
+                "referrer_host",  # first-touch external referrer (organic AI/search fallback)
             ]
             for param in utm_params:
                 # Try POST first (from form submission), then cookies (for returning visitors)

@@ -493,3 +493,88 @@ class VipFlagTests(TestCase):
         resp = self.client.get(reverse("reservation_details", args=[res.uuid]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'id="vipToggleBtn"')
+
+
+class ChannelClassificationTests(SimpleTestCase):
+    """`classify_channel` / `derive_booking_source` map raw UTM / click-ID /
+    referrer signals onto the granular acquisition-channel taxonomy that the
+    revenue + Reservation Sources dashboards group by. The point of these is to
+    pin the NEW channels (Bing, ChatGPT, Gemini, ...) so they never silently
+    collapse back into 'direct' the way they did before."""
+
+    def _classify(self, **kw):
+        from reservations.attribution import classify_channel
+        return classify_channel(**kw)
+
+    def test_ai_assistants_each_get_their_own_channel(self):
+        # ChatGPT appends ?utm_source=chatgpt.com to cited links.
+        self.assertEqual(self._classify(src="chatgpt.com"), "chatgpt")
+        self.assertEqual(self._classify(src="ChatGPT"), "chatgpt")
+        # Other assistants resolve via the referrer host (no UTM tag).
+        self.assertEqual(self._classify(referrer_host="gemini.google.com"), "gemini")
+        self.assertEqual(self._classify(referrer_host="www.perplexity.ai"), "perplexity")
+        self.assertEqual(self._classify(referrer_host="copilot.microsoft.com"), "copilot")
+
+    def test_bing_splits_ads_vs_organic_like_google(self):
+        self.assertEqual(self._classify(src="bing", medium="cpc"), "bing_ads")
+        self.assertEqual(self._classify(src="bing", medium=None), "bing_organic")
+        self.assertEqual(self._classify(referrer_host="bing.com"), "bing_organic")
+
+    def test_google_and_meta_behaviour_is_unchanged(self):
+        self.assertEqual(self._classify(gclid="abc"), "google_ads")
+        self.assertEqual(self._classify(src="google", medium="cpc"), "google_ads")
+        self.assertEqual(self._classify(src="google", medium="organic"), "google_organic")
+        self.assertEqual(self._classify(fbclid="z", medium="cpc"), "meta_ads")
+        self.assertEqual(self._classify(src="facebook"), "meta_organic")
+
+    def test_referrer_is_only_a_fallback_when_no_utm(self):
+        # An explicit Bing-ads UTM wins over a (stale) chatgpt referrer cookie.
+        self.assertEqual(
+            self._classify(src="bing", medium="cpc", referrer_host="chatgpt.com"),
+            "bing_ads",
+        )
+
+    def test_unknown_tagged_source_is_preserved_not_hidden(self):
+        # A brand-new tagged source surfaces as its own channel (slugified),
+        # never folded into 'direct' — that's the whole "track every channel" ask.
+        self.assertEqual(self._classify(src="Some Partner"), "some_partner")
+        # An unrecognized EXTERNAL referrer is a generic referral, not direct.
+        self.assertEqual(self._classify(referrer_host="randomblog.example"), "referral")
+
+    def test_no_signal_is_direct(self):
+        self.assertEqual(self._classify(), "direct")
+        self.assertEqual(self._classify(src="", medium="", referrer_host=""), "direct")
+
+    def test_derive_precedence_agent_then_staff_then_channel(self):
+        from reservations.attribution import derive_booking_source
+        # Agent FK beats everything (even a Bing click ID).
+        agent_res = SimpleNamespace(travel_agent_id=7, utm_source="bing", gclid="x")
+        self.assertEqual(derive_booking_source(agent_res), "travel_agent")
+        # Staff request (no agent) -> phone.
+        staff_req = SimpleNamespace(user=SimpleNamespace(is_authenticated=True, is_staff=True))
+        staff_res = SimpleNamespace(
+            travel_agent_id=None, utm_source="chatgpt.com",
+            gclid=None, fbclid=None, utm_medium=None, referrer_host=None,
+        )
+        self.assertEqual(derive_booking_source(staff_res, request=staff_req), "phone")
+        # Public visitor (no agent, no staff) -> the real channel.
+        pub_res = SimpleNamespace(
+            travel_agent_id=None, utm_source="chatgpt.com",
+            gclid=None, fbclid=None, utm_medium=None, referrer_host=None,
+        )
+        self.assertEqual(derive_booking_source(pub_res), "chatgpt")
+
+    def test_referrer_host_field_drives_organic_ai_attribution(self):
+        # Visitor arrives from ChatGPT with NO utm tag — only the referrer host.
+        from reservations.attribution import derive_booking_source
+        res = SimpleNamespace(
+            travel_agent_id=None, utm_source=None, utm_medium=None,
+            gclid=None, fbclid=None, referrer_host="chatgpt.com",
+        )
+        self.assertEqual(derive_booking_source(res), "chatgpt")
+
+    def test_every_taxonomy_channel_has_a_label(self):
+        from reservations.attribution import CHANNEL_LABELS, CHANNEL_GROUPS
+        for _key, _label, _color, subs in CHANNEL_GROUPS:
+            for slug in subs:
+                self.assertIn(slug, CHANNEL_LABELS, f"{slug} missing a label")

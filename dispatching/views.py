@@ -14619,8 +14619,10 @@ def reservation_sources(request):
     from django.core.paginator import Paginator
     from reservations.models import Reservation
 
+    from reservations.attribution import CHANNEL_LABELS, CHANNEL_GROUPS, channel_label
+
     today = timezone.localdate()
-    SOURCE_LABELS = dict(Reservation.BOOKING_SOURCE_CHOICES)
+    SOURCE_LABELS = dict(CHANNEL_LABELS)
     SOURCE_LABELS["travel_agent"] = "Travel Agent"
 
     # ── date range on booking CREATED date (rolling presets + custom) ──
@@ -14680,24 +14682,38 @@ def reservation_sources(request):
         rev = r["revenue"] if r else _Dec("0")
         return {
             "key": key,
-            "label": SOURCE_LABELS.get(key, key.replace("_", " ").title()),
+            "label": channel_label(key),
             "count": c,
             "revenue": rev,
             "pct": round(c * 100.0 / total_count, 1) if total_count else 0,
         }
 
-    # (group key, label, accent color, [sub-source keys])
-    GROUP_DEFS = [
-        ("google", "Google", "#C9A227", ["google_ads", "google_organic"]),
-        ("meta", "Meta / Facebook", "#3A6EA5", ["meta_ads", "meta_organic"]),
-        ("travel_agents", "Travel Agents", "#2E7D52", ["travel_agent"]),
-        ("other", "Other / Direct", "#8B8470", ["direct", "referral", "phone", "other"]),
-    ]
+    # Group cards come from the central taxonomy (Search / AI / Social / Agents /
+    # Referral / Direct). Any channel that shows up in the data but isn't a named
+    # member of a group (e.g. a brand-new tagged utm_source) is appended to the
+    # "Direct / Other" card below, so a real source is NEVER silently dropped.
+    GROUP_DEFS = CHANNEL_GROUPS
+    covered = {s for _k, _l, _c, subs in GROUP_DEFS for s in subs}
+    leftover = sorted(
+        k for k in by_src
+        if k and k not in covered and k != "travel_agent"
+    )
+
     groups = []
     for gkey, glabel, gcolor, subs in GROUP_DEFS:
-        sub_rows = [_row(s) for s in subs]
+        member_keys = list(subs)
+        if gkey == "direct":
+            member_keys = member_keys + leftover  # absorb unrecognized channels
+        # Only show sub-rows that actually have data (keeps cards tight when a
+        # taxonomy has many possible channels but the window used only a few).
+        sub_rows = [_row(s) for s in member_keys if s in by_src]
         gcount = sum(s["count"] for s in sub_rows)
         grev = sum((s["revenue"] for s in sub_rows), _Dec("0"))
+        # Name the specific channels for any multi-member group (Search / AI /
+        # Social / Referral) so "ChatGPT", "Bing Ads", etc. are visible even when
+        # they're the only populated channel in the group. Single-member groups
+        # (Travel Agents) need no breakdown.
+        show_subs = sub_rows if len(member_keys) > 1 else []
         groups.append({
             "key": gkey,
             "label": glabel,
@@ -14706,7 +14722,7 @@ def reservation_sources(request):
             "revenue": grev,
             "pct": round(gcount * 100.0 / total_count, 1) if total_count else 0,
             "avg": (grev / gcount) if gcount else _Dec("0"),
-            "subs": sub_rows if len(subs) > 1 else [],
+            "subs": show_subs,
         })
 
     # ── per-travel-agent breakdown ──
@@ -14723,7 +14739,8 @@ def reservation_sources(request):
         channel = "travel_agents"
     agent_id = (request.GET.get("agent") or "").strip()
 
-    GROUP_SUBS = {g[0]: g[3] for g in GROUP_DEFS}
+    GROUP_SUBS = {g[0]: list(g[3]) for g in GROUP_DEFS}
+    GROUP_SUBS["direct"] = GROUP_SUBS.get("direct", []) + leftover  # match the card
     lst = base.select_related("customer", "rate__route", "travel_agent")
     if agent_id.isdigit():
         lst = lst.filter(travel_agent_id=int(agent_id))
@@ -14733,16 +14750,20 @@ def reservation_sources(request):
     elif channel in GROUP_SUBS:
         # non-agent channels: exclude travel-agent rows (they're reclassified)
         lst = lst.filter(travel_agent__isnull=True, booking_source__in=GROUP_SUBS[channel])
-    elif channel in SOURCE_LABELS:
+    elif channel != "all":
+        # a single channel slug (known or brand-new) — filter on it directly
         lst = lst.filter(travel_agent__isnull=True, booking_source=channel)
     # channel == "all" → no extra filter
 
+    channel_to_group = {ch: gkey for gkey, _l, _c, subs in GROUP_DEFS for ch in subs}
     lst = lst.order_by("-created_at")
     page_obj = Paginator(lst, 50).get_page(request.GET.get("page"))
     for r in page_obj:
         k = "travel_agent" if r.travel_agent_id else r.booking_source
         r.source_key = k
-        r.source_label = SOURCE_LABELS.get(k, k)
+        r.source_label = channel_label(k)
+        # group key drives the badge color (unrecognized -> "direct" bucket)
+        r.source_group = "travel_agents" if r.travel_agent_id else channel_to_group.get(r.booking_source, "direct")
 
     qd = request.GET.copy()
     qd.pop("page", None)
@@ -14795,6 +14816,37 @@ def fix_booking_source_drift(request):
         )
     else:
         messages.info(request, "Attribution already accurate — no drift to fix.")
+    return redirect("reservation_sources")
+
+
+@login_required(login_url="login")
+def rederive_booking_sources(request):
+    """
+    Superuser one-click reclassification of EVERY booking's source under the
+    current channel rules — the in-app equivalent of the
+    ``rederive_booking_source --apply`` command, so the founder can pull older
+    bookings into the new channels (Bing, ChatGPT, Gemini, ...) without a
+    Railway one-off. Phone bookings are preserved. POST-only; redirects back
+    with a summary message.
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+    if request.method != "POST":
+        return redirect("reservation_sources")
+    from reservations.attribution import rederive_all_booking_sources, channel_label
+    result = rederive_all_booking_sources(apply=True)
+    if result["changed"]:
+        # Lead with the most-moved channels so the founder sees the effect.
+        top = "; ".join(
+            f"{n} → {channel_label(new)}" for _old, new, n in result["transitions"][:4]
+        )
+        messages.success(
+            request,
+            f"Reclassified {result['changed']} booking(s) under the latest channel "
+            f"rules ({top}).",
+        )
+    else:
+        messages.info(request, "Sources already up to date — nothing to reclassify.")
     return redirect("reservation_sources")
 
 

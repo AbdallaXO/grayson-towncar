@@ -123,6 +123,7 @@
             <input type="hidden" name="utm_campaign" id="utm_campaign_field">
             <input type="hidden" name="utm_term" id="utm_term_field">
             <input type="hidden" name="utm_content" id="utm_content_field">
+            <input type="hidden" name="referrer_host" id="referrer_host_field">
 
             <!-- ====== Contact Information ====== -->
             <section class="form-card shadow-sm border-0 mb-3 mb-md-4" id="section-contact" data-progress-step="1">
@@ -998,7 +999,7 @@
               const form = document.getElementById('reservation_form');
 
               form.addEventListener('submit', function(e) {
-                  const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+                  const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'referrer_host'];
                   utmParams.forEach(function(param) {
                       const value = getCookie(param);
                       const field = document.getElementById(param + '_field');

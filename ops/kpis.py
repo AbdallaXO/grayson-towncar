@@ -179,7 +179,7 @@ def by_source(start, end):
     Each row also carries ``pct_of_bookings`` (share of all bookings created in
     the window) and ``pct_of_revenue`` (share of paid revenue).
     """
-    label_map = dict(Reservation.BOOKING_SOURCE_CHOICES)
+    from reservations.attribution import channel_label
 
     # travel_agent FK overrides the (drift-prone) stored booking_source.
     eff_created = Case(
@@ -225,7 +225,7 @@ def by_source(start, end):
         p = by_src_paid.get(src, {"paid": 0, "paid_revenue": ZERO})
         rows.append({
             "booking_source": src,
-            "label": label_map.get(src, src or "—"),
+            "label": channel_label(src),
             "created": created,
             "paid": p["paid"],
             "paid_revenue": p["paid_revenue"] or ZERO,

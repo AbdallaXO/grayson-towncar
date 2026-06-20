@@ -136,6 +136,17 @@
                 setCookie('utm_source', 'meta');
                 setCookie('utm_medium', 'cpc');
             }
+            // First-touch EXTERNAL referrer host — lets us attribute organic
+            // ChatGPT / Bing / Perplexity / etc. visits that arrive with no UTM
+            // tag. Only set once (first touch) and never for same-site nav.
+            if (!getCookie('referrer_host') && document.referrer) {
+                try {
+                    var refHost = new URL(document.referrer).hostname.replace(/^www\./, '');
+                    if (refHost && refHost !== window.location.hostname) {
+                        setCookie('referrer_host', refHost);
+                    }
+                } catch (e) { /* malformed referrer — ignore */ }
+            }
             window.getCookie = getCookie;
         })();
     </script>
