@@ -99,9 +99,9 @@ def get_base_structured_data(request, additional_data=None):
         },
         "aggregateRating": {
             "@type": "AggregateRating",
-            "ratingValue": 4.8,
+            "ratingValue": 5.0,
             "bestRating": 5,
-            "ratingCount": 1500,
+            "ratingCount": 1700,
         },
         "potentialAction": {
             "@type": "ReserveAction",
