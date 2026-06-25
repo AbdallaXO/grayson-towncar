@@ -2578,6 +2578,17 @@ class Lead(models.Model):
         max_length=100, blank=True, null=True, help_text="UTM content parameter"
     )
 
+    # First-touch external referrer host (e.g. "chatgpt.com", "bing.com"),
+    # captured client-side when a visitor arrives with NO utm_source. Lets the
+    # lead-analytics source breakdown attribute organic AI/search traffic that
+    # doesn't tag itself — same fallback signal Reservation.referrer_host gives
+    # the booking dashboards. Same-origin referrers are dropped client-side, so
+    # this is always an EXTERNAL host or blank.
+    referrer_host = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        help_text="First-touch external referrer host (fallback attribution when no UTM source)",
+    )
+
     # Follow-Up Automation Fields
     segment = models.CharField(
         max_length=30, choices=SegmentChoices.choices, default=SegmentChoices.GENERAL, blank=True

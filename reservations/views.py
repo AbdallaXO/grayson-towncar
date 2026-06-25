@@ -518,7 +518,10 @@ class QuoteFormHandlerView(View):
                 lead.vehicle_id = data.get("vehicle_id")
                 lead.estimated_price = data.get("estimated_price")
 
-                # Capture and save UTM parameters from cookies (set by main.html script)
+                # Capture and save UTM parameters (set by main.html script).
+                # referrer_host is the first-touch external referrer — it's what
+                # lets the lead-analytics source breakdown attribute organic
+                # ChatGPT / Bing / Perplexity / etc. visits that arrive untagged.
                 utm_params = [
                     "gclid",
                     "fbclid",  # Facebook Click ID
@@ -527,10 +530,12 @@ class QuoteFormHandlerView(View):
                     "utm_campaign",
                     "utm_term",
                     "utm_content",
+                    "referrer_host",
                 ]
                 for param in utm_params:
-                    # Try to get from request cookies first (set by JavaScript)
-                    value = request.COOKIES.get(param)
+                    # POST first (book_form posts these as hidden fields), then
+                    # fall back to the cookie set client-side for returning visitors.
+                    value = request.POST.get(param) or request.COOKIES.get(param)
                     if value:
                         setattr(lead, param, value)
                         logger.info(f"Captured parameter {param} for lead: {value}")

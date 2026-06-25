@@ -450,8 +450,8 @@
                             <tbody>
                                 {% for src in source_data %}
                                 <tr>
-                                    <td><strong>{{ src.utm_source }}</strong></td>
-                                    <td style="text-align:center">{{ src.total }}</td>
+                                    <td><strong>{{ src.label }}</strong></td>
+                                    <td style="text-align:center">{{ src.leads }}</td>
                                     <td style="text-align:center">{{ src.converted }}</td>
                                     <td style="text-align:center">
                                         <span class="la-badge" style="background: var(--la-green-light); color: var(--la-green);">{{ src.conv_pct }}%</span>
@@ -483,8 +483,8 @@
                             <tbody>
                                 {% for rs in revenue_by_source %}
                                 <tr>
-                                    <td><strong>{{ rs.utm_source }}</strong></td>
-                                    <td style="text-align:center">{{ rs.count }}</td>
+                                    <td><strong>{{ rs.label }}</strong></td>
+                                    <td style="text-align:center">{{ rs.converted }}</td>
                                     <td style="text-align:right; font-weight: 700;">${{ rs.revenue|floatformat:0|intcomma }}</td>
                                 </tr>
                                 {% endfor %}
@@ -574,38 +574,24 @@
                     {% endif %}
                 </div>
 
-                <!-- Ad Attribution -->
+                <!-- Channel Mix -->
                 <div class="la-card">
                     <div class="la-card-header">
                         <div class="la-icon" style="background: var(--la-blue-light); color: var(--la-blue);"><i class="bi bi-megaphone-fill"></i></div>
-                        <h3>Ad Attribution</h3>
+                        <h3>Channel Mix <span style="font-weight:400; color: var(--la-text-secondary); font-size:0.82rem;">&mdash; Search · AI · Social · Referral · Direct</span></h3>
                     </div>
+                    {% for g in channel_groups %}
                     <div class="la-attr-row">
-                        <div class="la-attr-icon" style="color: #4285F4;"><i class="bi bi-google"></i></div>
-                        <div class="la-attr-label">Google Ads</div>
-                        <div class="la-attr-count">{{ google_leads }}</div>
+                        <div class="la-attr-icon" style="color: {{ g.color }};"><i class="bi bi-circle-fill" style="font-size:0.65rem;"></i></div>
+                        <div class="la-attr-label">{{ g.label }}</div>
+                        <div class="la-attr-count">{{ g.leads|intcomma }} <span style="color: var(--la-text-secondary); font-weight:400; font-size:0.8rem;">({{ g.pct }}%)</span></div>
                     </div>
-                    <div class="la-attr-row">
-                        <div class="la-attr-icon" style="color: #1877F2;"><i class="bi bi-meta"></i></div>
-                        <div class="la-attr-label">Meta Ads</div>
-                        <div class="la-attr-count">{{ meta_leads }}</div>
-                    </div>
-                    <div class="la-attr-row">
-                        <div class="la-attr-icon" style="color: var(--la-green);"><i class="bi bi-search"></i></div>
-                        <div class="la-attr-label">Organic</div>
-                        <div class="la-attr-count">{{ organic_leads }}</div>
-                    </div>
-                    <div class="la-attr-row">
-                        <div class="la-attr-icon" style="color: var(--la-text-secondary);"><i class="bi bi-globe2"></i></div>
-                        <div class="la-attr-label">Direct</div>
-                        <div class="la-attr-count">{{ direct_leads }}</div>
-                    </div>
+                    {% endfor %}
                     {% if all_leads > 0 %}
                     <div class="la-stacked-bar">
-                        <div style="width: {% widthratio google_leads all_leads 100 %}%; background: #4285F4;"></div>
-                        <div style="width: {% widthratio meta_leads all_leads 100 %}%; background: #1877F2;"></div>
-                        <div style="width: {% widthratio organic_leads all_leads 100 %}%; background: var(--la-green);"></div>
-                        <div style="width: {% widthratio direct_leads all_leads 100 %}%; background: var(--la-border);"></div>
+                        {% for g in channel_groups %}
+                        <div style="width: {{ g.pct }}%; background: {{ g.color }};" title="{{ g.label }}: {{ g.leads }}"></div>
+                        {% endfor %}
                     </div>
                     {% endif %}
                 </div>

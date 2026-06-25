@@ -15004,36 +15004,12 @@ def lead_analytics(request):
         leads_qs.values_list("priority").annotate(c=Count("id")).values_list("priority", "c")
     )
 
-    # ── Source attribution (UTM) — normalize historical variants ──
-    from django.db.models import Value
-    from django.db.models.functions import Lower
-    normalized_source = Case(
-        When(utm_source__in=["facebook", "fb", "ig", "instagram", "Facebook", "Meta"], then=Value("meta")),
-        default=Lower("utm_source"),
-    )
-    source_data = list(
-        leads_qs.exclude(utm_source__isnull=True)
-        .exclude(utm_source="")
-        .annotate(norm_source=normalized_source)
-        .values("norm_source")
-        .annotate(
-            total=Count("id"),
-            converted=Count("id", filter=Q(converted=True)),
-        )
-        .order_by("-total")[:10]
-    )
-    for src in source_data:
-        src["utm_source"] = src["norm_source"]
-        src["conv_pct"] = round(src["converted"] / src["total"] * 100, 1) if src["total"] else 0
-
-    # Ad click attribution
-    google_leads = leads_qs.exclude(gclid__isnull=True).exclude(gclid="").count()
-    meta_leads = leads_qs.exclude(fbclid__isnull=True).exclude(fbclid="").count()
-    organic_leads = leads_qs.filter(
-        Q(gclid__isnull=True) | Q(gclid=""),
-        Q(fbclid__isnull=True) | Q(fbclid=""),
-    ).exclude(utm_source__isnull=True).exclude(utm_source="").count()
-    direct_leads = all_leads - google_leads - meta_leads - organic_leads
+    # ── Source attribution — granular acquisition channels ──
+    # source_data / revenue_by_source / source_quality / channel_groups are all
+    # derived together from one per-lead classify_channel() pass further down (see
+    # "Source quality" section) so every source surface on this page uses the SAME
+    # taxonomy (Bing, ChatGPT, Gemini, … each on their own) instead of collapsing
+    # into hardcoded Google/Meta/Organic/Direct buckets.
 
     # ── Revenue attribution ──
     revenue_data = (
@@ -15046,19 +15022,6 @@ def lead_analytics(request):
     )
     total_lead_revenue = revenue_data["total_revenue"] or Decimal("0.00")
     avg_lead_revenue = revenue_data["avg_revenue"] or Decimal("0.00")
-
-    # Revenue by source (normalized)
-    revenue_by_source = list(
-        leads_qs.filter(converted=True, converted_reservation__isnull=False)
-        .exclude(utm_source__isnull=True)
-        .exclude(utm_source="")
-        .annotate(norm_source=normalized_source)
-        .values("norm_source")
-        .annotate(revenue=Sum("converted_reservation__total_price"), count=Count("id"))
-        .order_by("-revenue")[:10]
-    )
-    for rev in revenue_by_source:
-        rev["utm_source"] = rev["norm_source"]
 
     # ── Time to conversion (lead created → converted) ──
     converted_leads_qs = leads_qs.filter(converted=True, converted_at__isnull=False)
@@ -15236,34 +15199,76 @@ def lead_analytics(request):
     speed_uplift_conv = round(slow_n * max(0.0, speed_fast_conv - speed_slow_conv) / 100.0)
     speed_uplift_revenue = Decimal(speed_uplift_conv) * (avg_lead_revenue or D0)
 
-    # ── 3) Source quality: leads, conversion %, revenue, revenue/lead ──
-    _has_g = ~Q(gclid__isnull=True) & ~Q(gclid="")
-    _has_f = ~Q(fbclid__isnull=True) & ~Q(fbclid="")
-    _no_click = (Q(gclid__isnull=True) | Q(gclid="")) & (Q(fbclid__isnull=True) | Q(fbclid=""))
-    _has_utm = ~Q(utm_source__isnull=True) & ~Q(utm_source="")
+    # ── 3) Source quality: GRANULAR acquisition channels ──
+    # Every lead is classified into a real channel (Google Ads vs Organic, Bing,
+    # ChatGPT, Gemini, Perplexity, Meta, social, referral, direct, …) via the SAME
+    # classify_channel() taxonomy that powers the Reservation Sources page — so a
+    # brand-new tagged source (or a recognized organic referrer like chatgpt.com)
+    # surfaces on its own instead of vanishing into "Organic / UTM" or "Direct".
+    # Classification is per-lead in Python (one streamed query); the page is
+    # superuser-only and lead volume is small, so this is cheap.
+    from collections import defaultdict
+    from reservations.attribution import (
+        classify_channel, channel_label, CHANNEL_GROUPS,
+    )
 
-    _src_defs = [
-        ("Google Ads", _has_g),
-        ("Meta Ads", _has_f & ~_has_g),
-        ("Organic / UTM", _no_click & _has_utm),
-        ("Direct", _no_click & ~_has_utm),
-    ]
-    _rev_ok = Q(converted=True, converted_reservation__isnull=False)
-    _src_agg = {}
-    for i, (label, cond) in enumerate(_src_defs):
-        _src_agg[f"n{i}"] = Count("id", filter=cond)
-        _src_agg[f"c{i}"] = Count("id", filter=cond & Q(converted=True))
-        _src_agg[f"r{i}"] = Sum("converted_reservation__total_price", filter=cond & _rev_ok)
-    _sa = leads_qs.aggregate(**_src_agg)
-    source_quality = []
-    for i, (label, cond) in enumerate(_src_defs):
-        n, c = _sa[f"n{i}"] or 0, _sa[f"c{i}"] or 0
-        rev = _sa[f"r{i}"] or D0
-        source_quality.append({
-            "label": label, "leads": n, "conv_pct": _pct(c, n),
-            "revenue": rev, "rev_per_lead": (rev / n) if n else D0,
+    _chan = defaultdict(lambda: {"leads": 0, "converted": 0, "revenue": D0})
+    for utm_source, utm_medium, gclid, fbclid, ref_host, conv, price in (
+        leads_qs.values_list(
+            "utm_source", "utm_medium", "gclid", "fbclid", "referrer_host",
+            "converted", "converted_reservation__total_price",
+        ).iterator(chunk_size=2000)
+    ):
+        slug = classify_channel(
+            src=utm_source, medium=utm_medium, gclid=gclid, fbclid=fbclid,
+            referrer_host=ref_host,
+        )
+        acc = _chan[slug]
+        acc["leads"] += 1
+        if conv:
+            acc["converted"] += 1
+            if price:
+                acc["revenue"] += price
+
+    channel_rows = []
+    for slug, acc in _chan.items():
+        n = acc["leads"]
+        channel_rows.append({
+            "channel": slug,
+            "label": channel_label(slug),
+            "leads": n,
+            "converted": acc["converted"],
+            "conv_pct": _pct(acc["converted"], n),
+            "revenue": acc["revenue"],
+            "rev_per_lead": (acc["revenue"] / n) if n else D0,
         })
-    source_quality.sort(key=lambda r: r["rev_per_lead"], reverse=True)
+
+    # Source Quality table — every channel, busiest first (then by revenue).
+    source_quality = sorted(
+        channel_rows, key=lambda r: (r["leads"], r["revenue"]), reverse=True
+    )
+    # "Top sources by volume" + "Revenue by source" focused views (same data).
+    source_data = source_quality[:10]
+    revenue_by_source = sorted(
+        (r for r in channel_rows if r["revenue"]),
+        key=lambda r: r["revenue"], reverse=True,
+    )[:10]
+
+    # Channel-group rollup for the attribution card (Search / AI / Social / …).
+    _group_of = {
+        s: gkey for gkey, _glabel, _gcolor, slugs in CHANNEL_GROUPS for s in slugs
+    }
+    _grp = {
+        gkey: {"label": glabel, "color": gcolor, "leads": 0}
+        for gkey, glabel, gcolor, _slugs in CHANNEL_GROUPS
+    }
+    for slug, acc in _chan.items():
+        # Unrecognized tagged sources fall into the catch-all "direct" group.
+        _grp[_group_of.get(slug, "direct")]["leads"] += acc["leads"]
+    channel_groups = [
+        {**g, "pct": _pct(g["leads"], all_leads)}
+        for g in _grp.values() if g["leads"]
+    ]
 
     # ── 4) Open pipeline value + aging (current state, window-independent) ──
     _OPEN = ["new", "contacted", "interested", "future_contact"]
@@ -15316,10 +15321,7 @@ def lead_analytics(request):
         "priority_counts": priority_counts,
         # Source
         "source_data": source_data,
-        "google_leads": google_leads,
-        "meta_leads": meta_leads,
-        "organic_leads": organic_leads,
-        "direct_leads": direct_leads,
+        "channel_groups": channel_groups,
         "revenue_by_source": revenue_by_source,
         "avg_conversion_time": avg_conversion_time,
         # Follow-up engine
