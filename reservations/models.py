@@ -1711,6 +1711,34 @@ class Leg(models.Model):
         pickup_lower = (self.pickup_location or "").lower()
         return self._is_airport(pickup_lower)
 
+    def is_flight_tracked_arrival(self):
+        """True when this leg's pickup depends on an INBOUND flight we should track.
+
+        That's a normal airport 'arrival', OR a cruise transfer that STARTS at the
+        airport (e.g. MCO → Port Canaveral) — functionally an arrival with a tracked
+        inbound flight, even though its display trip type stays 'cruise'. Hotel→port
+        cruise legs (no inbound flight to track) are correctly excluded because their
+        pickup isn't an airport.
+
+        This is the single predicate every flight-tracking guard shares (background +
+        bulk refresh, mismatch scan, tight-turn, board badge, match-to-flight), so a
+        cruise guest's inbound flight is never silently left untracked.
+        """
+        trip_type = self.get_trip_type()
+        if trip_type == "arrival":
+            return True
+        if trip_type == "cruise" and self.is_airport_pickup():
+            return True
+        return False
+
+    def flight_tracking_trip_type(self):
+        """Trip type to hand AeroAPI when refreshing this leg's flight. An airport→
+        cruise transfer tracks an inbound ARRIVAL at the airport, so it refreshes with
+        'arrival' semantics; every other leg keeps its natural trip type."""
+        if self.is_flight_tracked_arrival():
+            return "arrival"
+        return self.get_trip_type()
+
     def _is_airport(self, location_lower):
         """Airport-terminal test.
 
@@ -1735,7 +1763,7 @@ class Leg(models.Model):
         so delayed flights don't incorrectly flag legs that have been updated to
         match the new arrival time.
         """
-        if self.get_trip_type() != "arrival" or not self.flight_information:
+        if not self.is_flight_tracked_arrival() or not self.flight_information:
             return False
         flight = self.flight_information
 
@@ -1768,7 +1796,7 @@ class Leg(models.Model):
         so that delayed flights don't incorrectly flag legs that have been updated
         to match the new arrival time.
         """
-        if self.get_trip_type() != "arrival" or not self.flight_information:
+        if not self.is_flight_tracked_arrival() or not self.flight_information:
             return None
         flight = self.flight_information
 
@@ -1857,7 +1885,7 @@ class Leg(models.Model):
         separate, additive helper — get_flight_time_mismatch_display (and its push-alert
         / flight-refresh callers) are intentionally left on the original 30-min rule.
         """
-        if self.get_trip_type() != "arrival" or not self.flight_information:
+        if not self.is_flight_tracked_arrival() or not self.flight_information:
             return None
         flight = self.flight_information
         flight_dt = (
@@ -1911,6 +1939,22 @@ class Leg(models.Model):
             "label": label,
             "arrival_label": arrival_label,
         }
+
+    def flight_disruption_flag(self):
+        """Board-facing RED badge for a tracked inbound flight that AeroAPI reports
+        cancelled or diverted — the case flight_timing_flag (a minute-delta signal)
+        cannot see, because a cancelled flight usually keeps its scheduled time.
+
+        Returns {'level':'alert', 'kind':'cancelled'|'diverted', 'label':...} or None.
+        """
+        if not self.is_flight_tracked_arrival() or not self.flight_information:
+            return None
+        status = (self.flight_information.status or "").lower()
+        if "cancel" in status:
+            return {"level": "alert", "kind": "cancelled", "label": "Flight cancelled"}
+        if "divert" in status:
+            return {"level": "alert", "kind": "diverted", "label": "Flight diverted"}
+        return None
 
     def effective_afterhours_time(self):
         """The local time-of-day used to decide the after-hours (10 PM-6 AM)

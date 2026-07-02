@@ -69,26 +69,29 @@
               <h3 class="h4 mb-4">Get in Touch</h3>
 
               <div class="d-flex align-items-center mb-4">
-                <div class="icon-square bg-primary text-white rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px;
+                <div class="icon-square rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px;
                             height: 40px;
-                            min-width: 40px">
+                            min-width: 40px; background:#C9A227; color:#16120A;">
                   <i class="bi bi-telephone-fill"></i>
                 </div>
                 <div>
                   <h5 class="mb-0">Phone</h5>
-                  <p class="mb-0">(407) 212-7190</p>
+                  <p class="mb-0">
+                    <a href="tel:+14072127190" class="text-dark fw-semibold text-decoration-none">(407) 212-7190</a>
+                    <a href="sms:+14072127190" class="ms-2 small text-decoration-none" style="color:#C9A227;"><i class="bi bi-chat-dots-fill me-1"></i>Text us</a>
+                  </p>
                 </div>
               </div>
 
               <div class="d-flex align-items-center mb-4">
-                <div class="icon-square bg-primary text-white rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px;
+                <div class="icon-square rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px;
                             height: 40px;
-                            min-width: 40px">
+                            min-width: 40px; background:#C9A227; color:#16120A;">
                   <i class="bi bi-envelope-fill"></i>
                 </div>
                 <div>
                   <h5 class="mb-0">Email</h5>
-                  <p class="mb-0">reservations@graysontowncar.com</p>
+                  <p class="mb-0"><a href="mailto:reservations@graysontowncar.com" class="text-dark text-decoration-none">reservations@graysontowncar.com</a></p>
                 </div>
               </div>
               <h4 class="h5 mt-5 mb-3">Follow Our Socials</h4>
@@ -149,7 +152,7 @@
                   {{ form.about }}
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-lg d-block mx-auto rounded-pill">Request Quote</button>
+                <button type="submit" class="btn btn-lg d-block mx-auto rounded-pill fw-bold px-5" style="background:#C9A227; color:#16120A;">Request Quote</button>
               </form>
             </div>
           </div>
@@ -158,14 +161,12 @@
     </div>
   </section>
 
-  <!-- CSS for Bootstrap Icons and Montserrat font -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" />
+  {# bootstrap-icons + Montserrat are already loaded globally in main.html — no duplicate here. #}
   <script src="{% static 'js/i-button-hover.js' %}"></script>
   <script>document.getElementById('formLoadedAt').value = (Date.now() / 1000).toFixed(0);</script>
   <style>
     .contact-gradient {
-      background: linear-gradient(to top, #486581, #d6e6f2) !important;
+      background: linear-gradient(to top, #EFE9DD, #FBF9F4) !important;
     }
   </style>
 {% endblock %}

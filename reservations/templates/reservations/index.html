@@ -341,7 +341,7 @@
                   <div class="price-amount">$195</div>
                   <span class="price-type">round trip</span>
                 </div>
-                <a href="{% url 'rates' %}" class="btn-luxe">Book Now</a>
+                <a href="{% url 'rates' %}?filter=disney" class="btn-luxe">Book Now</a>
               </div>
             </div>
           </div>
@@ -374,7 +374,7 @@
                   <div class="price-amount">$195</div>
                   <span class="price-type">round trip</span>
                 </div>
-                <a href="{% url 'rates' %}" class="btn-luxe">Book Now</a>
+                <a href="{% url 'rates' %}?filter=universal" class="btn-luxe">Book Now</a>
               </div>
             </div>
           </div>
@@ -407,7 +407,7 @@
                   <div class="price-amount">$270</div>
                   <span class="price-type">round trip</span>
                 </div>
-                <a href="{% url 'rates' %}" class="btn-luxe">Book Now</a>
+                <a href="{% url 'rates' %}?filter=cruise" class="btn-luxe">Book Now</a>
               </div>
             </div>
           </div>
@@ -1009,6 +1009,9 @@
     </section>
 
   </main>
+
+  {# Home keeps its own sticky buttons below; suppress the sitewide shared partial. #}
+  {% block sticky_contact %}{% endblock %}
 
   <!-- Sticky Action Buttons -->
   <div class="sticky-buttons">

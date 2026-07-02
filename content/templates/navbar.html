@@ -226,11 +226,45 @@
             </li>
           </ul>
         </li>
+        <li class="nav-item ms-lg-2">
+          <a class="nav-link nav-phone" href="tel:+14072127190" title="Call Grayson Towncar">
+            <i class="bi bi-telephone-fill me-1"></i>407-212-7190
+          </a>
+        </li>
+        <li class="nav-item ms-lg-2 mt-2 mt-lg-0">
+          <a class="btn btn-book-now" href="{% url 'rates' %}">Book Now</a>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
 <style>
+    /* Navbar phone + Book Now CTA (right side) */
+    .navbar.premium-navbar .nav-phone {
+        color: #C9A227 !important;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .navbar.premium-navbar .nav-phone:hover { color: #E8D5B7 !important; }
+    .navbar.premium-navbar .btn-book-now {
+        background: linear-gradient(90deg, #C9A227, #E8D5B7);
+        color: #16120A !important;
+        font-weight: 700;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 1.35rem;
+        font-size: 0.9rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .navbar.premium-navbar .btn-book-now:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(201, 162, 39, 0.35);
+        color: #16120A !important;
+    }
+    @media (max-width: 991.98px) {
+        .navbar.premium-navbar .btn-book-now { display: inline-block; width: 100%; text-align: center; }
+    }
+
     /* Premium Navbar Styling */
     .navbar.premium-navbar {
         background: rgba(13, 17, 23, 0.97) !important;

@@ -234,7 +234,16 @@ class LegForm(forms.ModelForm):
 
     def clean_pickup_date(self):
         date = self.cleaned_data["pickup_date"]
-        if date < timezone.now().date():
+        # A NEW past date is invalid. But when editing an existing leg (e.g. fixing the
+        # pickup TIME or address on a past/completed trip), leaving the original past
+        # date unchanged must be allowed — otherwise every edit to an older reservation
+        # is silently blocked.
+        unchanged_past = (
+            self.instance
+            and self.instance.pk
+            and self.instance.pickup_date == date
+        )
+        if date < timezone.now().date() and not unchanged_past:
             raise forms.ValidationError("Please Enter a Valid Pickup Date")
         return date
 

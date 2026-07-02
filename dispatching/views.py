@@ -1810,9 +1810,13 @@ def modify_reservation(request, id):
             # Save the reservation
             updated_reservation.save()
 
-            # Process leg forms
-            leg_forms = []
-            for i in range(1, 3):  # Support up to 2 legs
+            # Process leg forms. The template renders one tab per existing leg, so
+            # process EVERY leg (not just the first two) and never report success when
+            # a submitted leg failed validation — a silent "updated successfully" while
+            # an edit is dropped sends a driver to the old address/time.
+            leg_errors = []
+            leg_count = reservation.legs.count()
+            for i in range(1, leg_count + 1):
                 leg_prefix = f"leg_{i}"
 
                 # Create a dictionary with all possible leg form fields
@@ -1830,24 +1834,51 @@ def modify_reservation(request, id):
                         has_data = True
                         break
 
-                if has_data:
-                    leg_instance = (
-                        reservation.legs.all()[i - 1]
-                        if reservation.legs.count() >= i
-                        else None
-                    )
-                    leg_form = LegForm(
-                        request.POST, instance=leg_instance, prefix=leg_prefix
-                    )
-                    if leg_form.is_valid():
-                        leg = leg_form.save(commit=False)
-                        leg.reservation = updated_reservation
-                        leg.save()
+                if not has_data:
+                    continue
 
-            messages.success(
-                request, f"Reservation {updated_reservation.uuid} updated successfully."
-            )
-            return redirect("reservation_details", id=updated_reservation.uuid)
+                leg_instance = (
+                    reservation.legs.all()[i - 1]
+                    if reservation.legs.count() >= i
+                    else None
+                )
+                leg_form = LegForm(
+                    request.POST, instance=leg_instance, prefix=leg_prefix
+                )
+                if leg_form.is_valid():
+                    leg = leg_form.save(commit=False)
+                    leg.reservation = updated_reservation
+                    leg.save()
+                else:
+                    # Surface the specific failure instead of silently dropping the edit.
+                    for field, errs in leg_form.errors.items():
+                        field_label = "form" if field == "__all__" else field
+                        leg_errors.append(
+                            f"Leg {i} — {field_label}: {'; '.join(errs)}"
+                        )
+
+            if leg_errors:
+                for err in leg_errors:
+                    messages.error(request, err)
+                messages.error(
+                    request,
+                    "Those leg changes were NOT saved. Fix the errors above and "
+                    "resubmit (the reservation and customer details were saved).",
+                )
+                # Re-bind leg forms with the submitted data and fall through to the
+                # re-render below so nothing the dispatcher typed is lost.
+                leg_forms = [
+                    LegForm(request.POST, instance=leg, prefix=f"leg_{i + 1}")
+                    for i, leg in enumerate(reservation.legs.all())
+                ]
+                if not leg_forms:
+                    leg_forms.append(LegForm(request.POST, prefix="leg_1"))
+            else:
+                messages.success(
+                    request,
+                    f"Reservation {updated_reservation.uuid} updated successfully.",
+                )
+                return redirect("reservation_details", id=updated_reservation.uuid)
         else:
             messages.error(request, "Please correct the errors in the form.")
             leg_forms = [
@@ -2998,6 +3029,7 @@ def _apply_gratuity_to_legs(reservation, amount, target):
         distributed += portion
 
 
+@login_required(login_url="login")
 def dispatcher_payment_portal(request, reservation_id):
     """
     A portal for dispatchers to process payments or save cards for reservations.
@@ -3009,6 +3041,12 @@ def dispatcher_payment_portal(request, reservation_id):
     Returns:
         Rendered form or redirect to Stripe checkout
     """
+    # Staff-only: this console exposes saved cards and can fire off-session charges.
+    # The reservation UUID is not a secret (it ships in customer payment-reminder
+    # emails as /process-payment/<uuid>/), so login + is_staff are the real gate.
+    if not request.user.is_staff:
+        return redirect("home")
+
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
     # Redirect URLs: These are where Stripe sends the user back.
     base_success_url = request.build_absolute_uri(reverse("payment_success"))
@@ -3800,7 +3838,7 @@ def _refresh_one_flight(flight, leg, aeroapi):
         return {"success": False, "error": "Could not determine flight identifier", "flight_data": None, "not_found": False}
 
     flight_date = leg.pickup_date.strftime('%Y-%m-%d') if leg.pickup_date else None
-    trip_type = leg.get_trip_type()
+    trip_type = leg.flight_tracking_trip_type()
     api_data = aeroapi.get_flight_data(flight_ident, flight_date=flight_date, trip_type=trip_type)
 
     if api_data.get('status') != 'success':
@@ -4065,7 +4103,7 @@ def match_leg_time_to_flight(request):
                 {"success": False, "error": "Leg has no flight information"},
                 status=400,
             )
-        if leg.get_trip_type() != "arrival":
+        if not leg.is_flight_tracked_arrival():
             return JsonResponse(
                 {"success": False, "error": "Only arrival legs can be matched to flight time"},
                 status=400,
@@ -4211,7 +4249,7 @@ def match_all_leg_times_to_flight(request):
                 flight_information__isnull=False,
             ).select_related("flight_information")
         )
-        arrival_legs = [leg for leg in legs if leg.get_trip_type() == "arrival"]
+        arrival_legs = [leg for leg in legs if leg.is_flight_tracked_arrival()]
         updated = 0
         for leg in arrival_legs:
             flight = leg.flight_information
@@ -4691,7 +4729,7 @@ def _refresh_single_flight(leg):
 
         # Get the leg's pickup date to fetch flight data for the correct date
         flight_date = leg.pickup_date.strftime("%Y-%m-%d") if leg.pickup_date else None
-        trip_type = leg.get_trip_type()
+        trip_type = leg.flight_tracking_trip_type()
 
         # Create a new AeroAPI instance for this thread (thread-safe)
         aeroapi = AeroAPIService()
@@ -5104,11 +5142,12 @@ def refresh_all_flights(request):
             flight_information__isnull=False
         ).select_related('flight_information')
         
-        # Filter to only include "arrival" trip types (pickup at airport, dropoff at destination)
-        # We need to filter in Python since get_trip_type() is a computed property
-        arrival_legs = [leg for leg in legs if leg.get_trip_type() == 'arrival']
+        # Filter to flight-tracked legs: airport arrivals AND airport→cruise transfers
+        # (their inbound flight lands at the airport, so it's tracked like an arrival).
+        # Filtered in Python since is_flight_tracked_arrival() is a computed property.
+        arrival_legs = [leg for leg in legs if leg.is_flight_tracked_arrival()]
         legs = arrival_legs
-        
+
         if not legs:
             return JsonResponse({
                 "success": False,

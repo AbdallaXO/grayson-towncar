@@ -7,7 +7,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
-    "startCommand": "python3 manage.py migrate && gunicorn business.wsgi --timeout 60",
+    "startCommand": "python3 manage.py migrate && gunicorn business.wsgi --workers 1 --threads 4 --timeout 60",
     "sleepApplication": false,
     "multiRegionConfig": {
       "us-east4-eqdc4a": {

@@ -96,11 +96,23 @@ def send_reservation_confirmation(reservation, sent_by=None):
             # Check if any leg is a return trip
             has_return_trip = any(leg.get_trip_type() == 'return' for leg in legs)
 
+            # Self-serve checkout link (same URL the payment-reminder emails use) so an
+            # unpaid booking can pay right away instead of being told to call or reply.
+            from django.conf import settings as _settings
+            from django.urls import reverse as _reverse
+            from reservations.refund_policy import CANCELLATION_POLICY_SENTENCE
+            checkout_url = (
+                f"{_settings.SITE_BASE_URL}"
+                f"{_reverse('create_checkout_session', args=[str(reservation.uuid)])}"
+            )
+
             context = {
                 "reservation": reservation,
                 "legs": legs,
                 "date": timezone.localdate(),
                 "has_return_trip": has_return_trip,
+                "checkout_url": checkout_url,
+                "cancellation_policy": CANCELLATION_POLICY_SENTENCE,
             }
 
             from_email = "reservations@graysontowncar.com"
@@ -195,6 +207,7 @@ def send_reservation_confirmation_custom_recipient(reservation, recipient_email,
     try:
         legs = reservation.legs.all()
         has_return_trip = any(leg.get_trip_type() == 'return' for leg in legs)
+        from reservations.refund_policy import CANCELLATION_POLICY_SENTENCE
 
         context = {
             "reservation": reservation,
@@ -203,6 +216,7 @@ def send_reservation_confirmation_custom_recipient(reservation, recipient_email,
             "has_return_trip": has_return_trip,
             "sender_name": sender_name,
             "recipient_email": recipient_email,
+            "cancellation_policy": CANCELLATION_POLICY_SENTENCE,
         }
 
         subject = "Grayson Towncar Reservation Confirmation"
@@ -493,10 +507,12 @@ def send_internal_confirmation(reservation):
 
     def _send_email():
         try:
+            from reservations.refund_policy import CANCELLATION_POLICY_SENTENCE
             context = {
                 "reservation": reservation,
                 "legs": reservation.legs.all(),
                 "date": timezone.localdate(),
+                "cancellation_policy": CANCELLATION_POLICY_SENTENCE,
             }
 
             subject = "Reservation Submission"
@@ -873,7 +889,27 @@ def resolve_booking_url(lead, quote=None):
                     route__destination__name__iexact=quote.pickup_location,
                 ).first()
             if rate:
-                return f"https://graysontowncar.com/book-orlando-transportation/{rate.pk}"
+                # Match the price/trip type the lead was quoted. get_form_details reads
+                # ?round=1 (one-way) / ?round=2 (round-trip) and DEFAULTS to round-trip,
+                # so a one-way lead clicking a bare link lands on the pricier round-trip
+                # form — a bait-and-switch. Carry the trip type, and prefill the contact
+                # fields the book form already autofills so nothing is re-typed.
+                from urllib.parse import urlencode
+
+                trip = (quote.trip_type or getattr(lead, "trip_type", "") or "").lower()
+                params = {"round": "1" if trip == "oneway" else "2"}
+                for key, val in (
+                    ("first_name", lead.first_name),
+                    ("last_name", lead.last_name),
+                    ("email", lead.email),
+                    ("phone", lead.phone),
+                ):
+                    if val:
+                        params[key] = val
+                return (
+                    f"https://graysontowncar.com/book-orlando-transportation/{rate.pk}"
+                    f"?{urlencode(params)}"
+                )
         except Exception:
             logger.debug(f"Could not resolve booking rate for lead #{lead.id}")
 

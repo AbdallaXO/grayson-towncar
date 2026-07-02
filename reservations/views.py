@@ -564,6 +564,41 @@ class QuoteFormHandlerView(View):
                 # Save the lead
                 lead.save()
 
+                # Custom / unmatched route: no online rate, so the site couldn't quote
+                # it instantly. Rather than leaving the guest on the "we'll reach out
+                # shortly" promise (the first automated touch is 30 min-9 hrs out and
+                # price-less), file a HIGH ops task so a human sends a real price fast —
+                # these custom/long routes are the high-ticket jobs most worth chasing.
+                if not lead.estimated_price:
+                    try:
+                        from ops.services import create_task
+                        from ops.models import OperationalTask
+
+                        route_label = f"{pickup_location or '?'} → {dropoff_location or '?'}"
+                        is_oneway = data.get("trip_type") == "1"
+                        create_task(
+                            task_type=OperationalTask.TaskType.MANUAL,
+                            title=(
+                                f"QUOTE NEEDED — {lead.first_name} {lead.last_name}: "
+                                f"{route_label}"
+                            )[:200],
+                            description=(
+                                "Custom route with no online rate — send this guest a "
+                                "price.\n\n"
+                                f"Route: {route_label}\n"
+                                f"Trip: {'One way' if is_oneway else 'Round trip'}\n"
+                                f"Pickup date: {lead.pickup_date or '—'}\n"
+                                f"Phone: {lead.phone or '—'}   Email: {lead.email or '—'}"
+                            ),
+                            priority=OperationalTask.Priority.HIGH,
+                            lead=lead,
+                            metadata={"source": "quote_form_no_rate"},
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Could not create QUOTE NEEDED task for lead {lead.id}: {e}"
+                        )
+
                 # Create the first quote for this lead
                 quote = Quote.objects.create(
                     lead=lead,

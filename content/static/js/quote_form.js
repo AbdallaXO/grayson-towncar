@@ -329,37 +329,66 @@ class QuoteFormHandler {
 
         this.setLoading(true);
 
+        // Prepare form data
+        const formData = {};
+        this.elements.formFields.forEach(field => {
+            formData[field.name] = field.value;
+        });
+
+        // Add pickup_date if it exists
+        if (this.elements.pickupDate) {
+            formData.pickup_date = this.elements.pickupDate.value || '';
+        }
+
+        const leadData = {
+            ...formData,
+            vehicle_id: vehicle,
+            pickup_location: this.elements.pickup.options[this.elements.pickup.selectedIndex].text,
+            dropoff_location: this.elements.dropoff.options[this.elements.dropoff.selectedIndex].text,
+            trip_type: tripType,
+            estimated_price: null
+        };
+
+        // The full rate table already ships in the page, so the price NEVER depends on
+        // the lead POST succeeding. Decouple the two: show the price we already have,
+        // and persist the lead in the background. A save failure (validation, 500,
+        // network, ad-blocker) must never hide a valid price or drop the lead silently.
+        const locationIds = [pickup, dropoff].sort();
+        const key = `${locationIds[0]}-${locationIds[1]}`;
+        const rate = this.rateData[vehicle]?.[key];
+
+        if (!rate) {
+            // Genuinely no configured rate for this route — the only real "not set up"
+            // case. Show the follow-up panel AND still capture the lead for a custom quote.
+            this.showInvalidQuote();
+            this.setLoading(false);
+            this.saveLead(leadData);
+            return;
+        }
+
+        const price = tripType === '1' ? rate.oneway : rate.round;
+        leadData.estimated_price = price;
+
+        // Include customer information in the booking URLs for autofill
+        const customerParams = new URLSearchParams({
+            first_name: formData.first_name || '',
+            last_name: formData.last_name || '',
+            email: formData.email || '',
+            phone: formData.phone || ''
+        }).toString();
+
+        const onewayUrl = `/book-orlando-transportation/${rate.id}?round=1&${customerParams}`;
+        const roundtripUrl = `/book-orlando-transportation/${rate.id}?round=2&${customerParams}`;
+        this.showQuote(price, `${rate.origin} → ${rate.destination}`, onewayUrl, roundtripUrl);
+        this.setSuccess();
+        this.setLoading(false);
+
+        // Fire-and-forget: capture the lead for follow-up without blocking the customer.
+        this.saveLead(leadData);
+    }
+
+    async saveLead(leadData) {
         try {
-            // Prepare form data
-            const formData = {};
-            this.elements.formFields.forEach(field => {
-                formData[field.name] = field.value;
-            });
-
-            // Add pickup_date if it exists
-            if (this.elements.pickupDate) {
-                formData.pickup_date = this.elements.pickupDate.value || '';
-            }
-
-            const leadData = {
-                ...formData,
-                vehicle_id: vehicle,
-                pickup_location: this.elements.pickup.options[this.elements.pickup.selectedIndex].text,
-                dropoff_location: this.elements.dropoff.options[this.elements.dropoff.selectedIndex].text,
-                trip_type: tripType,
-                estimated_price: null
-            };
-
-            // Check for rate
-            const locationIds = [pickup, dropoff].sort();
-            const key = `${locationIds[0]}-${locationIds[1]}`;
-            const rate = this.rateData[vehicle]?.[key];
-
-            if (rate) {
-                leadData.estimated_price = tripType === '1' ? rate.oneway : rate.round;
-            }
-
-            // Submit the lead
             const response = await fetch(this.endpoint, {
                 method: 'POST',
                 headers: {
@@ -368,35 +397,12 @@ class QuoteFormHandler {
                 },
                 body: JSON.stringify(leadData)
             });
-
-            const data = await response.json();
-
-            if (data.success) {
-                if (rate) {
-                    const price = tripType === '1' ? rate.oneway : rate.round;
-                    // Include customer information in the booking URLs for autofill
-                    const customerParams = new URLSearchParams({
-                        first_name: formData.first_name || '',
-                        last_name: formData.last_name || '',
-                        email: formData.email || '',
-                        phone: formData.phone || ''
-                    }).toString();
-
-                    const onewayUrl = `/book-orlando-transportation/${rate.id}?round=1&${customerParams}`;
-                    const roundtripUrl = `/book-orlando-transportation/${rate.id}?round=2&${customerParams}`;
-                    this.showQuote(price, `${rate.origin} → ${rate.destination}`, onewayUrl, roundtripUrl);
-                    this.setSuccess();
-                } else {
-                    this.showInvalidQuote();
-                }
-            } else {
-                throw new Error('Failed to create lead');
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                console.error('Lead save failed:', response.status, data.errors || data);
             }
         } catch (error) {
-            console.error('Error:', error);
-            this.showInvalidQuote();
-        } finally {
-            this.setLoading(false);
+            console.error('Lead save network error:', error);
         }
     }
 

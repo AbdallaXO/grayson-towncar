@@ -150,7 +150,7 @@ def _get_raw_arrival_dt(leg, target_date):
     """Best available flight arrival for an airport-arrival leg, normalized to
     target_date, WITHOUT any deplaning grace. Returns a datetime or None when the
     leg isn't an airport arrival or has no usable flight arrival time."""
-    if leg.get_trip_type() != "arrival" or not leg.flight_information:
+    if not leg.is_flight_tracked_arrival() or not leg.flight_information:
         return None
     try:
         from dispatching.scheduler import _get_best_flight_arrival
@@ -472,7 +472,7 @@ def _scan_flight_mismatches():
 
     created = 0
     for leg in legs:
-        if leg.get_trip_type() != "arrival":
+        if not leg.is_flight_tracked_arrival():
             continue
 
         # Skip same-day legs whose pickup time has already passed
@@ -1483,7 +1483,7 @@ def auto_refresh_flights():
     )
 
     for leg in legs:
-        if leg.get_trip_type() != "arrival":
+        if not leg.is_flight_tracked_arrival():
             continue
 
         flight = leg.flight_information
@@ -1493,7 +1493,7 @@ def auto_refresh_flights():
 
         try:
             flight_date = leg.pickup_date.strftime("%Y-%m-%d")
-            trip_type = leg.get_trip_type()
+            trip_type = leg.flight_tracking_trip_type()
             flight_data = aeroapi.get_flight_data(
                 flight_ident, flight_date=flight_date, trip_type=trip_type
             )
@@ -1501,6 +1501,15 @@ def auto_refresh_flights():
             if flight_data.get("status") == "success":
                 _apply_flight_update(flight, flight_data)
                 refreshed += 1
+                # Cancelled/diverted inbound flight: _apply_flight_update just wrote the
+                # new status silently. Surface it LOUDLY (HIGH ops task) so a dispatcher
+                # doesn't send a driver to MCO for a plane that isn't coming.
+                try:
+                    _handle_flight_disruption(leg, flight)
+                except Exception as e:
+                    logger.warning(
+                        f"Flight-disruption check failed for leg {leg.id}: {e}"
+                    )
                 # After-hours fee detection: if the refreshed arrival now lands
                 # in the late-night window (10 PM-6 AM) on the pickup day, flag it
                 # for the dispatcher to review + charge. Day-of only (founder:
@@ -1558,6 +1567,61 @@ def _get_refresh_date_ranges(today):
     # AeroAPI fan-out that ran behind page loads on the single worker.
 
     return dates
+
+
+def _handle_flight_disruption(leg, flight):
+    """If a just-refreshed inbound flight is cancelled or diverted, create a HIGH
+    FLIGHT_VERIFICATION ops task so the day-of desk calls the guest and frees the
+    driver — instead of the cancellation sitting silently on the Flight row until a
+    dispatcher happens to open the details modal.
+
+    create_task dedups per (task_type, leg) among open tasks and has a 2h post-close
+    cooldown, so the 30-min background cycle never spams. Returns 1 if a task was
+    created, else 0. Mirrors the review modal's 'Call guest — flight cancelled'.
+    """
+    from ops.models import OperationalTask
+    from ops.services import create_task
+
+    status = (flight.status or "").lower()
+    if "cancel" in status:
+        kind = "cancelled"
+    elif "divert" in status:
+        kind = "diverted"
+    else:
+        return 0
+
+    flight_label = (
+        f"{flight.airline_display_name or flight.airline or ''} "
+        f"{flight.flight_number or ''}"
+    ).strip()
+    try:
+        customer_name = leg.reservation.customer.get_full_name()
+    except Exception:
+        customer_name = "guest"
+
+    title = f"Flight {kind}: {customer_name} — {flight_label or 'inbound flight'}"[:200]
+    description = (
+        f"Call guest — flight {kind}.\n\n"
+        f"Booked pickup: {leg.pickup_date} {leg.pickup_time}\n"
+        f"Flight: {flight_label or '—'} (status: {flight.status or '—'})\n"
+        f"Pickup: {leg.pickup_location} → {leg.dropoff_location}"
+    )
+
+    task = create_task(
+        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+        title=title,
+        description=description,
+        priority=OperationalTask.Priority.HIGH,
+        due_at=timezone.now(),
+        leg=leg,
+        reservation=leg.reservation,
+        metadata={
+            "source": "auto_refresh_disruption",
+            "disruption": kind,
+            "flight_status": flight.status,
+        },
+    )
+    return 1 if task else 0
 
 
 def _apply_flight_update(flight, flight_data):

@@ -126,6 +126,30 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Deep link the route filter: /rates-booking/?filter=disney (or ...#disney) opens
+  // with the matching destination chip pre-selected + scrolled into view, so a visitor
+  // who already picked "Disney" on the home page doesn't re-choose it here.
+  (function () {
+    const known = allChips.map(function (c) { return c.dataset.filter; });
+    let wanted = (new URLSearchParams(window.location.search).get('filter') || '').toLowerCase();
+    if (!wanted) {
+      const h = window.location.hash.replace('#', '').toLowerCase();
+      if (known.indexOf(h) !== -1) wanted = h;  // allow #disney etc, not #rates-*
+    }
+    if (wanted && wanted !== 'all' && known.indexOf(wanted) !== -1) {
+      activeFilter = wanted;
+      allChips.forEach(function (chip) {
+        chip.classList.toggle('is-active', chip.dataset.filter === wanted);
+      });
+      const tools = document.querySelector('[data-tools]');
+      if (tools) {
+        requestAnimationFrame(function () {
+          tools.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+    }
+  })();
+
   // Deep link: /rates-booking/#rates-van-14-pax opens that vehicle;
   // otherwise keep the server-rendered default (SUV)
   const hash = window.location.hash.replace('#', '');

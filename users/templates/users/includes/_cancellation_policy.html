@@ -1,0 +1,5 @@
+{# Canonical customer-facing cancellation policy sentence. Source of truth:
+   reservations/refund_policy.py CANCELLATION_POLICY_SENTENCE (mirrors the refund
+   engine tiers). Passed into the email context as `cancellation_policy`; the default
+   below keeps the copy correct even if a context forgets to supply it. #}
+{{ cancellation_policy|default:"Full refund for cancellations 48 or more hours before pickup; 50% refund for cancellations 24 to 48 hours before pickup; cancellations within 24 hours of pickup are non-refundable." }}

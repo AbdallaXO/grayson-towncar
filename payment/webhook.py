@@ -43,7 +43,16 @@ def stripe_webhook(request):
     logger.info(f"Received Webhook {event_type}")
 
     if event_type == "checkout.session.completed":
-        payment_result = handle_checkout_session(event_object)
+        try:
+            payment_result = handle_checkout_session(event_object)
+        except Exception as e:
+            # An unexpected error here means Stripe moved the money but we may NOT have
+            # recorded it. Return 500 so Stripe retries (backoff, up to ~3 days) instead
+            # of swallowing the failure behind a 200 and losing the payment silently.
+            # Genuinely unprocessable cases (missing/unknown reservation) return None
+            # below and still answer 200 — Stripe should not retry those.
+            logger.exception(f"Webhook processing failed, asking Stripe to retry: {e}")
+            return HttpResponse(status=500)
 
         if payment_result:
             reservation_id = payment_result.get("reservation_id")
@@ -121,6 +130,32 @@ def handle_checkout_session(session):
                 "status": "pending",
             },
         )
+
+        # Idempotency guard. Stripe redelivers events, and on the single worker our own
+        # webhook can time out and be retried — so the SAME checkout session arrives more
+        # than once. If we already fully processed this session, do NOT re-run the
+        # paid/setup branch: re-running would add final_amount to total_price a second
+        # time (line ~219) and manufacture a phantom balance the customer doesn't owe.
+        if not created and payment.status in ("paid", "card_saved"):
+            logger.info(
+                "Duplicate checkout.session.completed for %s (payment already %s) — "
+                "skipping reprocessing",
+                session.get("id"),
+                payment.status,
+            )
+            payment_result = {
+                "reservation_id": reservation_id,
+                "status": payment.status,
+                "amount": payment.amount,
+                "payment_method_type": None,
+                "card_brand": None,
+                "card_last4": None,
+            }
+            if hasattr(customer, "card_brand") and customer.card_brand:
+                payment_result["payment_method_type"] = "card"
+                payment_result["card_brand"] = customer.card_brand
+                payment_result["card_last4"] = customer.card_last4
+            return payment_result
 
         if session.get("mode") == "setup":
             setup_intent_id = session.get("setup_intent")
@@ -258,9 +293,11 @@ def handle_checkout_session(session):
 
         return payment_result
     except Reservation.DoesNotExist:
+        # Unprocessable, not transient — do not ask Stripe to retry. Answers 200.
         logger.error(f"Reservation {reservation_id} Not Found")
-    except Exception as e:
-        logger.exception(f"Error processing checkout session: {e}")
+        return None
+    # Any OTHER exception is intentionally NOT caught here: it propagates to
+    # stripe_webhook, which returns 500 so Stripe retries the delivery.
 
 
 def save_card_to_customer(customer_id: str, payment_method_id: str):

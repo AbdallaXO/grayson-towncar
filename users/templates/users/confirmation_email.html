@@ -324,8 +324,20 @@
             {% if not reservation.payments.all.exists %}
             <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
               <tr>
-                <td style="padding:14px 0 0;">
+                <td style="padding:20px 0 0;">
+                  <p style="margin:0 0 14px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#1A1A2E;line-height:1.7;"><strong>One step left:</strong> secure your reservation by completing payment below.</p>
+                  {% if checkout_url %}
+                  <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                    <tr>
+                      <td style="border-radius:6px;background-color:#C89B3C;">
+                        <a href="{{ checkout_url }}" style="display:inline-block;padding:13px 28px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:600;color:#1A1A2E;text-decoration:none;border-radius:6px;">Complete My Payment</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:12px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#6B7280;line-height:1.7;">Prefer to pay by phone? Call <a href="tel:4072127190" style="color:#C89B3C;text-decoration:none;font-weight:500;">407-212-7190</a>.</p>
+                  {% else %}
                   <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#6B7280;line-height:1.7;">To confirm your reservation, please call <a href="tel:4072127190" style="color:#C89B3C;text-decoration:none;font-weight:500;">407-212-7190</a> or reply to this email and we'll send a secure payment link.</p>
+                  {% endif %}
                 </td>
               </tr>
             </table>
@@ -370,7 +382,7 @@
               </tr>
               <tr>
                 <td>
-                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">Full refund for cancellations 48+ hours before pickup. For round-trip bookings canceled within 24 hours: return leg refunded in full; arrival leg receives a 50% credit.</p>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">{% include "users/includes/_cancellation_policy.html" %}</p>
                 </td>
               </tr>
             </table>
@@ -449,7 +461,7 @@
           <td class="footer-pad" style="padding:36px 52px;text-align:center;">
             <p style="margin:0 0 6px;font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:600;letter-spacing:0.1em;color:#FFFFFF;">GRAYSON TOWNCAR</p>
             <p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#C89B3C;">Orlando, Florida</p>
-            <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#6B7280;line-height:1.8;">Cancellations must be made at least 48 hours prior for a refund to be issued on all pick-ups.</p>
+            <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#6B7280;line-height:1.8;">{% include "users/includes/_cancellation_policy.html" %}</p>
             <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#6B7280;">© 2024 Grayson Towncar. All rights reserved.</p>
             <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:11px;">
               <a href="https://www.graysontowncar.com" style="color:#C89B3C;text-decoration:none;font-weight:500;" target="_blank">www.graysontowncar.com</a>

@@ -11,6 +11,19 @@ from django.utils import timezone
 from datetime import datetime
 
 
+# Customer-facing cancellation policy — SINGLE SOURCE OF TRUTH for the copy.
+# This sentence MUST describe the tier logic in _calculate_leg_refund below. It is
+# passed into customer emails and rendered via
+# users/templates/users/includes/_cancellation_policy.html, so the words a customer
+# reads and the refund the engine computes can never drift apart again. If you change
+# the tiers, change this sentence.
+CANCELLATION_POLICY_SENTENCE = (
+    "Full refund for cancellations 48 or more hours before pickup; "
+    "50% refund for cancellations 24 to 48 hours before pickup; "
+    "cancellations within 24 hours of pickup are non-refundable."
+)
+
+
 def _calculate_leg_refund(leg, revenue_per_leg):
     """
     Calculate the suggested refund amount for a single leg based on time until pickup.
