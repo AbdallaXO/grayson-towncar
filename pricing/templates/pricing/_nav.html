@@ -1,0 +1,27 @@
+{% load static %}
+<header class="ed-nav" id="edNav" role="banner">
+  <div class="ed-nav-inner">
+    <a href="/" class="ed-logo ed-link" aria-label="Grayson Towncar — main site">
+      <span class="mark">Grayson Towncar</span>
+      <span class="tag">Charters &amp;<br>Transfers</span>
+    </a>
+
+    <nav class="ed-nav-links" aria-label="Section navigation">
+      <a href="{% url 'fleet' %}">The Fleet</a>
+      <a href="{% url 'charters' %}#hourly">By the Hour</a>
+      <a href="{% url 'charters' %}#city">City to City</a>
+      <a href="{% url 'charters' %}#faq">FAQ</a>
+    </nav>
+
+    <div class="ed-nav-right">
+      <a href="tel:+14072127190" class="ed-nav-phone">
+        <i class="bi bi-telephone" aria-hidden="true"></i>
+        <span>(407) 212-7190</span>
+      </a>
+      <a href="{% url 'charters' %}#quote" class="ed-btn ed-btn-ink ed-nav-cta">
+        <span class="lg-text">Get a Quote</span>
+        <span class="sm-text">Quote</span>
+      </a>
+    </div>
+  </div>
+</header>

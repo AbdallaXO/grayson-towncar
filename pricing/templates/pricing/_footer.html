@@ -1,0 +1,58 @@
+{% load static %}
+<footer class="ed-footer" role="contentinfo">
+  <div class="ed-footer-inner">
+    <div class="ed-footer-grid">
+      <div class="ed-footer-brand">
+        <div class="logotype">
+          <a href="/" class="mark" aria-label="Grayson Towncar — main site">Grayson Towncar</a>
+          <span class="tag">Charters &amp;<br>Transfers</span>
+        </div>
+        <p>
+          Private hourly charters and city-to-city transfers across Florida —
+          owned fleet, employed chauffeurs, flat rates with no surge.
+          Orlando, Florida. Established 2010.
+        </p>
+        <div class="socials">
+          <a href="https://www.instagram.com/" aria-label="Instagram"><i class="bi bi-instagram" aria-hidden="true"></i></a>
+          <a href="https://www.facebook.com/profile.php?id=61574468855996" aria-label="Facebook"><i class="bi bi-facebook" aria-hidden="true"></i></a>
+        </div>
+      </div>
+
+      <div class="ed-footer-col">
+        <div class="title">Services</div>
+        <ul>
+          <li><a href="{% url 'charters' %}#hourly">Hourly charters</a></li>
+          <li><a href="{% url 'charters' %}#city">City-to-city transfers</a></li>
+          <li><a href="{% url 'fleet' %}">The fleet</a></li>
+          <li><a href="/">Airport &amp; resort transfers</a></li>
+        </ul>
+      </div>
+
+      <div class="ed-footer-col">
+        <div class="title">Company</div>
+        <ul>
+          <li><a href="/about-grayson-towncar-services/">About us</a></li>
+          <li><a href="/orlando-transportation-faqs/">FAQs</a></li>
+          <li><a href="/users/contact-grayson-towncar/">Corporate program</a></li>
+        </ul>
+      </div>
+
+      <div class="ed-footer-col">
+        <div class="title">Contact</div>
+        <ul>
+          <li><a href="tel:+14072127190">(407) 212-7190</a></li>
+          <li><a href="mailto:contact@graysontowncar.com">contact@graysontowncar.com</a></li>
+          <li><a href="#">Orlando, Florida</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="ed-footer-bottom">
+      <div>© 2026 Grayson Towncar Service, LLC · Florida Operating Authority</div>
+      <div class="legal">
+        <a href="/privacy/">Privacy</a>
+        <a href="/tos/">Terms</a>
+      </div>
+    </div>
+  </div>
+</footer>

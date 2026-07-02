@@ -83,11 +83,60 @@ class Reservation(models.Model):
             return ""
         return f"50{self.id}"
 
+    @property
+    def route_label(self):
+        """Human route string for receipts / Stripe metadata. Null-safe for
+        rate-less (hourly / city-to-city) reservations — falls back to the
+        leg pickup→dropoff, then to the service type."""
+        if self.rate_id and self.rate and self.rate.route_id:
+            return str(self.rate.route)
+        legs = list(self.legs.all()) if self.pk else []
+        if legs and legs[0].pickup_location and legs[0].dropoff_location:
+            return f"{legs[0].pickup_location} → {legs[0].dropoff_location}"
+        if self.service_type == "hourly":
+            hrs = f"{self.quoted_hours:g}-hour " if self.quoted_hours else ""
+            return f"{hrs}Hourly Charter".strip()
+        return self.get_service_type_display()
+
+    @property
+    def vehicle_label(self):
+        """Vehicle name, null-safe across rate-less reservations."""
+        if self.vehicle_id and self.vehicle:
+            return str(self.vehicle)
+        if self.rate_id and self.rate and self.rate.vehicle_id:
+            return str(self.rate.vehicle)
+        return ""
+
+    # Service line. "transfer" is the legacy airport/Disney/etc. flat-rate
+    # booking (always has a Rate). "hourly" and "city_to_city" come from the
+    # instant-quote engine and may have NO Rate row (see `rate` below).
+    SERVICE_TYPE_CHOICES = [
+        ("transfer", "Transfer"),
+        ("hourly", "Hourly Charter"),
+        ("city_to_city", "City-to-City"),
+    ]
+
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
+    service_type = models.CharField(
+        max_length=20,
+        choices=SERVICE_TYPE_CHOICES,
+        default="transfer",
+        db_index=True,
+        help_text="Which service line this booking belongs to.",
+    )
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
-    rate = models.ForeignKey("rates.Rate", on_delete=models.PROTECT)
+    # Nullable: hourly charters and arbitrary city-to-city transfers are priced
+    # by the quote engine and have no Rate row. Legacy transfers always set it.
+    rate = models.ForeignKey(
+        "rates.Rate", on_delete=models.PROTECT, null=True, blank=True
+    )
     vehicle = models.ForeignKey(
         "rates.vehicle", on_delete=models.PROTECT, null=True, blank=True
+    )
+    # Hours booked, for hourly charters (NULL for transfers / city-to-city).
+    quoted_hours = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True,
+        help_text="Hours booked for an hourly charter.",
     )
     passenger_count = models.PositiveIntegerField(default=1)
 

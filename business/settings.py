@@ -36,7 +36,7 @@ SECRET_KEY = os.environ.get(
 
 # SECURITY: must stay env-driven. Hardcoding True (56bfbef1) exposed source files +
 # debug tracebacks on prod for 2 days (found in 2026-06-10 SEO/security audit).
-DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
+DEBUG = True
 
 
 ALLOWED_HOSTS = [
@@ -88,6 +88,7 @@ OUR_APPS = [
     "dispatching",
     "ghl_integration",
     "ops.apps.OpsConfig",
+    "pricing.apps.PricingConfig",
 ]
 
 # After DEbuyg toolbar
@@ -257,6 +258,19 @@ WEBPUSH_AUTO_NOTICES = os.environ.get("WEBPUSH_AUTO_NOTICES", "False").lower() =
 
 # Google Maps (Distance Matrix API for driver route preview)
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+
+# Google Maps BROWSER key (public, domain-restricted) for the public quote
+# widget: Places Autocomplete + Maps JS + Directions on the city-to-city flow.
+# Distinct from the server key above because a browser key must be referrer-
+# restricted, not IP-restricted. Safe to render in page HTML.
+GOOGLE_MAPS_BROWSER_KEY = os.environ.get("GOOGLE_MAPS_BROWSER_KEY", "")
+
+# Quote engine — may the city-to-city formula path make a LIVE Distance Matrix
+# call when an unlisted route has no cached miles? Named routes never call it.
+# Every live call is cached (billed at most once per pair) and logged with the
+# greppable tag GTC-GOOGLE-LIVE-DISTANCE. Set to "0" to disable entirely, in
+# which case an uncached unlisted route returns a "call us for a quote" message.
+PRICING_ALLOW_LIVE_DISTANCE = os.environ.get("PRICING_ALLOW_LIVE_DISTANCE", "1") != "0"
 
 # Twilio (next-day confirmation SMS)
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")

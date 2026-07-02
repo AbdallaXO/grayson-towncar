@@ -41,8 +41,8 @@ def create_checkout_session(request, reservation_id):
                     "reservation_id": reservation.id,
                     "customer_id": reservation.customer.id,
                     "mode": "pay_now",
-                    "route": f"Roundtrip Between {reservation.rate.route}",
-                    "vehicle": str(reservation.rate.vehicle),
+                    "route": reservation.route_label,
+                    "vehicle": reservation.vehicle_label,
                 }
 
                 # Add UTM parameters to metadata if they exist
@@ -56,7 +56,7 @@ def create_checkout_session(request, reservation_id):
                                 "currency": "usd",
                                 "product_data": {
                                     "name": f"Grayson Towncar {reservation.trip_type.replace('_', ' ').title()} Booking",
-                                    "description": (f"{reservation.rate.route}"),
+                                    "description": (reservation.route_label),
                                 },
                                 "unit_amount": int(reservation.total_price * 100),
                             },
@@ -104,8 +104,8 @@ def save_card(request, reservation_uuid):
             "reservation_uuid": reservation.uuid,
             "customer_id": reservation.customer.id,
             "mode": "pay_now",
-            "route": f"Roundtrip Between {reservation.rate.route}",
-            "vehicle": str(reservation.rate.vehicle),
+            "route": reservation.route_label,
+            "vehicle": reservation.vehicle_label,
         }
 
         # Add UTM parameters to metadata if they exist

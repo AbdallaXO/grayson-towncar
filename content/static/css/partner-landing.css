@@ -56,6 +56,9 @@
 
 .ed-page img { max-width: 100%; display: block; }
 
+/* Neutralize Bootstrap's .mark highlight — our logotype uses class="mark" */
+.ed-page .mark { background: transparent; padding: 0; }
+
 /* ---------- Typography primitives ---------- */
 .ed-page .ed-display {
   font-family: var(--ed-serif);

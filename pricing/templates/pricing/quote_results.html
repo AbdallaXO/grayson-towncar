@@ -1,0 +1,187 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Choose your vehicle — Grayson Towncar{% endblock title %}
+{% block meta_description %}<meta name="description" content="Choose your Grayson Towncar vehicle class — flat, all-inclusive pricing with a live route and ETA." />{% endblock %}
+
+{% block head_extra %}
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/partner-landing.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/pricing-pages.css' %}" />
+{% endblock %}
+
+{% block body_class %}ed-page qr-page{% endblock %}
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+  {% include 'pricing/_nav.html' %}
+
+  <main id="top" class="qr-main-wrap">
+
+    <!-- TRIP BAR -->
+    <div class="qr-trip-bar">
+      <div class="ed-wrap qr-trip-inner">
+        <div class="qr-trip-route">
+          {% if service_type == 'hourly' %}
+            <span class="qr-trip-pt"><i class="bi bi-clock-history" aria-hidden="true"></i> {{ hours|floatformat:'-1' }}-hour charter</span>
+          {% else %}
+            <span class="qr-trip-pt"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i> {{ trip.origin|default:origin }}</span>
+            <i class="bi bi-arrow-right qr-trip-arrow" aria-hidden="true"></i>
+            <span class="qr-trip-pt">{{ trip.destination|default:destination }}</span>
+          {% endif %}
+        </div>
+        <div class="qr-trip-meta">
+          {% if date %}<span><i class="bi bi-calendar3" aria-hidden="true"></i> {{ date|date:"D, M j, Y" }}</span>{% endif %}
+          <span class="qr-eta" id="qrEta"{% if not trip.loaded_miles %} hidden{% endif %}>
+            <i class="bi bi-signpost-2" aria-hidden="true"></i>
+            <span id="qrEtaText">{% if trip.loaded_miles %}{{ trip.loaded_miles|floatformat:0 }} mi{% endif %}</span>
+          </span>
+        </div>
+        <a href="{% url 'charters' %}#quote" class="qr-trip-edit"><i class="bi bi-pencil" aria-hidden="true"></i> Edit trip</a>
+      </div>
+    </div>
+
+    <section class="qr-section">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">—</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">Your chauffeur awaits</span>
+        </div>
+        <h1 class="qr-h1 ed-up">Choose your <span class="ed-italic">experience.</span></h1>
+
+        {% if any_peak %}
+          <div class="qr-peak ed-up">
+            <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
+            <span>Higher pricing applies on this date due to peak demand. The price you pick is locked the moment you reserve.</span>
+          </div>
+        {% endif %}
+
+        {% if error %}
+          <div class="qr-empty ed-up">
+            <i class="bi bi-telephone-outbound" aria-hidden="true"></i>
+            <h2>We'd love to quote this one personally.</h2>
+            <p>{{ error }}</p>
+            <div class="qr-empty-cta">
+              <a href="tel:+14072127190" class="ed-btn ed-btn-gold"><i class="bi bi-telephone" aria-hidden="true"></i> (407) 212-7190</a>
+              <a href="{% url 'charters' %}#quote" class="ed-btn ed-btn-ghost">Try another trip</a>
+            </div>
+          </div>
+        {% else %}
+          <div class="qr-layout">
+
+            <!-- VEHICLE CARDS -->
+            <div class="qr-cards ed-up">
+              {% for opt in options %}
+                <form class="qr-card{% if not opt.available %} is-unavailable{% endif %}" method="post" action="{% url 'select_quote' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="service_type" value="{{ service_type }}" />
+                  <input type="hidden" name="date" value="{{ date_str }}" />
+                  {% if service_type == 'hourly' %}
+                    <input type="hidden" name="hours" value="{{ hours }}" />
+                  {% else %}
+                    <input type="hidden" name="origin" value="{{ origin }}" />
+                    <input type="hidden" name="destination" value="{{ destination }}" />
+                  {% endif %}
+                  <input type="hidden" name="vehicle_class" value="{{ opt.key }}" />
+
+                  <div class="qr-card-media">
+                    <img src="{% static opt.image %}" alt="{{ opt.name }}" loading="lazy" />
+                  </div>
+                  <div class="qr-card-body">
+                    <div class="qr-card-head">
+                      <h3 class="qr-card-name">{{ opt.name }}</h3>
+                      {% if opt.available %}
+                        <div class="qr-card-price">${{ opt.total|floatformat:0|intcomma }}</div>
+                      {% endif %}
+                    </div>
+                    <div class="qr-card-specs">
+                      <span><i class="bi bi-people-fill" aria-hidden="true"></i> Up to {{ opt.passengers }}</span>
+                      <span><i class="bi bi-briefcase-fill" aria-hidden="true"></i> {{ opt.luggage }} bags</span>
+                    </div>
+                    {% if opt.ideal_for %}<p class="qr-card-ideal">{{ opt.ideal_for }}</p>{% endif %}
+
+                    {% if opt.available %}
+                      <div class="qr-card-foot">
+                        <span class="qr-card-incl">
+                          {% if opt.all_inclusive %}All-inclusive · tolls &amp; 20% gratuity in{% else %}20% gratuity in · tolls at cost{% endif %}
+                        </span>
+                        <button type="submit" class="ed-btn ed-btn-ink qr-select">
+                          Select <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                    {% else %}
+                      <div class="qr-card-foot">
+                        <span class="qr-unavail">{{ opt.unavailable_reason|default:"Call us for this vehicle." }}</span>
+                      </div>
+                    {% endif %}
+                  </div>
+                </form>
+              {% endfor %}
+            </div>
+
+            <!-- SIDE: map + what's included -->
+            <aside class="qr-side ed-up" style="animation-delay:100ms;">
+              {% if service_type != 'hourly' %}
+                <div class="qr-route">
+                  <div class="qr-map" id="qrMap"
+                       data-origin="{{ trip.origin|default:origin }}"
+                       data-destination="{{ trip.destination|default:destination }}"></div>
+                  <div class="qr-itin">
+                    <div class="qr-itin-row">
+                      <span class="qr-itin-dot is-pickup" aria-hidden="true"></span>
+                      <div class="qr-itin-text">
+                        <span class="qr-itin-label">Pick up</span>
+                        <span class="qr-itin-place">{{ trip.origin|default:origin }}</span>
+                      </div>
+                    </div>
+                    <div class="qr-itin-seg">
+                      <span class="qr-itin-meta" id="qrRouteMeta">{% if trip.loaded_miles %}{{ trip.loaded_miles|floatformat:0 }} mi{% endif %}</span>
+                    </div>
+                    <div class="qr-itin-row">
+                      <span class="qr-itin-dot is-dropoff" aria-hidden="true"></span>
+                      <div class="qr-itin-text">
+                        <span class="qr-itin-label">Drop-off</span>
+                        <span class="qr-itin-place">{{ trip.destination|default:destination }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+              <div class="qr-included">
+                <div class="qr-included-head">Every fare includes</div>
+                <ul>
+                  <li><i class="bi bi-patch-check-fill" aria-hidden="true"></i> A professional, employed chauffeur</li>
+                  <li><i class="bi bi-cash-coin" aria-hidden="true"></i> 20% gratuity{% if service_type != 'hourly' %} &amp; all tolls{% endif %}</li>
+                  <li><i class="bi bi-airplane-fill" aria-hidden="true"></i> Live flight tracking &amp; meet-and-greet</li>
+                  <li><i class="bi bi-shield-check" aria-hidden="true"></i> Flat price — locked, no surge</li>
+                </ul>
+                <p class="qr-included-fine">No payment now. Pick a vehicle, review your details, then check out securely.</p>
+              </div>
+            </aside>
+
+          </div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+
+  {% include 'pricing/_footer.html' %}
+  {% include 'pricing/_scripts.html' %}
+  {% if maps_browser_key and service_type != 'hourly' and not error %}
+    <script>
+      window.qwMapsReady = false;
+      function qwInitMaps() { window.qwMapsReady = true; document.dispatchEvent(new Event("qw-maps-ready")); }
+    </script>
+    <script async
+            src="https://maps.googleapis.com/maps/api/js?key={{ maps_browser_key }}&loading=async&callback=qwInitMaps"></script>
+    <script src="{% static 'js/quote-results.js' %}" defer></script>
+  {% endif %}
+{% endblock %}

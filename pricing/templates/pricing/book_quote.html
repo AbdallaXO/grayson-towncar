@@ -1,0 +1,148 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Reserve Your {{ quote.vehicle_class.display_name }} — Grayson Towncar{% endblock title %}
+{% block meta_description %}<meta name="robots" content="noindex" />{% endblock %}
+
+{% block head_extra %}
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/partner-landing.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/pricing-pages.css' %}" />
+{% endblock %}
+
+{% block body_class %}ed-page book-quote-page{% endblock %}
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+  {% include 'pricing/_nav.html' %}
+
+  <main id="top">
+    <section class="bq-section">
+      <div class="ed-wrap bq-grid">
+
+        <!-- Locked-in quote summary -->
+        <aside class="bq-summary ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">i.</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Your quote</span>
+          </div>
+          <h1 class="bq-trip">
+            {% if is_hourly %}{{ quote.hours|floatformat:"-1" }}-hour charter{% else %}{{ quote.origin }} <span class="arr">→</span> {{ quote.destination }}{% endif %}
+          </h1>
+          <div class="bq-meta">
+            <span><i class="bi bi-car-front-fill" aria-hidden="true"></i> {{ quote.vehicle_class.display_name }}</span>
+            <span><i class="bi bi-calendar-event" aria-hidden="true"></i> {{ quote.service_date|date:"D, M j, Y" }}</span>
+          </div>
+
+          <div class="bq-lines">
+            <div class="bq-line"><span>{% if is_hourly %}Hourly fare{% else %}Base fare{% endif %}</span><span>${{ quote.base_price|floatformat:0|intcomma }}</span></div>
+            {% if quote.peak_adjustment %}<div class="bq-line"><span>Peak date adjustment</span><span>+${{ quote.peak_adjustment|floatformat:0|intcomma }}</span></div>{% endif %}
+            <div class="bq-line"><span>Gratuity ({{ config.gratuity_percentage|floatformat:"-2" }}%)</span><span>${{ quote.gratuity|floatformat:0|intcomma }}</span></div>
+            <div class="bq-line bq-total"><span>Total</span><span>${{ quote.total|floatformat:0|intcomma }}</span></div>
+          </div>
+
+          <p class="bq-note">
+            {% if quote.all_inclusive %}{{ config.all_inclusive_note }}{% else %}{{ config.hourly_tolls_note }}{% endif %}
+          </p>
+          <p class="bq-fine"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i> Flat rate locked. No payment is taken on this step.</p>
+        </aside>
+
+        <!-- Contact + pickup form -->
+        <div class="ed-up" style="animation-delay:100ms;">
+          <form method="post" class="ed-apply-card bq-form" novalidate>
+            {% csrf_token %}
+            <div class="corner-mark" aria-hidden="true">Reserve · MMXXVI</div>
+
+            {% if customer_form.non_field_errors or leg_form.non_field_errors %}
+              <div class="ed-form-error" role="alert">
+                {{ customer_form.non_field_errors|join:" " }} {{ leg_form.non_field_errors|join:" " }}
+              </div>
+            {% endif %}
+
+            <!-- Contact -->
+            <div class="ed-field-group">
+              <div class="group-head"><span class="ch">i.</span><span class="ed-eyebrow">Who's traveling</span></div>
+              <div class="ed-field-stack">
+                <div class="ed-field-row">
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">First name <span class="req">*</span></span>
+                    <input class="ed-field{% if customer_form.first_name.errors %} has-error{% endif %}" type="text" name="first_name" value="{{ customer_form.first_name.value|default_if_none:'' }}" required autocomplete="given-name" />
+                    {% for e in customer_form.first_name.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                  </label>
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Last name <span class="req">*</span></span>
+                    <input class="ed-field{% if customer_form.last_name.errors %} has-error{% endif %}" type="text" name="last_name" value="{{ customer_form.last_name.value|default_if_none:'' }}" required autocomplete="family-name" />
+                    {% for e in customer_form.last_name.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                  </label>
+                </div>
+                <div class="ed-field-row">
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Email <span class="req">*</span></span>
+                    <input class="ed-field{% if customer_form.email.errors %} has-error{% endif %}" type="email" name="email" value="{{ customer_form.email.value|default_if_none:'' }}" required autocomplete="email" />
+                    {% for e in customer_form.email.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                  </label>
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Phone <span class="req">*</span></span>
+                    <input class="ed-field{% if customer_form.phone_number.errors %} has-error{% endif %}" type="tel" name="phone_number" value="{{ customer_form.phone_number.value|default_if_none:'' }}" required autocomplete="tel" />
+                    {% for e in customer_form.phone_number.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pickup -->
+            <div class="ed-field-group">
+              <div class="group-head"><span class="ch">ii.</span><span class="ed-eyebrow">Pickup details</span></div>
+              <div class="ed-field-stack">
+                <div class="ed-field-row">
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Pickup date <span class="req">*</span></span>
+                    <input class="ed-field{% if leg_form.pickup_date.errors %} has-error{% endif %}" type="date" name="pickup_date" value="{{ leg_form.pickup_date.value|date:'Y-m-d'|default_if_none:'' }}" required />
+                    {% for e in leg_form.pickup_date.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                  </label>
+                  <label class="ed-field-cell">
+                    <span class="ed-field-label">Pickup time <span class="req">*</span></span>
+                    <input class="ed-field{% if leg_form.pickup_time.errors %} has-error{% endif %}" type="time" name="pickup_time" value="{{ leg_form.pickup_time.value|default_if_none:'' }}" required />
+                    {% for e in leg_form.pickup_time.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                  </label>
+                </div>
+                <label class="ed-field-cell">
+                  <span class="ed-field-label">Pickup location <span class="req">*</span></span>
+                  <input class="ed-field{% if leg_form.pickup_location.errors %} has-error{% endif %}" type="text" name="pickup_location" value="{{ leg_form.pickup_location.value|default_if_none:prefill_pickup }}" placeholder="Hotel, address, or airport" required />
+                  {% for e in leg_form.pickup_location.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                </label>
+                <label class="ed-field-cell">
+                  <span class="ed-field-label">{% if is_hourly %}First stop / direction{% else %}Drop-off location{% endif %} <span class="req">*</span></span>
+                  <input class="ed-field{% if leg_form.dropoff_location.errors %} has-error{% endif %}" type="text" name="dropoff_location" value="{{ leg_form.dropoff_location.value|default_if_none:prefill_dropoff }}" required />
+                  {% for e in leg_form.dropoff_location.errors %}<div class="ed-field-error">{{ e }}</div>{% endfor %}
+                </label>
+                <label class="ed-field-cell bq-pax">
+                  <span class="ed-field-label">Passengers</span>
+                  <input class="ed-field" type="number" name="passenger_count" min="1" max="{{ quote.vehicle_class.passenger_capacity }}" value="1" />
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="ed-btn ed-btn-ink ed-submit">
+              Continue to secure checkout <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
+            <div class="ed-apply-footnote">
+              You'll review everything before paying. Questions? Call (407) 212-7190.
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {% include 'pricing/_footer.html' %}
+  {% include 'pricing/_scripts.html' %}
+{% endblock %}

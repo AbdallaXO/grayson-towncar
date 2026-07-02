@@ -1,0 +1,140 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}The Fleet — Grayson Towncar · Owned Vehicles, Employed Chauffeurs{% endblock title %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Meet the Grayson Towncar fleet — Towncars, Mini Vans, SUVs, Pax Vans, and Sprinter Vans. Owned vehicles, employed chauffeurs, live flight tracking, flat rates with no surge." />
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="preload" as="image" href="{% static 'images/vehicles_at_a_resort.png' %}" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/partner-landing.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/pricing-pages.css' %}" />
+{% endblock %}
+
+{% block body_class %}ed-page fleet-page{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+  {% include 'pricing/_nav.html' %}
+
+  <main id="top">
+    <!-- HERO -->
+    <section class="ed-hero" aria-labelledby="fleet-hero-title">
+      <div class="ed-hero-inner fl-hero-inner">
+        <div class="ed-up">
+          <div class="ed-hero-eyebrow">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="ed-eyebrow">The Fleet · Owned &amp; Operated</span>
+          </div>
+          <h1 id="fleet-hero-title" class="ed-h1">
+            Assured comfort,<br>
+            <span class="ed-italic">every mile.</span>
+          </h1>
+          <p class="ed-hero-lede">
+            Five vehicle classes, one standard of care. Every vehicle is owned
+            by us and driven by an employed, vetted chauffeur — never a
+            contractor, never a surge. Choose the class that fits your party and
+            we'll handle the rest.
+          </p>
+          <div class="ed-hero-cta">
+            <a href="{% url 'charters' %}#quote" class="ed-btn ed-btn-ink">
+              Get an instant quote <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+            <a href="#classes" class="ed-btn ed-btn-ghost">See the vehicles</a>
+          </div>
+        </div>
+
+        <div class="ed-up fl-hero-photo" style="animation-delay:120ms;">
+          <div class="frame">
+            <img src="{% static 'images/vehicles_at_a_resort.png' %}"
+                 alt="Grayson Towncar's black Sprinter, Cadillac Escalade, and Chevrolet Suburban parked under a resort entrance at dusk"
+                 loading="eager" />
+            <div class="fl-hero-cap">
+              <span class="t">Owned &amp; operated</span>
+              <span class="s">Suburbans · Navigator · Metris · Transits · Sprinters</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRUST STRIP -->
+    <section class="fl-trust" aria-label="Why book the Grayson fleet">
+      <div class="ed-wrap fl-trust-inner">
+        <div class="fl-trust-item"><i class="bi bi-car-front-fill" aria-hidden="true"></i><span>Owned fleet</span></div>
+        <div class="fl-trust-item"><i class="bi bi-person-badge-fill" aria-hidden="true"></i><span>Employed chauffeurs</span></div>
+        <div class="fl-trust-item"><i class="bi bi-airplane-fill" aria-hidden="true"></i><span>Live flight tracking</span></div>
+        <div class="fl-trust-item"><i class="bi bi-tag-fill" aria-hidden="true"></i><span>Flat rates, no surge</span></div>
+      </div>
+    </section>
+
+    <!-- VEHICLE CLASSES -->
+    <section id="classes" class="fl-classes">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">I.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">The vehicle classes</span>
+        </div>
+
+        <div class="fl-grid">
+          {% for v in fleet %}
+            <article class="fl-card ed-up" style="animation-delay:{{ forloop.counter0 }}0ms;">
+              <div class="fl-card-photo">
+                <img src="{% static v.image %}" alt="{{ v.name }}" loading="lazy" />
+              </div>
+              <div class="fl-card-body">
+                <h2 class="fl-card-name">{{ v.name }}</h2>
+                <div class="fl-card-specs">
+                  <span class="spec"><i class="bi bi-people-fill" aria-hidden="true"></i> Up to {{ v.passengers }}</span>
+                  <span class="spec"><i class="bi bi-bag-fill" aria-hidden="true"></i> {{ v.luggage }} bags</span>
+                </div>
+                {% if v.ideal_for %}<p class="fl-card-ideal">{{ v.ideal_for }}</p>{% endif %}
+                <a href="{% url 'charters' %}#quote" class="ed-btn ed-btn-gold fl-card-cta">
+                  Get a quote <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="ed-final" aria-labelledby="fleet-final-title">
+      <div class="ed-final-inner">
+        <div class="ed-eyebrow ed-up" style="margin-bottom:24px;">Ready when you are</div>
+        <h2 id="fleet-final-title" class="ed-up" style="animation-delay:80ms;">
+          Tell us your trip.<br>
+          <span class="ed-italic">We'll match the vehicle.</span>
+        </h2>
+        <p class="lede ed-up" style="animation-delay:140ms;">
+          Hourly by the day, or one-way city to city — get a flat, all-in price
+          in seconds and reserve online.
+        </p>
+        <div class="cta-row ed-up" style="animation-delay:200ms;">
+          <a href="{% url 'charters' %}#quote" class="ed-btn ed-btn-ink">
+            Get an instant quote <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          <a href="tel:+14072127190" class="ed-btn ed-btn-ghost">
+            <i class="bi bi-telephone" aria-hidden="true"></i> (407) 212-7190
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {% include 'pricing/_footer.html' %}
+  {% include 'pricing/_scripts.html' %}
+{% endblock %}

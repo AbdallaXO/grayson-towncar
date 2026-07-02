@@ -1,0 +1,352 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Hourly Charters &amp; City-to-City Transfers — Grayson Towncar{% endblock title %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Book Grayson Towncar by the hour or city to city across Florida. Instant flat-rate quotes, 3-hour minimum, all-inclusive city-to-city pricing with tolls included, live flight tracking, no surge." />
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="preload" as="image" href="{% static 'images/four-seasons.jpg' %}" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/partner-landing.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/pricing-pages.css' %}" />
+{% endblock %}
+
+{% block body_class %}ed-page charters-page{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+  {{ widget_data|json_script:"gtc-quote-data" }}
+  {% include 'pricing/_nav.html' %}
+
+  <main id="top">
+    <!-- HERO + WIDGET -->
+    <section class="ed-hero ch-hero" aria-labelledby="ch-hero-title">
+      <div class="ch-hero-bg" aria-hidden="true"></div>
+      <div class="ed-hero-inner ch-hero-inner">
+        <div class="ed-up">
+          <div class="ed-hero-eyebrow">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Hourly &amp; City-to-City</span>
+          </div>
+          <h1 id="ch-hero-title" class="ed-h1">
+            By the hour, or city to city —<br>
+            <span class="ed-italic">on your schedule.</span>
+          </h1>
+          <p class="ed-hero-lede">
+            Keep a chauffeur and vehicle for the day, or take a private one-way
+            ride to the coast. Flat, all-inclusive prices in seconds — no surge,
+            no surprises, tolls already in.
+          </p>
+          <div class="ed-hero-cta">
+            <a href="#hourly" class="ed-btn ed-btn-gold">Book hourly</a>
+            <a href="#city" class="ed-btn ed-btn-ghost-light">Get a city-to-city quote</a>
+          </div>
+        </div>
+
+        <!-- ===== INSTANT QUOTE WIDGET ===== -->
+        <div class="ed-up" style="animation-delay:120ms;" id="quote">
+          <div class="qw" id="qw" aria-label="Instant quote">
+            <div class="qw-head">
+              <span class="ed-eyebrow">Instant quote</span>
+              <h2 class="qw-title">What's your trip?</h2>
+            </div>
+
+            <div class="qw-toggle" role="tablist" aria-label="Service type">
+              <button type="button" class="qw-tab is-active" data-mode="city_to_city" role="tab" aria-selected="true">City to City</button>
+              <button type="button" class="qw-tab" data-mode="hourly" role="tab" aria-selected="false">By the Hour</button>
+            </div>
+
+            <form class="qw-form" id="qwForm" novalidate>
+              {% csrf_token %}
+
+              <!-- City-to-city fields -->
+              <div class="qw-mode qw-mode-city">
+                <div class="qw-field">
+                  <label class="ed-field-label" for="qw-pickup">Pickup location</label>
+                  <input class="ed-field" id="qw-pickup" name="pickup" type="text" placeholder="Address, hotel, or airport" autocomplete="off" />
+                </div>
+                <div class="qw-field">
+                  <label class="ed-field-label" for="qw-dropoff">Drop-off location</label>
+                  <input class="ed-field" id="qw-dropoff" name="dropoff" type="text" placeholder="Address, hotel, or airport" autocomplete="off" />
+                </div>
+              </div>
+
+              <!-- Hourly fields -->
+              <div class="qw-mode qw-mode-hourly" hidden>
+                <div class="qw-field">
+                  <label class="ed-field-label" for="qw-hours">How many hours? <span class="opt qw-min-note">(3 hr minimum)</span></label>
+                  <input class="ed-field" id="qw-hours" name="hours" type="number" step="0.5" min="3" value="3" inputmode="decimal" />
+                </div>
+              </div>
+
+              <!-- Date (shared) -->
+              <div class="qw-field">
+                <label class="ed-field-label" for="qw-date">Date of service</label>
+                <input class="ed-field" id="qw-date" name="date" type="date" required />
+              </div>
+
+              <button type="submit" class="ed-btn ed-btn-gold qw-submit">
+                <span class="qw-submit-label">See vehicles &amp; prices</span>
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+              </button>
+            </form>
+
+            <div class="qw-error" id="qwError" role="alert" hidden></div>
+            <p class="qw-fineprint">See every vehicle &amp; price on the next step — no payment now.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRUST STRIP -->
+    <section class="fl-trust" aria-label="Why Grayson">
+      <div class="ed-wrap fl-trust-inner">
+        <div class="fl-trust-item"><i class="bi bi-car-front-fill" aria-hidden="true"></i><span>Owned fleet</span></div>
+        <div class="fl-trust-item"><i class="bi bi-person-badge-fill" aria-hidden="true"></i><span>Employed chauffeurs</span></div>
+        <div class="fl-trust-item"><i class="bi bi-airplane-fill" aria-hidden="true"></i><span>Live flight tracking</span></div>
+        <div class="fl-trust-item"><i class="bi bi-tag-fill" aria-hidden="true"></i><span>Flat rates, no surge</span></div>
+      </div>
+    </section>
+
+    <!-- HOURLY SECTION -->
+    <section id="hourly" class="ch-block">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">I.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">By the hour</span>
+        </div>
+
+        <div class="ch-split">
+          <div class="ed-up">
+            <h2 class="ch-h2">A chauffeur and vehicle, <span class="ed-italic">held for your day.</span></h2>
+            <p class="ch-lede">
+              Tell us when to arrive and we're yours from that moment — spot to
+              spot, clock starting at pickup. Multi-stop park days, corporate
+              roadshows, a wedding, a night out. {{ config.hourly_tolls_note }}
+            </p>
+            <ul class="ch-list">
+              <li><i class="bi bi-people-fill" aria-hidden="true"></i> Conventions &amp; OCCC week · corporate roadshows</li>
+              <li><i class="bi bi-stars" aria-hidden="true"></i> VIP days · multi-stop park &amp; shopping runs</li>
+              <li><i class="bi bi-heart-fill" aria-hidden="true"></i> Weddings &amp; events with a held vehicle</li>
+            </ul>
+            <p class="ch-promise"><i class="bi bi-shield-check" aria-hidden="true"></i> 3-hour minimum · no surge, ever — the rate you see is the rate you pay.</p>
+          </div>
+
+          <div class="ed-up ch-right" style="animation-delay:100ms;">
+            <div class="ch-photo">
+              <img src="{% static 'images/chauffeur-door.jpg' %}"
+                   alt="A chauffeur in a black suit holding the rear door of a luxury SUV for a guest" loading="lazy" />
+            </div>
+            <div class="ch-rate-card">
+            <div class="ch-rate-head">Hourly rates — from</div>
+            <table class="ch-rate-table">
+              <tbody>
+                {% for row in hourly_rows %}
+                  <tr>
+                    <th scope="row">{{ row.name }}</th>
+                    <td class="ch-from">${{ row.rate|floatformat:0 }}<span>/hr</span></td>
+                    <td class="ch-min">{{ row.minimum_hours|floatformat:"-1" }} hr min{% if row.peak_minimum_hours %} · {{ row.peak_minimum_hours|floatformat:"-1" }} hr peak{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <a href="#quote" class="ed-btn ed-btn-gold ch-rate-cta">Price my hourly charter <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CITY-TO-CITY SECTION -->
+    <section id="city" class="ch-block ch-block-alt">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">II.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">City to city</span>
+        </div>
+
+        <div class="ch-city-head ed-up">
+          <h2 class="ch-h2">One-way across Florida, <span class="ed-italic">door to door.</span></h2>
+          <p class="ch-lede">
+            A private, direct ride to the coast or the next city — no shared vans,
+            no connections. <strong>{{ config.all_inclusive_note }}</strong>
+            Prices below are one-way, before gratuity.
+          </p>
+        </div>
+
+        <div class="ch-city-banner ed-up" style="animation-delay:60ms;">
+          <img src="{% static 'images/port-hero.webp' %}"
+               alt="Aerial view of cruise ships docked at Port Canaveral on the Florida coast" loading="lazy" />
+          <div class="ch-city-banner-cap">
+            <span class="ed-eyebrow">Tampa · the Space Coast · South Florida</span>
+            <span class="line">From your door to <em>the coast.</em></span>
+          </div>
+        </div>
+
+        <div class="ed-up ch-table-wrap" style="animation-delay:80ms;">
+          <table class="ch-route-table">
+            <thead>
+              <tr>
+                <th scope="col">Destination</th>
+                <th scope="col" class="num">~mi</th>
+                {% for c in classes %}<th scope="col" class="num">{{ c.display_name }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in route_rows %}
+                <tr>
+                  <th scope="row">{{ r.name }}</th>
+                  <td class="num muted">{{ r.miles }}</td>
+                  {% for p in r.prices %}<td class="num">{% if p %}${{ p|floatformat:0|intcomma }}{% else %}—{% endif %}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="ch-table-foot">{{ config.all_inclusive_note }} A 20% gratuity is added as a separate line at checkout. Don't see your city? <a href="#quote">Get an instant quote</a> — we serve all of Florida.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- MOMENTS GALLERY BAND -->
+    <section class="ch-gallery" aria-label="The Grayson standard">
+      <figure class="ch-gallery-item">
+        <img src="{% static 'images/why-grayson.webp' %}" alt="A chauffeur opening the rear door of a black luxury sedan" loading="lazy" />
+        <figcaption>Suited, on time, door held.</figcaption>
+      </figure>
+      <figure class="ch-gallery-item">
+        <img src="{% static 'images/grayson-difference.webp' %}" alt="A lineup of Grayson Towncar's owned black sedans, SUVs, and vans" loading="lazy" />
+        <figcaption>An owned, detailed fleet.</figcaption>
+      </figure>
+      <figure class="ch-gallery-item">
+        <img src="{% static 'images/grayson-mco.jpg' %}" alt="Orlando International Airport with the control tower and palm trees" loading="lazy" />
+        <figcaption>From MCO to anywhere in Florida.</figcaption>
+      </figure>
+    </section>
+
+    <!-- WHY GRAYSON -->
+    <section class="ch-block">
+      <div class="ed-wrap">
+        <div class="ed-section-label ed-up">
+          <span class="chapter">III.</span>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="ed-eyebrow">Why Grayson</span>
+        </div>
+        <div class="ch-why-grid">
+          <div class="ch-why ed-up"><div class="n">01</div><h3>We own the fleet &amp; employ the drivers</h3><p>No contractors, no third-party apps. The vehicle and the chauffeur are ours, held to one standard.</p></div>
+          <div class="ch-why ed-up" style="animation-delay:80ms;"><div class="n">02</div><h3>Instant flat-rate quotes</h3><p>Live flight tracking and real-time dispatch — priced up front, honored even if plans shift.</p></div>
+          <div class="ch-why ed-up" style="animation-delay:160ms;"><div class="n">03</div><h3>Capacity flex for long-haul</h3><p>From a sedan to a 14-passenger Sprinter, we size the vehicle to the party and the luggage.</p></div>
+          <div class="ch-why ed-up" style="animation-delay:240ms;"><div class="n">04</div><h3>The Caregiver promise</h3><p>Warm, reassuring, on time. We carry the logistics so your day feels effortless.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CORPORATE CALLOUT -->
+    <section class="ch-corp" aria-labelledby="corp-title">
+      <div class="ed-wrap ch-corp-inner ed-up">
+        <div>
+          <div class="ed-eyebrow">For companies &amp; events</div>
+          <h2 id="corp-title" class="ch-h2">Booking for a company or event?</h2>
+          <p class="ch-lede">Ask about our corporate program — consolidated billing, a dedicated contact, and priority dispatch for roadshows, conventions, and group travel.</p>
+        </div>
+        <a href="/users/contact-grayson-towncar/" class="ed-btn ed-btn-ink">Talk to our corporate team <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="ch-block">
+      <div class="ed-faq-grid ed-wrap">
+        <div class="ed-faq-left ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">IV.</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Good to know</span>
+          </div>
+          <h2 class="ch-h2">The questions <span class="ed-italic">we hear most.</span></h2>
+          <p class="ch-lede">Something we didn't cover? Call <a href="tel:+14072127190">(407) 212-7190</a> — a real human in Orlando picks up.</p>
+        </div>
+
+        <div class="ed-faq-list ed-up" style="animation-delay:80ms;">
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="true" aria-controls="ch-faq-1">
+              <span class="left"><span class="n">01</span><span class="text">How does gratuity work?</span></span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel is-open" id="ch-faq-1" role="region"><div class="inner">A 20% gratuity is added to every quote as a clearly labeled separate line — for your chauffeur. You'll see it before you pay, and nothing is hidden.</div></div>
+          </div>
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="ch-faq-2">
+              <span class="left"><span class="n">02</span><span class="text">Do you provide child seats?</span></span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="ch-faq-2" role="region"><div class="inner">Yes — infant, convertible, and booster seats, installed before you ride. Tell us each child's age and weight when you reserve and we'll have the right seat waiting.</div></div>
+          </div>
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="ch-faq-3">
+              <span class="left"><span class="n">03</span><span class="text">How is wait time billed?</span></span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="ch-faq-3" role="region"><div class="inner">Hourly charters bill spot to spot — the clock starts at pickup and runs through your day, so stops and waiting are simply part of the hours. Overtime past your minimum is billed in 30-minute increments at the same hourly rate. City-to-city transfers are a flat one-way price with reasonable curbside wait included.</div></div>
+          </div>
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="ch-faq-4">
+              <span class="left"><span class="n">04</span><span class="text">What is peak pricing?</span></span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="ch-faq-4" role="region"><div class="inner">On a handful of high-demand dates — major holidays, convention closeouts — a peak rate applies. It's never a hidden surge: if your date is peak, the adjustment shows as its own line on the quote, and the price is still locked the moment you reserve.</div></div>
+          </div>
+          <div class="ed-faq-item">
+            <button class="ed-faq-q" type="button" aria-expanded="false" aria-controls="ch-faq-5">
+              <span class="left"><span class="n">05</span><span class="text">What's your cancellation policy?</span></span>
+              <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
+            </button>
+            <div class="ed-faq-panel" id="ch-faq-5" role="region"><div class="inner">Plans change — we get it. Reach us at (407) 212-7190 as early as you can and we'll work with you. Full terms are shared at booking, and a real person is always reachable for last-minute changes.</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section class="ed-final" aria-labelledby="ch-final-title">
+      <div class="ed-final-inner">
+        <div class="ed-eyebrow ed-up" style="margin-bottom:24px;">On your schedule</div>
+        <h2 id="ch-final-title" class="ed-up" style="animation-delay:80ms;">
+          A flat price, in seconds.<br>
+          <span class="ed-italic">Reserve in a minute.</span>
+        </h2>
+        <div class="cta-row ed-up" style="animation-delay:160ms;">
+          <a href="#quote" class="ed-btn ed-btn-ink">Get an instant quote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          <a href="tel:+14072127190" class="ed-btn ed-btn-ghost"><i class="bi bi-telephone" aria-hidden="true"></i> (407) 212-7190</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  {% include 'pricing/_footer.html' %}
+  {% include 'pricing/_scripts.html' %}
+  {% if maps_browser_key %}
+    <script>
+      window.qwMapsReady = false;
+      function qwInitMaps() {
+        window.qwMapsReady = true;
+        document.dispatchEvent(new Event("qw-maps-ready"));
+      }
+    </script>
+    <script async
+            src="https://maps.googleapis.com/maps/api/js?key={{ maps_browser_key }}&libraries=places&loading=async&callback=qwInitMaps"></script>
+  {% endif %}
+  <script src="{% static 'js/quote-widget.js' %}" defer></script>
+{% endblock %}

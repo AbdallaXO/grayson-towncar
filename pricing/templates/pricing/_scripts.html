@@ -1,0 +1,67 @@
+<script>
+  (function () {
+    // Sticky nav backdrop on scroll
+    var nav = document.getElementById('edNav');
+    if (nav) {
+      var onScroll = function () {
+        nav.classList.toggle('is-scrolled', window.scrollY > 12);
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
+
+    // FAQ accordion (single-open)
+    var items = document.querySelectorAll('.ed-faq-item');
+    items.forEach(function (item) {
+      var btn = item.querySelector('.ed-faq-q');
+      var panel = item.querySelector('.ed-faq-panel');
+      if (!btn || !panel) return;
+      btn.addEventListener('click', function () {
+        var isOpen = btn.getAttribute('aria-expanded') === 'true';
+        items.forEach(function (other) {
+          if (other === item) return;
+          var ob = other.querySelector('.ed-faq-q');
+          var op = other.querySelector('.ed-faq-panel');
+          if (ob) ob.setAttribute('aria-expanded', 'false');
+          if (op) op.classList.remove('is-open');
+        });
+        btn.setAttribute('aria-expanded', String(!isOpen));
+        panel.classList.toggle('is-open', !isOpen);
+      });
+    });
+
+    // Smooth in-page anchor scroll, reduced-motion aware
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.querySelectorAll('a[href*="#"]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        var href = a.getAttribute('href');
+        var hashIndex = href.indexOf('#');
+        if (hashIndex < 0) return;
+        var id = href.slice(hashIndex);
+        // Only intercept same-page anchors
+        if (href.length > 1 && href[0] !== '#') {
+          var path = href.slice(0, hashIndex);
+          if (path && path !== window.location.pathname) return;
+        }
+        if (id === '#') return;
+        var target = document.querySelector(id);
+        if (!target) return;
+        e.preventDefault();
+        target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      });
+    });
+
+    // Reveal-on-scroll
+    if ('IntersectionObserver' in window && !reduced) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.style.animationPlayState = 'running';
+            io.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+      document.querySelectorAll('.ed-up').forEach(function (el) { io.observe(el); });
+    }
+  })();
+</script>

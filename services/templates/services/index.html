@@ -1,1111 +1,817 @@
 {% extends 'main.html' %}
 {% load seo_tags %}
 {% load static %}
-{% block head_extra %}
-  <link rel="canonical" href="https://www.graysontowncar.com/services/" />
-{% endblock head_extra %}
+
 {% block title %}Private Orlando Transportation | Disney, Universal & Cruise Port Service{% endblock %}
-  <link rel="preload"
-        href="{% static 'images/services-bg.webp' %}"
-        as="image"
-        type="image/webp">
+
 {% block meta_description %}
   <meta name="description"
-        content="Experience premium Orlando transportation with our specialized services for Disney World, Universal Studios, and Port Canaveral. Enjoy luxury vehicles, professional drivers, and family-friendly amenities including complimentary car seats.">
+        content="Private Orlando transportation for Disney World, Universal, International Drive, and Port Canaveral. Luxury vehicles, professional chauffeurs, complimentary car seats, and fixed all-inclusive pricing." />
 {% endblock %}
+
+{% block head_extra %}
+  <link rel="canonical" href="https://www.graysontowncar.com/services/" />
+  <link rel="preload" as="image" href="{% static 'images/grayson-difference.webp' %}" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Montserrat:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+{% endblock %}
+
 {% block extra_css %}
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/partner-landing.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/services-luxe.css' %}" />
 {% endblock %}
+
+{% block body_class %}ed-page svc-page{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block messages %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block schema %}
+  {% structured_data additional_data=structured_data %}
+{% endblock schema %}
+
 {% block content %}
-  {% block schema %}
-    {% structured_data additional_data=structured_data %}
-  {% endblock schema %}
-  <script src="{% static 'js/area-selector.js' %}" defer></script>
-  <section class="position-relative overflow-hidden vh-100 d-flex align-items-center" id="hero">
-    <!-- Background Image -->
-    <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/grayson-difference.webp' %}"
-           width="1920"
-           height="1080"
-           alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night"
-           class="w-100 h-100 object-fit-cover hero-image"
-           fetchpriority="high">
-      <div class="hero-overlay"></div>
-    </div>
-    <div class="container position-relative z-1 py-5">
-      <div class="row justify-content-center">
-        <div class="col-lg-10 col-xl-9 text-center text-white">
-          <p class="hero-eyebrow fade-in-up" style="animation-delay: 0.1s;">Private Chauffeur Service</p>
-          <h1 class="hero-title fade-in-up" style="animation-delay: 0.2s;">
-            Premium Orlando Transportation
-          </h1>
-          <div class="hero-destinations fade-in-up" style="animation-delay: 0.3s;">
-            <span>Disney</span>
-            <span class="separator">·</span>
-            <span>Universal</span>
-            <span class="separator">·</span>
-            <span>Port Canaveral</span>
-          </div>
-          <p class="hero-description fade-in-up" style="animation-delay: 0.4s;">
-            Arrive in comfort with complimentary car seats, spacious vehicles,<br class="d-none d-lg-inline"> and personalized service tailored to your journey.
-          </p>
-          <div class="fade-in-up" style="animation-delay: 0.5s;">
-            <a href="{% url 'rates' %}" class="btn-hero">
-              <span>Reserve Your Ride</span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="ms-2">
-                <path d="M1 8h14m0 0L8 1m7 7-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="scroll-indicator fade-in-up" style="animation-delay: 0.8s;">
-      <div class="scroll-line"></div>
-    </div>
-  </section>
-  <!-- Service Areas Section -->
-  <section class="py-6" id="explore">
-    <div class="container">
-      <div class="row align-items-center">
-        <div class="col-lg-5 mb-5 mb-lg-0">
-          <p class="section-eyebrow">Service Areas</p>
-          <h2 class="section-title mb-4">Where We Take You</h2>
-          <p class="section-description mb-5">Comprehensive coverage across Orlando's premier destinations, from world-renowned theme parks to the cruise terminal.</p>
+  <a href="#fleet" class="visually-hidden-focusable" style="position:absolute;left:-9999px;top:0;">Skip to content</a>
 
-          <!-- Interactive Area Selection -->
-          <div class="destination-selector mb-4">
-            <div class="btn-group-vertical w-100" role="group" id="areaButtons">
-              <button type="button"
-                      class="btn btn-outline-secondary py-3 text-start blue-active active"
-                      data-area="disney">
-                <img src="{% static 'images/disney-castle.webp' %}"
-                     class="me-2"
-                     width="24"
-                     height="24"
-                     alt="Disney" />
-                Disney Resorts
-              </button>
-              <button type="button"
-                      class="btn btn-outline-secondary py-3 text-start blue-active"
-                      data-area="universal">
-                <img src="{% static 'images/universal-studios.webp' %}"
-                     class="me-2"
-                     style="width: 1.5em;
-                            height: 1.5em"
-                     alt="Universal" />
-                Universal Properties
-              </button>
-              <button type="button"
-                      class="btn btn-outline-secondary py-3 text-start blue-active"
-                      data-area="idrive">
-                <img src="{% static 'images/direction-sign.webp' %}"
-                     class="me-2"
-                     style="width: 1.5em;
-                            height: 1.5em"
-                     alt="International Drive" />
-                International Drive
-              </button>
-              <button type="button"
-                      class="btn btn-outline-secondary py-3 text-start blue-active"
-                      data-area="lbv">
-                <img src="{% static 'images/hotel.webp' %}"
-                     class="me-2"
-                     style="width: 1.5em;
-                            height: 1.5em"
-                     alt="LBV & Kissimmee" />
-                Lake Buena Vista & Kissimmee
-              </button>
-              <button type="button"
-                      class="btn btn-outline-secondary py-3 text-start blue-active"
-                      data-area="cruises">
-                <img src="{% static 'images/cruise.webp' %}"
-                     class="me-2"
-                     style="width: 1.5em;
-                            height: 1.5em"
-                     alt="Port Canaveral" />
-                Port Canaveral
-              </button>
-            </div>
-          </div>
+  <!-- ============================================================ -->
+  <!-- 0. STICKY NAV                                                -->
+  <!-- ============================================================ -->
+  <header class="ed-nav" id="edNav" role="banner">
+    <div class="ed-nav-inner">
+      <a href="/" class="ed-logo ed-link" aria-label="Grayson Towncar — home">
+        <span class="mark">Grayson Towncar</span>
+        <span class="tag">Private Car<br>Service</span>
+      </a>
 
-          <p class="small text-muted mt-4">
-            <strong>Not listed?</strong> We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-warning">Contact Us</a>
-          </p>
-        </div>
+      <nav class="ed-nav-links" aria-label="Section navigation">
+        <a href="#areas">Service areas</a>
+        <a href="#fleet">The fleet</a>
+        <a href="#compare">Compare</a>
+        <a href="#family">Family travel</a>
+        <a href="{% url 'partner' %}">Travel advisors</a>
+      </nav>
 
-        <div class="col-lg-7">
-          <div class="card border-0 shadow-lg">
-            <div class="card-body p-4 position-relative">
-              <!-- Simplified Map Display with Background Images -->
-              <div class="area-description active" id="disney-description">
-                <div class="area-image mb-4"
-                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static 'images/disney-resorts.webp' %}')">
-                </div>
-                <h3 class="h4 mb-3">Disney Resort Area</h3>
-                <p class="mb-3">Direct service to all Disney properties including Value, Moderate, and Deluxe resorts.</p>
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Disney's Contemporary Resort
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Disney's Grand Floridian
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Disney's Polynesian Village
-                  </li>
-                  <li>
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    <strong>All other Disney resorts</strong>
-                  </li>
-                </ul>
-                <p class="mt-4 mb-0">
-                  For pricing details or to reserve a ride, please visit our <a href="{% url "disney_world_transportation" %}" class="text-primary">MCO to Disney transportation</a> page for more information.
-                </p>
-              </div>
-
-              <div class="area-description" id="universal-description">
-                <div class="area-image mb-4"
-                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static 'images/universal-resort.webp' %}')">
-                </div>
-                <h3 class="h4 mb-3">Universal Orlando Area</h3>
-                <p class="mb-3">Comprehensive service to all Universal Orlando hotels and nearby accommodations.</p>
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Loews Portofino Bay Hotel
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Hard Rock Hotel Orlando
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Universal's Cabana Bay
-                  </li>
-                  <li>
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    <strong>All Universal partner hotels</strong>
-                  </li>
-                </ul>
-                <p class="mt-4 mb-0">
-                  For more information on pickups or to arrange a ride, see our <a href="{% url "orlando_airport_transportation" %}"
-    class="text-primary">Orlando airport transportation</a> options on the booking page.
-                </p>
-              </div>
-
-              <div class="area-description" id="idrive-description">
-                <div class="area-image mb-4"
-                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static 'images/idrive.webp' %}')">
-                </div>
-                <h3 class="h4 mb-3">International Drive</h3>
-                <p class="mb-3">Service to all I-Drive hotels, Convention Center area, and SeaWorld resorts.</p>
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Rosen Plaza Hotel
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Hyatt Regency Orlando
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    DoubleTree by Hilton
-                  </li>
-                  <li>
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    <strong>All I-Drive hotels & resorts</strong>
-                  </li>
-                </ul>
-                <p class="mt-4 mb-0">
-                  Book your <a href="{% url 'rates' %}" class="text-primary">I-Drive transportation</a> today and enjoy convenient access to all attractions.
-                </p>
-              </div>
-
-              <div class="area-description" id="lbv-description">
-                <div class="area-image mb-4"
-                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static 'images/lbv.webp' %}')">
-                </div>
-                <h3 class="h4 mb-3">Lake Buena Vista & Kissimmee</h3>
-                <p class="mb-3">Transportation to hotels and vacation rentals throughout LBV and Kissimmee.</p>
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Wyndham Lake Buena Vista
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Gaylord Palms Resort
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Vacation home rentals
-                  </li>
-                  <li>
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    <strong>All LBV & Kissimmee hotels</strong>
-                  </li>
-                </ul>
-                <p class="mt-4 mb-0">
-                  Book your <a href="{% url 'rates' %}" class="text-primary">LBV & Kissimmee transportation</a> today and explore the area with ease.
-                </p>
-              </div>
-
-              <div class="area-description" id="cruises-description">
-                <div class="area-image mb-4"
-                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static 'images/cruise-port.webp' %}')">
-                </div>
-                <h3 class="h4 mb-3">Port Canaveral</h3>
-                <p class="mb-3">Transportation to and from Port Canaveral cruise terminals for all major cruise lines.</p>
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Royal Caribbean, Carnival, Disney Cruise Line, and more
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Direct transfers from MCO and all area hotels
-                  </li>
-                  <li class="mb-2">
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    Pre-cruise hotel pickups and post-cruise drop-offs
-                  </li>
-                  <li>
-                    <img src="{% static 'images/check.webp' %}"
-                         class="text-primary me-2"
-                         style="width: 1em;
-                                height: 1em"
-                         alt="Check" />
-                    <strong>All Port Canaveral cruise terminals</strong>
-                  </li>
-                </ul>
-                <p class="mt-4 mb-0">
-                  You can check our <a href="{% url "port_canaveral_transportation" %}" class="text-primary">Port Canaveral cruise transfers</a> page for rates and booking options for cruise transportation.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Fleet Section -->
-  <section class="py-6 fleet-gradient" id="fleet">
-    <div class="container">
-      <div class="text-center mb-5">
-        <p class="section-eyebrow">Our Fleet</p>
-        <h2 class="section-title mb-4">Premium Vehicles</h2>
-        <p class="section-description mx-auto" style="max-width: 580px;">Meticulously maintained luxury vehicles equipped with the finest amenities for your comfort and safety throughout your journey.</p>
-      </div>
-
-      <!-- Fleet Tabs Navigation -->
-      <ul class="nav nav-pills nav-fill mb-5 fleet-tabs"
-          id="fleetTabs"
-          role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active custom-tab"
-                  id="towncar-tab"
-                  data-bs-toggle="pill"
-                  data-bs-target="#towncar"
-                  type="button"
-                  role="tab">
-            <img src="{% static 'images/towncar-icon.webp' %}"
-                 alt="Minivan"
-                 class="me-2"
-                 style="width: 1.5em;
-                        height: 1.5em">
-          </i>Town Car
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link custom-tab"
-                id="minivan-tab"
-                data-bs-toggle="pill"
-                data-bs-target="#minivan"
-                type="button"
-                role="tab">
-          <img src="{% static 'images/minivan-icon.webp' %}"
-               alt="Minivan"
-               class="me-2"
-               style="width: 1.5em;
-                      height: 1.5em">
-          Minivan
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link custom-tab"
-                id="suv-tab"
-                data-bs-toggle="pill"
-                data-bs-target="#suv"
-                type="button"
-                role="tab">
-          <img src="{% static 'images/suv-icon.webp' %}"
-               alt="Minivan"
-               class="me-2"
-               style="width: 1.5em;
-                      height: 1.5em">
-        </i>SUV
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link custom-tab"
-              id="van-tab"
-              data-bs-toggle="pill"
-              data-bs-target="#van"
-              type="button"
-              role="tab">
-        <img src="{% static 'images/van-icon.webp' %}"
-             alt="Group Van"
-             class="me-2"
-             style="width: 1.5em;
-                    height: 1.5em">
-      </i>Group Van
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link custom-tab"
-            id="sprinter-tab"
-            data-bs-toggle="pill"
-            data-bs-target="#sprinter"
-            type="button"
-            role="tab">
-      <img src="{% static 'images/van-icon.webp' %}"
-           alt="Sprinter Van"
-           class="me-2"
-           style="width: 1.5em;
-                  height: 1.5em">
-    </i>Sprinter
-  </button>
-</li>
-</ul>
-
-<!-- Fleet Tabs Content -->
-<div class="tab-content" id="fleetTabsContent">
-
-  <!-- Town Car Tab -->
-  <div class="tab-pane fade show active" id="towncar" role="tabpanel">
-    <div class="row">
-      <div class="col-lg-5 mb-4">
-        <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded shadow-sm p-2 mb-4">
-            <img src="{% static 'images/towncar.webp' %}"
-                 alt="Town Car"
-                 class="img-fluid rounded">
-          </div>
-          <div class="card h-100 border-0 bg-light mt-auto">
-            <div class="card-body">
-              <h5 class="card-title">
-                <strong>Need a specific accommodation?</strong>
-              </h5>
-              <p class="card-text">
-                <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
-              </p>
-              <div class="mt-2">
-                <a href="https://www.instagram.com/graysontowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
-                <a href="https://x.com/GraysonTowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-7">
-        <h3 class="mb-4">Luxury Town Car Experience</h3>
-        <p class="rounded shadow mb-4 p-3">
-          Ride in style with our luxury town cars—perfect for <strong>business travelers, couples, and small families.</strong> Whether you're heading to a meeting or exploring Orlando, our professional drivers ensure a smooth and comfortable journey every time.
-        </p>
-
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-          <!-- Town Car Details -->
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-people me-2"></i>Capacity
-                </h5>
-                <p class="card-text">Spacious and comfortable seating for up to 4 passengers.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-briefcase me-2"></i>Luggage Space
-                </h5>
-                <p class="card-text">Spacious trunk that accommodates up to 4 suitcases plus carry-on items.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-snow me-2"></i>Amenities
-                </h5>
-                <p class="card-text">Climate-controlled cabin, complimentary bottled water, and free carseat or booster if needed.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-stars me-2"></i>Experience
-                </h5>
-                <p class="card-text">Professional chauffeur service, quiet cabin for calls or relaxation, and smooth ride quality.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Minivan Tab -->
-  <div class="tab-pane fade" id="minivan" role="tabpanel">
-    <div class="row">
-      <div class="col-lg-5 mb-4">
-        <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded shadow-sm p-2 mb-4">
-            <img src="{% static 'images/minivan.webp' %}"
-                 alt="Minivan"
-                 class="img-fluid rounded">
-          </div>
-          <div class="card h-100 border-0 bg-light mt-auto">
-            <div class="card-body">
-              <h5 class="card-title">
-                <strong>Need a specific accommodation?</strong>
-              </h5>
-              <p class="card-text">
-                <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
-              </p>
-              <div class="mt-2">
-                <a href="https://www.instagram.com/graysontowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
-                <a href="https://x.com/GraysonTowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-7">
-        <h3 class="mb-4">Family-Friendly Minivan</h3>
-        <p class="rounded shadow mb-4 p-3">
-          Perfect for <strong>small to medium families and small groups</strong>, our minivans combine space and comfort to ensure everyone arrives at Orlando ready for adventure.
-        </p>
-
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-          <!-- Minivan Details -->
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-people me-2"></i>Capacity
-                </h5>
-                <p class="card-text">Spacious and comfortable seating for up to 5 passengers.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-briefcase me-2"></i>Luggage Space
-                </h5>
-                <p class="card-text">Generous cargo area that fits up to 5 suitcases plus carry-on items.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-snow me-2"></i>Amenities
-                </h5>
-                <p class="card-text">Climate-controlled cabin, complimentary bottled water, and free carseat or booster if needed.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-stars me-2"></i>Experience
-                </h5>
-                <p class="card-text">
-                  Easy entry/exit with sliding doors, comfortable seating for longer journeys, and family-focused service.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SUV Tab -->
-  <div class="tab-pane fade" id="suv" role="tabpanel">
-    <div class="row">
-      <div class="col-lg-5 mb-4">
-        <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded shadow-sm p-2 mb-4">
-            <img src="{% static 'images/suv-new.webp' %}"
-                 alt="SUV"
-                 class="img-fluid rounded">
-          </div>
-          <div class="card h-100 border-0 bg-light mt-auto">
-            <div class="card-body">
-              <h5 class="card-title">
-                <strong>Need a specific accommodation?</strong>
-              </h5>
-              <p class="card-text">
-                <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
-              </p>
-              <div class="mt-2">
-                <a href="https://www.instagram.com/graysontowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
-                <a href="https://x.com/GraysonTowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-7">
-        <h3 class="mb-4">Premium SUV Transportation</h3>
-        <p class="rounded shadow mb-4 p-3">
-          Enhance your Orlando ride with our luxury SUVs—designed for executive
-          comfort and flexible enough for <strong>medium to large families or small groups</strong>traveling together.
-        </p>
-
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-          <!-- SUV Details -->
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-people me-2"></i>Capacity
-                </h5>
-                <p class="card-text">Premium seating for up to 6 passengers with superior comfort features.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-briefcase me-2"></i>Luggage Space
-                </h5>
-                <p class="card-text">Versatile cargo space accommodating 6 large suitcases and carry-on items.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-snow me-2"></i>Amenities
-                </h5>
-                <p class="card-text">Climate-controlled cabin, complimentary bottled water, and free carseat or booster if needed.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-stars me-2"></i>Experience
-                </h5>
-                <p class="card-text">Professional chauffeur service, quiet cabin for calls or relaxation, and smooth ride quality.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Van Tab -->
-  <div class="tab-pane fade" id="van" role="tabpanel">
-    <div class="row">
-      <div class="col-lg-5 mb-4">
-        <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded shadow-sm p-2 mb-4">
-            <img src="{% static 'images/van.webp' %}"
-                 alt="Van"
-                 class="img-fluid rounded">
-          </div>
-          <div class="card h-100 border-0 bg-light mt-auto">
-            <div class="card-body">
-              <h5 class="card-title">
-                <strong>Need a specific accommodation?</strong>
-              </h5>
-              <p class="card-text">
-                <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
-              </p>
-              <div class="mt-2">
-                <a href="https://www.instagram.com/graysontowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
-                <a href="https://x.com/GraysonTowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-7">
-        <h3 class="mb-4">Full-Size Group Van</h3>
-        <p class="rounded shadow mb-4 p-3">
-          Our spacious 10-passenger vans are the ideal solution for large families and groups traveling together.
-          Perfect for <strong>multi-generational families, large groups, or friends</strong> exploring Orlando's attractions.
-        </p>
-
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-          <!-- Van Details -->
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-people me-2"></i>Capacity
-                </h5>
-                <p class="card-text">Generous accommodation for up to 10 passengers with comfortable seating throughout the cabin.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-briefcase me-2"></i>Luggage Space
-                </h5>
-                <p class="card-text">
-                  Extensive storage capacity for up to 11-12 suitcases plus carry-on items. No hassle of cramped space!
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-snow me-2"></i>Amenities
-                </h5>
-                <p class="card-text">Multi-zone climate control, enhanced audio system, and complimentary refreshments.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-stars me-2"></i>Experience
-                </h5>
-                <p class="card-text">Group-friendly seating layout, easy entry and exit and experienced group transport chauffeurs.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sprinter Van Tab -->
-  <div class="tab-pane fade" id="sprinter" role="tabpanel">
-    <div class="row">
-      <div class="col-lg-5 mb-4">
-        <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded shadow-sm p-2 mb-4">
-            <img src="https://media.graysontowncar.com/vehicles/sprinter.webp"
-                 alt="Mercedes Sprinter Van"
-                 class="img-fluid rounded">
-          </div>
-          <div class="card h-100 border-0 bg-light mt-auto">
-            <div class="card-body">
-              <h5 class="card-title">
-                <strong>Need a specific accommodation?</strong>
-              </h5>
-              <p class="card-text">
-                <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
-              </p>
-              <div class="mt-2">
-                <a href="https://www.instagram.com/graysontowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
-                <a href="https://x.com/GraysonTowncar"
-                   target="_blank"
-                   class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-7">
-        <h3 class="mb-4">Sprinter Van</h3>
-        <p class="rounded shadow mb-4 p-3">
-          Experience premium group transportation in our luxurious Sprinter Van.
-          Perfect for <strong>executive teams, VIP groups, and families</strong> who demand both space and sophistication.
-        </p>
-
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-          <!-- Sprinter Van Details -->
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-people me-2"></i>Capacity
-                </h5>
-                <p class="card-text">Premium seating for up to 10-14 passengers with executive-class comfort and legroom.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-briefcase me-2"></i>Luggage Space
-                </h5>
-                <p class="card-text">
-                  Generous cargo capacity for up to 12-14 suitcases plus carry-on items with flexible configuration.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-snow me-2"></i>Amenities
-                </h5>
-                <p class="card-text">Premium climate control, leather seating, ambient lighting, USB charging ports, and refreshments.</p>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="border-0 shadow p-3">
-              <div class="card-body">
-                <h5 class="card-title">
-                  <i class="bi bi-stars me-2"></i>Experience
-                </h5>
-                <p class="card-text">Executive-class interior, smooth ride quality, and professional chauffeur service for VIP treatment.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div>
-</div>
-</section>
-
-<!-- Additional Services Section -->
-<section class="py-6" id="additional-services">
-  <div class="container">
-    <div class="text-center mb-5">
-      <p class="section-eyebrow">Beyond Airports</p>
-      <h2 class="section-title mb-4">Additional Services</h2>
-      <p class="section-description mx-auto" style="max-width: 580px;">Comprehensive transportation solutions for every need, from hotel transfers to custom routes tailored to your itinerary.</p>
-    </div>
-
-    <div class="services-container">
-      <div class="service-option">
-        <div class="card-body p-4 text-center d-flex flex-column">
-          <div class="icon-circle">
-            <img src="{% static 'images/cruise.webp' %}"
-                 alt="Cruise"
-                 style="width: 2em;
-                        height: 2em">
-          </div>
-          <h3>Hotel to Port Canaveral</h3>
-          <p>Seamless transportation from your Orlando hotel directly to your cruise terminal at Port Canaveral.</p>
-          <div class="mt-auto pt-3">
-            <a href="{% url 'rates' %}"
-               class="btn btn-custom rounded-pill btn-secondary btn-m">Book Port Transfer</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="service-option">
-        <div class="card-body p-4 text-center d-flex flex-column">
-          <div class="icon-circle">
-            <img src="{% static 'images/hotel.webp' %}"
-                 alt="Hotel"
-                 style="width: 2em;
-                        height: 2em">
-          </div>
-          <h3>Hotel to Hotel Transfers</h3>
-          <p>Convenient transportation between any Orlando hotels. Perfect for switching resorts during your stay.</p>
-          <div class="mt-auto pt-3">
-            <a href="{% url 'rates' %}"
-               class="btn btn-custom rounded-pill btn-secondary btn-m">Book Hotel Transfer</a>
-          </div>
-        </div>
-      </div>
-
-      <div class="service-option">
-        <div class="card-body p-4 text-center d-flex flex-column">
-          <div class="icon-circle">
-            <img src="{% static 'images/custom.webp' %}"
-                 alt="Custom"
-                 style="width: 2em;
-                        height: 2em">
-          </div>
-          <h3>Customized Routes</h3>
-          <p>Need transportation to a specific location? We offer customized solutions to meet your unique travel needs.</p>
-          <div class="mt-auto pt-3">
-            <a href="{% url 'contact' %}"
-               class="btn btn-custom rounded-pill btn-secondary btn-m">Request Custom Route</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-{% include "services/comparison.html" %}
-
-<!-- Family Features Section -->
-<section class="py-6 position-relative" id="family-features">
-  <div class="position-absolute top-0 start-0 w-100 h-100" style="z-index: 0;">
-    <img src="{% static 'images/photo2.webp' %}" alt="Background" class="w-100 h-100 object-fit-cover">
-  </div>
-  <div class="container position-relative" style="z-index: 1;">
-    <div class="text-center mb-5">
-      <p class="section-eyebrow">Family Travel</p>
-      <h2 class="section-title mb-4">Family-Friendly Features</h2>
-      <p class="section-description mx-auto" style="max-width: 580px;">Everything you need for comfortable, safe, and stress-free family travel throughout your Orlando vacation.</p>
-    </div>
-
-    <div class="d-flex justify-content-center">
-      <div class="card shadow-sm rounded-4"
-           style="max-width: 800px;
-                  width: 100%;
-                  overflow: visible;
-                  background-color: rgba(248, 249, 250, 0.75)">
-        <div class="card-body p-4 p-md-5">
-
-          <!-- Car Seats Feature -->
-          <div class="row mb-5">
-            <div class="col-2 col-md-1 text-center">
-              <img src="{% static 'images/carseat.webp' %}"
-                   alt="Family"
-                   style="width: 40px;
-                          height: 40px">
-            </div>
-            <div class="col-10 col-md-11">
-              <h3 class="h4 mb-2">Child Car Seats & Boosters</h3>
-              <p class="text-muted mb-0">Complimentary car seats and booster seats available for children of all ages.</p>
-            </div>
-          </div>
-
-          <hr class="my-4">
-
-          <!-- Professional Drivers Feature -->
-          <div class="row mb-5">
-            <div class="col-2 col-md-1 text-center">
-              <img src="{% static 'images/premium.webp' %}"
-                   alt="Premium"
-                   style="width: 40px;
-                          height: 40px">
-            </div>
-            <div class="col-10 col-md-11">
-              <h3 class="h4 mb-2">Professional Drivers</h3>
-              <p class="text-muted mb-0">
-                Experienced, courteous drivers who know Orlando well and prioritize family safety and comfort.
-              </p>
-            </div>
-          </div>
-
-          <hr class="my-4">
-
-          <!-- Grocery Stop Feature -->
-          <div class="row">
-            <div class="col-2 col-md-1 text-center">
-              <img src="{% static 'images/groceries.webp' %}"
-                   alt="Groceries"
-                   style="width: 40px;
-                          height: 40px">
-            </div>
-            <div class="col-10 col-md-11">
-              <h3 class="h4 mb-2">Grocery Stop Service</h3>
-              <p class="text-muted mb-0">
-                Complimentary 20-minute grocery stop included with all airport to hotel transfers at Publix.
-              </p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Travel Agent Partnership Section -->
-<section class="py-6" id="travel-agents">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-lg-10 col-md-11">
-        <div class="card">
-          <div class="card-body p-4 p-md-5">
-            <div class="row align-items-center">
-              <div class="col-lg-7 mb-4 mb-lg-0">
-                <p class="section-eyebrow text-start">Partner Program</p>
-                <h2 class="section-title text-start mb-4">Travel Agent Partnerships</h2>
-                <p class="section-description text-start mb-4">
-                  Partner with us to offer your clients premium Orlando transportation while earning competitive commissions on every booking.
-                </p>
-                <div class="d-flex flex-wrap gap-4 mb-4">
-                  <span class="d-flex align-items-center">
-                    <i class="bi bi-check2 me-2"></i> 10% Commission
-                  </span>
-                  <span class="d-flex align-items-center">
-                    <i class="bi bi-check2 me-2"></i> Partner Dashboard
-                  </span>
-                  <span class="d-flex align-items-center">
-                    <i class="bi bi-check2 me-2"></i> Priority Support
-                  </span>
-                </div>
-                <a href="{% url 'partner' %}" class="btn btn-custom">Learn More</a>
-              </div>
-              <div class="col-lg-5 text-center">
-                <div style="padding: 2.5rem;">
-                  <p style="font-size: 3.5rem; font-weight: 200; color: #1a1a1a; margin-bottom: 0.25rem; letter-spacing: -0.03em;">10%</p>
-                  <p style="font-size: 0.8125rem; color: #777; margin: 0; text-transform: uppercase; letter-spacing: 0.1em;">Commission</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<!-- FAQ Link Section -->
-<section class="text-white text-center" id="faq-link">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-lg-6">
-        <h3 class="mb-4">Have Questions?</h3>
-        <p class="mb-5">Find answers to common transportation questions and learn more about our premium service.</p>
-        <a href="{% url 'faqs' %}" class="btn btn-light">
-          <span>View FAQs</span>
+      <div class="ed-nav-right">
+        <a href="tel:+14072127190" class="ed-nav-phone">
+          <i class="bi bi-telephone" aria-hidden="true"></i>
+          <span>(407) 212-7190</span>
+        </a>
+        <a href="{% url 'rates' %}" class="ed-btn ed-btn-ink ed-nav-cta">
+          <span class="lg-text">Reserve a Ride</span>
+          <span class="sm-text">Reserve</span>
         </a>
       </div>
     </div>
-  </div>
-</section>
-{% include 'call-to-action.html' %}
-<script src="{% static 'js/services-page.js' %}" defer></script>
+  </header>
+
+  <main id="top">
+
+    <!-- ============================================================ -->
+    <!-- 1. HERO                                                      -->
+    <!-- ============================================================ -->
+    <section class="ed-hero" aria-labelledby="hero-title">
+      <div class="ed-hero-inner">
+        <div class="ed-up">
+          <div class="ed-hero-eyebrow">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Private Chauffeur Service · Orlando, Florida</span>
+          </div>
+
+          <h1 id="hero-title" class="ed-h1">
+            Every Orlando arrival,<br>
+            handled door to door.<br>
+            <span class="ed-italic">Quietly, and on time.</span>
+          </h1>
+
+          <p class="ed-hero-lede">
+            Private chauffeured transfers for MCO airport, Disney and Universal
+            resorts, and Port Canaveral cruise terminals — with complimentary
+            child seats, flight tracking, and fixed all-inclusive pricing.
+            Your vacation starts the moment you step outside.
+          </p>
+
+          <div class="ed-hero-cta">
+            <a href="{% url 'rates' %}" class="ed-btn ed-btn-ink">
+              Reserve your ride <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+            <a href="#fleet" class="ed-btn ed-btn-ghost">Explore the fleet</a>
+          </div>
+
+          <div class="ed-hero-stats" role="list">
+            <div class="stat" role="listitem">
+              <span class="ico" aria-hidden="true"><i class="bi bi-piggy-bank"></i></span>
+              <div class="k"><span class="unit">$</span>0</div>
+              <div class="s">Child car seats</div>
+              <div class="hint">Complimentary for every child</div>
+            </div>
+            <div class="stat" role="listitem">
+              <span class="ico" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
+              <div class="k">24<span class="unit">/7</span></div>
+              <div class="s">Reservations</div>
+              <div class="hint">A real person, any hour</div>
+            </div>
+            <div class="stat" role="listitem">
+              <span class="ico" aria-hidden="true"><i class="bi bi-car-front"></i></span>
+              <div class="k">5</div>
+              <div class="s">Vehicle classes</div>
+              <div class="hint">Town car to Sprinter van</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ed-hero-photo ed-up" style="animation-delay: 120ms;">
+          <div class="frame">
+            <img src="{% static 'images/grayson-difference.webp' %}"
+                 alt="The Grayson Towncar fleet of black luxury sedans, SUVs, and a Sprinter van lined up"
+                 width="1024" height="683" loading="eager" />
+            <div class="overlay" aria-hidden="true"></div>
+
+            <div class="corner-mark" aria-hidden="true">
+              <span class="hairline"></span>
+              <span class="label">The Fleet</span>
+            </div>
+
+            <div class="caption">
+              <div class="tag">The Orlando Fleet</div>
+              <div class="line">
+                Five ways to arrive,<br>
+                <span class="ed-italic">one standard of care.</span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="sticker" aria-label="Average guest rating">
+            <div class="rating">
+              4.9<span class="ed-italic">/5</span>
+            </div>
+            <div class="sub">Average guest rating across 1,500+ reviews</div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 2. TRUST WALL                                                -->
+    <!-- ============================================================ -->
+    <section class="ed-trust" aria-label="Destinations we serve">
+      <div class="ed-trust-eyebrow">
+        <span class="ed-eyebrow">Every corner of Orlando · One standard of service</span>
+      </div>
+
+      <div class="ed-trust-marquee" aria-hidden="true">
+        <div class="ed-trust-track">
+          {% for n in 'AB' %}
+            <div class="item"><span class="name">Walt Disney World</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Universal Orlando</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Epic Universe</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Port Canaveral</span><span class="pip"></span></div>
+            <div class="item"><span class="name">International Drive</span><span class="pip"></span></div>
+            <div class="item"><span class="name">SeaWorld</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Lake Buena Vista</span><span class="pip"></span></div>
+            <div class="item"><span class="name">Kissimmee</span><span class="pip"></span></div>
+            <div class="item"><span class="name">MCO Airport</span><span class="pip"></span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 3. SERVICE AREAS                                             -->
+    <!-- ============================================================ -->
+    <section class="svc-areas" id="areas" aria-labelledby="areas-title">
+      <div class="ed-wrap">
+        <div class="svc-areas-grid">
+
+          <div class="svc-areas-left ed-up">
+            <div class="ed-section-label">
+              <span class="chapter">I</span>
+              <span class="rule" aria-hidden="true"></span>
+              <span class="ed-eyebrow">Service Areas</span>
+            </div>
+            <h2 id="areas-title">Where we take you</h2>
+            <p>Comprehensive coverage across Orlando's premier destinations — from the theme-park resorts to the cruise terminal.</p>
+
+            <div class="svc-area-list" role="tablist" aria-label="Service areas">
+              <button class="svc-area-btn is-active" data-area="disney" role="tab" aria-selected="true">
+                <span class="n">01</span>
+                <span class="label">Disney Resorts</span>
+                <i class="bi bi-arrow-right arrow" aria-hidden="true"></i>
+              </button>
+              <button class="svc-area-btn" data-area="universal" role="tab" aria-selected="false">
+                <span class="n">02</span>
+                <span class="label">Universal Orlando</span>
+                <i class="bi bi-arrow-right arrow" aria-hidden="true"></i>
+              </button>
+              <button class="svc-area-btn" data-area="idrive" role="tab" aria-selected="false">
+                <span class="n">03</span>
+                <span class="label">International Drive</span>
+                <i class="bi bi-arrow-right arrow" aria-hidden="true"></i>
+              </button>
+              <button class="svc-area-btn" data-area="lbv" role="tab" aria-selected="false">
+                <span class="n">04</span>
+                <span class="label">Lake Buena Vista &amp; Kissimmee</span>
+                <i class="bi bi-arrow-right arrow" aria-hidden="true"></i>
+              </button>
+              <button class="svc-area-btn" data-area="cruises" role="tab" aria-selected="false">
+                <span class="n">05</span>
+                <span class="label">Port Canaveral</span>
+                <i class="bi bi-arrow-right arrow" aria-hidden="true"></i>
+              </button>
+            </div>
+
+            <p class="svc-areas-note">
+              <strong>Not listed?</strong> We build customized routes to any Orlando
+              location. <a href="{% url 'contact' %}">Contact us</a>.
+            </p>
+          </div>
+
+          <div class="svc-area-plate ed-up" style="animation-delay: 100ms;">
+
+            <article class="svc-plate is-active" id="plate-disney">
+              <div class="frame">
+                <img src="{% static 'images/disney-resorts.webp' %}" alt="Disney resort area" loading="lazy" />
+                <div class="overlay" aria-hidden="true"></div>
+                <div class="ch" aria-hidden="true"><span class="hair"></span><span class="lbl">Disney</span></div>
+              </div>
+              <h3>Disney Resort Area</h3>
+              <p>Direct service to all Disney properties — Value, Moderate, and Deluxe resorts alike.</p>
+              <ul>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Disney's Contemporary Resort</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Disney's Grand Floridian</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Disney's Polynesian Village</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> All other Disney resorts</li>
+              </ul>
+              <a href="{% url 'disney_world_transportation' %}" class="more">MCO to Disney transfers <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </article>
+
+            <article class="svc-plate" id="plate-universal">
+              <div class="frame">
+                <img src="{% static 'images/universal-resort.webp' %}" alt="Universal Orlando area" loading="lazy" />
+                <div class="overlay" aria-hidden="true"></div>
+                <div class="ch" aria-hidden="true"><span class="hair"></span><span class="lbl">Universal</span></div>
+              </div>
+              <h3>Universal Orlando Area</h3>
+              <p>Comprehensive service to every Universal Orlando hotel and the stays nearby.</p>
+              <ul>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Loews Portofino Bay Hotel</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Hard Rock Hotel Orlando</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Universal's Cabana Bay</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> All Universal partner hotels</li>
+              </ul>
+              <a href="{% url 'orlando_airport_transportation' %}" class="more">Orlando airport transfers <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </article>
+
+            <article class="svc-plate" id="plate-idrive">
+              <div class="frame">
+                <img src="{% static 'images/idrive.webp' %}" alt="International Drive" loading="lazy" />
+                <div class="overlay" aria-hidden="true"></div>
+                <div class="ch" aria-hidden="true"><span class="hair"></span><span class="lbl">I-Drive</span></div>
+              </div>
+              <h3>International Drive</h3>
+              <p>All I-Drive hotels, the Convention Center area, and the SeaWorld resorts.</p>
+              <ul>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Rosen Plaza Hotel</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Hyatt Regency Orlando</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> DoubleTree by Hilton</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> All I-Drive hotels &amp; resorts</li>
+              </ul>
+              <a href="{% url 'rates' %}" class="more">See I-Drive rates <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </article>
+
+            <article class="svc-plate" id="plate-lbv">
+              <div class="frame">
+                <img src="{% static 'images/lbv.webp' %}" alt="Lake Buena Vista and Kissimmee" loading="lazy" />
+                <div class="overlay" aria-hidden="true"></div>
+                <div class="ch" aria-hidden="true"><span class="hair"></span><span class="lbl">LBV &amp; Kissimmee</span></div>
+              </div>
+              <h3>Lake Buena Vista &amp; Kissimmee</h3>
+              <p>Hotels and vacation rentals throughout Lake Buena Vista and Kissimmee.</p>
+              <ul>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Wyndham Lake Buena Vista</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Gaylord Palms Resort</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Vacation home rentals</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> All LBV &amp; Kissimmee hotels</li>
+              </ul>
+              <a href="{% url 'rates' %}" class="more">See LBV &amp; Kissimmee rates <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </article>
+
+            <article class="svc-plate" id="plate-cruises">
+              <div class="frame">
+                <img src="{% static 'images/port-canaveral.webp' %}" alt="Port Canaveral cruise terminals" loading="lazy" />
+                <div class="overlay" aria-hidden="true"></div>
+                <div class="ch" aria-hidden="true"><span class="hair"></span><span class="lbl">Port Canaveral</span></div>
+              </div>
+              <h3>Port Canaveral</h3>
+              <p>To and from the Port Canaveral cruise terminals for every major cruise line.</p>
+              <ul>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Royal Caribbean, Carnival, Disney Cruise Line &amp; more</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Direct transfers from MCO and area hotels</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> Pre-cruise pickups &amp; post-cruise drop-offs</li>
+                <li><i class="bi bi-check2" aria-hidden="true"></i> All Port Canaveral cruise terminals</li>
+              </ul>
+              <a href="{% url 'port_canaveral_transportation' %}" class="more">Port Canaveral cruise transfers <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </article>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 4. FLEET                                                     -->
+    <!-- ============================================================ -->
+    <section class="svc-fleet" id="fleet" aria-labelledby="fleet-title">
+      <div class="ed-wrap">
+        <div class="svc-head ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">II</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Our Fleet</span>
+          </div>
+          <h2 id="fleet-title">Pick the right vehicle</h2>
+          <p>Meticulously maintained vehicles, each driven by a professional chauffeur — sized for everyone from a solo traveler to a multi-generational group.</p>
+        </div>
+
+        <div class="svc-fleet-tabs" role="tablist" aria-label="Vehicle classes">
+          <button class="svc-fleet-tab is-active" data-fleet="towncar" role="tab" aria-selected="true">Town Car</button>
+          <button class="svc-fleet-tab" data-fleet="minivan" role="tab" aria-selected="false">Minivan</button>
+          <button class="svc-fleet-tab" data-fleet="suv" role="tab" aria-selected="false">SUV</button>
+          <button class="svc-fleet-tab" data-fleet="van" role="tab" aria-selected="false">Group Van</button>
+          <button class="svc-fleet-tab" data-fleet="sprinter" role="tab" aria-selected="false">Sprinter</button>
+        </div>
+
+        <!-- Town Car -->
+        <div class="svc-fleet-panel is-active" id="fleet-towncar">
+          <div class="svc-fleet-photo">
+            <img src="{% static 'images/towncar.webp' %}" alt="Luxury town car" loading="lazy" />
+            <span class="tagmark">Up to 4 guests</span>
+          </div>
+          <div class="svc-fleet-body">
+            <div class="kicker">For business &amp; couples</div>
+            <h3>Luxury Town Car</h3>
+            <p class="lede">Ride in style — ideal for <strong>business travelers, couples, and small families.</strong> A quiet cabin and a smooth ride, every time.</p>
+            <div class="svc-specs">
+              <div class="svc-spec"><div class="lab"><i class="bi bi-people" aria-hidden="true"></i> Capacity</div><p>Comfortable seating for up to 4 passengers.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-briefcase" aria-hidden="true"></i> Luggage</div><p>Up to 4 suitcases plus carry-on items.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-snow" aria-hidden="true"></i> Amenities</div><p>Climate control, bottled water, free car seat on request.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-stars" aria-hidden="true"></i> Experience</div><p>Professional chauffeur and a quiet cabin for calls or rest.</p></div>
+            </div>
+            <p class="svc-fleet-foot">Need a specific accommodation? <a href="{% url 'contact' %}">Contact us</a> for custom arrangements.</p>
+          </div>
+        </div>
+
+        <!-- Minivan -->
+        <div class="svc-fleet-panel" id="fleet-minivan">
+          <div class="svc-fleet-photo">
+            <img src="{% static 'images/minivan.webp' %}" alt="Family-friendly minivan" loading="lazy" />
+            <span class="tagmark">Up to 5 guests</span>
+          </div>
+          <div class="svc-fleet-body">
+            <div class="kicker">For families</div>
+            <h3>Family-Friendly Minivan</h3>
+            <p class="lede">Space and comfort for <strong>small to medium families and groups</strong> — everyone arrives ready for adventure.</p>
+            <div class="svc-specs">
+              <div class="svc-spec"><div class="lab"><i class="bi bi-people" aria-hidden="true"></i> Capacity</div><p>Comfortable seating for up to 5 passengers.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-briefcase" aria-hidden="true"></i> Luggage</div><p>Generous cargo for up to 5 suitcases plus carry-ons.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-snow" aria-hidden="true"></i> Amenities</div><p>Climate control, bottled water, free car seat on request.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-stars" aria-hidden="true"></i> Experience</div><p>Easy sliding-door access and family-focused service.</p></div>
+            </div>
+            <p class="svc-fleet-foot">Need a specific accommodation? <a href="{% url 'contact' %}">Contact us</a> for custom arrangements.</p>
+          </div>
+        </div>
+
+        <!-- SUV -->
+        <div class="svc-fleet-panel" id="fleet-suv">
+          <div class="svc-fleet-photo">
+            <img src="{% static 'images/suv.webp' %}" alt="Premium SUV" loading="lazy" />
+            <span class="tagmark">Up to 6 guests</span>
+          </div>
+          <div class="svc-fleet-body">
+            <div class="kicker">Executive comfort</div>
+            <h3>Premium SUV</h3>
+            <p class="lede">Executive comfort with the flexibility for <strong>medium to large families or small groups</strong> travelling together.</p>
+            <div class="svc-specs">
+              <div class="svc-spec"><div class="lab"><i class="bi bi-people" aria-hidden="true"></i> Capacity</div><p>Premium seating for up to 6 passengers.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-briefcase" aria-hidden="true"></i> Luggage</div><p>Versatile space for up to 6 large suitcases.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-snow" aria-hidden="true"></i> Amenities</div><p>Climate control, bottled water, free car seat on request.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-stars" aria-hidden="true"></i> Experience</div><p>Professional chauffeur with smooth, quiet ride quality.</p></div>
+            </div>
+            <p class="svc-fleet-foot">Need a specific accommodation? <a href="{% url 'contact' %}">Contact us</a> for custom arrangements.</p>
+          </div>
+        </div>
+
+        <!-- Group Van -->
+        <div class="svc-fleet-panel" id="fleet-van">
+          <div class="svc-fleet-photo">
+            <img src="{% static 'images/van.webp' %}" alt="Full-size group van" loading="lazy" />
+            <span class="tagmark">Up to 10 guests</span>
+          </div>
+          <div class="svc-fleet-body">
+            <div class="kicker">For large groups</div>
+            <h3>Full-Size Group Van</h3>
+            <p class="lede">Spacious 10-passenger vans for <strong>multi-generational families and large groups</strong> exploring Orlando together.</p>
+            <div class="svc-specs">
+              <div class="svc-spec"><div class="lab"><i class="bi bi-people" aria-hidden="true"></i> Capacity</div><p>Room for up to 10 passengers in comfort.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-briefcase" aria-hidden="true"></i> Luggage</div><p>Up to 11–12 suitcases plus carry-on items.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-snow" aria-hidden="true"></i> Amenities</div><p>Multi-zone climate control and complimentary refreshments.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-stars" aria-hidden="true"></i> Experience</div><p>Easy entry, group-friendly seating, experienced chauffeurs.</p></div>
+            </div>
+            <p class="svc-fleet-foot">Need a specific accommodation? <a href="{% url 'contact' %}">Contact us</a> for custom arrangements.</p>
+          </div>
+        </div>
+
+        <!-- Sprinter -->
+        <div class="svc-fleet-panel" id="fleet-sprinter">
+          <div class="svc-fleet-photo">
+            <img src="{% static 'images/sprinter.webp' %}" alt="Mercedes Sprinter van" loading="lazy" />
+            <span class="tagmark">Up to 14 guests</span>
+          </div>
+          <div class="svc-fleet-body">
+            <div class="kicker">VIP groups</div>
+            <h3>Mercedes Sprinter</h3>
+            <p class="lede">Executive-class space and sophistication for <strong>VIP groups, executive teams, and families.</strong></p>
+            <div class="svc-specs">
+              <div class="svc-spec"><div class="lab"><i class="bi bi-people" aria-hidden="true"></i> Capacity</div><p>Seating for up to 10–14 passengers with generous legroom.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-briefcase" aria-hidden="true"></i> Luggage</div><p>Flexible cargo for up to 12–14 suitcases plus carry-ons.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-snow" aria-hidden="true"></i> Amenities</div><p>Leather seating, ambient lighting, USB charging, refreshments.</p></div>
+              <div class="svc-spec"><div class="lab"><i class="bi bi-stars" aria-hidden="true"></i> Experience</div><p>Executive-class interior with VIP-level chauffeur service.</p></div>
+            </div>
+            <p class="svc-fleet-foot">Need a specific accommodation? <a href="{% url 'contact' %}">Contact us</a> for custom arrangements.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 5. ADDITIONAL SERVICES                                       -->
+    <!-- ============================================================ -->
+    <section class="svc-extra" id="extra" aria-labelledby="extra-title">
+      <div class="ed-wrap">
+        <div class="svc-head ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">III</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Beyond Airports</span>
+          </div>
+          <h2 id="extra-title">Additional services</h2>
+          <p>Transportation for every leg of the trip — from cruise terminals to custom routes built around your itinerary.</p>
+        </div>
+
+        <div class="svc-extra-grid ed-up">
+          <div class="svc-extra-tile">
+            <div class="icon"><img src="{% static 'images/cruise.webp' %}" alt="" aria-hidden="true" /></div>
+            <h3>Hotel to Port Canaveral</h3>
+            <p>Seamless transportation from your Orlando hotel directly to your cruise terminal at Port Canaveral.</p>
+            <a href="{% url 'rates' %}" class="go">Book port transfer <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          </div>
+          <div class="svc-extra-tile">
+            <div class="icon"><img src="{% static 'images/hotel.webp' %}" alt="" aria-hidden="true" /></div>
+            <h3>Hotel to Hotel Transfers</h3>
+            <p>Door-to-door transfers between any Orlando hotels — ideal for switching resorts mid-stay.</p>
+            <a href="{% url 'rates' %}" class="go">Book hotel transfer <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          </div>
+          <div class="svc-extra-tile">
+            <div class="icon"><img src="{% static 'images/custom.webp' %}" alt="" aria-hidden="true" /></div>
+            <h3>Customized Routes</h3>
+            <p>Heading somewhere specific? We tailor routes to meet your unique travel plans.</p>
+            <a href="{% url 'contact' %}" class="go">Request a custom route <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 6. COMPARISON                                                -->
+    <!-- ============================================================ -->
+    <section class="svc-compare" id="compare" aria-labelledby="compare-title">
+      <div class="ed-wrap">
+        <div class="svc-head ed-up">
+          <div class="ed-section-label">
+            <span class="chapter">IV</span>
+            <span class="rule" aria-hidden="true"></span>
+            <span class="ed-eyebrow">Compare Options</span>
+          </div>
+          <h2 id="compare-title">The honest comparison</h2>
+          <p>Cost matters — but so do convenience, predictability, and the comfort of a private ride. Here is how we stack up.</p>
+        </div>
+
+        <div class="svc-compare-grid ed-up">
+
+          <div class="svc-comp-col is-featured">
+            <span class="ribbon">Recommended</span>
+            <div class="name">Grayson Towncar</div>
+            <div class="price">$99–169 <span class="u">one way</span></div>
+            <div class="price">$195 <span class="u">round trip</span></div>
+            <div class="pricenote good">All-inclusive pricing</div>
+            <div class="pricesub">Driver gratuity not included</div>
+            <ul>
+              <li>Private vehicle <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>No waiting <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Direct to destination <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Luggage assistance <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Free grocery stop <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Complimentary car seats <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Fixed, all-inclusive price <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>24/7 availability <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+            </ul>
+          </div>
+
+          <div class="svc-comp-col">
+            <div class="name">Ride Share</div>
+            <div class="price">$85–175 <span class="u">per trip</span></div>
+            <div class="price" style="visibility:hidden;">&nbsp;</div>
+            <div class="pricenote warn">Surge pricing may apply</div>
+            <div class="pricesub">Varies by demand</div>
+            <ul>
+              <li>Private vehicle <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>No waiting <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Direct to destination <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Luggage assistance <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Free grocery stop <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Complimentary car seats <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Fixed, all-inclusive price <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>24/7 availability <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+            </ul>
+          </div>
+
+          <div class="svc-comp-col">
+            <div class="name">Shared Shuttle</div>
+            <div class="price">$75–160 <span class="u">per trip</span></div>
+            <div class="price" style="visibility:hidden;">&nbsp;</div>
+            <div class="pricenote warn">+ 90 min travel time</div>
+            <div class="pricesub">Multiple stops add time</div>
+            <ul>
+              <li>Private vehicle <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>No waiting <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Direct to destination <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Luggage assistance <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>Free grocery stop <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Complimentary car seats <i class="bi bi-x no" aria-label="no"></i></li>
+              <li>Fixed, all-inclusive price <i class="bi bi-check2 yes" aria-label="yes"></i></li>
+              <li>24/7 availability <i class="bi bi-x no" aria-label="no"></i></li>
+            </ul>
+          </div>
+
+        </div>
+
+        <div class="svc-compare-cta ed-up">
+          <a href="{% url 'rates' %}" class="ed-btn ed-btn-gold">
+            Check your rate <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          <p class="note">Transparent pricing with no hidden fees.</p>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 7. FAMILY FEATURES                                           -->
+    <!-- ============================================================ -->
+    <section class="svc-family" id="family" aria-labelledby="family-title">
+      <div class="ed-wrap">
+        <div class="svc-family-grid">
+
+          <div class="svc-family-left ed-up">
+            <div class="ed-section-label">
+              <span class="chapter">V</span>
+              <span class="rule" aria-hidden="true"></span>
+              <span class="ed-eyebrow">Family Travel</span>
+            </div>
+            <h2 id="family-title">Built for families</h2>
+            <p>Everything you need for comfortable, safe, and stress-free family travel across your entire Orlando vacation.</p>
+          </div>
+
+          <div class="svc-family-list ed-up" style="animation-delay: 100ms;">
+            <div class="row">
+              <div class="icon"><img src="{% static 'images/carseat.webp' %}" alt="" aria-hidden="true" /></div>
+              <div>
+                <h3>Child Car Seats &amp; Boosters</h3>
+                <p>Complimentary car seats and boosters for children of every age — just let us know.</p>
+              </div>
+            </div>
+            <div class="row">
+              <div class="icon"><img src="{% static 'images/premium.webp' %}" alt="" aria-hidden="true" /></div>
+              <div>
+                <h3>Professional Drivers</h3>
+                <p>Experienced, courteous chauffeurs who know Orlando well and put family safety first.</p>
+              </div>
+            </div>
+            <div class="row">
+              <div class="icon"><img src="{% static 'images/groceries.webp' %}" alt="" aria-hidden="true" /></div>
+              <div>
+                <h3>Grocery Stop Service</h3>
+                <p>A complimentary 20-minute Publix stop included with every airport-to-hotel transfer.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 8. TRAVEL ADVISOR PARTNERSHIP                                -->
+    <!-- ============================================================ -->
+    <section class="svc-partner">
+      <div class="ed-wrap">
+        <div class="svc-partner-band ed-up">
+          <div class="copy">
+            <div class="eyebrow">Travel Advisor Program</div>
+            <h2>Plan the trip. <span class="ed-italic">We'll handle the arrival.</span></h2>
+            <p>Partner with us to offer your clients premium Orlando transportation — and earn a commission on every completed booking.</p>
+            <div class="chips">
+              <span class="chip"><i class="bi bi-check2" aria-hidden="true"></i> 10% commission</span>
+              <span class="chip"><i class="bi bi-check2" aria-hidden="true"></i> Partner dashboard</span>
+              <span class="chip"><i class="bi bi-check2" aria-hidden="true"></i> Priority support</span>
+            </div>
+            <a href="{% url 'partner' %}" class="ed-btn ed-btn-gold">
+              Become a partner <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </a>
+          </div>
+          <div class="figure">
+            <div class="big">10<span class="ed-italic">%</span></div>
+            <div class="cap">Commission</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 9. FINAL CTA                                                 -->
+    <!-- ============================================================ -->
+    <section class="ed-final" aria-labelledby="final-title">
+      <div class="ed-final-inner ed-up">
+        <h2 id="final-title" class="ed-display">Ready when your trip is.</h2>
+        <p class="lede">
+          Reserve a private chauffeur for your next Orlando arrival — or call and
+          we'll build the route with you, one stop at a time.
+        </p>
+        <div class="cta-row">
+          <a href="{% url 'rates' %}" class="ed-btn ed-btn-ink">
+            Reserve your ride <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </a>
+          <a href="{% url 'faqs' %}" class="ed-btn ed-btn-ghost">Have questions? View FAQs</a>
+        </div>
+        <div class="service-cap">
+          <span>MCO Airport</span><span class="sep">·</span>
+          <span>Disney</span><span class="sep">·</span>
+          <span>Universal</span><span class="sep">·</span>
+          <span>Port Canaveral</span><span class="sep">·</span>
+          <span>International Drive</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ============================================================ -->
+  <!-- FOOTER                                                       -->
+  <!-- ============================================================ -->
+  <footer class="ed-footer" role="contentinfo">
+    <div class="ed-footer-inner">
+      <div class="ed-footer-grid">
+        <div class="ed-footer-brand">
+          <div class="logotype">
+            <a href="/" class="mark" aria-label="Grayson Towncar — home">Grayson Towncar</a>
+            <span class="tag">Private Car<br>Service</span>
+          </div>
+          <p>
+            Private MCO, Disney, Universal, and Port Canaveral transportation —
+            with professional chauffeurs, complimentary car seats, and fixed
+            all-inclusive pricing. Orlando, Florida. Established 2010.
+          </p>
+          <div class="socials">
+            <a href="https://www.instagram.com/graysontowncar" aria-label="Instagram"><i class="bi bi-instagram" aria-hidden="true"></i></a>
+            <a href="https://www.facebook.com/profile.php?id=61574468855996" aria-label="Facebook"><i class="bi bi-facebook" aria-hidden="true"></i></a>
+            <a href="https://x.com/GraysonTowncar" aria-label="X"><i class="bi bi-twitter-x" aria-hidden="true"></i></a>
+            <a href="https://www.youtube.com/" aria-label="YouTube"><i class="bi bi-youtube" aria-hidden="true"></i></a>
+          </div>
+        </div>
+
+        <div class="ed-footer-col">
+          <div class="title">Service</div>
+          <ul>
+            <li><a href="{% url 'orlando_airport_transportation' %}">MCO airport transfers</a></li>
+            <li><a href="{% url 'disney_world_transportation' %}">Disney World transfers</a></li>
+            <li><a href="{% url 'universal_orlando_transportation' %}">Universal Orlando</a></li>
+            <li><a href="{% url 'port_canaveral_transportation' %}">Port Canaveral cruise</a></li>
+          </ul>
+        </div>
+
+        <div class="ed-footer-col">
+          <div class="title">Company</div>
+          <ul>
+            <li><a href="{% url 'rates' %}">Rates &amp; booking</a></li>
+            <li><a href="{% url 'partner' %}">Travel advisor program</a></li>
+            <li><a href="{% url 'faqs' %}">FAQs</a></li>
+            <li><a href="{% url 'contact' %}">Contact</a></li>
+          </ul>
+        </div>
+
+        <div class="ed-footer-col">
+          <div class="title">Contact</div>
+          <ul>
+            <li><a href="tel:+14072127190">(407) 212-7190</a></li>
+            <li><a href="mailto:info@graysontowncar.com">info@graysontowncar.com</a></li>
+            <li><a href="{% url 'contact' %}">Orlando, Florida</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ed-footer-bottom">
+        <div>© 2026 Grayson Towncar Service, LLC · Florida Operating Authority</div>
+        <div class="legal">
+          <a href="{% url 'faqs' %}">FAQs</a>
+          <a href="{% url 'contact' %}">Contact</a>
+          <a href="{% url 'partner' %}">Partners</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      // -- Sticky nav backdrop on scroll
+      var nav = document.getElementById('edNav');
+      if (nav) {
+        var onScroll = function () {
+          if (window.scrollY > 12) nav.classList.add('is-scrolled');
+          else nav.classList.remove('is-scrolled');
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+
+      var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // -- Service-area selector
+      var areaBtns = document.querySelectorAll('.svc-area-btn');
+      var plates = document.querySelectorAll('.svc-plate');
+      areaBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var key = btn.getAttribute('data-area');
+          areaBtns.forEach(function (b) {
+            var on = b === btn;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-selected', String(on));
+          });
+          plates.forEach(function (p) {
+            p.classList.toggle('is-active', p.id === 'plate-' + key);
+          });
+        });
+      });
+
+      // -- Fleet tabs
+      var fleetTabs = document.querySelectorAll('.svc-fleet-tab');
+      var fleetPanels = document.querySelectorAll('.svc-fleet-panel');
+      fleetTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          var key = tab.getAttribute('data-fleet');
+          fleetTabs.forEach(function (t) {
+            var on = t === tab;
+            t.classList.toggle('is-active', on);
+            t.setAttribute('aria-selected', String(on));
+          });
+          fleetPanels.forEach(function (p) {
+            p.classList.toggle('is-active', p.id === 'fleet-' + key);
+          });
+        });
+      });
+
+      // -- Smooth in-page anchor scroll
+      document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          var id = a.getAttribute('href');
+          if (!id || id === '#') return;
+          var target = document.querySelector(id);
+          if (!target) return;
+          e.preventDefault();
+          target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+        });
+      });
+
+      // -- IntersectionObserver reveals
+      if ('IntersectionObserver' in window && !reduced) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.style.animationPlayState = 'running';
+              io.unobserve(entry.target);
+            }
+          });
+        }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+        document.querySelectorAll('.ed-up').forEach(function (el) { io.observe(el); });
+      }
+    })();
+  </script>
 {% endblock %}

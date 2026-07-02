@@ -757,7 +757,7 @@ class Agency(models.Model):
                             [
                                 f"   - Reservation #{res.id}",
                                 f"     Customer: {res.customer.get_full_name()}",
-                                f"     Route: {res.rate.route.origin} to {res.rate.route.destination}",
+                                f"     Route: {res.route_label}",
                                 f"     Vehicle: {res.vehicle.vehicle_type.title() if res.vehicle else 'N/A'}",
                                 f"     Trip Type: {res.trip_type.replace('_', ' ').title()}",
                                 f"     Amount: ${res.total_price:.2f}",

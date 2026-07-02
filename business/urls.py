@@ -42,6 +42,7 @@ urlpatterns = [
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="django.contrib.sitemaps.views.sitemap"),
     path("admin/", admin.site.urls),
     path("", include("reservations.urls")),
+    path("", include("pricing.urls")),
     path("", include("services.landing_urls")),
     path("users/", include("users.urls")),
     path("services/", include("services.urls")),
