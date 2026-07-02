@@ -423,6 +423,7 @@
                             <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{{ leg.flight_information.status }}</span>
                           </div>
                         {% endif %}
+                        {% include "dispatching/includes/_overnight_badge.html" with leg=leg %}
 
                         <!-- Collapsible Flight Details -->
                         <div class="mb-1">
@@ -685,16 +686,14 @@
                       <div>
                         <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
                       </div>
-                      {% if leg.get_trip_type != "return" %}
-                        {% if leg.reservation.store_stop %}
-                          <span class="badge bg-success text-white">
-                            <i class="bi bi-shop me-1"></i> Publix Stop
-                          </span>
-                        {% else %}
-                          <span class="badge bg-danger text-white">
-                            <i class="bi bi-shop me-1"></i>No Store
-                          </span>
-                        {% endif %}
+                      {% if leg.shows_store_stop %}
+                        <span class="badge bg-success text-white">
+                          <i class="bi bi-shop me-1"></i> Publix Stop
+                        </span>
+                      {% elif leg.get_trip_type == "arrival" %}
+                        <span class="badge bg-danger text-white">
+                          <i class="bi bi-shop me-1"></i>No Store
+                        </span>
                       {% endif %}
                     </div>
                   </td>
@@ -1001,9 +1000,13 @@
                             <div>
                               <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
                             </div>
-                            {% if leg.get_trip_type != "return" %}
-                              <span class="badge bg-dark text-dark">
-                                <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
+                            {% if leg.shows_store_stop %}
+                              <span class="badge bg-success text-white">
+                                <i class="bi bi-shop me-1"></i> Publix Stop
+                              </span>
+                            {% elif leg.get_trip_type == "arrival" %}
+                              <span class="badge bg-danger text-white">
+                                <i class="bi bi-shop me-1"></i>No Store
                               </span>
                             {% endif %}
                           </div>

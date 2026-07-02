@@ -927,6 +927,7 @@
                   {{ reservation_form.gratuity_percentage }}
                   {{ reservation_form.extra_carseats }}
                   {{ reservation_form.extra_boosters }}
+                  <input type="hidden" name="overnight_takeoff_date" id="overnight_takeoff_date_field" value="">
                 </div>
               </div>
             </section>
@@ -1202,15 +1203,306 @@
                   });
               }
 
-              // Publix modal on store_stop check
+              // Publix stop: details modal on check, hard block while the store is
+              // closed (pickups 9 PM-6 AM can't include a grocery stop — the server
+              // enforces the same rule in reservations/views.py).
+              const PUBLIX_CLOSED_START_HOUR = 21;  // 9 PM
+              const PUBLIX_CLOSED_END_HOUR = 6;     // closed until 5:59 AM
               const storeStopCheckbox = document.querySelector('input[name="store_stop"]');
               const publixModalEl = document.getElementById('publixStopModal');
+              const publixClosedEl = document.getElementById('publixClosedModal');
+              const publixClosedModal = publixClosedEl ? new bootstrap.Modal(publixClosedEl) : null;
+
+              function publixClosedAtPickup() {
+                  // The grocery toggle only renders on MCO-origin routes, so the
+                  // stop always rides on leg 1 (the arrival).
+                  const t = document.querySelector('input[name="leg1-pickup_time"]');
+                  if (!t || !t.value) return false;
+                  const hour = parseInt(t.value.split(':')[0], 10);
+                  if (isNaN(hour)) return false;
+                  return hour >= PUBLIX_CLOSED_START_HOUR || hour < PUBLIX_CLOSED_END_HOUR;
+              }
+
+              function showPublixClosed() {
+                  const t = document.querySelector('input[name="leg1-pickup_time"]');
+                  const whenEl = document.getElementById('publix-closed-when');
+                  if (whenEl && t && t.value) {
+                      const parts = t.value.split(':');
+                      let h = parseInt(parts[0], 10);
+                      const ampm = h < 12 ? 'AM' : 'PM';
+                      h = h % 12 || 12;
+                      whenEl.textContent = h + ':' + parts[1] + ' ' + ampm;
+                  }
+                  if (publixClosedModal) publixClosedModal.show();
+              }
+
               if (storeStopCheckbox && publixModalEl) {
                   const publixModal = new bootstrap.Modal(publixModalEl);
                   storeStopCheckbox.addEventListener('change', function() {
-                      if (this.checked) publixModal.show();
+                      if (!this.checked) return;
+                      if (publixClosedAtPickup()) {
+                          this.checked = false;
+                          showPublixClosed();
+                          return;
+                      }
+                      publixModal.show();
+                  });
+
+                  // Pickup time changed into the closed window with the stop already
+                  // selected — remove it and explain why.
+                  const leg1Time = document.querySelector('input[name="leg1-pickup_time"]');
+                  if (leg1Time) {
+                      leg1Time.addEventListener('change', function() {
+                          if (storeStopCheckbox.checked && publixClosedAtPickup()) {
+                              storeStopCheckbox.checked = false;
+                              showPublixClosed();
+                          }
+                      });
+                  }
+
+                  // Submit backstop (e.g. time typed but never blurred before submit).
+                  const bookingForm = document.querySelector('form.needs-validation');
+                  if (bookingForm) {
+                      bookingForm.addEventListener('submit', function(e) {
+                          if (storeStopCheckbox.checked && publixClosedAtPickup()) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              storeStopCheckbox.checked = false;
+                              showPublixClosed();
+                          }
+                      });
+                  }
+              }
+          });
+      </script>
+
+      <!-- Overnight arrival date confirmation (12 AM-6 AM arrival pickups only) -->
+      <script>
+          document.addEventListener('DOMContentLoaded', function() {
+              const OVERNIGHT_END_HOUR = 6;  // pickups 12:00 AM-5:59 AM count as overnight
+              const form = document.getElementById('reservation_form');
+              const modalEl = document.getElementById('overnightArrivalModal');
+              if (!form || !modalEl || typeof bootstrap === 'undefined') return;
+              const modal = new bootstrap.Modal(modalEl);
+              const takeoffField = document.getElementById('overnight_takeoff_date_field');
+
+              const qEl = document.getElementById('on-question');
+              const loadEl = document.getElementById('on-loading');
+              const resEl = document.getElementById('on-result');
+              const alertEl = document.getElementById('on-result-alert');
+
+              let resolved = false;      // answered or skipped — let the submit through
+              let pendingTakeoff = null; // ISO date the guest picked, committed on Continue
+              let pendingPickup = null;  // ISO pickup date to write back, if it moved
+
+              function val(sel) {
+                  const el = document.querySelector(sel);
+                  return el ? el.value.trim() : '';
+              }
+              function parseISO(iso) {
+                  const p = iso.split('-').map(Number);
+                  return new Date(p[0], p[1] - 1, p[2]);
+              }
+              function toISO(d) {
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const day = String(d.getDate()).padStart(2, '0');
+                  return d.getFullYear() + '-' + m + '-' + day;
+              }
+              function human(iso) {
+                  return parseISO(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+              }
+              function plusDays(iso, n) {
+                  const d = parseISO(iso);
+                  d.setDate(d.getDate() + n);
+                  return toISO(d);
+              }
+              function timeHuman(hhmm) {
+                  const parts = hhmm.split(':');
+                  let h = parseInt(parts[0], 10);
+                  const ampm = h < 12 ? 'AM' : 'PM';
+                  h = h % 12 || 12;
+                  return h + ':' + parts[1] + ' ' + ampm;
+              }
+              function airportish(text) {
+                  const t = text.toLowerCase();
+                  return ['airport', 'mco', 'sfb', 'sanford', 'terminal', 'baggage'].some(k => t.includes(k));
+              }
+
+              // The hard gate: overnight time + arrival flight info entered. A 2 PM
+              // arrival, a 4 AM hotel-to-airport departure run, or any booking with
+              // no flight number never sees this modal.
+              function needsOvernightCheck() {
+                  if (resolved) return false;
+                  const time = val('input[name="leg1-pickup_time"]');
+                  const date = val('input[name="leg1-pickup_date"]');
+                  const airline = val('input[name="flight1-airline"]');
+                  const fnum = val('input[name="flight1-flight_number"]');
+                  if (!time || !date || !airline || !fnum) return false;
+                  const hour = parseInt(time.split(':')[0], 10);
+                  if (isNaN(hour) || hour >= OVERNIGHT_END_HOUR) return false;
+                  const pickupLoc = val('input[name="leg1-pickup_location"]');
+                  if (pickupLoc && !airportish(pickupLoc)) return false;
+                  return true;
+              }
+
+              function show(step) {
+                  qEl.style.display = step === 'q' ? '' : 'none';
+                  loadEl.style.display = step === 'load' ? '' : 'none';
+                  resEl.style.display = step === 'res' ? '' : 'none';
+              }
+
+              function openModal() {
+                  const bookedDate = val('input[name="leg1-pickup_date"]');
+                  const time = val('input[name="leg1-pickup_time"]');
+                  const t = timeHuman(time);
+                  document.getElementById('on-pickup-when').textContent =
+                      human(bookedDate) + ' at ' + t;
+                  // Card 1: take off the night before -> land on the booked date.
+                  document.getElementById('on-prev-label').textContent = human(plusDays(bookedDate, -1));
+                  document.getElementById('on-prev-sub').textContent = human(bookedDate);
+                  document.getElementById('on-prev-time').textContent = t;
+                  document.getElementById('on-prev-verdict').textContent = human(bookedDate);
+                  // Card 2: take off on the booked date -> land (and move pickup) a day later.
+                  document.getElementById('on-same-label').textContent = human(bookedDate);
+                  document.getElementById('on-same-sub').textContent = human(plusDays(bookedDate, 1));
+                  document.getElementById('on-same-time').textContent = t;
+                  document.getElementById('on-same-verdict').textContent = human(plusDays(bookedDate, 1));
+                  pendingTakeoff = null;
+                  pendingPickup = null;
+                  show('q');
+                  modal.show();
+              }
+
+              function finishAndSubmit() {
+                  if (pendingTakeoff && takeoffField) takeoffField.value = pendingTakeoff;
+                  if (pendingPickup) {
+                      const dateInput = document.querySelector('input[name="leg1-pickup_date"]');
+                      if (dateInput) {
+                          dateInput.value = pendingPickup;
+                          dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
+                  }
+                  resolved = true;
+                  modal.hide();
+                  setTimeout(function() {
+                      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+                  }, 200);
+              }
+
+              function showResult(kind, html) {
+                  // kind: success = date confirmed as booked, warning = date moved,
+                  // info = we'll verify by email
+                  const panel = { success: 'on-panel-keep', warning: 'on-panel-move', info: 'on-panel-info' };
+                  alertEl.className = 'on-panel ' + (panel[kind] || 'on-panel-info');
+                  alertEl.innerHTML = html;
+                  show('res');
+              }
+
+              function handleChoice(choice) {
+                  const bookedDate = val('input[name="leg1-pickup_date"]');
+                  const time = val('input[name="leg1-pickup_time"]');
+                  const takeoff = choice === 'prev' ? plusDays(bookedDate, -1) : bookedDate;
+                  // Guest's assertion alone implies: takeoff night-before → booked date
+                  // correct; takeoff on the booked date → landing (and pickup) move +1.
+                  const implied = choice === 'prev' ? bookedDate : plusDays(bookedDate, 1);
+                  pendingTakeoff = takeoff;
+                  show('load');
+
+                  const controller = new AbortController();
+                  const timer = setTimeout(function() { controller.abort(); }, 8000);
+                  const csrf = val('input[name="csrfmiddlewaretoken"]');
+
+                  fetch('{% url "overnight_flight_check" %}', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                      body: JSON.stringify({
+                          airline: val('input[name="flight1-airline"]'),
+                          flight_number: val('input[name="flight1-flight_number"]'),
+                          takeoff_date: takeoff,
+                          pickup_date: bookedDate
+                      }),
+                      signal: controller.signal
+                  })
+                  .then(function(r) { return r.json(); })
+                  .then(function(data) {
+                      clearTimeout(timer);
+                      if (data && data.success && data.found) {
+                          // AeroAPI confirmed the takeoff-date instance — its landing
+                          // date IS the pickup date, whatever the guest originally typed.
+                          const target = data.arrival_date;
+                          if (target !== bookedDate) pendingPickup = target;
+                          if (target === bookedDate) {
+                              showResult('success',
+                                  '<i class="bi bi-check-circle-fill me-2"></i><strong>' + data.flight_label +
+                                  '</strong> takes off ' + human(takeoff) + ' and lands at <strong>' +
+                                  data.arrival_time_human + ' on ' + data.arrival_date_human +
+                                  '</strong> — your pickup date is correct. We\'ll be there when you land.');
+                          } else {
+                              showResult('warning',
+                                  '<i class="bi bi-calendar-check me-2"></i><strong>' + data.flight_label +
+                                  '</strong> takes off ' + human(takeoff) + ' and lands at <strong>' +
+                                  data.arrival_time_human + ' on ' + data.arrival_date_human +
+                                  '</strong> — that\'s the night of ' + human(takeoff) +
+                                  '. We\'ve set your pickup to <strong>' + data.arrival_date_human + ' at ' +
+                                  timeHuman(time) + '</strong> so your driver is there the night you actually arrive.');
+                          }
+                      } else {
+                          // Flight not found — trust the guest's takeoff answer (same as
+                          // the phone call would) and note we'll verify by email.
+                          if (implied !== bookedDate) pendingPickup = implied;
+                          showResult('info',
+                              '<i class="bi bi-envelope-check me-2"></i>Thanks — you take off <strong>' +
+                              human(takeoff) + '</strong>, landing after midnight on <strong>' + human(implied) +
+                              '</strong>' + (implied !== bookedDate
+                                  ? ', so we\'ve set your pickup to <strong>' + human(implied) + '</strong>'
+                                  : ' — your pickup date is correct') +
+                              '. We couldn\'t match your flight number just now, so we\'ll double-check it and email you a confirmation.');
+                      }
+                  })
+                  .catch(function() {
+                      clearTimeout(timer);
+                      // Never block a booking on our flight lookup.
+                      if (implied !== bookedDate) pendingPickup = implied;
+                      showResult('info',
+                          '<i class="bi bi-envelope-check me-2"></i>Thanks — you take off <strong>' +
+                          human(takeoff) + '</strong>, landing after midnight on <strong>' + human(implied) +
+                          '</strong>' + (implied !== bookedDate
+                              ? ', so we\'ve set your pickup to <strong>' + human(implied) + '</strong>'
+                              : ' — your pickup date is correct') +
+                          '. We\'ll confirm your flight details by email.');
                   });
               }
+
+              document.getElementById('on-choice-prev').addEventListener('click', function() { handleChoice('prev'); });
+              document.getElementById('on-choice-same').addEventListener('click', function() { handleChoice('same'); });
+              document.getElementById('on-continue').addEventListener('click', finishAndSubmit);
+              document.getElementById('on-back').addEventListener('click', function() {
+                  pendingTakeoff = null;
+                  pendingPickup = null;
+                  show('q');
+              });
+              document.getElementById('on-skip').addEventListener('click', function() {
+                  // No stamp — the backstop email sweep will follow up.
+                  pendingTakeoff = null;
+                  pendingPickup = null;
+                  resolved = true;
+                  modal.hide();
+                  setTimeout(function() {
+                      if (form.requestSubmit) form.requestSubmit(); else form.submit();
+                  }, 200);
+              });
+
+              // Registered AFTER the validation/UTM listeners in the blocks above, so
+              // by the time this runs any hard-stop (time unavailable) has already
+              // prevented the submit — we only interpose on an otherwise-good submit.
+              form.addEventListener('submit', function(e) {
+                  if (e.defaultPrevented) return;
+                  if (!form.checkValidity()) return;  // let native validation surface first
+                  if (!needsOvernightCheck()) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openModal();
+              });
           });
       </script>
     {% endblock %}
@@ -1312,6 +1604,286 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Got it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Publix stop unavailable (store closed at pickup time — see hours guard JS) -->
+    <div class="modal fade" id="publixClosedModal" tabindex="-1" aria-labelledby="publixClosedModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="publixClosedModalLabel">
+              <i class="bi bi-moon-stars me-2" aria-hidden="true"></i>Publix Stop Unavailable
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-3">
+              We're sorry — we can't include a Publix grocery stop with your pickup at
+              <strong id="publix-closed-when">this time</strong>, because the store is closed then.
+            </p>
+            <div class="alert alert-info mb-0">
+              <h6 class="fw-semibold mb-2">
+                <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Grocery Stop Hours
+              </h6>
+              <p class="mb-0">
+                Grocery stops are available for pickups between <strong>6:00 AM and 9:00 PM</strong>.
+                We've removed the Publix stop from your booking — you can continue without it,
+                or choose a daytime pickup to add it back.
+              </p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Got it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overnight arrival date-confirmation modal (only shown for 12 AM-6 AM
+         arrival pickups with flight info — see overnight JS block) -->
+    <style>
+      /* Scoped to the overnight modal — built from the booking page's own
+         token system (book_form.css :root custom properties). */
+      #overnightArrivalModal .modal-content {
+        border: none;
+        border-radius: var(--gt-radius-lg, 16px);
+        overflow: hidden;
+        box-shadow: var(--gt-shadow-lg, 0 12px 40px rgba(27, 31, 43, 0.12));
+        font-family: var(--gt-font-body, Montserrat, sans-serif);
+      }
+      #overnightArrivalModal .on-header {
+        background:
+          radial-gradient(120% 180% at 85% -30%, rgba(201, 162, 39, 0.22) 0%, rgba(201, 162, 39, 0) 55%),
+          var(--gt-charcoal, #1B1F2B);
+        color: #fff;
+        padding: 1.5rem 1.75rem 1.35rem;
+      }
+      #overnightArrivalModal .on-eyebrow {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-size: 0.6875rem; font-weight: 600;
+        letter-spacing: 0.18em; text-transform: uppercase;
+        color: var(--gt-gold-light, #D4AF37);
+        margin-bottom: 0.5rem;
+      }
+      #overnightArrivalModal .on-title {
+        font-family: var(--gt-font-display, 'Playfair Display', serif);
+        font-size: 1.5rem; font-weight: 600; line-height: 1.25;
+        margin: 0;
+      }
+      #overnightArrivalModal .on-booked-strip {
+        margin-top: 0.85rem;
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        font-size: 0.8125rem; color: rgba(255, 255, 255, 0.82);
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: var(--gt-radius-pill, 9999px);
+        padding: 0.35rem 0.85rem;
+      }
+      #overnightArrivalModal .on-booked-strip strong { color: #fff; font-weight: 600; }
+      #overnightArrivalModal .modal-body { padding: 1.5rem 1.75rem 1.6rem; background: var(--gt-cream, #FAF8F4); }
+      #overnightArrivalModal .on-explain {
+        font-size: 0.875rem; line-height: 1.6; color: var(--gt-slate, #4A5568);
+        margin: 0 0 1.1rem;
+      }
+      #overnightArrivalModal .on-question-label {
+        font-size: 0.9375rem; font-weight: 700; color: var(--gt-charcoal, #1B1F2B);
+        margin: 0 0 0.2rem;
+      }
+      #overnightArrivalModal .on-question-hint {
+        font-size: 0.75rem; color: var(--gt-slate-light, #718096);
+        margin: 0 0 0.9rem;
+      }
+      /* The signature: each answer is a boarding-pass card that draws the
+         takeoff -> after-midnight landing, so the guest SEES the date change. */
+      #overnightArrivalModal .on-card {
+        display: block; width: 100%; text-align: left;
+        background: var(--gt-white, #fff);
+        border: 1.5px solid var(--gt-border, #E8E4DC);
+        border-radius: var(--gt-radius, 12px);
+        padding: 1rem 1.15rem 0.9rem;
+        margin-bottom: 0.75rem;
+        cursor: pointer;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      }
+      #overnightArrivalModal .on-card:hover,
+      #overnightArrivalModal .on-card:focus-visible {
+        border-color: var(--gt-gold, #C9A227);
+        box-shadow: var(--gt-shadow-gold, 0 4px 20px rgba(201, 162, 39, 0.2));
+        transform: translateY(-1px);
+      }
+      #overnightArrivalModal .on-card:focus-visible { outline: 2px solid var(--gt-gold, #C9A227); outline-offset: 2px; }
+      #overnightArrivalModal .on-path {
+        display: flex; align-items: center; gap: 0.65rem;
+      }
+      #overnightArrivalModal .on-endpoint { min-width: 0; }
+      #overnightArrivalModal .on-endpoint-label {
+        font-size: 0.625rem; font-weight: 600; letter-spacing: 0.14em;
+        text-transform: uppercase; color: var(--gt-slate-light, #718096);
+        margin-bottom: 0.1rem; white-space: nowrap;
+      }
+      #overnightArrivalModal .on-endpoint-date {
+        font-family: var(--gt-font-display, 'Playfair Display', serif);
+        font-size: 1.0625rem; font-weight: 600; color: var(--gt-charcoal, #1B1F2B);
+        white-space: nowrap;
+      }
+      #overnightArrivalModal .on-endpoint-time {
+        font-size: 0.71875rem; color: var(--gt-slate, #4A5568); white-space: nowrap;
+      }
+      #overnightArrivalModal .on-track {
+        flex: 1; position: relative; height: 1.25rem; min-width: 3.2rem;
+        border-bottom: 2px dotted var(--gt-gold-muted, #BFA76A);
+        margin-bottom: 0.6rem;
+      }
+      #overnightArrivalModal .on-track .bi-airplane {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -12%) rotate(45deg);
+        color: var(--gt-gold, #C9A227); font-size: 0.9rem;
+        background: var(--gt-white, #fff); padding: 0 0.2rem;
+      }
+      #overnightArrivalModal .on-track .on-midnight {
+        position: absolute; left: 50%; bottom: -1.05rem; transform: translateX(-50%);
+        font-size: 0.5625rem; font-weight: 600; letter-spacing: 0.12em;
+        text-transform: uppercase; color: var(--gt-slate-light, #718096);
+        white-space: nowrap;
+      }
+      #overnightArrivalModal .on-verdict {
+        margin-top: 1.05rem; padding-top: 0.6rem;
+        border-top: 1px dashed var(--gt-border, #E8E4DC);
+        font-size: 0.78125rem; font-weight: 600;
+        display: flex; align-items: center; gap: 0.4rem;
+      }
+      #overnightArrivalModal .on-verdict.on-verdict-keep { color: var(--gt-success, #2D8659); }
+      #overnightArrivalModal .on-verdict.on-verdict-move { color: var(--gt-warning, #B7791F); }
+      #overnightArrivalModal .on-skip-row { text-align: center; margin-top: 0.35rem; }
+      #overnightArrivalModal .on-skip-link {
+        background: none; border: none; padding: 0.25rem 0.5rem;
+        font-size: 0.78125rem; color: var(--gt-slate-light, #718096);
+        text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+      }
+      #overnightArrivalModal .on-skip-link:hover { color: var(--gt-slate, #4A5568); }
+      #overnightArrivalModal .on-spinner {
+        width: 2.25rem; height: 2.25rem; border-width: 3px;
+        color: var(--gt-gold, #C9A227);
+      }
+      #overnightArrivalModal .on-checking-note { font-size: 0.875rem; color: var(--gt-slate, #4A5568); }
+      #overnightArrivalModal .on-panel {
+        border-radius: var(--gt-radius, 12px);
+        padding: 1rem 1.15rem; margin-bottom: 1rem;
+        font-size: 0.875rem; line-height: 1.6; color: var(--gt-charcoal, #1B1F2B);
+        border: 1.5px solid var(--gt-border, #E8E4DC); background: var(--gt-white, #fff);
+      }
+      #overnightArrivalModal .on-panel.on-panel-keep { border-color: rgba(45, 134, 89, 0.4); background: var(--gt-success-bg, rgba(45,134,89,0.08)); }
+      #overnightArrivalModal .on-panel.on-panel-move { border-color: rgba(183, 121, 31, 0.4); background: var(--gt-warning-bg, rgba(183,121,31,0.08)); }
+      #overnightArrivalModal .on-panel.on-panel-info { border-color: rgba(43, 108, 176, 0.35); background: var(--gt-info-bg, rgba(43,108,176,0.08)); }
+      #overnightArrivalModal .on-cta {
+        display: block; width: 100%;
+        background: var(--gt-gold, #C9A227); color: var(--gt-charcoal, #1B1F2B);
+        border: none; border-radius: var(--gt-radius-sm, 8px);
+        font-size: 0.875rem; font-weight: 700; letter-spacing: 0.04em;
+        padding: 0.85rem 1rem; cursor: pointer;
+        transition: filter 0.15s ease, box-shadow 0.15s ease;
+      }
+      #overnightArrivalModal .on-cta:hover { filter: brightness(1.06); box-shadow: var(--gt-shadow-gold, 0 4px 20px rgba(201, 162, 39, 0.2)); }
+      #overnightArrivalModal .on-cta:focus-visible { outline: 2px solid var(--gt-charcoal, #1B1F2B); outline-offset: 2px; }
+      @media (max-width: 420px) {
+        #overnightArrivalModal .on-header, #overnightArrivalModal .modal-body { padding-left: 1.15rem; padding-right: 1.15rem; }
+        #overnightArrivalModal .on-endpoint-date { font-size: 0.9375rem; }
+        #overnightArrivalModal .on-track { min-width: 2.2rem; }
+        #overnightArrivalModal .on-track .on-midnight { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #overnightArrivalModal .on-card, #overnightArrivalModal .on-cta { transition: none; }
+        #overnightArrivalModal .on-card:hover { transform: none; }
+      }
+    </style>
+    <div class="modal fade" id="overnightArrivalModal" tabindex="-1" aria-labelledby="overnightArrivalModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="on-header">
+            <div class="on-eyebrow"><i class="bi bi-moon-stars" aria-hidden="true"></i> Overnight arrival &middot; quick check</div>
+            <h5 class="on-title" id="overnightArrivalModalLabel">Which night do you land?</h5>
+            <div class="on-booked-strip">
+              <i class="bi bi-geo-alt" aria-hidden="true"></i>
+              <span>Pickup booked <strong id="on-pickup-when">just after midnight</strong></span>
+            </div>
+          </div>
+          <div class="modal-body">
+            <!-- Step 1: the takeoff-date question -->
+            <div id="on-question">
+              <p class="on-explain">
+                Flights landing after midnight take off the evening <em>before</em> —
+                the most common booking mix-up there is. Pick the date on your ticket
+                and we'll make sure your driver is there the night you actually arrive.
+              </p>
+              <p class="on-question-label">Which date do you take off?</p>
+              <p class="on-question-hint">The departure date printed on your airline ticket</p>
+
+              <button type="button" class="on-card" id="on-choice-prev">
+                <div class="on-path">
+                  <div class="on-endpoint">
+                    <div class="on-endpoint-label">Take off</div>
+                    <div class="on-endpoint-date" id="on-prev-label"></div>
+                    <div class="on-endpoint-time">evening</div>
+                  </div>
+                  <div class="on-track" aria-hidden="true">
+                    <i class="bi bi-airplane"></i>
+                    <span class="on-midnight">past midnight</span>
+                  </div>
+                  <div class="on-endpoint">
+                    <div class="on-endpoint-label">Land</div>
+                    <div class="on-endpoint-date" id="on-prev-sub"></div>
+                    <div class="on-endpoint-time" id="on-prev-time"></div>
+                  </div>
+                </div>
+                <div class="on-verdict on-verdict-keep">
+                  <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                  <span>Pickup stays <span id="on-prev-verdict"></span> &mdash; as booked</span>
+                </div>
+              </button>
+
+              <button type="button" class="on-card" id="on-choice-same">
+                <div class="on-path">
+                  <div class="on-endpoint">
+                    <div class="on-endpoint-label">Take off</div>
+                    <div class="on-endpoint-date" id="on-same-label"></div>
+                    <div class="on-endpoint-time">evening</div>
+                  </div>
+                  <div class="on-track" aria-hidden="true">
+                    <i class="bi bi-airplane"></i>
+                    <span class="on-midnight">past midnight</span>
+                  </div>
+                  <div class="on-endpoint">
+                    <div class="on-endpoint-label">Land</div>
+                    <div class="on-endpoint-date" id="on-same-sub"></div>
+                    <div class="on-endpoint-time" id="on-same-time"></div>
+                  </div>
+                </div>
+                <div class="on-verdict on-verdict-move">
+                  <i class="bi bi-arrow-right-circle-fill" aria-hidden="true"></i>
+                  <span>Pickup moves to <span id="on-same-verdict"></span></span>
+                </div>
+              </button>
+
+              <div class="on-skip-row">
+                <button type="button" class="on-skip-link" id="on-skip">Not sure right now &mdash; book anyway and we'll confirm by email</button>
+              </div>
+            </div>
+            <!-- Step 2: checking -->
+            <div id="on-loading" class="text-center py-4" style="display: none;">
+              <div class="spinner-border on-spinner" role="status" aria-hidden="true"></div>
+              <p class="mt-3 mb-0 on-checking-note">Checking your flight&hellip;</p>
+            </div>
+            <!-- Step 3: result -->
+            <div id="on-result" style="display: none;">
+              <div id="on-result-alert" class="on-panel" role="alert"></div>
+              <button type="button" class="on-cta" id="on-continue">Continue booking</button>
+              <div class="on-skip-row mt-2">
+                <button type="button" class="on-skip-link" id="on-back">&larr; Change my answer</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

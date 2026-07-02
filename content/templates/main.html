@@ -103,7 +103,18 @@
     {% block content %}{% endblock %}
 
     {% block extra_js %}{% endblock %}
-    {% block sticky_contact %}{% include '_sticky_contact.html' %}{% endblock %}
+    {% block sticky_contact %}
+      {% comment %}
+        Customer-facing call/SMS bubbles — public site only. Hidden on staff
+        and internal surfaces (dispatching, ops, driver portal, admin) where
+        they cover working controls (founder 2026-07-02).
+      {% endcomment %}
+      {% with p=request.path %}
+        {% if p|slice:":12" != "/dispatching" and p|slice:":4" != "/ops" and p|slice:":8" != "/drivers" and p|slice:":6" != "/admin" %}
+          {% include '_sticky_contact.html' %}
+        {% endif %}
+      {% endwith %}
+    {% endblock %}
     {% block footer %}
       {% include 'footer.html' %}
     {% endblock %}

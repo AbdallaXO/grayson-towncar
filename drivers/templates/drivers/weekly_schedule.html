@@ -132,7 +132,7 @@
 
                       {# Live traffic hidden for drivers — dispatch only #}
 
-                      {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
+                      {% if leg.shows_store_stop %}
                         <div class="gt-store-stop mt-2">
                           <i class="bi bi-shop me-1" style="color:var(--gt-green);"></i>
                           <strong>Store Stop</strong> — Publix @9930 Universal Blvd
@@ -520,7 +520,7 @@
 
                 {# Live ETA hidden for drivers — dispatch only #}
 
-                {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
+                {% if leg.shows_store_stop %}
                   <div class="gt-store-stop mb-3">
                     <i class="bi bi-shop me-1" style="color:var(--gt-green);"></i>
                     <strong>Store Stop</strong> — Publix @9930 Universal Blvd

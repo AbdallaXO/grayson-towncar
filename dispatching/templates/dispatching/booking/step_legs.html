@@ -149,6 +149,83 @@
           align-items: center;
           margin-top: 2rem;
       }
+
+      /* Live human-readable echo under the date/time inputs */
+      .date-echo, .time-echo { margin-top: .35rem; font-size: .85rem; color: #475569; min-height: 1.1em; }
+      .date-echo strong, .time-echo strong { color: #0f172a; }
+      .date-echo .rel, .time-echo .rel { color: #64748b; font-weight: 500; }
+      .date-echo .rel.urgent, .time-echo .rel.urgent { color: #b45309; font-weight: 700; }
+
+      /* Sanity-check panel (soft-confirm) */
+      .sanity-panel {
+          border: 2px solid #f59e0b;
+          background: #fffbeb;
+          border-radius: 12px;
+          padding: 1rem 1.15rem;
+          margin-bottom: 1.25rem;
+      }
+      .sanity-panel.shake { animation: sanity-shake .4s; }
+      @keyframes sanity-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+      .sanity-panel .sanity-head {
+          font-weight: 800; color: #92400e; font-size: 1rem;
+          display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;
+      }
+      .sanity-panel .sanity-sub { font-size: .85rem; color: #a16207; margin-bottom: .75rem; }
+      .sanity-list { list-style: none; margin: 0 0 .9rem; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+      .sanity-list li {
+          display: flex; gap: .55rem; align-items: flex-start;
+          font-size: .9rem; color: #1f2937;
+          background: #fff; border: 1px solid #fde68a; border-radius: 8px;
+          padding: .55rem .7rem;
+      }
+      .sanity-list li i { margin-top: .15rem; }
+      .sanity-list li.sev-error { border-color: #fca5a5; background: #fef2f2; color: #7f1d1d; font-weight: 600; }
+      .sanity-list li.sev-error i { color: #dc2626; }
+      .sanity-list li.sev-warning i { color: #d97706; }
+      .sanity-list li.sev-ok { border-color: #bbf7d0; }
+      .sanity-list li.sev-ok i { color: #059669; }
+      .sanity-list li.sev-info { border-color: #e2e8f0; color: #475569; }
+      .sanity-list li.sev-info i { color: #64748b; }
+      /* Routine early-departure runs: calm blue quick-check, not an amber alarm */
+      .sanity-list li.routine { border-color: #bfdbfe; background: #eff6ff; }
+      .sanity-list li.routine i { color: #2563eb; }
+      .sanity-ack.light { border-style: solid; border-color: #bfdbfe; color: #1e40af; }
+      /* Overnight flight-path card (mirrors the guest booking form's visual).
+         Deliberately DARK inside the amber panel — a night-sky card for a
+         night-flight question; founder: the faded yellow was too easy to ignore. */
+      .sanity-list li.has-visual { align-items: flex-start; border: 1.5px solid #f59e0b; }
+      .son-wrap { flex: 1; min-width: 0; }
+      .son-lead { font-size: .85rem; margin-bottom: .5rem; }
+      .son-chip { display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: .14rem .6rem; margin-left: .35rem; vertical-align: 1px; white-space: nowrap; }
+      .son-chip-ok { background: #10b981; color: #fff; }
+      .son-chip-ex { background: #f59e0b; color: #431407; }
+      .son-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: .8rem 1rem .65rem; box-shadow: 0 4px 14px rgba(15, 23, 42, .28); }
+      .son-path { display: flex; align-items: center; gap: .8rem; }
+      .son-end { min-width: 0; }
+      .son-label { font-size: .6rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #94a3b8; }
+      .son-date { font-size: 1.05rem; font-weight: 700; color: #fff; white-space: nowrap; }
+      .son-time { font-size: .72rem; color: #cbd5e1; white-space: nowrap; }
+      .son-track { flex: 1; position: relative; border-bottom: 2px dotted #f59e0b; height: 1.1rem; margin-bottom: .8rem; min-width: 3rem; }
+      .son-track .fa-plane { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -30%); color: #fbbf24; background: #0f172a; padding: 0 .25rem; font-size: .8rem; }
+      .son-track span { position: absolute; left: 50%; bottom: -1rem; transform: translateX(-50%); font-size: .56rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #fbbf24; white-space: nowrap; }
+      .son-verdicts { border-top: 1px dashed #475569; margin-top: .85rem; padding-top: .55rem; display: flex; flex-direction: column; gap: .3rem; }
+      .son-verdict { font-size: .78rem; font-weight: 600; }
+      .son-verdict.ok { color: #6ee7b7; }
+      .son-verdict.warn { color: #fcd34d; }
+      .sanity-list li .son-verdict.ok i { color: #34d399; }
+      .sanity-list li .son-verdict.warn i { color: #fbbf24; }
+      .son-footnote { font-size: .72rem; color: #92400e; margin-top: .4rem; }
+      @media (max-width: 520px) {
+        .son-track span { display: none; }
+        .son-date { font-size: .9rem; }
+      }
+      .sanity-ack {
+          display: flex; gap: .6rem; align-items: flex-start;
+          background: #fff; border: 1px dashed #f59e0b; border-radius: 8px;
+          padding: .65rem .8rem; cursor: pointer;
+          font-weight: 600; color: #92400e; font-size: .9rem;
+      }
+      .sanity-ack input { margin-top: .2rem; }
   </style>
 
   <form method="post" class="needs-validation" novalidate>
@@ -175,6 +252,96 @@
             {% for error in flight_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
           </ul>
         </div>
+      </div>
+    {% endif %}
+
+    {# Sanity-check panel: 'warning' items soft-confirm via the acknowledge box; #}
+    {# 'error' items (Publix stop while the store is closed) hard-block until fixed #}
+    {% if sanity_panel %}
+      <div class="sanity-panel" id="sanityPanel">
+        <div class="sanity-head">
+          <i class="fas fa-exclamation-triangle"></i>
+          {% if sanity_panel.error_count %}This booking can't proceed as entered{% else %}Double-check before continuing{% endif %}
+        </div>
+        <div class="sanity-sub">
+          {% if sanity_panel.error_count %}
+            The item{{ sanity_panel.error_count|pluralize }} in red must be fixed — acknowledging won't bypass {{ sanity_panel.error_count|pluralize:"it,them" }}.
+          {% endif %}
+          {% if sanity_panel.light_ack %}
+            Quick check below — tick the box to proceed.
+          {% elif sanity_panel.blocking_count %}
+            {{ sanity_panel.blocking_count }} item{{ sanity_panel.blocking_count|pluralize }} below
+            look{{ sanity_panel.blocking_count|pluralize:"s," }} unusual. Fix the field if it's a typo —
+            or confirm with the customer and acknowledge to proceed.
+          {% endif %}
+        </div>
+        <ul class="sanity-list">
+          {% for w in sanity_panel.warnings %}
+            <li class="sev-{{ w.severity }}{% if w.visual %} has-visual{% endif %}{% if w.code == 'early_morning_departure' %} routine{% endif %}">
+              {% if w.severity == 'ok' %}<i class="fas fa-check-circle"></i>
+              {% elif w.severity == 'info' %}<i class="fas fa-info-circle"></i>
+              {% elif w.severity == 'error' %}<i class="fas fa-ban"></i>
+              {% elif w.code == 'early_morning_departure' %}<i class="fas fa-clock"></i>
+              {% elif w.visual %}<i class="fas fa-moon"></i>
+              {% else %}<i class="fas fa-exclamation-triangle"></i>{% endif %}
+              {% if w.visual.kind == 'overnight' %}
+                <div class="son-wrap">
+                  <div class="son-lead">
+                    <strong>Leg {{ w.leg }} — overnight arrival:</strong>
+                    the flight takes off the day <strong>before</strong> it lands.
+                    {% if w.visual.verified %}
+                      <span class="son-chip son-chip-ok"><i class="fas fa-check"></i> Schedule verified</span>
+                    {% else %}
+                      <span class="son-chip son-chip-ex">Check the guest's ticket</span>
+                    {% endif %}
+                  </div>
+                  <div class="son-card">
+                    <div class="son-path">
+                      <div class="son-end">
+                        <div class="son-label">Take off</div>
+                        <div class="son-date">{{ w.visual.takeoff_date }}</div>
+                        <div class="son-time">{% if w.visual.origin %}{{ w.visual.origin }} · {% endif %}{{ w.visual.takeoff_time }}</div>
+                      </div>
+                      <div class="son-track" aria-hidden="true">
+                        <i class="fas fa-plane"></i>
+                        <span>past midnight</span>
+                      </div>
+                      <div class="son-end">
+                        <div class="son-label">Land</div>
+                        <div class="son-date">{{ w.visual.land_date }}</div>
+                        <div class="son-time">{{ w.visual.dest }} · {{ w.visual.land_time }}</div>
+                      </div>
+                    </div>
+                    <div class="son-verdicts">
+                      <div class="son-verdict ok">
+                        <i class="fas fa-check-circle"></i>
+                        Ticket departs {{ w.visual.takeoff_date }} → this pickup ({{ w.visual.land_date }}) is correct
+                      </div>
+                      <div class="son-verdict warn">
+                        <i class="fas fa-arrow-right"></i>
+                        Ticket departs {{ w.visual.wrong_depart_date }} → guest lands {{ w.visual.wrong_land_date }} — pickup would be a day early
+                      </div>
+                    </div>
+                  </div>
+                  {% if w.visual.footnote %}<div class="son-footnote">{{ w.visual.footnote }}</div>{% endif %}
+                </div>
+              {% else %}
+                <span>{{ w.message }}</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        {% if sanity_panel.blocking_count %}
+          <label class="sanity-ack{% if sanity_panel.light_ack %} light{% endif %}">
+            <input type="checkbox" name="sanity_ack" value="1" id="sanityAck">
+            {% if sanity_panel.light_ack %}
+              <span>Yes — these are morning (AM) times. Proceed.</span>
+            {% else %}
+              <span>I've double-checked these details with the customer — they are correct. Proceed.</span>
+            {% endif %}
+          </label>
+        {% endif %}
+        <input type="hidden" name="sanity_ack_token" value="{{ sanity_panel.token }}">
       </div>
     {% endif %}
 
@@ -461,6 +628,76 @@
                   if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
               }
           });
+
+          // Sanity panel: acknowledgment required before resubmitting (server re-checks too)
+          const sanityPanel = document.getElementById('sanityPanel');
+          if (sanityPanel) {
+              sanityPanel.scrollIntoView({behavior:'smooth', block:'center'});
+              form.addEventListener('submit', function(e) {
+                  const ack = document.getElementById('sanityAck');
+                  if (ack && !ack.checked) {
+                      e.preventDefault();
+                      sanityPanel.classList.add('shake');
+                      setTimeout(() => sanityPanel.classList.remove('shake'), 500);
+                      sanityPanel.scrollIntoView({behavior:'smooth', block:'center'});
+                  }
+              });
+          }
+
+          // Live human-readable echo: weekday + relative day under each date,
+          // 12-hour time (with an after-midnight nudge) under each time.
+          function two(n) { return String(n).padStart(2, '0'); }
+          function ensureEcho(input, cls) {
+              let echo = input.parentElement.querySelector('.' + cls);
+              if (!echo) {
+                  echo = document.createElement('div');
+                  echo.className = cls;
+                  input.insertAdjacentElement('afterend', echo);
+              }
+              return echo;
+          }
+          function updateDateEcho(input) {
+              const echo = ensureEcho(input, 'date-echo');
+              const parts = (input.value || '').split('-').map(Number);
+              if (parts.length !== 3 || parts.some(isNaN)) { echo.textContent = ''; return; }
+              const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+              const now = new Date();
+              const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const diffDays = Math.round((dt - todayMid) / 86400000);
+              const weekday = dt.toLocaleDateString('en-US', {weekday: 'long'});
+              const nice = dt.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
+              let rel, urgent = false;
+              if (diffDays === 0) { rel = 'TODAY'; urgent = true; }
+              else if (diffDays === 1) { rel = 'tomorrow'; }
+              else if (diffDays > 365) { rel = 'in ' + diffDays + ' days — check the year!'; urgent = true; }
+              else if (diffDays < 0) { rel = diffDays + ' days (past!)'; urgent = true; }
+              else { rel = 'in ' + diffDays + ' days'; }
+              echo.innerHTML = '<strong>' + weekday + '</strong>, ' + nice +
+                  ' <span class="rel' + (urgent ? ' urgent' : '') + '">· ' + rel + '</span>';
+          }
+          function updateTimeEcho(input) {
+              const echo = ensureEcho(input, 'time-echo');
+              const parts = (input.value || '').split(':').map(Number);
+              if (parts.length < 2 || parts.some(isNaN)) { echo.textContent = ''; return; }
+              const hh = parts[0], mm = parts[1];
+              const h12 = ((hh + 11) % 12) + 1;
+              const ampm = hh < 12 ? 'AM' : 'PM';
+              let html = '<strong>' + h12 + ':' + two(mm) + ' ' + ampm + '</strong>';
+              if (hh < 5) {
+                  html += ' <span class="rel urgent">· after midnight — not ' +
+                          h12 + ':' + two(mm) + ' PM?</span>';
+              }
+              echo.innerHTML = html;
+          }
+          function refreshEchoes(root) {
+              root.querySelectorAll('input[name$="pickup_date"]').forEach(updateDateEcho);
+              root.querySelectorAll('input[name$="pickup_time"]').forEach(updateTimeEcho);
+          }
+          ['input', 'change'].forEach(evt => form.addEventListener(evt, function(e) {
+              if (e.target.matches && e.target.matches('input[name$="pickup_date"]')) updateDateEcho(e.target);
+              if (e.target.matches && e.target.matches('input[name$="pickup_time"]')) updateTimeEcho(e.target);
+          }));
+          refreshEchoes(form);
           form.querySelectorAll('input,select,textarea').forEach(el => {
               el.addEventListener('input', () => el.classList.remove('is-invalid'));
           });

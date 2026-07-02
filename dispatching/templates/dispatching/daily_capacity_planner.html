@@ -2085,7 +2085,7 @@
                                     </span>
                                     {% if leg.effective_vehicle_type %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.effective_vehicle_type|upper }}</span>{% endif %}
                                     {% if sb_status != 'paid' %}<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>{% endif %}
-                                    {% if leg.reservation and leg.reservation.store_stop %}<span class="badge" style="font-size:0.55rem; padding:0.1rem 0.3rem; background:#2e7d32; color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>{% endif %}
+                                    {% if leg.shows_store_stop %}<span class="badge" style="font-size:0.55rem; padding:0.1rem 0.3rem; background:#2e7d32; color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>{% endif %}
                                     <span class="text-muted" style="font-size:0.8rem;">
                                         {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}
                                     </span>

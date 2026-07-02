@@ -1,0 +1,207 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Confirm your pickup night — Grayson Towncar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0C1B33;
+    --gold: #C89B3C;
+    --bg: #EFEFED;
+    --card-bg: #FFFFFF;
+    --border: #E8E4DC;
+    --soft: #F5F3EE;
+    --text: #1A1A2E;
+    --muted: #5C6878;
+    --hint: #9AAABB;
+    --danger: #B33A3A;
+    --success: #2E7D32;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 32px 20px 56px; }
+  .card {
+    background: var(--card-bg);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(12, 27, 51, 0.08);
+  }
+  .card-header { background: var(--navy); padding: 36px 38px 30px; color: #fff; }
+  .gold-rule { width: 36px; height: 2px; background: var(--gold); margin-bottom: 14px; }
+  .brand {
+    margin: 0;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 24px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .card-header .lede {
+    margin: 18px 0 0;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 21px; font-style: italic; color: #E8E4DC; line-height: 1.5;
+  }
+  .card-header .lede strong { color: var(--gold); font-style: normal; font-weight: 600; }
+  .card-header .meta { margin: 8px 0 0; font-size: 12px; color: #9AAABB; font-weight: 300; }
+  .card-body { padding: 32px 38px 36px; }
+  .explain { font-size: 14.5px; line-height: 1.65; color: var(--text); margin: 0 0 22px; }
+  .explain strong { color: var(--navy); }
+  .choice {
+    display: block;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .choice input { margin-right: 10px; accent-color: var(--gold); }
+  .choice.selected, .choice:hover { border-color: var(--gold); background: var(--soft); }
+  .choice .headline { font-size: 15px; font-weight: 500; color: var(--navy); }
+  .choice .detail { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .btn {
+    display: block; width: 100%;
+    background: var(--gold); color: var(--navy);
+    border: none; border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 16px 20px; margin-top: 8px; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .fine { font-size: 12.5px; color: var(--hint); line-height: 1.6; margin: 18px 0 0; }
+  .fine a { color: var(--muted); }
+  .done-box {
+    background: var(--soft);
+    border-left: 3px solid var(--success);
+    padding: 20px 22px;
+    margin-bottom: 8px;
+  }
+  .done-box.moved { border-left-color: var(--gold); }
+  .done-box h2 {
+    margin: 0 0 8px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 22px; color: var(--navy);
+  }
+  .done-box p { margin: 0; font-size: 14.5px; line-height: 1.65; }
+  .error-box {
+    background: #FBF1F1;
+    border-left: 3px solid var(--danger);
+    padding: 16px 20px;
+    margin-bottom: 22px;
+    font-size: 14px; line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="card-header">
+      <div class="gold-rule"></div>
+      <h1 class="brand">Grayson Towncar</h1>
+      {% if status == "error" %}
+        <p class="lede">One quick question, <strong>{{ customer_first_name }}.</strong></p>
+      {% elif status == "done" %}
+        <p class="lede">You're all set, <strong>{{ customer_first_name }}.</strong></p>
+      {% else %}
+        <p class="lede">Which night do you land, <strong>{{ customer_first_name }}?</strong></p>
+      {% endif %}
+      {% if pickup_date_str %}
+        <p class="meta">Pickup booked for {{ pickup_date_str }} · {{ pickup_time_str }} · {{ flight_label }}</p>
+      {% endif %}
+    </div>
+    <div class="card-body">
+
+      {% if error %}
+        <div class="error-box">{{ error }}</div>
+      {% endif %}
+
+      {% if status == "done" %}
+        {% if just_confirmed and moved %}
+          <div class="done-box moved">
+            <h2>Pickup moved to {{ pickup_date_str }}</h2>
+            <p>
+              You take off on <strong>{{ takeoff_str }}</strong> and land just after midnight,
+              so your pickup is now <strong>{{ pickup_date_str }} at {{ pickup_time_str }}</strong>
+              — the night of {{ takeoff_str }}. Your driver will be there when you land,
+              and we track your flight for delays.
+            </p>
+          </div>
+        {% elif just_confirmed %}
+          <div class="done-box">
+            <h2>Confirmed — see you {{ pickup_date_str }}</h2>
+            <p>
+              You take off on <strong>{{ takeoff_str }}</strong> and land just after midnight
+              on <strong>{{ pickup_date_str }}</strong> — exactly as booked. Your pickup stays
+              <strong>{{ pickup_date_str }} at {{ pickup_time_str }}</strong>, and we track your
+              flight for delays.
+            </p>
+          </div>
+        {% else %}
+          <div class="done-box">
+            <h2>Your pickup night is confirmed</h2>
+            <p>
+              We have your pickup on <strong>{{ pickup_date_str }} at {{ pickup_time_str }}</strong>
+              and your date is already confirmed. Nothing else to do — we track your flight for delays.
+            </p>
+          </div>
+        {% endif %}
+        <p class="fine">Plans changed? Just reply to our email or call the office and we'll adjust.</p>
+
+      {% elif status != "error" %}
+        <p class="explain">
+          Your pickup is booked for <strong>{{ pickup_date_str }} at {{ pickup_time_str }}</strong> —
+          just after midnight. Overnight flights take off the evening <em>before</em> they land,
+          which makes this the single most common booking mix-up. One tap settles it:
+          <strong>which date do you take off</strong> (the date printed on your airline ticket)?
+        </p>
+
+        <form method="post">
+          {% csrf_token %}
+          <label class="choice {% if preselect == 'prev' %}selected{% endif %}">
+            <input type="radio" name="choice" value="prev" {% if preselect == 'prev' %}checked{% endif %} required>
+            <span class="headline">I take off {{ prev_day_str }}</span>
+            <div class="detail">
+              You land after midnight on {{ same_day_str }} — your booked pickup
+              ({{ same_day_str }}, {{ pickup_time_str }}) is <strong>correct as-is</strong>.
+            </div>
+          </label>
+          <label class="choice {% if preselect == 'same' %}selected{% endif %}">
+            <input type="radio" name="choice" value="same" {% if preselect == 'same' %}checked{% endif %}>
+            <span class="headline">I take off {{ same_day_str }}</span>
+            <div class="detail">
+              You land after midnight on {{ next_day_str }} — we'll <strong>move your pickup
+              to {{ next_day_str }}, {{ pickup_time_str }}</strong> so your driver is there
+              the night you actually arrive.
+            </div>
+          </label>
+          <button type="submit" class="btn">Confirm my pickup night</button>
+        </form>
+        <p class="fine">
+          Neither one matches, or not sure? Reply to our email with a photo of your
+          itinerary and we'll set it up by hand.
+        </p>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelectorAll('.choice input').forEach(function (r) {
+    r.addEventListener('change', function () {
+      document.querySelectorAll('.choice').forEach(function (c) { c.classList.remove('selected'); });
+      r.closest('.choice').classList.add('selected');
+    });
+  });
+</script>
+</body>
+</html>

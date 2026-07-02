@@ -93,6 +93,38 @@ def index(request):
     return render(request, "reservations/index.html", context)
 
 
+def _stamp_overnight_from_post(request, leg):
+    """Persist the guest's takeoff date from the booking form's overnight popup.
+
+    Only fires for real overnight arrivals (the shared gate re-checks server-side,
+    so a tampered hidden field can't stamp a daytime leg), and only accepts the
+    two dates the popup can legitimately produce."""
+    raw = (request.POST.get("overnight_takeoff_date") or "").strip()
+    if not raw or not leg.flight_information or not leg.pickup_date:
+        return
+    try:
+        takeoff = date.fromisoformat(raw)
+    except ValueError:
+        return
+    # After the popup resolves, takeoff is pickup_date-1 (normal red-eye) or
+    # pickup_date (rare after-midnight takeoff landing the same night).
+    if takeoff not in (leg.pickup_date, leg.pickup_date - timedelta(days=1)):
+        return
+    try:
+        from dispatching.overnight_arrival import (
+            leg_in_overnight_window,
+            stamp_overnight_confirmed,
+        )
+
+        if leg_in_overnight_window(leg):
+            stamp_overnight_confirmed(leg, takeoff, source="booking_form")
+            logger.info(
+                f"Overnight takeoff date confirmed at booking: leg={leg.id} takeoff={takeoff}"
+            )
+    except Exception as e:
+        logger.warning(f"overnight stamp failed for leg {leg.id}: {e}")
+
+
 def reservation_form(
     request, pk
 ) -> HttpResponsePermanentRedirect | HttpResponseRedirect | HttpResponse:
@@ -122,6 +154,28 @@ def reservation_form(
             leg2_form,
             trip_type,
         )
+
+        # Publix grocery stop is only possible while the store is open. The
+        # toggle is only offered on MCO-origin routes, so leg 1 is the arrival
+        # the stop rides on. The booking page blocks this with a popup; this is
+        # the server-side backstop (shared rule in dispatching.booking_guards).
+        if forms_valid and reservation_form.cleaned_data.get("store_stop"):
+            from dispatching.booking_guards import (
+                PUBLIX_CLOSED_END_HOUR,
+                PUBLIX_CLOSED_START_HOUR,
+                publix_closed_at,
+            )
+
+            if publix_closed_at(leg1_form.cleaned_data.get("pickup_time")):
+                reservation_form.add_error(
+                    "store_stop",
+                    f"Publix is closed at your pickup time — grocery stops are "
+                    f"available for pickups between {PUBLIX_CLOSED_END_HOUR}:00 AM "
+                    f"and {PUBLIX_CLOSED_START_HOUR - 12}:00 PM. Please remove the "
+                    f"Publix stop, or choose a daytime pickup.",
+                )
+                forms_valid = False
+
         if forms_valid:
             # Clean up recent unpaid duplicates from the same person + route + date
             # so only the latest (most accurate) submission survives.
@@ -235,6 +289,10 @@ def reservation_form(
             else:
                 leg1.cruise_information = None
             leg1.save()
+
+            # Overnight arrival (12 AM-6 AM): the popup asked which date the
+            # guest takes off — persist it so nobody has to call and ask.
+            _stamp_overnight_from_post(request, leg1)
 
             if trip_type == "round_trip":
                 leg2 = leg2_form.save(commit=False)

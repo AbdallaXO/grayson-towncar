@@ -105,6 +105,16 @@ def _ctx_from_leg(leg, *, form_airline=None, form_flight_number=None, token=""):
     }
 
 
+def new_flight_label_differs(old_flight_label, flight) -> bool:
+    """True when a verification submit changed which flight is on file (vs. a
+    reconfirmation of the same airline + number)."""
+    new_label = (
+        f"{(flight.airline_display_name or flight.airline or '').strip()} "
+        f"{(flight.flight_number or '').strip()}"
+    ).strip()
+    return new_label.lower() != (old_flight_label or "").strip().lower()
+
+
 def _render_expired(request, message):
     """Render a minimal version of the page in an error state."""
     return render(
@@ -198,6 +208,7 @@ def flight_verification_public(request, token):
         flight.airline_display_name = ""  # let save() refill from normalized code
         flight.flight_number = raw_flight
         # Clear stale tracking fields so the next refresh repopulates them cleanly
+        flight.departure_date = None  # a takeoff date confirmed for the OLD flight no longer applies
         flight.flight_iata = ""
         flight.status = ""
         flight.scheduled_arrival_local = None
@@ -296,6 +307,21 @@ def flight_verification_public(request, token):
         logger.warning(
             f"flight_verification_public: clear-sent-at failed for leg {leg.id}: {e}"
         )
+
+    # If the flight IDENTITY changed, any overnight "which night do you land?"
+    # answer belonged to the old flight — reset so the sweep re-asks against
+    # the new one. Same-flight reconfirmations keep their stamps.
+    if new_flight_label_differs(old_flight_label, flight):
+        try:
+            Leg.objects.filter(pk=leg.pk).update(
+                overnight_confirmed_at=None,
+                overnight_confirm_sent_at=None,
+                overnight_confirmed_source="",
+            )
+        except Exception as e:
+            logger.warning(
+                f"flight_verification_public: overnight reset failed for leg {leg.id}: {e}"
+            )
 
     # Close any open FLIGHT_VERIFICATION ops task — the guest has acted.
     try:

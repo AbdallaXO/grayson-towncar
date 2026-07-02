@@ -317,6 +317,11 @@ class AeroAPIService:
             'flight_status': 'Scheduled',
             'data_source': 'schedules',  # Lets callers know this is schedule-only data
 
+            # Gate departure in Eastern — lets callers verify the selected schedule
+            # actually departs on the date they asked for (get_scheduled_flight falls
+            # back to the next available departure when the target date has none).
+            'scheduled_departure_local': scheduled_out,
+
             'scheduled_runway_arrival_local': scheduled_runway_arrival,
             'estimated_runway_arrival_local': None,
             'actual_runway_arrival_local': None,

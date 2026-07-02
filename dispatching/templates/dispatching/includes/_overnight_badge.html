@@ -1,0 +1,85 @@
+{% comment %}
+Overnight-arrival date status for a leg row (12 AM-6 AM tracked arrivals only).
+Renders nothing for legs outside the window. Include with the leg in context:
+  {% include "dispatching/includes/_overnight_badge.html" with leg=leg %}
+Two states, phrased the way dispatch says it on the phone —
+"departs the 17th, getting in the 18th":
+  confirmed   -> green callout: Departs <takeoff> -> lands <pickup date>
+  unconfirmed -> amber callout: which night? + where the auto-ask stands
+{% endcomment %}
+{% if leg.overnight_date_status == 'unconfirmed' %}
+  <div class="mt-1"
+       style="border-left: 3px solid #B7791F; background: rgba(183, 121, 31, 0.10); padding: 0.28rem 0.5rem; border-radius: 0 4px 4px 0;"
+       title="Overnight pickup (12 AM–6 AM): the same flight number lands every night, so the booked date is unverified until the guest tells us which date they TAKE OFF. The system asks them by email automatically — call only if this is still amber the day before pickup.">
+    <div style="font-size: 0.8rem; font-weight: 700; color: #8a5a14; line-height: 1.3;">
+      <i class="bi bi-moon-stars me-1"></i>Which night? &mdash; unverified
+    </div>
+    <div style="font-size: 0.73rem; color: #6b5d43; line-height: 1.35; margin-top: 1px;">
+      {% if leg.overnight_confirm_sent_at %}
+        Guest emailed &mdash; awaiting their answer
+      {% else %}
+        Auto-email will ask the guest shortly
+      {% endif %}
+    </div>
+    {# Dispatcher shortcut: record the guest's answer after a text/call. #}
+    <div class="d-flex gap-1 flex-wrap" style="margin-top: 0.3rem;">
+      <button type="button" class="btn btn-outline-success on-staff-confirm"
+              style="font-size: 0.68rem; padding: 0.1rem 0.4rem; line-height: 1.4;"
+              data-leg-id="{{ leg.id }}" data-choice="prev"
+              data-msg="Guest takes off {{ leg.overnight_prev_day|date:'D, M j' }} and lands {{ leg.pickup_date|date:'D, M j' }} — the booked pickup date is CORRECT. Record their answer?"
+              title="Guest told you (text/call) they take off {{ leg.overnight_prev_day|date:'D, M j' }} — pickup stays as booked">
+        <i class="bi bi-check-lg"></i> Departs {{ leg.overnight_prev_day|date:'M j' }}
+      </button>
+      <button type="button" class="btn btn-outline-warning on-staff-confirm"
+              style="font-size: 0.68rem; padding: 0.1rem 0.4rem; line-height: 1.4; color: #8a5a14; border-color: #B7791F;"
+              data-leg-id="{{ leg.id }}" data-choice="same"
+              data-msg="Guest takes off {{ leg.pickup_date|date:'D, M j' }} and lands {{ leg.overnight_next_day|date:'D, M j' }} — this MOVES the pickup to {{ leg.overnight_next_day|date:'D, M j' }}. Record their answer and move it?"
+              title="Guest told you they take off {{ leg.pickup_date|date:'D, M j' }} — pickup moves to {{ leg.overnight_next_day|date:'D, M j' }}">
+        Departs {{ leg.pickup_date|date:'M j' }} <i class="bi bi-arrow-right" style="font-size: 0.6rem;"></i> move
+      </button>
+    </div>
+  </div>
+  <script>
+    // Delegated once per page, not per row (the include renders per leg).
+    if (!window.__overnightStaffConfirmInit) {
+      window.__overnightStaffConfirmInit = true;
+      document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.on-staff-confirm');
+        if (!btn) return;
+        if (!window.confirm(btn.dataset.msg)) return;
+        btn.disabled = true;
+        const csrf = (document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/) || [])[1] || '';
+        fetch('{% url "overnight_staff_confirm" %}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+          body: JSON.stringify({ leg_id: parseInt(btn.dataset.legId, 10), choice: btn.dataset.choice }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.success) { window.location.reload(); return; }
+            btn.disabled = false;
+            window.alert((data && data.error) || 'Could not record the answer — try again.');
+          })
+          .catch(function () {
+            btn.disabled = false;
+            window.alert('Could not record the answer — check your connection and try again.');
+          });
+      });
+    }
+  </script>
+{% elif leg.overnight_date_status == 'confirmed' %}
+  <div class="mt-1"
+       style="border-left: 3px solid #2D8659; background: rgba(45, 134, 89, 0.09); padding: 0.28rem 0.5rem; border-radius: 0 4px 4px 0;"
+       title="The guest confirmed which date they take off ({{ leg.overnight_confirmed_source }}), so the pickup night is verified — no confirmation call needed.">
+    <div style="font-size: 0.8rem; font-weight: 700; color: #1b5e20; line-height: 1.3;">
+      <i class="bi bi-moon-stars-fill me-1"></i>Overnight verified <i class="bi bi-check-circle-fill" style="font-size: 0.7rem;"></i>
+    </div>
+    <div style="font-size: 0.73rem; color: #2f4f39; line-height: 1.35; margin-top: 1px;">
+      {% if leg.flight_information.departure_date %}
+        Departs {{ leg.flight_information.departure_date|date:'D, M j' }} <i class="bi bi-arrow-right" style="font-size: 0.6rem;"></i> lands {{ leg.pickup_date|date:'D, M j' }}
+      {% else %}
+        Guest confirmed the pickup night
+      {% endif %}
+    </div>
+  </div>
+{% endif %}

@@ -149,6 +149,23 @@ def _run_batch_tasks():
     except Exception as e:
         logger.error(f"auto_refresh_flights error: {e}", exc_info=True)
 
+    # 6b. Overnight-arrival date confirmation sweep (every 12 cycles = every
+    #     6 hours). Sends the one-tap "which night do you take off?" email to
+    #     guests with unconfirmed 12 AM-6 AM arrival pickups in the next 2
+    #     weeks. Each leg is asked exactly once (stamped), and the per-run cap
+    #     keeps the AeroAPI budget bounded.
+    if _cycle_count % 12 == 0:
+        try:
+            from dispatching.overnight_arrival import overnight_confirm_sweep
+            result = overnight_confirm_sweep()
+            if result and (result.get("sent") or result.get("tasks")):
+                logger.info(
+                    f"Overnight sweep: {result.get('sent', 0)} one-tap emails, "
+                    f"{result.get('tasks', 0)} tasks"
+                )
+        except Exception as e:
+            logger.error(f"overnight_confirm_sweep error: {e}", exc_info=True)
+
     # 7. Ops task generation — scan for flight mismatches, driver conflicts,
     #    unassigned legs, unpaid reservations, auto-close, snooze expiry
     try:

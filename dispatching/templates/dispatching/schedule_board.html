@@ -522,6 +522,67 @@
       </div>
     {% endif %}
 
+    {% comment %}
+      Overnight tail (same night-crew rule as the dashboard): tomorrow's
+      12-2 AM jobs, read-only. Not merged into the drag timeline — drivers
+      watch this board live and cross-date lanes would scramble the hours.
+    {% endcomment %}
+    {% if overnight_tail_legs %}
+      <style>
+        .ot-strip { border: 1px solid rgba(51, 65, 85, 0.5); border-radius: 10px; overflow: hidden; margin-top: 1rem; }
+        .ot-strip-head { display: flex; align-items: center; gap: 0.6rem; background: #0f172a; color: #fff; padding: 0.55rem 0.9rem; font-size: 0.85rem; }
+        .ot-strip-head > i { color: #fbbf24; }
+        .ot-strip-sub { color: #cbd5e1; font-size: 0.78rem; }
+        .ot-strip-sub strong { color: #fbbf24; }
+        .ot-strip-open { margin-left: auto; white-space: nowrap; }
+        .ot-strip-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.6rem 0.9rem; background: #fff; }
+        .ot-chip { display: inline-flex; align-items: center; gap: 0.45rem; border: 1px solid #cbd5e1; border-radius: 999px; padding: 0.25rem 0.7rem; font-size: 0.78rem; color: #1e293b; text-decoration: none; background: #f8fafc; }
+        .ot-chip:hover { border-color: #0f172a; background: #f1f5f9; color: #0f172a; }
+        .ot-chip-time { font-weight: 700; }
+        .ot-chip-date { color: #64748b; }
+        .ot-chip .ot-ok { color: #059669; }
+        .ot-chip .ot-warn { color: #d97706; }
+        .ot-chip-driver { color: #334155; font-weight: 600; }
+        .ot-chip-unassigned { color: #b91c1c; font-weight: 700; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.04em; }
+      </style>
+      <div class="ot-strip" id="overnightTailStrip">
+        <div class="ot-strip-head">
+          <i class="bi bi-moon-stars-fill"></i>
+          <strong>After midnight</strong>
+          <span class="ot-strip-sub">
+            {{ overnight_tail_legs|length }} job{{ overnight_tail_legs|length|pluralize }} between
+            <strong>12&ndash;2 AM</strong> dated <strong>{{ next_date|date:'D, M j' }}</strong>
+            &mdash; the tail of this shift, on its real date
+          </span>
+          <a class="btn btn-sm btn-outline-light ot-strip-open" href="?date={{ next_date|date:'Y-m-d' }}">
+            Open {{ next_date|date:'M j' }} board <i class="bi bi-chevron-right"></i>
+          </a>
+        </div>
+        <div class="ot-strip-chips">
+          {% for leg in overnight_tail_legs %}
+            <a class="ot-chip" href="?date={{ next_date|date:'Y-m-d' }}"
+               title="{{ leg.pickup_time|date:'g:i A' }} on {{ leg.pickup_date|date:'D, M j' }} — {{ leg.reservation.customer }} · {{ leg.pickup_location }} → {{ leg.dropoff_location }}{% if leg.flight_information %} · {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}{% endif %} · assign on the {{ next_date|date:'M j' }} board">
+              <span class="ot-chip-time">{{ leg.pickup_time|date:'g:i A' }}</span>
+              <span class="ot-chip-date">{{ leg.pickup_date|date:'M j' }}</span>
+              {% if leg.flight_information %}
+                <span><i class="bi bi-airplane"></i> {{ leg.flight_information.airline }}{{ leg.flight_information.flight_number }}</span>
+              {% endif %}
+              {% if leg.overnight_date_status == 'confirmed' %}
+                <i class="bi bi-check-circle-fill ot-ok" title="Pickup night verified with the guest"></i>
+              {% elif leg.overnight_date_status == 'unconfirmed' %}
+                <i class="bi bi-question-circle-fill ot-warn" title="Night unconfirmed — guest being asked"></i>
+              {% endif %}
+              {% if leg.driver %}
+                <span class="ot-chip-driver">{{ leg.driver }}</span>
+              {% else %}
+                <span class="ot-chip-unassigned">Unassigned</span>
+              {% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
   </div>
 
   <!-- DnD Conflict Confirmation Modal -->

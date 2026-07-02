@@ -769,6 +769,30 @@ def index(request):
     prev_date = selected_date - timedelta(days=1)
     next_date = selected_date + timedelta(days=1)
 
+    # ── Overnight tail: tomorrow's after-midnight pickups, shown at the end of
+    # TONIGHT's board. Dispatch thinks in shift-nights — a 12:30 AM Jul 2 pickup
+    # belongs to the Jul 1 night crew. Replaces the old manual workaround of
+    # moving such jobs to 11:59 PM (which corrupted the real pickup date and
+    # broke flight tracking): the leg keeps its true date and simply APPEARS
+    # here too, read-only, with a jump link to its real board.
+    from datetime import time as _dtime
+    from .overnight_arrival import NIGHT_TAIL_END_HOUR as _tail_end
+    # Founder rule: only 12 AM-2 AM jobs belong to the previous night's crew.
+    # Anything later (red-eyes landing 3-5 AM, early departure runs) stays on
+    # its own day's board only.
+    overnight_tail_legs = list(
+        Leg.objects.filter(
+            pickup_date=next_date,
+            pickup_time__lt=_dtime(_tail_end, 0),
+        )
+        .exclude(reservation__status='cancelled').exclude(status='cancelled')
+        .select_related(
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "vehicle", "driver", "driver__profile", "flight_information",
+        )
+        .order_by("pickup_time")
+    )
+
     # Oldest flight refresh timestamp for arrival legs on this date
     # Computed from already-fetched _all_day_legs (avoids extra DB query)
     oldest_flight_refresh = None
@@ -807,6 +831,7 @@ def index(request):
         "timeline_hours": timeline_hours,
         "unassigned_timeline_slots": _unassigned_timeline_slots,
         "highlight_leg_id": int(highlight_leg_id) if highlight_leg_id and highlight_leg_id.isdigit() else None,
+        "overnight_tail_legs": overnight_tail_legs,
         # ── Sandbox draft context (banner, review modal, controls) ──
         **_draft_ctx,
     }
@@ -1227,8 +1252,8 @@ def schedule_board(request):
             'luggage': int(leg.effective_luggage_count or 0),
             'luggage_type': leg.effective_luggage_type or '',
             'carseats_short': _us_carseats,
-            # Only meaningful on arrivals (driver does Publix on the way to dropoff).
-            'store_stop': bool(leg.reservation.store_stop) if (leg.reservation and _trip == 'arrival') else False,
+            # Only the grocery leg (arrival / airport-origin cruise) shows Publix.
+            'store_stop': leg.shows_store_stop,
             'pending_refund': bool(leg.reservation.has_pending_refund) if leg.reservation else False,
             'is_vip': leg.is_vip,
             'reservation_id': leg.reservation_id,
@@ -1276,6 +1301,25 @@ def schedule_board(request):
     assigned_count = sum(1 for l in all_legs if l.driver)
     unassigned_count = total_legs - assigned_count
 
+    # Overnight tail (same night-crew rule as the dashboard): tomorrow's
+    # 12-2 AM jobs shown as a read-only strip at the end of TONIGHT's board.
+    # Deliberately NOT merged into the drag/assign timeline — drivers watch
+    # this board live, and cross-date lanes would scramble the hour math.
+    from datetime import time as _dtime
+    from .overnight_arrival import NIGHT_TAIL_END_HOUR as _tail_end
+    overnight_tail_legs = list(
+        Leg.objects.filter(
+            pickup_date=next_date,
+            pickup_time__lt=_dtime(_tail_end, 0),
+        )
+        .exclude(reservation__status='cancelled').exclude(status='cancelled')
+        .select_related(
+            "reservation", "reservation__customer", "driver", "driver__profile",
+            "flight_information", "reservation__vehicle", "vehicle",
+        )
+        .order_by("pickup_time")
+    )
+
     context = {
         "selected_date": selected_date,
         "prev_date": prev_date,
@@ -1289,6 +1333,7 @@ def schedule_board(request):
         "assigned_count": assigned_count,
         "unassigned_count": unassigned_count,
         "available_no_jobs": available_no_jobs,
+        "overnight_tail_legs": overnight_tail_legs,
         # ── Sandbox draft context (banner, review modal, controls) ──
         **_draft_ctx,
     }
@@ -6079,6 +6124,8 @@ def dispatcher_booking_legs(request):
                     pass
         return out
 
+    sanity_panel = None
+
     if request.method == "POST":
         leg_formset = DispatcherLegFormSet(request.POST, prefix='legs')
         flight_formset = DispatcherFlightFormSet(request.POST, prefix='flights')
@@ -6087,6 +6134,12 @@ def dispatcher_booking_legs(request):
             legs_data = []
             flights_data = []
 
+            # Legs and flights are paired BY INDEX (flight form i belongs to leg
+            # form i), so they must be collected together: collecting them in two
+            # independent loops that skip blank forms shifts every later flight
+            # onto the wrong leg (e.g. leg 1 without a flight steals leg 2's).
+            # A leg without a flight keeps a {} placeholder to preserve alignment.
+            flight_forms = list(flight_formset)
             for idx, form in enumerate(leg_formset):
                 if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     leg_data = {}
@@ -6097,25 +6150,68 @@ def dispatcher_booking_legs(request):
                     overrides = _parse_overrides_from_post(request.POST, idx)
                     if overrides:
                         leg_data['overrides'] = overrides
-                    legs_data.append(leg_data)
 
-            for form in flight_formset:
-                if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     flight_data = {}
-                    for field, value in form.cleaned_data.items():
-                        if field != 'DELETE':
-                            flight_data[field] = str(value) if value is not None else None
+                    if idx < len(flight_forms):
+                        fform = flight_forms[idx]
+                        if fform.cleaned_data and not fform.cleaned_data.get('DELETE', False):
+                            for field, value in fform.cleaned_data.items():
+                                if field != 'DELETE':
+                                    flight_data[field] = str(value) if value is not None else None
+
+                    legs_data.append(leg_data)
                     flights_data.append(flight_data)
 
             if not legs_data:
                 messages.error(request, "At least one trip leg is required. Please add leg details.")
             else:
-                booking_data['legs_data'] = legs_data
-                booking_data['flights_data'] = flights_data
-                booking_data['step'] = 4
-                request.session['dispatcher_booking'] = booking_data
+                # Sanity guards: wrong-date / AM-PM / flight-schedule checks.
+                # Blocking warnings render once with an acknowledge checkbox;
+                # the token pins the acknowledgment to THIS set of warnings, so
+                # editing the form re-arms the gate if new issues appear.
+                # Hard errors (Publix stop while the store is closed) have no
+                # acknowledge path at all — the step can't proceed until fixed.
+                from .booking_guards import (
+                    check_publix_store_stop,
+                    run_leg_sanity_checks,
+                    warnings_token,
+                )
+                hard_errors = check_publix_store_stop(
+                    legs_data,
+                    store_stop=reservation_data.get('store_stop') == 'True',
+                )
+                sanity_warnings = hard_errors + run_leg_sanity_checks(legs_data, flights_data)
+                blocking = [w for w in sanity_warnings if w['severity'] == 'warning']
+                token = warnings_token(sanity_warnings)
+                acknowledged = (
+                    request.POST.get('sanity_ack') == '1'
+                    and request.POST.get('sanity_ack_token') == token
+                )
 
-                return redirect('dispatcher_booking_pricing')
+                if hard_errors or (blocking and not acknowledged):
+                    sanity_panel = {
+                        'warnings': sanity_warnings,
+                        'token': token,
+                        'blocking_count': len(blocking),
+                        'error_count': len(hard_errors),
+                        # All blockers are routine early-departure runs → the
+                        # acknowledge box softens to a quick "AM, not PM" tick
+                        # instead of "double-checked with the customer".
+                        'light_ack': bool(blocking) and all(
+                            w['code'] == 'early_morning_departure' for w in blocking
+                        ),
+                    }
+                else:
+                    booking_data['legs_data'] = legs_data
+                    booking_data['flights_data'] = flights_data
+                    # Carried to the review step so acknowledged warnings and
+                    # verified-flight confirmations stay visible at confirm time.
+                    booking_data['sanity_results'] = sanity_warnings
+                    booking_data['sanity_acknowledged'] = bool(blocking)
+                    booking_data['step'] = 4
+                    request.session['dispatcher_booking'] = booking_data
+
+                    return redirect('dispatcher_booking_pricing')
         else:
             # Formset validation failed - show specific error messages
             error_details = []
@@ -6193,6 +6289,7 @@ def dispatcher_booking_legs(request):
         'vehicle': vehicle,
         'vehicles': vehicles,
         'leg_overrides': leg_overrides,
+        'sanity_panel': sanity_panel,
     }
 
     return render(request, 'dispatching/booking/step_legs.html', context)
@@ -6446,6 +6543,15 @@ def dispatcher_booking_review(request):
         elif 'back' in request.POST:
             return redirect('dispatcher_booking_pricing')
     
+    # Relative-day chip per leg ("TODAY" / "tomorrow" / "in 12 days") — gives
+    # the dispatcher something to verify the date against at confirm time.
+    today = timezone.localdate()
+    for combined_leg in combined_legs:
+        pd = combined_leg.get('pickup_date')
+        if hasattr(pd, 'toordinal'):
+            combined_leg['days_until'] = (pd - today).days
+
+    sanity_results = booking_data.get('sanity_results') or []
     context = {
         'customer': customer,
         'reservation_data': reservation_data,
@@ -6456,9 +6562,11 @@ def dispatcher_booking_review(request):
         'step': 6,
         'step_title': 'Review & Confirm',
         'step_description': 'Review all details and create the reservation',
-        'booking_data': booking_data
+        'booking_data': booking_data,
+        'sanity_acknowledged_warnings': [w for w in sanity_results if w.get('severity') == 'warning'],
+        'sanity_ok_results': [w for w in sanity_results if w.get('severity') == 'ok'],
     }
-    
+
     return render(request, 'dispatching/booking/step_review.html', context)
 
 
@@ -6530,7 +6638,18 @@ def create_dispatcher_reservation(booking_data):
     pricing_data = booking_data['pricing_data']
     legs_data = booking_data['legs_data']
     flights_data = booking_data.get('flights_data', [])
-    
+
+    # Backstop for the legs-step hard block: a Publix grocery stop can't be
+    # honored while the store is closed (9 PM-6 AM pickups). Normally caught
+    # at the legs step; this covers stale session data / skipped re-submits.
+    from .booking_guards import check_publix_store_stop
+    if check_publix_store_stop(legs_data, store_stop=reservation_data.get('store_stop') == 'True'):
+        raise ValueError(
+            "This reservation includes a Publix grocery stop, but the pickup time "
+            "is while the store is closed (9 PM-6 AM). Remove the grocery stop on "
+            "the Details step or change the pickup time."
+        )
+
     # Validate vehicle
     if not reservation_data.get('manual_vehicle'):
         raise ValueError("Vehicle selection is missing")
@@ -10601,8 +10720,7 @@ def auto_assign_drivers(request):
             if leg_obj and leg_obj.reservation:
                 if leg_obj.effective_vehicle:
                     vtype = str(leg_obj.effective_vehicle_type).upper()
-                if slot.trip_type == 'arrival':
-                    has_store_stop = bool(getattr(leg_obj.reservation, 'store_stop', False))
+                has_store_stop = leg_obj.shows_store_stop
             slots_data.append({
                 "leg_id": slot.leg_id,
                 "pickup_time": slot.pickup_time.strftime("%I:%M %p").lstrip("0"),
@@ -10649,7 +10767,7 @@ def auto_assign_drivers(request):
             customer_name = leg.reservation.customer.get_full_name()
         vtype = leg.effective_vehicle_type or ''
         trip_type = leg.get_trip_type()
-        has_store_stop = bool(getattr(leg.reservation, 'store_stop', False)) if leg.reservation and trip_type == 'arrival' else False
+        has_store_stop = leg.shows_store_stop
         still_unassigned.append({
             "leg_id": leg.id,
             "pickup_time": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
@@ -11192,7 +11310,7 @@ def smart_schedule_builder(request):
             slot_data['carseats'] = ", ".join(cs_parts)
             slot_data['is_paid'] = res.payment_status == 'paid'
             slot_data['reservation_uuid'] = str(res.uuid) if res.uuid else ''
-            slot_data['store_stop'] = bool(res.store_stop)
+            slot_data['store_stop'] = leg_obj.shows_store_stop
         else:
             slot_data['is_paid'] = True
             slot_data['reservation_uuid'] = ''
@@ -11250,7 +11368,7 @@ def smart_schedule_builder(request):
             'luggage': res.luggage_count if res else 0,
             'carseats': ", ".join(alt_cs),
             'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
-            'store_stop': res.store_stop if res else False,
+            'store_stop': leg_alt.shows_store_stop,
             'is_paid': (res.payment_status == 'paid') if res else True,
         })
 

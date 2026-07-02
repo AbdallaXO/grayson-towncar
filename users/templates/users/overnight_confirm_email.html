@@ -1,0 +1,153 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" style="-webkit-text-size-adjust: none !important;">
+<head>
+  <title>Which night do you land? — Grayson Towncar</title>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" content="" />
+  <meta content="target-densitydpi=device-dpi" name="viewport" />
+  <meta content="true" name="HandheldFriendly" />
+  <meta content="width=device-width" name="viewport" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+    u + #body a { color: inherit; text-decoration: none; font-size: inherit; font-family: inherit; font-weight: inherit; line-height: inherit; }
+
+    @media screen and (max-width: 620px) {
+      .main-table  { width: 100% !important; }
+      .content-pad { padding: 32px 24px 40px !important; }
+      .header-pad  { padding: 40px 24px 36px !important; }
+      .footer-pad  { padding: 32px 24px !important; }
+    }
+  </style>
+</head>
+<body id="body" style="margin:0;padding:0;background-color:#EFEFED;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#EFEFED;">
+  <tr>
+    <td align="center" style="padding:32px 0 48px;">
+
+      <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse;">
+
+      <!-- ─── HEADER ─── -->
+      <tr><td style="background-color:#0C1B33;border-radius:4px 4px 0 0;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="header-pad" style="padding:44px 52px 38px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                <tr>
+                  <td>
+                    <div style="width:36px;height:2px;background-color:#C89B3C;margin-bottom:16px;"></div>
+                    <h1 style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;font-weight:600;letter-spacing:0.12em;color:#FFFFFF;text-transform:uppercase;">Grayson Towncar</h1>
+                  </td>
+                  <td align="right" valign="top">
+                    <div style="display:inline-block;border:1px solid rgba(200,155,60,0.4);padding:9px 16px;text-align:center;">
+                      <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#C89B3C;">One-Tap Confirm</p>
+                      {% if reservation %}<p style="margin:4px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:500;color:#FFFFFF;">#50{{ reservation.id }}</p>{% endif %}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="height:1px;background-color:rgba(255,255,255,0.1);margin:24px 0;"></div>
+
+              <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:400;font-style:italic;color:#E8E4DC;line-height:1.5;">Which night do you land,<br><span style="color:#C89B3C;">{{ customer_first_name }}?</span></p>
+              <p style="margin:10px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:300;color:#9AAABB;line-height:1.7;">Pickup booked for {{ pickup_date_str }} · {{ pickup_time_str }} · {{ flight_label }}</p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- ─── BODY ─── -->
+      <tr><td style="background-color:#FFFFFF;padding:0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="content-pad" style="padding:42px 52px 40px;">
+
+              <p style="margin:0 0 14px;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:400;color:#1A1A2E;line-height:1.65;">
+                Hi {{ customer_first_name }} — your pickup is booked for
+                <strong>{{ pickup_date_str }} at {{ pickup_time_str }}</strong>, just after midnight.
+                Overnight flights take off the evening <em>before</em> they land, which makes this
+                the single most common booking mix-up. One tap settles it:
+                <strong>which date do you take off</strong> — the date printed on your airline ticket?
+              </p>
+
+              {% if derived_found %}
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:22px 0;">
+                <tr>
+                  <td style="background-color:#F5F3EE;border-left:3px solid #C89B3C;padding:16px 20px;">
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:13.5px;color:#1A1A2E;line-height:1.6;">
+                      Our flight tracker shows <strong>{{ flight_label }}</strong> taking off
+                      <strong>{{ prev_day_str }}</strong> lands in Orlando at
+                      <strong>{{ derived_arrival_time_str }} on {{ derived_arrival_date_str }}</strong>.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <!-- Choice 1: takeoff prev day → booking correct -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:24px 0 0;">
+                <tr>
+                  <td align="center" style="background-color:#C89B3C;border-radius:4px;">
+                    <a href="{{ confirm_prev_url }}" target="_blank" style="display:block;padding:17px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:0.06em;color:#0C1B33;text-decoration:none;">
+                      I TAKE OFF {{ prev_day_str|upper }} &nbsp;→&nbsp; my {{ pickup_date_str }} pickup is correct
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Choice 2: takeoff booked day → pickup moves +1 -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin:14px 0 0;">
+                <tr>
+                  <td align="center" style="border:1.5px solid #C89B3C;border-radius:4px;">
+                    <a href="{{ confirm_same_url }}" target="_blank" style="display:block;padding:16px 24px;font-family:'DM Sans',Arial,sans-serif;font-size:14px;font-weight:500;letter-spacing:0.06em;color:#0C1B33;text-decoration:none;">
+                      I TAKE OFF {{ same_day_str|upper }} &nbsp;→&nbsp; I land {{ next_day_str }}, move my pickup
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:22px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:12.5px;font-weight:300;color:#9AAABB;line-height:1.7;">
+                Either link opens a confirmation page — nothing changes until you confirm there.
+                Neither one matches, or not sure? Just reply to this email with your itinerary
+                and we'll set it up by hand. Your departure date is printed on your airline
+                confirmation.
+              </p>
+
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- ─── FOOTER ─── -->
+      <tr><td style="background-color:#0C1B33;border-radius:0 0 4px 4px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+          <tr>
+            <td class="footer-pad" align="center" style="padding:32px 52px;">
+              <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:12px;font-weight:300;color:#9AAABB;line-height:1.8;">
+                Grayson Towncar · Orlando, FL<br />
+                Questions? Reply to this email or write
+                <a href="mailto:{{ reply_to }}" style="color:#C89B3C;text-decoration:none;">{{ reply_to }}</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      </table>
+
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

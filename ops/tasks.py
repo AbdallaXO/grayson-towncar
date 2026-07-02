@@ -1492,7 +1492,11 @@ def auto_refresh_flights():
             continue
 
         try:
-            flight_date = leg.pickup_date.strftime("%Y-%m-%d")
+            # Anchor the lookup on the confirmed TAKEOFF date when we have one:
+            # a red-eye pickup on June 3 belongs to the flight that departs
+            # June 2 — looking up "June 3" finds the NEXT night's instance.
+            lookup_date = flight.departure_date or leg.pickup_date
+            flight_date = lookup_date.strftime("%Y-%m-%d")
             trip_type = leg.flight_tracking_trip_type()
             flight_data = aeroapi.get_flight_data(
                 flight_ident, flight_date=flight_date, trip_type=trip_type

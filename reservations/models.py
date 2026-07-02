@@ -1234,6 +1234,33 @@ class Leg(models.Model):
         default="",
         help_text="Custom confirmation SMS body for this leg. When set, it replaces the auto-generated message body. The standard footer is still appended.",
     )
+    # ── Overnight arrival date confirmation (12 AM–6 AM pickups) ──
+    # The same flight number lands just after midnight every night, so a lookup
+    # alone can never tell which night the guest is on — only their takeoff date
+    # does. These stamps track the "which night is it?" confirmation loop.
+    overnight_confirm_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the overnight date-confirmation email (one-tap takeoff-date "
+            "question) was last sent to the guest."
+        ),
+    )
+    overnight_confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the guest (or staff) confirmed which night this overnight "
+            "arrival actually lands. Once set, the pickup date is trusted and "
+            "no confirmation call/email is needed."
+        ),
+    )
+    overnight_confirmed_source = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="How the overnight date was confirmed: booking_form | one_tap | staff.",
+    )
     exclude_from_analytics = models.BooleanField(
         default=False,
         help_text="Exclude this leg from route timing analytics (bad data)",
@@ -1276,6 +1303,32 @@ class Leg(models.Model):
             return None
         delta = timezone.now() - self.flight_verification_email_sent_at
         return delta.total_seconds() / 3600
+
+    @property
+    def overnight_date_status(self):
+        """Board badge state for the overnight-arrival ambiguity: None for legs
+        outside the 12 AM-6 AM tracked-arrival window, else 'confirmed' /
+        'unconfirmed' depending on whether the guest answered which night they
+        land (same flight number lands every night — only their takeoff date
+        disambiguates)."""
+        try:
+            from dispatching.overnight_arrival import leg_in_overnight_window
+            if not leg_in_overnight_window(self):
+                return None
+        except Exception:
+            return None
+        return "confirmed" if self.overnight_confirmed_at else "unconfirmed"
+
+    @property
+    def overnight_prev_day(self):
+        """pickup_date − 1 for the overnight badge's takeoff choices (Django
+        templates can't do date arithmetic)."""
+        return self.pickup_date - timedelta(days=1) if self.pickup_date else None
+
+    @property
+    def overnight_next_day(self):
+        """pickup_date + 1 for the overnight badge's takeoff choices."""
+        return self.pickup_date + timedelta(days=1) if self.pickup_date else None
 
     @property
     def effective_luggage_count(self):
@@ -1710,6 +1763,40 @@ class Leg(models.Model):
         """True if this leg's pickup is at an airport (for cruise legs going airport→cruise port)."""
         pickup_lower = (self.pickup_location or "").lower()
         return self._is_airport(pickup_lower)
+
+    @property
+    def shows_store_stop(self):
+        """True only on the leg the Publix grocery stop actually rides on.
+
+        `store_stop` lives on the Reservation, but the grocery run happens on
+        the way INTO town — the airport-pickup leg (a normal arrival, or an
+        airport→cruise-port transfer). Rendering the reservation-level flag on
+        every leg used to badge "Publix Stop" onto the departure/return leg of
+        the same reservation, which drivers don't stop on. Every per-leg badge
+        (dispatch boards, driver app, SMS payloads) should use this.
+
+        For the rare reservation whose legs never start at an airport, the
+        badge falls back to the first leg so the stop stays visible somewhere.
+        """
+        res = self.reservation if self.reservation_id else None
+        if not res or not res.store_stop:
+            return False
+        if self.is_flight_tracked_arrival():
+            return True
+        trip = self.get_trip_type()
+        if trip in ("return", "cruise"):
+            # Heading TO the airport, or a cruise leg that doesn't start at
+            # the airport — never the grocery leg.
+            return False
+        # 'other' leg: badge only when no sibling is the natural grocery leg
+        # and this is the reservation's first leg. res.legs.all() rides an
+        # existing prefetch when the view set one up.
+        siblings = list(res.legs.all())
+        for sib in siblings:
+            if sib.pk != self.pk and sib.is_flight_tracked_arrival():
+                return False
+        first = min(siblings, key=lambda l: l.pk, default=None)
+        return first is not None and first.pk == self.pk
 
     def is_flight_tracked_arrival(self):
         """True when this leg's pickup depends on an INBOUND flight we should track.
@@ -2300,7 +2387,18 @@ class Flight(models.Model):
         help_text="Full airline name for display (e.g., Delta Airlines, Southwest Airlines)"
     )
     flight_number = models.CharField(max_length=50, blank=True)
-    
+    departure_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Takeoff date (Eastern) for this flight — guest-confirmed or staff-set. "
+            "Disambiguates overnight red-eyes: the same flight number lands just "
+            "after midnight every night, so only the departure date pins which "
+            "instance the guest is on. When set, AeroAPI lookups anchor on this "
+            "date instead of the leg's pickup date."
+        ),
+    )
+
     # AeroAPI Tracking Fields
     flight_iata = models.CharField(
         max_length=20, blank=True, 

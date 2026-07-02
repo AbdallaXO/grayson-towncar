@@ -111,6 +111,31 @@
     <div class="body"><strong>Almost done.</strong> Review the details below and confirm to create the reservation.</div>
   </div>
 
+  {% if sanity_acknowledged_warnings %}
+    <div class="booking-flash warning is-persistent mb-3">
+      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+      <div class="body">
+        <div class="title">Acknowledged warnings</div>
+        These were flagged at the Trip Details step and acknowledged as correct — give them one last look:
+        <ul class="mb-0 mt-1">
+          {% for w in sanity_acknowledged_warnings %}<li>{{ w.message }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if sanity_ok_results %}
+    <div class="booking-flash success is-persistent mb-3">
+      <span class="icon"><i class="fas fa-plane"></i></span>
+      <div class="body">
+        <div class="title">Flight schedule verified</div>
+        <ul class="mb-0 mt-1">
+          {% for w in sanity_ok_results %}<li>{{ w.message }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  {% endif %}
+
   {# Total banner up top so it's the focal point #}
   <div class="total-banner">
     <div class="lbl">Total Price</div>
@@ -207,7 +232,13 @@
               {% endif %}
             </div>
             <div class="kv-grid">
-              <div class="kv"><span class="k">Date</span><span class="v">{{ leg_data.pickup_date|date:"l F d, Y" }}</span></div>
+              <div class="kv"><span class="k">Date</span><span class="v">{{ leg_data.pickup_date|date:"l F d, Y" }}
+                {% if leg_data.days_until == 0 %}<span class="badge bg-danger ms-1">TODAY</span>
+                {% elif leg_data.days_until == 1 %}<span class="badge bg-warning text-dark ms-1">tomorrow</span>
+                {% elif leg_data.days_until > 365 %}<span class="badge bg-danger ms-1">in {{ leg_data.days_until }} days — check the year</span>
+                {% elif leg_data.days_until %}<span class="badge bg-light text-secondary border ms-1">in {{ leg_data.days_until }} days</span>
+                {% endif %}
+              </span></div>
               <div class="kv"><span class="k">Time</span><span class="v">{{ leg_data.pickup_time|time:"g:i A" }}</span></div>
               <div class="kv"><span class="k">Pickup</span><span class="v">{{ leg_data.pickup_location }}</span></div>
               <div class="kv"><span class="k">Drop-off</span><span class="v">{{ leg_data.dropoff_location }}</span></div>

@@ -13,6 +13,18 @@
       tr.leg-flag-alert { box-shadow: inset 4px 0 0 0 #dc3545; }
       tr.leg-flag-watch { box-shadow: inset 4px 0 0 0 #e6a23c; }
 
+      /* Overnight tail: next day's after-midnight pickups shown at the end of
+         tonight's board (night-sky header, consistent with the overnight badge) */
+      .overnight-tail { border: 1px solid rgba(51, 65, 85, 0.5); border-radius: 10px; overflow: hidden; margin-top: 1.5rem; }
+      .overnight-tail .ot-head { display: flex; align-items: center; gap: 0.85rem; background: #0f172a; color: #fff; padding: 0.85rem 1.1rem; }
+      .overnight-tail .ot-head > i { color: #fbbf24; font-size: 1.25rem; }
+      .overnight-tail .ot-title { font-weight: 700; font-size: 0.95rem; }
+      .overnight-tail .ot-sub { font-size: 0.78rem; color: #cbd5e1; }
+      .overnight-tail .ot-sub strong { color: #fbbf24; }
+      .overnight-tail .ot-open-btn { margin-left: auto; white-space: nowrap; }
+      .overnight-tail .ot-table thead th { background: #1e293b; color: #94a3b8; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; border: 0; padding: 0.5rem 0.75rem; }
+      .overnight-tail .ot-table td { border-color: #f1f5f9; padding: 0.55rem 0.75rem; }
+
       /* VIP reservations: soft gold row tint + badge. Safety colors (danger /
          warning / flight-alert bar) are left intact so they always win; the VIP
          badge shows regardless, so VIP is never hidden. */
@@ -1214,6 +1226,7 @@
                           </span>
                         {% endwith %}
                       </div>
+                      {% include "dispatching/includes/_overnight_badge.html" with leg=leg %}
                       {% if leg.cleared_time %}
                         <div style="font-size: 0.88rem;
                                     color: #222;
@@ -1369,7 +1382,7 @@
                               <span class="text-muted fst-italic">None</span>
                             {% endif %}
                           </div>
-                          {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
+                          {% if leg.shows_store_stop %}
                             <div class="mt-1">
                               <span class="badge bg-success text-white">
                                 <i class="bi bi-shop me-1"></i>Publix Stop
@@ -1621,6 +1634,7 @@
                                   </span>
                                 {% endwith %}
                               </div>
+                              {% include "dispatching/includes/_overnight_badge.html" with leg=leg %}
                               {% if leg.cleared_time %}
                                 <div style="font-size: 0.88rem;
                                             color: #222;
@@ -1755,7 +1769,7 @@
                               <div>
                                 <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}
                               </div>
-                              {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
+                              {% if leg.shows_store_stop %}
                                 <span class="badge bg-success text-white">
                                   <i class="bi bi-shop me-1"></i>Publix Stop
                                 </span>
@@ -1904,6 +1918,86 @@
           {% include "dispatching/includes/_flight_details_modal.html" %}
         {% endif %}
       {% endfor %}
+
+      {% comment %}
+        Overnight tail: tomorrow's after-midnight pickups belong to TONIGHT's
+        crew. Shown here read-only on their REAL date — replaces the old manual
+        "move it to 11:59 PM" workaround that corrupted dates + flight tracking.
+      {% endcomment %}
+      {% if overnight_tail_legs %}
+        <div class="overnight-tail shadow-sm" id="overnightTail">
+          <div class="ot-head">
+            <i class="bi bi-moon-stars-fill"></i>
+            <div class="ot-head-text">
+              <div class="ot-title">After midnight &mdash; night crew of {{ selected_date|date:'D, M j' }}</div>
+              <div class="ot-sub">
+                {{ overnight_tail_legs|length }} pickup{{ overnight_tail_legs|length|pluralize }} between
+                <strong>12&ndash;2 AM</strong> dated <strong>{{ next_date|date:'D, M j' }}</strong> &mdash;
+                the tail of this shift. Jobs stay on their real date &mdash; no more moving them to 11:59 PM.
+              </div>
+            </div>
+            <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-light ot-open-btn">
+              Open {{ next_date|date:'M j' }} board <i class="bi bi-chevron-right"></i>
+            </a>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm ot-table mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th>Pickup</th>
+                  <th>Customer</th>
+                  <th>Flight</th>
+                  <th>Route</th>
+                  <th>Driver &amp; Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for leg in overnight_tail_legs %}
+                  <tr {% if leg.is_vip %}class="leg-vip"{% endif %}>
+                    <td>
+                      <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
+                      <div class="small text-muted">{{ leg.pickup_date|date:'D, M j' }}</div>
+                    </td>
+                    <td>
+                      <div class="fw-semibold">{{ leg.reservation.customer }}</div>
+                      <div class="small text-muted">#{{ leg.reservation.display_number }}</div>
+                    </td>
+                    <td>
+                      {% if leg.flight_information %}
+                        <div class="small">
+                          <i class="bi bi-airplane me-1"></i>{{ leg.flight_information.airline_display_name|default:leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                        </div>
+                      {% endif %}
+                      {% include "dispatching/includes/_overnight_badge.html" with leg=leg %}
+                    </td>
+                    <td class="small">
+                      {{ leg.pickup_location|truncatechars:30 }}
+                      <i class="bi bi-arrow-right text-muted mx-1"></i>
+                      {{ leg.dropoff_location|truncatechars:30 }}
+                    </td>
+                    <td>
+                      {% if leg.driver %}
+                        <div class="small fw-semibold">{{ leg.driver }}</div>
+                      {% else %}
+                        <span class="badge bg-danger">Unassigned</span>
+                      {% endif %}
+                      <div class="small text-muted">{{ leg.get_status_display|default:leg.status }}</div>
+                    </td>
+                    <td class="text-end">
+                      <a href="?date={{ next_date|date:'Y-m-d' }}&highlight={{ leg.id }}"
+                         class="btn btn-sm btn-outline-secondary"
+                         title="Assign, edit or update this leg on its real date ({{ next_date|date:'M j' }})">
+                        Manage <i class="bi bi-arrow-right"></i>
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endif %}
 
       <!-- Pagination (if needed) -->
       {% if page_obj.paginator.num_pages > 1 %}
