@@ -87,8 +87,10 @@ def create_checkout_session(request, reservation_id):
 
 def save_card(request, reservation_uuid):
     reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+    # saved=1 marks this as a setup (no-charge) flow so payment_success shows the
+    # "card on file" page and does NOT fire a fake Purchase conversion.
     success_url = request.build_absolute_uri(
-        reverse("payment_success") + f"?q={reservation.uuid}"
+        reverse("payment_success") + f"?q={reservation.uuid}&saved=1"
     )
     cancel_url = request.build_absolute_uri(
         reverse("payment_cancel") + f"?q={reservation.uuid}"
@@ -129,12 +131,25 @@ def save_card(request, reservation_uuid):
 
 def payment_success(request):
     reservation_uuid = request.GET.get("q")
+    card_saved = request.GET.get("saved") == "1"
     reservation = None
     purchase_data = None
 
     if reservation_uuid:
         try:
             reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+
+            if card_saved:
+                # Setup mode: a card was saved, NOTHING was charged. Do not show a
+                # "payment successful" page and do not fire any Purchase conversion
+                # (GA/Meta/Bing) — that pollutes ad data with phantom revenue.
+                logger.info(f"Card saved (no charge) for reservation: {reservation_uuid}")
+                return render(
+                    request,
+                    "stripe/payment_method_saved.html",
+                    {"reservation": reservation},
+                )
+
             logger.info(f"Payment success for reservation: {reservation_uuid}")
 
             # Try to get Stripe transaction ID from the most recent payment

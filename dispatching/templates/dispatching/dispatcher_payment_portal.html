@@ -173,6 +173,7 @@
 
             <form method="post" id="dispatcherActionForm">
               {% csrf_token %}
+              <input type="hidden" name="payment_nonce" id="payment_nonce" value="">
 
               <div class="mb-3">
                 <label for="action" class="field-label">Select Action</label>
@@ -315,6 +316,22 @@
           const gratuityTargetFieldGroup = document.getElementById('gratuity_target_field_group');
           const submitButton = document.getElementById('submit_button');
           const submitLabel = document.getElementById('submit_button_label');
+
+          // Idempotency + double-submit guard: stamp a one-time nonce and disable the
+          // button on submit so a double-click can't fire a second charge.
+          const dispatcherForm = document.getElementById('dispatcherActionForm');
+          const nonceInput = document.getElementById('payment_nonce');
+          if (nonceInput && !nonceInput.value) {
+              nonceInput.value = (window.crypto && crypto.randomUUID)
+                  ? crypto.randomUUID()
+                  : (String(Date.now()) + '-' + Math.random().toString(16).slice(2));
+          }
+          if (dispatcherForm) {
+              dispatcherForm.addEventListener('submit', function () {
+                  submitButton.disabled = true;
+                  if (submitLabel) submitLabel.textContent = 'Processing…';
+              });
+          }
 
           const TRIP_DESC = `Trip Fare for Res ID #50{{ reservation.id }}`;
           const GRATUITY_DESC = `Gratuity for Res ID #50{{ reservation.id }}`;

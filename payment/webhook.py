@@ -78,6 +78,25 @@ def stripe_webhook(request):
 
             # HubSpot integration removed - no longer updating HubSpot deals
 
+    elif event_type == "charge.refunded":
+        # A refund issued directly in the Stripe dashboard (the fallback whenever the
+        # in-app refund flow errors) — sync it back so the books don't show returned
+        # money as revenue and the customer isn't dunned/recharged for a refunded trip.
+        try:
+            handle_charge_refunded(event_object)
+        except Exception as e:
+            logger.exception(f"charge.refunded failed, asking Stripe to retry: {e}")
+            return HttpResponse(status=500)
+
+    elif event_type == "charge.dispute.created":
+        # A chargeback was opened — surface it loudly so staff respond before the
+        # Stripe evidence deadline instead of finding out when the money is clawed back.
+        try:
+            handle_charge_dispute(event_object)
+        except Exception as e:
+            logger.exception(f"charge.dispute.created failed, asking Stripe to retry: {e}")
+            return HttpResponse(status=500)
+
     return HttpResponse(status=200)
 
 
@@ -178,8 +197,11 @@ def handle_checkout_session(session):
                         payment.save()
                         reservation.save()
 
-                    # Note: Card saved but no payment yet - don't send confirmation email
-                    # Email will be sent when payment is actually processed
+                    # Card on file, no charge yet — but send the confirmation now so the
+                    # customer has written proof of the booking. A card_saved Payment row
+                    # now exists, so the email's "complete payment" block is skipped and
+                    # it reads as a plain booking confirmation.
+                    _run_in_background(send_reservation_confirmation, reservation)
                     logger.info(f"Card Saved for Reservation {reservation_id} (initiated by: {initiated_by})")
                 else:
                     logger.error("Failed to save card to customer")
@@ -298,6 +320,100 @@ def handle_checkout_session(session):
         return None
     # Any OTHER exception is intentionally NOT caught here: it propagates to
     # stripe_webhook, which returns 500 so Stripe retries the delivery.
+
+
+def handle_charge_refunded(charge):
+    """Sync a Stripe-side refund (dashboard or API) back onto our Payment row.
+
+    Matches the Payment by payment_intent and sets refunded_amount to the CUMULATIVE
+    amount Stripe reports (so redelivery is naturally idempotent). The Payment post_save
+    signal then recomputes the reservation's paid-state columns.
+    """
+    pi = charge.get("payment_intent")
+    if not pi:
+        logger.info("charge.refunded with no payment_intent — skipping")
+        return None
+
+    payment = (
+        Payment.objects.filter(stripe_payment_intent_id=pi)
+        .select_related("reservation")
+        .first()
+    )
+    if not payment:
+        logger.info("charge.refunded for unknown payment_intent %s — skipping", pi)
+        return None
+
+    amount_refunded = Decimal(charge.get("amount_refunded", 0) or 0) / 100
+    payment.refunded_amount = amount_refunded
+
+    refunds = (charge.get("refunds") or {})
+    refund_rows = refunds.get("data") if hasattr(refunds, "get") else None
+    if refund_rows:
+        latest = refund_rows[0].get("id") if hasattr(refund_rows[0], "get") else None
+        if latest:
+            payment.stripe_refund_id = latest
+
+    charged = Decimal(charge.get("amount", 0) or 0) / 100
+    if charge.get("refunded") or (charged and amount_refunded >= charged):
+        payment.status = "refunded"
+
+    payment.save()  # post_save signal recomputes reservation paid-state
+    logger.info(
+        "Synced Stripe refund $%s onto payment %s (reservation %s)",
+        amount_refunded, payment.id, payment.reservation_id,
+    )
+    return {"reservation_id": payment.reservation_id, "status": "refunded"}
+
+
+def handle_charge_dispute(dispute):
+    """A card dispute/chargeback was opened. File a HIGH ops task on the reservation so
+    staff respond in the Stripe dashboard before the evidence deadline."""
+    pi = dispute.get("payment_intent")
+    charge_id = dispute.get("charge")
+    payment = None
+    if pi:
+        payment = (
+            Payment.objects.filter(stripe_payment_intent_id=pi)
+            .select_related("reservation")
+            .first()
+        )
+    if not payment:
+        logger.info(
+            "charge.dispute.created with no matching payment (pi=%s charge=%s) — skipping",
+            pi, charge_id,
+        )
+        return None
+
+    reservation = payment.reservation
+    try:
+        from ops.services import create_task
+        from ops.models import OperationalTask
+
+        amount = Decimal(dispute.get("amount", 0) or 0) / 100
+        res_no = getattr(reservation, "display_number", None) or reservation.id
+        create_task(
+            task_type=OperationalTask.TaskType.MANUAL,
+            title=f"Stripe DISPUTE on Res #{res_no} — ${amount}"[:200],
+            description=(
+                "A card dispute/chargeback was opened. Respond in the Stripe dashboard "
+                "before the evidence deadline.\n\n"
+                f"Reason: {dispute.get('reason', '—')}\n"
+                f"Status: {dispute.get('status', '—')}\n"
+                f"Amount: ${amount}\n"
+                f"Charge: {charge_id}"
+            ),
+            priority=OperationalTask.Priority.HIGH,
+            reservation=reservation,
+            metadata={
+                "source": "stripe_dispute",
+                "dispute_id": dispute.get("id"),
+                "charge": charge_id,
+            },
+        )
+    except Exception as e:
+        logger.exception("Failed to create dispute ops task: %s", e)
+
+    return {"reservation_id": reservation.id, "status": "disputed"}
 
 
 def save_card_to_customer(customer_id: str, payment_method_id: str):

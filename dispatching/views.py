@@ -3088,6 +3088,10 @@ def dispatcher_payment_portal(request, reservation_id):
             "description", f"Trip Fare for Res ID #{reservation.id}"
         )
         selected_payment_method = request.POST.get("payment_method_id")
+        # One-time nonce stamped by the form on render — makes the saved-card charge
+        # idempotent so a double-click (likely on the single sync worker's hung page)
+        # can't bill the customer twice.
+        payment_nonce = request.POST.get("payment_nonce", "")
 
         try:
             # Check for existing stripe customer ID first
@@ -3317,6 +3321,13 @@ def dispatcher_payment_portal(request, reservation_id):
                     # Stripe limits this to 22 characters, so truncate if needed
                     statement_desc = description[:22] if len(description) > 22 else description
 
+                    # Idempotency: same form submission (double-click / retry) reuses the
+                    # nonce -> Stripe returns the SAME charge instead of billing twice.
+                    _idem = (
+                        {"idempotency_key": f"portal-{reservation.uuid}-{payment_nonce}"}
+                        if payment_nonce
+                        else {}
+                    )
                     payment_intent = stripe.PaymentIntent.create(
                         amount=amount_in_cents,
                         currency="usd",
@@ -3335,6 +3346,7 @@ def dispatcher_payment_portal(request, reservation_id):
                             "payment_amount_cents": amount_in_cents,
                             "payment_description": description,
                         },
+                        **_idem,
                     )
 
                     # Handle payment result
@@ -3621,9 +3633,13 @@ def charge_saved_card(request, reservation_id):
         # Use the most recent payment method by default
         payment_method_id = payment_methods.data[0].id
 
-        # Create a payment intent
+        # Create a payment intent. Deterministic idempotency key (reservation + amount):
+        # charging the same balance twice within Stripe's idempotency window is always an
+        # accidental double-charge for a "pay the balance" action, so Stripe returns the
+        # first charge instead of billing again.
+        _amount_cents = int(reservation.total_price * 100)
         payment_intent = stripe.PaymentIntent.create(
-            amount=int(reservation.total_price * 100),
+            amount=_amount_cents,
             currency="usd",
             customer=stripe_customer_id,
             payment_method=payment_method_id,
@@ -3634,6 +3650,7 @@ def charge_saved_card(request, reservation_id):
                 "customer_id": reservation.customer.id,
                 "payment_type": "saved_card",
             },
+            idempotency_key=f"charge-saved-{reservation.uuid}-{_amount_cents}",
         )
 
         # Handle the payment result
@@ -8283,9 +8300,13 @@ def refund_management(request):
     return render(request, "dispatching/refund_management.html", context)
 
 
-def _process_stripe_refund(reservation, refund_amount):
+def _process_stripe_refund(reservation, refund_amount, idem_prefix=None):
     """
     Helper: process Stripe refund across paid payments. Returns (refunded_amount, errors, stripe_ids).
+
+    Caps each payment at its REMAINING (amount - already-refunded) headroom, not its full
+    amount, so a partially-refunded payment (still status='paid') can't be over-refunded.
+    Pass idem_prefix to make each Stripe refund idempotent against a double-submit.
     """
     paid_payments = reservation.payments.filter(status='paid').order_by('-created_at')
     refunded_amount = Decimal('0.00')
@@ -8296,18 +8317,29 @@ def _process_stripe_refund(reservation, refund_amount):
         if refunded_amount >= refund_amount:
             break
 
+        # Remaining headroom on THIS payment (a partial refund leaves status='paid').
+        available = payment.amount - (payment.refunded_amount or Decimal('0.00'))
+        if available <= 0:
+            continue
+
         remaining_to_refund = refund_amount - refunded_amount
-        amount_to_refund = min(remaining_to_refund, payment.amount)
+        amount_to_refund = min(remaining_to_refund, available)
 
         try:
             if not payment.stripe_payment_intent_id:
                 refund_errors.append(f"Payment #{payment.id} has no Stripe payment intent ID")
                 continue
 
+            _refund_kwargs = {}
+            if idem_prefix:
+                _refund_kwargs["idempotency_key"] = (
+                    f"{idem_prefix}-{payment.id}-{int(amount_to_refund * 100)}"
+                )
             refund = stripe.Refund.create(
                 payment_intent=payment.stripe_payment_intent_id,
                 amount=int(amount_to_refund * 100),
                 reason='requested_by_customer',
+                **_refund_kwargs,
             )
 
             refunded_amount += amount_to_refund
@@ -8401,14 +8433,38 @@ def process_refund(request):
         if not refund_amount or refund_amount <= 0:
             return JsonResponse({"success": False, "error": "No refund amount set"}, status=400)
 
-        # Process Stripe refund
-        refunded_amount, refund_errors, stripe_ids = _process_stripe_refund(reservation, refund_amount)
+        # Idempotency guard: atomically claim this request. If it isn't in an active
+        # state right now (already completed, or being processed in another tab / a
+        # double-submit), bail instead of re-running the Stripe refunds.
+        claimed = RefundRequest.objects.filter(
+            id=rr.id, status__in=['requested', 'processing', 'approved'],
+        ).update(status='processing')
+        if not claimed:
+            return JsonResponse(
+                {"success": False, "error": "This refund request was already processed."},
+                status=409,
+            )
+        rr.refresh_from_db()
+
+        # Process Stripe refund (idempotency-keyed on this request so a retry that slips
+        # past the claim guard still can't double-refund the same payment/amount).
+        refunded_amount, refund_errors, stripe_ids = _process_stripe_refund(
+            reservation, refund_amount, idem_prefix=f"refund-{rr.id}"
+        )
 
         if refund_errors and refunded_amount == 0:
+            # Total failure — release the claim so it can be retried, then report.
+            RefundRequest.objects.filter(id=rr.id).update(status='requested')
             return JsonResponse({
                 "success": False,
                 "error": f"Failed to process refund: {'; '.join(refund_errors)}"
             }, status=500)
+
+        # Partial failure (some refunded, some errored): keep going but record the
+        # shortfall in the notes so it's visible instead of silently "completed".
+        if refund_errors:
+            _shortfall = f"[PARTIAL REFUND — refunded ${refunded_amount} of ${refund_amount}; errors: {'; '.join(refund_errors)}]"
+            refund_notes = (refund_notes + "\n" + _shortfall).strip() if refund_notes else _shortfall
 
         # Store Stripe IDs on RefundRequest
         rr.stripe_refund_ids = stripe_ids

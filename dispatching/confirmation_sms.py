@@ -235,6 +235,21 @@ def get_confirmation_message(leg, row):
     return msg
 
 
+def _pickup_when_phrase(leg):
+    """Human 'today' / 'tomorrow' / 'on Sat, Jul 4' phrase for the SMS opening,
+    derived from the leg's pickup date. The batch can be run for ANY date and
+    send_single re-sends same-day, so a hardcoded 'tomorrow' is often wrong."""
+    if not getattr(leg, "pickup_date", None):
+        return "soon"
+    days_until = (leg.pickup_date - timezone.localdate()).days
+    if days_until <= 0:
+        return "today"
+    if days_until == 1:
+        return "tomorrow"
+    # Portable (avoid %-d, which fails on Windows in local runs).
+    return "on " + leg.pickup_date.strftime("%a, %b ") + str(leg.pickup_date.day)
+
+
 def _compose_confirmation_message(leg, row):
     """
     Generate confirmation SMS per templates:
@@ -271,13 +286,14 @@ def _compose_confirmation_message(leg, row):
         airline_flight = airline_display
 
     trip_type = leg.get_trip_type()
+    when = _pickup_when_phrase(leg)
 
     # --- DEPARTURE: Hotel/Location → Airport ---
     if trip_type == "return":
         short_pickup = _short_location(pickup_location)
         short_dropoff = _short_location(dropoff_location)
         msg = (
-            f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+            f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} {when}.\n"
             f"Pickup Time: {pickup_time}\n"
             "Meet: Main lobby entrance — your chauffeur will be waiting out front."
         )
@@ -295,7 +311,7 @@ def _compose_confirmation_message(leg, row):
         if known_airport:
             # Real airport arrival — flight tracking + baggage claim
             msg = (
-                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} {when}.\n"
                 "\n"
             )
             if landing_time:
@@ -312,7 +328,7 @@ def _compose_confirmation_message(leg, row):
         else:
             # Airport hotel or other non-airport pickup — treat like a departure (lobby meet)
             msg = (
-                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} {when}.\n"
                 f"Pickup Time: {pickup_time}\n"
                 "Meet: Main lobby entrance — your chauffeur will be waiting out front."
             )
@@ -336,7 +352,7 @@ def _compose_confirmation_message(leg, row):
         if cruise_direction == "to_cruise" and is_airport_pickup:
             short_pickup = _short_location(pickup_location)
             msg = (
-                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {terminal} tomorrow.\n"
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {terminal} {when}.\n"
                 "\n"
             )
             if landing_time:
@@ -359,7 +375,7 @@ def _compose_confirmation_message(leg, row):
         if cruise_direction == "to_cruise":
             short_pickup = _short_location(pickup_location)
             msg = (
-                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {terminal} tomorrow.\n"
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {terminal} {when}.\n"
                 f"Pickup Time: {pickup_time}\n"
                 "Meet: Main lobby entrance — your chauffeur will be waiting out front."
             )
@@ -371,7 +387,7 @@ def _compose_confirmation_message(leg, row):
         # Cruise Port → Hotel (from_cruise: chauffeur meets at terminal)
         short_dropoff = _short_location(dropoff_location)
         msg = (
-            f"Hi {first_name}, Grayson Towncar confirming your transfer from the {terminal} to {short_dropoff} tomorrow.\n"
+            f"Hi {first_name}, Grayson Towncar confirming your transfer from the {terminal} to {short_dropoff} {when}.\n"
             f"Pickup Time: {pickup_time}\n"
             "\n"
             "Your chauffeur will call/text you once they arrive at the terminal."
@@ -385,7 +401,7 @@ def _compose_confirmation_message(leg, row):
     short_pickup = _short_location(pickup_location) or pickup_location
     short_dropoff = _short_location(dropoff_location) or dropoff_location
     msg = (
-        f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+        f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} {when}.\n"
         f"Pickup Time: {pickup_time}\n"
         "Meet: Main lobby entrance — your chauffeur will be waiting out front."
     )

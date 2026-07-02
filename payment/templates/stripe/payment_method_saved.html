@@ -1,11 +1,41 @@
-{% extends 'base.html' %}
+{% extends 'main.html' %}
+{% load static %}
+{% block title %}
+  Card Saved | Grayson Towncar
+{% endblock title %}
 
 {% block content %}
-  <div class="container">
-    <h1>Payment Method Saved Successfully</h1>
-    <p>Reservation ID: 481 {{ reservation_id }}</p>
-    <p>Payment Method ID: {{ payment_method_id }}</p>
-
-    <div class="alert alert-success">Your payment method has been securely saved for future use.</div>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+        <div class="card border-0 shadow-lg">
+          <div class="card-body text-center py-5">
+            <div class="mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="none"
+                   stroke="#C9A227" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="2" y="5" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M2 10h20" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <h1 class="h4 fw-bold mb-3" style="color:#1A1A2E;">You're all set — card on file</h1>
+            <p class="text-muted mb-3">
+              Thank you for choosing <span class="fw-semibold text-dark">Grayson Towncar</span>.
+              Your card has been securely saved and your reservation is confirmed.
+            </p>
+            <p class="text-secondary mb-4">
+              No charge has been made yet{% if reservation.total_price %} — your fare of
+              <span class="fw-semibold text-dark">${{ reservation.total_price }}</span> will be
+              charged to this card before your pickup{% endif %}. You'll receive an email
+              confirmation with your trip details.
+            </p>
+            <div class="mb-4">
+              <p class="mb-1">📞 <a href="tel:+14072127190" class="text-decoration-none">+1 (407) 212-7190</a></p>
+              <p>📧 <a href="mailto:reservations@graysontowncar.com" class="text-decoration-none">reservations@graysontowncar.com</a></p>
+            </div>
+            <a href="{% url 'home' %}" class="btn px-4 py-2 fw-semibold" style="background:#C9A227; color:#16120A;">Return to Homepage</a>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-{% endblock %}
+{% endblock content %}
