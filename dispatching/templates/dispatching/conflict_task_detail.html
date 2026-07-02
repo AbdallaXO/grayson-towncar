@@ -239,25 +239,39 @@
         <div class="cf-hero-top">
           <div class="cf-metric">
             <div class="cf-metric-num">{% if redesign.behind_gate != None %}+{{ redesign.behind_gate }}{% else %}{{ conflict_minutes }}{% endif %}</div>
-            <div class="cf-metric-unit">min after arrival</div>
+            <div class="cf-metric-unit">{% if redesign.gate_str %}min after arrival{% else %}min behind pickup{% endif %}</div>
           </div>
           <div class="cf-situation">
             {% if redesign.gate_str %}
             <h2>{{ driver_name }} picks up {{ redesign.prior_label }} from <strong>{{ redesign.prior_pickup_loc }}</strong> at <span class="mono">{{ redesign.prior_pickup_str }}</span>, dropping off at <strong>{{ redesign.prior_dropoff_loc }}</strong> by <span class="mono">{{ redesign.prior_clear_str }}</span>. {{ redesign.flight_label|default:"The flight" }} reaches the gate at <span class="mono">{{ redesign.gate_str }}</span> — but {{ driver_name }} can't be at <strong>{{ redesign.arr_pickup_loc }}</strong> until <span class="mono">{{ redesign.driver_curb_str }}</span>, about <span class="mono">{{ redesign.behind_gate }} min</span> after it.</h2>
             <div class="cf-judge">Typically 10–15 min after gate arrival for guests to reach baggage claim — judge the real gap from there.</div>
             {% else %}
-            <h2>{{ driver_name }} picks up {{ redesign.prior_label }} from <strong>{{ redesign.prior_pickup_loc }}</strong> at <span class="mono">{{ redesign.prior_pickup_str }}</span>, dropping off at <strong>{{ redesign.prior_dropoff_loc }}</strong> by <span class="mono">{{ redesign.prior_clear_str }}</span> — but the next pickup, {{ redesign.arr_label }} at <strong>{{ redesign.arr_pickup_loc }}</strong>, is booked for <span class="mono">{{ redesign.booked_str }}</span>, leaving him about <span class="mono">{{ conflict_minutes }} min</span> short.</h2>
+            <h2>{{ driver_name }} picks up {{ redesign.prior_label }} from <strong>{{ redesign.prior_pickup_loc }}</strong> at <span class="mono">{{ redesign.prior_pickup_str }}</span>, dropping off at <strong>{{ redesign.prior_dropoff_loc }}</strong> by <span class="mono">{{ redesign.prior_clear_str }}</span>. The next pickup, {{ redesign.arr_label }} at <strong>{{ redesign.arr_pickup_loc }}</strong>, is booked for <span class="mono">{{ redesign.booked_str }}</span> — he's expected there around <span class="mono">{{ redesign.driver_curb_str }}</span>{% if conflict_minutes %}, running about <span class="mono">{{ conflict_minutes }} min</span> behind{% endif %}.</h2>
+            {% if redesign.monitor_first %}
+            <div class="cf-judge">Monitor the job — watch when {{ driver_name }} clears {{ redesign.prior_label }}'s drop-off. If he runs early, the gap closes on its own.</div>
+            {% else %}
+            <div class="cf-judge">A {{ conflict_minutes }}-min gap is more than a tight clear can absorb — line up cover now (Step&nbsp;2).</div>
+            {% endif %}
             {% endif %}
           </div>
         </div>
         <div class="cf-vitals">
-          <div class="cf-vital"><div class="lbl">Flight at gate</div><div class="cf-vital-v">{{ redesign.gate_str|default:"—" }}</div></div>
+          {% if redesign.gate_str %}
+          <div class="cf-vital"><div class="lbl">Flight at gate</div><div class="cf-vital-v">{{ redesign.gate_str }}</div></div>
+          {% else %}
+          <div class="cf-vital"><div class="lbl">Clears prior job</div><div class="cf-vital-v">{{ redesign.prior_clear_str }}</div></div>
+          {% endif %}
           <div class="cf-vital"><div class="lbl">Driver there</div><div class="cf-vital-v">{{ redesign.driver_curb_str }}</div></div>
           <div class="cf-vital"><div class="lbl">Booked pickup</div><div class="cf-vital-v">{{ redesign.booked_str }}</div></div>
           <div class="cf-vital"><div class="lbl">Reposition</div><div class="cf-vital-v">{{ redesign.reposition_min }}<small> min</small></div></div>
         </div>
         <div class="cf-rec">
-          <i class="bi bi-stars"></i><b>Recommended:</b><span>Cover it in-house — see Step&nbsp;2 below.</span>
+          <i class="bi bi-stars"></i><b>Recommended:</b>
+          {% if redesign.monitor_first %}
+          <span>Monitor first — he's only ≈{{ conflict_minutes }} min behind. Reassign (Step&nbsp;2) only if the prior job slips.</span>
+          {% else %}
+          <span>Cover it in-house — see Step&nbsp;2 below.</span>
+          {% endif %}
         </div>
       </div>
 
@@ -278,14 +292,14 @@
               </div>
               <div class="cf-lanes">
                 {% for t in tl.ticks %}<span class="cf-tick-grid" style="left:{{ t.pct }}%"></span>{% endfor %}
-                {% if tl.band %}<div class="cf-band" style="left:{{ tl.band.left }}%;width:{{ tl.band.width }}%"><span class="cf-band-lbl">+{{ redesign.behind_gate }} MIN AFTER ARRIVAL</span></div>{% endif %}
+                {% if tl.band %}<div class="cf-band" style="left:{{ tl.band.left }}%;width:{{ tl.band.width }}%"><span class="cf-band-lbl">{{ tl.band_label }}</span></div>{% endif %}
 
                 <!-- Guest lane -->
                 <div class="cf-lane">
                   {% if tl.guest_terminal %}<div class="cf-bar cf-bar-terminal" style="left:{{ tl.guest_terminal.left }}%;width:{{ tl.guest_terminal.width }}%"><span class="cf-bar-cap">in terminal</span></div>{% endif %}
                   <div class="cf-bar cf-bar-enroute" style="left:{{ tl.guest_enroute.left }}%;width:{{ tl.guest_enroute.width }}%"></div>
                   {% if tl.marker_gate != None %}<div class="cf-mk cf-mk-amb" style="left:{{ tl.marker_gate }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">GATE {{ redesign.gate_str }}</span></div>{% endif %}
-                  <div class="cf-mk cf-mk-gold" style="left:{{ tl.marker_booked }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">BOOKED</span></div>
+                  <div class="cf-mk cf-mk-gold" style="left:{{ tl.marker_booked }}%"><span class="cf-mk-line"></span><span class="cf-mk-tag">BOOKED {{ redesign.booked_str }}</span></div>
                 </div>
 
                 <!-- Driver lane — both of his legs: the prior job (blue) and this arrival (gold) -->
@@ -300,8 +314,8 @@
           </div>
           <div style="display:flex;gap:18px;margin-top:14px;padding-left:86px;flex-wrap:wrap;font-size:11px;color:var(--ink-mute)">
             <span><b style="color:var(--blu)">▬</b> Leg 1 — {{ redesign.prior_label }} ({{ driver_name }})</span>
-            <span><b style="color:var(--gold-deep)">▬</b> Leg 2 — {{ redesign.arr_label }} arrival</span>
-            <span><b style="color:var(--amb)">▮</b> Flight gate</span>
+            <span><b style="color:var(--gold-deep)">▬</b> Leg 2 — {{ redesign.arr_label }}{% if redesign.gate_str %} arrival{% endif %}</span>
+            {% if tl.marker_gate != None %}<span><b style="color:var(--amb)">▮</b> Flight gate</span>{% endif %}
           </div>
         </div>
       </div>
@@ -314,11 +328,19 @@
         <div class="cf-card-h"><i class="bi bi-signpost-split-fill" style="color:var(--gold-deep)"></i><span class="lbl">Why It Conflicts</span></div>
         <div class="cf-card-b">
           <div class="cf-why">
+            {% if redesign.gate_str %}
             <div class="cf-node">
               <div class="lbl">Flight at gate</div>
-              <div class="cf-node-v">{{ redesign.gate_str|default:conflict_detail.flight_gate_str }}</div>
+              <div class="cf-node-v">{{ redesign.gate_str }}</div>
               <div class="cf-node-sub">{{ redesign.flight_label }}{% if conflict_detail.original_flight_str %} · was {{ conflict_detail.original_flight_str }}{% endif %}</div>
             </div>
+            {% else %}
+            <div class="cf-node">
+              <div class="lbl">Next pickup booked</div>
+              <div class="cf-node-v">{{ redesign.booked_str }}</div>
+              <div class="cf-node-sub">{{ redesign.arr_label }}</div>
+            </div>
+            {% endif %}
             <div class="cf-why-arrow"><i class="bi bi-arrow-right"></i></div>
             <div class="cf-node">
               <div class="lbl">Driver clears prior job</div>
@@ -326,11 +348,19 @@
               <div class="cf-node-sub">+{{ redesign.reposition_min }} min reposition → {{ redesign.driver_curb_str }}</div>
             </div>
             <div class="cf-why-arrow"><i class="bi bi-arrow-right"></i></div>
+            {% if redesign.gate_str %}
             <div class="cf-node is-red">
               <div class="lbl">Net result</div>
               <div class="cf-node-v">+{{ redesign.behind_gate }} min</div>
               <div class="cf-node-sub">clears after the flight arrives</div>
             </div>
+            {% else %}
+            <div class="cf-node is-red">
+              <div class="lbl">ETA at next pickup</div>
+              <div class="cf-node-v">{{ redesign.driver_curb_str }}</div>
+              <div class="cf-node-sub">≈{{ conflict_minutes }} min behind the {{ redesign.booked_str }} booking</div>
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -342,7 +372,8 @@
         <div class="cf-card-b">
           <div class="cf-ladder" id="cfLadder" data-leg-id="{{ task.leg_id }}" data-date="{{ pickup_date_str }}">
 
-            <!-- Step 1 -->
+            <!-- Step 1 — gate mode: correct the booked time to the flight; ETA mode: watch the prior job -->
+            {% if redesign.gate_str %}
             <div class="cf-step">
               <div class="cf-step-n">1</div>
               <div class="cf-step-body">
@@ -353,13 +384,26 @@
                 {% endif %}
               </div>
             </div>
+            {% else %}
+            <div class="cf-step{% if redesign.monitor_first %} is-rec{% endif %}">
+              <div class="cf-step-n">1</div>
+              <div class="cf-step-body">
+                <div class="cf-step-head"><span class="cf-step-title">Monitor the prior job</span>{% if redesign.monitor_first %}<span class="cf-tag cf-tag-gold">Do this</span>{% else %}<span class="cf-tag cf-tag-mute">Check first</span>{% endif %}</div>
+                <div class="cf-step-desc">He's expected about <span class="mono">{{ conflict_minutes }} min</span> behind the {{ redesign.booked_str }} pickup. Watch when {{ driver_name }} goes en route / clears {{ redesign.prior_label }}'s drop-off — clearing before {{ redesign.prior_clear_str }} closes the gap; if it slips, move to Step&nbsp;2.</div>
+                {% if driver_phone %}
+                <a class="cf-act" href="tel:{{ driver_phone }}"><i class="bi bi-telephone"></i> Call {{ driver_name }}</a>
+                <a class="cf-act" href="sms:{{ driver_phone }}"><i class="bi bi-chat-dots"></i> Text</a>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
 
             <!-- Step 2 -->
-            <div class="cf-step is-rec" id="cfStep2">
+            <div class="cf-step{% if not redesign.monitor_first %} is-rec{% endif %}" id="cfStep2">
               <div class="cf-step-n">2</div>
               <div class="cf-step-body">
-                <div class="cf-step-head"><span class="cf-step-title">Cover in-house</span><span class="cf-tag cf-tag-gold">Do this</span></div>
-                <div class="cf-step-desc">Reassign the arrival leg to a free in-house driver — the primary fix, no margin lost.{% if ladder.checked and not ladder.inhouse %} None are open in this window; free one up with a <a href="{% url 'dashboard' %}?date={{ pickup_date_str }}&highlight={{ task.leg_id }}" target="_blank">swap on the board</a>.{% endif %}</div>
+                <div class="cf-step-head"><span class="cf-step-title">Cover in-house</span>{% if redesign.monitor_first %}<span class="cf-tag cf-tag-mute">If it slips</span>{% else %}<span class="cf-tag cf-tag-gold">Do this</span>{% endif %}</div>
+                <div class="cf-step-desc">Reassign the {% if redesign.gate_str %}arrival{% else %}conflicting{% endif %} leg to a free in-house driver — the primary fix, no margin lost.{% if ladder.checked and not ladder.inhouse %} None are open in this window; free one up with a <a href="{% url 'dashboard' %}?date={{ pickup_date_str }}&highlight={{ task.leg_id }}" target="_blank">swap on the board</a>.{% endif %}</div>
                 <div id="cfStep2Body" class="cf-cands">
                   {% for c in ladder.inhouse %}
                   <div class="cf-cand">
@@ -371,7 +415,7 @@
                     <button class="cf-act cf-act-gold cf-assign" data-driver="{{ c.id }}"><i class="bi bi-person-check"></i> Assign</button>
                   </div>
                   {% empty %}
-                  <div class="cf-act-empty">No free in-house driver fits this window — see Step&nbsp;3.</div>
+                  <div class="cf-act-empty">{% if ladder.checked %}No free in-house driver fits this window — see Step&nbsp;3.{% else %}Couldn't check driver availability — review the board via “Reassign leg”.{% endif %}</div>
                   {% endfor %}
                 </div>
               </div>
@@ -436,16 +480,22 @@
       </div>
       {% endwith %}
 
+      {% if redesign.flight_label or task.leg.flight_information %}
       <div class="cf-card">
         <div class="cf-card-h"><i class="bi bi-airplane" style="color:var(--ink-soft)"></i><span class="lbl">Flight</span></div>
         <div class="cf-card-b">
-          <div class="cf-kv"><span class="cf-kv-k">{{ redesign.flight_label }}</span><span class="cf-kv-v">{% if task.leg.flight_information %}{{ task.leg.flight_information.status|default:"—" }}{% else %}—{% endif %}</span></div>
-          <div class="cf-kv"><span class="cf-kv-k">Gate arrival</span><span class="cf-kv-v">{{ redesign.gate_str|default:"—" }}</span></div>
+          <div class="cf-kv"><span class="cf-kv-k">{{ redesign.flight_label|default:"Flight" }}</span><span class="cf-kv-v">{% if task.leg.flight_information %}{{ task.leg.flight_information.status|default:"—" }}{% else %}—{% endif %}</span></div>
+          {% if redesign.gate_str %}
+          <div class="cf-kv"><span class="cf-kv-k">Gate arrival</span><span class="cf-kv-v">{{ redesign.gate_str }}</span></div>
+          {% endif %}
           <div class="cf-kv"><span class="cf-kv-k">Booked pickup</span><span class="cf-kv-v">{{ redesign.booked_str }}</span></div>
           {% if task.leg.flight_information.terminal %}<div class="cf-kv"><span class="cf-kv-k">Terminal</span><span class="cf-kv-v">{{ task.leg.flight_information.terminal }}</span></div>{% endif %}
+          {% if redesign.gate_str %}
           <div class="cf-kv"><span class="cf-kv-k">Walk buffer</span><span class="cf-kv-v">≈{{ conflict_detail.guest_ready_minutes|default:15 }} min <small style="color:var(--ink-mute);font-weight:400">gate → bag claim</small></span></div>
+          {% endif %}
         </div>
       </div>
+      {% endif %}
 
       <div class="cf-card">
         <div class="cf-card-h"><i class="bi bi-clock-history" style="color:var(--ink-soft)"></i><span class="lbl">Activity</span></div>

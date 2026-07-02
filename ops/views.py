@@ -1094,8 +1094,14 @@ def _build_driver_conflict_context(task):
                 })
                 _t += 15
 
+            # No gate anchor (two departures / pure overlap) → "ETA mode": the
+            # story is booked pickup vs driver ETA. A small shortfall is a
+            # monitor-first situation, not a reassign.
+            _monitor_first = _gate_dt is None and late_minutes <= 10
+
             redesign = {
                 "behind_gate": _behind_gate,
+                "monitor_first": _monitor_first,
                 "driver_curb_str": earliest_arrival.strftime("%I:%M %p").lstrip("0"),
                 "gate_str": flight_gate_str,
                 "booked_str": second_pickup.strftime("%I:%M %p").lstrip("0"),
@@ -1117,7 +1123,19 @@ def _build_driver_conflict_context(task):
                     "driver_arrival": _bar(earliest_arrival, _arr_end),
                     "guest_terminal": _bar(_gate_dt, earliest_arrival) if _gate_dt else None,
                     "guest_enroute": _bar(earliest_arrival, _arr_end),
-                    "band": _bar(_gate_dt, earliest_arrival) if _gate_dt else None,
+                    # Shortfall band: gate → driver-free in gate mode; booked
+                    # pickup → driver-free in ETA mode (guest waiting).
+                    "band": (
+                        _bar(_gate_dt, earliest_arrival) if _gate_dt
+                        else (
+                            _bar(second_pickup, earliest_arrival)
+                            if earliest_arrival > second_pickup else None
+                        )
+                    ),
+                    "band_label": (
+                        f"+{_behind_gate} MIN AFTER ARRIVAL" if _gate_dt
+                        else f"≈{late_minutes} MIN BEHIND"
+                    ),
                     "marker_gate": _pct(_gate_dt) if _gate_dt else None,
                     "marker_booked": _pct(second_pickup),
                     "marker_driver_free": _pct(earliest_arrival),
@@ -1251,12 +1269,13 @@ def _build_driver_conflict_context(task):
     # otherwise fall back to stale metadata value
     recalc_minutes = conflict_detail["late_minutes"] if conflict_detail else meta.get("conflict_minutes", 0)
 
-    # ── Resolution Ladder: which in-house drivers can cover the arrival leg, plus
-    #    an affiliate fallback. Offline-safe: with USE_LIVE_DISTANCE off, feasibility
-    #    uses the category drive-time table — no synchronous Google call in the
-    #    request path (see CLAUDE.md hotfix 6da1626a / NEXT #7).
+    # ── Resolution Ladder: which in-house drivers can cover the conflicted leg
+    #    (arrival or departure alike), plus an affiliate fallback. Offline-safe:
+    #    with USE_LIVE_DISTANCE off, feasibility uses the category drive-time
+    #    table — no synchronous Google call in the request path (see CLAUDE.md
+    #    hotfix 6da1626a / NEXT #7).
     ladder = {"inhouse": [], "affiliates": [], "step3_unlocked": True, "checked": False}
-    if task.leg and is_arrival_leg:
+    if task.leg:
         try:
             from dispatching.scheduler import (
                 build_driver_schedules,
@@ -1264,8 +1283,8 @@ def _build_driver_conflict_context(task):
                 load_all_driver_vtypes,
                 get_compatible_vehicle_types,
             )
-            arrival_leg = task.leg
-            arrival_vtype = arrival_leg.effective_vehicle_type
+            cover_leg = task.leg
+            cover_vtype = cover_leg.effective_vehicle_type
             inhouse_drivers = list(
                 Driver.objects.filter(driver_type="inhouse", is_active=True)
                 .exclude(profile__username__icontains="placeholder")
@@ -1294,12 +1313,12 @@ def _build_driver_conflict_context(task):
                 if not dv:
                     continue
                 # The assigned vehicle must be able to cover the leg's tier.
-                if arrival_vtype and arrival_vtype not in get_compatible_vehicle_types(dv):
+                if cover_vtype and cover_vtype not in get_compatible_vehicle_types(dv):
                     continue
                 ds = sched_map.get(d.id)
                 if ds is None:
                     continue
-                feas = check_feasibility(ds, arrival_leg, pickup_date)
+                feas = check_feasibility(ds, cover_leg, pickup_date)
                 if not feas.feasible:
                     continue
                 ladder["inhouse"].append({
