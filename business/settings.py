@@ -356,7 +356,11 @@ CSRF_TRUSTED_ORIGINS = [
     "https://www.graysontowncar.com",
     ]
 
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# strip(): a stray newline/space/quote pasted into the Railway variable makes every
+# webhook signature check fail with "No signatures found matching the expected signature".
+STRIPE_WEBHOOK_SECRET = (
+    os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip().strip("\"'").strip()
+)
 
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 31536000  # 1 year — required for the preload flag below to be valid

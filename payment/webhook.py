@@ -34,7 +34,17 @@ def stripe_webhook(request):
         logger.error(f"Invalid Payload: {e}")
         return HttpResponse(status=400)
     except stripe.error.SignatureVerificationError as e:
-        logger.error(f"Invalid Signature: {e}")
+        # Fingerprint of the LOADED secret (length + last 4, never the full value) so a
+        # Railway-var vs Stripe-dashboard mismatch is a one-line diagnosis instead of a
+        # guessing game: compare last4 against the destination's revealed signing secret.
+        secret = settings.STRIPE_WEBHOOK_SECRET or ""
+        logger.error(
+            "Invalid Signature: %s (Stripe-Signature header: %s; loaded secret: len=%d last4=%s)",
+            e,
+            "present" if signature else "MISSING",
+            len(secret),
+            secret[-4:] if len(secret) >= 4 else "<unset>",
+        )
         return HttpResponse(status=400)
 
     event_type = event["type"]
