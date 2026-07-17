@@ -5,8 +5,6 @@ import os
 import logging
 import uuid
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load from Railway environment variables

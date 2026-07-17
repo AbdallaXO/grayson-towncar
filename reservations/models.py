@@ -663,15 +663,17 @@ class Reservation(models.Model):
         if not payments:
             return "unpaid"
 
-        # Check if any payment is marked as paid
-        for payment in payments:
-            if payment.status == "paid":
-                return "paid"
-            elif payment.status == "card_saved":
-                return "card_saved"
-            elif payment.status == "pending":
-                return "pending"
-
+        # Precedence across ALL payments, not first-row-wins: a reservation with
+        # an old card_saved/pending row plus a later paid row IS paid. (The old
+        # loop returned on the first row in arbitrary DB order, so the booking-time
+        # card_saved row masked the real payment and the board showed it unpaid.)
+        statuses = {payment.status for payment in payments}
+        if "paid" in statuses:
+            return "paid"
+        if "card_saved" in statuses:
+            return "card_saved"
+        if "pending" in statuses:
+            return "pending"
         return "failed"
 
     @cached_property

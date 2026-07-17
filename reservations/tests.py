@@ -578,3 +578,86 @@ class ChannelClassificationTests(SimpleTestCase):
         for _key, _label, _color, subs in CHANNEL_GROUPS:
             for slug in subs:
                 self.assertIn(slug, CHANNEL_LABELS, f"{slug} missing a label")
+
+
+class ReservationPaymentStatusTests(TestCase):
+    """
+    payment_status must aggregate across ALL Payment rows with precedence
+    paid > card_saved > pending, not return on the first row in DB order.
+    Regression: a booking-time card_saved (or abandoned pending) row sat first
+    and masked the later paid row, so the board showed paid trips as unpaid.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        origin = Location.objects.create(name="MCO Airport")
+        dest = Location.objects.create(name="Disney World")
+        route = Route.objects.create(origin=origin, destination=dest)
+        vehicle = Vehicle.objects.create(
+            vehicle_type="suv", capacity=6, luggage_capacity=6
+        )
+        cls.rate = Rate.objects.create(
+            vehicle=vehicle, route=route,
+            oneway_price=Decimal("140"), round_trip_price=Decimal("275"),
+        )
+
+    def setUp(self):
+        post_save.disconnect(reservation_saved, sender=Reservation)
+        self.addCleanup(
+            lambda: post_save.connect(reservation_saved, sender=Reservation)
+        )
+        self.customer = Customer.objects.create(
+            first_name="Pay", last_name="Status",
+            email="paystatus@example.com", phone_number="555-000-1111",
+        )
+        self.reservation = Reservation.objects.create(
+            trip_type="oneway", customer=self.customer, rate=self.rate,
+            base_price=Decimal("275"), total_price=Decimal("275"),
+            status="confirmed",
+        )
+
+    def _payment(self, status, amount="275.00"):
+        from payment.models import Payment
+        return Payment.objects.create(
+            reservation=self.reservation, customer=self.customer,
+            amount=Decimal(amount), status=status,
+        )
+
+    def _status(self):
+        # payment_status is a cached_property — read it on a fresh instance.
+        return Reservation.objects.get(pk=self.reservation.pk).payment_status
+
+    def test_paid_wins_over_earlier_card_saved_row(self):
+        self._payment("card_saved")   # booking-time save-card row, lower pk
+        self._payment("paid")         # the actual charge, later row
+        self.assertEqual(self._status(), "paid")
+
+    def test_paid_wins_over_earlier_pending_row(self):
+        self._payment("pending")
+        self._payment("paid")
+        self.assertEqual(self._status(), "paid")
+
+    def test_card_saved_wins_over_pending(self):
+        self._payment("pending")
+        self._payment("card_saved")
+        self.assertEqual(self._status(), "card_saved")
+
+    def test_single_card_saved_unchanged(self):
+        self._payment("card_saved")
+        self.assertEqual(self._status(), "card_saved")
+
+    def test_no_payments_is_unpaid(self):
+        self.assertEqual(self._status(), "unpaid")
+
+    def test_only_unrecognized_statuses_fall_back_to_failed(self):
+        self._payment("refunded")
+        self.assertEqual(self._status(), "failed")
+
+    def test_prefetched_payments_path_matches(self):
+        self._payment("card_saved")
+        self._payment("paid")
+        res = (
+            Reservation.objects.prefetch_related("payments")
+            .get(pk=self.reservation.pk)
+        )
+        self.assertEqual(res.payment_status, "paid")

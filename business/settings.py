@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from dotenv import load_dotenv
 from pathlib import Path
+import logging
 import os
 import dj_database_url
 
@@ -499,20 +500,37 @@ JAZZMIN_UI_TWEAKS = {
 # decide when pickup vs flight arrival is "off enough" to flag.
 FLIGHT_REVIEW_MISMATCH_THRESHOLD_MINUTES = 30
 
-# Slow-request logger — logs any request exceeding 500ms to Railway's console
+# Split-stream logging: INFO/WARNING -> stdout, ERROR/CRITICAL -> stderr.
+# Railway derives severity from the stream, so a bare StreamHandler (stderr)
+# tags every line severity=error and nothing is filterable/alertable.
+# All app loggers (perf, dispatching.*, payment.*, django.*) propagate to root.
+# Do NOT call logging.basicConfig() in modules — it stacks a second root
+# handler on stderr and undoes this split.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "below_error": {
+            "()": "django.utils.log.CallbackFilter",
+            "callback": lambda record: record.levelno < logging.ERROR,
+        },
+    },
+    "formatters": {
+        "console": {"format": "%(levelname)s %(name)s: %(message)s"},
+    },
     "handlers": {
-        "console": {
+        "stdout": {
             "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "filters": ["below_error"],
+            "formatter": "console",
+        },
+        "stderr": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "level": "ERROR",
+            "formatter": "console",
         },
     },
-    "loggers": {
-        "perf": {
-            "handlers": ["console"],
-            "level": "INFO",  # Lowered from WARNING to capture PERF TEMP instrumentation
-            "propagate": False,
-        },
-    },
+    "root": {"handlers": ["stdout", "stderr"], "level": "INFO"},
 }

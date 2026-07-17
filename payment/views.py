@@ -8,7 +8,6 @@ from django.conf import settings
 from django.urls import reverse
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
 

@@ -14,7 +14,6 @@ from decimal import Decimal  # Added import
 # HubSpot integration removed
 from reservations.conversions import send_purchase_event
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
