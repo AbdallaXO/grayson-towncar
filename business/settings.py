@@ -45,7 +45,10 @@ ALLOWED_HOSTS = [
     "www.graysontowncar.com",
     "localhost",
     "127.0.0.1",
-    "grayson-towncar-production.up.railway.app",
+    # Direct (non-Cloudflare) Railway domain — Stripe webhooks deliver here so the
+    # signed payload can't be touched by the CDN. The old
+    # grayson-towncar-production.up.railway.app domain is dead (railway fallback 404).
+    "web-production-f70c.up.railway.app",
 ]
 
 
