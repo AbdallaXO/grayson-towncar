@@ -255,6 +255,26 @@
         </div>
       {% endif %}
 
+      {% if legs.has_other_pages %}
+      <nav aria-label="Completed trips pagination" style="margin-top:16px;">
+        <ul style="display:flex;gap:6px;justify-content:center;align-items:center;list-style:none;padding:0;flex-wrap:wrap;">
+          {% if legs.has_previous %}
+            <li><a class="gt-btn gt-btn-ghost gt-btn-sm" href="?page={{ legs.previous_page_number }}">« Prev</a></li>
+          {% endif %}
+          {% for num in legs.paginator.page_range %}
+            {% if legs.number == num %}
+              <li><span class="gt-btn gt-btn-sm" aria-current="page">{{ num }}</span></li>
+            {% elif num > legs.number|add:'-3' and num < legs.number|add:'3' %}
+              <li><a class="gt-btn gt-btn-ghost gt-btn-sm" href="?page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if legs.has_next %}
+            <li><a class="gt-btn gt-btn-ghost gt-btn-sm" href="?page={{ legs.next_page_number }}">Next »</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+
     </div>
 
     {% include "drivers/_driver_scripts.html" %}

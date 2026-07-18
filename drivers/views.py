@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from reservations.models import Leg, LegStatus
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
+from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
@@ -300,9 +301,11 @@ def index(request):
 def completed_trips(request):
     driver = get_object_or_404(Driver, profile=request.user)
 
-    # Use select_related to fetch related data efficiently
-    # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
-    legs = (
+    # Paginate: this used to load the driver's ENTIRE completed history unbounded
+    # (120s+ requests that held a DB connection the whole time — incident
+    # 2026-07-18). Now bounded to one page; older trips stay reachable via page
+    # nav. The select_related/prefetch below still cover the template with no N+1.
+    legs_qs = (
         Leg.objects.select_related(
             "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
@@ -312,16 +315,18 @@ def completed_trips(request):
         .exclude(reservation__status="cancelled")
         .order_by("-pickup_date", "-pickup_time")
     )
+    page_obj = Paginator(legs_qs, 25).get_page(request.GET.get("page"))
 
-    # Add is_first_leg property using prefetched data (no extra queries)
-    for leg in legs:
+    # Add is_first_leg property using prefetched data (no extra queries) — only
+    # for the 25 legs on the current page.
+    for leg in page_obj:
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
 
     return render(
         request,
         "drivers/completed_trips.html",
-        {"legs": legs, "title": "Completed Trips"},
+        {"legs": page_obj, "title": "Completed Trips"},
     )
 
 
