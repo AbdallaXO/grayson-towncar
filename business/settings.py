@@ -200,6 +200,25 @@ else:
     }
 
 
+# Sessions: keep them OFF the database. With the default DB backend and
+# SESSION_SAVE_EVERY_REQUEST=True (below), EVERY request UPDATEs a django_session
+# row; under load the web statement_timeout fired mid-UPDATE and raised
+# SessionInterrupted 500s (connection / lock-contention outage 2026-07-18).
+if _redis_url:
+    # Preferred: server-side sessions in Redis — shared across workers,
+    # invalidatable (real logout), no cookie-size limit, not client-readable.
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_CACHE_ALIAS = "default"
+else:
+    # No Redis configured: signed cookies (no server-side store, no DB writes).
+    # SECURITY TRADEOFFS: (1) cannot be invalidated server-side — logout only
+    # clears the client cookie, so a copied cookie stays valid until it expires;
+    # (2) ~4KB cookie limit — large sessions break; (3) contents are signed but
+    # NOT encrypted, so they are readable by the client. Set REDIS_URL in prod to
+    # use the cache backend above instead.
+    SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
