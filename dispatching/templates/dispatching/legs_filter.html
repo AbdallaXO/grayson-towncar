@@ -1159,9 +1159,9 @@
                                     data-leg-id="{{ leg.id }}"
                                     title="View full flight details">
                               <i class="bi bi-info-circle me-1"></i>Details
-                              {% if leg.legflight_set.count > 1 %}
+                              {% if leg.legflight_set.all|length > 1 %}
                                 <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
-                                  <i class="bi bi-airplane-fill me-1"></i>{{ leg.legflight_set.count }} flights
+                                  <i class="bi bi-airplane-fill me-1"></i>{{ leg.legflight_set.all|length }} flights
                                 </span>
                               {% endif %}
                             </button>
@@ -1456,7 +1456,7 @@
                                   {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                         </select>
                         <div class="update-status mt-1"></div>
-                        {% with last_update=leg.status_history.first %}
+                        {% with last_update=leg.status_history.all.0 %}
                           {% if last_update %}
                             <div class="mt-2 pt-2 border-top">
                               <div class="small">
@@ -1611,7 +1611,7 @@
                                   <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
                                 </div>
                               {% endif %}
-                              {% if leg.flight_information or leg.legflight_set.exists %}
+                              {% if leg.flight_information or leg.legflight_set.all %}
                                 <div class="mt-1">
                                   <button class="btn btn-sm btn-outline-secondary"
                                           type="button"
@@ -1619,9 +1619,9 @@
                                           data-bs-target="#flightDetails{{ leg.id }}"
                                           title="View full flight details">
                                     <i class="bi bi-info-circle me-1"></i>Details
-                                    {% if leg.legflight_set.count > 1 %}
+                                    {% if leg.legflight_set.all|length > 1 %}
                                       <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">
-                                        <i class="bi bi-airplane-fill me-1"></i>{{ leg.legflight_set.count }} flights
+                                        <i class="bi bi-airplane-fill me-1"></i>{{ leg.legflight_set.all|length }} flights
                                       </span>
                                     {% endif %}
                                   </button>
@@ -1830,7 +1830,7 @@
                             </select>
                             <div class="update-status mt-1"></div>
                           </form>
-                          {% with last_update=leg.status_history.first %}
+                          {% with last_update=leg.status_history.all.0 %}
                             {% if last_update %}
                               <div class="mt-2 pt-2 border-top">
                                 <div class="small">
@@ -1914,7 +1914,7 @@
       </div>
 
       {% for leg in legs %}
-        {% if leg.flight_information or leg.legflight_set.exists %}
+        {% if leg.flight_information or leg.legflight_set.all %}
           {% include "dispatching/includes/_flight_details_modal.html" %}
         {% endif %}
       {% endfor %}

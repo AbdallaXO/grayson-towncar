@@ -343,7 +343,9 @@ def schedule(request):
             "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
         )
-        .prefetch_related("reservation__legs")
+        # legstop_set: leg.intermediate_stops / additional_dropoffs in the template
+        # iterate it per leg -> without this each leg fired its own query (N+1).
+        .prefetch_related("reservation__legs", "legstop_set")
         .filter(
             driver=driver,
             pickup_date__gte=today,
