@@ -436,6 +436,9 @@ class Reservation(models.Model):
                 name="res_unpaid_completed_agent_idx",
                 condition=Q(commission_paid=False, status="completed"),
             ),
+            # Reservations list default path: exclude cancelled + order by
+            # -created_at within a 90-day window (incident 2026-07-18).
+            models.Index(fields=["status", "created_at"], name="res_status_created_idx"),
         ]
 
     def save(self, *args, **kwargs):
@@ -2218,6 +2221,10 @@ class Leg(models.Model):
             models.Index(fields=["pickup_date", "pickup_time"]),
             models.Index(fields=["driver"]),
             models.Index(fields=["status"]),
+            # completed-trips filters driver + status='completed'; date/board views
+            # filter pickup_date + status (incident 2026-07-18).
+            models.Index(fields=["driver", "status"], name="leg_driver_status_idx"),
+            models.Index(fields=["pickup_date", "status"], name="leg_pickup_status_idx"),
         ]
 
 
