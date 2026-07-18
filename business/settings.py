@@ -200,23 +200,19 @@ else:
     }
 
 
-# Sessions: keep them OFF the database. With the default DB backend and
-# SESSION_SAVE_EVERY_REQUEST=True (below), EVERY request UPDATEs a django_session
-# row; under load the web statement_timeout fired mid-UPDATE and raised
-# SessionInterrupted 500s (connection / lock-contention outage 2026-07-18).
+# Sessions: the django_session statement-timeout 500s came from
+# SESSION_SAVE_EVERY_REQUEST=True (see below) UPDATE-ing a session row on EVERY
+# request, not from the DB backend itself. That per-request write is forced OFF
+# below, so a row is written only when the session DATA changes (login, etc.).
+# The DB backend is then fine and stays SECURE: sessions are server-side and
+# revocable (real logout), no ~4KB cookie limit, not client-readable. No Redis
+# needed. When REDIS_URL is set later, the cache backend is used (no DB session
+# I/O at all).
 if _redis_url:
-    # Preferred: server-side sessions in Redis — shared across workers,
-    # invalidatable (real logout), no cookie-size limit, not client-readable.
     SESSION_ENGINE = "django.contrib.sessions.backends.cache"
     SESSION_CACHE_ALIAS = "default"
 else:
-    # No Redis configured: signed cookies (no server-side store, no DB writes).
-    # SECURITY TRADEOFFS: (1) cannot be invalidated server-side — logout only
-    # clears the client cookie, so a copied cookie stays valid until it expires;
-    # (2) ~4KB cookie limit — large sessions break; (3) contents are signed but
-    # NOT encrypted, so they are readable by the client. Set REDIS_URL in prod to
-    # use the cache backend above instead.
-    SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+    SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 
 # Password validation
@@ -433,7 +429,11 @@ ADMIN_TIME_FORMAT = "g:i A"
 # ── Session settings ──
 # Keep drivers and staff logged in for 90 days
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 90  # 90 days in seconds
-SESSION_SAVE_EVERY_REQUEST = True         # Reset expiry on every request (rolling window)
+# Was True (rolling expiry), but that UPDATE-d a django_session row on EVERY
+# request and hit the web statement_timeout under load -> SessionInterrupted 500s
+# (outage 2026-07-18). OFF: expiry counts from the last session write instead of
+# last activity; with a 90-day age that is plenty for drivers/staff.
+SESSION_SAVE_EVERY_REQUEST = False        # was True — see note (2026-07-18)
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False   # Persist across browser restarts
 
 CKEDITOR_UPLOAD_PATH = "uploads/"
