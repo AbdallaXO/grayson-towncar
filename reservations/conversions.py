@@ -149,7 +149,7 @@ def send_initiate_checkout_event(reservation, request=None, event_id=None, meta=
 
 
 # Purchase event (payment successful via Stripe webhook)
-def send_purchase_event(reservation, value=None, event_id=None, request=None):
+def send_purchase_event(reservation, value=None, event_id=None, request=None, meta=None):
     """
     Send Purchase event to Meta Conversions API.
     
@@ -172,7 +172,7 @@ def send_purchase_event(reservation, value=None, event_id=None, request=None):
         "external_id": str(reservation.id),
     }
     # IP, User-Agent and _fbp/_fbc cookies (best attribution signals)
-    user_data = _augment_user_data(user_data, request)
+    user_data = _augment_user_data(user_data, request=request, meta=meta)
 
     custom_data = {
         "currency": "USD", 
@@ -187,4 +187,4 @@ def send_purchase_event(reservation, value=None, event_id=None, request=None):
         if latest_payment.stripe_payment_intent_id:
             custom_data["order_id"] = latest_payment.stripe_payment_intent_id
 
-    return send_capi_event("Purchase", user_data, custom_data=custom_data, request=request, event_id=event_id)
+    return send_capi_event("Purchase", user_data, custom_data=custom_data, request=request, event_id=event_id, meta=meta)

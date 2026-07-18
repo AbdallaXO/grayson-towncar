@@ -183,18 +183,20 @@ def payment_success(request):
             # This will deduplicate with webhook event via event_id
             if reservation and purchase_data:
                 try:
-                    from threading import Thread
-                    from reservations.conversions import send_purchase_event
-                    Thread(
-                        target=send_purchase_event,
-                        kwargs={
-                            "reservation": reservation,
-                            "value": None,
-                            "event_id": purchase_data.get("event_id"),
-                            "request": request,
-                        },
-                        daemon=True,
-                    ).start()
+                    from reservations.conversions import send_purchase_event, extract_request_meta
+                    from reservations.utils import _run_in_background
+                    # Snapshot request-derived CAPI signals on the request thread (a
+                    # live request isn't thread-safe), then fire off-thread.
+                    # _run_in_background closes the thread's DB connection when done
+                    # (connection saturation 2026-07-18).
+                    _capi_meta = extract_request_meta(request)
+                    _run_in_background(
+                        send_purchase_event,
+                        reservation,
+                        value=None,
+                        event_id=purchase_data.get("event_id"),
+                        meta=_capi_meta,
+                    )
                 except Exception as e:
                     logger.warning(f"Error sending Meta CAPI purchase event from success page: {e}")
 

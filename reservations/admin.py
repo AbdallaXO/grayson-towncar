@@ -2639,6 +2639,10 @@ class LeadAdmin(admin.ModelAdmin):
                     time.sleep(DELAY_BETWEEN_BATCHES)
             
             local_logger.info(f"Completed processing: {total_processed} sent, {total_skipped} skipped")
+            # Long-running non-daemon thread: release its DB connection when the
+            # batch finishes so it isn't left idle (connection saturation 2026-07-18).
+            from django.db import connection
+            connection.close()
             return total_processed
         
         # Get lead IDs to process

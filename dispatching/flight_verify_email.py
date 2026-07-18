@@ -73,22 +73,28 @@ def _send_in_background(send_callable, max_retries: int = 3):
     """Fire-and-forget retrying send. Mirrors users.emails._send_email_with_retry."""
 
     def runner():
-        for attempt in range(max_retries):
-            try:
-                send_callable()
-                return
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait = 2 ** attempt
-                    logger.warning(
-                        f"flight_verify email attempt {attempt + 1} failed, "
-                        f"retrying in {wait}s: {e}"
-                    )
-                    time.sleep(wait)
-                else:
-                    logger.error(
-                        f"flight_verify email failed after {max_retries} attempts: {e}"
-                    )
+        try:
+            for attempt in range(max_retries):
+                try:
+                    send_callable()
+                    return
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait = 2 ** attempt
+                        logger.warning(
+                            f"flight_verify email attempt {attempt + 1} failed, "
+                            f"retrying in {wait}s: {e}"
+                        )
+                        time.sleep(wait)
+                    else:
+                        logger.error(
+                            f"flight_verify email failed after {max_retries} attempts: {e}"
+                        )
+        finally:
+            # send_callable writes EmailLog; close this thread's DB connection so it
+            # isn't left idle for CONN_MAX_AGE (connection saturation 2026-07-18).
+            from django.db import connection
+            connection.close()
 
     t = threading.Thread(target=runner, daemon=True)
     t.start()

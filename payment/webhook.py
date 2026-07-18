@@ -304,12 +304,10 @@ def handle_checkout_session(session):
                 # Stable event_id (Stripe payment-intent id) — matches the success page + browser
                 # pixel so Meta dedupes all three to ONE Purchase. No timestamp (breaks dedup).
                 event_id = str(payment_intent) if payment_intent else None
-                threading.Thread(
-                    target=send_purchase_event,
-                    args=(reservation,),
-                    kwargs={"value": None, "event_id": event_id},
-                    daemon=True,
-                ).start()
+                # _run_in_background (used just above for the confirmation email)
+                # closes the thread's DB connection when done (connection
+                # saturation 2026-07-18).
+                _run_in_background(send_purchase_event, reservation, value=None, event_id=event_id)
             else:
                 logger.error("No payment_intent in session")
 

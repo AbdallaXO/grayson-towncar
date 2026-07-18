@@ -5060,11 +5060,21 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
             timeout=timeout_seconds,
         )
 
+        # Each pool thread opens its own DB connection (flight.save()); close it
+        # when its task finishes so a large refresh doesn't leave a pile of idle
+        # connections behind (connection saturation 2026-07-18).
+        def _refresh_and_close(_leg):
+            try:
+                return _refresh_single_flight(_leg)
+            finally:
+                from django.db import connection
+                connection.close()
+
         # Process in batches of 5 (5/sec limit) so 45 flights ≈ 9 batches ≈ ~10 sec
         for offset in range(0, total_legs, BATCH_SIZE):
             batch = legs[offset : offset + BATCH_SIZE]
             with ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
-                batch_results = list(executor.map(_refresh_single_flight, batch))
+                batch_results = list(executor.map(_refresh_and_close, batch))
             results.extend(batch_results)
             success_count += sum(1 for r in batch_results if r.get("success"))
             failure_count += sum(1 for r in batch_results if not r.get("success"))
@@ -5162,6 +5172,11 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
             },
             timeout=timeout_seconds,
         )
+    finally:
+        # This worker thread opened its own DB connection (Leg queries above);
+        # release it so it isn't left idle (connection saturation 2026-07-18).
+        from django.db import connection
+        connection.close()
 
 
 @login_required

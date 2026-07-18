@@ -552,9 +552,9 @@ class QuoteFormHandlerView(View):
                                 f"Error sending lead event to Meta Conversions API: {str(e)}"
                             )
 
-                    # Start background thread for notifications (non-blocking)
-                    notification_thread = Thread(target=send_notifications, daemon=True)
-                    notification_thread.start()
+                    # Start notifications in the background. _run_in_background closes
+                    # the thread's DB connection when done (connection saturation 2026-07-18).
+                    _run_in_background(send_notifications)
 
                     # Return response immediately (don't wait for notifications)
                     return JsonResponse(
@@ -704,9 +704,9 @@ class QuoteFormHandlerView(View):
                             f"Error sending lead event to Meta Conversions API: {str(e)}"
                         )
 
-                # Start background thread for notifications (non-blocking)
-                notification_thread = Thread(target=send_notifications, daemon=True)
-                notification_thread.start()
+                # Start notifications in the background. _run_in_background closes
+                # the thread's DB connection when done (connection saturation 2026-07-18).
+                _run_in_background(send_notifications)
 
                 # Return response immediately (don't wait for notifications)
                 return JsonResponse(

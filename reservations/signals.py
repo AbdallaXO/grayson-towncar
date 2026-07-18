@@ -43,10 +43,10 @@ def reservation_saved(sender, instance, created, **kwargs):
                     f"Error sending internal confirmation for reservation #{instance.id}: {e}"
                 )
 
-        # Start a background thread to handle these tasks
-        thread = Thread(target=background_tasks)
-        thread.daemon = True  # Thread will exit when main thread exits
-        thread.start()
+        # Run in the background; _run_in_background closes the thread's DB
+        # connection in a finally when done (connection saturation 2026-07-18).
+        from reservations.utils import _run_in_background
+        _run_in_background(background_tasks)
 
         return
 
@@ -454,9 +454,10 @@ def sync_lead_to_ghl_on_create(sender, instance, created, **kwargs):
                 except Exception as tag_err:
                     local_logger.warning(f"Failed to apply created tags for Lead #{instance.id}: {tag_err}")
 
-        # Start background thread (non-blocking)
-        thread = Thread(target=sync_ghl_in_background, daemon=True)
-        thread.start()
+        # Run in the background; _run_in_background closes the thread's DB
+        # connection in a finally when done (connection saturation 2026-07-18).
+        from reservations.utils import _run_in_background
+        _run_in_background(sync_ghl_in_background)
 
 
 @receiver(pre_save, sender=Lead)

@@ -39,18 +39,25 @@ def log_email_sent(email_type, recipient_email, subject="", sent_by=None,
 def _send_email_with_retry(email_func, max_retries=3):
     """Send email with retry logic in background thread"""
     def background_send():
-        for attempt in range(max_retries):
-            try:
-                email_func()
-                logger.info(f"Email sent successfully on attempt {attempt + 1}")
-                return  # Success, exit retry loop
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                    logger.warning(f"Email attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(f"Email failed after {max_retries} attempts: {e}")
+        try:
+            for attempt in range(max_retries):
+                try:
+                    email_func()
+                    logger.info(f"Email sent successfully on attempt {attempt + 1}")
+                    return  # Success, exit retry loop
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                        logger.warning(f"Email attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(f"Email failed after {max_retries} attempts: {e}")
+        finally:
+            # Every transactional email runs through here; close this thread's DB
+            # connection (EmailLog write + lazy FK reads) so it isn't left idle for
+            # CONN_MAX_AGE (connection saturation 2026-07-18).
+            from django.db import connection
+            connection.close()
     
     thread = threading.Thread(target=background_send)
     thread.daemon = True
