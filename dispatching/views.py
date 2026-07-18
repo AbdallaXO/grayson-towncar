@@ -1494,6 +1494,12 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 )
 
         time_filter = self.request.GET.get("time_filter")
+        # Default to a 90-day window. An unbounded "all time" load scanned the whole
+        # Reservation table on every request -- including the 5 filtered counts + 2
+        # revenue sums in get_context_data -- which is what made this view take
+        # ~130s and hold its DB connection that long (incident 2026-07-18). "all"
+        # opts into the full scan explicitly; an active search always spans all time
+        # so staff can find any customer regardless of date.
         if time_filter == "week":
             queryset = queryset.filter(
                 created_at__gte=timezone.now() - timedelta(days=7)
@@ -1501,6 +1507,10 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         elif time_filter == "month":
             queryset = queryset.filter(
                 created_at__gte=timezone.now() - timedelta(days=30)
+            )
+        elif time_filter != "all" and not search_query:
+            queryset = queryset.filter(
+                created_at__gte=timezone.now() - timedelta(days=90)
             )
 
         status_filter = self.request.GET.get("status")
@@ -1558,7 +1568,8 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 "can_view_revenue": can_view_revenue(self.request.user),
                 "search_query": self.request.GET.get("search_q", ""),
                 "status_filter": self.request.GET.get("status", ""),
-                "time_filter": self.request.GET.get("time_filter", "all"),
+                # Empty -> the default 90-day window (see _get_filtered_queryset).
+                "time_filter": self.request.GET.get("time_filter", ""),
             }
         )
         return context

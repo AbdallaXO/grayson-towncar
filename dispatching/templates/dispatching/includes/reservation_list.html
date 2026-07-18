@@ -142,8 +142,8 @@
 
             <!-- Trip Legs -->
             <td>
-              {% if reservation.legs.count == 1 %}
-                {% with leg=reservation.legs.first %}
+              {% if reservation.legs.all|length == 1 %}
+                {% with leg=reservation.legs.all.0 %}
                   <div class="d-flex align-items-start mt-1">
                     <div class="bg-light rounded-circle text-center flex-shrink-0"
                          style="width: 24px;

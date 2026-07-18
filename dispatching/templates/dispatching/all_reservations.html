@@ -161,6 +161,7 @@
               <div class="col-lg-3">
                 <label class="form-label small">Time Period</label>
                 <select name="time_filter" class="form-select" id="timeFilter">
+                  <option value="" {% if not time_filter %}selected{% endif %}>Last 90 Days</option>
                   <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
                   <option value="week" {% if time_filter == 'week' %}selected{% endif %}>This Week</option>
                   <option value="month" {% if time_filter == 'month' %}selected{% endif %}>This Month</option>
