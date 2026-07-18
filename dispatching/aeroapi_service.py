@@ -387,13 +387,13 @@ class AeroAPIService:
             # Note: /flights/{ident} endpoint doesn't accept date parameter
             # It returns a list of flights, we'll filter by date in the response
             if flight_date:
-                logger.info(f"Fetching flight info for {flight_ident} (will filter for date {flight_date}) from AeroAPI")
+                logger.debug(f"Fetching flight info for {flight_ident} (will filter for date {flight_date}) from AeroAPI")
             else:
-                logger.info(f"Fetching flight info for {flight_ident} from AeroAPI")
+                logger.debug(f"Fetching flight info for {flight_ident} from AeroAPI")
 
             response = self.session.get(url, timeout=10)
             
-            logger.info(f"AeroAPI Response Status: {response.status_code}")
+            logger.debug(f"AeroAPI Response Status: {response.status_code}")
             
             # Handle rate limiting (429 Too Many Requests)
             if response.status_code == 429:
@@ -421,8 +421,8 @@ class AeroAPIService:
             response.raise_for_status()
             data = response.json()
             
-            logger.info(f"AeroAPI Response Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
-            logger.info(f"AeroAPI Response Data (first 1000 chars): {str(data)[:1000]}")
+            logger.debug(f"AeroAPI Response Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            logger.debug(f"AeroAPI Response Data (first 1000 chars): {str(data)[:1000]}")
             
             # AeroAPI returns flights in a 'flights' array; get first flight involving MCO or SFB (Orlando-area)
             if isinstance(data, dict) and 'flights' in data:
@@ -659,7 +659,7 @@ class AeroAPIService:
             # Parse the flight data
             try:
                 parsed_data = self._parse_flight_data(flight_data, trip_type=trip_type)
-                logger.info(f"Parsed Flight Data: {parsed_data}")
+                logger.debug(f"Parsed Flight Data: {parsed_data}")
                 return parsed_data
             except Exception as parse_error:
                 logger.error(f"Error parsing AeroAPI response: {parse_error}", exc_info=True)

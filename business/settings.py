@@ -233,7 +233,9 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "grayson-leads")
 NTFY_DRIVER_TOPIC = os.environ.get("NTFY_DRIVER_TOPIC", "grayson-driver-noti")
 NTFY_DISPATCH_ALERT_TOPIC = os.environ.get("NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
 NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
-NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
+# ntfy removed 2026-07-18 — senders in reservations/utils.py are hard no-ops now;
+# this stays False so nothing re-enables it via env. (Kept for reference only.)
+NTFY_ENABLED = False
 
 # AeroAPI Settings
 AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")

@@ -52,6 +52,13 @@ def _run_in_background(func, *args, **kwargs):
             func(*args, **kwargs)
         except Exception as e:
             logger.error(f"Background task error in {func.__name__}: {e}")
+        finally:
+            # Django opens a NEW DB connection per thread; with CONN_MAX_AGE=600 a
+            # background thread's connection would linger ~10 min after the thread
+            # finished. Under load these pile up on Postgres (connection timeouts +
+            # memory growth — incident 2026-07-18). Release them when the task ends.
+            from django.db import connections
+            connections.close_all()
     thread = threading.Thread(target=_wrapper, daemon=True)
     thread.start()
 
@@ -613,45 +620,9 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
         priority (str): Priority level (min, low, default, high, urgent)
         tags (list): List of tags for the notification
     """
-    if not getattr(settings, "NTFY_ENABLED", False):
-        logger.info("NTFY notifications are disabled")
-        return
-
-    def _do_send():
-        try:
-            topic = getattr(settings, "NTFY_TOPIC", "grayson-leads")
-            server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
-
-            url = f"{server}/{topic}"
-
-            headers = {
-                "Content-Type": "text/plain; charset=utf-8",
-            }
-
-            if title:
-                headers["Title"] = title.encode("utf-8")
-
-            if priority != "default":
-                headers["Priority"] = priority
-
-            if tags:
-                headers["Tags"] = ",".join(tags)
-
-            response = requests.post(
-                url, data=message.encode("utf-8"), headers=headers, timeout=10
-            )
-
-            if response.status_code == 200:
-                logger.info(f"NTFY notification sent successfully: {title}")
-            else:
-                logger.error(
-                    f"Failed to send NTFY notification. Status: {response.status_code}"
-                )
-
-        except Exception as e:
-            logger.error(f"Error sending NTFY notification: {str(e)}")
-
-    _run_in_background(_do_send)
+    # ntfy removed 2026-07-18 (founder: no longer used; was 429-rate-limiting and
+    # loading the single worker). No-op stub kept so existing callers don't break.
+    return
 
 
 def send_dispatch_alert_notification(title, message, priority="urgent", tags=None):
@@ -660,45 +631,8 @@ def send_dispatch_alert_notification(title, message, priority="urgent", tags=Non
     Separate from leads and driver topics — for urgent dispatcher warnings.
     Runs in background thread to avoid blocking.
     """
-    if not getattr(settings, "NTFY_ENABLED", False):
-        logger.info("NTFY notifications are disabled")
-        return
-
-    def _do_send():
-        try:
-            topic = getattr(settings, "NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
-            server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
-
-            url = f"{server}/{topic}"
-
-            headers = {
-                "Content-Type": "text/plain; charset=utf-8",
-            }
-
-            if title:
-                headers["Title"] = title.encode("utf-8")
-
-            if priority != "default":
-                headers["Priority"] = priority
-
-            if tags:
-                headers["Tags"] = ",".join(tags)
-
-            response = requests.post(
-                url, data=message.encode("utf-8"), headers=headers, timeout=10
-            )
-
-            if response.status_code == 200:
-                logger.info(f"Dispatch alert sent successfully: {title}")
-            else:
-                logger.error(
-                    f"Failed to send dispatch alert. Status: {response.status_code}"
-                )
-
-        except Exception as e:
-            logger.error(f"Error sending dispatch alert: {str(e)}")
-
-    _run_in_background(_do_send)
+    # ntfy removed 2026-07-18 (see send_ntfy_notification). No-op stub.
+    return
 
 
 def send_lead_notification(lead):
@@ -931,46 +865,8 @@ def send_driver_ntfy_notification(title, message, priority="default", tags=None)
         priority (str): Priority level (min, low, default, high, urgent)
         tags (list): List of tags for the notification
     """
-    if not getattr(settings, "NTFY_ENABLED", False):
-        logger.info("NTFY notifications are disabled")
-        return
-
-    def _do_send():
-        try:
-            # Use driver-specific topic
-            topic = getattr(settings, "NTFY_DRIVER_TOPIC", "grayson-driver-noti")
-            server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
-
-            url = f"{server}/{topic}"
-
-            headers = {
-                "Content-Type": "text/plain; charset=utf-8",
-            }
-
-            if title:
-                headers["Title"] = title.encode("utf-8")
-
-            if priority != "default":
-                headers["Priority"] = priority
-
-            if tags:
-                headers["Tags"] = ",".join(tags)
-
-            response = requests.post(
-                url, data=message.encode("utf-8"), headers=headers, timeout=10
-            )
-
-            if response.status_code == 200:
-                logger.info(f"Driver NTFY notification sent successfully: {title}")
-            else:
-                logger.error(
-                    f"Failed to send driver NTFY notification. Status: {response.status_code}"
-                )
-
-        except Exception as e:
-            logger.error(f"Error sending driver NTFY notification: {str(e)}")
-
-    _run_in_background(_do_send)
+    # ntfy removed 2026-07-18 (see send_ntfy_notification). No-op stub.
+    return
 
 
 def add_utm_to_metadata(metadata: Dict[str, Any], reservation) -> Dict[str, Any]:
