@@ -17,6 +17,10 @@ from reservations.conversions import send_purchase_event
 logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+# Bound every Stripe call (default SDK timeout is ~80s with retries) so a Stripe
+# slowdown can't hang a worker. See payment/views.py (incident 2026-07-18).
+stripe.max_network_retries = 1
+stripe.default_http_client = stripe.RequestsClient(timeout=20)
 
 
 @csrf_exempt

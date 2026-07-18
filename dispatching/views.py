@@ -71,6 +71,10 @@ from simple_history.template_utils import HistoricalRecordContextHelper
 # Configure logging and Stripe
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
+# Bound every Stripe call (e.g. refunds) so a Stripe slowdown can't hang a
+# dispatcher request. Default SDK timeout is ~80s with retries (incident 2026-07-18).
+stripe.max_network_retries = 1
+stripe.default_http_client = stripe.RequestsClient(timeout=20)
 
 
 # Permission helpers

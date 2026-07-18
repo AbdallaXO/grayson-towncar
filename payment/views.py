@@ -10,6 +10,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
+# Bound every Stripe call: the SDK default is ~80s per request with retries, which
+# during a Stripe slowdown stacked into the 100s+ checkout freezes (incident
+# 2026-07-18). Cap each HTTP call at 20s and allow a single retry.
+stripe.max_network_retries = 1
+stripe.default_http_client = stripe.RequestsClient(timeout=20)
 
 
 def create_checkout_session(request, reservation_id):
