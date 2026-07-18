@@ -33,13 +33,14 @@ class GhlIntegrationConfig(AppConfig):
             if os.environ.get('RUN_MAIN') != 'true':
                 return
         elif is_gunicorn:
-            # Production web workers do NOT start schedulers. Each of the N gunicorn
-            # workers calls ready(), so starting here ran the follow-up scheduler in
-            # triplicate (one per worker), multiplying background threads and their
-            # DB connections (connection-saturation outage 2026-07-18). Schedulers
-            # now run as ONE dedicated process via `manage.py run_schedulers` (a
-            # Railway worker service). Escape hatch: RUN_SCHEDULERS_IN_WEB=1.
-            if os.environ.get('RUN_SCHEDULERS_IN_WEB') != '1':
+            # Interim: schedulers run in the web workers (no separate service yet).
+            # Each gunicorn worker spawns the thread, but the per-cycle advisory lock
+            # keeps execution single and non-leader workers release their DB
+            # connection each cycle, so the steady-state cost is ~1 connection per
+            # scheduler regardless of worker count (connection-saturation 2026-07-18).
+            # To move to a dedicated `manage.py run_schedulers` process (Celery /
+            # worker service) later, set RUN_SCHEDULERS_IN_WEB=0 on the web service.
+            if os.environ.get('RUN_SCHEDULERS_IN_WEB', '1') != '1':
                 return
         else:
             # Unknown context (incl. `manage.py run_schedulers`, which starts the

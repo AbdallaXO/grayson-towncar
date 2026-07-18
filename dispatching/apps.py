@@ -35,13 +35,14 @@ class DispatchingConfig(AppConfig):
             if "--noreload" not in sys.argv and os.environ.get("RUN_MAIN") != "true":
                 return
         elif is_gunicorn:
-            # Production web workers do NOT start the Samsara poller. Each gunicorn
-            # worker calls ready(), so starting here ran the poller in triplicate
-            # (one per worker), multiplying background threads and DB connections
-            # (connection-saturation outage 2026-07-18). It now runs as ONE
-            # dedicated process via `manage.py run_schedulers` (Railway worker
-            # service). Escape hatch: RUN_SCHEDULERS_IN_WEB=1.
-            if os.environ.get("RUN_SCHEDULERS_IN_WEB") != "1":
+            # Interim: the Samsara poller runs in the web workers (no separate
+            # service yet). Each gunicorn worker spawns the thread, but the per-cycle
+            # advisory lock keeps execution single and non-leader workers release
+            # their DB connection each cycle, so the steady-state cost is ~1
+            # connection regardless of worker count (connection-saturation
+            # 2026-07-18). To move it to a dedicated `manage.py run_schedulers`
+            # process (Celery / worker service) later, set RUN_SCHEDULERS_IN_WEB=0.
+            if os.environ.get("RUN_SCHEDULERS_IN_WEB", "1") != "1":
                 return
         else:
             # Unknown context (incl. `manage.py run_schedulers`, which starts it
