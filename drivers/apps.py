@@ -28,8 +28,18 @@ class DriversConfig(AppConfig):
             # Only the reloader child serves requests (RUN_MAIN='true').
             if os.environ.get("RUN_MAIN") != "true":
                 return
-        elif not is_gunicorn:
-            # Unknown context — don't start.
+        elif is_gunicorn:
+            # Production web workers do NOT start the wake-up sweeper. Each gunicorn
+            # worker calls ready(), so starting here ran it in triplicate (one per
+            # worker), multiplying background threads and DB connections
+            # (connection-saturation outage 2026-07-18). It now runs as ONE
+            # dedicated process via `manage.py run_schedulers` (Railway worker
+            # service). Escape hatch: RUN_SCHEDULERS_IN_WEB=1.
+            if os.environ.get("RUN_SCHEDULERS_IN_WEB") != "1":
+                return
+        else:
+            # Unknown context (incl. `manage.py run_schedulers`, which starts it
+            # explicitly) — don't auto-start here.
             return
 
         from drivers.wakeup_scheduler import start_wakeup_scheduler

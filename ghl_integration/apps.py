@@ -32,8 +32,18 @@ class GhlIntegrationConfig(AppConfig):
             # Only start in the reloader child, not the parent watcher process
             if os.environ.get('RUN_MAIN') != 'true':
                 return
-        elif not is_gunicorn:
-            # Unknown context — don't start
+        elif is_gunicorn:
+            # Production web workers do NOT start schedulers. Each of the N gunicorn
+            # workers calls ready(), so starting here ran the follow-up scheduler in
+            # triplicate (one per worker), multiplying background threads and their
+            # DB connections (connection-saturation outage 2026-07-18). Schedulers
+            # now run as ONE dedicated process via `manage.py run_schedulers` (a
+            # Railway worker service). Escape hatch: RUN_SCHEDULERS_IN_WEB=1.
+            if os.environ.get('RUN_SCHEDULERS_IN_WEB') != '1':
+                return
+        else:
+            # Unknown context (incl. `manage.py run_schedulers`, which starts the
+            # schedulers explicitly) — don't auto-start here.
             return
 
         from ghl_integration.scheduler import start_scheduler

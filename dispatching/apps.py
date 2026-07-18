@@ -34,8 +34,18 @@ class DispatchingConfig(AppConfig):
             # single serving process and RUN_MAIN is never set — start directly.
             if "--noreload" not in sys.argv and os.environ.get("RUN_MAIN") != "true":
                 return
-        elif not is_gunicorn:
-            # Unknown context — don't start.
+        elif is_gunicorn:
+            # Production web workers do NOT start the Samsara poller. Each gunicorn
+            # worker calls ready(), so starting here ran the poller in triplicate
+            # (one per worker), multiplying background threads and DB connections
+            # (connection-saturation outage 2026-07-18). It now runs as ONE
+            # dedicated process via `manage.py run_schedulers` (Railway worker
+            # service). Escape hatch: RUN_SCHEDULERS_IN_WEB=1.
+            if os.environ.get("RUN_SCHEDULERS_IN_WEB") != "1":
+                return
+        else:
+            # Unknown context (incl. `manage.py run_schedulers`, which starts it
+            # explicitly) — don't auto-start here.
             return
 
         from dispatching.samsara_scheduler import start_samsara_scheduler
