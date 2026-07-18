@@ -20,8 +20,28 @@ def hash_data(data):
     return hashlib.sha256(data.strip().lower().encode("utf-8")).hexdigest()
 
 
+def extract_request_meta(request):
+    """Snapshot the request-derived CAPI signals into plain primitives.
+
+    A live request object is not thread-safe and is torn down after the response,
+    so callers that want to fire an event in a background thread must snapshot
+    these here (on the request thread) and pass the dict as ``meta=`` instead of
+    handing the request to the thread.
+    """
+    if request is None:
+        return {}
+    cookies = getattr(request, "COOKIES", {}) or {}
+    return {
+        "client_user_agent": request.headers.get("User-Agent"),
+        "client_ip_address": request.META.get("REMOTE_ADDR"),
+        "fbp": cookies.get("_fbp"),
+        "fbc": cookies.get("_fbc"),
+        "event_source_url": request.build_absolute_uri(),
+    }
+
+
 # Shared function to send event
-def send_capi_event(event_name, user_data, custom_data=None, request=None, event_id=None):
+def send_capi_event(event_name, user_data, custom_data=None, request=None, event_id=None, meta=None):
     if not FB_PIXEL_ID or not FB_CAPI_ACCESS_TOKEN:
         logger.error(
             "Missing required environment variables: FB_PIXEL_ID or FB_CAPI_ACCESS_TOKEN"
@@ -31,13 +51,19 @@ def send_capi_event(event_name, user_data, custom_data=None, request=None, event
     url = f"https://graph.facebook.com/v19.0/{FB_PIXEL_ID}/events"
     event_time = int(time.time())
 
+    # Prefer a pre-extracted meta snapshot (background-safe) over the live request.
+    if meta and meta.get("event_source_url"):
+        event_source_url = meta["event_source_url"]
+    elif request is not None:
+        event_source_url = request.build_absolute_uri()
+    else:
+        event_source_url = "https://www.graysontowncar.com"
+
     event_payload = {
         "event_name": event_name,
         "event_time": event_time,
         "action_source": "website",
-        "event_source_url": request.build_absolute_uri()
-        if request
-        else "https://www.graysontowncar.com",
+        "event_source_url": event_source_url,
         "user_data": user_data,
     }
 
@@ -67,29 +93,28 @@ def send_capi_event(event_name, user_data, custom_data=None, request=None, event
         return None
 
 
-def _augment_user_data(user_data, request):
+def _augment_user_data(user_data, request=None, meta=None):
     """Add IP, User-Agent and Meta browser cookies (_fbp / _fbc) to user_data.
 
     These raw (un-hashed) signals are the strongest match keys Meta has, so
-    every event type should send them whenever a request is available. Keys
-    with no value are dropped so we never POST nulls (which lower match
-    quality). Mutates and returns user_data.
+    every event type should send them whenever they are available. Prefer a
+    pre-extracted ``meta`` snapshot (background-safe); otherwise read the live
+    request. Keys with no value are dropped so we never POST nulls (which lower
+    match quality). Mutates and returns user_data.
     """
-    if request is None:
-        return {k: v for k, v in user_data.items() if v}
+    if meta is None:
+        if request is None:
+            return {k: v for k, v in user_data.items() if v}
+        meta = extract_request_meta(request)
 
-    ua = request.headers.get("User-Agent")
-    if ua:
-        user_data["client_user_agent"] = ua
-    ip = request.META.get("REMOTE_ADDR")
-    if ip:
-        user_data["client_ip_address"] = ip
-
-    cookies = getattr(request, "COOKIES", {}) or {}
-    if cookies.get("_fbp"):
-        user_data["fbp"] = cookies["_fbp"]
-    if cookies.get("_fbc"):
-        user_data["fbc"] = cookies["_fbc"]
+    if meta.get("client_user_agent"):
+        user_data["client_user_agent"] = meta["client_user_agent"]
+    if meta.get("client_ip_address"):
+        user_data["client_ip_address"] = meta["client_ip_address"]
+    if meta.get("fbp"):
+        user_data["fbp"] = meta["fbp"]
+    if meta.get("fbc"):
+        user_data["fbc"] = meta["fbc"]
 
     return {k: v for k, v in user_data.items() if v}
 
@@ -108,7 +133,9 @@ def send_lead_event(lead, request, event_id=None):
 
 
 # InitiateCheckout event (reservation submission)
-def send_initiate_checkout_event(reservation, request, event_id=None):
+def send_initiate_checkout_event(reservation, request=None, event_id=None, meta=None):
+    """Fire an InitiateCheckout event. Pass ``meta`` (from ``extract_request_meta``)
+    instead of ``request`` when calling this from a background thread."""
     user_data = {
         "em": hash_data(reservation.customer.email),
         "ph": hash_data(reservation.customer.phone_number),
@@ -117,8 +144,8 @@ def send_initiate_checkout_event(reservation, request, event_id=None):
         "zp": hash_data(reservation.customer.zipcode),
         "external_id": str(reservation.id) if getattr(reservation, "id", None) else None,
     }
-    user_data = _augment_user_data(user_data, request)
-    return send_capi_event("InitiateCheckout", user_data, request=request, event_id=event_id)
+    user_data = _augment_user_data(user_data, request=request, meta=meta)
+    return send_capi_event("InitiateCheckout", user_data, request=request, event_id=event_id, meta=meta)
 
 
 # Purchase event (payment successful via Stripe webhook)

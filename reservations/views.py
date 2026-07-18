@@ -14,6 +14,7 @@ from .utils import (
     CRUISE_LINES,
     extra_charges,
     send_lead_notification,
+    _run_in_background,
 )
 from django.shortcuts import render, reverse
 from django.db.models import Prefetch, Case, When
@@ -26,7 +27,7 @@ from .forms import LeadForm
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
-from .conversions import send_lead_event, send_initiate_checkout_event
+from .conversions import send_lead_event, send_initiate_checkout_event, extract_request_meta
 from django.utils import timezone
 from datetime import timedelta, date
 from django.db.models import Q
@@ -313,16 +314,16 @@ def reservation_form(
 
             extra_charges(reservation)
 
-            # Send InitiateCheckout event to Meta Conversions API
-            try:
-                send_initiate_checkout_event(reservation, request)
-                logger.info(
-                    "Successfully sent InitiateCheckout event to Meta Conversions API"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error sending InitiateCheckout event to Meta Conversions API: {str(e)}"
-                )
+            # Fire InitiateCheckout to Meta CAPI OFF the request thread. The HTTP
+            # call is already capped at timeout=5, but a slow/unreachable Facebook
+            # shouldn't add any latency to the customer's booking. Snapshot the
+            # request-derived signals HERE (the request isn't safe to touch from a
+            # thread), then hand only primitives to the background worker.
+            # _run_in_background wraps errors and closes the thread's DB connection.
+            capi_meta = extract_request_meta(request)
+            _run_in_background(
+                send_initiate_checkout_event, reservation, meta=capi_meta
+            )
 
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
