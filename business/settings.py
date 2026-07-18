@@ -163,7 +163,12 @@ if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PGHOST"):
     DATABASES = {
         "default": dj_database_url.config(
             default=os.environ.get("DATABASE_URL"),
-            conn_max_age=600,
+            # Persistent connections capped at 60s (was 600s). With 3 workers x 4
+            # threads each pinning a connection for up to CONN_MAX_AGE, plus
+            # background threads, 600s let idle connections pile up against
+            # Postgres max_connections=100 (saturation outage 2026-07-18). 60s keeps
+            # some connection reuse while releasing idle ones ~10x faster.
+            conn_max_age=60,
             conn_health_checks=True,
         )
     }
