@@ -215,8 +215,10 @@ def _run_scheduler():
     logger.info(f"Samsara poller started (interval: {INTERVAL_SECONDS}s)")
     global _last_eta_refresh_at
     while True:
+        acquired = False
         try:
-            if _try_advisory_lock():
+            acquired = _try_advisory_lock()
+            if acquired:
                 sync_vehicles()  # free GPS poll, every cycle
                 # Throttle the paid Google ETA recompute to ETA_REFRESH_SECONDS; the
                 # band math inside sweep_eta still runs every cycle either way.
@@ -229,6 +231,16 @@ def _run_scheduler():
                 logger.debug("Another worker holds the Samsara poller lock, skipping cycle")
         except Exception as e:
             logger.error(f"Samsara poller error: {e}", exc_info=True)
+        finally:
+            # Don't pin a Postgres connection idle across the sleep (connection
+            # saturation, incident 2026-07-18). Only the leader keeps its
+            # connection — the session advisory lock lives on it, so closing it
+            # would drop the lock and let another worker double-run the cycle.
+            # Non-leaders (and any error/reconnect case) release + reconnect next
+            # cycle.
+            if not acquired:
+                from django.db import connections
+                connections.close_all()
         time.sleep(INTERVAL_SECONDS)
 
 

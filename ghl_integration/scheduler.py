@@ -60,15 +60,26 @@ def _run_scheduler():
 
     while True:
         _cycle_count += 1
+        acquired = False
         try:
             # Only one Gunicorn worker should run batch tasks.
             # pg_try_advisory_lock is non-blocking: returns True if acquired.
-            if _try_advisory_lock():
+            acquired = _try_advisory_lock()
+            if acquired:
                 _run_batch_tasks()
             else:
                 logger.debug("Another worker holds the scheduler lock, skipping cycle")
         except Exception as e:
             logger.error(f"Scheduler error: {e}", exc_info=True)
+        finally:
+            # Don't pin a Postgres connection idle across the 30-min sleep
+            # (connection saturation, incident 2026-07-18). Only the leader keeps
+            # its connection — the advisory lock lives on it, so closing it would
+            # drop the lock and let another worker double-run the batch. Non-leaders
+            # (and any error/reconnect case) release + reconnect next cycle.
+            if not acquired:
+                from django.db import connections
+                connections.close_all()
 
         time.sleep(INTERVAL_SECONDS)
 

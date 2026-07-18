@@ -47,13 +47,23 @@ def _run_scheduler():
     time.sleep(60)  # let Django finish booting
     logger.info(f"Wake-up sweeper started (interval: {INTERVAL_SECONDS}s)")
     while True:
+        acquired = False
         try:
-            if _try_advisory_lock():
+            acquired = _try_advisory_lock()
+            if acquired:
                 run_wakeup_cycle()
             else:
                 logger.debug("Another worker holds the wake-up sweeper lock, skipping cycle")
         except Exception as e:
             logger.error(f"Wake-up sweeper error: {e}", exc_info=True)
+        finally:
+            # Don't pin a Postgres connection idle across the sleep (connection
+            # saturation, incident 2026-07-18). Only the leader keeps its
+            # connection (the advisory lock lives on it); non-leaders and any
+            # error/reconnect case release + reconnect next cycle.
+            if not acquired:
+                from django.db import connections
+                connections.close_all()
         time.sleep(INTERVAL_SECONDS)
 
 
