@@ -2,12 +2,16 @@ from django.urls import path
 from . import views
 from . import flight_verify_views
 from . import overnight_views
+from . import db_health
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 from ops import leads_board as ops_leads
 
 urlpatterns = [
     path("", views.index, name="dashboard"),
+
+    # Staff-only live Postgres connection probe (connection-saturation incident)
+    path("db-connections/", db_health.db_connection_stats, name="db_connection_stats"),
 
     # Leads board — date-anchored opportunities view
     path("leads-board/", ops_leads.leads_board_view, name="leads_board"),
