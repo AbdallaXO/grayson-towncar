@@ -185,6 +185,34 @@ def reservation_form(
             email = customer_form.cleaned_data.get("email", "").strip().lower()
             last_name = customer_form.cleaned_data.get("last_name", "").strip()
             pickup_date = leg1_form.cleaned_data.get("pickup_date")
+
+            # Debounce rapid re-clicks of "Book": if this exact person just started an
+            # unpaid booking for this same trip in the last 30s, send them straight to
+            # ITS checkout instead of creating another. Three clicks in 6s racing the
+            # delete+create-duplicate logic below was the 133s booking freeze (incident
+            # 2026-07-18). Older abandoned attempts still fall through to the 10-min
+            # cleanup, so a genuine re-book after a gap keeps "latest submission wins".
+            just_now = timezone.now() - timedelta(seconds=30)
+            recent_dupe = (
+                Reservation.objects.filter(
+                    customer__email__iexact=email,
+                    customer__last_name__iexact=last_name,
+                    rate=rate,
+                    legs__pickup_date=pickup_date,
+                    status="confirmed",
+                    created_at__gte=just_now,
+                )
+                .exclude(payments__status="paid")
+                .order_by("-created_at")
+                .first()
+            )
+            if recent_dupe:
+                logger.info(
+                    f"Debounced duplicate booking click for {email} -> existing "
+                    f"reservation {recent_dupe.uuid} (no new reservation created)"
+                )
+                return redirect("create_checkout_session", reservation_id=recent_dupe.uuid)
+
             cutoff = timezone.now() - timedelta(minutes=10)
             stale_dupes = Reservation.objects.filter(
                 customer__email__iexact=email,
