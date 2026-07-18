@@ -7,7 +7,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
-    "startCommand": "python3 manage.py migrate --noinput; gunicorn business.wsgi --workers 1 --threads 4 --timeout 60 --max-requests 1500 --max-requests-jitter 200",
+    "startCommand": "python3 manage.py migrate --noinput; gunicorn business.wsgi --workers 3 --threads 4 --worker-class gthread --timeout 60 --graceful-timeout 30 --max-requests 1500 --max-requests-jitter 200",
     "sleepApplication": false,
     "multiRegionConfig": {
       "us-east4-eqdc4a": {

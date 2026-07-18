@@ -100,6 +100,8 @@ INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Cap DB query time for web requests before any view (incl. the session query) runs.
+    "reservations.middleware.StatementTimeoutMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "reservations.middleware.SlowRequestMiddleware",
     "django.middleware.common.CommonMiddleware",

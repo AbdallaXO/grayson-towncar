@@ -62,6 +62,36 @@ class SlowRequestMiddleware:
         return response
 
 
+class StatementTimeoutMiddleware:
+    """Cap DB query time for WEB requests only, as defense-in-depth against a runaway
+    query freezing a worker (prod incident 2026-07-18).
+
+    Scoped deliberately to the request/response cycle: `manage.py migrate` (a separate
+    process), other management commands, and background daemon threads
+    (`_run_in_background` / the GHL scheduler) each use their OWN connection/process and
+    are therefore NOT capped — so a long index build or batch job is never killed. This
+    is why the timeout lives here and not in DATABASES["OPTIONS"] (which is process-wide).
+
+    The SET persists on a CONN_MAX_AGE-pooled connection; re-issuing it per request is
+    idempotent and cheap. The vendor guard keeps local SQLite dev working.
+    """
+
+    STATEMENT_TIMEOUT_MS = 30000  # 30s
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if connection.vendor == "postgresql":
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SET statement_timeout = %s", [self.STATEMENT_TIMEOUT_MS])
+            except Exception:
+                # Never let the safety cap itself break a request.
+                pass
+        return self.get_response(request)
+
+
 class ThreadLocalMiddleware:
     """
     Middleware that stores the current request in thread-local storage.
