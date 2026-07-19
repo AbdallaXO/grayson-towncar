@@ -504,6 +504,7 @@ def index(request):
     _driver_legs = {}
     for leg in _legs_list:
         leg.turnaround_warning = None
+        leg.turnaround_level = ''
         if leg.driver_id:
             _driver_legs.setdefault(leg.driver_id, []).append(leg)
     for _d_id, _d_legs in _driver_legs.items():
@@ -516,10 +517,32 @@ def index(request):
                 gap_min = int((cur_pickup_dt - prev_leg._estimated_end_dt).total_seconds() / 60)
                 if gap_min < 0:
                     cur_leg.turnaround_warning = f"Overlap: conflicts by {abs(gap_min)} min"
+                    cur_leg.turnaround_level = 'danger'
                 elif gap_min < 10:
                     cur_leg.turnaround_warning = f"Critical: only {gap_min} min gap"
+                    cur_leg.turnaround_level = 'danger'
                 elif gap_min < 20:
                     cur_leg.turnaround_warning = f"Tight turnaround: {gap_min} min gap"
+                    cur_leg.turnaround_level = 'warning'
+
+    # Open driver-conflict / tight-turn tasks → red "Conflict → task" badge on
+    # the row so the board itself points at the task queue (one query).
+    _conflict_task_by_leg = {}
+    try:
+        from ops.models import OperationalTask
+        for _leg_id, _task_id in OperationalTask.objects.filter(
+            leg_id__in=[l.id for l in _legs_list],
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            task_type__in=[
+                OperationalTask.TaskType.DRIVER_CONFLICT,
+                OperationalTask.TaskType.TIGHT_TURN,
+            ],
+        ).values_list('leg_id', 'id'):
+            _conflict_task_by_leg.setdefault(_leg_id, _task_id)
+    except Exception:
+        pass
+    for leg in _legs_list:
+        leg.open_conflict_task_id = _conflict_task_by_leg.get(leg.id)
 
     # Build compact driver timeline for in-house drivers with assignments
     # Reuse _all_day_legs (already fetched with all select_related + prefetch) — no extra query
@@ -4156,6 +4179,105 @@ def _best_flight_arrival_time(flight):
     )
 
 
+def _flight_match_skip_reason(leg):
+    """
+    Reason a leg must NOT be auto-matched to its flight time, or None if it's
+    safe. Cancelled / diverted / wrong-day flights have no arrival time worth
+    matching a pickup to — a cancelled flight still carries its old scheduled
+    time, and both match endpoints move only the pickup TIME (never the date),
+    so a past-midnight arrival would land the pickup on the wrong day. These are
+    held for the dispatcher to handle by hand.
+    """
+    flight = getattr(leg, "flight_information", None)
+    if not flight:
+        return None
+    status_l = (flight.status or "").lower()
+    if "cancel" in status_l:
+        return "cancelled"
+    if "divert" in status_l:
+        return "diverted"
+    arr = _best_flight_arrival_time(flight)
+    if arr is not None and leg.pickup_date:
+        try:
+            arr_local = timezone.localtime(arr) if timezone.is_aware(arr) else arr
+            if arr_local.date() != leg.pickup_date:
+                return "wrong_day"
+        except Exception:
+            pass
+    return None
+
+
+def _apply_matched_pickup(leg, new_time, user):
+    """
+    Dispatcher-facing wrapper for a flight-matched pickup time (used by both
+    match endpoints). The stamped update + AuditLog row live in the shared
+    apply_pickup_time_move() helper (also used by the guest flight-verify
+    auto-adjust); this adds the StaffActivity FLIGHT_MATCHED row, which is
+    dispatcher-context only. No-op when the time is unchanged. Returns True
+    if the pickup actually moved.
+    """
+    from ops.models import StaffActivity
+    from .pickup_moves import apply_pickup_time_move
+
+    old_time = leg.pickup_time
+    if not apply_pickup_time_move(leg, new_time, user=user, note="Flight match"):
+        return False
+
+    # Unconditional activity row — the task-scoped FLIGHT_MATCHED rows created
+    # by the single-leg endpoint only exist when a conflict task is open.
+    if user is not None:
+        try:
+            StaffActivity.objects.create(
+                user=user,
+                action_type=StaffActivity.ActionType.FLIGHT_MATCHED,
+                metadata={
+                    "leg_id": leg.id,
+                    "reservation_id": leg.reservation_id,
+                    "old_time": old_time.strftime("%H:%M") if old_time else "",
+                    "new_time": new_time.strftime("%H:%M"),
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Flight-match activity log failed for leg {leg.id}: {e}")
+
+    return True
+
+
+def _serialize_match_conflicts(leg, raw_conflicts):
+    """
+    Turn detect_driver_conflicts() results into the JSON-ready conflict dicts
+    the post-match summary modal renders (dispatcher-facing only — task
+    creation stays with _scan_driver_overlaps). Worst first.
+    """
+    from ops.tasks import TIGHT_TURN_RED_AFTER_MIN
+
+    conflicts = []
+    for c in raw_conflicts or []:
+        other = c["conflicting_leg"]
+        try:
+            customer = other.reservation.customer
+            guest_name = (
+                f"{(customer.first_name or '').title()} {(customer.last_name or '').title()}".strip()
+                or "Guest"
+            )
+        except Exception:
+            guest_name = "Guest"
+        minutes = c["conflict_minutes"]
+        conflicts.append({
+            "reservation_id": other.reservation_id,
+            "guest_name": guest_name,
+            "driver": str(leg.driver) if leg.driver else "",
+            "conflict_minutes": minutes,
+            "tier": "red" if minutes >= TIGHT_TURN_RED_AFTER_MIN else "amber",
+            "conflicting_pickup_time": (
+                other.pickup_time.strftime("%I:%M %p").lstrip("0")
+                if other.pickup_time else ""
+            ),
+        })
+    conflicts.sort(key=lambda c: -(c["conflict_minutes"] or 0))
+    return conflicts
+
+
 @login_required
 @require_POST
 def match_leg_time_to_flight(request):
@@ -4198,13 +4320,12 @@ def match_leg_time_to_flight(request):
             )
         new_time = flight_dt.time()
         old_time = leg.pickup_time
-        Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
+        _apply_matched_pickup(leg, new_time, request.user)
 
         # After-hours fee: the matched pickup time may now fall in the 10 PM-6 AM
         # window (flight delayed). Flag it for the dispatcher to review + charge.
         try:
             from ops.tasks import flag_afterhours_fee
-            leg.pickup_time = new_time
             flag_afterhours_fee(leg, new_time)
         except Exception as e:
             logger.warning(f"After-hours flag failed for leg {leg.id}: {e}")
@@ -4255,17 +4376,27 @@ def match_leg_time_to_flight(request):
                 task=task,
             )
 
-        # For driver_conflict tasks: only close if the conflict is actually resolved
+        # Conflict re-check runs UNCONDITIONALLY — a sub-30-min move can create
+        # a brand-new overlap that has no open task yet, and the old task-only
+        # re-check silently missed those.
         # Refresh leg from DB to get the updated pickup_time
         leg.refresh_from_db()
+        try:
+            from ops.tasks import detect_driver_conflicts
+            remaining = detect_driver_conflicts(leg, leg.pickup_date)
+        except Exception as e:
+            logger.warning(f"Post-match conflict check failed for leg {leg.id}: {e}")
+            remaining = None  # unknown — keep any open conflict tasks open
+
+        # For driver_conflict tasks: only close if the conflict is actually resolved
         dc_tasks = OperationalTask.objects.filter(
             leg=leg,
             task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
             status__in=list(OperationalTask.OPEN_STATUSES),
         )
         for task in dc_tasks:
-            from ops.tasks import detect_driver_conflicts
-            remaining = detect_driver_conflicts(leg, leg.pickup_date)
+            if remaining is None:
+                continue
             if not remaining:
                 close_task(task, resolved_by=request.user, resolution_notes=match_note)
                 StaffActivity.objects.create(
@@ -4282,10 +4413,38 @@ def match_leg_time_to_flight(request):
                 )
                 task.save(update_fields=["description", "updated_at"])
 
+        # Same-day moves also get the instant turn-risk pass so a fresh conflict
+        # files its task now instead of on the next 30-min background cycle.
+        if leg.pickup_date == timezone.localdate():
+            try:
+                from ops.tasks import _scan_driver_overlaps
+                _scan_driver_overlaps()
+            except Exception as e:
+                logger.warning(f"Post-match turn-risk scan failed for leg {leg.id}: {e}")
+
+        # Dispatcher-facing summary: what moved + any conflicts the move leaves.
+        try:
+            conflict_rows = _serialize_match_conflicts(leg, remaining)
+        except Exception as e:
+            logger.warning(f"Post-match conflict summary failed for leg {leg.id}: {e}")
+            conflict_rows = []
+        delta_minutes = int(
+            (
+                datetime.combine(leg.pickup_date, new_time)
+                - datetime.combine(leg.pickup_date, old_time)
+            ).total_seconds() // 60
+        ) if old_time else 0
+
         return JsonResponse({
             "success": True,
             "message": "Leg pickup time updated to match flight arrival",
             "pickup_time": new_time.strftime("%H:%M"),
+            "summary": {
+                "old_time": old_time.strftime("%I:%M %p").lstrip("0") if old_time else "",
+                "new_time": new_time.strftime("%I:%M %p").lstrip("0"),
+                "delta_minutes": delta_minutes,
+                "conflicts": conflict_rows,
+            },
         })
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
@@ -4324,12 +4483,35 @@ def match_all_leg_times_to_flight(request):
             Leg.objects.filter(
                 pickup_date=target_date,
                 flight_information__isnull=False,
-            ).select_related("flight_information")
+            ).select_related("flight_information", "reservation__customer", "driver")
         )
         arrival_legs = [leg for leg in legs if leg.is_flight_tracked_arrival()]
         updated = 0
+        changes = []
+        changed_legs = []
+        skipped = []
         for leg in arrival_legs:
             flight = leg.flight_information
+            # Hold cancelled / diverted / wrong-day flights out of the bulk match —
+            # there is no arrival time worth matching a pickup to. The dispatcher
+            # handles each by hand (call the guest); the UI lists them separately.
+            skip_reason = _flight_match_skip_reason(leg)
+            if skip_reason:
+                try:
+                    customer = leg.reservation.customer
+                    sk_name = (
+                        f"{(customer.first_name or '').title()} {(customer.last_name or '').title()}".strip()
+                        or "Guest"
+                    )
+                except Exception:
+                    sk_name = "Guest"
+                skipped.append({
+                    "leg_id": leg.id,
+                    "reservation_id": leg.reservation_id,
+                    "guest_name": sk_name,
+                    "reason": skip_reason,
+                })
+                continue
             flight_dt = _best_flight_arrival_time(flight)
             if not flight_dt:
                 continue
@@ -4339,20 +4521,77 @@ def match_all_leg_times_to_flight(request):
                 )
             new_time = flight_dt.time()
             if leg.pickup_time != new_time:
-                Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
+                old_time = leg.pickup_time
+                _apply_matched_pickup(leg, new_time, request.user)
                 updated += 1
+                changed_legs.append(leg)
+                try:
+                    customer = leg.reservation.customer
+                    guest_name = (
+                        f"{(customer.first_name or '').title()} {(customer.last_name or '').title()}".strip()
+                        or "Guest"
+                    )
+                except Exception:
+                    guest_name = "Guest"
+                changes.append({
+                    "leg_id": leg.id,
+                    "reservation_id": leg.reservation_id,
+                    "guest_name": guest_name,
+                    "old_time": old_time.strftime("%I:%M %p").lstrip("0") if old_time else "",
+                    "new_time": new_time.strftime("%I:%M %p").lstrip("0"),
+                    "delta_minutes": int(
+                        (
+                            datetime.combine(target_date, new_time)
+                            - datetime.combine(target_date, old_time)
+                        ).total_seconds() // 60
+                    ) if old_time else 0,
+                })
                 # After-hours fee: flag if the new pickup is in the late-night window.
                 try:
                     from ops.tasks import flag_afterhours_fee
-                    leg.pickup_time = new_time
                     flag_afterhours_fee(leg, new_time)
                 except Exception as e:
                     logger.warning(f"After-hours flag failed for leg {leg.id}: {e}")
+
+        # Unconditional conflict sweep over the changed legs, deduped on the leg
+        # pair (A→B and B→A report once, worst minutes wins).
+        new_conflicts = []
+        try:
+            from ops.tasks import detect_driver_conflicts
+            conflict_by_pair = {}
+            for leg in changed_legs:
+                for c in detect_driver_conflicts(leg, target_date):
+                    pair = frozenset((leg.id, c["conflicting_leg"].id))
+                    best = conflict_by_pair.get(pair)
+                    if best and best[1]["conflict_minutes"] >= c["conflict_minutes"]:
+                        continue
+                    conflict_by_pair[pair] = (leg, c)
+            for leg, c in conflict_by_pair.values():
+                new_conflicts.extend(_serialize_match_conflicts(leg, [c]))
+            new_conflicts.sort(key=lambda c: -(c["conflict_minutes"] or 0))
+            # Same instant turn-risk pass as the single-leg match (today only).
+            if target_date == timezone.localdate() and changed_legs:
+                try:
+                    from ops.tasks import _scan_driver_overlaps
+                    _scan_driver_overlaps()
+                except Exception as e:
+                    logger.warning(f"Post-match-all turn-risk scan failed: {e}")
+        except Exception as e:
+            logger.warning(f"Post-match-all conflict sweep failed: {e}")
+
         return JsonResponse({
             "success": True,
             "message": f"Updated {updated} arrival leg(s) to match flight arrival time.",
             "updated_count": updated,
             "total_arrival_legs": len(arrival_legs),
+            "summary": {
+                "matched": len(arrival_legs),
+                "changed": updated,
+                "changes": changes,
+                "new_conflicts": new_conflicts,
+                "skipped": skipped,
+                "skipped_count": len(skipped),
+            },
         })
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
@@ -5018,7 +5257,8 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
 
     task_key = _flight_refresh_cache_key(task_id)
     timeout_seconds = 60 * 60
-    started_at = timezone.now().isoformat()
+    refresh_started_dt = timezone.now()
+    started_at = refresh_started_dt.isoformat()
     BATCH_SIZE = 5  # AeroAPI Standard: up to 5 queries/sec
 
     try:
@@ -5118,6 +5358,9 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
             threshold = int(getattr(
                 _settings, "FLIGHT_REVIEW_MISMATCH_THRESHOLD_MINUTES", 30
             ))
+            minor_threshold = int(getattr(
+                _settings, "FLIGHT_REVIEW_MINOR_CHANGE_MINUTES", 5
+            ))
             fresh_legs = list(
                 Leg.objects.filter(id__in=[l.id for l in legs])
                 .select_related("flight_information", "reservation__customer", "driver")
@@ -5129,10 +5372,15 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                     snapshots.get(leg.id),
                     result_by_leg.get(leg.id),
                     threshold_minutes=threshold,
+                    minor_threshold_minutes=minor_threshold,
                 )
                 for leg in fresh_legs
             ]
-            summary = build_review_summary(rows)
+            summary = build_review_summary(
+                rows,
+                minor_threshold_minutes=minor_threshold,
+                threshold_minutes=threshold,
+            )
             try:
                 auto_create_flight_verify_tasks(rows)
             except Exception as e:
@@ -5147,6 +5395,37 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 _scan_driver_overlaps()
             except Exception as e:
                 logger.error(f"Post-refresh turn-risk scan failed: {e}")
+            # Conflicts CREATED by this refresh (tasks filed since it started, on
+            # the refreshed day) — the review modal calls them out up top so a
+            # sub-30-min move that just broke a driver's day is never missed.
+            # Filter on the DATE, not the refreshed leg ids: _scan_driver_overlaps
+            # anchors its task on the leg the driver is late TO (often a
+            # departure that wasn't refreshed), so an id-scoped filter missed those.
+            try:
+                from ops.models import OperationalTask
+                new_conflicts = []
+                refreshed_dates = {l.pickup_date for l in fresh_legs}
+                conflict_tasks = OperationalTask.objects.filter(
+                    task_type__in=[
+                        OperationalTask.TaskType.DRIVER_CONFLICT,
+                        OperationalTask.TaskType.TIGHT_TURN,
+                    ],
+                    created_at__gte=refresh_started_dt,
+                    leg__pickup_date__in=refreshed_dates,
+                )
+                for t in conflict_tasks:
+                    md = t.metadata or {}
+                    new_conflicts.append({
+                        "task_id": t.id,
+                        "title": t.title,
+                        "driver_name": md.get("driver_name") or "",
+                        "conflict_minutes": md.get("conflict_minutes") or md.get("late_minutes"),
+                        "reservation_id": t.reservation_id,
+                        "tier": "amber" if t.task_type == OperationalTask.TaskType.TIGHT_TURN else "red",
+                    })
+                summary["new_conflicts"] = new_conflicts
+            except Exception as e:
+                logger.error(f"Post-refresh conflict summary failed: {e}")
         except Exception as e:
             logger.error(f"Review summary build failed: {e}")
 
@@ -5332,6 +5611,45 @@ def dismiss_flight_review(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error dismissing flight review for leg: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def acknowledge_time_change(request):
+    """
+    Clear the board's "time changed" badge for one leg (leg_id) or several
+    (leg_ids) by stamping pickup_change_ack_at. Idempotent.
+    """
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        leg_ids = data.get("leg_ids") or []
+        if leg_ids and not isinstance(leg_ids, list):
+            # A string like "57" would char-iterate into legs 5 and 7 below.
+            return JsonResponse(
+                {"success": False, "error": "leg_ids must be a list"}, status=400
+            )
+        if data.get("leg_id"):
+            leg_ids = list(leg_ids) + [data["leg_id"]]
+        leg_ids = [int(i) for i in leg_ids]
+        if not leg_ids:
+            return JsonResponse(
+                {"success": False, "error": "leg_id or leg_ids is required"}, status=400
+            )
+        acked = Leg.objects.filter(id__in=leg_ids).update(
+            pickup_change_ack_at=timezone.now()
+        )
+        return JsonResponse({"success": True, "acked": acked})
+
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error acknowledging time change: {e}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

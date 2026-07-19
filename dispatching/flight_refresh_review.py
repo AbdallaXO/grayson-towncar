@@ -18,20 +18,23 @@ logger = logging.getLogger(__name__)
 # ── Bucket / severity constants (kept simple — strings travel cleanly to JSON / JS) ──
 
 STATUS_OK = "ok"
+STATUS_MINOR = "minor_change"
 STATUS_NEEDS_REVIEW = "needs_review"
 STATUS_MANUAL = "manual_action"
 STATUS_MISSING = "missing"
 
 SEVERITY_SUCCESS = "success"
+SEVERITY_INFO = "info"
 SEVERITY_WARNING = "warning"
 SEVERITY_MANUAL = "manual"
 SEVERITY_DANGER = "danger"
 
 # Highest severity wins when multiple triggers fire for the same row.
 _STATUS_RANK = {
-    STATUS_MISSING: 3,
-    STATUS_MANUAL: 2,
-    STATUS_NEEDS_REVIEW: 1,
+    STATUS_MISSING: 4,
+    STATUS_MANUAL: 3,
+    STATUS_NEEDS_REVIEW: 2,
+    STATUS_MINOR: 1,
     STATUS_OK: 0,
 }
 
@@ -141,7 +144,7 @@ def _edit_url(leg):
         return ""
 
 
-def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30):
+def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30, minor_threshold_minutes=5):
     """
     Combine the per-leg refresh result + before/after flight snapshots
     into the structured dict the review modal renders.
@@ -212,13 +215,18 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
         mismatch_minutes = (mismatch or {}).get("minutes") if mismatch else None
         mismatch_direction = (mismatch or {}).get("direction") if mismatch else None
 
-        # Arrival changed materially from before-refresh snapshot
+        # Arrival changed from before-refresh snapshot: >= threshold is the
+        # material Needs Review case, minor..threshold is the low-key Minor
+        # Change bucket (sub-30-min moves dispatchers used to miss).
         arrival_changed_minutes = None
+        arrival_changed_minor_minutes = None
         if old_best and new_best:
             try:
                 delta = abs((new_best - old_best).total_seconds()) / 60.0
                 if delta >= threshold_minutes:
                     arrival_changed_minutes = int(round(delta))
+                elif delta >= minor_threshold_minutes:
+                    arrival_changed_minor_minutes = int(round(delta))
             except Exception:
                 pass
 
@@ -279,9 +287,35 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
             except Exception:
                 pass
 
+        # ── Minor Change bucket — only when nothing above flagged the row ──
+        if arrival_changed_minor_minutes is not None and status == STATUS_OK:
+            status = _bump(status, STATUS_MINOR)
+            issue_code = "arrival_changed_minor"
+            issue_label = f"Flight arrival moved {arrival_changed_minor_minutes} min since last check"
+            recommended_action = "Confirm pickup + driver turnaround still line up"
+
+        if status == STATUS_OK:
+            # Small pickup-vs-flight drift (minor..threshold min) — the canonical
+            # helper returns None below its threshold, so re-ask with the minor one.
+            try:
+                minor_mismatch = leg.get_flight_time_mismatch_display(
+                    threshold_minutes=minor_threshold_minutes
+                )
+            except Exception:
+                minor_mismatch = None
+            minor_minutes = (minor_mismatch or {}).get("minutes") if minor_mismatch else None
+            if minor_minutes is not None and minor_minutes < threshold_minutes:
+                status = _bump(status, STATUS_MINOR)
+                issue_code = "pickup_flight_minor_mismatch"
+                issue_label = (
+                    f"Pickup differs from flight by {minor_minutes} min ({minor_mismatch['direction']})"
+                )
+                recommended_action = "Confirm pickup + driver turnaround still line up"
+
         # Pick a severity from the chosen status
         severity = {
             STATUS_OK: SEVERITY_SUCCESS,
+            STATUS_MINOR: SEVERITY_INFO,
             STATUS_NEEDS_REVIEW: SEVERITY_WARNING,
             STATUS_MANUAL: SEVERITY_MANUAL,
             STATUS_MISSING: SEVERITY_DANGER,
@@ -291,9 +325,11 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
     if status == STATUS_MISSING:
         severity = SEVERITY_DANGER
 
-    # Recompute mismatch payload for the row regardless of bucket
+    # Recompute mismatch payload for the row regardless of bucket. Uses the
+    # MINOR threshold so minor rows carry their minutes too (compare badge +
+    # Match-All preview) instead of rendering as "matches flight".
     try:
-        mismatch_for_row = leg.get_flight_time_mismatch_display(threshold_minutes=threshold_minutes)
+        mismatch_for_row = leg.get_flight_time_mismatch_display(threshold_minutes=minor_threshold_minutes)
     except Exception:
         mismatch_for_row = None
 
@@ -340,14 +376,16 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
     }
 
 
-def build_review_summary(rows):
+def build_review_summary(rows, minor_threshold_minutes=5, threshold_minutes=30):
     """
     Tally totals + sort rows so the UI can render directly from the response.
-    Sort: missing → manual_action → needs_review → ok (within each, by mismatch desc).
+    Sort: missing → manual_action → needs_review → minor_change → ok
+    (within each, by mismatch desc).
     """
     totals = {
         "total": len(rows),
         STATUS_OK: 0,
+        STATUS_MINOR: 0,
         STATUS_NEEDS_REVIEW: 0,
         STATUS_MANUAL: 0,
         STATUS_MISSING: 0,
@@ -369,6 +407,12 @@ def build_review_summary(rows):
         "totals": totals,
         "rows": sorted_rows,
         "problem_count": len(problem_rows),
+        # Bucket boundaries, so the JS never hard-codes them again.
+        "thresholds": {
+            "minor": minor_threshold_minutes,
+            "review": threshold_minutes,
+            "manual": LARGE_MISMATCH_MINUTES,
+        },
     }
 
 
@@ -388,7 +432,8 @@ def auto_create_flight_verify_tasks(rows, *, created_by=None):
     created = 0
 
     for row in rows:
-        if row["status"] == STATUS_OK:
+        # Minor changes are dispatcher FYI only — no task, like OK rows.
+        if row["status"] in (STATUS_OK, STATUS_MINOR):
             continue
         if row["issue_code"] in SKIP_CODES:
             continue

@@ -405,12 +405,35 @@
       .frr-count-warning { background: #d39e00; color: #1f1300; }
       .frr-count-warning .frr-l { opacity: 0.85; }
       .frr-count-manual { background: #7c4dff; }
-      .frr-count-danger { background: #dc3545; }
+      .frr-count-danger { background: #c81e2c; }
       .frr-row { border: 1px solid #e9ecef; border-left-width: 4px; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
       .frr-row[data-severity="success"]  { border-left-color: #198754; }
       .frr-row[data-severity="warning"]  { border-left-color: #d39e00; background: #fffbea; }
       .frr-row[data-severity="manual"]   { border-left-color: #7c4dff; background: #f6f3ff; }
-      .frr-row[data-severity="danger"]   { border-left-color: #dc3545; background: #fff5f5; }
+      .frr-row[data-severity="danger"]   {
+        border-color: #f1aeb5; border-left-color: #dc3545; border-left-width: 5px;
+        background: #ffe4e4;
+        box-shadow: 0 0 0 1px rgba(220,53,69,.30), 0 4px 14px rgba(220,53,69,.20);
+        animation: frr-danger-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes frr-danger-pulse {
+        0%, 100% { box-shadow: 0 0 0 1px rgba(220,53,69,.30), 0 0 0 0 rgba(220,53,69,.32); }
+        50%      { box-shadow: 0 0 0 1px rgba(220,53,69,.30), 0 0 0 6px rgba(220,53,69,0); }
+      }
+      @media (prefers-reduced-motion: reduce) { .frr-row[data-severity="danger"] { animation: none; } }
+      /* Cancelled / diverted flights stay in the manual-action bucket, but they read
+         as red (not the pale purple manual tint) and carry an explicit reason flag —
+         a pickup-vs-flight time comparison is meaningless once the flight is off. */
+      .frr-row[data-issue="flight_cancelled"],
+      .frr-row[data-issue="flight_diverted"] { border-left-color: #dc3545; background: #fdecec; }
+      .badge.frr-badge-cancel { background-color: #dc3545 !important; color: #fff !important; }
+      .badge.frr-badge-divert { background-color: #e8590c !important; color: #fff !important; }
+      .frr-reason-flag {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-weight: 700; font-size: 0.82rem; color: #b02a37;
+        background: #ffdcdc; border: 1px solid #f1aeb5; padding: 2px 9px; border-radius: 6px;
+      }
+      .frr-reason-flag.frr-reason-divert { color: #8a3d0b; background: #ffe6d3; border-color: #f7c091; }
       .frr-row .frr-line1 { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
       .frr-row .frr-meta { font-size: 0.78rem; color: #495057; margin-top: 2px; }
       .frr-row .frr-action { font-size: 0.78rem; color: #1f1f1f; margin-top: 4px; font-weight: 500; }
@@ -471,6 +494,33 @@
       .frr-row .frr-compare .frr-delta.frr-delta-ok     { background: #d1e7dd; color: #0a3622; }
       .frr-row .frr-compare.frr-compare-missing .frr-old { text-decoration: none; }
       .frr-row .frr-compare.frr-compare-missing .frr-new { color: #6c757d; font-weight: 500; font-style: italic; }
+
+      /* Minor Change bucket (info blue) — sub-30-min moves worth a glance */
+      .frr-count-info { background: #0d6efd; }
+      .frr-row[data-severity="info"] { border-left-color: #0d6efd; background: #e7f1ff; }
+      .frr-row .frr-compare .frr-delta.frr-delta-info { background: #cfe2ff; color: #084298; }
+      .frr-update-row .frr-delta.frr-delta-info { background: #cfe2ff; color: #084298; }
+
+      /* "Time changed" board flag: soft purple row tint + pill on the pickup
+         cell until a dispatcher acknowledges the flight-driven move. Safety
+         colors (danger/warning) win the row tint; the pill always shows. */
+      tr.leg-time-changed:not(.table-danger):not(.table-warning) > td {
+          background-color: rgba(123,31,162,.06) !important;
+      }
+      .card.leg-time-changed { background-color: rgba(123,31,162,.06); }
+      .time-changed-badge {
+          display: inline-flex; align-items: center; gap: 3px;
+          background: #f6ecfb; color: #7b1fa2; border: 1px solid #7b1fa2;
+          font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+          white-space: nowrap;
+      }
+      .time-change-ack-btn {
+          font-size: 0.62rem; line-height: 1.1; padding: 1px 5px;
+          border-radius: 10px; color: #7b1fa2; border-color: #7b1fa2;
+      }
+      .time-change-ack-btn:hover { background: #7b1fa2; border-color: #7b1fa2; color: #fff; }
+
+
 
   </style>
 {% endblock extra_css %}
@@ -639,6 +689,7 @@
 
     {% include 'dispatching/includes/_draft_banner.html' %}
 
+
     <!-- Driver Coverage Bar -->
     {% if driver_coverage.total > 0 %}
       <div class="card border-0 shadow-sm mb-3">
@@ -688,19 +739,19 @@
       <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="text-muted small fw-semibold me-2">Trip:</span>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=arrival"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=arrival{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
              class="badge {% if trip_type_filter == 'arrival' %}bg-primary text-white{% else %}bg-light border border-primary text-primary{% endif %} text-decoration-none">
             Arrivals
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=return"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=return{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
              class="badge {% if trip_type_filter == 'return' %}bg-success text-white{% else %}bg-light border border-success text-success{% endif %} text-decoration-none">
             Returns
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=cruise"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=cruise{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
              class="badge {% if trip_type_filter == 'cruise' %}bg-info text-white{% else %}bg-light border border-info text-info{% endif %} text-decoration-none">
             Cruise
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
              class="badge {% if not trip_type_filter %}bg-dark text-white{% else %}bg-secondary text-white{% endif %} text-decoration-none">
             All
           </a>
@@ -708,14 +759,14 @@
           <span class="text-muted mx-1">|</span>
           <span class="text-muted small fw-semibold me-1">Vehicle:</span>
           {% for vc in vehicle_type_counts %}
-            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}&vehicle={{ vc.type }}"
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}&vehicle={{ vc.type }}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
                class="badge text-decoration-none {% if vehicle_filter == vc.type %}text-white{% else %}bg-light border text-dark{% endif %}"
                style="{% if vehicle_filter == vc.type %}background:#495057;{% endif %}font-size:0.72rem;">
               {{ vc.label }} <span style="opacity:0.75;">({{ vc.count }})</span>
             </a>
           {% endfor %}
           {% if vehicle_filter %}
-            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
                class="badge bg-secondary text-white text-decoration-none" style="font-size:0.72rem;">
               All
             </a>
@@ -1026,7 +1077,7 @@
             <tbody>
               {% for leg in legs %}
                 {% with flag=leg.flight_timing_flag %}
-                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
+                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if leg.has_unacked_time_change %}leg-time-changed{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       data-leg-status="{{ leg.status }}"
                       {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
@@ -1206,6 +1257,25 @@
 
                       <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
                       <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
+                      {% if leg.has_unacked_time_change %}
+                        <div class="mt-1 d-flex align-items-center gap-1 time-changed-wrap">
+                          <span class="time-changed-badge" title="Pickup moved to follow the flight {{ leg.pickup_time_changed_at|date:'D, M j g:i A' }} — click ✓ once you've checked the driver still lines up.">⏰ was {{ leg.pickup_time_was|time:"g:i A" }}</span>
+                          <button type="button" class="btn btn-sm btn-outline-secondary time-change-ack-btn"
+                                  data-leg-id="{{ leg.id }}"
+                                  title="Acknowledge the new pickup time">
+                            <i class="bi bi-check2"></i>
+                          </button>
+                        </div>
+                      {% endif %}
+                      {% if leg.open_conflict_task_id %}
+                        <div class="mt-1">
+                          <a class="badge bg-danger text-white text-decoration-none"
+                             href="{% url 'task_detail' leg.open_conflict_task_id %}"
+                             title="An open driver-conflict / tight-turn task exists for this leg — open it in the task queue">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Conflict → task
+                          </a>
+                        </div>
+                      {% endif %}
                       {% if leg.afterhours_owed %}
                       <div class="mt-1">
                         <span class="badge bg-warning text-dark" title="This pickup is now in the 10 PM–6 AM window (often a delayed flight) and the $20 after-hours fee has not been collected yet.">
@@ -1443,7 +1513,7 @@
                                 name="status"
                                 data-leg-id="{{ leg.id }}">
                           <option value="in-progress"
-                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress (unconfirmed)</option>
                           <option value="confirmed"
                                   {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
                           <option value="on-the-way"
@@ -1544,7 +1614,7 @@
             {% for leg in legs %}
               {% with flag=leg.flight_timing_flag %}
                 <div class="col-12" id="leg-card-{{ leg.id }}" data-leg-status="{{ leg.status }}">
-                  <div class="card shadow-sm {% if leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if flag.level == 'alert' %}border-start border-4 border-danger{% elif flag.level == 'watch' %}border-start border-4 border-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
+                  <div class="card shadow-sm {% if leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if flag.level == 'alert' %}border-start border-4 border-danger{% elif flag.level == 'watch' %}border-start border-4 border-warning{% endif %} {% if leg.has_unacked_time_change %}leg-time-changed{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
                     <div class="card-header {% if leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                       <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold">
@@ -1596,6 +1666,25 @@
                             <i class="bi bi-calendar-event text-primary me-2"></i>
                             <div class="small">
                               <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
+                              {% if leg.has_unacked_time_change %}
+                                <div class="mt-1 d-flex align-items-center gap-1 time-changed-wrap">
+                                  <span class="time-changed-badge" title="Pickup moved to follow the flight — click ✓ once you've checked the driver still lines up.">⏰ was {{ leg.pickup_time_was|time:"g:i A" }}</span>
+                                  <button type="button" class="btn btn-sm btn-outline-secondary time-change-ack-btn"
+                                          data-leg-id="{{ leg.id }}"
+                                          title="Acknowledge the new pickup time">
+                                    <i class="bi bi-check2"></i>
+                                  </button>
+                                </div>
+                              {% endif %}
+                              {% if leg.open_conflict_task_id %}
+                                <div class="mt-1">
+                                  <a class="badge bg-danger text-white text-decoration-none"
+                                     href="{% url 'task_detail' leg.open_conflict_task_id %}"
+                                     title="An open driver-conflict / tight-turn task exists for this leg">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Conflict → task
+                                  </a>
+                                </div>
+                              {% endif %}
                               {% if leg.afterhours_owed %}
                                 <div class="mt-1">
                                   <span class="badge bg-warning text-dark"><i class="bi bi-moon-stars-fill me-1"></i>After-hours fee owed · $20</span>
@@ -1816,7 +1905,7 @@
                                     name="status"
                                     data-leg-id="{{ leg.id }}">
                               <option value="in-progress"
-                                      {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                                      {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress (unconfirmed)</option>
                               <option value="confirmed"
                                       {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
                               <option value="on-the-way"
@@ -2749,7 +2838,13 @@
                       .then(data => {
                           if (data.success) {
                               el.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
-                              window.location.reload();
+                              // If the move created driver conflicts, make the
+                              // dispatcher see them before the board refreshes.
+                              if (data.summary && data.summary.conflicts && data.summary.conflicts.length) {
+                                  frrShowMatchResultModal(data.summary, { reload: true });
+                              } else {
+                                  window.location.reload();
+                              }
                           } else {
                               el.disabled = false;
                               el.innerHTML = originalHTML;
@@ -2762,6 +2857,41 @@
                           alert('Error: ' + err.message);
                       });
               });
+          });
+
+          // ── "Time changed" badge acknowledge (delegated — badge appears on
+          // desktop row AND mobile card, and rows can be re-rendered) ──
+          document.addEventListener('click', function(e) {
+              const ackBtn = e.target.closest('.time-change-ack-btn');
+              if (!ackBtn) return;
+              const legId = ackBtn.dataset.legId;
+              ackBtn.disabled = true;
+              fetch("{% url 'acknowledge_time_change' %}", {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                      body: JSON.stringify({ leg_id: parseInt(legId, 10) })
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                      if (data.success) {
+                          // Clear badge + purple tint in place on both views
+                          document.querySelectorAll('.time-change-ack-btn[data-leg-id="' + legId + '"]').forEach(b => {
+                              const wrap = b.closest('.time-changed-wrap');
+                              if (wrap) wrap.remove();
+                          });
+                          const row = document.getElementById('leg-row-' + legId);
+                          if (row) row.classList.remove('leg-time-changed');
+                          const card = document.querySelector('#leg-card-' + legId + ' .card');
+                          if (card) card.classList.remove('leg-time-changed');
+                      } else {
+                          ackBtn.disabled = false;
+                          frrShowToast(data.error || 'Could not acknowledge the time change.', 'error');
+                      }
+                  })
+                  .catch(err => {
+                      ackBtn.disabled = false;
+                      frrShowToast('Error: ' + err.message, 'error');
+                  });
           });
 
           // ── After-hours fee: per-row charge + email ──
@@ -2915,11 +3045,45 @@
               return months + 'mo';
           }
 
+          // A cancelled / diverted / wrong-day / missing flight has no arrival time
+          // worth matching a pickup to — Match All holds these out; the server skips
+          // them too (see _flight_match_skip_reason), so preview and apply agree.
+          function frrIsUnmatchable(r) {
+              return r.status === 'missing'
+                  || r.issue_code === 'flight_cancelled'
+                  || r.issue_code === 'flight_diverted'
+                  || r.issue_code === 'date_shifted';
+          }
+          function frrHeldReason(r) {
+              if (r.issue_code === 'flight_cancelled') return 'Cancelled';
+              if (r.issue_code === 'flight_diverted') return 'Diverted';
+              if (r.issue_code === 'date_shifted')     return 'Wrong day';
+              if (r.status === 'missing')              return 'Flight not found';
+              return 'Manual';
+          }
+          // Human-readable magnitude for a pickup move: "45 min late", "5h 7m late".
+          function frrFmtDelta(mins, dir) {
+              if (mins == null) return '';
+              var suffix = (dir === 'late') ? ' late' : (dir === 'early') ? ' early' : '';
+              if (mins < 120) return mins + ' min' + suffix;
+              var h = Math.floor(mins / 60), m = mins % 60;
+              return h + 'h' + (m ? ' ' + m + 'm' : '') + suffix;
+          }
+
           function frrBadge(row) {
               var sev = row.severity || 'success';
-              var labelMap = { success: 'OK', warning: 'Needs Review', manual: 'Manual Action', danger: 'Missing' };
-              var iconMap  = { success: 'bi-check-circle', warning: 'bi-exclamation-triangle', manual: 'bi-tools', danger: 'bi-x-octagon' };
-              var classMap = { success: 'bg-success', warning: 'bg-warning text-dark', manual: 'bg-manual', danger: 'bg-danger' };
+              // Cancelled / diverted sit in the manual-action bucket, but the generic
+              // "Manual Action" wrench hides *why*. Give them their own loud label so a
+              // dispatcher scanning 45 rows sees the dead flights at a glance.
+              if (row.issue_code === 'flight_cancelled') {
+                  return '<span class="badge frr-badge-cancel"><i class="bi bi-x-octagon-fill me-1"></i>Cancelled</span>';
+              }
+              if (row.issue_code === 'flight_diverted') {
+                  return '<span class="badge frr-badge-divert"><i class="bi bi-signpost-split-fill me-1"></i>Diverted</span>';
+              }
+              var labelMap = { success: 'OK', info: 'Minor', warning: 'Needs Review', manual: 'Manual Action', danger: 'Missing' };
+              var iconMap  = { success: 'bi-check-circle', info: 'bi-info-circle', warning: 'bi-exclamation-triangle', manual: 'bi-tools', danger: 'bi-x-octagon' };
+              var classMap = { success: 'bg-success', info: 'bg-primary', warning: 'bg-warning text-dark', manual: 'bg-manual', danger: 'bg-danger' };
               return '<span class="badge ' + classMap[sev] + '"><i class="bi ' + iconMap[sev] + ' me-1"></i>' + labelMap[sev] + '</span>';
           }
 
@@ -2935,7 +3099,10 @@
               var resUrl = row.reservation_url || '#';
               var editUrl = row.edit_url || '#';
               var driver = row.assigned_driver ? ' · Driver: ' + frrEscape(row.assigned_driver) : '';
-              var canMatch = (row.status !== 'missing') && row.new_arrival_time;
+              // A cancelled/diverted flight's scheduled arrival is meaningless — never
+              // offer "Match Pickup" to it, and show the reason instead of a time delta.
+              var isOffFlight = (row.issue_code === 'flight_cancelled' || row.issue_code === 'flight_diverted');
+              var canMatch = (row.status !== 'missing') && row.new_arrival_time && !isOffFlight;
 
               // Comparison row: current pickup → flight-based pickup + delta badge.
               // Mirrors the Match All Flight Times modal so dispatchers see one
@@ -2944,7 +3111,16 @@
               //   - matched:  "9:00 AM ✓ [matches flight]"
               //   - missing:  "9:00 AM → Flight not found"
               var compareHtml = '';
-              if (row.status === 'missing') {
+              if (isOffFlight) {
+                  var offIsCancel = (row.issue_code === 'flight_cancelled');
+                  compareHtml = ''
+                      + '<div class="frr-compare">'
+                      +   '<span class="frr-reason-flag' + (offIsCancel ? '' : ' frr-reason-divert') + '">'
+                      +     '<i class="bi ' + (offIsCancel ? 'bi-x-octagon-fill' : 'bi-signpost-split-fill') + '"></i> '
+                      +     frrEscape(row.issue_label || (offIsCancel ? 'Flight cancelled' : 'Flight diverted'))
+                      +   '</span>'
+                      + '</div>';
+              } else if (row.status === 'missing') {
                   compareHtml = ''
                       + '<div class="frr-compare frr-compare-missing">'
                       +   '<span class="frr-old">' + frrEscape(row.pickup_time || '—') + '</span>'
@@ -2957,8 +3133,9 @@
                   if (hasMismatch) {
                       var deltaCls = (row.status === 'manual_action')
                           ? 'frr-delta frr-delta-manual'
-                          : ((row.mismatch_minutes >= 120) ? 'frr-delta frr-delta-danger' : 'frr-delta');
-                      var deltaTxt = row.mismatch_minutes + ' min ' + (row.mismatch_direction || '');
+                          : ((row.mismatch_minutes >= 120) ? 'frr-delta frr-delta-danger'
+                          : ((row.status === 'minor_change') ? 'frr-delta frr-delta-info' : 'frr-delta'));
+                      var deltaTxt = frrFmtDelta(row.mismatch_minutes, row.mismatch_direction);
                       compareHtml = ''
                           + '<div class="frr-compare">'
                           +   '<span class="frr-old">' + frrEscape(row.pickup_time || '—') + '</span>'
@@ -3005,7 +3182,7 @@
               var reviewedBtn = '<button class="btn btn-sm btn-outline-secondary frr-reviewed-btn" data-leg-id="' + row.leg_id + '"><i class="bi bi-check2"></i> Mark Reviewed</button>';
 
               return ''
-                  + '<div class="frr-row" data-severity="' + frrEscape(row.severity) + '" data-status="' + frrEscape(row.status) + '" data-leg-id="' + row.leg_id + '">'
+                  + '<div class="frr-row" data-severity="' + frrEscape(row.severity) + '" data-status="' + frrEscape(row.status) + '" data-issue="' + frrEscape(row.issue_code || '') + '" data-leg-id="' + row.leg_id + '">'
                   +   '<div class="frr-line1">'
                   +     frrBadge(row)
                   +     '<strong>#' + frrEscape(row.reservation_id) + '</strong>'
@@ -3064,6 +3241,24 @@
                   ? '<button type="button" class="btn btn-sm btn-success" id="frrMatchAllBtn" data-date="' + frrEscape(opts.matchAllDate) + '"><i class="bi bi-clock-history me-1"></i>Match All Flight Times</button>'
                   : '';
 
+              // Red callout when the refresh's turn-risk pass just filed
+              // driver-conflict / tight-turn tasks — the "you need to look at
+              // the task queue NOW" banner, above everything else.
+              var newConflicts = summary.new_conflicts || [];
+              var conflictCalloutHtml = '';
+              if (newConflicts.length) {
+                  var conflictItems = newConflicts.map(function(c) {
+                      var mins = (c.conflict_minutes != null) ? c.conflict_minutes + ' min' : '—';
+                      return '<li>' + frrEscape(c.driver_name || 'Driver') + ' — ' + frrEscape(mins) + ' — res #' + frrEscape(c.reservation_id || '—') + '</li>';
+                  }).join('');
+                  conflictCalloutHtml = ''
+                      + '<div class="frr-callout frr-callout-danger">'
+                      +   '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>⚠ ' + newConflicts.length + ' new driver conflict(s) created by this refresh</strong>'
+                      +   '<ul class="mb-1 mt-1">' + conflictItems + '</ul>'
+                      +   '<a href="/dispatching/task-queue/" class="fw-semibold">Open the task queue <i class="bi bi-arrow-right"></i></a>'
+                      + '</div>';
+              }
+
               var html = ''
                   + '<div class="frr-modal" role="dialog" aria-modal="true" aria-label="Flight refresh review">'
                   +   '<div class="frr-header d-flex justify-content-between align-items-center">'
@@ -3071,8 +3266,10 @@
                   +     '<button type="button" class="btn btn-sm btn-light frr-close" aria-label="Close"><i class="bi bi-x-lg"></i></button>'
                   +   '</div>'
                   +   '<div class="frr-body">'
+                  +     conflictCalloutHtml
                   +     '<div class="frr-counts">'
                   +       frrCountCard('frr-count-ok',      (totals.ok || 0),            'OK')
+                  +       frrCountCard('frr-count-info',    (totals.minor_change || 0),  'Minor Change')
                   +       frrCountCard('frr-count-warning', (totals.needs_review || 0),  'Needs Review')
                   +       frrCountCard('frr-count-manual',  (totals.manual_action || 0), 'Manual Action')
                   +       frrCountCard('frr-count-danger',  (totals.missing || 0),       'Missing / Not Found')
@@ -3139,6 +3336,21 @@
                                   b.innerHTML = '<i class="bi bi-check-circle"></i> Updated';
                                   b.classList.remove('btn-outline-success');
                                   b.classList.add('btn-success');
+                                  // The move can CREATE a driver conflict — warn
+                                  // in place (no reload) so the modal flow keeps going.
+                                  var conflicts = (data.summary && data.summary.conflicts) || [];
+                                  if (conflicts.length) {
+                                      frrShowToast('Pickup updated — but this move creates ' + conflicts.length + ' driver conflict(s).', 'warning');
+                                      if (row && !row.querySelector('.frr-conflict-note')) {
+                                          var note = document.createElement('div');
+                                          note.className = 'frr-action frr-conflict-note text-danger';
+                                          note.innerHTML = '<i class="bi bi-exclamation-octagon-fill me-1"></i>New driver conflict: '
+                                              + frrEscape(conflicts.map(function(c){
+                                                    return (c.driver || 'driver') + ' ' + (c.conflict_minutes != null ? c.conflict_minutes + ' min' : '');
+                                                }).join(', '));
+                                          row.appendChild(note);
+                                      }
+                                  }
                               } else {
                                   b.disabled = false; b.innerHTML = orig;
                                   frrShowToast(data.error || 'Could not update pickup time.', 'error');
@@ -3255,19 +3467,20 @@
           // status}], hasRisky:bool }.
           function frrComputeMatchAllPreview() {
               var rows = (lastRefreshSummary && lastRefreshSummary.rows) || [];
-              var threshold = 30;
+              // Preview down to the MINOR threshold — Match All moves every leg
+              // whose time differs, so sub-30-min moves must be visible too.
+              var threshold = (lastRefreshSummary && lastRefreshSummary.thresholds && lastRefreshSummary.thresholds.minor) || 5;
               var changes = rows.filter(function(r){
-                  // Anything that will visibly move >= threshold OR is in a
-                  // higher-severity bucket (large delay, date shift, etc.)
-                  if (r.status === 'missing') return false;  // no usable arrival time
+                  // Match All only moves legs to a REAL, matchable arrival time.
+                  // Cancelled/diverted/wrong-day/missing are held out (see `held`).
+                  if (frrIsUnmatchable(r)) return false;
                   if (r.mismatch_minutes != null && r.mismatch_minutes >= threshold) return true;
-                  if (r.status === 'manual_action') return true;
+                  if (r.status === 'manual_action') return true;  // e.g. a large but tracked delay
                   return false;
               });
-              var hasRisky = rows.some(function(r){
-                  return r.status === 'missing' || r.status === 'manual_action';
-              });
-              return { changes: changes, hasRisky: hasRisky, rows: rows };
+              // Held out of the bulk apply — the dispatcher handles each by hand.
+              var held = rows.filter(frrIsUnmatchable);
+              return { changes: changes, held: held, hasRisky: held.length > 0, rows: rows, threshold: threshold };
           }
 
           // Styled confirm modal (Promise-based). Replaces native confirm().
@@ -3296,18 +3509,23 @@
                       +   'For late-night or after-midnight flights especially, double-check with the guest which day they’re actually flying — it’s easy for those to land on the wrong date.'
                       + '</div>';
 
-                  // Extra red callout when the refresh flagged risky rows
+                  // Extra red callout listing the flights Match All will NOT touch —
+                  // each labelled with WHY (cancelled / diverted / wrong day / not found)
+                  // so the dispatcher sees at a glance which need a call, not bare IDs.
                   var riskyHtml = '';
-                  if (hasRisky) {
-                      var risky = (lastRefreshSummary.rows || []).filter(function(r){
-                          return r.status === 'missing' || r.status === 'manual_action';
-                      });
-                      var ids = risky.slice(0, 8).map(function(r){ return '#' + r.reservation_id; }).join(', ');
-                      var more = risky.length > 8 ? ' …and ' + (risky.length - 8) + ' more' : '';
+                  var held = preview.held || [];
+                  if (held.length) {
+                      var heldItems = held.slice(0, 6).map(function(r){
+                          var flt = (r.flight_iata || r.flight_number) ? ' (' + frrEscape(r.flight_iata || r.flight_number) + ')' : '';
+                          return '<li><strong>' + frrEscape(frrHeldReason(r)) + '</strong> · #'
+                              + frrEscape(r.reservation_id) + ' ' + frrEscape(r.guest_name) + flt + '</li>';
+                      }).join('');
+                      var heldMore = held.length > 6 ? '<li>…and ' + (held.length - 6) + ' more</li>' : '';
                       riskyHtml = ''
                           + '<div class="frr-callout frr-callout-danger">'
-                          +   '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>' + risky.length + ' flight(s) need manual attention:</strong> '
-                          +   frrEscape(ids + more) + '. Match All will set the pickup time to the flight time for these too.'
+                          +   '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>' + held.length + ' flight(s) will NOT be matched — handle by hand:</strong>'
+                          +   '<ul class="mb-1 mt-1">' + heldItems + heldMore + '</ul>'
+                          +   '<div class="small">No arrival time to match to (cancelled, diverted, wrong day, or not found). Call the guest / open the reservation.</div>'
                           + '</div>';
                   }
 
@@ -3321,19 +3539,19 @@
                   } else if (changes.length === 0) {
                       listHtml = ''
                           + '<div class="frr-empty">'
-                          +   '<i class="bi bi-check2-circle text-success me-1"></i>No legs have a 30-min+ pickup vs flight mismatch — nothing visible to change.'
+                          +   '<i class="bi bi-check2-circle text-success me-1"></i>No legs have a ' + preview.threshold + '-min+ pickup vs flight mismatch — nothing visible to change.'
                           + '</div>';
                   } else {
                       listHtml = '<div class="frr-update-list">' + changes.map(function(r){
                           var deltaCls = r.status === 'manual_action' ? 'frr-delta frr-delta-manual'
-                                       : (r.mismatch_minutes >= 120 ? 'frr-delta frr-delta-danger' : 'frr-delta');
-                          var dir = r.mismatch_direction === 'late' ? 'late' : (r.mismatch_direction === 'early' ? 'early' : '');
+                                       : (r.mismatch_minutes >= 120 ? 'frr-delta frr-delta-danger'
+                                       : (r.status === 'minor_change' ? 'frr-delta frr-delta-info' : 'frr-delta'));
                           return ''
                               + '<div class="frr-update-row">'
                               +   '<div><strong>#' + frrEscape(r.reservation_id) + '</strong> · ' + frrEscape(r.guest_name) + '<div class="text-muted" style="font-size:0.72rem">' + frrEscape(frrFlightLabel(r)) + (r.airline ? ' · ' + frrEscape(r.airline) : '') + '</div></div>'
                               +   '<span class="frr-old">' + frrEscape(r.pickup_time || '—') + '</span>'
                               +   '<span class="frr-arrow"><i class="bi bi-arrow-right"></i></span>'
-                              +   '<span class="frr-new">' + frrEscape((r.new_arrival_time || '').split(' ').slice(-2).join(' ')) + ' <span class="' + deltaCls + '">' + (r.mismatch_minutes != null ? r.mismatch_minutes + ' min ' + dir : '') + '</span></span>'
+                              +   '<span class="frr-new">' + frrEscape((r.new_arrival_time || '').split(' ').slice(-2).join(' ')) + ' <span class="' + deltaCls + '">' + frrEscape(frrFmtDelta(r.mismatch_minutes, r.mismatch_direction)) + '</span></span>'
                               + '</div>';
                       }).join('') + '</div>';
                   }
@@ -3383,6 +3601,107 @@
               });
           }
 
+          // Post-match result modal (reuses the frr modal shell): what moved and
+          // any driver conflicts the move created. Two shapes of `summary`:
+          //   Match All — {matched, changed, changes:[...], new_conflicts:[...]}
+          //   Per-leg   — {old_time, new_time, delta_minutes, conflicts:[...]}
+          // Single OK button; opts.reload reloads the board on dismiss so the
+          // conflicts are never hidden behind an instant refresh.
+          function frrShowMatchResultModal(summary, opts) {
+              opts = opts || {};
+              summary = summary || {};
+              var existing = document.getElementById('frrMatchResultOverlay');
+              if (existing) existing.remove();
+
+              var isBulk = Array.isArray(summary.changes);
+              var changes = summary.changes || [];
+              var conflicts = summary.conflicts || summary.new_conflicts || [];
+              var skipped = summary.skipped || [];
+              var headerSub = isBulk
+                  ? (summary.matched || 0) + ' matched · ' + (summary.changed || 0) + ' changed · ' + conflicts.length + ' new conflict(s)'
+                      + (skipped.length ? ' · ' + skipped.length + ' skipped' : '')
+                  : 'Pickup moved ' + (summary.old_time || '—') + ' → ' + (summary.new_time || '—');
+
+              var changesHtml = '';
+              if (isBulk) {
+                  changesHtml = changes.length === 0
+                      ? '<div class="frr-empty"><i class="bi bi-check2-circle me-1"></i>No pickup times needed to move.</div>'
+                      : '<div class="frr-update-list">' + changes.map(function(c) {
+                            return ''
+                                + '<div class="frr-update-row">'
+                                +   '<div><strong>#' + frrEscape(c.reservation_id) + '</strong> · ' + frrEscape(c.guest_name || '') + '</div>'
+                                +   '<span class="frr-old">' + frrEscape(c.old_time || '—') + '</span>'
+                                +   '<span class="frr-arrow"><i class="bi bi-arrow-right"></i></span>'
+                                +   '<span class="frr-new">' + frrEscape(c.new_time || '—') + ' <span class="frr-delta">' + frrEscape(frrFmtDelta(Math.abs(c.delta_minutes || 0), (c.delta_minutes || 0) < 0 ? 'early' : 'late')) + '</span></span>'
+                                + '</div>';
+                        }).join('') + '</div>';
+              }
+
+              var conflictHtml = '';
+              if (conflicts.length) {
+                  var items = conflicts.map(function(c) {
+                      var tierBadge = c.tier === 'red'
+                          ? '<span class="badge bg-danger">won\'t make it</span>'
+                          : '<span class="badge bg-warning text-dark">tight</span>';
+                      var mins = (c.conflict_minutes != null) ? c.conflict_minutes + ' min' : '—';
+                      var who = c.driver || c.driver_name || 'Driver';
+                      var res = c.reservation_id ? ' — res #' + frrEscape(c.reservation_id) : '';
+                      return '<li>' + frrEscape(who) + ' — ' + frrEscape(mins) + res + ' ' + tierBadge + '</li>';
+                  }).join('');
+                  conflictHtml = ''
+                      + '<div class="frr-callout frr-callout-danger">'
+                      +   '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>' + conflicts.length + ' driver conflict(s) after this change</strong>'
+                      +   '<ul class="mb-1 mt-1">' + items + '</ul>'
+                      +   '<a href="/dispatching/task-queue/" class="fw-semibold">Open the task queue <i class="bi bi-arrow-right"></i></a>'
+                      + '</div>';
+              }
+
+              // Flights the server held out of the bulk match (cancelled/diverted/wrong-day),
+              // so "matched N" never quietly hides the ones that still need a call.
+              var skippedHtml = '';
+              if (skipped.length) {
+                  var skReason = { cancelled: 'Cancelled', diverted: 'Diverted', wrong_day: 'Wrong day' };
+                  var skItems = skipped.slice(0, 8).map(function(s){
+                      return '<li><strong>' + frrEscape(skReason[s.reason] || 'Manual') + '</strong> · #'
+                          + frrEscape(s.reservation_id) + ' ' + frrEscape(s.guest_name || '') + '</li>';
+                  }).join('');
+                  var skMore = skipped.length > 8 ? '<li>…and ' + (skipped.length - 8) + ' more</li>' : '';
+                  skippedHtml = ''
+                      + '<div class="frr-callout frr-callout-danger">'
+                      +   '<strong><i class="bi bi-hand-index-thumb me-1"></i>' + skipped.length + ' flight(s) skipped — handle by hand:</strong>'
+                      +   '<ul class="mb-0 mt-1">' + skItems + skMore + '</ul>'
+                      + '</div>';
+              }
+
+              var overlay = document.createElement('div');
+              overlay.id = 'frrMatchResultOverlay';
+              overlay.className = 'frr-overlay';
+              overlay.innerHTML = ''
+                  + '<div class="frr-modal frr-confirm ' + (conflicts.length ? 'frr-danger' : '') + '" role="dialog" aria-modal="true">'
+                  +   '<div class="frr-header d-flex justify-content-between align-items-center">'
+                  +     '<div><h5><i class="bi bi-clock-history me-2"></i>' + (isBulk ? 'Match All — Results' : 'Pickup Matched to Flight') + '</h5><div class="frr-sub">' + frrEscape(headerSub) + '</div></div>'
+                  +     '<button type="button" class="btn btn-sm btn-light frr-ok" aria-label="Close"><i class="bi bi-x-lg"></i></button>'
+                  +   '</div>'
+                  +   '<div class="frr-body">'
+                  +     conflictHtml
+                  +     skippedHtml
+                  +     changesHtml
+                  +   '</div>'
+                  +   '<div class="frr-footer">'
+                  +     '<div class="small text-muted">' + (conflicts.length ? '<i class="bi bi-exclamation-triangle text-danger me-1"></i>Reassign or adjust before pickup time.' : 'All clear.') + '</div>'
+                  +     '<button type="button" class="btn btn-sm btn-primary frr-ok">OK</button>'
+                  +   '</div>'
+                  + '</div>';
+              document.body.appendChild(overlay);
+
+              function dismiss() {
+                  overlay.remove();
+                  if (opts.reload) window.location.reload();
+              }
+              overlay.querySelectorAll('.frr-ok').forEach(function(b){ b.addEventListener('click', dismiss); });
+              overlay.addEventListener('click', function(e){ if (e.target === overlay) dismiss(); });
+          }
+
           function runMatchAllForDate(date, btn) {
               if (!date) { frrShowToast('No date selected.', 'error'); return; }
               var dateLabel = '{{ selected_date|date:"D, M j" }}';
@@ -3399,9 +3718,14 @@
                   .then(r => r.json())
                   .then(function(data) {
                       if (data.success) {
-                          frrShowToast(data.message || ('Updated ' + data.updated_count + ' leg(s).'), 'success');
-                          // Give the toast a beat to be readable before reload.
-                          setTimeout(function(){ window.location.reload(); }, 900);
+                          // Result modal (changes + any new conflicts); board
+                          // reloads when the dispatcher dismisses it.
+                          frrShowMatchResultModal(data.summary || {
+                              matched: data.total_arrival_legs || 0,
+                              changed: data.updated_count || 0,
+                              changes: [],
+                              new_conflicts: [],
+                          }, { reload: true });
                       } else {
                           btn.disabled = false; btn.innerHTML = originalHTML;
                           frrShowToast(data.error || 'Could not update leg times.', 'error');

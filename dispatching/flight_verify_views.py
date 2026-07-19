@@ -30,6 +30,7 @@ from .flight_verify_email import (
     parse_verify_token,
     send_flight_verification_email,
 )
+from .pickup_moves import apply_pickup_time_move
 
 logger = logging.getLogger(__name__)
 
@@ -278,16 +279,24 @@ def flight_verification_public(request, token):
                     # 15-minute threshold — avoids flapping on AeroAPI second-level rounding,
                     # still catches material schedule changes.
                     if diff_min >= 15:
-                        Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
+                        # Shared stamped write path — sets the board's purple
+                        # "time changed" badge fields + the durable AuditLog
+                        # row, exactly like a dispatcher-triggered match.
+                        apply_pickup_time_move(
+                            leg,
+                            new_time,
+                            user=None,
+                            note="Guest flight verification auto-adjust",
+                        )
                         pickup_adjusted = True
                         pickup_shift_minutes = diff_min
-                        old_pickup_time_str = old_time.strftime("%-I:%M %p")
-                        new_pickup_time_str = new_time.strftime("%-I:%M %p")
+                        # %I + lstrip instead of %-I — Windows-safe.
+                        old_pickup_time_str = old_time.strftime("%I:%M %p").lstrip("0")
+                        new_pickup_time_str = new_time.strftime("%I:%M %p").lstrip("0")
                         # After-hours fee: the new pickup may now fall in the
                         # 10 PM-6 AM window (flight delayed). Flag for dispatcher.
                         try:
                             from ops.tasks import flag_afterhours_fee
-                            leg.pickup_time = new_time
                             flag_afterhours_fee(leg, new_time)
                         except Exception as e:
                             logger.warning(

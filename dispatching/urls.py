@@ -115,6 +115,7 @@ urlpatterns = [
     path("charge-all-afterhours-fees/", views.charge_all_afterhours_fees, name="charge_all_afterhours_fees"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path("dismiss-flight-review/", views.dismiss_flight_review, name="dismiss_flight_review"),
+    path("acknowledge-time-change/", views.acknowledge_time_change, name="acknowledge_time_change"),
     path(
         "send-flight-verification-email/",
         flight_verify_views.send_flight_verification_email_ajax,

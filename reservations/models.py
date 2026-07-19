@@ -933,6 +933,10 @@ class Leg(models.Model):
         super().__init__(*args, **kwargs)
         # Track original driver_id so save() can detect reassignment without a DB query
         self._original_driver_id = self.driver_id
+        # Track original pickup_time so save() can stamp time changes for the
+        # board's "time changed" badge. __dict__.get so a deferred pickup_time
+        # (.only()/.defer() querysets) never fires a per-row query here.
+        self._original_pickup_time = self.__dict__.get("pickup_time")
 
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
@@ -1266,6 +1270,25 @@ class Leg(models.Model):
         default="",
         help_text="How the overnight date was confirmed: booking_form | one_tap | staff.",
     )
+    # ── Pickup-time change tracking (flight-change safety) ──
+    # Stamped whenever pickup_time moves on an existing leg (save() hook +
+    # the flight-match write path) so the board can flag "time changed" until
+    # a dispatcher acknowledges it.
+    pickup_time_changed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When pickup_time last changed on an existing leg.",
+    )
+    pickup_time_was = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Pickup time before the earliest still-unacknowledged change.",
+    )
+    pickup_change_ack_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When a dispatcher acknowledged the pickup-time change on the board.",
+    )
     exclude_from_analytics = models.BooleanField(
         default=False,
         help_text="Exclude this leg from route timing analytics (bad data)",
@@ -1308,6 +1331,12 @@ class Leg(models.Model):
             return None
         delta = timezone.now() - self.flight_verification_email_sent_at
         return delta.total_seconds() / 3600
+
+    @property
+    def has_unacked_time_change(self):
+        """True while a pickup-time change is awaiting a dispatcher ack on the
+        board (drives the purple "time changed" badge)."""
+        return bool(self.pickup_time_changed_at and (self.pickup_change_ack_at is None or self.pickup_change_ack_at < self.pickup_time_changed_at))
 
     @property
     def overnight_date_status(self):
@@ -1536,9 +1565,41 @@ class Leg(models.Model):
         import time as _time; _t0 = _time.monotonic()
         # PERF TEMP END
 
+        # Stamp pickup-time changes on EXISTING legs so the board can flag
+        # "time changed" until a dispatcher acknowledges. Runs BEFORE the fast
+        # path below so save(update_fields=['pickup_time']) also stamps.
+        _uf = kwargs.get('update_fields')
+        if (
+            self.pk
+            and getattr(self, '_original_pickup_time', None) is not None
+            and self._original_pickup_time != self.pickup_time
+        ):
+            if self.has_unacked_time_change and self.pickup_time == self.pickup_time_was:
+                # Net-zero revert (A→B→A before anyone acked): the pending
+                # change just moved back to its original time — clear the
+                # badge instead of stamping "was 10:00 → now 10:00".
+                self.pickup_time_changed_at = None
+                self.pickup_time_was = None
+                self.pickup_change_ack_at = None
+            else:
+                # Preserve the earliest "was" across successive moves: only capture
+                # the pre-change time when no change is already awaiting an ack.
+                if not self.has_unacked_time_change:
+                    self.pickup_time_was = self._original_pickup_time
+                self.pickup_time_changed_at = timezone.now()
+                self.pickup_change_ack_at = None
+            # Widen update_fields (same idiom as the driver-change reset below)
+            # or the stamp is silently dropped.
+            if _uf is not None:
+                kwargs['update_fields'] = set(_uf) | {
+                    'pickup_time_changed_at', 'pickup_time_was', 'pickup_change_ack_at'
+                }
+                _uf = kwargs['update_fields']
+        # Re-sync so subsequent saves on the same instance don't re-stamp.
+        self._original_pickup_time = self.pickup_time
+
         # Fast path: if update_fields is specified and contains only simple
         # fields (e.g. driver assignment, status), skip expensive calculations.
-        _uf = kwargs.get('update_fields')
         if _uf is not None and not (set(_uf) & self._EXPENSIVE_FIELDS):
             super().save(*args, **kwargs)
             # PERF TEMP START
