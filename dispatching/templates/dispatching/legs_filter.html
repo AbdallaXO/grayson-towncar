@@ -1443,6 +1443,13 @@
                               </div>
                             </div>
                           </div>
+                          {% if leg.reservation.private_notes %}
+                            <div class="border-top my-1"></div>
+                            <div class="small res-private-notes">
+                              <i class="bi bi-lock-fill me-1"></i><strong>Private Notes:</strong>
+                              {{ leg.reservation.private_notes|linebreaksbr }}
+                            </div>
+                          {% endif %}
                           <div class="border-top my-1"></div>
                           <div class="small">
                             Customer Comments:
@@ -1855,6 +1862,12 @@
                               <div>
                                 <strong>Leg Notes:</strong> {{ leg.private_notes|default:"None" }}
                               </div>
+                              {% if leg.reservation.private_notes %}
+                                <div class="res-private-notes">
+                                  <i class="bi bi-lock-fill me-1"></i><strong>Private Notes:</strong>
+                                  {{ leg.reservation.private_notes|linebreaksbr }}
+                                </div>
+                              {% endif %}
                               <div>
                                 <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}
                               </div>
@@ -5063,6 +5076,16 @@
           font-weight: 600;
       }
       .va-veh-card.va-has-notes { border-color: #f59e0b; background: #fffbeb; }
+      /* Reservation-level private notes — surfaced on the board so dispatch
+         doesn't have to open the reservation to see them. */
+      .res-private-notes {
+          background: #fffbeb;
+          border-left: 3px solid #f59e0b;
+          border-radius: 3px;
+          padding: 2px 6px;
+          color: #92400e;
+      }
+      .res-private-notes .bi-lock-fill { color: #b45309; }
       .va-drv-context {
           font-size: 0.72rem; color: #6b7280;
           display: flex; align-items: center; gap: 5px;

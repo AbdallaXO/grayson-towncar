@@ -903,6 +903,17 @@ def schedule_board(request):
     prev_date = selected_date - timedelta(days=1)
     next_date = selected_date + timedelta(days=1)
 
+    # ── Board mode ──────────────────────────────────────────────────────────
+    # Two SEPARATE boards over the same day, never mixed: the in-house board
+    # (rows = inhouse drivers, each with a fleet vehicle) and the affiliate
+    # board (rows = every active affiliate, no vehicles — we don't own them).
+    # Both share the unassigned lane, so a job is farmed out by dragging it
+    # from Unassigned onto an affiliate row.
+    board_view = request.GET.get("view", "inhouse")
+    if board_view not in ("inhouse", "affiliate"):
+        board_view = "inhouse"
+    is_affiliate_board = board_view == "affiliate"
+
     # Fetch all legs for the date (single query)
     all_legs = list(
         Leg.objects.filter(pickup_date=selected_date)
@@ -931,10 +942,13 @@ def schedule_board(request):
         except Exception:
             leg._estimated_end_dt = None
 
-    # Get inhouse drivers with vehicle assignments, sorted by vehicle number.
-    # Inactive drivers are excluded from the board (directory-only).
-    inhouse_drivers = list(
-        Driver.objects.filter(driver_type="inhouse", is_active=True)
+    # Roster for the active board. Inactive drivers are excluded from both
+    # boards (directory-only).
+    board_drivers = list(
+        Driver.objects.filter(
+            driver_type="affiliate" if is_affiliate_board else "inhouse",
+            is_active=True,
+        )
         .select_related("profile")
         .prefetch_related(
             "weekly_schedule", "date_overrides",
@@ -942,19 +956,46 @@ def schedule_board(request):
         )
         .order_by("profile__first_name")
     )
-    assignments = {
-        a.driver_id: a
-        for a in DriverVehicleAssignment.objects.filter(
-            driver__in=inhouse_drivers, date=selected_date
-        ).select_related("vehicle", "vehicle__vehicle_type")
-    }
-    # Sort drivers: those with vehicle assignments first (by vehicle number), then unassigned
-    inhouse_drivers.sort(
-        key=lambda d: (
-            0 if d.id in assignments else 1,
-            assignments[d.id].vehicle.vehicle_number if d.id in assignments else 999,
+
+    # Affiliates never get a fleet vehicle (Day Setup is inhouse-only and treats
+    # any affiliate-held DriverVehicleAssignment as stale), so the vehicle
+    # lookup + vehicle-number sort are skipped entirely on that board.
+    assignments = {}
+    _aff_profiles = {}
+    _aff_carded_ids = set()
+    if is_affiliate_board:
+        from drivers.models import AffiliateProfile, DriverPayRate
+        _aff_profiles = {
+            p.driver_id: p
+            for p in AffiliateProfile.objects.filter(driver__in=board_drivers)
+        }
+        # "Carded" = has >=1 DriverPayRate row. Uncarded affiliates are still
+        # shown (the founder wants the whole bench visible) but flagged, since
+        # farm-out pricing can't quote them.
+        _aff_carded_ids = set(
+            DriverPayRate.objects.filter(driver__in=board_drivers)
+            .values_list("driver_id", flat=True)
         )
-    )
+    else:
+        assignments = {
+            a.driver_id: a
+            for a in DriverVehicleAssignment.objects.filter(
+                driver__in=board_drivers, date=selected_date
+            ).select_related("vehicle", "vehicle__vehicle_type")
+        }
+        # Sort: vehicle-assigned drivers first by vehicle number, everyone else after.
+        # The number is a CharField, so sort it naturally — plain string order puts
+        # "10" before "9". Drivers without a vehicle keep the queryset's first-name
+        # ordering (Python's sort is stable), i.e. alphabetical.
+        def _vehicle_sort_key(d):
+            a = assignments.get(d.id)
+            vnum = (a.vehicle.vehicle_number or '') if (a and a.vehicle) else ''
+            if not vnum:
+                return (1, 0, '')
+            digits = ''.join(ch for ch in vnum if ch.isdigit())
+            return (0, int(digits) if digits else 0, vnum)
+
+        board_drivers.sort(key=_vehicle_sort_key)
 
     # ── Sandbox draft overlay (shared with dashboard + planner) ──
     # If this date is held by an active draft, render the PROPOSED world: re-point
@@ -963,19 +1004,47 @@ def schedule_board(request):
     _draft_ctx = _draft_view_context(request, selected_date)
     is_held = _draft_ctx["is_held"]
     _leg_by_id_overlay = {l.id: l for l in all_legs}
-    _apply_draft_overlay(_draft_ctx["draft"], all_legs, inhouse_drivers)
+    _apply_draft_overlay(_draft_ctx["draft"], all_legs, board_drivers)
 
     # Build schedules
-    _driver_schedules = build_driver_schedules(all_legs, inhouse_drivers, selected_date)
+    _driver_schedules = build_driver_schedules(all_legs, board_drivers, selected_date)
 
-    # Timeline hours range
+    # ── Timeline hours range ────────────────────────────────────────────────
+    # Fit the axis to the DAY'S ACTUAL SPAN, padded by an hour each side. The old
+    # rule forced a 6am-10pm floor on every date, so a light day (6 jobs, all at
+    # 9 AM) got 17 hours of canvas and rendered as an unreadable 2%-wide cluster
+    # in an ocean of white. A busy day naturally spans 5am-11pm and is unaffected;
+    # only sparse days change, and they change a lot.
     _hours_with_legs = set()
     for leg in all_legs:
         _hours_with_legs.add(leg.pickup_time.hour)
-    display_start = min(_hours_with_legs) if _hours_with_legs else 6
-    display_end = max(_hours_with_legs) + 1 if _hours_with_legs else 22
-    display_start = min(display_start, 6)
-    display_end = max(display_end, 22)
+        _e = getattr(leg, '_estimated_end_dt', None)
+        if _e is not None:
+            # A job clearing after midnight shouldn't drag the axis back to 0.
+            _hours_with_legs.add(_e.hour if _e.date() == selected_date else 23)
+    if _hours_with_legs:
+        display_start = max(min(_hours_with_legs) - 1, 0)
+        display_end = min(max(_hours_with_legs) + 1, 23)
+    else:
+        display_start, display_end = 6, 22
+    # Keep a minimum window so one job doesn't stretch to a 30-minute axis; grow
+    # symmetrically around what's there, then push inward off either boundary.
+    # Grow ALTERNATELY rather than always leftward, or a single cluster ends up
+    # pinned against the right edge with all the dead space in front of it.
+    _MIN_SPAN_HOURS = 5
+    _grow_end = True
+    while (display_end - display_start) < _MIN_SPAN_HOURS:
+        if _grow_end and display_end < 23:
+            display_end += 1
+        elif not _grow_end and display_start > 0:
+            display_start -= 1
+        elif display_end < 23:
+            display_end += 1
+        elif display_start > 0:
+            display_start -= 1
+        else:
+            break
+        _grow_end = not _grow_end
     timeline_hours = list(range(display_start, display_end + 1))
     total_display_minutes = (display_end - display_start + 1) * 60
 
@@ -1028,7 +1097,7 @@ def schedule_board(request):
     prev_day = selected_date - timedelta(days=1)
     _prev_day_last = {}
     _prev_legs = (
-        Leg.objects.filter(pickup_date=prev_day, driver__in=inhouse_drivers)
+        Leg.objects.filter(pickup_date=prev_day, driver__in=board_drivers)
         .exclude(status="cancelled")
         .select_related("driver")
         .order_by("driver_id", "-pickup_time")
@@ -1041,16 +1110,18 @@ def schedule_board(request):
             except Exception:
                 _prev_day_last[_pl.driver_id] = _pl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
 
-    # Get previous day's vehicle assignments
+    # Get previous day's vehicle assignments (in-house only — affiliates never hold one,
+    # so on that board this would always be an empty round-trip).
     _sb_prev_day_vehicle = {}
-    _sb_prev_assigns = DriverVehicleAssignment.objects.filter(
-        date=prev_day, driver__in=inhouse_drivers
-    ).select_related('vehicle', 'vehicle__vehicle_type')
-    for _sbpda in _sb_prev_assigns:
-        if _sbpda.vehicle:
-            _vn = _sbpda.vehicle.vehicle_number or ''
-            _vt = str(_sbpda.vehicle.vehicle_type) if _sbpda.vehicle.vehicle_type else ''
-            _sb_prev_day_vehicle[_sbpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
+    if not is_affiliate_board:
+        _sb_prev_assigns = DriverVehicleAssignment.objects.filter(
+            date=prev_day, driver__in=board_drivers
+        ).select_related('vehicle', 'vehicle__vehicle_type')
+        for _sbpda in _sb_prev_assigns:
+            if _sbpda.vehicle:
+                _vn = _sbpda.vehicle.vehicle_number or ''
+                _vt = str(_sbpda.vehicle.vehicle_type) if _sbpda.vehicle.vehicle_type else ''
+                _sb_prev_day_vehicle[_sbpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
 
     # Compact preference labels for schedule board badges
     _PREF_SHORT = {
@@ -1075,18 +1146,32 @@ def schedule_board(request):
             return '12p'
         return f'{h - 12}p'
 
-    # Build inhouse timeline
-    # Include any driver who has either (a) a vehicle assignment for the day, or (b) at least one leg.
-    # Drivers with neither still go to the "available — no jobs" section below.
+    # Build the board timeline.
+    # In-house: everyone WORKING that day gets a row — with or without a vehicle, with
+    # or without jobs. Drivers who are off are hidden entirely (they aren't dispatchable,
+    # so they're just noise). Previously the rule was "has a vehicle OR has a leg", which
+    # dropped everyone else into `available_no_jobs` — a context key the template never
+    # rendered — so any date before Day Setup ran had NO drop targets at all.
+    # Affiliate: include EVERY active affiliate. We hold no shift data for contractors,
+    # so there's no "off" to filter on, and an affiliate with no jobs today is exactly
+    # who you want to farm to.
     inhouse_timeline = []
     _drivers_in_timeline = set()
-    for driver in inhouse_drivers:
+    for driver in board_drivers:
         sched = _driver_schedules.get(driver.id)
         if not sched:
             continue
         has_vehicle = driver.id in assignments
-        if not sched.slots and not has_vehicle:
+
+        # Driver availability for selected date (effective: weekly + any active exception)
+        _eff = driver.get_effective_availability(selected_date)
+
+        # An off driver who ALREADY holds jobs still gets a row. Hiding them would take
+        # their assigned legs off the board with them — the work would silently vanish
+        # rather than showing up as the scheduling conflict it actually is.
+        if not is_affiliate_board and not _eff["is_available"] and not sched.slots:
             continue
+
         _drivers_in_timeline.add(driver.id)
         assignment = assignments.get(driver.id)
         vehicle_number = ''
@@ -1097,9 +1182,6 @@ def schedule_board(request):
             vehicle_notes = assignment.vehicle.notes or ''
             if assignment.vehicle.vehicle_type:
                 vehicle_type_label = str(assignment.vehicle.vehicle_type)
-
-        # Driver availability for selected date (effective: weekly + any active exception)
-        _eff = driver.get_effective_availability(selected_date)
         _is_avail, _sh, _eh, _pref, _flex = (
             _eff["is_available"], _eff["start_hour"], _eff["end_hour"],
             _eff["preference"], _eff["flexible"],
@@ -1119,8 +1201,8 @@ def schedule_board(request):
 
         for slot in sched.slots:
             _start_min = (slot.pickup_time.hour - display_start) * 60 + slot.pickup_time.minute
-            _end_min = (slot.estimated_end_time.hour - display_start) * 60 + slot.estimated_end_time.minute
-            _dur = max(_end_min - _start_min, 15)
+            _dur = _slot_duration_minutes(
+                selected_date, slot.pickup_time, slot.estimated_end_time)
             slot.position_pct = round(max(0, _start_min / total_display_minutes * 100), 1)
             slot.width_pct = round(min(_dur / total_display_minutes * 100, 100 - slot.position_pct), 1)
             slot.end_time_display = slot.estimated_end_time.strftime('%I:%M').lstrip('0')
@@ -1137,10 +1219,67 @@ def schedule_board(request):
             slot.live_by_label = getattr(_sleg, 'draft_live_by_label', None) if _sleg else None
             slot.time_changed = bool(getattr(_sleg, 'draft_time_changed', False)) if _sleg else False
             slot.old_time = getattr(_sleg, 'draft_old_time', None) if _sleg else None
+            for _k, _v in _slot_notes(_sleg).items():
+                setattr(slot, _k, _v)
+
+        # Affiliate capacity read-out (replaces the vehicle column on that board).
+        # Mirrors AffiliateProfile's capacity model: a single-chain affiliate is one
+        # vehicle end-to-end, a count_cap/fleet affiliate sells N seats that day.
+        _aff_cap_label = ''
+        _aff_cap_used = len(sched.slots)
+        _aff_cap_max = None
+        _aff_cap_full = False
+        _aff_tier = ''
+        _aff_no_rate = False
+        _aff_no_port = False
+        if is_affiliate_board:
+            _prof = _aff_profiles.get(driver.id)
+            _aff_no_rate = driver.id not in _aff_carded_ids
+            if _prof:
+                _aff_tier = _prof.get_max_vehicle_tier_display() if _prof.max_vehicle_tier else ''
+                _aff_no_port = _prof.no_pickup_at_port_sanford
+                if _prof.capacity_mode == 'single_chain':
+                    _aff_cap_label = 'Single vehicle'
+                else:
+                    # Same default the farm-out gate applies when daily_cap is unset,
+                    # so the badge can't promise room the drop check will refuse.
+                    from dispatching.farmout_optimizer import ANTHONY_MAX_LEGS_PER_DAY
+                    _aff_cap_max = _prof.daily_cap
+                    if _aff_cap_max is None and _prof.capacity_mode == 'count_cap':
+                        _aff_cap_max = ANTHONY_MAX_LEGS_PER_DAY
+                    _mode_word = 'Fleet' if _prof.capacity_mode == 'fleet' else 'Cap'
+                    if _aff_cap_max:
+                        _aff_cap_label = f'{_mode_word} {_aff_cap_used}/{_aff_cap_max}'
+                        _aff_cap_full = _aff_cap_used >= _aff_cap_max
+                    else:
+                        _aff_cap_label = _mode_word
+            else:
+                _aff_cap_label = 'No profile'
+
+        # Lane-pack this driver's bars. Without it every slot sat at the same
+        # top:2px, so concurrent jobs painted over each other in start order and
+        # the EARLIER job was buried — invisible, unhoverable and undraggable,
+        # while still counting toward "N jobs". A double-booked driver looked fine.
+        _row_lanes = _pack_lanes(sched.slots,
+                                 lane_height=_DRIVER_LANE_H, gap=_DRIVER_LANE_GAP)
+        _row_bar_height = _row_lanes * (_DRIVER_LANE_H + _DRIVER_LANE_GAP) + 2
+
         inhouse_timeline.append({
             'driver': driver,
             'schedule': sched,
             'total_legs': sched.total_legs,
+            'row_lanes': _row_lanes,
+            'row_bar_height': _row_bar_height,
+            'has_overlap': _row_lanes > 1,
+            'has_vehicle': has_vehicle,
+            'aff_cap_label': _aff_cap_label,
+            'aff_cap_used': _aff_cap_used,
+            'aff_cap_max': _aff_cap_max,
+            'aff_cap_full': _aff_cap_full,
+            'aff_tier': _aff_tier,
+            'aff_no_rate': _aff_no_rate,
+            'aff_no_port': _aff_no_port,
+            'affiliate_vehicle': driver.vehicle or '' if is_affiliate_board else '',
             'vehicle_number': vehicle_number,
             'vehicle_type_label': vehicle_type_label,
             'prev_night_cleared': _prev_day_last.get(driver.id, ''),
@@ -1170,52 +1309,22 @@ def schedule_board(request):
             'shift_pref_label': format_shift_preference(_eff),
         })
 
-    # Build "available but no jobs" list for drivers not in the timeline
+    # Mark where the DEPLOYED drivers end and the AVAILABLE-but-no-vehicle ones begin.
+    # The sort already groups them; this flags the FIRST of the second group so the
+    # board draws one divider instead of the template guessing at the transition.
+    # In-house only — affiliates never hold a fleet vehicle, so the split is
+    # meaningless there and would put a divider above every row.
+    if not is_affiliate_board:
+        for _row in inhouse_timeline:
+            if not _row['has_vehicle']:
+                _row['starts_no_vehicle_group'] = True
+                break
+
+    # `available_no_jobs` used to be built here: ~45 lines and a per-driver availability
+    # call for a context key the template never rendered. Every working driver now gets
+    # a real row above, so it is retired — kept as an empty list only because the context
+    # key is still passed.
     available_no_jobs = []
-    for driver in inhouse_drivers:
-        if driver.id in _drivers_in_timeline:
-            continue
-        _nj_eff = driver.get_effective_availability(selected_date)
-        _is_avail = _nj_eff["is_available"]
-        _sh, _eh, _pref, _flex = (
-            _nj_eff["start_hour"], _nj_eff["end_hour"],
-            _nj_eff["preference"], _nj_eff["flexible"],
-        )
-        _nj_stype = _nj_eff.get("shift_type", "full_day")
-        _nj_mhrs = _nj_eff.get("max_hours")
-        _nj_shift_disp = _nj_eff["display_label"] if _is_avail else ''
-        if _is_avail and _nj_mhrs and _nj_eff["status"] != "limited":
-            _nj_shift_disp += f" ({int(_nj_mhrs)}h)"
-        assignment = assignments.get(driver.id)
-        _vnum = ''
-        _vtype = ''
-        _vnotes = ''
-        if assignment and assignment.vehicle:
-            _vnum = assignment.vehicle.vehicle_number or ''
-            _vnotes = assignment.vehicle.notes or ''
-            if assignment.vehicle.vehicle_type:
-                _vtype = str(assignment.vehicle.vehicle_type)
-        available_no_jobs.append({
-            'driver': driver,
-            'is_available': _is_avail,
-            'shift_display': _nj_shift_disp,
-            'shift_type': _nj_stype,
-            'flexible': _flex,
-            'max_hours': float(_nj_mhrs) if _nj_mhrs else None,
-            'vehicle_number': _vnum,
-            'vehicle_type_label': _vtype,
-            'vehicle_notes': _vnotes,
-            'preference': _pref,
-            'pref_short': _PREF_SHORT.get(_pref, ''),
-            'driver_notes': driver.notes or '',
-            'driver_phone': driver.phone_number or '',
-            'preferred_shift': _nj_eff.get("preferred_shift", ""),
-            'scheduling_notes': _nj_eff.get("scheduling_notes", ""),
-            'avail_status': _nj_eff["status"],
-            'avail_tooltip': _nj_eff["tooltip"],
-            'exception_notes': _nj_eff["exception_notes"],
-            'has_exception': _nj_eff["has_exception"],
-        })
 
     # Build unassigned timeline slots
     _leg_by_id = {l.id: l for l in all_legs}
@@ -1226,11 +1335,8 @@ def schedule_board(request):
         pt = leg.pickup_time
         _start_min = (pt.hour - display_start) * 60 + pt.minute
         _end_dt = getattr(leg, '_estimated_end_dt', None)
-        if _end_dt:
-            _end_min = (_end_dt.hour - display_start) * 60 + _end_dt.minute
-        else:
-            _end_min = _start_min + 45
-        _dur = max(_end_min - _start_min, 15)
+        # Same rollover-safe measurement as the driver slots (see _slot_duration_minutes).
+        _dur = (_slot_duration_minutes(selected_date, pt, _end_dt) if _end_dt else 45)
         _pos = round(max(0, _start_min / total_display_minutes * 100), 1)
         _wid = round(min(_dur / total_display_minutes * 100, 100 - _pos), 1)
         _sinfo = _leg_status_map.get(leg.id)
@@ -1261,6 +1367,13 @@ def schedule_board(request):
             'leg_id': leg.id,
             'trip_type': _trip,
             'pickup_display': pt.strftime('%I:%M %p').lstrip('0'),
+            # Short form for the CHIP LABEL. The lane rendered the full "6:45 AM"
+            # into the same width driver bars use for "6:45", so unassigned chips
+            # truncated ~3 characters earlier for no information gain — the meridiem
+            # is already implied by the position on the axis. Full form stays on the
+            # hover popup via `pickup_display`.
+            'pickup_short': pt.strftime('%I:%M').lstrip('0'),
+            **_slot_notes(leg),
             'customer': _customer,
             'pickup_location': leg.pickup_location or '',
             'dropoff_location': leg.dropoff_location or '',
@@ -1297,36 +1410,37 @@ def schedule_board(request):
             'old_time': getattr(leg, 'draft_old_time', None),
         })
 
-    # Sort unassigned slots: bigger vehicles first, then by pickup time
+    # Lane-pack the unassigned backlog so overlapping jobs stack instead of hiding
+    # each other. Display order stays "bigger vehicles first" (that's the scan order
+    # dispatchers want), but PACKING runs start-sorted — see _pack_lanes.
+    _num_lanes = _pack_lanes(unassigned_timeline_slots,
+                             lane_height=_UNASSIGNED_LANE_H, gap=_UNASSIGNED_LANE_GAP)
     _vehicle_sort_order = {'Van(14 Pax)': 0, 'van': 1, 'suv': 2, 'mini_van': 3, 'towncar': 4, '': 5}
-    unassigned_timeline_slots.sort(key=lambda s: (_vehicle_sort_order.get(s['vehicle_type'], 5), s['position_pct']))
+    unassigned_timeline_slots.sort(
+        key=lambda s: (_vehicle_sort_order.get(s['vehicle_type'], 5), s['position_pct']))
+    _unassigned_lane_height = _num_lanes * (_UNASSIGNED_LANE_H + _UNASSIGNED_LANE_GAP) + 4
 
-    # Assign lanes to unassigned slots so overlapping jobs stack vertically
-    _lane_slot_height = 18  # px per lane row (matches CSS)
-    _lane_gap = 2
-    _lane_ends = []  # tracks end position_pct of each lane
-    for _us in unassigned_timeline_slots:
-        _left = _us['position_pct']
-        _right = _left + _us['width_pct']
-        # Find first lane where this slot doesn't overlap
-        placed = False
-        for i, lane_end in enumerate(_lane_ends):
-            if _left >= lane_end:
-                _us['lane'] = i
-                _lane_ends[i] = _right
-                placed = True
-                break
-        if not placed:
-            _us['lane'] = len(_lane_ends)
-            _lane_ends.append(_right)
-        _us['lane_top'] = _us['lane'] * (_lane_slot_height + _lane_gap) + 2
-    _num_lanes = max(len(_lane_ends), 1)
-    _unassigned_lane_height = _num_lanes * (_lane_slot_height + _lane_gap) + 4
+    # Live-clock seed (server local time; see the context block for why).
+    _board_local_now = timezone.localtime()
+    _board_is_today = selected_date == _board_local_now.date()
+    _board_now_secs = (
+        _board_local_now.hour * 3600 + _board_local_now.minute * 60 + _board_local_now.second
+    )
 
-    # Summary counts
+    # Summary counts. `assigned_count` stays whole-day (both boards show the same
+    # day), while the farmed/inhouse split tells you where the day actually sits.
     total_legs = len(all_legs)
     assigned_count = sum(1 for l in all_legs if l.driver)
     unassigned_count = total_legs - assigned_count
+    farmed_count = sum(
+        1 for l in all_legs if l.driver and l.driver.driver_type == "affiliate"
+    )
+    inhouse_count = assigned_count - farmed_count
+    # Affiliate-board header: how much of the bench is actually working today.
+    affiliate_roster_count = len(inhouse_timeline) if is_affiliate_board else 0
+    affiliate_working_count = (
+        sum(1 for r in inhouse_timeline if r['total_legs']) if is_affiliate_board else 0
+    )
 
     # Overnight tail (same night-crew rule as the dashboard): tomorrow's
     # 12-2 AM jobs shown as a read-only strip at the end of TONIGHT's board.
@@ -1351,6 +1465,22 @@ def schedule_board(request):
         "selected_date": selected_date,
         "prev_date": prev_date,
         "next_date": next_date,
+        "board_view": board_view,
+        "is_affiliate_board": is_affiliate_board,
+        # ── Live clock + "now" marker ──
+        # Seeded from the SERVER's local time, not the browser's: dispatchers
+        # reviewing the board from another timezone must still see Orlando time,
+        # and the now-line must sit where the timeline math puts it. The client
+        # ticks forward from this seed using elapsed time only, never its own
+        # wall clock. The marker is meaningless on any day but today.
+        "board_is_today": _board_is_today,
+        "board_now_secs": _board_now_secs,
+        "board_display_start": display_start,
+        "board_total_minutes": total_display_minutes,
+        "farmed_count": farmed_count,
+        "inhouse_count": inhouse_count,
+        "affiliate_roster_count": affiliate_roster_count,
+        "affiliate_working_count": affiliate_working_count,
         "inhouse_timeline": inhouse_timeline,
         "timeline_hours": timeline_hours,
         "timeline_ticks": _timeline_ticks,
@@ -2402,6 +2532,244 @@ def update_leg_assignment(request):
         )
 
 
+# Lane geometry, shared by the packer and the CSS that renders the lanes.
+_UNASSIGNED_LANE_H = 18   # px per stacked chip in the unassigned backlog
+_UNASSIGNED_LANE_GAP = 2
+_DRIVER_LANE_H = 30       # px per stacked bar in a driver row (matches .timeline-slot)
+_DRIVER_LANE_GAP = 2
+
+
+def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
+    """Greedy interval packing: give every slot a `lane` + `lane_top` so overlapping
+    jobs stack vertically instead of painting over each other. Returns the lane count.
+
+    Accepts dicts (unassigned chips) or ScheduleSlot objects (driver bars).
+
+    CRITICAL: greedy packing is only near-optimal when the input is processed in
+    START order. The unassigned lane used to pack in its *display* order (vehicle
+    class first, start second), which left every lane cursor parked at a late
+    position after each vehicle group — so the next group's early-morning job could
+    not reuse any lane and appended a new one. Lane count became roughly the SUM of
+    each vehicle group's peak concurrency instead of the day's actual peak: an 85-leg
+    board packed to 17 lanes (344px) where the true answer is ~8, and the CSS then
+    clipped the overflow out of sight. We pack start-sorted here and let the caller
+    re-sort for display afterwards; lane assignments are per-slot so they survive it.
+    """
+    def _get(s, key, default=0.0):
+        return s.get(key, default) if isinstance(s, dict) else getattr(s, key, default)
+
+    def _set(s, key, value):
+        if isinstance(s, dict):
+            s[key] = value
+        else:
+            setattr(s, key, value)
+
+    lane_ends = []  # right-edge % of the last slot placed in each lane
+    for s in sorted(slots, key=lambda s: _get(s, 'position_pct')):
+        left = _get(s, 'position_pct')
+        right = left + _get(s, 'width_pct')
+        placed = False
+        for i, lane_end in enumerate(lane_ends):
+            if left >= lane_end:
+                _set(s, 'lane', i)
+                lane_ends[i] = right
+                placed = True
+                break
+        if not placed:
+            _set(s, 'lane', len(lane_ends))
+            lane_ends.append(right)
+        _set(s, 'lane_top', _get(s, 'lane') * (lane_height + gap) + top_pad)
+    return max(len(lane_ends), 1)
+
+
+def _slot_notes(leg):
+    """Free-text notes worth surfacing on a board hover, newest-concern first.
+
+    Four separate fields exist and they mean genuinely different things, so they are
+    kept distinct rather than concatenated:
+      * leg private_notes   — dispatcher's own note about THIS leg (internal)
+      * reservation private_notes — internal note spanning the whole booking
+      * reservation special_requests — what the GUEST asked for (customer-facing)
+      * leg driver_notes    — what the driver wrote back about the trip
+
+    Returns '' for anything absent so the popup can omit the row entirely.
+    """
+    _EMPTY = {'note_leg': '', 'note_res': '', 'note_guest': '',
+              'note_driver': '', 'note_stops': ''}
+    if leg is None:
+        return dict(_EMPTY)
+    res = leg.reservation
+
+    def _clean(v):
+        return (v or '').strip()
+
+    # Per-stop instructions. legstop_set is already prefetched by the board query,
+    # so read the cache rather than re-querying per slot.
+    stops = []
+    try:
+        for s in leg.legstop_set.all():
+            n = _clean(s.notes)
+            if n:
+                loc = _clean(getattr(s, 'display_location', '')) or _clean(
+                    getattr(s, 'location', ''))
+                stops.append(f"{loc}: {n}" if loc else n)
+    except Exception:
+        pass
+
+    out = {
+        'note_leg': _clean(leg.private_notes),
+        'note_res': _clean(getattr(res, 'private_notes', '')) if res else '',
+        'note_guest': _clean(getattr(res, 'special_requests', '')) if res else '',
+        'note_driver': _clean(leg.driver_notes),
+        'note_stops': ' · '.join(stops),
+    }
+    # Drives a folded-corner marker on the bar so a job carrying instructions is
+    # identifiable WITHOUT hovering it — otherwise notes are invisible until you
+    # happen to point at the right 40px bar.
+    out['has_notes'] = any(out.values())
+    return out
+
+
+def _slot_duration_minutes(day, pickup_time, end_dt, *, floor=15):
+    """Minutes a timeline slot should span, measured as a real elapsed duration.
+
+    `end_dt` is a datetime from ``estimate_job_end_time`` (pickup + drive/dwell), so a
+    late job legitimately rolls past midnight. Deriving the end offset from ``end_dt.hour``
+    discards that date: a 11:30 PM pickup clearing 12:45 AM reads hour 0, giving a NEGATIVE
+    offset that floors to the 15-minute minimum — every night-crew job drew as a stub
+    instead of a 75-minute bar. Subtracting the datetimes keeps the rollover intact.
+    """
+    if end_dt is None:
+        return floor
+    pickup_dt = datetime.combine(day, pickup_time)
+    end_naive = end_dt
+    if timezone.is_aware(end_naive):
+        end_naive = timezone.make_naive(end_naive)
+    return max(int((end_naive - pickup_dt).total_seconds() // 60), floor)
+
+
+def _affiliate_feasibility(leg, driver, target_date):
+    """Feasibility for an AFFILIATE drop target (the affiliate board).
+
+    Affiliates are contractors, not shifts. We hold no weekly schedule for them and
+    assign them no fleet vehicle, so the in-house checks would either invent limits
+    (the weekly fallback paints a default 'shift') or fail every row (no
+    DriverVehicleAssignment => 'no vehicle assigned today'). What actually gates a
+    farm-out is the AffiliateProfile capability/permit config plus a real rate card —
+    the same gates the Farm-Out Optimizer applies in ``_gate_affiliate`` — so this
+    mirrors those rather than the driver-shift model.
+
+    Capacity is mode-dependent, and that distinction is the whole point:
+      * single_chain (or no profile) — ONE vehicle end to end, so ordinary
+        turnaround/overlap detection is exactly right.
+      * count_cap / fleet — N seats a day across parallel vehicles, so overlapping
+        jobs are NORMAL. Running the chain check here would flag phantom conflicts on
+        every second job; only the daily count is a real limit.
+    """
+    from dispatching.scheduler import (
+        build_driver_schedules, check_feasibility, preload_timing_cache,
+        estimate_job_end_time, get_vehicle_tier,
+    )
+    from dispatching.farmout_optimizer import (
+        ANTHONY_MAX_LEGS_PER_DAY, is_port_or_sanford,
+    )
+    from dispatching.models import SchedulerSettings
+    from drivers.models import AffiliateProfile, DriverPayRate
+
+    prof = AffiliateProfile.objects.filter(driver=driver).first()
+    warnings = []
+    hard_blocks = []
+    required_type = str(leg.effective_vehicle_type or "")
+
+    # 1. CAPABILITY — max vehicle class on file. Blank tier = no cap (the rate card
+    #    alone gates), matching the optimizer's reading of a profile-less affiliate.
+    if prof and prof.max_vehicle_tier and required_type:
+        ptier = get_vehicle_tier(prof.max_vehicle_tier)
+        ltier = get_vehicle_tier(required_type)
+        if ltier == -1 or ptier == -1 or ltier > ptier:
+            hard_blocks.append(
+                f"Tops out at {prof.get_max_vehicle_tier_display()} — this job needs {required_type}"
+            )
+
+    # 2. PERMIT — drop-off-only affiliates never originate at Port Canaveral / Sanford.
+    if prof and prof.no_pickup_at_port_sanford and is_port_or_sanford(leg.pickup_location):
+        hard_blocks.append("No pickup permit at Port Canaveral / Sanford")
+
+    # 3. RATE CARD — soft. Assigning still works; driver pay just won't auto-fill,
+    #    so warn loudly rather than block a dispatcher who knows the price.
+    if not DriverPayRate.objects.filter(driver=driver).exists():
+        warnings.append("No rate card on file — driver pay won't auto-fill")
+
+    preload_timing_cache()
+    # Their REAL day, counted exactly the way farmout_actions._resolve_affiliate counts it
+    # (all non-cancelled legs, NOT the in-house "still active" status filter). A completed
+    # leg consumed a seat, so it must still count against a daily cap — and this keeps the
+    # drag-time check, the row badge, and the Farm-Out apply path from ever disagreeing.
+    existing_legs = list(
+        Leg.objects.select_related(
+            "reservation", "flight_information", "cruise_information"
+        ).filter(driver=driver, pickup_date=target_date)
+        .exclude(status="cancelled").exclude(reservation__status="cancelled")
+        .exclude(id=leg.id).order_by("pickup_time")
+    )
+    end_time = estimate_job_end_time(leg, target_date)
+    mode = prof.capacity_mode if prof else AffiliateProfile.CAP_SINGLE_CHAIN
+    parallel = mode in (AffiliateProfile.CAP_COUNT, AffiliateProfile.CAP_FLEET)
+
+    if parallel:
+        # Count-based: overlap is expected, the daily cap is the only real ceiling.
+        used = len(existing_legs)
+        cap = prof.daily_cap if (prof and prof.daily_cap is not None) else (
+            ANTHONY_MAX_LEGS_PER_DAY if mode == AffiliateProfile.CAP_COUNT else None)
+        if cap:
+            if used >= cap:
+                hard_blocks.append(f"At daily cap ({used}/{cap} legs)")
+            elif used + 1 == cap:
+                warnings.append(f"This fills their last seat ({used + 1}/{cap})")
+            reason = f"{used}/{cap} legs used today"
+        else:
+            reason = f"{used} leg{'' if used == 1 else 's'} today — no cap on file"
+        buffer_minutes = 999
+        existing_trips = used
+    else:
+        # Single vehicle: real chain feasibility, same as an in-house driver.
+        schedules = build_driver_schedules(existing_legs, [driver], target_date)
+        driver_schedule = schedules.get(driver.id)
+        if not driver_schedule or not driver_schedule.slots:
+            reason = "No other trips — fully available"
+            buffer_minutes = 999
+            existing_trips = 0
+        else:
+            cfg = SchedulerSettings.get_settings()
+            result = check_feasibility(
+                driver_schedule, leg, target_date, arrival_grace=cfg.arrival_grace_minutes
+            )
+            reason = result.reason
+            buffer_minutes = result.buffer_minutes
+            existing_trips = len(driver_schedule.slots)
+            if result.warnings:
+                warnings.extend(result.warnings)
+            if not result.feasible:
+                hard_blocks.append(result.reason or "Conflicts with their existing chain")
+
+    feasible = not hard_blocks
+    return JsonResponse({
+        "feasible": feasible,
+        "buffer_minutes": buffer_minutes,
+        "warnings": hard_blocks + warnings,
+        "reason": hard_blocks[0] if hard_blocks else reason,
+        "estimated_end": end_time.strftime("%I:%M %p").lstrip("0") if end_time else None,
+        "existing_trips": existing_trips,
+        # No fleet vehicle is ever assigned to an affiliate, so the in-house
+        # vehicle-match concept doesn't apply; capability is checked above instead.
+        "vehicle_match": True,
+        "vehicle_mismatch_detail": "",
+        "avail_status": "available",
+        "is_affiliate": True,
+        "capacity_mode": mode,
+    })
+
+
 @login_required
 @require_http_methods(["GET"])
 def check_driver_feasibility(request):
@@ -2430,6 +2798,9 @@ def check_driver_feasibility(request):
         ).get(id=leg_id)
         driver = Driver.objects.get(id=driver_id)
         target_date = leg.pickup_date
+
+        if driver.driver_type == "affiliate":
+            return _affiliate_feasibility(leg, driver, target_date)
 
         # Check driver availability for this date (Off / partial-day / window)
         from drivers.availability import is_pickup_within_window
@@ -5026,8 +5397,34 @@ def confirmations_view(request):
     )
 
 
-def _flight_refresh_cache_key(task_id):
-    return f"flight_refresh:{task_id}"
+# Bulk-refresh progress is stored in the DB, not the cache: without REDIS_URL
+# the cache is per-process LocMem, so with `gunicorn --workers 3` the status
+# poll usually landed on a worker that had never seen the task and 404'd.
+# See FlightRefreshTask.
+
+def _flight_refresh_set(task_id, state):
+    """Write (or overwrite) the state blob for one refresh task."""
+    from .models import FlightRefreshTask
+
+    FlightRefreshTask.objects.update_or_create(
+        task_id=task_id, defaults={"state": state}
+    )
+
+
+def _flight_refresh_get(task_id):
+    """Return the state blob for a refresh task, or None if unknown."""
+    from .models import FlightRefreshTask
+
+    row = FlightRefreshTask.objects.filter(task_id=task_id).only("state").first()
+    return row.state if row else None
+
+
+def _flight_refresh_prune(older_than_hours=24):
+    """Drop finished task rows so the table doesn't grow without bound."""
+    from .models import FlightRefreshTask
+
+    cutoff = timezone.now() - timedelta(hours=older_than_hours)
+    FlightRefreshTask.objects.filter(created_at__lt=cutoff).delete()
 
 
 def _refresh_single_flight(leg):
@@ -5255,8 +5652,6 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
         auto_create_flight_verify_tasks,
     )
 
-    task_key = _flight_refresh_cache_key(task_id)
-    timeout_seconds = 60 * 60
     refresh_started_dt = timezone.now()
     started_at = refresh_started_dt.isoformat()
     BATCH_SIZE = 5  # AeroAPI Standard: up to 5 queries/sec
@@ -5269,8 +5664,8 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
         )
 
         if not legs:
-            cache.set(
-                task_key,
+            _flight_refresh_set(
+                task_id,
                 {
                     "status": "failed",
                     "error": "No arrival flights found to refresh. Only arrival trips are refreshed.",
@@ -5282,7 +5677,6 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                     "started_at": started_at,
                     "finished_at": timezone.now().isoformat(),
                 },
-                timeout=timeout_seconds,
             )
             return
 
@@ -5297,8 +5691,8 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
         failure_count = 0
         total_legs = len(legs)
 
-        cache.set(
-            task_key,
+        _flight_refresh_set(
+            task_id,
             {
                 "status": "running",
                 "total": total_legs,
@@ -5308,7 +5702,6 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 "results": [],
                 "started_at": started_at,
             },
-            timeout=timeout_seconds,
         )
 
         # Each pool thread opens its own DB connection (flight.save()); close it
@@ -5330,8 +5723,8 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
             success_count += sum(1 for r in batch_results if r.get("success"))
             failure_count += sum(1 for r in batch_results if not r.get("success"))
             processed = min(offset + BATCH_SIZE, total_legs)
-            cache.set(
-                task_key,
+            _flight_refresh_set(
+                task_id,
                 {
                     "status": "running",
                     "total": total_legs,
@@ -5341,7 +5734,6 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                     "results": results,
                     "started_at": started_at,
                 },
-                timeout=timeout_seconds,
             )
 
         message = (
@@ -5429,8 +5821,8 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
         except Exception as e:
             logger.error(f"Review summary build failed: {e}")
 
-        cache.set(
-            task_key,
+        _flight_refresh_set(
+            task_id,
             {
                 "status": "completed",
                 "message": message,
@@ -5443,12 +5835,11 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 "started_at": started_at,
                 "finished_at": timezone.now().isoformat(),
             },
-            timeout=timeout_seconds,
         )
     except Exception as e:
         logger.error(f"Error in bulk refresh thread: {e}")
-        cache.set(
-            task_key,
+        _flight_refresh_set(
+            task_id,
             {
                 "status": "failed",
                 "error": str(e),
@@ -5460,7 +5851,6 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 "started_at": started_at,
                 "finished_at": timezone.now().isoformat(),
             },
-            timeout=timeout_seconds,
         )
     finally:
         # This worker thread opened its own DB connection (Leg queries above);
@@ -5526,10 +5916,11 @@ def refresh_all_flights(request):
             }, status=400)
         
         task_id = uuid.uuid4().hex
-        task_key = _flight_refresh_cache_key(task_id)
 
-        cache.set(
-            task_key,
+        # Written before the task_id is handed to the client, so the first poll
+        # always finds a row no matter which worker serves it.
+        _flight_refresh_set(
+            task_id,
             {
                 "status": "queued",
                 "total": len(legs),
@@ -5539,8 +5930,11 @@ def refresh_all_flights(request):
                 "results": [],
                 "started_at": timezone.now().isoformat(),
             },
-            timeout=60 * 60,
         )
+        try:
+            _flight_refresh_prune()
+        except Exception as e:
+            logger.error(f"Flight refresh task prune failed: {e}")
 
         worker = threading.Thread(
             target=_run_bulk_flight_refresh, args=(task_id, [leg.id for leg in legs]), daemon=True
@@ -5661,8 +6055,7 @@ def refresh_all_flights_status(request, task_id):
             {"success": False, "error": "Permission denied"}, status=403
         )
 
-    task_key = _flight_refresh_cache_key(task_id)
-    data = cache.get(task_key)
+    data = _flight_refresh_get(task_id)
     if not data:
         return JsonResponse(
             {"success": False, "error": "Refresh task not found"}, status=404

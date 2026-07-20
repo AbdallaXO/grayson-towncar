@@ -1,3 +1,4 @@
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
 
@@ -188,3 +189,33 @@ class SchedulerSettings(models.Model):
 
     def __str__(self):
         return "Scheduler Settings"
+
+
+class FlightRefreshTask(models.Model):
+    """
+    Progress/result state for one bulk flight-refresh run.
+
+    This lived in the Django cache, but the cache is LocMemCache (no REDIS_URL)
+    and gunicorn runs 3 workers: the POST that started the refresh wrote the
+    state into ONE worker's private memory, while the status poll round-robined
+    across all three. Two out of three polls hit a worker that had never heard
+    of the task and 404'd "Refresh task not found", killing the poll before the
+    review summary could ever be shown. The DB is the only store all workers
+    share, so the state lives here.
+    """
+
+    task_id = models.CharField(max_length=64, unique=True, db_index=True)
+    # DjangoJSONEncoder, not the stock one: the cache used to pickle this blob,
+    # so anything serialized. A JSONField calls json.dumps, and a stray
+    # datetime/Decimal slipping into the summary would otherwise crash the whole
+    # refresh at the final write.
+    state = models.JSONField(default=dict, encoder=DjangoJSONEncoder)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Flight Refresh Task"
+        verbose_name_plural = "Flight Refresh Tasks"
+
+    def __str__(self):
+        return f"{self.task_id} ({self.state.get('status', 'unknown')})"

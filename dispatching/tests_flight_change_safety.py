@@ -532,10 +532,9 @@ class BulkRefreshConflictSummaryTests(_FlightChangeFixtureMixin, TestCase):
     (often a departure that wasn't refreshed), not just refreshed arrivals."""
 
     def test_new_conflicts_includes_next_leg_anchored_task(self):
-        from django.core.cache import cache
         from ops.models import OperationalTask
         from dispatching.views import (
-            _flight_refresh_cache_key,
+            _flight_refresh_get,
             _run_bulk_flight_refresh,
         )
 
@@ -573,7 +572,7 @@ class BulkRefreshConflictSummaryTests(_FlightChangeFixtureMixin, TestCase):
         ), patch("ops.tasks._scan_driver_overlaps", side_effect=_fake_scan):
             _run_bulk_flight_refresh("conflict-test-task", [arrival.id])
 
-        data = cache.get(_flight_refresh_cache_key("conflict-test-task"))
+        data = _flight_refresh_get("conflict-test-task")
         self.assertIsNotNone(data)
         self.assertEqual(data["status"], "completed")
         conflicts = data["summary"]["new_conflicts"]
@@ -584,3 +583,89 @@ class BulkRefreshConflictSummaryTests(_FlightChangeFixtureMixin, TestCase):
         self.assertEqual(
             conflicts[0]["reservation_id"], departure.reservation_id
         )
+
+
+class BulkRefreshCrossWorkerStateTests(_FlightChangeFixtureMixin, TestCase):
+    """
+    Refresh progress must survive being read by a DIFFERENT gunicorn worker
+    than the one that started it.
+
+    Regression: the state lived in the Django cache, which is per-process
+    LocMemCache without REDIS_URL. With `gunicorn --workers 3` the status poll
+    round-robined onto a worker that had never seen the task and 404'd
+    "Refresh task not found" on the first poll, so the review modal never
+    opened even though the flights had actually been refreshed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.staff = User.objects.create_user(
+            username="xw_staff", password="x", is_staff=True
+        )
+        self.client.force_login(self.staff)
+
+    def test_status_survives_a_cold_cache(self):
+        """A worker with a totally empty cache must still see the task."""
+        from django.core.cache import cache
+        from dispatching.views import _flight_refresh_set
+
+        _flight_refresh_set("xw-task", {"status": "running", "processed": 2, "total": 5})
+
+        # Simulate the poll landing on a worker whose LocMemCache knows nothing.
+        cache.clear()
+
+        resp = self.client.get(
+            reverse("refresh_all_flights_status", args=["xw-task"])
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["status"], "running")
+        self.assertEqual(body["processed"], 2)
+
+    def test_completed_run_delivers_summary_to_a_cold_cache(self):
+        """The review-modal payload (summary) must reach the polling worker."""
+        from django.core.cache import cache
+        from dispatching.views import _run_bulk_flight_refresh
+
+        arrival = self._arrival_leg(time(8, 40), time(8, 15))
+
+        with patch(
+            "dispatching.views._refresh_single_flight",
+            side_effect=lambda leg: {"leg_id": leg.id, "success": True},
+        ), patch("ops.tasks._scan_driver_overlaps"):
+            _run_bulk_flight_refresh("xw-done", [arrival.id])
+
+        cache.clear()
+
+        resp = self.client.get(
+            reverse("refresh_all_flights_status", args=["xw-done"])
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["status"], "completed")
+        # This is what the JS gates openRefreshReviewModal() on.
+        self.assertIsNotNone(body["summary"])
+        self.assertIn("rows", body["summary"])
+        self.assertIn("totals", body["summary"])
+
+    def test_unknown_task_still_404s(self):
+        resp = self.client.get(
+            reverse("refresh_all_flights_status", args=["no-such-task"])
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_prune_drops_only_old_rows(self):
+        from dispatching.models import FlightRefreshTask
+        from dispatching.views import _flight_refresh_set, _flight_refresh_prune
+
+        _flight_refresh_set("fresh", {"status": "completed"})
+        _flight_refresh_set("stale", {"status": "completed"})
+        FlightRefreshTask.objects.filter(task_id="stale").update(
+            created_at=timezone.now() - timedelta(hours=48)
+        )
+
+        _flight_refresh_prune()
+
+        self.assertTrue(FlightRefreshTask.objects.filter(task_id="fresh").exists())
+        self.assertFalse(FlightRefreshTask.objects.filter(task_id="stale").exists())

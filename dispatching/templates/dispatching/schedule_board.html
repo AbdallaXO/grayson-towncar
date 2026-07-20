@@ -54,24 +54,75 @@
           container-type: inline-size;
       }
       .timeline-slot:hover { opacity: 0.9; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 10; }
-      /* Refund pending — must NOT blend in with normal trips */
-      .timeline-slot.refund-pending {
-          outline: 2px solid #dc2626; outline-offset: -2px;
-          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0) 0 5px, rgba(220,38,38,0.45) 5px 9px);
+      /* Folded-corner marker: this job carries a note. Absolutely positioned, so it
+         costs no room in the label flow and survives every shed threshold — notes
+         would otherwise be invisible until you happened to hover the right bar. */
+      .timeline-slot.has-note::after {
+          content: ''; position: absolute; top: 0; right: 0;
+          border-style: solid; border-width: 0 7px 7px 0;
+          border-color: transparent rgba(255,255,255,0.92) transparent transparent;
+          pointer-events: none;
       }
       .tl-refund-flag {
           background: #dc2626; color: #fff; font-weight: 800;
           font-size: 0.52rem; line-height: 1; padding: 1px 3px; border-radius: 2px;
           margin-left: 2px; flex-shrink: 0;
       }
-      /* Hide badges only on very narrow slots */
-      @container (max-width: 45px) {
-          .tl-vehicle-badge, .tl-status-badge { display: none !important; }
+      /* Slot label shrink order. A 30-min trip is ~29px on a 1280 screen, so most
+         bars on a 140-leg day are narrower than their content. Previously .tl-time-text
+         had NO rule: as a nowrap flex item it refused to shrink, so it clipped
+         mid-glyph ("10:") with no ellipsis AND pushed everything after it — the $
+         unpaid flag, the refund flag, the Publix cart — past the clip edge into
+         invisibility. The risk flags outlive the time text now: you can always hover
+         for the time, but a silently-dropped refund warning is dangerous.
+         NOTE: container queries measure the CONTENT box, and the slot has 0 4px
+         padding — so these thresholds fire 8px earlier than the border-box width. */
+      .tl-time-text {
+          min-width: 0; overflow: hidden; text-overflow: ellipsis;
       }
-      .timeline-slot.arrival { background: #1565c0; }
-      .timeline-slot.return { background: #2e7d32; }
-      .timeline-slot.cruise { background: #e65100; }
-      .timeline-slot.other { background: #6a1b9a; }
+      .tl-vip-star, .tl-unpaid-flag, .tl-refund-flag { flex-shrink: 0; }
+      /* Shed in order of REDUNDANCY, not markup order:
+         1. status badge first — the coloured strip along the bottom already says it;
+         2. then vehicle + Publix, which nothing else encodes;
+         3. time last, and only when truly impossible — position on the axis already
+            conveys it, so a blank bar is still locatable in time.
+         The risk flags ($ unpaid, refund) are never shed at any width. */
+      @container (max-width: 80px) {
+          /* Status is already encoded by the full-width strip along the bottom edge,
+             so the badge is the first thing worth spending. It was squeezing the time
+             into a useless "7..." on mid-width bars. */
+          .tl-status-badge { display: none !important; }
+      }
+      @container (max-width: 54px) {
+          /* Tighten the type so a full "7:30" fits before we resort to dropping it. */
+          .timeline-slot { font-size: 0.58rem; }
+      }
+      @container (max-width: 44px) {
+          /* Too narrow for time and vehicle SIDE BY SIDE — but the bar is 30px tall and
+             only using one line of it. Stack them instead of dropping one: at 100+ legs
+             a typical 45-min job is ~38px wide, which is most of the board, and losing
+             either the time or the vehicle class on most bars is a real cost. */
+          .timeline-slot:not(.tl-chip) {
+              flex-direction: column; align-items: flex-start;
+              justify-content: center; padding: 0 2px; line-height: 1.05;
+          }
+          .tl-time-text { font-size: 0.5rem; }
+          .tl-vehicle-badge { font-size: 0.46rem; margin-left: 0; padding: 0 2px; }
+          /* Unassigned chips are only 20px tall — two stacked lines would clip, so
+             they stay single-line and just shed the vehicle chip instead. */
+          .tl-chip .tl-vehicle-badge { display: none !important; }
+      }
+      @container (max-width: 22px) {
+          /* Genuinely nothing fits — keep the bar as a coloured risk marker. */
+          .tl-time-text, .tl-vehicle-badge, .tl-publix-badge { display: none !important; }
+      }
+      /* background-COLOR, never the `background` shorthand: the shorthand resets
+         background-image, which silently killed the .refund-pending hatch on every
+         slot (every slot carries a trip-type class, and these rules come later). */
+      .timeline-slot.arrival { background-color: #1565c0; }
+      .timeline-slot.return { background-color: #2e7d32; }
+      .timeline-slot.cruise { background-color: #c2410c; }
+      .timeline-slot.other { background-color: #6a1b9a; }
       .timeline-slot .tl-status-strip {
           position: absolute; bottom: 0; left: 0; right: 0;
           height: 5px; border-radius: 0 0 4px 4px;
@@ -98,12 +149,16 @@
       .tl-status-badge.stb-completed { background: rgba(0,0,0,0.25); color: #fff; }
       .tl-status-badge.stb-cancelled { background: #ff1744; color: #fff; }
       /* Vehicle type badge */
+      /* Vehicle class is the main constraint on whether a job can move to a driver,
+         but it was a 6.7px label at ~2.8:1 on the bar fill — unreadable at any real
+         density. Darken the chip instead of lightening it (white-on-dark composites
+         to >7:1 over every trip colour) and lift it to a legible size. */
       .tl-vehicle-badge {
           display: inline-flex; align-items: center; justify-content: center;
-          font-size: 0.42rem; font-weight: 800; letter-spacing: 0.02em;
+          font-size: 0.52rem; font-weight: 800; letter-spacing: 0.02em;
           line-height: 1; padding: 1px 3px; border-radius: 2px;
-          margin-left: 2px; vertical-align: middle;
-          background: rgba(255,255,255,0.25); color: #fff;
+          margin-left: 2px; vertical-align: middle; flex-shrink: 0;
+          background: rgba(0,0,0,0.34); color: #fff;
       }
       /* Publix-stop marker (arrivals only) — small green dot with cart icon. */
       .tl-publix-badge {
@@ -125,28 +180,71 @@
       /* Timeline hover popup */
       .tl-popup {
           position: fixed; z-index: 9999;
-          background: #fff; border: 1px solid #ddd;
-          border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-          padding: 0; min-width: 220px; max-width: 280px;
+          background: #fff; border: 1px solid rgba(0,0,0,0.08);
+          border-radius: 10px;
+          box-shadow: 0 10px 34px rgba(16,24,40,0.20), 0 2px 6px rgba(16,24,40,0.08);
+          padding: 0; min-width: 260px; max-width: 340px;
+          max-height: calc(100vh - 24px);
           pointer-events: none; opacity: 0;
-          transition: opacity 0.12s; font-size: 0.78rem; overflow: hidden;
+          transform: translateY(3px);
+          transition: opacity 0.13s ease, transform 0.13s ease;
+          font-size: 0.78rem; overflow: hidden;
       }
-      .tl-popup.visible { opacity: 1; }
+      .tl-popup.visible { opacity: 1; transform: translateY(0); }
       .tl-popup-header {
-          padding: 6px 10px; font-weight: 700; color: #fff;
+          padding: 7px 11px; font-weight: 700; color: #fff;
           font-size: 0.72rem; letter-spacing: 0.03em;
       }
       .tl-popup-header.arrival { background: #1565c0; }
       .tl-popup-header.return { background: #2e7d32; }
-      .tl-popup-header.cruise { background: #e65100; }
+      .tl-popup-header.cruise { background: #c2410c; }  /* matches the slot fill */
       .tl-popup-header.other { background: #6a1b9a; }
-      .tl-popup-body { padding: 6px 10px; }
+      .tl-popup-body { padding: 7px 11px; }
       .tl-popup-row {
-          display: flex; justify-content: space-between; gap: 8px;
-          padding: 2px 0; font-size: 0.72rem;
+          display: flex; justify-content: space-between; gap: 10px;
+          padding: 2.5px 0; font-size: 0.72rem;
       }
-      .tl-label { color: #888; white-space: nowrap; }
-      .tl-value { text-align: right; font-weight: 500; }
+      .tl-popup-row + .tl-popup-row { border-top: 1px solid rgba(0,0,0,0.035); }
+      .tl-label { color: #8a8f98; white-space: nowrap; }
+      .tl-value { text-align: right; font-weight: 500; color: #1f2328; }
+
+      /* ── Notes section ───────────────────────────────────────────────────
+         Free text can't live in the right-aligned label/value grid — it wraps and
+         reads badly. Each note is a full-width block with a coloured left rule so
+         the SOURCE is identifiable at a glance: a guest's request and a
+         dispatcher's private note carry very different weight. */
+      .tl-popup-notes {
+          border-top: 1px solid rgba(0,0,0,0.08);
+          background: #f8f9fb; padding: 7px 11px 8px;
+          display: flex; flex-direction: column; gap: 6px;
+      }
+      .tl-note { border-left: 3px solid #cbd5e1; padding-left: 7px; }
+      .tl-note-label {
+          display: flex; align-items: center; gap: 4px;
+          font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.05em; color: #6b7280; margin-bottom: 1px;
+      }
+      .tl-note-label .bi { font-size: 0.58rem; }
+      /* Clamp to 3 lines with an ellipsis. This is a glance surface, not a document —
+         the full text lives on the reservation page. The popup is pointer-events:none,
+         so anything that overflowed would be unscrollable and therefore unreadable. */
+      .tl-note-text {
+          font-size: 0.72rem; line-height: 1.35; color: #1f2328;
+          white-space: pre-wrap;        /* keep the author's line breaks */
+          overflow-wrap: anywhere;      /* long refs/URLs can't blow the width */
+          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+          overflow: hidden;
+      }
+      .tl-note.nt-leg    { border-left-color: #0d6efd; }
+      .tl-note.nt-leg    .tl-note-label { color: #0d6efd; }
+      .tl-note.nt-res    { border-left-color: #7c3aed; }
+      .tl-note.nt-res    .tl-note-label { color: #7c3aed; }
+      .tl-note.nt-guest  { border-left-color: #0f766e; }
+      .tl-note.nt-guest  .tl-note-label { color: #0f766e; }
+      .tl-note.nt-stop   { border-left-color: #b45309; }
+      .tl-note.nt-stop   .tl-note-label { color: #b45309; }
+      .tl-note.nt-driver { border-left-color: #64748b; }
+      .tl-note.nt-driver .tl-note-label { color: #64748b; }
 
       /* ── Driver availability & vehicle context ── */
       .driver-avail-line {
@@ -244,10 +342,25 @@
       .timeline-slot.dnd-dragging { opacity: 0.35; outline: 2px dashed #C9A227; outline-offset: -2px; }
       /* Unpaid reservation: amber dashed outline + "$" pill so dispatchers spot bookings
          that haven't been collected on yet (we usually don't assign drivers to those). */
+      /* ── Warning states ──────────────────────────────────────────────────
+         Three flags can land on one slot (VIP + unpaid + refund-pending), so each
+         owns a DIFFERENT channel instead of fighting over one. Previously all three
+         competed for `outline`/`box-shadow` at equal specificity and the last rule
+         in the file silently erased the others.
+           outline      -> unpaid (dashed amber), overridden by refund (solid red)
+           background   -> refund hatch
+           box-shadow   -> VIP gold ring
+         Source order matters: .refund-pending MUST come after .unpaid so the more
+         severe flag wins the shared outline channel. */
       .timeline-slot.unpaid {
           outline: 2px dashed #ffb300;
           outline-offset: -2px;
-          box-shadow: 0 0 0 1px rgba(255, 179, 0, 0.4), 0 1px 3px rgba(0,0,0,0.2);
+      }
+      .timeline-slot.refund-pending {
+          outline: 2px solid #dc2626;
+          outline-offset: -2px;
+          background-image: repeating-linear-gradient(45deg,
+              rgba(255,255,255,0) 0 5px, rgba(220,38,38,0.45) 5px 9px);
       }
       .tl-unpaid-flag {
           display: inline-flex; align-items: center; justify-content: center;
@@ -257,8 +370,9 @@
           box-shadow: 0 1px 2px rgba(0,0,0,0.2);
       }
       /* VIP reservation (manual flag or VIP agency, e.g. Small World Big Fun) —
-         gold ring + a leading star on the bar. box-shadow stacks with the
-         outline-based unpaid/refund flags so none of them are lost. */
+         gold ring + a leading star on the bar. VIP now owns box-shadow outright
+         (unpaid was moved off that channel), so the gold ring coexists with the
+         outline-based unpaid/refund flags instead of overwriting the amber glow. */
       .timeline-slot.vip { box-shadow: 0 0 0 2px #e8b923, 0 0 0 3px #1a1d21, 0 0 6px rgba(232,185,35,0.75); }
       .timeline-slot .tl-vip-star {
           color: #ffd54a; font-size: 0.62rem; margin-right: 2px; line-height: 1;
@@ -273,10 +387,29 @@
           padding-bottom: 8px; align-items: flex-start;
       }
       .dnd-unassigned-row .driver-name-col { padding-top: 4px; }
+      /* The backlog is the densest thing on the board at start of day (140 legs =
+         every job in this one lane). 200px hid most of it behind an invisible
+         scroll — and because chips are sorted vehicle-first, what got hidden was
+         systematically the towncars/minivans. Give it real room, scale with the
+         viewport, and make the scrollbar visible so the overflow is discoverable. */
       .dnd-unassigned-row .timeline-bar {
-          background: rgba(201,162,39,0.04); overflow-y: auto; max-height: 200px;
+          background: rgba(201,162,39,0.04);
+          overflow-y: auto; max-height: min(46vh, 460px);
           border-radius: 4px; border: 1px dashed rgba(201,162,39,0.25);
+          scrollbar-width: thin; scrollbar-color: rgba(201,162,39,0.55) transparent;
       }
+      .dnd-unassigned-row .timeline-bar::-webkit-scrollbar { width: 10px; }
+      .dnd-unassigned-row .timeline-bar::-webkit-scrollbar-track {
+          background: rgba(0,0,0,0.04); border-radius: 5px;
+      }
+      .dnd-unassigned-row .timeline-bar::-webkit-scrollbar-thumb {
+          background: rgba(201,162,39,0.55); border-radius: 5px;
+      }
+      .unassigned-more-hint {
+          display: none; font-size: 0.62rem; font-weight: 700; color: #b8860b;
+          margin-top: 2px;
+      }
+      .unassigned-more-hint.is-visible { display: block; }
       .dnd-unassigned-row .timeline-slot {
           height: 20px; font-size: 0.55rem; opacity: 0.85;
           border-radius: 3px;
@@ -290,6 +423,127 @@
           animation: dndToastIn 0.2s ease-out;
       }
       @keyframes dndToastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+      /* ── Live clock + "now" marker ───────────────────────────────────── */
+      /* Dark pill against the light header: maximum legibility at a glance without
+         a loud accent colour. The only saturated element is a small live-dot. */
+      .board-clock {
+          display: inline-flex; align-items: baseline; gap: 6px;
+          padding: 5px 11px; border-radius: 7px;
+          background: #1e2530; border: 1px solid rgba(255,255,255,0.07);
+          box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+          line-height: 1; user-select: none;
+      }
+      .board-clock-time {
+          font-variant-numeric: tabular-nums;   /* digits don't jitter as they tick */
+          font-weight: 600; font-size: 1rem; letter-spacing: 0.03em;
+          color: #f1f5f9;
+      }
+      .board-clock-meridiem {
+          font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em;
+          color: #94a3b8; text-transform: uppercase;
+      }
+      .board-clock-dot {
+          align-self: center; flex-shrink: 0;
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.55);
+          animation: boardClockPulse 2.4s ease-out infinite;
+      }
+      @keyframes boardClockPulse {
+          0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+          70%  { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+          100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+          .board-clock-dot { animation: none; }
+      }
+      .timeline-now-line {
+          position: absolute; top: 0; bottom: 0; width: 0;
+          border-left: 2px solid #dc2626; z-index: 6;
+          pointer-events: none;
+          box-shadow: 0 0 6px rgba(220,38,38,0.5);
+      }
+      .timeline-now-line .timeline-now-dot {
+          position: absolute; top: -4px; left: -4px;
+          width: 8px; height: 8px; border-radius: 50%;
+          background: #dc2626; box-shadow: 0 0 5px rgba(220,38,38,0.8);
+      }
+
+      /* Completed jobs recede — the board is for what's still ahead of you.
+         Desaturate the FILL only. `opacity` here composites the whole subtree,
+         label included: white-on-cruise fell to ~1.7:1 and by evening 40-60 of
+         140 bars were unreadable. Muting the background keeps every label at full
+         strength, and the warning rings (VIP/unpaid/refund) survive intact. */
+      .timeline-slot[data-status="completed"] {
+          filter: saturate(0.35) brightness(0.86);
+      }
+      .timeline-slot[data-status="completed"] .tl-time-text {
+          opacity: 0.85;
+      }
+      .timeline-slot[data-status="completed"]:hover { filter: none; }
+
+      /* ── Deployed vs available-but-unassigned ────────────────────────────
+         Drivers working today split into two groups: those Day Setup has put in a
+         vehicle, and those who are available but not set up yet. Both are valid drop
+         targets, but they mean different things operationally — dropping onto the
+         second group implies you still owe them a vehicle. Divider + a recessed
+         treatment, NOT opacity on the row (that would wash out the job bars too). */
+      .roster-divider {
+          display: flex; align-items: center; gap: 8px;
+          padding: 3px 10px 3px 0; margin: 2px 0 0;
+          border-top: 1px dashed rgba(0,0,0,0.16);
+      }
+      .roster-divider span {
+          font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.06em; color: #94a3b8; white-space: nowrap;
+          padding-left: 10px;
+      }
+      .driver-timeline-row.no-vehicle { background: rgba(0,0,0,0.022); }
+      .driver-timeline-row.no-vehicle .driver-name-col { opacity: 0.72; }
+      .driver-timeline-row.no-vehicle .driver-name-col strong { font-weight: 600; }
+      /* Restore full clarity while you're dragging onto them. */
+      .driver-timeline-row.no-vehicle.dnd-over .driver-name-col,
+      .driver-timeline-row.no-vehicle:hover .driver-name-col { opacity: 1; }
+      .no-vehicle-tag {
+          display: inline-block; font-size: 0.58rem; font-weight: 700;
+          padding: 1px 5px; border-radius: 3px; margin-right: 4px;
+          background: rgba(100,116,139,0.14); color: #64748b;
+          border: 1px dashed rgba(100,116,139,0.4);
+      }
+
+      /* ── Affiliate board ─────────────────────────────────────────────── */
+      .board-switch .btn-gold {
+          background: #C9A227; border-color: #C9A227; color: #1a2332; font-weight: 600;
+      }
+      .board-switch .btn-gold:hover { background: #d8b02f; border-color: #d8b02f; color: #1a2332; }
+      /* Idle affiliates stay on the board as drop targets but recede visually,
+         so a scan lands on the ones already carrying work. */
+      .driver-timeline-row.affiliate-idle .driver-name-col { opacity: 0.62; }
+      .driver-timeline-row.affiliate-idle .timeline-bar {
+          background: rgba(255,255,255,0.015);
+      }
+      .driver-timeline-row.affiliate-row.dnd-over .driver-name-col { opacity: 1; }
+      .aff-cap-badge {
+          display: inline-block; font-size: 0.6rem; font-weight: 600; line-height: 1;
+          padding: 2px 5px; border-radius: 3px; margin-right: 3px;
+          background: rgba(13,110,253,0.16); color: #6ea8fe; border: 1px solid rgba(13,110,253,0.3);
+      }
+      .aff-cap-badge.aff-cap-full {
+          background: rgba(220,53,69,0.18); color: #ea868f; border-color: rgba(220,53,69,0.4);
+      }
+      .aff-tier-badge {
+          display: inline-block; font-size: 0.6rem; font-weight: 600; line-height: 1;
+          padding: 2px 5px; border-radius: 3px; margin-right: 3px;
+          background: rgba(108,117,125,0.2); color: #adb5bd; border: 1px solid rgba(108,117,125,0.35);
+      }
+      .aff-warn-badge {
+          display: inline-block; font-size: 0.6rem; font-weight: 600; line-height: 1;
+          padding: 2px 5px; border-radius: 3px; margin-right: 3px;
+          background: rgba(255,145,0,0.16); color: #ffb44d; border: 1px solid rgba(255,145,0,0.32);
+      }
+      .aff-warn-badge.aff-warn-hard {
+          background: rgba(220,53,69,0.16); color: #ea868f; border-color: rgba(220,53,69,0.35);
+      }
   </style>
 {% endblock extra_css %}
 
@@ -301,18 +555,42 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div class="d-flex align-items-center gap-3">
-        <h5 class="mb-0 fw-bold"><i class="bi bi-kanban me-2"></i>Schedule Board</h5>
+        <h5 class="mb-0 fw-bold">
+          <i class="bi bi-kanban me-2"></i>{% if is_affiliate_board %}Affiliate Board{% else %}Schedule Board{% endif %}
+        </h5>
         <div class="d-flex align-items-center gap-2">
-          <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+          <a href="?date={{ prev_date|date:'Y-m-d' }}&view={{ board_view }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
           <input type="date" class="form-control form-control-sm" id="boardDatePicker"
                  value="{{ selected_date|date:'Y-m-d' }}" style="width:150px;">
-          <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+          <a href="?date={{ next_date|date:'Y-m-d' }}&view={{ board_view }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+        </div>
+        <!-- Board switch: two separate boards over the same day, never mixed -->
+        <div class="btn-group btn-group-sm board-switch" role="group" aria-label="Board">
+          <a href="?date={{ selected_date|date:'Y-m-d' }}&view=inhouse"
+             class="btn {% if not is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
+            <i class="bi bi-house-door me-1"></i>In-House
+          </a>
+          <a href="?date={{ selected_date|date:'Y-m-d' }}&view=affiliate"
+             class="btn {% if is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
+            <i class="bi bi-people me-1"></i>Affiliates
+          </a>
         </div>
       </div>
       <div class="d-flex align-items-center gap-3">
+        <span class="board-clock" id="boardClock" title="Current local time">
+          <span class="board-clock-dot" aria-hidden="true"></span>
+          <span class="board-clock-time" id="boardClockTime">--:--:--</span>
+          <span class="board-clock-meridiem" id="boardClockMeridiem"></span>
+        </span>
         {% if is_held %}<span class="badge" style="background:#C9A227;color:#1a2332;"><i class="bi bi-pause-fill"></i> DRAFT</span>{% endif %}
         <span class="badge bg-primary">{{ total_legs }} legs</span>
-        <span class="badge bg-success">{{ assigned_count }} assigned</span>
+        {% if is_affiliate_board %}
+          <span class="badge bg-success">{{ farmed_count }} farmed</span>
+          <span class="badge bg-secondary" title="Affiliates with at least one job today">{{ affiliate_working_count }}/{{ affiliate_roster_count }} working</span>
+        {% else %}
+          <span class="badge bg-success">{{ assigned_count }} assigned</span>
+          {% if farmed_count %}<span class="badge bg-info text-dark" title="Assigned to affiliates — see the Affiliate board">{{ farmed_count }} farmed</span>{% endif %}
+        {% endif %}
         {% if unassigned_count %}<span class="badge bg-warning text-dark">{{ unassigned_count }} unassigned</span>{% endif %}
         <a href="{% url 'dashboard' %}?date={{ selected_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary">
           <i class="bi bi-speedometer2 me-1"></i>Dashboard
@@ -338,6 +616,13 @@
         <div class="timeline-grid-wrapper">
           <!-- Vertical grid lines (hours solid, half-hours dashed) -->
           <div class="timeline-grid-lines">
+            {% if board_is_today %}
+              <!-- "Now" marker — only meaningful on today's board. Positioned by the
+                   same left-% math as the job slots, and re-positioned each tick. -->
+              <div class="timeline-now-line" id="timelineNowLine" hidden>
+                <span class="timeline-now-dot"></span>
+              </div>
+            {% endif %}
             {% for tick in timeline_ticks %}
               {% if tick.pct > 0 %}
                 <div class="timeline-grid-line{% if not tick.is_hour %} half-hour{% endif %}" style="left:{{ tick.pct }}%;"></div>
@@ -352,13 +637,16 @@
                   <strong style="color:#C9A227;">Unassigned</strong>
                   {% if unassigned_timeline_slots %}
                   <small class="text-muted">{{ unassigned_timeline_slots|length }} job{{ unassigned_timeline_slots|length|pluralize }}</small>
+                  <span class="unassigned-more-hint" id="unassignedMoreHint">
+                    <i class="bi bi-arrow-down-circle-fill me-1"></i><span id="unassignedHiddenCount"></span> below — scroll
+                  </span>
                   {% else %}
                   <small class="text-muted">Drop here to unassign</small>
                   {% endif %}
                 </div>
                 <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
-                    <div class="timeline-slot {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}" data-tl-popup
+                    <div class="timeline-slot tl-chip {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}{% if uslot.has_notes %} has-note{% endif %}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ uslot.leg_id }}"
                          data-driver-id="unassigned"
@@ -386,8 +674,13 @@
                          data-carseats="{{ uslot.carseats_short }}"
                          data-store-stop="{{ uslot.store_stop|yesno:'1,0' }}"
                          data-extra-stops="{{ uslot.extra_stop_count|default:0 }}"
-                         data-secondary-flights="{{ uslot.secondary_flight_count|default:0 }}">
-                      {% if uslot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if uslot.extra_stop_count %}<span class="tl-publix-badge" title="{{ uslot.extra_stop_count }} extra stop{{ uslot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ uslot.extra_stop_count }}</span>{% endif %}{% if uslot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ uslot.secondary_flight_count }} secondary flight{{ uslot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ uslot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-secondary-flights="{{ uslot.secondary_flight_count|default:0 }}"
+                         data-note-leg="{{ uslot.note_leg }}"
+                         data-note-res="{{ uslot.note_res }}"
+                         data-note-guest="{{ uslot.note_guest }}"
+                         data-note-driver="{{ uslot.note_driver }}"
+                         data-note-stops="{{ uslot.note_stops }}">
+                      {% if uslot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ uslot.pickup_short }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if uslot.extra_stop_count %}<span class="tl-publix-badge" title="{{ uslot.extra_stop_count }} extra stop{{ uslot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ uslot.extra_stop_count }}</span>{% endif %}{% if uslot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ uslot.secondary_flight_count }} secondary flight{{ uslot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ uslot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -396,14 +689,46 @@
 
             <!-- Driver rows -->
             {% for data in inhouse_timeline %}
-              <div class="driver-timeline-row driver-status-{{ data.avail_status }}" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
+              {% if data.starts_no_vehicle_group %}
+                <!-- Split the roster: everything above is deployed (has a fleet vehicle),
+                     everything below is available to work but not set up yet. -->
+                <div class="roster-divider">
+                  <span><i class="bi bi-person-check me-1"></i>Available — no vehicle assigned</span>
+                </div>
+              {% endif %}
+              <div class="driver-timeline-row {% if is_affiliate_board %}affiliate-row{% if not data.total_legs %} affiliate-idle{% endif %}{% else %}driver-status-{{ data.avail_status }}{% if not data.has_vehicle %} no-vehicle{% endif %}{% endif %}" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
                 <div class="driver-name-col">
                   <div class="d-flex align-items-center">
                     {% if data.vehicle_number %}<span class="vehicle-num">#{{ data.vehicle_number }}</span>{% endif %}
                     <strong>{{ data.driver }}</strong>
                   </div>
+                  {% if is_affiliate_board %}
                   <small class="text-muted">
-                    {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
+                    {% if data.affiliate_vehicle %}<span style="color:#888;">{{ data.affiliate_vehicle|truncatechars:22 }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
+                  </small>
+                  <div class="driver-avail-line">
+                    {% if data.aff_cap_label %}
+                      <span class="aff-cap-badge{% if data.aff_cap_full %} aff-cap-full{% endif %}"
+                            title="{% if data.aff_cap_full %}At daily capacity{% else %}Affiliate capacity{% endif %}">{{ data.aff_cap_label }}</span>
+                    {% endif %}
+                    {% if data.aff_tier %}<span class="aff-tier-badge" title="Max vehicle class on file">{{ data.aff_tier }}</span>{% endif %}
+                    {% if data.aff_no_port %}<span class="aff-warn-badge" title="Drop-off only at Port Canaveral / Sanford — never originates there">No Port/SFB pickup</span>{% endif %}
+                    {% if data.aff_no_rate %}<span class="aff-warn-badge aff-warn-hard" title="No DriverPayRate rows — pay won't auto-fill and farm-out pricing can't quote them">No rate card</span>{% endif %}
+                    <span class="driver-info-icon" data-driver-popup
+                          data-driver-name="{{ data.driver }}"
+                          data-driver-phone="{{ data.driver_phone }}"
+                          data-driver-notes="{{ data.driver_notes|escapejs }}"
+                          data-vehicle-label="{{ data.affiliate_vehicle|escapejs }}"
+                          data-avail-label="{{ data.aff_cap_label|escapejs }}"
+                          data-cert-labels="{{ data.cert_labels|join:', ' }}">i</span>
+                  </div>
+                  {% else %}
+                  <small class="text-muted">
+                    {% if data.has_vehicle %}
+                      {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}
+                    {% else %}
+                      <span class="no-vehicle-tag" title="No vehicle assigned for this date — run Day Setup">No vehicle</span>
+                    {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                   </small>
                   <div class="driver-avail-line">
                     {% if data.exc_badge %}<span class="exc-badge" title="{{ data.avail_tooltip }}"><i class="bi bi-exclamation-octagon-fill"></i> {{ data.exc_badge }}</span>{% endif %}
@@ -445,16 +770,24 @@
                           data-vehicle-num="{{ data.vehicle_number }}"
                           data-vehicle-notes="{{ data.vehicle_notes|escapejs }}">i</span>
                   </div>
+                  {% endif %}
                   {% if data.prev_night_cleared %}
                     <div style="color:#ff9100;font-size:0.68rem;font-weight:600;margin-top:1px;" title="Last job cleared previous night"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
                   {% endif %}
                 </div>
-                <div class="timeline-bar">
-                  {% for b in data.avail_blocks %}
-                    <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
-                  {% endfor %}
+                <div class="timeline-bar"{% if data.row_lanes > 1 %} style="height:{{ data.row_bar_height }}px;"{% endif %}>
+                  {% comment %}
+                    Affiliates have no shift on file with us — they're contractors, so the
+                    weekly-schedule fallback would paint an invented 6a-10p band. Bands are
+                    in-house only.
+                  {% endcomment %}
+                  {% if not is_affiliate_board %}
+                    {% for b in data.avail_blocks %}
+                      <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
+                    {% endfor %}
+                  {% endif %}
                   {% for slot in data.schedule.slots %}
-                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}" data-tl-popup
+                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.has_notes %} has-note{% endif %}" data-tl-popup
                          {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ slot.leg_id }}"
                          data-driver-id="{{ data.driver.id }}"
@@ -462,7 +795,7 @@
                          data-pending-refund="{{ slot.pending_refund|yesno:'1,0' }}"
                          data-live-driver="{{ slot.live_driver_label|default:'' }}"
                          data-proposed="{{ slot.is_proposed|yesno:'1,0' }}"
-                         style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
+                         style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%; top: {{ slot.lane_top }}px;"
                          data-trip="{{ slot.trip_type }}"
                          data-time="{{ slot.pickup_time|time:'g:i A' }}"
                          data-cleared="{{ slot.end_time_display }}"
@@ -482,7 +815,12 @@
                          data-carseats="{{ slot.carseats_short }}"
                          data-store-stop="{{ slot.store_stop|yesno:'1,0' }}"
                          data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
-                         data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}">
+                         data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}"
+                         data-note-leg="{{ slot.note_leg }}"
+                         data-note-res="{{ slot.note_res }}"
+                         data-note-guest="{{ slot.note_guest }}"
+                         data-note-driver="{{ slot.note_driver }}"
+                         data-note-stops="{{ slot.note_stops }}">
                       {% if slot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
@@ -641,6 +979,14 @@
         return (h - 12) + ':00 PM';
       }
 
+      // Notes are free text from staff/guests — escape before interpolating.
+      // (timeline-dnd.js has its own copy but it's IIFE-scoped, not global.)
+      function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str == null ? '' : str;
+        return d.innerHTML;
+      }
+
       function showJobPopup(el, e) {
         const trip = el.dataset.trip || 'other';
         const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:#ffd54a;margin-right:5px;" title="VIP"></i>' : '';
@@ -688,6 +1034,31 @@
           html += '<div class="tl-popup-row"><span class="tl-label">Payment</span><span class="tl-value" style="color:#b76e00;font-weight:700;">Unpaid</span></div>';
         }
         html += '</div>';
+
+        // ── Notes ────────────────────────────────────────────────────────
+        // Free text doesn't fit the right-aligned label/value grid above, so it gets
+        // its own full-width section. Each source is kept distinct — a guest request
+        // and a dispatcher's private note are not interchangeable — and any that is
+        // empty is omitted entirely rather than rendering a "None" row, so the
+        // section only appears when there is genuinely something to read.
+        const notes = [
+          {k: 'noteLeg',    label: 'Leg note',      icon: 'bi-sticky-fill',  cls: 'nt-leg'},
+          {k: 'noteRes',    label: 'Private note',  icon: 'bi-lock-fill',    cls: 'nt-res'},
+          {k: 'noteGuest',  label: 'Guest request', icon: 'bi-chat-left-quote-fill', cls: 'nt-guest'},
+          {k: 'noteStops',  label: 'Stop note',     icon: 'bi-geo-alt-fill', cls: 'nt-stop'},
+          {k: 'noteDriver', label: 'Driver note',   icon: 'bi-person-fill',  cls: 'nt-driver'},
+        ].filter(function (n) { return (el.dataset[n.k] || '').trim(); });
+
+        if (notes.length) {
+          html += '<div class="tl-popup-notes">';
+          notes.forEach(function (n) {
+            html += '<div class="tl-note ' + n.cls + '">'
+                 +  '<div class="tl-note-label"><i class="bi ' + n.icon + '"></i>' + n.label + '</div>'
+                 +  '<div class="tl-note-text">' + escapeHtml(el.dataset[n.k].trim()) + '</div>'
+                 +  '</div>';
+          });
+          html += '</div>';
+        }
         return html;
       }
 
@@ -797,9 +1168,73 @@
       });
     })();
 
+    // ── Unassigned backlog overflow hint ─────────────────────────────────
+    // The lane scrolls when the backlog is deeper than the viewport allows. The
+    // "N jobs" label alone reads as "you can see all N", so say how many are below.
+    (function(){
+      const bar  = document.querySelector('.dnd-unassigned-row .timeline-bar');
+      const hint = document.getElementById('unassignedMoreHint');
+      const cnt  = document.getElementById('unassignedHiddenCount');
+      if(!bar || !hint || !cnt) return;
+
+      function update(){
+        const hiddenPx = bar.scrollHeight - bar.clientHeight - bar.scrollTop;
+        if(hiddenPx <= 4){ hint.classList.remove('is-visible'); return; }
+        // Chips are one per 20px lane; count the ones whose lane is out of view.
+        const hidden = Array.from(bar.querySelectorAll('.timeline-slot')).filter(function(el){
+          return el.offsetTop + el.offsetHeight > bar.scrollTop + bar.clientHeight;
+        }).length;
+        if(!hidden){ hint.classList.remove('is-visible'); return; }
+        cnt.textContent = hidden + ' more';
+        hint.classList.add('is-visible');
+      }
+
+      update();
+      bar.addEventListener('scroll', update, {passive: true});
+      window.addEventListener('resize', update);
+    })();
+
+    // ── Live clock + "now" marker ────────────────────────────────────────
+    // Seeded from SERVER local time so the board always reads Orlando time even if
+    // the dispatcher's machine is set to another timezone. We only ever ADD elapsed
+    // milliseconds to that seed — the browser's own wall clock is never consulted,
+    // so a skewed client clock can't drift the display or the now-line.
+    (function(){
+      const clockEl = document.getElementById('boardClockTime');
+      const meridEl = document.getElementById('boardClockMeridiem');
+      if(!clockEl) return;
+      const seedSecs  = {{ board_now_secs }};
+      const seedAt    = Date.now();
+      const isToday   = {{ board_is_today|yesno:"true,false" }};
+      const startHour = {{ board_display_start }};
+      const totalMin  = {{ board_total_minutes }};
+      const nowLine   = document.getElementById('timelineNowLine');
+
+      function pad(n){ return n < 10 ? '0' + n : '' + n; }
+
+      function tick(){
+        // Wrap at midnight so an overnight session rolls over instead of running to 25:00.
+        const secs = (seedSecs + Math.floor((Date.now() - seedAt) / 1000)) % 86400;
+        const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+        const h12 = (h % 12) || 12;
+        clockEl.textContent = h12 + ':' + pad(m) + ':' + pad(s);
+        if(meridEl) meridEl.textContent = h < 12 ? 'AM' : 'PM';
+
+        if(!isToday || !nowLine) return;
+        // Same placement math as the job slots (views.schedule_board).
+        const pct = ((h - startHour) * 60 + m + s / 60) / totalMin * 100;
+        if(pct < 0 || pct > 100){ nowLine.hidden = true; return; }
+        nowLine.hidden = false;
+        nowLine.style.left = pct.toFixed(2) + '%';
+      }
+
+      tick();
+      setInterval(tick, 1000);
+    })();
+
     // Date picker navigation
     document.getElementById('boardDatePicker').addEventListener('change', function(){
-      window.location.href = '?date=' + this.value;
+      window.location.href = '?date=' + this.value + '&view={{ board_view }}';
     });
 
     // Click to navigate to Legs Dashboard with highlight
