@@ -68,7 +68,7 @@
                   <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
                 {% endfor %}
                 {% for slot in data.schedule.slots %}
-                  <div class="timeline-slot {{ slot.trip_type }}{% if slot.pending_refund %} refund-pending{% endif %}" data-tl-popup
+                  <div class="timeline-slot {{ slot.trip_type }}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.keoi_category %} has-keoi{% endif %}" data-tl-popup
                        data-leg-id="{{ slot.leg_id }}"
                        data-pending-refund="{{ slot.pending_refund|yesno:'1,0' }}"
                        style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
@@ -86,8 +86,11 @@
                        data-vehicle="{{ slot.vehicle_type|default:'' }}"
                        data-extra-stops="{{ slot.extra_stop_count|default:0 }}"
                        data-secondary-flights="{{ slot.secondary_flight_count|default:0 }}"
+                       data-keoi-category-label="{{ slot.keoi_category_label|default:'' }}"
+                       data-keoi-status-label="{{ slot.keoi_status_label|default:'' }}"
+                       data-keoi-desc="{{ slot.keoi_desc|default:'' }}"
                        onclick="document.getElementById('leg-row-{{ slot.leg_id }}')?.scrollIntoView({behavior:'smooth', block:'center'})">
-                    {{ slot.pickup_time|time:"g:i" }}{% if slot.extra_stop_count %}<sup style="color:#d4a017;font-weight:700;">+{{ slot.extra_stop_count }}</sup>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                    {{ slot.pickup_time|time:"g:i" }}{% if slot.extra_stop_count %}<sup style="color:#d4a017;font-weight:700;">+{{ slot.extra_stop_count }}</sup>{% endif %}{% if slot.keoi_category %}<span class="tl-keoi-flag" title="KEOI — {{ slot.keoi_category_label }}"><i class="bi bi-eye-fill"></i></span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                     <span class="tl-status-strip st-{{ slot.status }}"></span>
                   </div>
                 {% endfor %}

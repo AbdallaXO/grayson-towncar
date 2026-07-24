@@ -1,0 +1,42 @@
+{% comment %}
+KEOI ("Keep Eye On It") badge. Expects `keoi` (an active LegKeoi) and `leg`.
+`readonly=True` (Legs List) renders a non-interactive <span> — no modal trigger.
+Otherwise renders a real <button> that opens #keoiModal, populated purely from
+its own data-* attributes (no fetch on open). Django auto-escapes every value;
+newlines in the description survive attribute encoding and dataset reads.
+Never color-only: binoculars icon + literal "KEOI" + category text always shown.
+{% endcomment %}
+{% if keoi %}
+{% if readonly %}
+  <span class="keoi-badge keoi-badge-readonly"
+        title="KEOI · {{ keoi.get_category_display }} · {{ keoi.get_operational_status_display }} — {{ keoi.description|truncatechars:140 }}"
+        aria-label="Keep eye on it: {{ keoi.get_category_display }}, status {{ keoi.get_operational_status_display }}.">
+    <i class="bi bi-binoculars-fill" aria-hidden="true"></i>
+    <span class="keoi-badge-label">KEOI</span>
+    <span class="keoi-badge-cat">{{ keoi.get_category_display }}</span>
+    <span class="keoi-status-pill keoi-status-{{ keoi.operational_status }}">{{ keoi.get_operational_status_display }}</span>
+  </span>
+{% else %}
+  <button type="button" class="keoi-badge"
+          data-bs-toggle="modal" data-bs-target="#keoiModal"
+          data-keoi-id="{{ keoi.id }}"
+          data-keoi-leg-id="{{ leg.id }}"
+          data-keoi-leg-label="{{ leg.reservation.customer.get_full_name }} · {{ leg.pickup_time|time:'g:i A' }} · Res #{{ leg.reservation.id }}"
+          data-keoi-category="{{ keoi.category }}"
+          data-keoi-category-label="{{ keoi.get_category_display }}"
+          data-keoi-status="{{ keoi.operational_status }}"
+          data-keoi-status-label="{{ keoi.get_operational_status_display }}"
+          data-keoi-description="{{ keoi.description }}"
+          data-keoi-created-by="{{ keoi.created_by.username|default:'' }}"
+          data-keoi-created-at="{{ keoi.created_at|date:'M j, Y g:i A' }}"
+          data-keoi-updated-by="{{ keoi.updated_by.username|default:'' }}"
+          data-keoi-updated-at="{{ keoi.updated_at|date:'M j, Y g:i A' }}"
+          title="KEOI · {{ keoi.get_category_display }} · {{ keoi.get_operational_status_display }} — {{ keoi.description|truncatechars:140 }}"
+          aria-label="Keep eye on it: {{ keoi.get_category_display }}, status {{ keoi.get_operational_status_display }}. Opens details.">
+    <i class="bi bi-binoculars-fill" aria-hidden="true"></i>
+    <span class="keoi-badge-label">KEOI</span>
+    <span class="keoi-badge-cat">{{ keoi.get_category_display }}</span>
+    <span class="keoi-status-pill keoi-status-{{ keoi.operational_status }}">{{ keoi.get_operational_status_display }}</span>
+  </button>
+{% endif %}
+{% endif %}

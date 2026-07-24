@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from . import flight_verify_views
 from . import overnight_views
+from . import keoi_views
 from . import db_health
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
@@ -116,6 +117,11 @@ urlpatterns = [
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path("dismiss-flight-review/", views.dismiss_flight_review, name="dismiss_flight_review"),
     path("acknowledge-time-change/", views.acknowledge_time_change, name="acknowledge_time_change"),
+
+    # KEOI ("Keep Eye On It") watch flags
+    path("keoi/save/", keoi_views.keoi_save, name="keoi_save"),
+    path("keoi/remove/", keoi_views.keoi_remove, name="keoi_remove"),
+    path("keoi/history/", keoi_views.keoi_history, name="keoi_history"),
     path(
         "send-flight-verification-email/",
         flight_verify_views.send_flight_verification_email_ajax,

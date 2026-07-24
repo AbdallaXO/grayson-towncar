@@ -68,6 +68,22 @@
           font-size: 0.52rem; line-height: 1; padding: 1px 3px; border-radius: 2px;
           margin-left: 2px; flex-shrink: 0;
       }
+      /* KEOI ("Keep Eye On It") watch flag — high-contrast BLACK chip with a teal
+         eye so it stands out on a dense, colorful board (heavier than the refund
+         flag); black outline on the slot; banner + note in the hover popup. */
+      .tl-keoi-flag {
+          background: #111827; color: #5eead4; font-weight: 800;
+          font-size: 0.58rem; line-height: 1; padding: 1px 3px; border-radius: 2px;
+          margin-left: 2px; flex-shrink: 0; border: 1px solid #5eead4;
+      }
+      .timeline-slot.has-keoi { box-shadow: inset 0 0 0 2px #111827; }
+      .tl-keoi-banner {
+          background: #e6fffa; color: #0f766e; border: 1px solid #0d9488;
+          font-weight: 800; font-size: 0.72rem; padding: 4px 6px; border-radius: 5px;
+          margin-bottom: 5px;
+      }
+      .tl-note.nt-keoi { border-left-color: #0d9488; }
+      .tl-note.nt-keoi .tl-note-label { color: #0f766e; }
       /* Slot label shrink order. A 30-min trip is ~29px on a 1280 screen, so most
          bars on a 140-leg day are narrower than their content. Previously .tl-time-text
          had NO rule: as a nowrap flex item it refused to shrink, so it clipped
@@ -475,12 +491,110 @@
          140 bars were unreadable. Muting the background keeps every label at full
          strength, and the warning rings (VIP/unpaid/refund) survive intact. */
       .timeline-slot[data-status="completed"] {
-          filter: saturate(0.35) brightness(0.86);
+          filter: saturate(0.12) brightness(0.9);
       }
       .timeline-slot[data-status="completed"] .tl-time-text {
-          opacity: 0.85;
+          opacity: 0.7;
       }
+      /* Full clarity back the instant you point at it. */
       .timeline-slot[data-status="completed"]:hover { filter: none; }
+      .timeline-slot[data-status="completed"]:hover .tl-time-text { opacity: 1; }
+
+      /* ── Past shade ──────────────────────────────────────────────────────
+         A soft wash over everything left of the "now" line so the eye is pulled
+         toward the live present and what's still ahead. Lives in the grid-lines
+         layer (which paints above the bars), so the elapsed portion of an
+         in-progress bar is shaded while its remaining portion stays vivid.
+         Its width is driven each tick by the same %-of-day math as the now-line. */
+      .timeline-past-shade {
+          position: absolute; top: 0; bottom: 0; left: 0; width: 0;
+          background: rgba(100, 116, 139, 0.11);
+          pointer-events: none; z-index: 1;
+      }
+
+      /* ── Overrun tail ────────────────────────────────────────────────────
+         A leg still open past its estimate can't just end in the past — the bar
+         extends to "now" and the over-schedule portion is hatched so a driver
+         falling behind is impossible to miss. `left` is set inline (the % of the
+         pill where the estimate ran out); the tail fills from there to the edge. */
+      .timeline-slot .tl-overrun-tail {
+          position: absolute; top: 0; bottom: 0; right: 0; z-index: 4;
+          pointer-events: none;
+          border-left: 2px dashed rgba(255, 255, 255, 0.92);
+          background: repeating-linear-gradient(45deg,
+              rgba(0, 0, 0, 0) 0 4px, rgba(0, 0, 0, 0.30) 4px 8px);
+      }
+      /* The whole bar reads "urgent" — a thin red rail on the trailing edge that
+         gently pulses. Overrunning jobs are never completed, so they stay vivid. */
+      .timeline-slot.tl-overrunning {
+          box-shadow: inset -3px 0 0 #dc2626, 0 1px 3px rgba(0,0,0,0.15);
+          animation: tlOverrunPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes tlOverrunPulse {
+          0%, 100% { box-shadow: inset -3px 0 0 #dc2626, 0 1px 3px rgba(0,0,0,0.15); }
+          50%      { box-shadow: inset -3px 0 0 #dc2626, 0 0 7px rgba(220,38,38,0.75); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+          .timeline-slot.tl-overrunning { animation: none; }
+      }
+
+      /* ── Late start (departures) ─────────────────────────────────────────
+         The bar is shifted right to the ACTUAL pickup, a red rail marks its
+         leading edge, and a compact "▲N" states how many minutes late — the
+         earliest sign that downstream legs may slip. Never shed (it's a risk
+         flag), like the $ unpaid and ↩ refund flags. */
+      .timeline-slot.tl-late-start::before {
+          content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 3px;
+          background: #dc2626; border-radius: 4px 0 0 4px; pointer-events: none;
+      }
+      .tl-late-flag {
+          display: inline-flex; align-items: center; justify-content: center;
+          background: #dc2626; color: #fff; font-weight: 800;
+          font-size: 0.5rem; line-height: 1; padding: 2px 3px; border-radius: 3px;
+          margin-left: 4px; letter-spacing: 0.02em; flex-shrink: 0;
+      }
+
+      /* ── Pickup risk ─────────────────────────────────────────────────────
+         "Will he make the pickup?" — the one thing a status badge can't show,
+         because it flags a RISK, not a state you can't otherwise catch by scanning
+         100 bars. Fed by the live-GPS band (Samsara sweep) when telematics is fresh,
+         and by the clock (pickup time passed, no pickup recorded) as a fallback.
+         Two tiers:
+           • CRITICAL (red, pulsing): won't make it on current ETA / GPS-late, or
+             past pickup with no driver status at all. Must jump out of a full board.
+           • WATCH (amber): thin slack, sitting still near pickup, or a bit past
+             pickup but en route — worth a glance, not an alarm.
+         Left rail via ::before; late-start (::before too) can't co-occur — one needs
+         a recorded pickup, the other means the pickup hasn't happened. */
+      .timeline-slot.tl-risk-watch::before,
+      .timeline-slot.tl-risk-critical::before {
+          content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 3px;
+          border-radius: 4px 0 0 4px; pointer-events: none; background: #d97706;
+      }
+      .timeline-slot.tl-risk-critical::before { background: #dc2626; }
+      .timeline-slot.tl-risk-critical {
+          box-shadow: 0 0 0 2px #dc2626, 0 0 8px rgba(220,38,38,0.7);
+          animation: tlRiskPulse 1.4s ease-in-out infinite;
+      }
+      @keyframes tlRiskPulse {
+          0%, 100% { box-shadow: 0 0 0 2px #dc2626, 0 0 5px rgba(220,38,38,0.55); }
+          50%      { box-shadow: 0 0 0 2px #dc2626, 0 0 11px rgba(220,38,38,0.95); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+          .timeline-slot.tl-risk-critical { animation: none; }
+      }
+      .tl-risk-flag {
+          display: inline-flex; align-items: center; gap: 2px; justify-content: center;
+          color: #fff; font-weight: 800; font-size: 0.5rem; line-height: 1;
+          padding: 2px 3px; border-radius: 3px; margin-left: 4px; flex-shrink: 0;
+          background: #d97706; white-space: nowrap;
+      }
+      .tl-risk-flag .bi { font-size: 0.5rem; }
+      .tl-risk-critical .tl-risk-flag { background: #dc2626; }
+      /* Lift above neighbouring bars in the same row so the risk ring is never clipped
+         by an adjacent pill. (The past-shade is a separate, lighter layer; its 11% veil
+         leaves the red pulse plainly readable, so it needn't be beaten here.) */
+      .timeline-slot.tl-risk-critical, .timeline-slot.tl-risk-watch { z-index: 5; }
 
       /* ── Deployed vs available-but-unassigned ────────────────────────────
          Drivers working today split into two groups: those Day Setup has put in a
@@ -617,6 +731,10 @@
           <!-- Vertical grid lines (hours solid, half-hours dashed) -->
           <div class="timeline-grid-lines">
             {% if board_is_today %}
+              <!-- Soft wash over the elapsed part of the day (left of "now"), so the
+                   eye lands on the live present and what's still ahead. Width is set
+                   each tick by the same %-of-day math as the now-line. -->
+              <div class="timeline-past-shade" id="timelinePastShade" hidden></div>
               <!-- "Now" marker — only meaningful on today's board. Positioned by the
                    same left-% math as the job slots, and re-positioned each tick. -->
               <div class="timeline-now-line" id="timelineNowLine" hidden>
@@ -646,7 +764,7 @@
                 </div>
                 <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
-                    <div class="timeline-slot tl-chip {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}{% if uslot.has_notes %} has-note{% endif %}" data-tl-popup
+                    <div class="timeline-slot tl-chip {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}{% if uslot.has_notes %} has-note{% endif %}{% if uslot.keoi_category %} has-keoi{% endif %}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ uslot.leg_id }}"
                          data-driver-id="unassigned"
@@ -679,8 +797,12 @@
                          data-note-res="{{ uslot.note_res }}"
                          data-note-guest="{{ uslot.note_guest }}"
                          data-note-driver="{{ uslot.note_driver }}"
-                         data-note-stops="{{ uslot.note_stops }}">
-                      {% if uslot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ uslot.pickup_short }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if uslot.extra_stop_count %}<span class="tl-publix-badge" title="{{ uslot.extra_stop_count }} extra stop{{ uslot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ uslot.extra_stop_count }}</span>{% endif %}{% if uslot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ uslot.secondary_flight_count }} secondary flight{{ uslot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ uslot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-note-stops="{{ uslot.note_stops }}"
+                         data-keoi-category="{{ uslot.keoi_category }}"
+                         data-keoi-category-label="{{ uslot.keoi_category_label }}"
+                         data-keoi-status-label="{{ uslot.keoi_status_label }}"
+                         data-keoi-desc="{{ uslot.keoi_desc }}">
+                      {% if uslot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ uslot.pickup_short }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if uslot.extra_stop_count %}<span class="tl-publix-badge" title="{{ uslot.extra_stop_count }} extra stop{{ uslot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ uslot.extra_stop_count }}</span>{% endif %}{% if uslot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ uslot.secondary_flight_count }} secondary flight{{ uslot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ uslot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.keoi_category %}<span class="tl-keoi-flag" title="KEOI — {{ uslot.keoi_category_label }}"><i class="bi bi-eye-fill"></i></span>{% endif %}{% if uslot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -787,7 +909,7 @@
                     {% endfor %}
                   {% endif %}
                   {% for slot in data.schedule.slots %}
-                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.has_notes %} has-note{% endif %}" data-tl-popup
+                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.has_notes %} has-note{% endif %}{% if slot.keoi_category %} has-keoi{% endif %}{% if slot.overrunning %} tl-overrunning{% endif %}{% if slot.late_start %} tl-late-start{% endif %}{% if slot.risk_tier == 'critical' %} tl-risk-critical{% elif slot.risk_tier == 'watch' %} tl-risk-watch{% endif %}" data-tl-popup
                          {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ slot.leg_id }}"
                          data-driver-id="{{ data.driver.id }}"
@@ -799,6 +921,13 @@
                          data-trip="{{ slot.trip_type }}"
                          data-time="{{ slot.pickup_time|time:'g:i A' }}"
                          data-cleared="{{ slot.end_time_display }}"
+                         data-cleared-actual="{{ slot.cleared_is_actual|yesno:'1,0' }}"
+                         data-late-mins="{{ slot.late_start_mins }}"
+                         data-actual-pickup="{{ slot.actual_pickup_display }}"
+                         data-overrun-mins="{{ slot.overrun_mins }}"
+                         data-risk-tier="{{ slot.risk_tier }}"
+                         data-risk-source="{{ slot.risk_source }}"
+                         data-risk-reason="{{ slot.risk_reason }}"
                          data-pickup="{{ slot.pickup_location }}"
                          data-dropoff="{{ slot.dropoff_location }}"
                          data-customer="{{ slot.customer_name }}"
@@ -820,8 +949,13 @@
                          data-note-res="{{ slot.note_res }}"
                          data-note-guest="{{ slot.note_guest }}"
                          data-note-driver="{{ slot.note_driver }}"
-                         data-note-stops="{{ slot.note_stops }}">
-                      {% if slot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-note-stops="{{ slot.note_stops }}"
+                         data-keoi-category="{{ slot.keoi_category }}"
+                         data-keoi-category-label="{{ slot.keoi_category_label }}"
+                         data-keoi-status-label="{{ slot.keoi_status_label }}"
+                         data-keoi-desc="{{ slot.keoi_desc }}">
+                      {% if slot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.late_start %}<span class="tl-late-flag" title="Picked up {{ slot.late_start_mins }} min late — actual pickup {{ slot.actual_pickup_display }}">&#9650;{{ slot.late_start_mins }}</span>{% endif %}{% if slot.risk_tier %}<span class="tl-risk-flag" title="{{ slot.risk_reason }}"><i class="bi {% if slot.risk_source == 'gps' %}bi-geo-alt-fill{% else %}bi-alarm-fill{% endif %}"></i>{{ slot.risk_label }}</span>{% endif %}{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.keoi_category %}<span class="tl-keoi-flag" title="KEOI — {{ slot.keoi_category_label }}"><i class="bi bi-eye-fill"></i></span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                      {% if slot.overrunning %}<span class="tl-overrun-tail" style="left: {{ slot.overrun_from_pct }}%;" title="Running {{ slot.overrun_mins }} min past estimate — still on this leg"></span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -848,6 +982,8 @@
           <small><span class="tl-unpaid-flag" style="font-size:0.5rem;">$</span> Unpaid reservation</small>
           <small class="text-muted">|</small>
           <small><span class="tl-publix-badge" style="font-size:0.5rem;"><i class="bi bi-cart3"></i></span> Publix stop (arrivals)</small>
+          <small class="text-muted">|</small>
+          <small><span class="tl-keoi-flag"><i class="bi bi-eye-fill"></i></span> KEOI (keep eye on it)</small>
           <small class="text-muted">|</small>
           <small class="text-muted"><i class="bi bi-grip-vertical"></i> Drag jobs between drivers</small>
         </div>
@@ -995,6 +1131,9 @@
         if (el.dataset.pendingRefund === '1') {
             html += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:0.72rem;padding:4px 6px;border-radius:5px;margin-bottom:5px;"><i class="bi bi-arrow-counterclockwise"></i> REFUND PENDING — do not assign</div>';
         }
+        if (el.dataset.keoiCategoryLabel) {
+            html += '<div class="tl-keoi-banner"><i class="bi bi-binoculars-fill"></i> KEOI · '+escapeHtml(el.dataset.keoiCategoryLabel)+(el.dataset.keoiStatusLabel?' · '+escapeHtml(el.dataset.keoiStatusLabel):'')+'</div>';
+        }
         html += '<div class="tl-popup-row"><span class="tl-label">Pickup</span><span class="tl-value">'+(el.dataset.pickup||'')+'</span></div>';
         var _extraStops = parseInt(el.dataset.extraStops || '0', 10);
         if (_extraStops > 0) {
@@ -1029,7 +1168,33 @@
           const sc = statusColors[el.dataset.status] || '#374151';
           html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="color:'+sc+';">'+statusHtml+'</span></div>';
         }
-        html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~'+(el.dataset.cleared||'')+'</span></div>';
+        // Clearing read-out — reality once we know it (no tilde), estimate while projected.
+        var _clearedActual = el.dataset.clearedActual === '1';
+        if (el.dataset.cleared) {
+          html += '<div class="tl-popup-row"><span class="tl-label">'+(_clearedActual ? 'Cleared' : 'Clearing')+'</span>'
+               +  '<span class="tl-value"'+(_clearedActual ? ' style="color:#059669;font-weight:700;"' : '')+'>'
+               +  (_clearedActual ? '' : '~')+el.dataset.cleared+'</span></div>';
+        }
+        var _overrunMins = parseInt(el.dataset.overrunMins || '0', 10);
+        if (_overrunMins > 0 && !_clearedActual) {
+          html += '<div class="tl-popup-row"><span class="tl-label">Overdue</span>'
+               +  '<span class="tl-value" style="color:#dc2626;font-weight:800;"><i class="bi bi-exclamation-triangle-fill"></i> '
+               +  _overrunMins+' min past estimate — still on this leg</span></div>';
+        }
+        var _lateMins = parseInt(el.dataset.lateMins || '0', 10);
+        if (_lateMins > 0) {
+          html += '<div class="tl-popup-row"><span class="tl-label">Late start</span>'
+               +  '<span class="tl-value" style="color:#dc2626;font-weight:700;">&#9650; picked up '+(el.dataset.actualPickup||'')+' ('+_lateMins+' min late)</span></div>';
+        }
+        // Pickup risk — live GPS band (from the Samsara sweep) when telematics is
+        // fresh, else the clock-based fallback. Same escalating cue as the bar itself.
+        if (el.dataset.riskTier) {
+          var _crit = el.dataset.riskTier === 'critical';
+          var _riskIcon = el.dataset.riskSource === 'gps' ? 'bi-geo-alt-fill' : 'bi-alarm-fill';
+          html += '<div class="tl-popup-row"><span class="tl-label">Pickup risk</span>'
+               +  '<span class="tl-value" style="color:'+(_crit ? '#dc2626' : '#d97706')+';font-weight:800;">'
+               +  '<i class="bi '+_riskIcon+'"></i> '+(el.dataset.riskReason || (_crit ? 'At risk' : 'Watch'))+'</span></div>';
+        }
         if (el.dataset.paid === '0') {
           html += '<div class="tl-popup-row"><span class="tl-label">Payment</span><span class="tl-value" style="color:#b76e00;font-weight:700;">Unpaid</span></div>';
         }
@@ -1042,6 +1207,7 @@
         // empty is omitted entirely rather than rendering a "None" row, so the
         // section only appears when there is genuinely something to read.
         const notes = [
+          {k: 'keoiDesc',   label: 'KEOI — watch',  icon: 'bi-binoculars-fill', cls: 'nt-keoi'},
           {k: 'noteLeg',    label: 'Leg note',      icon: 'bi-sticky-fill',  cls: 'nt-leg'},
           {k: 'noteRes',    label: 'Private note',  icon: 'bi-lock-fill',    cls: 'nt-res'},
           {k: 'noteGuest',  label: 'Guest request', icon: 'bi-chat-left-quote-fill', cls: 'nt-guest'},
@@ -1209,6 +1375,7 @@
       const startHour = {{ board_display_start }};
       const totalMin  = {{ board_total_minutes }};
       const nowLine   = document.getElementById('timelineNowLine');
+      const pastShade = document.getElementById('timelinePastShade');
 
       function pad(n){ return n < 10 ? '0' + n : '' + n; }
 
@@ -1220,12 +1387,17 @@
         clockEl.textContent = h12 + ':' + pad(m) + ':' + pad(s);
         if(meridEl) meridEl.textContent = h < 12 ? 'AM' : 'PM';
 
-        if(!isToday || !nowLine) return;
+        if(!isToday) return;
         // Same placement math as the job slots (views.schedule_board).
         const pct = ((h - startHour) * 60 + m + s / 60) / totalMin * 100;
-        if(pct < 0 || pct > 100){ nowLine.hidden = true; return; }
-        nowLine.hidden = false;
-        nowLine.style.left = pct.toFixed(2) + '%';
+        // Now-line only shows while "now" is on the board; the past-shade covers the
+        // whole elapsed span (0% before the board opens, up to 100% once it's all past).
+        const shadePct = Math.min(Math.max(pct, 0), 100);
+        if(pastShade){ pastShade.hidden = false; pastShade.style.width = shadePct.toFixed(2) + '%'; }
+        if(nowLine){
+          if(pct < 0 || pct > 100){ nowLine.hidden = true; }
+          else { nowLine.hidden = false; nowLine.style.left = pct.toFixed(2) + '%'; }
+        }
       }
 
       tick();

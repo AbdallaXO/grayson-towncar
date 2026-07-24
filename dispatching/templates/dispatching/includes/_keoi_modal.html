@@ -1,0 +1,281 @@
+{% comment %}
+Singleton KEOI ("Keep Eye On It") modal. Included ONCE in legs_filter.html.
+Populated entirely from the triggering element's data-* attributes via
+show.bs.modal relatedTarget — no per-leg hidden divs, no fetch on open.
+Saves via AJAX and updates the board in place (renderKeoi) — no reload.
+Ships its own keoiToast() because the board's showToast is scoped inside a
+click handler (see frrToast for the same trap).
+{% endcomment %}
+<div class="modal fade" id="keoiModal" tabindex="-1" aria-labelledby="keoiModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header keoi-modal-header">
+        <h5 class="modal-title" id="keoiModalLabel">
+          <i class="bi bi-binoculars-fill me-2" aria-hidden="true"></i><span id="keoiModalTitleText">Keep Eye On It</span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-2" id="keoiLegLabel"></p>
+        <div class="alert alert-danger d-none" role="alert" id="keoiError"></div>
+        <input type="hidden" id="keoiLegId">
+        <input type="hidden" id="keoiId">
+
+        <div class="mb-3">
+          <label for="keoiCategory" class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
+          <select id="keoiCategory" class="form-select" required>
+            <option value="" disabled>Choose a category…</option>
+            <option value="tight_schedule">Tight Schedule</option>
+            <option value="driver_conflict">Possible Driver Conflict</option>
+            <option value="flight_delay">Flight Delay Risk</option>
+            <option value="passenger_readiness">Passenger Readiness Risk</option>
+            <option value="traffic">Traffic Risk</option>
+            <option value="waiting_info">Waiting on Information</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="keoiDescription" class="form-label fw-semibold">What to watch / what to do <span class="text-danger">*</span></label>
+          <textarea id="keoiDescription" class="form-control" rows="4" maxlength="2000" required></textarea>
+          <div class="form-text">Required — a dispatcher must understand the risk without opening the reservation.</div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label fw-semibold d-block">Operational status</label>
+          <div class="btn-group flex-wrap" role="group" aria-label="Operational status">
+            <input type="radio" class="btn-check" name="keoiStatus" id="keoiStatusNeeds" value="needs_attention" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary btn-sm" for="keoiStatusNeeds">Needs Attention</label>
+            <input type="radio" class="btn-check" name="keoiStatus" id="keoiStatusMonitored" value="being_monitored" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="keoiStatusMonitored">Being Monitored</label>
+            <input type="radio" class="btn-check" name="keoiStatus" id="keoiStatusBackup" value="backup_arranged" autocomplete="off">
+            <label class="btn btn-outline-secondary btn-sm" for="keoiStatusBackup">Backup Arranged</label>
+          </div>
+        </div>
+
+        <div class="keoi-meta small text-muted mt-3 d-none" id="keoiMeta"></div>
+      </div>
+      <div class="modal-footer">
+        {% if perms.reservations.remove_keoi %}
+        <button type="button" class="btn btn-outline-danger btn-sm me-auto d-none" id="keoiRemoveBtn">
+          <i class="bi bi-trash me-1" aria-hidden="true"></i>Remove
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn keoi-save-btn" id="keoiSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const modalEl = document.getElementById('keoiModal');
+  if (!modalEl) return;
+  const SAVE_URL = "{% url 'keoi_save' %}";
+  const REMOVE_URL = "{% url 'keoi_remove' %}";
+  const CSRF = "{{ csrf_token }}";
+
+  const legIdInput = document.getElementById('keoiLegId');
+  const keoiIdInput = document.getElementById('keoiId');
+  const legLabelEl = document.getElementById('keoiLegLabel');
+  const errorEl = document.getElementById('keoiError');
+  const titleEl = document.getElementById('keoiModalTitleText');
+  const categorySel = document.getElementById('keoiCategory');
+  const descEl = document.getElementById('keoiDescription');
+  const metaEl = document.getElementById('keoiMeta');
+  const saveBtn = document.getElementById('keoiSaveBtn');
+  const removeBtn = document.getElementById('keoiRemoveBtn');   // null if no perm
+  let currentLegLabel = '';
+
+  // Local toast — the board's showToast is scoped inside a click handler.
+  function keoiToast(message, type) {
+    let tc = document.getElementById('toast-container');
+    if (!tc) {
+      tc = document.createElement('div');
+      tc.id = 'toast-container';
+      tc.className = 'toast-container position-fixed top-0 end-0 p-3';
+      tc.style.zIndex = '9999';
+      document.body.appendChild(tc);
+    }
+    const bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning';
+    const icon = type === 'success' ? 'bi-check-circle' : type === 'error' ? 'bi-x-circle' : 'bi-exclamation-triangle';
+    const el = document.createElement('div');
+    el.className = 'toast align-items-center text-white ' + bg + ' border-0';
+    el.setAttribute('role', 'alert');
+    const wrap = document.createElement('div');
+    wrap.className = 'd-flex';
+    const body = document.createElement('div');
+    body.className = 'toast-body';
+    const ic = document.createElement('i');
+    ic.className = 'bi ' + icon + ' me-2';
+    body.appendChild(ic);
+    body.appendChild(document.createTextNode(message));   // never innerHTML with text
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn-close btn-close-white me-2 m-auto';
+    close.setAttribute('data-bs-dismiss', 'toast');
+    wrap.appendChild(body);
+    wrap.appendChild(close);
+    el.appendChild(wrap);
+    tc.appendChild(el);
+    const t = new bootstrap.Toast(el, { delay: 5000 });
+    t.show();
+    el.addEventListener('hidden.bs.toast', () => el.remove());
+  }
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.classList.remove('d-none');
+  }
+
+  // Build a KEOI badge button (matches _keoi_badge.html) with createElement +
+  // textContent so user-supplied description text is never parsed as HTML.
+  function buildKeoiBadge(k, legId, legLabel) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'keoi-badge';
+    btn.setAttribute('data-bs-toggle', 'modal');
+    btn.setAttribute('data-bs-target', '#keoiModal');
+    btn.dataset.keoiId = k.id;
+    btn.dataset.keoiLegId = legId;
+    btn.dataset.keoiLegLabel = legLabel || '';
+    btn.dataset.keoiCategory = k.category;
+    btn.dataset.keoiCategoryLabel = k.category_label;
+    btn.dataset.keoiStatus = k.operational_status;
+    btn.dataset.keoiStatusLabel = k.status_label;
+    btn.dataset.keoiDescription = k.description;
+    btn.dataset.keoiCreatedBy = k.created_by || '';
+    btn.dataset.keoiCreatedAt = k.created_at_display || '';
+    btn.dataset.keoiUpdatedBy = k.updated_by || '';
+    btn.dataset.keoiUpdatedAt = k.updated_at_display || '';
+    const shortDesc = (k.description || '').length > 140 ? k.description.slice(0, 140) + '…' : (k.description || '');
+    btn.title = 'KEOI · ' + k.category_label + ' · ' + k.status_label + ' — ' + shortDesc;
+    btn.setAttribute('aria-label', 'Keep eye on it: ' + k.category_label + ', status ' + k.status_label + '. Opens details.');
+    const icon = document.createElement('i');
+    icon.className = 'bi bi-binoculars-fill';
+    icon.setAttribute('aria-hidden', 'true');
+    btn.appendChild(icon);
+    const lbl = document.createElement('span');
+    lbl.className = 'keoi-badge-label';
+    lbl.textContent = 'KEOI';
+    btn.appendChild(lbl);
+    const cat = document.createElement('span');
+    cat.className = 'keoi-badge-cat';
+    cat.textContent = k.category_label;
+    btn.appendChild(cat);
+    const pill = document.createElement('span');
+    pill.className = 'keoi-status-pill keoi-status-' + k.operational_status;
+    pill.textContent = k.status_label;
+    btn.appendChild(pill);
+    return btn;
+  }
+
+  // Update the board in place — no reload.
+  function renderKeoi(legId, keoi, legLabel) {
+    document.querySelectorAll('.keoi-slot[data-leg-id="' + legId + '"]').forEach(slot => {
+      slot.textContent = '';
+      if (keoi) slot.appendChild(buildKeoiBadge(keoi, legId, legLabel));
+    });
+    const row = document.getElementById('leg-row-' + legId);
+    if (row) row.classList.toggle('leg-keoi', !!keoi);
+    const cardWrap = document.getElementById('leg-card-' + legId);
+    if (cardWrap) {
+      const card = cardWrap.querySelector('.card');
+      if (card) card.classList.toggle('leg-keoi', !!keoi);
+    }
+    document.querySelectorAll('.keoi-add-btn[data-keoi-leg-id="' + legId + '"]').forEach(b => {
+      b.classList.toggle('d-none', !!keoi);
+    });
+  }
+
+  modalEl.addEventListener('show.bs.modal', function (ev) {
+    const t = ev.relatedTarget;
+    const d = t ? t.dataset : {};
+    const isEdit = !!(d.keoiId);
+    currentLegLabel = d.keoiLegLabel || '';
+
+    errorEl.classList.add('d-none');
+    errorEl.textContent = '';
+    legIdInput.value = d.keoiLegId || '';
+    keoiIdInput.value = d.keoiId || '';
+    legLabelEl.textContent = currentLegLabel;
+    titleEl.textContent = isEdit ? 'Edit watch flag' : 'Keep Eye On It';
+    categorySel.value = d.keoiCategory || '';
+    descEl.value = d.keoiDescription || '';
+
+    const status = d.keoiStatus || 'needs_attention';
+    document.querySelectorAll('input[name="keoiStatus"]').forEach(r => { r.checked = (r.value === status); });
+
+    metaEl.textContent = '';
+    if (isEdit) {
+      metaEl.classList.remove('d-none');
+      const l1 = document.createElement('div');
+      l1.textContent = 'Flagged by ' + (d.keoiCreatedBy || '—') + ' · ' + (d.keoiCreatedAt || '');
+      metaEl.appendChild(l1);
+      if (d.keoiUpdatedAt) {
+        const l2 = document.createElement('div');
+        l2.textContent = 'Updated by ' + (d.keoiUpdatedBy || '—') + ' · ' + (d.keoiUpdatedAt || '');
+        metaEl.appendChild(l2);
+      }
+    } else {
+      metaEl.classList.add('d-none');
+    }
+    if (removeBtn) removeBtn.classList.toggle('d-none', !isEdit);
+  });
+
+  modalEl.addEventListener('shown.bs.modal', function () {
+    categorySel.focus();
+  });
+
+  saveBtn.addEventListener('click', function () {
+    errorEl.classList.add('d-none');
+    const category = categorySel.value;
+    const description = (descEl.value || '').trim();
+    const statusEl = document.querySelector('input[name="keoiStatus"]:checked');
+    const status = statusEl ? statusEl.value : 'needs_attention';
+    if (!category) { showError('Please choose a category.'); return; }
+    if (!description) { showError('Description is required — say what to watch and what to do.'); return; }
+    const legId = legIdInput.value;
+    saveBtn.disabled = true;
+    fetch(SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ leg_id: legId, category: category, description: description, operational_status: status }),
+    })
+      .then(r => r.json())
+      .then(j => {
+        saveBtn.disabled = false;
+        if (!j.success) { showError(j.error || 'Could not save the flag.'); return; }
+        bootstrap.Modal.getInstance(modalEl)?.hide();
+        keoiToast(j.created ? 'KEOI flag added.' : 'KEOI flag updated.', 'success');
+        renderKeoi(legId, j.keoi, currentLegLabel);
+      })
+      .catch(() => { saveBtn.disabled = false; showError('Network error — please try again.'); });
+  });
+
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function () {
+      const reason = window.prompt('Reason for removing this KEOI flag (required):');
+      if (reason === null) return;                 // user cancelled
+      if (!reason.trim()) { showError('A reason is required to remove a KEOI flag.'); return; }
+      const legId = legIdInput.value;
+      removeBtn.disabled = true;
+      fetch(REMOVE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ leg_id: legId, reason: reason }),
+      })
+        .then(r => r.json())
+        .then(j => {
+          removeBtn.disabled = false;
+          if (!j.success) { showError(j.error || 'Could not remove the flag.'); return; }
+          bootstrap.Modal.getInstance(modalEl)?.hide();
+          keoiToast('KEOI flag removed.', 'success');
+          renderKeoi(legId, null, currentLegLabel);
+        })
+        .catch(() => { removeBtn.disabled = false; showError('Network error — please try again.'); });
+    });
+  }
+})();
+</script>

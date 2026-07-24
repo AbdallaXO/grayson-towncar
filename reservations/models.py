@@ -1339,6 +1339,14 @@ class Leg(models.Model):
         return bool(self.pickup_time_changed_at and (self.pickup_change_ack_at is None or self.pickup_change_ack_at < self.pickup_time_changed_at))
 
     @property
+    def active_keoi(self):
+        """Active KEOI ('Keep Eye On It') flag or None. Uses the board prefetch
+        (Prefetch to_attr='active_keoi_list') when present, so no N+1."""
+        if hasattr(self, "active_keoi_list"):       # set by Prefetch(to_attr=...)
+            return self.active_keoi_list[0] if self.active_keoi_list else None
+        return self.keoi_flags.filter(closed_at__isnull=True).first()
+
+    @property
     def overnight_date_status(self):
         """Board badge state for the overnight-arrival ambiguity: None for legs
         outside the 12 AM-6 AM tracked-arrival window, else 'confirmed' /
@@ -3202,6 +3210,91 @@ class LegStatus(models.Model):
 
     def __str__(self):
         return f"Leg #{self.leg.id} - {self.get_status_display()} at {self.timestamp}"
+
+
+class LegKeoi(models.Model):
+    """'Keep Eye On It' — dispatcher-raised watch flag on ONE leg.
+
+    Active while closed_at IS NULL. Auto-closes when the leg reaches a terminal
+    status; auto-reactivates if the leg leaves it (unless admin-removed).
+    operational_status is workflow color only — it NEVER hides the flag.
+    """
+
+    class Category(models.TextChoices):
+        TIGHT_SCHEDULE       = "tight_schedule", "Tight Schedule"
+        DRIVER_CONFLICT      = "driver_conflict", "Possible Driver Conflict"
+        FLIGHT_DELAY         = "flight_delay", "Flight Delay Risk"
+        PASSENGER_READINESS  = "passenger_readiness", "Passenger Readiness Risk"
+        TRAFFIC              = "traffic", "Traffic Risk"
+        WAITING_INFO         = "waiting_info", "Waiting on Information"
+        OTHER                = "other", "Other"
+
+    class OperationalStatus(models.TextChoices):
+        NEEDS_ATTENTION = "needs_attention", "Needs Attention"
+        BEING_MONITORED = "being_monitored", "Being Monitored"
+        BACKUP_ARRANGED = "backup_arranged", "Backup Arranged"
+
+    class ClosedReason(models.TextChoices):
+        LEG_COMPLETED = "leg_completed", "Leg Completed"
+        LEG_CANCELLED = "leg_cancelled", "Leg Cancelled"
+        ADMIN_REMOVED = "admin_removed", "Removed by Admin"
+
+    leg = models.ForeignKey("Leg", on_delete=models.CASCADE, related_name="keoi_flags")
+    category = models.CharField(max_length=30, choices=Category.choices)
+    description = models.TextField()  # required; enforced in views (codebase uses no forms for AJAX)
+    operational_status = models.CharField(
+        max_length=20,
+        choices=OperationalStatus.choices,
+        default=OperationalStatus.NEEDS_ATTENTION,
+    )
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="keoi_created",
+    )
+    created_at = models.DateTimeField(default=timezone.now)   # not auto_now_add (tests can backdate; matches LegStatus)
+    updated_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="keoi_updated",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_reason = models.CharField(
+        max_length=20, choices=ClosedReason.choices, null=True, blank=True,
+    )
+    closed_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="keoi_closed",
+    )
+    removal_reason = models.TextField(blank=True, default="")  # required iff admin_removed
+
+    TERMINAL_LEG_STATUSES = ("completed", "cancelled")
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["leg", "-created_at"])]
+        permissions = [("remove_keoi", "Can remove KEOI flags (with reason)")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["leg"],
+                condition=models.Q(closed_at__isnull=True),
+                name="uniq_active_keoi_per_leg",
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(closed_at__isnull=True, closed_reason__isnull=True)
+                    | models.Q(closed_at__isnull=False, closed_reason__isnull=False)
+                ),
+                name="keoi_closed_fields_paired",
+            ),
+        ]
+
+    @property
+    def is_active(self):
+        return self.closed_at is None
+
+    def __str__(self):
+        state = "active" if self.is_active else f"closed:{self.closed_reason}"
+        return f"KEOI Leg #{self.leg_id} - {self.get_category_display()} ({state})"
 
 
 class DriverLocation(models.Model):

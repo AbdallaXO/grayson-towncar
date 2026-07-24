@@ -520,7 +520,65 @@
       }
       .time-change-ack-btn:hover { background: #7b1fa2; border-color: #7b1fa2; color: #fff; }
 
-
+      /* KEOI ("Keep Eye On It") watch flag — teal, the one calm unclaimed hue
+         (danger red, warning amber, VIP/history golds, time-changed purple are
+         all taken). Never color-only: binoculars icon + "KEOI" + category text.
+         Row tint yields to safety colors like VIP does; the right-edge rail
+         never yields (the left edge belongs to flight flags / VIP). */
+      tr.leg-keoi:not(.table-danger):not(.table-warning):not(.leg-time-changed) > td {
+          background-color: rgba(13,148,136,.07) !important;
+      }
+      tr.leg-keoi > td:last-child { box-shadow: inset -4px 0 0 0 #111827; }
+      .card.leg-keoi { box-shadow: inset -4px 0 0 0 #111827; }
+      .keoi-badge {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: #e6fffa; color: #111827; border: 2px solid #111827;
+          font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 8px;
+          min-height: 28px; line-height: 1.1; white-space: nowrap; cursor: pointer;
+          text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+      }
+      .keoi-badge .bi-binoculars-fill { color: #0d9488; font-size: 0.82rem; }
+      .keoi-badge:hover { background: #ccfbf1; }
+      .keoi-badge:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
+      .keoi-badge-readonly { cursor: default; }
+      .keoi-badge-cat { font-weight: 700; }
+      .keoi-status-pill {
+          display: inline-flex; align-items: center; gap: 3px;
+          font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+      }
+      .keoi-status-pill::before {
+          content: ""; display: inline-block; width: 6px; height: 6px;
+          border-radius: 50%; background: currentColor;
+      }
+      .keoi-status-needs_attention { background: #fff1f2; color: #be123c; }
+      .keoi-status-being_monitored { background: #fffbeb; color: #b45309; }
+      .keoi-status-backup_arranged { background: #ecfdf5; color: #047857; }
+      .keoi-add-btn { color: #0f766e; }
+      .keoi-add-btn:hover { color: #0d9488; }
+      .keoi-pill { font-size: 0.72rem; }
+      .keoi-pill-off { background: #e6fffa; color: #0f766e; border: 1px solid #0d9488; }
+      .keoi-pill-off:hover { background: #ccfbf1; }
+      .keoi-pill-on { background: #0d9488; color: #fff; border: 1px solid #0d9488; }
+      .keoi-pill-on:hover { background: #0f766e; color: #fff; }
+      .keoi-modal-header { background: #0d9488; color: #fff; }
+      .keoi-save-btn { background: #0d9488; border-color: #0d9488; color: #fff; }
+      .keoi-save-btn:hover { background: #0f766e; border-color: #0f766e; color: #fff; }
+      .keoi-meta { border-top: 1px solid #eee; padding-top: 8px; }
+      /* Timeline KEOI marker — high-contrast black chip so it reads at ~8px on a
+         dense, colorful timeline; teal eye keeps the KEOI identity. */
+      .tl-keoi-flag {
+          background: #111827; color: #5eead4; font-weight: 800;
+          font-size: 0.58rem; line-height: 1; padding: 1px 3px; border-radius: 2px;
+          margin-left: 2px; flex-shrink: 0; border: 1px solid #5eead4;
+      }
+      .timeline-slot.has-keoi { box-shadow: inset 0 0 0 2px #111827; }
+      /* KEOI banner inside the timeline hover popup */
+      .tl-keoi-banner {
+          background: #e6fffa; color: #0f766e; border: 1px solid #0d9488;
+          border-radius: 6px; padding: 4px 8px; margin: 4px 0; font-weight: 700;
+          font-size: 0.72rem;
+      }
+      .tl-keoi-desc { white-space: pre-wrap; font-weight: 400; margin-top: 2px; color: #134e4a; }
 
   </style>
 {% endblock extra_css %}
@@ -739,19 +797,19 @@
       <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-2 align-items-center">
           <span class="text-muted small fw-semibold me-2">Trip:</span>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=arrival{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=arrival{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}{% if keoi_filter %}&keoi={{ keoi_filter }}{% endif %}"
              class="badge {% if trip_type_filter == 'arrival' %}bg-primary text-white{% else %}bg-light border border-primary text-primary{% endif %} text-decoration-none">
             Arrivals
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=return{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=return{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}{% if keoi_filter %}&keoi={{ keoi_filter }}{% endif %}"
              class="badge {% if trip_type_filter == 'return' %}bg-success text-white{% else %}bg-light border border-success text-success{% endif %} text-decoration-none">
             Returns
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=cruise{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=cruise{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}{% if keoi_filter %}&keoi={{ keoi_filter }}{% endif %}"
              class="badge {% if trip_type_filter == 'cruise' %}bg-info text-white{% else %}bg-light border border-info text-info{% endif %} text-decoration-none">
             Cruise
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}{% if keoi_filter %}&keoi={{ keoi_filter }}{% endif %}"
              class="badge {% if not trip_type_filter %}bg-dark text-white{% else %}bg-secondary text-white{% endif %} text-decoration-none">
             All
           </a>
@@ -759,16 +817,30 @@
           <span class="text-muted mx-1">|</span>
           <span class="text-muted small fw-semibold me-1">Vehicle:</span>
           {% for vc in vehicle_type_counts %}
-            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}&vehicle={{ vc.type }}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}&vehicle={{ vc.type }}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}{% if keoi_filter %}&keoi={{ keoi_filter }}{% endif %}"
                class="badge text-decoration-none {% if vehicle_filter == vc.type %}text-white{% else %}bg-light border text-dark{% endif %}"
                style="{% if vehicle_filter == vc.type %}background:#495057;{% endif %}font-size:0.72rem;">
               {{ vc.label }} <span style="opacity:0.75;">({{ vc.count }})</span>
             </a>
           {% endfor %}
           {% if vehicle_filter %}
-            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}{% if keoi_filter %}&keoi={{ keoi_filter }}{% endif %}"
                class="badge bg-secondary text-white text-decoration-none" style="font-size:0.72rem;">
               All
+            </a>
+          {% endif %}
+          {% endif %}
+          {% if keoi_count or keoi_filter %}
+          <span class="text-muted mx-1">|</span>
+          {% if keoi_filter == 'active' %}
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
+               class="badge text-decoration-none keoi-pill keoi-pill-on" title="Showing only flagged legs — click to clear">
+              <i class="bi bi-binoculars-fill me-1"></i>KEOI ({{ keoi_count }}) <i class="bi bi-x-lg ms-1"></i>
+            </a>
+          {% else %}
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}&keoi=active"
+               class="badge text-decoration-none keoi-pill keoi-pill-off" title="Show only legs flagged Keep-Eye-On-It">
+              <i class="bi bi-binoculars-fill me-1"></i>KEOI ({{ keoi_count }})
             </a>
           {% endif %}
           {% endif %}
@@ -1077,7 +1149,7 @@
             <tbody>
               {% for leg in legs %}
                 {% with flag=leg.flight_timing_flag %}
-                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if leg.has_unacked_time_change %}leg-time-changed{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
+                  <tr class="align-middle {% if leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}table-warning{% endif %} {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if leg.has_unacked_time_change %}leg-time-changed{% endif %} {% if leg.active_keoi %}leg-keoi{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       data-leg-status="{{ leg.status }}"
                       {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
@@ -1093,6 +1165,8 @@
                         {% if leg.reservation.has_pending_refund %}
                         <div class="mt-1"><span class="refund-badge" title="A refund is in progress for this trip — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span></div>
                         {% endif %}
+                        {# KEOI slot — always rendered (empty when no flag) so renderKeoi can inject without a reload #}
+                        <div class="keoi-slot mt-1" data-leg-id="{{ leg.id }}">{% include "dispatching/includes/_keoi_badge.html" with keoi=leg.active_keoi leg=leg %}</div>
                         <div class="small text-muted">
                           <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                              class="text-decoration-underline">Reservation ID #{{ leg.reservation.id }}</a>
@@ -1593,6 +1667,14 @@
                              class="btn btn-sm btn-link p-0 text-decoration-none">
                             <i class="bi bi-eye me-1"></i>View
                           </a>
+                          <button type="button"
+                                  class="btn btn-sm btn-link p-0 text-decoration-none keoi-add-btn{% if leg.active_keoi %} d-none{% endif %}"
+                                  data-keoi-leg-id="{{ leg.id }}"
+                                  data-keoi-leg-label="{{ leg.reservation.customer.get_full_name }} · {{ leg.pickup_time|time:'g:i A' }} · Res #{{ leg.reservation.id }}"
+                                  data-bs-toggle="modal"
+                                  data-bs-target="#keoiModal">
+                            <i class="bi bi-binoculars-fill me-1"></i>KEOI
+                          </button>
                         </div>
                       </form>
                     </td>
@@ -1621,7 +1703,7 @@
             {% for leg in legs %}
               {% with flag=leg.flight_timing_flag %}
                 <div class="col-12" id="leg-card-{{ leg.id }}" data-leg-status="{{ leg.status }}">
-                  <div class="card shadow-sm {% if leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if flag.level == 'alert' %}border-start border-4 border-danger{% elif flag.level == 'watch' %}border-start border-4 border-warning{% endif %} {% if leg.has_unacked_time_change %}leg-time-changed{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
+                  <div class="card shadow-sm {% if leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}border-warning{% endif %} {% if flag.level == 'alert' %}border-start border-4 border-danger{% elif flag.level == 'watch' %}border-start border-4 border-warning{% endif %} {% if leg.has_unacked_time_change %}leg-time-changed{% endif %} {% if leg.active_keoi %}leg-keoi{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
                     <div class="card-header {% if leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' or leg.afterhours_owed %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                       <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold">
@@ -1636,6 +1718,8 @@
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                            class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
                       </div>
+                      {# KEOI slot (mobile) — always rendered so renderKeoi can inject without a reload #}
+                      <div class="keoi-slot mt-1" data-leg-id="{{ leg.id }}">{% include "dispatching/includes/_keoi_badge.html" with keoi=leg.active_keoi leg=leg %}</div>
                       <div class="text-muted small">
                         <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
                       </div>
@@ -1980,13 +2064,21 @@
                               {% endif %}
                             </div>
                           {% endif %}{% endif %}
-                          <div class="mt-1">
+                          <div class="mt-1 d-flex gap-3 flex-wrap">
                             <button type="button"
                                     class="btn btn-sm btn-link p-0 text-decoration-none leg-history-btn"
                                     data-leg-id="{{ leg.id }}"
                                     data-bs-toggle="modal"
                                     data-bs-target="#legHistoryModal">
                               <i class="bi bi-journal-text me-1"></i>View Leg History
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-link p-0 text-decoration-none keoi-add-btn{% if leg.active_keoi %} d-none{% endif %}"
+                                    data-keoi-leg-id="{{ leg.id }}"
+                                    data-keoi-leg-label="{{ leg.reservation.customer.get_full_name }} · {{ leg.pickup_time|time:'g:i A' }} · Res #{{ leg.reservation.id }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#keoiModal">
+                              <i class="bi bi-binoculars-fill me-1"></i>KEOI
                             </button>
                           </div>
                           <div class="d-grid mt-2">
@@ -4352,12 +4444,23 @@
 
           const tripLabels = {arrival: 'Arrival', return: 'Return', cruise: 'Cruise', other: 'Other'};
 
+          // Local escaper — this IIFE has none, and the KEOI description is user text.
+          const escapeHtml = (s) => (s == null ? '' : String(s).replace(/[&<>"']/g,
+              c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+
           function showPopup(el, e) {
               if (window._gapPopupActive) return;
               const trip = el.dataset.trip || 'other';
               const label = tripLabels[trip] || 'Trip';
               let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
               html += '<div class="tl-popup-body">';
+              if (el.dataset.keoiCategoryLabel) {
+                  html += '<div class="tl-keoi-banner"><i class="bi bi-binoculars-fill"></i> KEOI · '
+                       + escapeHtml(el.dataset.keoiCategoryLabel)
+                       + (el.dataset.keoiStatusLabel ? ' · ' + escapeHtml(el.dataset.keoiStatusLabel) : '')
+                       + (el.dataset.keoiDesc ? '<div class="tl-keoi-desc">' + escapeHtml(el.dataset.keoiDesc) + '</div>' : '')
+                       + '</div>';
+              }
               html += '<div class="tl-popup-row"><span class="tl-label">Pickup</span><span class="tl-value">' + (el.dataset.pickup || '') + '</span></div>';
               html += '<div class="tl-popup-row"><span class="tl-label">Dropoff</span><span class="tl-value">' + (el.dataset.dropoff || '') + '</span></div>';
               if (el.dataset.vehicle) {
@@ -4805,6 +4908,9 @@
       </div>
     </div>
   </div>
+
+  {# KEOI ("Keep Eye On It") modal — singleton, populated from the trigger's data-* attrs #}
+  {% include "dispatching/includes/_keoi_modal.html" %}
 
   <style>
       .spin {

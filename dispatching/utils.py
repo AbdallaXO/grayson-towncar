@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from payment.models import Payment
 from drivers.models import Driver
-from reservations.models import Leg, LegStatus
+from reservations.models import Leg, LegStatus, LegKeoi
 
 
 def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None, 
@@ -55,6 +55,11 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             "legflight_set",  # leg.legflight_set count in list templates (avoid per-row N+1)
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
             Prefetch("status_history", queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')),
+            Prefetch(
+                "keoi_flags",
+                queryset=LegKeoi.objects.filter(closed_at__isnull=True).select_related("created_by"),
+                to_attr="active_keoi_list",
+            ),
         )
 
     # Exclude cancelled reservations and cancelled legs - they should be hidden from normal operations

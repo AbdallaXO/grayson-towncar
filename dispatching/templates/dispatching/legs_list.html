@@ -76,6 +76,32 @@
           border: 1px solid #e8b923 !important;
           font-weight: 800 !important;
       }
+      /* KEOI ("Keep Eye On It") read-only badge (Legs List — the future-dates surface). */
+      tr.leg-keoi:not(.table-danger):not(.table-warning):not(.leg-vip) > td {
+          background-color: rgba(13,148,136,.07) !important;
+      }
+      tr.leg-keoi > td:last-child { box-shadow: inset -4px 0 0 0 #111827; }
+      .keoi-badge {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: #e6fffa; color: #111827; border: 2px solid #111827;
+          font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 8px;
+          min-height: 28px; line-height: 1.1; white-space: nowrap; text-align: left;
+          box-shadow: 0 1px 2px rgba(0,0,0,.2);
+      }
+      .keoi-badge .bi-binoculars-fill { color: #0d9488; font-size: 0.82rem; }
+      .keoi-badge-readonly { cursor: default; }
+      .keoi-badge-cat { font-weight: 700; }
+      .keoi-status-pill {
+          display: inline-flex; align-items: center; gap: 3px;
+          font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+      }
+      .keoi-status-pill::before {
+          content: ""; display: inline-block; width: 6px; height: 6px;
+          border-radius: 50%; background: currentColor;
+      }
+      .keoi-status-needs_attention { background: #fff1f2; color: #be123c; }
+      .keoi-status-being_monitored { background: #fffbeb; color: #b45309; }
+      .keoi-status-backup_arranged { background: #ecfdf5; color: #047857; }
   </style>
 {% endblock extra_css %}
 
@@ -349,7 +375,7 @@
           <tbody>
             {% for leg in legs %}
               {% with flag=leg.flight_timing_flag %}
-                <tr class="align-middle {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %}"
+                <tr class="align-middle {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if leg.active_keoi %}leg-keoi{% endif %}"
                     {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
                   <!-- Customer dark -->
                   <td>
@@ -361,6 +387,9 @@
                         <span class="badge vip-badge ms-1" title="VIP reservation"><i class="bi bi-star-fill me-1"></i>VIP</span>
                       {% endif %}
                     </div>
+                    {% if leg.active_keoi %}
+                      <div class="mb-1">{% include "dispatching/includes/_keoi_badge.html" with keoi=leg.active_keoi leg=leg readonly=True %}</div>
+                    {% endif %}
                     <div class="text-muted small">
                       <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
                     </div>

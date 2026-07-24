@@ -833,3 +833,57 @@ def log_leg_changes(sender, instance, created, **kwargs):
                 del instance._pre_save_old_values
     except Exception as e:
         logger.error(f"Error logging leg changes: {e}", exc_info=True)
+
+
+# ── KEOI ("Keep Eye On It") auto-close / auto-reactivate ──
+# Central enforcement point for the KEOI flag lifecycle. Every terminal leg
+# status transition happens via instance .save() with 'status' in update_fields
+# (board AJAX, driver portal, bulk, refund-cancellation), so this pair catches
+# them all. The only queryset .update() on status (dispatching/views.py bulk
+# driver reset) provably never crosses a terminal boundary — see the KEOI note
+# there. Uses a DEDICATED _keoi_old_status attribute because log_leg_changes
+# above deletes _pre_save_old_values and receiver order is module-position-
+# dependent (so this pair must not share that attribute).
+
+_KEOI_UNSET = object()  # sentinel: distinguishes "pre_save didn't capture status"
+#                         from a leg whose DB status is genuinely NULL (Leg.status
+#                         is nullable — legacy rows exist). None is a real old value.
+
+
+@receiver(pre_save, sender=Leg)
+def keoi_store_old_status(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+    uf = kwargs.get("update_fields")
+    if uf is not None and "status" not in uf:
+        return                                    # same skip-guard as store_leg_old_values
+    instance._keoi_old_status = (
+        Leg.objects.filter(pk=instance.pk).values_list("status", flat=True).first()
+    )
+
+
+@receiver(post_save, sender=Leg)
+def keoi_sync_on_status_change(sender, instance, created, **kwargs):
+    if created:
+        return
+    old = getattr(instance, "_keoi_old_status", _KEOI_UNSET)
+    if hasattr(instance, "_keoi_old_status"):
+        del instance._keoi_old_status
+    if old is _KEOI_UNSET:
+        return                                    # status not touched this save
+    new = instance.status
+    if old == new:
+        return
+    try:
+        from reservations.keoi import close_active_keoi, reactivate_keoi
+        TERMINAL = ("completed", "cancelled")
+        if new in TERMINAL and old not in TERMINAL:
+            close_active_keoi(
+                instance,
+                reason="leg_completed" if new == "completed" else "leg_cancelled",
+            )
+        elif old in TERMINAL and new not in TERMINAL:
+            reactivate_keoi(instance)
+    except Exception as e:
+        # Never let the KEOI sync break a status write.
+        logger.error(f"Error syncing KEOI on status change for leg {getattr(instance, 'id', '?')}: {e}", exc_info=True)

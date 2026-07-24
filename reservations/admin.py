@@ -1337,12 +1337,20 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
     @admin.action(description="Mark selected reservations as completed")
     def mark_as_completed(self, request, queryset):
         updated = queryset.update(status="completed")
-        # Also update all legs for these reservations
-        from django.db.models import F
+        # Also complete all legs for these reservations. (Was
+        # update(status=F("reservation__status")) — a joined field reference in
+        # an UPDATE, which Django forbids and always raised FieldError; the
+        # reservations were just set to "completed" above, so a literal is the
+        # correct equivalent.)
+        from reservations.keoi import close_active_keoi
 
-        Leg.objects.filter(reservation__in=queryset).update(
-            status=F("reservation__status")
-        )
+        affected_legs = list(Leg.objects.filter(reservation__in=queryset))
+        Leg.objects.filter(reservation__in=queryset).update(status="completed")
+        # A bulk .update() bypasses the Leg pre/post_save signals, so the KEOI
+        # auto-close pair never fires — close any active watch flags explicitly
+        # (idempotent per leg; no-op when there's no active flag).
+        for leg in affected_legs:
+            close_active_keoi(leg, reason="leg_completed", actor=request.user)
         self.message_user(
             request, f"{updated} reservations have been marked as completed."
         )
@@ -1569,7 +1577,14 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
 
     @admin.action(description="Mark selected legs as completed")
     def mark_as_completed(self, request, queryset):
+        from reservations.keoi import close_active_keoi
+
+        affected_legs = list(queryset)
         updated = queryset.update(status="completed")
+        # Bulk .update() bypasses the Leg signals, so the KEOI auto-close pair
+        # never fires — close any active watch flags explicitly (idempotent).
+        for leg in affected_legs:
+            close_active_keoi(leg, reason="leg_completed", actor=request.user)
         self.message_user(request, f"{updated} legs have been marked as completed.")
 
     @admin.display(description="Revenue")

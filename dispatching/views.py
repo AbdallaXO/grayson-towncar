@@ -31,7 +31,7 @@ from django.db.models import OuterRef, Subquery, Exists
 
 # App imports
 
-from reservations.models import Reservation, Leg, Customer, Flight, LegStatus, RefundRequest, LegStop, LegFlight
+from reservations.models import Reservation, Leg, Customer, Flight, LegStatus, LegKeoi, RefundRequest, LegStop, LegFlight
 from reservations.utils import _run_in_background
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
@@ -130,6 +130,7 @@ def index(request):
     driver_filter = request.GET.get("driver")
     trip_type_filter = request.GET.get("trip_type")
     vehicle_filter = request.GET.get("vehicle")
+    keoi_filter = request.GET.get("keoi")
     highlight_leg_id = request.GET.get("highlight")
 
     try:
@@ -166,6 +167,11 @@ def index(request):
             Prefetch(
                 "status_history",
                 queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
+            ),
+            Prefetch(
+                "keoi_flags",
+                queryset=LegKeoi.objects.filter(closed_at__isnull=True).select_related("created_by"),
+                to_attr="active_keoi_list",
             ),
         )
         .annotate(
@@ -217,6 +223,12 @@ def index(request):
             if leg.get_trip_type() == trip_type_filter:
                 filtered_legs.append(leg)
         legs = filtered_legs
+
+    # KEOI ("Keep Eye On It") filter — count basis is the whole day (matches
+    # vehicle_type_counts semantics); reads leg.active_keoi (prefetched, no query).
+    keoi_count = sum(1 for l in _all_day_legs if l.active_keoi)
+    if keoi_filter == "active":
+        legs = [l for l in legs if l.active_keoi]
 
     # Vehicle type counts for the day (from already-fetched legs, no extra query)
     _vtype_counter = {}
@@ -547,6 +559,9 @@ def index(request):
     # Build compact driver timeline for in-house drivers with assignments
     # Reuse _all_day_legs (already fetched with all select_related + prefetch) — no extra query
     _all_legs_for_timeline = _all_day_legs
+    # O(1) leg lookup, hoisted here so the timeline slot loop can attach KEOI data
+    # (also reused for the unassigned-slot build below).
+    _leg_by_id = {_l.id: _l for _l in _all_legs_for_timeline}
     _all_inhouse = [row["driver"] for row in inhouse_driver_rows if not row.get("is_off_today")]
     # PERF TEMP START
     _t_sched = _time.monotonic()
@@ -697,6 +712,12 @@ def index(request):
             _slot.status_label = _sinfo['status_label'] if _sinfo else ''
             _slot.status_time = _sinfo['status_time'] if _sinfo else ''
             _slot.status_ago = _sinfo['status_ago'] if _sinfo else ''
+            # KEOI watch flag (prefetched — no query)
+            _kd = _slot_keoi(_leg_by_id.get(_slot.leg_id))
+            _slot.keoi_category = _kd['keoi_category']
+            _slot.keoi_category_label = _kd['keoi_category_label']
+            _slot.keoi_status_label = _kd['keoi_status_label']
+            _slot.keoi_desc = _kd['keoi_desc']
         # Gaps
         _gaps = []
         for _i in range(len(_sched.slots) - 1):
@@ -753,7 +774,7 @@ def index(request):
         })
 
     # Build unassigned timeline slots for drag-and-drop
-    _leg_by_id = {_l.id: _l for _l in _all_legs_for_timeline}  # O(1) lookup
+    # (_leg_by_id was hoisted above so the timeline slot loop could attach KEOI data)
     _unassigned_timeline_slots = []
     for _gc in _gap_candidates:
         if _gc['source'] != 'unassigned':
@@ -841,6 +862,8 @@ def index(request):
         "driver_filter": driver_filter,
         "trip_type_filter": trip_type_filter,
         "vehicle_filter": vehicle_filter,
+        "keoi_filter": keoi_filter,
+        "keoi_count": keoi_count,
         "vehicle_type_counts": vehicle_type_counts,
         "total_legs": len(legs),
         "afterhours_owed_count": afterhours_owed_count,
@@ -930,6 +953,11 @@ def schedule_board(request):
             "legflight_set",
             Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp")),
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+            Prefetch(
+                "keoi_flags",
+                queryset=LegKeoi.objects.filter(closed_at__isnull=True).select_related("created_by"),
+                to_attr="active_keoi_list",
+            ),
         )
         .order_by("pickup_time")
     )
@@ -1087,11 +1115,34 @@ def schedule_board(request):
                 _mins = (_ago_secs % 3600) // 60
                 _ago_str = f"{_hrs}h {_mins}m ago" if _mins else f"{_hrs}h ago"
             _status_label = dict(LegStatus.STATUS_CHOICES).get(_latest.status, _latest.status).title()
+            # Actual pickup + clear timestamps (naive local, to match the pill's
+            # datetime.combine(day, pickup_time) math). _sh_list is newest-first, so
+            # overwriting keeps the EARLIEST occurrence — the true start / first clear.
+            _picked_up_local = None
+            _completed_local = None
+            for _sh in _sh_list:
+                if _sh.status == 'picked-up':
+                    _picked_up_local = timezone.localtime(_sh.timestamp).replace(tzinfo=None)
+                elif _sh.status == 'completed':
+                    _completed_local = timezone.localtime(_sh.timestamp).replace(tzinfo=None)
             _leg_status_map[leg.id] = {
                 'status_label': _status_label,
                 'status_time': _local_ts.strftime('%I:%M %p').lstrip('0'),
                 'status_ago': _ago_str,
+                'picked_up_dt': _picked_up_local,
+                'completed_dt': _completed_local,
             }
+
+    # ── "Now" + left-edge anchors for truthful pill geometry ──────────────────
+    # Naive local, to match the datetime.combine(selected_date, pickup_time) math the
+    # pills already use. Reality (actual pickup / clear / now) is applied in local time.
+    _now_local_naive = timezone.localtime(_now).replace(tzinfo=None)
+    _board_is_today_geom = (selected_date == _now_local_naive.date())
+    _day_left_dt = datetime.combine(selected_date, datetime.min.time()) + timedelta(hours=display_start)
+
+    def _mins_from_left(_dt):
+        """Minutes from the board's left edge for a naive-local datetime (rollover-safe)."""
+        return (_dt - _day_left_dt).total_seconds() / 60.0
 
     # Get previous day's last leg per driver (for overnight turnaround display)
     prev_day = selected_date - timedelta(days=1)
@@ -1200,13 +1251,75 @@ def schedule_board(request):
         _pref_short = _PREF_SHORT.get(_pref, '')
 
         for slot in sched.slots:
-            _start_min = (slot.pickup_time.hour - display_start) * 60 + slot.pickup_time.minute
-            _dur = _slot_duration_minutes(
-                selected_date, slot.pickup_time, slot.estimated_end_time)
+            _sinfo = _leg_status_map.get(slot.leg_id)
+
+            # ── Truthful pill geometry ───────────────────────────────────────
+            # Resolve the pill's effective start/end from REALITY wherever it's known
+            # (actual pickup / actual clear / still-running-now), estimate otherwise.
+            _span = _truthful_pill_span(
+                sched_start_dt=datetime.combine(selected_date, slot.pickup_time),
+                est_end_dt=slot.estimated_end_time,
+                status=slot.status,
+                trip_type=slot.trip_type,
+                picked_up_dt=(_sinfo.get('picked_up_dt') if _sinfo else None),
+                completed_dt=(_sinfo.get('completed_dt') if _sinfo else None),
+                now_dt=_now_local_naive,
+                is_today=_board_is_today_geom,
+            )
+            slot.late_start = _span['late_start']
+            slot.late_start_mins = _span['late_start_mins']
+            slot.actual_pickup_display = (
+                _span['actual_pickup_dt'].strftime('%I:%M %p').lstrip('0')
+                if _span['actual_pickup_dt'] else '')
+            slot.overrunning = _span['overrunning']
+            slot.overrun_mins = _span['overrun_mins']
+            slot.cleared_is_actual = _span['cleared_is_actual']
+            slot.pickup_overdue = _span['pickup_overdue']
+            slot.pickup_overdue_mins = _span['pickup_overdue_mins']
+            slot.pickup_stalled = _span['pickup_stalled']
+            slot.overrun_from_pct = None
+
+            # Live GPS "will he make the pickup?" band (Samsara sweep), when fresh, folded
+            # together with the clock flags into one escalating risk cue. The dispatch_*
+            # columns are already loaded on the leg; we only READ them (the sweep owns
+            # writing). Only a PICKUP-deadline target with fresh telematics counts.
+            _risk_leg = _leg_by_id_overlay.get(slot.leg_id)
+            _gps_status, _gps_eta, _gps_reason = '', None, ''
+            if (_board_is_today_geom and _risk_leg is not None
+                    and getattr(_risk_leg, 'dispatch_eta_is_fresh', False)
+                    and (_risk_leg.dispatch_eta_target or '') in _GPS_PICKUP_TARGETS):
+                _gps_status = _risk_leg.dispatch_risk_status or ''
+                _gps_eta = _risk_leg.dispatch_eta_minutes
+                _gps_reason = _risk_leg.dispatch_risk_reason or ''
+            _risk = _pickup_risk(
+                pickup_overdue=slot.pickup_overdue, pickup_stalled=slot.pickup_stalled,
+                overdue_mins=slot.pickup_overdue_mins,
+                gps_status=_gps_status, gps_eta_mins=_gps_eta, gps_reason=_gps_reason)
+            slot.risk_tier = _risk['tier']
+            slot.risk_source = _risk['source']
+            slot.risk_label = _risk['label']
+            slot.risk_reason = _risk['reason']
+            slot.gps_eta_mins = _gps_eta if _gps_status else None
+
+            _start_min = _mins_from_left(_span['eff_start'])
+            _dur = max(_mins_from_left(_span['eff_end']) - _start_min, _SLOT_FLOOR_MIN)
             slot.position_pct = round(max(0, _start_min / total_display_minutes * 100), 1)
             slot.width_pct = round(min(_dur / total_display_minutes * 100, 100 - slot.position_pct), 1)
-            slot.end_time_display = slot.estimated_end_time.strftime('%I:%M').lstrip('0')
-            _sinfo = _leg_status_map.get(slot.leg_id)
+
+            # Where the over-schedule hatch begins WITHIN the pill (est end → now), as a
+            # % of the pill's own width, so only the overrun portion is marked.
+            if slot.overrunning and _span['est_end'] is not None:
+                _frac = (_mins_from_left(_span['est_end']) - _start_min) / _dur
+                slot.overrun_from_pct = round(min(max(_frac, 0.0), 1.0) * 100, 1)
+
+            # Clearing read-out for the popup: the ACTUAL time (no tilde) once complete,
+            # the estimate (tilde added in the template) while still projected.
+            if slot.cleared_is_actual:
+                slot.end_time_display = _span['eff_end'].strftime('%I:%M %p').lstrip('0')
+            else:
+                slot.end_time_display = (_span['est_end'].strftime('%I:%M %p').lstrip('0')
+                                         if _span['est_end'] is not None else '')
+
             slot.status_label = _sinfo['status_label'] if _sinfo else ''
             slot.status_time = _sinfo['status_time'] if _sinfo else ''
             slot.status_ago = _sinfo['status_ago'] if _sinfo else ''
@@ -1220,6 +1333,8 @@ def schedule_board(request):
             slot.time_changed = bool(getattr(_sleg, 'draft_time_changed', False)) if _sleg else False
             slot.old_time = getattr(_sleg, 'draft_old_time', None) if _sleg else None
             for _k, _v in _slot_notes(_sleg).items():
+                setattr(slot, _k, _v)
+            for _k, _v in _slot_keoi(_sleg).items():
                 setattr(slot, _k, _v)
 
         # Affiliate capacity read-out (replaces the vehicle column on that board).
@@ -1374,6 +1489,7 @@ def schedule_board(request):
             # hover popup via `pickup_display`.
             'pickup_short': pt.strftime('%I:%M').lstrip('0'),
             **_slot_notes(leg),
+            **_slot_keoi(leg),
             'customer': _customer,
             'pickup_location': leg.pickup_location or '',
             'dropoff_location': leg.dropoff_location or '',
@@ -2538,6 +2654,20 @@ _UNASSIGNED_LANE_GAP = 2
 _DRIVER_LANE_H = 30       # px per stacked bar in a driver row (matches .timeline-slot)
 _DRIVER_LANE_GAP = 2
 
+# Timeline pill geometry (schedule board). A pill is drawn from REALITY wherever
+# reality is known and from the estimate only for what hasn't happened yet.
+_SLOT_FLOOR_MIN = 15      # a pill always spans at least this many min (pixel/hover visibility)
+_LATE_START_MIN = 10      # a departure picked up >= this many min after its scheduled
+                          # pickup is flagged as a late start (earliest downstream-risk signal)
+_PICKUP_OVERDUE_MIN = 3   # the pickup time has passed by >= this many min with NO pickup
+                          # recorded -> flag "pickup overdue" (a still-open job at risk)
+# Statuses that mean the driver is actively working toward this pickup. Their ABSENCE
+# once the pickup is overdue is the difference between "late but en route" and "stalled".
+_MOVING_STATUSES = ('on-the-way', 'on-location')
+# Samsara-sweep ETA targets that represent a PICKUP deadline (so the will-he-make-it
+# band is worth surfacing). 'dropoff' has no deadline; a driver mid-trip isn't at risk.
+_GPS_PICKUP_TARGETS = ('pickup', 'next_pickup')
+
 
 def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
     """Greedy interval packing: give every slot a `lane` + `lane_top` so overlapping
@@ -2630,6 +2760,28 @@ def _slot_notes(leg):
     return out
 
 
+def _slot_keoi(leg):
+    """KEOI ('Keep Eye On It') fields for a board slot/chip.
+
+    Kept separate from _slot_notes so the KEOI watch marker stays distinct from
+    the folded-corner note marker. Returns empty strings when the leg carries no
+    active flag. Reads leg.active_keoi (prefetched by the board query — no N+1).
+    """
+    _EMPTY = {'keoi_category': '', 'keoi_category_label': '',
+              'keoi_status_label': '', 'keoi_desc': ''}
+    if leg is None:
+        return dict(_EMPTY)
+    k = leg.active_keoi
+    if not k:
+        return dict(_EMPTY)
+    return {
+        'keoi_category': k.category,
+        'keoi_category_label': k.get_category_display(),
+        'keoi_status_label': k.get_operational_status_display(),
+        'keoi_desc': k.description,
+    }
+
+
 def _slot_duration_minutes(day, pickup_time, end_dt, *, floor=15):
     """Minutes a timeline slot should span, measured as a real elapsed duration.
 
@@ -2646,6 +2798,141 @@ def _slot_duration_minutes(day, pickup_time, end_dt, *, floor=15):
     if timezone.is_aware(end_naive):
         end_naive = timezone.make_naive(end_naive)
     return max(int((end_naive - pickup_dt).total_seconds() // 60), floor)
+
+
+def _truthful_pill_span(*, sched_start_dt, est_end_dt, status, trip_type,
+                        picked_up_dt, completed_dt, now_dt, is_today,
+                        late_min=_LATE_START_MIN, overdue_min=_PICKUP_OVERDUE_MIN):
+    """Resolve a timeline pill's effective start/end + risk flags from REALITY.
+
+    The board draws a pill from the plan (scheduled pickup -> estimated clear) until
+    reality is available, then lets reality bend the geometry and raise flags:
+
+      * completed          -> clamp the RIGHT edge to the ACTUAL cleared time
+                              (shrinks if it cleared early, grows if it ran late);
+      * still open & past its estimate on TODAY's board
+                           -> extend the RIGHT edge to NOW so a pill never ends in
+                              the past while the driver is still on the leg (overrun);
+      * departure picked up late (>= ``late_min`` after schedule)
+                           -> shift the LEFT edge to the ACTUAL pickup. Arrivals are
+                              flight-gated, so a "late" pickup there is the flight, not
+                              the driver, and is never flagged;
+      * PICKUP OVERDUE: the scheduled pickup has passed by >= ``overdue_min`` and NO
+                        pickup is recorded -> flag it. This catches the ABSENCE of
+                        progress, which no status badge can show. "Stalled" (the loud
+                        one) means the driver isn't even reporting movement yet.
+
+    All datetimes are naive local, matching ``datetime.combine(day, pickup_time)``.
+    Returns a dict; callers turn ``eff_start``/``eff_end`` into on-screen percentages.
+    This is a pure function (no DB, no wall clock) so the rules can be unit-tested.
+    """
+    if est_end_dt is not None and timezone.is_aware(est_end_dt):
+        est_end_dt = timezone.make_naive(est_end_dt)
+
+    out = {
+        'eff_start': sched_start_dt,
+        'eff_end': est_end_dt,
+        'est_end': est_end_dt,
+        'late_start': False,
+        'late_start_mins': 0,
+        'actual_pickup_dt': None,
+        'overrunning': False,
+        'overrun_mins': 0,
+        'cleared_is_actual': False,
+        'pickup_overdue': False,
+        'pickup_overdue_mins': 0,
+        'pickup_stalled': False,
+    }
+
+    # Has the passenger actually been collected? Trust the recorded pickup, and also
+    # the 'picked-up' status even if its timestamp wasn't captured.
+    _picked = (picked_up_dt is not None) or (status == 'picked-up')
+    _active = status not in ('completed', 'cancelled')
+
+    # LEFT edge — late-start for departures only.
+    if trip_type != 'arrival' and picked_up_dt is not None:
+        _late = (picked_up_dt - sched_start_dt).total_seconds() / 60.0
+        if _late >= late_min:
+            out['late_start'] = True
+            out['late_start_mins'] = int(round(_late))
+            out['actual_pickup_dt'] = picked_up_dt
+            out['eff_start'] = picked_up_dt
+
+    # START risk — pickup time has come and gone with no pickup recorded. Earliest sign
+    # a job is slipping, and the one thing a status badge can't show: its own absence.
+    if (is_today and _active and not _picked
+            and now_dt > sched_start_dt + timedelta(minutes=overdue_min)):
+        out['pickup_overdue'] = True
+        out['pickup_overdue_mins'] = int(round((now_dt - sched_start_dt).total_seconds() / 60.0))
+        # Stalled = not even an en-route / on-location report. That's the red one; a
+        # driver who IS moving but a little past pickup is only amber.
+        out['pickup_stalled'] = status not in _MOVING_STATUSES
+
+    # RIGHT edge — actual clear once complete; extend to now while overrunning. A job the
+    # driver never started (stalled) isn't "running long" — don't draw it as a busy bar;
+    # the pickup-overdue flag carries that case.
+    if status == 'completed' and completed_dt is not None:
+        out['eff_end'] = completed_dt
+        out['cleared_is_actual'] = True
+    elif (is_today and _active and not out['pickup_stalled']
+          and est_end_dt is not None and now_dt > est_end_dt):
+        out['eff_end'] = now_dt
+        out['overrunning'] = True
+        out['overrun_mins'] = int(round((now_dt - est_end_dt).total_seconds() / 60.0))
+
+    # A very-late pickup can land after the (stale) estimate — keep the span
+    # non-negative so the pct math and the visibility floor stay well-defined.
+    if out['eff_end'] is None or out['eff_end'] < out['eff_start']:
+        out['eff_end'] = out['eff_start']
+
+    return out
+
+
+def _pickup_risk(*, pickup_overdue, pickup_stalled, overdue_mins,
+                 gps_status, gps_eta_mins, gps_reason):
+    """Fold the live-GPS "will he make the pickup?" band together with the clock-based
+    pickup flags into ONE escalating cue, so a dispatcher sees a single signal per bar.
+
+    The GPS band (from the Samsara sweep — ``dispatch_risk_status``) is the PROACTIVE
+    signal: it fires *before* the pickup time, which is the whole point — time to line
+    up a backup before the guest is affected.
+        * ``at_risk`` — the vehicle's live ETA exceeds the time left to the pickup
+                        (he's simply too far to make it);
+        * ``watch``   — thin slack, or sitting still with the pickup coming up
+                        (not on the way soon enough);
+        * ``late``    — GPS-confirmed past the pickup, still not there.
+    The clock flags (``pickup_stalled`` / ``pickup_overdue``) are the FALLBACK for when
+    there's no fresh telematics at all — affiliates, un-onboarded vehicles, stale GPS.
+
+    Returns ``{tier, source, label, reason}``; tier is '', 'watch' or 'critical'.
+    Pure function so the precedence can be unit-tested.
+    """
+    _eta = f'{gps_eta_mins}m' if gps_eta_mins is not None else None
+
+    # ── critical: won't make it, or already blown the pickup ──
+    if gps_status == 'at_risk':
+        return {'tier': 'critical', 'source': 'gps',
+                'label': _eta if _eta else 'at risk',   # pin icon already implies "ETA"
+                'reason': gps_reason or 'GPS ETA exceeds time to pickup'}
+    if gps_status == 'late':
+        return {'tier': 'critical', 'source': 'gps',
+                'label': 'late', 'reason': gps_reason or 'Past pickup — still en route'}
+    if pickup_stalled:
+        return {'tier': 'critical', 'source': 'clock',
+                'label': f'{overdue_mins}m late',
+                'reason': f'Pickup {overdue_mins} min overdue — no driver status yet'}
+
+    # ── watch: cutting it close / not moving / past pickup but en route ──
+    if gps_status == 'watch':
+        return {'tier': 'watch', 'source': 'gps',
+                'label': _eta if _eta else 'watch',   # pin icon already implies "ETA"
+                'reason': gps_reason or 'Little slack to pickup'}
+    if pickup_overdue:
+        return {'tier': 'watch', 'source': 'clock',
+                'label': f'{overdue_mins}m late',
+                'reason': f'Pickup {overdue_mins} min overdue — driver en route'}
+
+    return {'tier': '', 'source': '', 'label': '', 'reason': ''}
 
 
 def _affiliate_feasibility(leg, driver, target_date):
@@ -11712,6 +11999,12 @@ def reset_schedule(request):
     # Completed legs lose only the driver (status sticks); everything else
     # also resets to 'in-progress' — same rule as the per-leg unassign in
     # Leg.save(), which this bulk update bypasses.
+    # KEOI invariant: this is the only queryset .update() on leg status, and it
+    # NEVER crosses a terminal boundary — the first .update() below nulls the
+    # driver on completed legs, dropping them from the lazy driver__isnull=False
+    # queryset before the second .update() forces 'in-progress' on the rest;
+    # cancelled legs are already excluded above. So the KEOI auto-reactivate
+    # signal (which only fires via instance .save()) is correctly not needed here.
     legs.filter(status="completed").update(
         driver=None, driver_assigned_by=None, driver_assigned_at=None
     )
