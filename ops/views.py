@@ -5051,6 +5051,17 @@ def staffing_board(request):
         _office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides")
     )
     data = coverage.week_coverage(monday, roster, today=today)
+
+    # For the Timeline view: hour-axis ticks and a "now" marker (% across the day).
+    now = timezone.localtime()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    now_frac = round((now - midnight).total_seconds() / 86400 * 100, 3)
+    hour_ticks = [
+        {"pos": round(h / 24 * 100, 3), "label": lbl}
+        for h, lbl in [(0, "12a"), (3, "3a"), (6, "6a"), (9, "9a"), (12, "12p"),
+                       (15, "3p"), (18, "6p"), (21, "9p"), (24, "12a")]
+    ]
+
     return render(request, "dispatching/staffing_board.html", {
         "monday": monday,
         "week_end": monday + timedelta(days=6),
@@ -5062,4 +5073,6 @@ def staffing_board(request):
         "days": data["days"],
         "rows": data["rows"],
         "roster_count": len(roster),
+        "now_frac": now_frac,
+        "hour_ticks": hour_ticks,
     })

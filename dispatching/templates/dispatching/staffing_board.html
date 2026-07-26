@@ -103,6 +103,31 @@
   .sb-legend span { display:inline-flex; align-items:center; gap:.35rem; }
   .sb-dot { width:9px; height:9px; border-radius:2px; display:inline-block; }
   .d-covered{background:var(--good);} .d-tight{background:var(--gold);} .d-understaffed{background:var(--warn);} .d-critical{background:var(--crit);}
+
+  /* ── View toggle ── */
+  .sb-toggle { display:inline-flex; border:1px solid var(--hairline2); border-radius:.55rem; overflow:hidden; }
+  .sb-tgl { border:none; background:var(--surface); color:var(--text2); font-size:.82rem; font-weight:600; padding:.4rem .75rem; cursor:pointer; }
+  .sb-tgl.active { background:var(--gold-soft); color:var(--gold); }
+  .sb-tgl + .sb-tgl { border-left:1px solid var(--hairline2); }
+
+  /* ── Timeline view ── */
+  .sb-tl { min-width:960px; padding:.5rem 0 .4rem; }
+  .sb-tl-row { display:grid; grid-template-columns:var(--name-col) 1fr; align-items:center; }
+  .sb-tl-row.is-today .sb-tl-label { background:var(--gold-soft); }
+  .sb-tl-row.is-weekend .sb-tl-label { background:var(--surface2); }
+  .sb-tl-label { display:flex; align-items:center; gap:.45rem; padding:.3rem .8rem; font-size:.8rem; font-weight:700; white-space:nowrap; }
+  .sb-tl-label .today-tag { font-size:.56rem; font-weight:800; color:var(--gold); }
+  .sb-tl-track { position:relative; height:26px; margin:3px 16px 3px 0; background:var(--surface3); border-radius:4px; overflow:hidden; }
+  .sb-tl-axis .sb-tl-track { height:15px; background:transparent; overflow:visible; }
+  .sb-tick { position:absolute; top:0; font-size:.62rem; color:var(--text3); transform:translateX(-50%); }
+  .sb-grid-line { position:absolute; top:0; bottom:0; width:1px; background:rgba(20,22,28,0.06); }
+  .sb-seg { position:absolute; top:0; bottom:0; }
+  .sb-seg.lvl-ok { background:var(--good); }
+  .sb-seg.lvl-thin { background:var(--warn); }
+  .sb-seg.lvl-gap { background:var(--crit); }
+  .sb-seg-oc { position:absolute; top:0; bottom:0; pointer-events:none;
+    background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 3px, transparent 3px 7px); }
+  .sb-now { position:absolute; top:0; bottom:0; width:2px; background:#111; z-index:3; }
 </style>
 {% endblock %}
 
@@ -116,13 +141,20 @@
         <h1 class="sb-title"><i class="bi bi-calendar-week me-2"></i>Staffing &amp; Coverage</h1>
         <p class="sb-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} · week of {{ monday|date:"M j" }} – {{ week_end|date:"M j, Y" }}. Coverage judged per time of day (~2 midday, 1 nights &amp; edges). Click a name to edit their schedule.</p>
       </div>
-      <div class="sb-nav">
-        <a href="?week={{ prev_week|date:'Y-m-d' }}" title="Previous week"><i class="bi bi-chevron-left"></i></a>
-        <a href="{% url 'staffing_board' %}" class="{% if is_current_week %}sb-today{% endif %}">This week</a>
-        <a href="?week={{ next_week|date:'Y-m-d' }}" title="Next week"><i class="bi bi-chevron-right"></i></a>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="sb-toggle" role="group" aria-label="View">
+          <button type="button" class="sb-tgl active" data-view="table"><i class="bi bi-table me-1"></i>Table</button>
+          <button type="button" class="sb-tgl" data-view="timeline"><i class="bi bi-bar-chart-steps me-1"></i>Timeline</button>
+        </div>
+        <div class="sb-nav">
+          <a href="?week={{ prev_week|date:'Y-m-d' }}" title="Previous week"><i class="bi bi-chevron-left"></i></a>
+          <a href="{% url 'staffing_board' %}" class="{% if is_current_week %}sb-today{% endif %}">This week</a>
+          <a href="?week={{ next_week|date:'Y-m-d' }}" title="Next week"><i class="bi bi-chevron-right"></i></a>
+        </div>
       </div>
     </div>
 
+    <div id="sbTableView">
     <div class="sb-scroll">
       <div class="sb-matrix">
 
@@ -189,6 +221,35 @@
 
       </div>
     </div>
+    </div><!-- /sbTableView -->
+
+    <!-- Timeline view -->
+    <div id="sbTimelineView" hidden>
+      <div class="sb-scroll">
+        <div class="sb-tl">
+          <div class="sb-tl-row sb-tl-axis">
+            <div class="sb-tl-label"></div>
+            <div class="sb-tl-track">
+              {% for t in hour_ticks %}<span class="sb-tick" style="left:{{ t.pos }}%">{{ t.label }}</span>{% endfor %}
+            </div>
+          </div>
+          {% for d in days %}
+          <div class="sb-tl-row {% if d.is_today %}is-today{% elif d.is_weekend %}is-weekend{% endif %}">
+            <div class="sb-tl-label">
+              <span class="sb-tl-day">{{ d.day_name }} {{ d.date|date:"j" }}{% if d.is_today %} <span class="today-tag">TODAY</span>{% endif %}</span>
+              <span class="sb-risk-{{ d.risk }}"><span class="sb-badge">{{ d.risk_label }}</span></span>
+            </div>
+            <div class="sb-tl-track">
+              {% for t in hour_ticks %}<span class="sb-grid-line" style="left:{{ t.pos }}%"></span>{% endfor %}
+              {% for seg in d.timeline %}<div class="sb-seg lvl-{{ seg.level }}" style="left:{{ seg.left }}%;width:{{ seg.width }}%" title="{{ seg.from }} – {{ seg.to }}: {{ seg.count }} on{% if seg.target %} (need {{ seg.target }}){% endif %}"></div>{% endfor %}
+              {% for b in d.oncall_bands %}<div class="sb-seg-oc" style="left:{{ b.left }}%;width:{{ b.width }}%" title="On-call window"></div>{% endfor %}
+              {% if d.is_today %}<div class="sb-now" style="left:{{ now_frac }}%" title="Now"></div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
 
     <div class="sb-legend">
       <span><span class="sb-dot d-covered"></span>Covered</span>
@@ -198,6 +259,33 @@
       <span><i class="bi bi-telephone-inbound" style="color:var(--info)"></i>On-call (overnight)</span>
       <span><i class="bi bi-moon-stars" style="color:var(--info)"></i>Overnight shift</span>
       <span><span class="sb-exc" style="position:static;display:inline-block"></span>One-time change</span>
+      <span class="text-muted">Timeline bar: <b style="color:var(--good)">green</b> met target · <b style="color:var(--warn)">amber</b> thin · <b style="color:var(--crit)">red</b> gap · hatched = on-call.</span>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var KEY = 'sbCoverageView';
+  var tableV = document.getElementById('sbTableView');
+  var tlV = document.getElementById('sbTimelineView');
+  var btns = [].slice.call(document.querySelectorAll('.sb-tgl'));
+  function apply(v) {
+    var tl = (v === 'timeline');
+    if (tableV) tableV.hidden = tl;
+    if (tlV) tlV.hidden = !tl;
+    btns.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      try { localStorage.setItem(KEY, b.dataset.view); } catch (e) {}
+      apply(b.dataset.view);
+    });
+  });
+  var saved = 'table';
+  try { saved = localStorage.getItem(KEY) || 'table'; } catch (e) {}
+  apply(saved);
+})();
+</script>
 {% endblock %}

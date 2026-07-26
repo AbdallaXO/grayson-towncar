@@ -152,6 +152,37 @@ class DstTests(TestCase):
         self.assertGreaterEqual(day["peak"], 1)
 
 
+class TimelineTests(TestCase):
+    def test_timeline_spans_day_and_flags_levels(self):
+        _weekly(_staff("d"), 0, time(9), time(17))   # weekday, 1 body in core only
+        day = coverage.day_coverage(MONDAY, _roster(), today=MONDAY)
+        tl = day["timeline"]
+        self.assertTrue(tl)
+        self.assertAlmostEqual(sum(s["width"] for s in tl), 100.0, delta=0.5)
+        levels = {s["level"] for s in tl}
+        self.assertIn("gap", levels)    # nobody overnight/edges
+        self.assertIn("thin", levels)   # 1 of 2 in core
+
+    def test_oncall_band_and_fills_overnight(self):
+        _weekly(_staff("d"), 5, time(6), time(0))    # weekend, 6 AM → midnight
+        _oncall(_staff("oc"), SATURDAY)              # 12–6 AM
+        day = coverage.day_coverage(SATURDAY, _roster(), today=SATURDAY)
+        self.assertEqual(len(day["oncall_bands"]), 1)
+        band = day["oncall_bands"][0]
+        self.assertAlmostEqual(band["left"], 0.0, delta=0.1)     # starts 12 AM
+        self.assertAlmostEqual(band["width"], 25.0, delta=0.5)   # 6h = 25% of the day
+        self.assertNotIn("gap", {s["level"] for s in day["timeline"]})
+
+    def test_board_renders_timeline_toggle(self):
+        _weekly(_staff("d", "D"), 0, time(9), time(17))
+        User.objects.create_superuser("boss3", "boss3@x.com", "pw")
+        self.client.force_login(User.objects.get(username="boss3"))
+        resp = self.client.get(reverse("staffing_board"))
+        self.assertContains(resp, 'id="sbTimelineView"')
+        self.assertContains(resp, 'data-view="timeline"')
+        self.assertContains(resp, "sb-seg")
+
+
 class StaffingBoardViewTests(TestCase):
     def setUp(self):
         self.url = reverse("staffing_board")

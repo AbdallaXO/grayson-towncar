@@ -146,6 +146,7 @@ def day_coverage(target_date, roster, *, today=None, oncall_map=None):
         today = timezone.localdate()
     tz = timezone.get_current_timezone()
     day_start, day_end = _et_day_bounds(target_date)
+    day_secs = (day_end - day_start).total_seconds()
     prev = target_date - timedelta(days=1)
     weekday = target_date.weekday()
 
@@ -183,6 +184,7 @@ def day_coverage(target_date, roster, *, today=None, oncall_map=None):
     else:
         entries = oncall_map.get(target_date, [])
     oncall = []
+    oncall_bands = []   # {left,width} for the timeline on-call overlay
     for oc in entries:
         s = timezone.make_aware(datetime.combine(target_date, oc.start_time), tz)
         e = timezone.make_aware(datetime.combine(target_date, oc.end_time), tz)
@@ -195,6 +197,10 @@ def day_coverage(target_date, roster, *, today=None, oncall_map=None):
         cs, ce = max(s, day_start), min(e, day_end)
         if ce > cs:
             intervals.append((cs, ce))
+            oncall_bands.append({
+                "left": round((cs - day_start).total_seconds() / day_secs * 100, 3),
+                "width": round((ce - cs).total_seconds() / day_secs * 100, 3),
+            })
 
     workers.sort(key=lambda w: (w["start_dt"], w["name"]))
 
@@ -204,6 +210,23 @@ def day_coverage(target_date, roster, *, today=None, oncall_map=None):
     segs = _segments(intervals, (day_start, day_end, core_lo, core_hi))
     enriched = [(a, b, c, target_at(timezone.localtime(a).time(), weekday)) for a, b, c in segs]
     peak = max((c for _, _, c, _ in enriched), default=0)
+
+    # Timeline: each segment as a % band across the day, coloured by coverage
+    # level, for the visual (Timeline) view. Adjacent equal segments merged.
+    timeline = []
+    for a, b, c, t in enriched:
+        level = "gap" if c == 0 else ("thin" if c < t else "ok")
+        seg = {
+            "left": round((a - day_start).total_seconds() / day_secs * 100, 3),
+            "width": round((b - a).total_seconds() / day_secs * 100, 3),
+            "level": level, "count": c, "target": t,
+            "from": _dt_label(a), "to": _dt_label(b),
+        }
+        if timeline and timeline[-1]["level"] == level and timeline[-1]["count"] == c:
+            timeline[-1]["width"] = round(timeline[-1]["width"] + seg["width"], 3)
+            timeline[-1]["to"] = seg["to"]
+        else:
+            timeline.append(seg)
 
     # Merge into runs, then only stretches longer than MIN_ISSUE count as a
     # problem — handoff slivers are ignored so the board stays calm.
@@ -273,6 +296,8 @@ def day_coverage(target_date, roster, *, today=None, oncall_map=None):
         "coverage_span": coverage_span,
         "opener": ({"name": workers[0]["name"], "time_label": workers[0]["start_label"]} if workers else None),
         "overnight": [w["name"] for w in workers if w["is_overnight"]],
+        "timeline": timeline,
+        "oncall_bands": oncall_bands,
     }
 
 
