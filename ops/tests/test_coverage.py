@@ -214,6 +214,42 @@ class OnCallActionTests(TestCase):
         self.assertTrue(resp.json()["success"])
         self.assertFalse(StaffOnCall.objects.filter(id=oc.id).exists())
 
+    def test_bulk_delete_selected(self):
+        a = _oncall(self.staff, MONDAY)
+        b = _oncall(self.staff, MONDAY + timedelta(days=1))
+        keep = _oncall(self.staff, MONDAY + timedelta(days=2))
+        resp = self._post({"action": "delete", "ids": [a.id, b.id]})
+        self.assertTrue(resp.json()["success"])
+        self.assertEqual(resp.json()["deleted"], 2)
+        self.assertEqual(list(StaffOnCall.objects.values_list("id", flat=True)), [keep.id])
+
+    def test_bulk_delete_empty_selection_is_noop(self):
+        _oncall(self.staff, MONDAY)
+        resp = self._post({"action": "delete", "ids": []})
+        self.assertTrue(resp.json()["success"])
+        self.assertEqual(resp.json()["deleted"], 0)
+        self.assertEqual(StaffOnCall.objects.count(), 1)
+
+    def test_bulk_delete_bad_ids_rejected(self):
+        _oncall(self.staff, MONDAY)
+        resp = self._post({"action": "delete", "ids": ["nope"]})
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(StaffOnCall.objects.count(), 1)
+
+    def test_string_ids_not_split_per_character(self):
+        # "12" must be treated as a single id (12), NOT iterated into [1, 2].
+        a = _oncall(self.staff, MONDAY)
+        b = _oncall(self.staff, MONDAY + timedelta(days=1))
+        resp = self._post({"action": "delete", "ids": "12"})  # no row 12 exists
+        self.assertEqual(resp.json()["deleted"], 0)
+        self.assertTrue(StaffOnCall.objects.filter(id=a.id).exists())
+        self.assertTrue(StaffOnCall.objects.filter(id=b.id).exists())
+
+    def test_manage_bulk_bar_starts_hidden(self):
+        _oncall(self.staff, MONDAY)
+        resp = self.client.get(reverse("timeclock_manage"))
+        self.assertContains(resp, 'class="align-items-center gap-2 mb-2 d-none"')
+
     def test_non_superuser_blocked(self):
         self.client.force_login(_staff("plain"))
         self.assertEqual(self._post({"action": "add", "user_id": self.staff.id, "date": "2026-06-01"}).status_code, 302)

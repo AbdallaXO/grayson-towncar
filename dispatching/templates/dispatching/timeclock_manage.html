@@ -125,18 +125,29 @@
           </div>
           <div class="form-text">Leave the weekdays unchecked to mark just the start date. Check days (e.g. Mon, Wed, Fri) to repeat them through the end date.</div>
         </form>
+        <div class="align-items-center gap-2 mb-2 d-none" id="ocBulkBar">
+          <button type="button" class="btn btn-sm btn-outline-danger" id="ocDeleteSelected"><i class="bi bi-trash me-1"></i>Delete selected (<span id="ocSelCount">0</span>)</button>
+          <button type="button" class="btn btn-sm btn-link text-muted p-0" id="ocClearSel">Clear</button>
+        </div>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr class="small text-muted">
+                <th style="width:34px;"><input type="checkbox" class="form-check-input" id="ocSelectAll" title="Select all"></th>
+                <th>Date</th><th>Dispatcher</th><th>Window</th><th></th>
+              </tr>
+            </thead>
             <tbody id="ocList">
               {% for oc in oncall_upcoming %}
               <tr>
+                <td><input type="checkbox" class="form-check-input oc-check" value="{{ oc.id }}"></td>
                 <td class="text-muted" style="width:140px;">{{ oc.date|date:"D, M j" }}{% if oc.date == today %} <span class="badge bg-warning text-dark">tonight</span>{% endif %}</td>
                 <td class="fw-semibold">{{ oc.user.get_full_name|default:oc.user.username }}</td>
                 <td class="text-muted small">{{ oc.start_time|time:"g:i A" }} – {{ oc.end_time|time:"g:i A" }}</td>
                 <td class="text-end"><button class="btn btn-sm btn-link text-danger p-0 oc-del" data-id="{{ oc.id }}" title="Remove on-call"><i class="bi bi-x-lg"></i></button></td>
               </tr>
               {% empty %}
-              <tr><td colspan="4" class="text-muted small py-3">No upcoming on-call marked. Add one above.</td></tr>
+              <tr><td colspan="5" class="text-muted small py-3">No upcoming on-call marked. Add one above.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -247,6 +258,45 @@
       if (data.success) { location.reload(); } else { toast('Could not remove.', false); }
     } catch (err) { toast('Network error.', false); }
   }));
+
+  // ── Bulk select + delete ──
+  const ocChecks = () => Array.from(document.querySelectorAll('.oc-check'));
+  const ocSelectAll = document.getElementById('ocSelectAll');
+  const ocBulkBar = document.getElementById('ocBulkBar');
+  const ocSelCount = document.getElementById('ocSelCount');
+  function ocSyncSel() {
+    const all = ocChecks(), checked = all.filter(c => c.checked);
+    if (ocSelCount) ocSelCount.textContent = checked.length;
+    // Toggle Bootstrap display utilities (mutually exclusive) rather than an
+    // inline style, which .d-flex/.d-none `!important` would otherwise defeat.
+    if (ocBulkBar) {
+      const on = checked.length > 0;
+      ocBulkBar.classList.toggle('d-none', !on);
+      ocBulkBar.classList.toggle('d-flex', on);
+    }
+    if (ocSelectAll) {
+      ocSelectAll.checked = all.length > 0 && checked.length === all.length;
+      ocSelectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+  ocChecks().forEach(c => c.addEventListener('change', ocSyncSel));
+  if (ocSelectAll) ocSelectAll.addEventListener('change', () => {
+    ocChecks().forEach(c => { c.checked = ocSelectAll.checked; });
+    ocSyncSel();
+  });
+  const ocClear = document.getElementById('ocClearSel');
+  if (ocClear) ocClear.addEventListener('click', () => { ocChecks().forEach(c => { c.checked = false; }); ocSyncSel(); });
+  const ocDelSel = document.getElementById('ocDeleteSelected');
+  if (ocDelSel) ocDelSel.addEventListener('click', async () => {
+    const ids = ocChecks().filter(c => c.checked).map(c => c.value);
+    if (!ids.length) return;
+    if (!confirm(`Remove ${ids.length} on-call ${ids.length === 1 ? 'night' : 'nights'}?`)) return;
+    ocDelSel.disabled = true;
+    try {
+      const data = await ocPost({ action: 'delete', ids: ids });
+      if (data.success) { location.reload(); } else { toast('Could not remove.', false); ocDelSel.disabled = false; }
+    } catch (err) { toast('Network error.', false); ocDelSel.disabled = false; }
+  });
 })();
 </script>
 {% endblock %}

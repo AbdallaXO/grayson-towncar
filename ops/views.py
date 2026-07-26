@@ -4768,10 +4768,24 @@ def timeclock_oncall_action(request):
         return JsonResponse({"success": True, "created": len(dates)})
 
     if action == "delete":
-        oc = StaffOnCall.objects.filter(id=data.get("id")).first()
-        if oc:
-            oc.delete()
-        return JsonResponse({"success": True})
+        # Accept a single id or a list of ids (bulk "delete selected").
+        raw = data.get("ids")
+        if raw is None:
+            raw = data.get("id")
+        # A scalar (or a stray string like "12") is one id — never iterate it
+        # character-by-character, which would delete ids 1 and 2.
+        if raw is None:
+            raw = []
+        elif not isinstance(raw, (list, tuple)):
+            raw = [raw]
+        try:
+            ids = [int(i) for i in raw]
+        except (TypeError, ValueError):
+            return JsonResponse({"success": False, "error": "Invalid selection."}, status=400)
+        deleted = 0
+        if ids:
+            deleted, _ = StaffOnCall.objects.filter(id__in=ids).delete()
+        return JsonResponse({"success": True, "deleted": deleted})
 
     return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
 
