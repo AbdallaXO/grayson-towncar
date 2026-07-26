@@ -255,13 +255,16 @@
               const additionalCharges = parseFloat(additionalChargesInput.value) || 0;
               const gratuity = parseFloat(gratuityAmountInput.value) || 0;
               const total = basePrice + additionalCharges + gratuity;
-              totalPriceInput.value = total.toFixed(2);
+              // Snap to whole cents to avoid float drift (e.g. 194.999999 -> 195.00)
+              totalPriceInput.value = (Math.round(total * 100) / 100).toFixed(2);
           }
 
           // Calculate 20% gratuity from base price
           function calculate20Percent() {
               const basePrice = parseFloat(basePriceInput.value) || 0;
-              return (basePrice * 0.20);
+              // Round to whole cents so the submitted gratuity is exact
+              // (raw *0.20 + .toFixed can drop a penny, e.g. 1.005 -> "1.00").
+              return Math.round(basePrice * 20) / 100;
           }
 
           // Set gratuity option

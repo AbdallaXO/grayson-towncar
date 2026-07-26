@@ -11,7 +11,7 @@ from .forms import (
     FlightForm,
     CruiseForm,
 )
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import time, date, datetime
 import logging
 from typing import Dict, Any
@@ -575,14 +575,18 @@ def extra_charges(reservation):
     # Calculate gratuity if specified
     gratuity_amount = Decimal(0)
     if reservation.gratuity_percentage and reservation.gratuity_percentage > 0:
-        gratuity_amount = (reservation.base_price * reservation.gratuity_percentage) / Decimal(100)
+        gratuity_amount = (
+            (reservation.base_price * reservation.gratuity_percentage) / Decimal(100)
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         reservation.gratuity_amount = gratuity_amount
         logger.info(
             f"Added ${gratuity_amount} gratuity ({reservation.gratuity_percentage}%) on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
         )
 
     reservation.additional_charges = total_extra
-    reservation.total_price = reservation.base_price + total_extra + gratuity_amount
+    reservation.total_price = (
+        reservation.base_price + total_extra + gratuity_amount
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     # Always add gratuity note to reservation special_requests
     if gratuity_amount > 0:

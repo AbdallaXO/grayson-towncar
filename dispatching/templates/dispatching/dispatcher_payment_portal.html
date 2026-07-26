@@ -224,9 +224,13 @@
                 <label for="additional_subtype" class="field-label">What is this charge for?</label>
                 <select name="additional_subtype" id="additional_subtype" class="form-select form-select-lg">
                   <option value="extra_stop">Extra Stop</option>
+                  <option value="new_trip">New / Additional Trip</option>
+                  <option value="additional_leg">Additional Leg</option>
                   <option value="vehicle_upgrade">Vehicle Upgrade</option>
+                  <option value="wait_time">Wait Time</option>
                   <option value="afterhour_fee">After-Hour Fee</option>
-                  <option value="other">Other</option>
+                  <option value="cleaning_fee">Cleaning / Damage Fee</option>
+                  <option value="other">Other (custom reason)</option>
                 </select>
                 <div class="note"><i class="bi bi-info-circle-fill me-1"></i>Enter the extra amount below — it’s added to the reservation total.</div>
               </div>
@@ -352,8 +356,12 @@
           const additionalSubtypeSelect = document.getElementById('additional_subtype');
           const ADDITIONAL_DESC = {
               extra_stop: `Extra Stop for Res ID #50{{ reservation.id }}`,
+              new_trip: `Additional Trip for Res ID #50{{ reservation.id }}`,
+              additional_leg: `Additional Leg for Res ID #50{{ reservation.id }}`,
               vehicle_upgrade: `Vehicle Upgrade for Res ID #50{{ reservation.id }}`,
+              wait_time: `Wait Time for Res ID #50{{ reservation.id }}`,
               afterhour_fee: `After-Hour Fee for Res ID #50{{ reservation.id }}`,
+              cleaning_fee: `Cleaning / Damage Fee for Res ID #50{{ reservation.id }}`,
               other: `Additional Charge for Res ID #50{{ reservation.id }}`,
           };
 

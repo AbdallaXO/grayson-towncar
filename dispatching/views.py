@@ -10,7 +10,7 @@ from django.db.models import Sum, Q, Count, Prefetch
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from django import forms
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import transaction
 import stripe
 import stripe.error
@@ -3870,7 +3870,9 @@ def dispatcher_payment_portal(request, reservation_id):
                         },
                     )
                 try:
-                    amount_decimal = Decimal(amount_str)
+                    amount_decimal = Decimal(amount_str).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
                     if amount_decimal <= 0:
                         raise ValueError("Payment amount must be positive.")
                     amount_in_cents = int(amount_decimal * 100)
@@ -3995,7 +3997,9 @@ def dispatcher_payment_portal(request, reservation_id):
                     )
 
                 try:
-                    amount_decimal = Decimal(amount_str)
+                    amount_decimal = Decimal(amount_str).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
                     if amount_decimal <= 0:
                         raise ValueError("Payment amount must be positive.")
                     amount_in_cents = int(amount_decimal * 100)

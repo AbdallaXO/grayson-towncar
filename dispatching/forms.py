@@ -2,7 +2,7 @@
 
 from django import forms
 from django.utils import timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from reservations.models import Customer, Reservation, Leg, Flight
 from rates.models import Vehicle, Rate
 
@@ -465,7 +465,9 @@ class DispatcherPricingForm(forms.Form):
         additional_charges = cleaned_data.get('additional_charges', Decimal('0.00'))
         gratuity = cleaned_data.get('gratuity_amount') or Decimal('0.00')
         if base_price is not None:
-            cleaned_data['total_price'] = base_price + additional_charges + gratuity
+            cleaned_data['total_price'] = (
+                base_price + additional_charges + gratuity
+            ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         return cleaned_data
 
 
