@@ -80,28 +80,45 @@
         <span class="text-muted small">Overnight standby (default 12 AM–6 AM). Counts as overnight coverage on the <a href="{% url 'staffing_board' %}">staffing board</a> — no clock-in needed.</span>
       </div>
       <div class="card-body">
-        <form id="oncallForm" class="row g-2 align-items-end mb-3">
-          <div class="col-6 col-sm-4">
-            <label class="form-label small mb-1">Dispatcher</label>
-            <select class="form-select form-select-sm" id="ocUser" required>
-              {% for s in oncall_staff %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
-            </select>
+        <form id="oncallForm" class="mb-3">
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-sm-4">
+              <label class="form-label small mb-1">Dispatcher</label>
+              <select class="form-select form-select-sm" id="ocUser" required>
+                {% for s in oncall_staff %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label small mb-1">Start date</label>
+              <input type="date" class="form-control form-control-sm" id="ocFrom" required>
+            </div>
+            <div class="col-6 col-sm-3">
+              <label class="form-label small mb-1">End date <span class="text-muted fw-normal">(repeats)</span></label>
+              <input type="date" class="form-control form-control-sm" id="ocTo">
+            </div>
+            <div class="col-6 col-sm-1">
+              <label class="form-label small mb-1">On</label>
+              <input type="time" class="form-control form-control-sm" id="ocStart" value="00:00">
+            </div>
+            <div class="col-6 col-sm-1">
+              <label class="form-label small mb-1">Off</label>
+              <input type="time" class="form-control form-control-sm" id="ocEnd" value="06:00">
+            </div>
           </div>
-          <div class="col-6 col-sm-3">
-            <label class="form-label small mb-1">Date</label>
-            <input type="date" class="form-control form-control-sm" id="ocDate" required>
+          <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+            <span class="small text-muted">Repeat on:</span>
+            <div class="btn-group btn-group-sm" role="group" id="ocDays">
+              <input type="checkbox" class="btn-check" id="ocd0" value="0" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd0">Mon</label>
+              <input type="checkbox" class="btn-check" id="ocd1" value="1" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd1">Tue</label>
+              <input type="checkbox" class="btn-check" id="ocd2" value="2" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd2">Wed</label>
+              <input type="checkbox" class="btn-check" id="ocd3" value="3" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd3">Thu</label>
+              <input type="checkbox" class="btn-check" id="ocd4" value="4" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd4">Fri</label>
+              <input type="checkbox" class="btn-check" id="ocd5" value="5" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd5">Sat</label>
+              <input type="checkbox" class="btn-check" id="ocd6" value="6" autocomplete="off"><label class="btn btn-outline-secondary" for="ocd6">Sun</label>
+            </div>
+            <button type="submit" class="btn btn-sm btn-dark ms-auto">Add on-call</button>
           </div>
-          <div class="col-4 col-sm-2">
-            <label class="form-label small mb-1">From</label>
-            <input type="time" class="form-control form-control-sm" id="ocStart" value="00:00">
-          </div>
-          <div class="col-4 col-sm-2">
-            <label class="form-label small mb-1">To</label>
-            <input type="time" class="form-control form-control-sm" id="ocEnd" value="06:00">
-          </div>
-          <div class="col-4 col-sm-1">
-            <button type="submit" class="btn btn-sm btn-dark w-100">Add</button>
-          </div>
+          <div class="form-text">Leave the weekdays unchecked to mark just the start date. Check days (e.g. Mon, Wed, Fri) to repeat them through the end date.</div>
         </form>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
@@ -191,17 +208,20 @@
     const resp = await fetch(ocUrl, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf()}, body: JSON.stringify(body) });
     return resp.json();
   }
-  const ocDate = document.getElementById('ocDate');
-  if (ocDate && !ocDate.value) { ocDate.value = nowLocal().slice(0, 10); }
+  const ocFrom = document.getElementById('ocFrom');
+  if (ocFrom && !ocFrom.value) { ocFrom.value = nowLocal().slice(0, 10); }
   const ocForm = document.getElementById('oncallForm');
   if (ocForm) ocForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = ocForm.querySelector('button[type=submit]'); btn.disabled = true;
+    const weekdays = Array.from(document.querySelectorAll('#ocDays input:checked')).map(c => c.value);
     try {
       const data = await ocPost({
         action: 'add',
         user_id: document.getElementById('ocUser').value,
-        date: ocDate.value,
+        from: ocFrom.value,
+        to: document.getElementById('ocTo').value,
+        weekdays: weekdays,
         start_time: document.getElementById('ocStart').value,
         end_time: document.getElementById('ocEnd').value,
       });

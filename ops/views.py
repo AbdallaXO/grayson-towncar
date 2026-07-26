@@ -4726,16 +4726,46 @@ def timeclock_oncall_action(request):
         u = _office_staff_qs().filter(id=data.get("user_id")).first()
         if not u:
             return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
-        date_ = _parse_ymd(data.get("date"))
-        if not date_:
-            return JsonResponse({"success": False, "error": "A date is required."})
         start_t = _parse_hm(data.get("start_time")) or time(0, 0)
         end_t = _parse_hm(data.get("end_time")) or time(6, 0)
-        StaffOnCall.objects.update_or_create(
-            user=u, date=date_,
-            defaults={"start_time": start_t, "end_time": end_t, "created_by": request.user},
-        )
-        return JsonResponse({"success": True})
+
+        # Two ways to add: a single date, or a set of weekdays across a range
+        # (e.g. Mon/Wed/Fri from now through next month).
+        try:
+            weekdays = {int(w) for w in (data.get("weekdays") or [])}
+        except (TypeError, ValueError):
+            weekdays = set()
+
+        dates = []
+        if weekdays:
+            d0 = _parse_ymd(data.get("from"))
+            d1 = _parse_ymd(data.get("to")) or (d0 + timedelta(days=6) if d0 else None)
+            if not d0 or not d1:
+                return JsonResponse({"success": False, "error": "Pick a start and end date for the repeat."})
+            if d1 < d0:
+                return JsonResponse({"success": False, "error": "End date must be on or after the start date."})
+            if (d1 - d0).days > 92:
+                return JsonResponse({"success": False, "error": "Keep the repeat range within about 3 months."})
+            d = d0
+            while d <= d1:
+                if d.weekday() in weekdays:
+                    dates.append(d)
+                d += timedelta(days=1)
+        else:
+            single = _parse_ymd(data.get("date") or data.get("from"))
+            if not single:
+                return JsonResponse({"success": False, "error": "A date is required."})
+            dates = [single]
+
+        if not dates:
+            return JsonResponse({"success": False, "error": "No matching days in that range."})
+
+        for d in dates:
+            StaffOnCall.objects.update_or_create(
+                user=u, date=d,
+                defaults={"start_time": start_t, "end_time": end_t, "created_by": request.user},
+            )
+        return JsonResponse({"success": True, "created": len(dates)})
 
     if action == "delete":
         oc = StaffOnCall.objects.filter(id=data.get("id")).first()

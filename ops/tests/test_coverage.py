@@ -225,3 +225,28 @@ class OnCallActionTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "On-call")
         self.assertContains(resp, "oncallForm")
+
+    def test_add_weekday_range_creates_each_matching_day(self):
+        # Mon/Wed/Fri across one week (2026-06-01 Mon … 06-07 Sun).
+        resp = self._post({"action": "add", "user_id": self.staff.id,
+                           "from": "2026-06-01", "to": "2026-06-07", "weekdays": [0, 2, 4]})
+        self.assertEqual(resp.json()["created"], 3)
+        got = set(StaffOnCall.objects.filter(user=self.staff).values_list("date", flat=True))
+        self.assertEqual(got, {MONDAY, MONDAY + timedelta(days=2), MONDAY + timedelta(days=4)})
+
+    def test_add_weekday_repeats_across_weeks(self):
+        resp = self._post({"action": "add", "user_id": self.staff.id,
+                           "from": "2026-06-01", "to": "2026-06-14", "weekdays": [0]})
+        self.assertEqual(resp.json()["created"], 2)  # 06-01 and 06-08
+        self.assertEqual(StaffOnCall.objects.filter(user=self.staff).count(), 2)
+
+    def test_weekday_range_without_end_defaults_one_week(self):
+        resp = self._post({"action": "add", "user_id": self.staff.id,
+                           "from": "2026-06-01", "weekdays": [0, 2]})  # Mon+Wed, no end
+        self.assertEqual(resp.json()["created"], 2)  # 06-01 Mon, 06-03 Wed within the default week
+
+    def test_overlong_range_rejected(self):
+        resp = self._post({"action": "add", "user_id": self.staff.id,
+                           "from": "2026-01-01", "to": "2026-12-31", "weekdays": [0]})
+        self.assertFalse(resp.json()["success"])
+        self.assertFalse(StaffOnCall.objects.exists())
