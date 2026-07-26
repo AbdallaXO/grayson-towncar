@@ -179,3 +179,49 @@ class StaffingBoardViewTests(TestCase):
 
     def test_anonymous_redirected(self):
         self.assertEqual(self.client.get(self.url).status_code, 302)
+
+
+class OnCallActionTests(TestCase):
+    def setUp(self):
+        self.url = reverse("timeclock_oncall_action")
+        self.staff = _staff("dispatch1", "Dispatch")
+        self.boss = User.objects.create_superuser("boss", "boss@x.com", "pw")
+        self.client.force_login(self.boss)
+
+    def _post(self, body):
+        import json
+        return self.client.post(self.url, data=json.dumps(body), content_type="application/json")
+
+    def test_add_creates_oncall_with_defaults(self):
+        resp = self._post({"action": "add", "user_id": self.staff.id, "date": "2026-06-01"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        oc = StaffOnCall.objects.get(user=self.staff, date=MONDAY)
+        self.assertEqual((oc.start_time, oc.end_time), (time(0), time(6)))
+        self.assertEqual(oc.created_by, self.boss)
+
+    def test_add_is_idempotent_per_user_date(self):
+        self._post({"action": "add", "user_id": self.staff.id, "date": "2026-06-01"})
+        self._post({"action": "add", "user_id": self.staff.id, "date": "2026-06-01",
+                    "start_time": "23:00", "end_time": "07:00"})
+        qs = StaffOnCall.objects.filter(user=self.staff, date=MONDAY)
+        self.assertEqual(qs.count(), 1)                       # update, not duplicate
+        self.assertEqual(qs.first().start_time, time(23))
+
+    def test_delete_removes(self):
+        oc = _oncall(self.staff, MONDAY)
+        resp = self._post({"action": "delete", "id": oc.id})
+        self.assertTrue(resp.json()["success"])
+        self.assertFalse(StaffOnCall.objects.filter(id=oc.id).exists())
+
+    def test_non_superuser_blocked(self):
+        self.client.force_login(_staff("plain"))
+        self.assertEqual(self._post({"action": "add", "user_id": self.staff.id, "date": "2026-06-01"}).status_code, 302)
+        self.assertFalse(StaffOnCall.objects.exists())
+
+    def test_manage_page_shows_oncall_panel(self):
+        _oncall(self.staff, MONDAY)
+        resp = self.client.get(reverse("timeclock_manage"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "On-call")
+        self.assertContains(resp, "oncallForm")

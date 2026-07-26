@@ -6,7 +6,7 @@ import csv
 import io
 import json
 import logging
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, time
 from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -28,6 +28,7 @@ from .models import (
     TimeClockBreak,
     StaffWeeklySchedule,
     StaffScheduleOverride,
+    StaffOnCall,
 )
 from .services import close_task, cancel_task, log_communication, create_task
 from .services import (
@@ -4688,12 +4689,61 @@ def timeclock_manage(request):
             "today_actual": vs["actual_label"],
         })
 
+    # On-call panel: staff dropdown + upcoming assignments (today forward).
+    oncall_staff = [{"id": u.id, "name": u.get_full_name() or u.username} for u in roster]
+    oncall_upcoming = list(
+        StaffOnCall.objects.filter(date__gte=today)
+        .select_related("user").order_by("date", "user__first_name")[:40]
+    )
+
     return render(request, "dispatching/timeclock_manage.html", {
         "rows": rows,
         "now": now,
         "today": today,
         "on_clock_count": len(open_by_user),
+        "oncall_staff": oncall_staff,
+        "oncall_upcoming": oncall_upcoming,
     })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="dashboard")
+@require_POST
+def timeclock_oncall_action(request):
+    """Mark / unmark a dispatcher on-call for a date (from the manage page).
+
+    On-call is additive to the regular schedule and feeds the staffing board's
+    overnight coverage. Default window 12 AM–6 AM. update_or_create keeps the
+    (user, date) unique constraint safe if the same night is marked twice.
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = request.POST
+    action = data.get("action")
+
+    if action == "add":
+        u = _office_staff_qs().filter(id=data.get("user_id")).first()
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        date_ = _parse_ymd(data.get("date"))
+        if not date_:
+            return JsonResponse({"success": False, "error": "A date is required."})
+        start_t = _parse_hm(data.get("start_time")) or time(0, 0)
+        end_t = _parse_hm(data.get("end_time")) or time(6, 0)
+        StaffOnCall.objects.update_or_create(
+            user=u, date=date_,
+            defaults={"start_time": start_t, "end_time": end_t, "created_by": request.user},
+        )
+        return JsonResponse({"success": True})
+
+    if action == "delete":
+        oc = StaffOnCall.objects.filter(id=data.get("id")).first()
+        if oc:
+            oc.delete()
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
 
 
 @login_required(login_url="login")
