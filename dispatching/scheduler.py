@@ -642,28 +642,53 @@ def resolve_drive_minutes(pickup_text, dropoff_text, pickup_category, dropoff_ca
     # Same exact location => already there, no repositioning drive (offline, deterministic).
     if pickup_text and dropoff_text and pickup_text.strip().lower() == dropoff_text.strip().lower():
         return 0
-    if (USE_LIVE_DISTANCE and pickup_text and dropoff_text
-            and (pickup_category in LIVE_DISTANCE_UNKNOWN_CATS
-                 or dropoff_category in LIVE_DISTANCE_UNKNOWN_CATS
-                 # intra-cluster hop the category table can't resolve (same/adjacent resort, etc.)
-                 or (pickup_category == dropoff_category
-                     and pickup_category in INTRA_CLUSTER_LIVE_CATS))):
+
+    # Routes the category table can't place: a residential/other address or an odd
+    # hotel (LIVE_DISTANCE_UNKNOWN_CATS), or an intra-cluster hop it averages away.
+    # These are exactly where the flat ~35-min default is wrong — e.g. a house in
+    # Umatilla is ~55 min to MCO, not the 30 the (Residential -> MCO) bucket assumes.
+    route_is_unknown = bool(
+        pickup_text and dropoff_text
+        and (pickup_category in LIVE_DISTANCE_UNKNOWN_CATS
+             or dropoff_category in LIVE_DISTANCE_UNKNOWN_CATS
+             or (pickup_category == dropoff_category
+                 and pickup_category in INTRA_CLUSTER_LIVE_CATS))
+    )
+
+    if route_is_unknown:
+        # Precomputed, offline-cached Google drive time for this exact address pair.
+        # Pure indexed DB read — NO network in the request path (filling the cache is
+        # the background resolver's job; see dispatching/route_distance.py). Returns
+        # None until the resolver has filled this pair, in which case we fall through
+        # to the coarse category estimate for now.
         try:
-            from drivers.utils import get_drive_time as _maps_drive_time
-            # SPIKE TRIPWIRE: this is the PAID, synchronous Google Distance Matrix path,
-            # default-OFF in prod. A harness/script that flips USE_LIVE_DISTANCE=1 can fan
-            # this out across thousands of legs (see the 2026-06-10 $593 spike). Log every
-            # invocation under a fixed, greppable tag so a runaway run is instantly visible:
-            #   grep GTC-GOOGLE-LIVE-DISTANCE <logs>
-            logger.warning(
-                "GTC-GOOGLE-LIVE-DISTANCE live Distance Matrix call (USE_LIVE_DISTANCE=1): %s -> %s",
-                pickup_text, dropoff_text,
-            )
-            info = _maps_drive_time(pickup_text, dropoff_text)
-            if info and info.get("duration_seconds"):
-                return max(1, round(info["duration_seconds"] / 60))
+            from .route_distance import cached_drive_minutes
+            precomputed = cached_drive_minutes(pickup_text, dropoff_text)
+            if precomputed is not None:
+                return precomputed
         except Exception:
-            pass  # fall through to the category estimate
+            pass  # the cache must never break a page render
+
+        # Legacy synchronous live path — default OFF in prod (USE_LIVE_DISTANCE=0),
+        # kept only for offline analysis harnesses. The persistent cache above is the
+        # supported production mechanism.
+        if USE_LIVE_DISTANCE:
+            try:
+                from drivers.utils import get_drive_time as _maps_drive_time
+                # SPIKE TRIPWIRE: the PAID, synchronous Distance Matrix path. A harness
+                # that flips USE_LIVE_DISTANCE=1 can fan this out across thousands of legs
+                # (see the 2026-06-10 $593 spike). Log every call under a greppable tag:
+                #   grep GTC-GOOGLE-LIVE-DISTANCE <logs>
+                logger.warning(
+                    "GTC-GOOGLE-LIVE-DISTANCE live Distance Matrix call (USE_LIVE_DISTANCE=1): %s -> %s",
+                    pickup_text, dropoff_text,
+                )
+                info = _maps_drive_time(pickup_text, dropoff_text)
+                if info and info.get("duration_seconds"):
+                    return max(1, round(info["duration_seconds"] / 60))
+            except Exception:
+                pass  # fall through to the category estimate
+
     return get_drive_time(pickup_category, dropoff_category, time_cat, day_cat)
 
 

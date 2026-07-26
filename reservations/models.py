@@ -3698,6 +3698,67 @@ class RouteTimingMetric(models.Model):
         return f"{self.get_trip_type_display()}: {self.pickup_location_category} → {self.dropoff_location_category} ({self.get_time_of_day_category_display()}, {self.get_day_type_display()})"
 
 
+class RouteDistanceCache(models.Model):
+    """
+    Persistent, precomputed Google Distance Matrix drive time for a specific
+    pickup→dropoff ADDRESS pair (not a category bucket).
+
+    This is the "offline-cached matrix (no in-request network)" that
+    dispatching/scheduler.py's DEFAULT_DRIVE_TIME comment asks for. The category
+    table (DRIVE_TIME_ESTIMATES) can't tell a residential address 10 min out from
+    one an hour out (e.g. Umatilla → MCO), so for routes the category map can't
+    place we look the real drive time up here.
+
+    Read path (resolve_drive_minutes) only ever READS this table — a single indexed
+    lookup, never a network call. Rows are filled by the background resolver
+    (management command `resolve_route_distances`, run via cron / the schedulers
+    process), exactly like the Samsara `Leg.dispatch_eta_*` precompute pattern.
+    A brand-new pair returns None until the resolver fills it, so the render path
+    falls back to the category estimate in the meantime.
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_OK = "ok"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending resolution"),
+        (STATUS_OK, "Resolved"),
+        (STATUS_FAILED, "Failed (address unresolvable)"),
+    ]
+
+    # md5 of the normalized "pickup||dropoff" text — stable, order-sensitive key.
+    pair_hash = models.CharField(max_length=32, unique=True, db_index=True)
+    pickup_text = models.CharField(max_length=500)
+    dropoff_text = models.CharField(max_length=500)
+
+    drive_minutes = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Google Distance Matrix traffic-aware drive time, rounded to minutes.",
+    )
+    distance_text = models.CharField(max_length=50, blank=True, default="")
+
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True,
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.CharField(max_length=255, blank=True, default="")
+
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', 'resolved_at']),
+        ]
+        verbose_name = "Route Distance Cache"
+        verbose_name_plural = "Route Distance Cache"
+
+    def __str__(self):
+        mins = f"{self.drive_minutes} min" if self.drive_minutes is not None else self.status
+        return f"{self.pickup_text} → {self.dropoff_text} ({mins})"
+
+
 class DriverDailyCapacity(models.Model):
     """
     Tracks historical driver performance to understand realistic daily capacity.

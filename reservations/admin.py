@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry
+from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry, RouteDistanceCache
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 from simple_history.admin import SimpleHistoryAdmin
@@ -3083,3 +3083,21 @@ class ScheduleSnapshotAdmin(admin.ModelAdmin):
             preview = obj.notes[:60] + "..." if len(obj.notes) > 60 else obj.notes
             return preview
         return "-"
+
+
+@admin.register(RouteDistanceCache)
+class RouteDistanceCacheAdmin(admin.ModelAdmin):
+    """Monitor the precomputed Google drive-time cache for unknown-route address
+    pairs (see dispatching/route_distance.py). Read-only — rows are filled by the
+    `resolve_route_distances` background resolver, not by hand."""
+    list_display = ['pickup_text', 'dropoff_text', 'drive_minutes', 'distance_text',
+                    'status', 'attempts', 'resolved_at', 'updated_at']
+    list_filter = ['status']
+    search_fields = ['pickup_text', 'dropoff_text', 'pair_hash']
+    readonly_fields = ['pair_hash', 'pickup_text', 'dropoff_text', 'drive_minutes',
+                       'distance_text', 'status', 'attempts', 'last_error',
+                       'resolved_at', 'created_at', 'updated_at']
+    ordering = ['-updated_at']
+
+    def has_add_permission(self, request):
+        return False
