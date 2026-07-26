@@ -362,3 +362,171 @@ def week_coverage(monday, roster, *, today=None):
         })
 
     return {"dates": dates, "days": days, "rows": rows}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Weekly PATTERN — the recurring schedule by weekday (no dates, no DST).
+#
+# This is what the staffing board actually renders: the standard week
+# straight from StaffWeeklySchedule (keyed by weekday), not a specific
+# calendar week. Overnight 12–6 AM is the on-call window — shown quietly,
+# never as a gap — since on-call is marked per night on the Time Clock page.
+# Everything here is plain minutes-of-day (0–1440), so no timezone math.
+# ══════════════════════════════════════════════════════════════════════
+
+DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+ONCALL_WINDOW = (0, 360)      # 12 AM–6 AM
+OPERATING = (360, 1440)       # 6 AM–midnight (what we judge for gaps)
+CORE = (540, 1200)            # 9 AM–8 PM
+CORE_WEEKDAY_TARGET = 2       # Mon–Fri core wants 2 on
+MIN_GAP_MIN = 60              # ignore shortfalls under an hour
+
+
+def _min_of(t):
+    return t.hour * 60 + t.minute
+
+
+def _fmt_min(m):
+    m %= 1440
+    h, mm = divmod(m, 60)
+    ap = "a" if h < 12 else "p"
+    h12 = h % 12 or 12
+    return f"{h12}:{mm:02d}{ap}" if mm else f"{h12}{ap}"
+
+
+def _pct_min(m):
+    return round(m / 1440 * 100, 3)
+
+
+def _runs_min(cover, lo, hi, predicate, min_len):
+    """Maximal [a,b) runs in cover[lo:hi] where predicate(count) holds, length >= min_len."""
+    out, i = [], lo
+    while i < hi:
+        if predicate(cover[i]):
+            j = i
+            while j < hi and predicate(cover[j]):
+                j += 1
+            if j - i >= min_len:
+                out.append((i, j))
+            i = j
+        else:
+            i += 1
+    return out
+
+
+def _lane_pack(shifts):
+    """Greedy lane assignment so non-overlapping shifts share a row (by start)."""
+    lanes = []
+    for s in sorted(shifts, key=lambda x: x["sm"]):
+        for ln in lanes:
+            if ln[-1]["em"] <= s["sm"]:
+                ln.append(s)
+                break
+        else:
+            lanes.append([s])
+    return lanes
+
+
+def weekly_pattern(roster, today_dow=None):
+    """The recurring weekly staffing pattern for the board.
+
+    ``roster`` must be prefetched with ``weekly_schedule_rows``. Returns
+    ``{weekdays: [...7], rows: [...per dispatcher]}`` — weekdays carries the
+    coverage cue + timeline lanes; rows carries the table cells.
+    """
+    by_dow = {d: [] for d in range(7)}          # weekday -> working shifts
+    user_cells = {}                              # user.id -> {dow: cell}
+    for u in roster:
+        name = u.get_full_name() or u.username
+        cells = {}
+        for r in u.weekly_schedule_rows.all():
+            if r.is_working and r.start_time and r.end_time:
+                sm, em = _min_of(r.start_time), _min_of(r.end_time)
+                overnight = em <= sm
+                if overnight:
+                    em += 1440
+                by_dow[r.day_of_week].append({
+                    "user": u, "name": name, "sm": sm, "em": em, "overnight": overnight,
+                    "start_label": _fmt_min(sm), "end_label": _fmt_min(em),
+                })
+                cells[r.day_of_week] = {"is_working": True, "overnight": overnight,
+                                        "label": f"{_fmt_min(sm)}–{_fmt_min(em)}"}
+            else:
+                cells[r.day_of_week] = {"is_working": False}
+        user_cells[u.id] = (name, cells)
+
+    weekdays = []
+    opener_closer = {}                           # dow -> (opener_uid, closer_uid)
+    for d in range(7):
+        shifts = by_dow[d]
+        opener = min(shifts, key=lambda s: s["sm"]) if shifts else None
+        closer = max(shifts, key=lambda s: s["em"]) if shifts else None
+        opener_closer[d] = (opener["user"].id if opener else None, closer["user"].id if closer else None)
+
+        cover = [0] * 1440
+        for a in range(*ONCALL_WINDOW):          # on-call fills overnight
+            cover[a] += 1
+        for s in shifts:
+            for a in range(s["sm"], min(s["em"], 1440)):
+                cover[a] += 1
+
+        peak = max(cover[OPERATING[0]:], default=0) if shifts else 0
+        gaps = _runs_min(cover, OPERATING[0], OPERATING[1], lambda c: c == 0, MIN_GAP_MIN)
+        core_target = CORE_WEEKDAY_TARGET if d < 5 else 1
+        thin = _runs_min(cover, CORE[0], CORE[1], lambda c: 0 < c < core_target, MIN_GAP_MIN)
+
+        if gaps:
+            cue = {"level": "crit", "text": f"gap {_fmt_min(gaps[0][0])}–{_fmt_min(gaps[0][1])}"}
+        elif thin:
+            cue = {"level": "warn", "text": f"thin {_fmt_min(thin[0][0])}–{_fmt_min(thin[0][1])}"}
+        else:
+            cue = {"level": "ok", "text": "on-call o/n" if shifts else "—"}
+
+        lanes = []
+        for ln in _lane_pack(shifts):
+            bars = []
+            for s in ln:
+                bars.append({
+                    "name": s["name"],
+                    "left": _pct_min(s["sm"]),
+                    "width": _pct_min(min(s["em"], 1440) - s["sm"]),
+                    "label": f'{s["start_label"]}–{s["end_label"]}',
+                    "is_opener": bool(opener and s is opener),
+                    "is_closer": bool(closer and s is closer),
+                    "overnight": s["overnight"],
+                })
+            lanes.append(bars)
+
+        weekdays.append({
+            "dow": d, "name": DAY_NAMES[d], "is_today": d == today_dow,
+            "is_weekend": d >= 5, "on_count": len(shifts), "peak": peak,
+            "opener": {"name": opener["name"], "time": opener["start_label"]} if opener else None,
+            "closer": {"name": closer["name"], "time": closer["end_label"]} if closer else None,
+            "cue": cue,
+            "oncall_band": {"left": _pct_min(ONCALL_WINDOW[0]), "width": _pct_min(ONCALL_WINDOW[1] - ONCALL_WINDOW[0])},
+            "lanes": lanes,
+            "rail_gaps": [{"left": _pct_min(a), "width": _pct_min(b - a)} for a, b in gaps],
+        })
+
+    rows = []
+    for u in roster:
+        name, cells = user_cells[u.id]
+        oc_map = opener_closer
+        out_cells = []
+        for d in range(7):
+            c = cells.get(d)
+            if c and c.get("is_working"):
+                out_cells.append({
+                    "is_working": True, "label": c["label"], "overnight": c["overnight"],
+                    "is_opener": oc_map[d][0] == u.id, "is_closer": oc_map[d][1] == u.id,
+                    "is_today": d == today_dow,
+                })
+            else:
+                out_cells.append({"is_working": False, "label": "Off" if c else "—",
+                                  "kind": "off" if c else "none", "is_today": d == today_dow})
+        rows.append({
+            "user": u, "name": name, "cells": out_cells,
+            "working_days": sum(1 for c in out_cells if c["is_working"]),
+        })
+
+    return {"weekdays": weekdays, "rows": rows}

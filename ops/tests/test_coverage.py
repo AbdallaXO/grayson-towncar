@@ -37,6 +37,10 @@ def _roster():
     return list(office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides"))
 
 
+def _proster():
+    return list(office_staff_qs().prefetch_related("weekly_schedule_rows"))
+
+
 class TargetTests(TestCase):
     def test_tiered_targets(self):
         self.assertEqual(coverage.target_at(time(3), 0), 1)    # overnight
@@ -173,14 +177,60 @@ class TimelineTests(TestCase):
         self.assertAlmostEqual(band["width"], 25.0, delta=0.5)   # 6h = 25% of the day
         self.assertNotIn("gap", {s["level"] for s in day["timeline"]})
 
-    def test_board_renders_timeline_toggle(self):
+    def test_board_renders_toggle(self):
         _weekly(_staff("d", "D"), 0, time(9), time(17))
         User.objects.create_superuser("boss3", "boss3@x.com", "pw")
         self.client.force_login(User.objects.get(username="boss3"))
         resp = self.client.get(reverse("staffing_board"))
-        self.assertContains(resp, 'id="sbTimelineView"')
+        self.assertContains(resp, 'id="spTimeline"')
         self.assertContains(resp, 'data-view="timeline"')
-        self.assertContains(resp, "sb-seg")
+        self.assertContains(resp, "sp-bar")
+
+
+class WeeklyPatternTests(TestCase):
+    def test_shape_and_cells(self):
+        u = _staff("u", "Uma")
+        _weekly(u, 0, time(9), time(17))              # works Monday
+        _weekly(u, 1, None, None, is_working=False)   # explicit off Tuesday
+        data = coverage.weekly_pattern(_proster(), today_dow=0)
+        self.assertEqual(len(data["weekdays"]), 7)
+        row = data["rows"][0]
+        self.assertEqual(len(row["cells"]), 7)
+        self.assertTrue(row["cells"][0]["is_working"])
+        self.assertTrue(row["cells"][0]["is_today"])
+        self.assertTrue(row["cells"][0]["is_opener"])   # only worker Monday → opener
+        self.assertTrue(row["cells"][0]["is_closer"])
+        self.assertEqual(row["cells"][1]["label"], "Off")
+        self.assertEqual(row["cells"][2]["label"], "—")
+
+    def test_opener_closer(self):
+        a = _staff("a", "Alice"); _weekly(a, 0, time(6, 30), time(15))
+        b = _staff("b", "Bob"); _weekly(b, 0, time(18, 30), time(2))   # overnight → latest out
+        mon = coverage.weekly_pattern(_proster(), today_dow=0)["weekdays"][0]
+        self.assertEqual(mon["opener"]["name"], "Alice")
+        self.assertEqual(mon["closer"]["name"], "Bob")
+
+    def test_daytime_gap_flagged(self):
+        _weekly(_staff("am"), 0, time(6), time(11))
+        _weekly(_staff("pm"), 0, time(14), time(22))
+        mon = coverage.weekly_pattern(_proster(), today_dow=0)["weekdays"][0]
+        self.assertEqual(mon["cue"]["level"], "crit")   # 11a–2p hole
+        self.assertTrue(mon["rail_gaps"])
+
+    def test_overnight_never_a_gap(self):
+        # Nobody scheduled → operating hours are a gap, but the 12–6 AM on-call
+        # window must never be flagged (rail gaps start at 6 AM = 25%).
+        _staff("idle")
+        mon = coverage.weekly_pattern(_proster(), today_dow=0)["weekdays"][0]
+        for g in mon["rail_gaps"]:
+            self.assertGreaterEqual(g["left"], 25.0)
+
+    def test_lane_packing(self):
+        _weekly(_staff("early"), 0, time(6), time(14))
+        _weekly(_staff("night"), 0, time(18, 30), time(2))   # no overlap → shares a lane
+        mon = coverage.weekly_pattern(_proster(), today_dow=0)["weekdays"][0]
+        self.assertEqual(len(mon["lanes"]), 1)
+        self.assertEqual(len(mon["lanes"][0]), 2)
 
 
 class StaffingBoardViewTests(TestCase):

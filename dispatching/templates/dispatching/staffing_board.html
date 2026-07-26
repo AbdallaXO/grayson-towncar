@@ -1,133 +1,93 @@
 {% extends 'main.html' %}
 {% load static %}
 {% block footer %}{% endblock %}
-
-{% block title %}Dispatcher Staffing & Coverage{% endblock %}
-
-{% block head_extra %}
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-{% endblock %}
+{% block title %}Weekly Staffing Pattern{% endblock %}
 
 {% block extra_css %}
 <style>
-  .sb {
-    --page:#F6F7F9; --surface:#FFFFFF; --surface2:#FAFBFC; --surface3:#EEF1F4;
-    --hairline:rgba(20,22,28,0.09); --hairline2:rgba(20,22,28,0.14);
-    --text:#1A1D21; --text2:#5A6068; --text3:#9AA0A8;
-    --gold:#B0851C; --gold-soft:rgba(176,133,28,0.10); --gold-line:rgba(176,133,28,0.30);
-    --good:#2E7D52; --good-soft:rgba(46,125,82,0.10);
-    --warn:#B07A22; --warn-soft:rgba(176,122,34,0.12);
-    --crit:#C0504D; --crit-soft:rgba(192,80,77,0.12);
-    --info:#3A6EA5; --info-soft:rgba(58,110,165,0.09);
-    --name-col:186px; --day-col:minmax(100px,1fr);
-    font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    color:var(--text); background:var(--page); padding:1.1rem 0 3rem;
+  /* Match the page ground to the board so the navbar's 1rem bottom margin
+     doesn't show as a white band above the board. */
+  body { background-color:#F7F6F2 !important; }
+  .sp {
+    --bg:#F7F6F2; --surface:#FFFFFF; --surface2:#FBFAF7;
+    --line:rgba(30,26,18,0.085); --line2:rgba(30,26,18,0.15);
+    --ink:#23262A; --muted:#6C7076; --faint:#9DA0A6;
+    --gold:#9A7317; --gold-soft:rgba(154,115,23,0.10); --gold-line:rgba(154,115,23,0.34);
+    --warn:#A5701C; --crit:#A6494A; --off:#C7CACE;
+    --bar:#EFEBE3; --bar-line:rgba(30,26,18,0.16); --oc-hatch:rgba(120,110,90,0.16);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,monospace;
+    background:var(--bg); color:var(--ink); padding:1.2rem 0 3rem;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   }
-  .sb-head { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
-  .sb-title { font-weight:800; font-size:1.45rem; margin:0; letter-spacing:-.01em; }
-  .sb-title i { color:var(--gold); }
-  .sb-sub { color:var(--text2); font-size:.85rem; margin:.15rem 0 0; }
-  .sb-nav { display:flex; align-items:center; gap:.4rem; }
-  .sb-nav a { display:inline-flex; align-items:center; gap:.35rem; font-size:.85rem; font-weight:600;
-    text-decoration:none; color:var(--text); background:var(--surface);
-    border:1px solid var(--hairline2); border-radius:.55rem; padding:.4rem .7rem; }
-  .sb-nav a:hover { border-color:var(--gold-line); color:var(--gold); }
-  .sb-nav a.sb-today { background:var(--gold-soft); border-color:var(--gold-line); color:var(--gold); }
+  .sp-head { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:.8rem; margin-bottom:1.2rem; }
+  .sp-title { font-size:1.4rem; font-weight:750; letter-spacing:-.02em; margin:0; }
+  .sp-title .sp-ic { width:20px; height:20px; color:var(--gold); vertical-align:-3px; margin-right:.35rem; }
+  .sp-sub { color:var(--muted); font-size:.86rem; margin:.3rem 0 0; max-width:64ch; line-height:1.5; }
 
-  .sb-scroll { overflow-x:auto; border:1px solid var(--hairline2); border-radius:.8rem; background:var(--surface); }
-  .sb-matrix { min-width:960px; }
-  .sb-row { display:grid; grid-template-columns:var(--name-col) repeat(7, var(--day-col)); }
+  .sp-toggle { display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden; }
+  .sp-tgl { border:none; background:var(--surface); color:var(--muted); font:inherit; font-size:.8rem; font-weight:650; padding:.42rem .95rem; cursor:pointer; }
+  .sp-tgl.active { background:var(--gold-soft); color:var(--gold); }
+  .sp-tgl + .sp-tgl { border-left:1px solid var(--line2); }
+  .sp-tgl .sp-ic { width:14px; height:14px; vertical-align:-2px; margin-right:.3rem; }
 
-  /* ── Coverage summary strip ── */
-  .sb-strip { border-bottom:2px solid var(--hairline2); }
-  .sb-strip-label { padding:.6rem .8rem; font-size:.66rem; font-weight:800; letter-spacing:.06em;
-    text-transform:uppercase; color:var(--text3); display:flex; align-items:flex-end; border-right:1px solid var(--hairline); }
-  .sb-cov { padding:.55rem .6rem .65rem; border-right:1px solid var(--hairline); border-top:3px solid transparent; }
-  .sb-cov.is-weekend { background:var(--surface2); }
-  .sb-cov.is-today { border-top-color:var(--gold); background:var(--gold-soft); }
-  .sb-cov:last-child { border-right:none; }
-  .sb-cov-day { font-size:.7rem; font-weight:700; color:var(--text2); display:flex; justify-content:space-between; align-items:center; }
-  .sb-cov-day .today-tag { font-size:.58rem; font-weight:800; color:var(--gold); letter-spacing:.05em; }
-  .sb-cov-head { display:flex; align-items:center; gap:.4rem; margin:.35rem 0 .3rem; }
-  .sb-badge { display:inline-block; font-size:.62rem; font-weight:800; letter-spacing:.03em; text-transform:uppercase; padding:.16rem .45rem; border-radius:.35rem; }
-  .sb-cov-on { font-size:.66rem; color:var(--text3); font-weight:600; margin-left:auto; }
-  .sb-risk-covered .sb-badge { background:var(--good-soft); color:var(--good); }
-  .sb-risk-tight .sb-badge { background:var(--gold-soft); color:var(--gold); }
-  .sb-risk-understaffed .sb-badge { background:var(--warn-soft); color:var(--warn); }
-  .sb-risk-critical .sb-badge { background:var(--crit-soft); color:var(--crit); }
-  .sb-cov-line { font-size:.68rem; color:var(--text2); display:flex; gap:.35rem; align-items:baseline; margin-top:.2rem; line-height:1.3; }
-  .sb-cov-line i { width:.9rem; color:var(--text3); flex:none; }
-  .sb-cov-line b { font-weight:700; color:var(--text); }
-  .sb-cov-line.oncall { color:var(--info); } .sb-cov-line.oncall i, .sb-cov-line.oncall b { color:var(--info); }
-  .sb-cov-line.issue-crit { color:var(--crit); font-weight:600; } .sb-cov-line.issue-crit i { color:var(--crit); }
-  .sb-cov-line.issue-soft { color:var(--warn); } .sb-cov-line.issue-soft i { color:var(--warn); }
-  .sb-cov-line.issue-ok { color:var(--good); } .sb-cov-line.issue-ok i { color:var(--good); }
-  .sb-cov-line.muted { color:var(--text3); }
+  .sp-panel { background:var(--surface); border:1px solid var(--line2); border-radius:14px; overflow:hidden;
+    box-shadow:0 1px 2px rgba(20,18,12,0.04), 0 6px 26px rgba(20,18,12,0.05); }
+  .sp-scroll { overflow-x:auto; }
 
-  /* ── Grid header ── */
-  .sb-grid-head { border-bottom:1px solid var(--hairline2); background:var(--surface2); }
-  .sb-gh-name { padding:.5rem .8rem; font-size:.66rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); border-right:1px solid var(--hairline); }
-  .sb-gh-day { padding:.5rem .4rem; text-align:center; border-right:1px solid var(--hairline); }
-  .sb-gh-day:last-child { border-right:none; }
-  .sb-gh-day.is-today { background:var(--gold-soft); }
-  .sb-gh-dow { font-size:.72rem; font-weight:700; }
-  .sb-gh-date { font-size:.64rem; color:var(--text3); }
+  /* ── Table ── */
+  .sp-grid { min-width:860px; display:grid; grid-template-columns:150px repeat(7,1fr); }
+  .sp-grid > div { border-bottom:1px solid var(--line); }
+  .sp-ghead { padding:.8rem .5rem .65rem; font-size:.74rem; font-weight:700; color:var(--muted); text-align:center; border-bottom:1px solid var(--line2)!important; }
+  .sp-corner { text-align:left; padding-left:1.1rem; font-size:.64rem; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); border-bottom:1px solid var(--line2)!important; }
+  .sp-ghead.sp-today { color:var(--gold); }
+  .sp-lab { padding:.5rem 1.1rem; font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); display:flex; align-items:center; }
+  .sp-covcell { padding:.5rem .4rem; text-align:center; }
+  .sp-covn { font-family:var(--mono); font-size:.95rem; font-weight:600; font-variant-numeric:tabular-nums; }
+  .sp-covtag { display:block; font-size:.64rem; margin-top:.1rem; color:var(--muted); }
+  .sp-covtag.lvl-warn { color:var(--warn); } .sp-covtag.lvl-crit { color:var(--crit); }
+  .sp-name { padding:.65rem 1.1rem; font-weight:650; font-size:.84rem; display:flex; align-items:center; }
+  .sp-name a { color:var(--ink); text-decoration:none; }
+  .sp-name a:hover { color:var(--gold); text-decoration:underline; }
+  .sp-name .sp-days { margin-left:auto; font-size:.6rem; color:var(--faint); font-weight:600; }
+  .sp-cell { padding:.55rem .35rem; text-align:center; display:flex; align-items:center; justify-content:center; gap:.28rem; min-height:2.9rem; }
+  .sp-hrs { font-family:var(--mono); font-size:.78rem; font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap; }
+  .sp-cell.sp-off .sp-hrs { color:var(--off); }
+  .sp-cell.sp-night .sp-hrs { color:var(--muted); }
+  .sp-today { background:var(--gold-soft); }
+  .sp-ic { width:14px; height:14px; color:var(--gold); flex:none; }
 
-  /* ── Dispatcher rows ── */
-  .sb-grid-row { border-bottom:1px solid var(--hairline); }
-  .sb-grid-row:last-child { border-bottom:none; }
-  .sb-grid-row:hover { background:var(--surface2); }
-  .sb-name { padding:.5rem .8rem; border-right:1px solid var(--hairline); display:flex; align-items:center; gap:.3rem; }
-  .sb-name a { color:var(--text); font-weight:700; font-size:.82rem; text-decoration:none; }
-  .sb-name a:hover { color:var(--gold); text-decoration:underline; }
-  .sb-name .sb-daycount { margin-left:auto; font-size:.6rem; color:var(--text3); font-weight:600; text-align:right; }
-  .sb-cell { padding:.4rem .35rem; border-right:1px solid var(--hairline); position:relative;
-    font-size:.74rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.2rem; min-height:2.7rem; }
-  .sb-cell:last-child { border-right:none; }
-  .sb-cell.is-weekend { background:rgba(20,22,28,0.015); }
-  .sb-cell.is-today { background:var(--gold-soft); }
-  .sb-cell.off { color:var(--text3); }
-  .sb-cell.none { color:#C7CBD1; }
-  .sb-cell.work { color:var(--text); font-weight:600; }
-  .sb-pill { display:inline-block; padding:.18rem .34rem; border-radius:.35rem; background:var(--surface3); white-space:nowrap; }
-  .sb-cell.work .sb-pill { background:var(--gold-soft); color:var(--gold); }
-  .sb-cell.work.overnight .sb-pill { background:var(--info-soft); color:var(--info); }
-  .sb-oc { display:inline-flex; align-items:center; gap:.2rem; font-size:.6rem; font-weight:700; white-space:nowrap;
-    padding:.1rem .3rem; border-radius:.3rem; background:var(--info-soft); color:var(--info); }
-  .sb-exc { position:absolute; top:3px; right:4px; width:6px; height:6px; border-radius:50%; background:var(--warn); }
-  .sb-moon { font-size:.62rem; margin-right:.15rem; }
+  /* ── Timeline ── */
+  .sp-tlinner { min-width:860px; }
+  .sp-tlaxis { position:relative; height:22px; margin:.4rem 1.1rem 0; }
+  .sp-tk { position:absolute; top:5px; font-size:.6rem; color:var(--faint); transform:translateX(-50%); font-family:var(--mono); }
+  .sp-tlday { border-top:1px solid var(--line); padding:.5rem 0 .65rem; }
+  .sp-tlday.sp-today { background:var(--gold-soft); }
+  .sp-tlhead { display:flex; align-items:baseline; gap:.6rem; padding:0 1.1rem .4rem; flex-wrap:wrap; }
+  .sp-tldow { font-size:.82rem; font-weight:750; }
+  .sp-tloc { font-size:.68rem; color:var(--muted); font-family:var(--mono); display:inline-flex; align-items:center; gap:.25rem; flex-wrap:wrap; }
+  .sp-tloc .sp-ic { width:12px; height:12px; }
+  .sp-tllanes { position:relative; margin:0 1.1rem; }
+  .sp-gl { position:absolute; top:0; bottom:0; width:1px; background:rgba(120,110,90,0.09); }
+  .sp-lane { position:relative; height:22px; margin:3px 0; }
+  .sp-bar { position:absolute; top:0; bottom:0; z-index:1; display:flex; align-items:center; gap:.22rem; padding:0 .45rem;
+    background:var(--bar); border:1px solid var(--bar-line); border-radius:5px; font-family:var(--mono); font-size:.67rem;
+    color:var(--ink); white-space:nowrap; overflow:hidden; }
+  .sp-bar .sp-nm { font-family:inherit; font-weight:700; font-family:ui-sans-serif,system-ui,sans-serif; }
+  .sp-bar.sp-open { border-left:2.5px solid var(--gold); }
+  .sp-bar.sp-close { border-right:2.5px solid var(--gold); }
+  .sp-bar.sp-oncall { background:transparent; border-style:dashed; color:var(--muted); font-family:inherit;
+    background-image:repeating-linear-gradient(45deg,var(--oc-hatch) 0 5px,transparent 5px 10px); }
+  .sp-bar .sp-ic { width:12px; height:12px; }
+  .sp-dim { position:absolute; top:1px; bottom:1px; z-index:0; border-radius:3px; pointer-events:none;
+    background:rgba(166,73,74,0.11); box-shadow:inset 0 0 0 1px rgba(166,73,74,0.14); }
+  .sp-now { position:absolute; top:-3px; bottom:-3px; z-index:2; width:2px; background:var(--ink); opacity:.45; }
 
-  .sb-legend { display:flex; flex-wrap:wrap; gap:.65rem 1.2rem; margin-top:.8rem; font-size:.72rem; color:var(--text2); }
-  .sb-legend span { display:inline-flex; align-items:center; gap:.35rem; }
-  .sb-dot { width:9px; height:9px; border-radius:2px; display:inline-block; }
-  .d-covered{background:var(--good);} .d-tight{background:var(--gold);} .d-understaffed{background:var(--warn);} .d-critical{background:var(--crit);}
-
-  /* ── View toggle ── */
-  .sb-toggle { display:inline-flex; border:1px solid var(--hairline2); border-radius:.55rem; overflow:hidden; }
-  .sb-tgl { border:none; background:var(--surface); color:var(--text2); font-size:.82rem; font-weight:600; padding:.4rem .75rem; cursor:pointer; }
-  .sb-tgl.active { background:var(--gold-soft); color:var(--gold); }
-  .sb-tgl + .sb-tgl { border-left:1px solid var(--hairline2); }
-
-  /* ── Timeline view ── */
-  .sb-tl { min-width:960px; padding:.5rem 0 .4rem; }
-  .sb-tl-row { display:grid; grid-template-columns:var(--name-col) 1fr; align-items:center; }
-  .sb-tl-row.is-today .sb-tl-label { background:var(--gold-soft); }
-  .sb-tl-row.is-weekend .sb-tl-label { background:var(--surface2); }
-  .sb-tl-label { display:flex; align-items:center; gap:.45rem; padding:.3rem .8rem; font-size:.8rem; font-weight:700; white-space:nowrap; }
-  .sb-tl-label .today-tag { font-size:.56rem; font-weight:800; color:var(--gold); }
-  .sb-tl-track { position:relative; height:26px; margin:3px 16px 3px 0; background:var(--surface3); border-radius:4px; overflow:hidden; }
-  .sb-tl-axis .sb-tl-track { height:15px; background:transparent; overflow:visible; }
-  .sb-tick { position:absolute; top:0; font-size:.62rem; color:var(--text3); transform:translateX(-50%); }
-  .sb-grid-line { position:absolute; top:0; bottom:0; width:1px; background:rgba(20,22,28,0.06); }
-  .sb-seg { position:absolute; top:0; bottom:0; }
-  .sb-seg.lvl-ok { background:var(--good); }
-  .sb-seg.lvl-thin { background:var(--warn); }
-  .sb-seg.lvl-gap { background:var(--crit); }
-  .sb-seg-oc { position:absolute; top:0; bottom:0; pointer-events:none;
-    background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 3px, transparent 3px 7px); }
-  .sb-now { position:absolute; top:0; bottom:0; width:2px; background:#111; z-index:3; }
+  .sp-legend { display:flex; flex-wrap:wrap; gap:.55rem 1.4rem; margin-top:1rem; padding:0 .2rem; font-size:.74rem; color:var(--muted); }
+  .sp-legend span { display:inline-flex; align-items:center; gap:.4rem; }
+  .sp-legend .sp-ic { width:13px; height:13px; }
+  .sp-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .sp-dot.warn { background:var(--warn); } .sp-dot.crit { background:var(--crit); }
+  .sp-foot { margin-top:1.1rem; padding:0 .2rem; font-size:.76rem; color:var(--faint); line-height:1.5; max-width:70ch; }
 </style>
 {% endblock %}
 
@@ -135,156 +95,128 @@
   {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
 
-  <div class="container-fluid sb">
-    <div class="sb-head">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="sp-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="2" x2="12" y2="9"/><line x1="4.2" y1="10.2" x2="5.6" y2="11.6"/>
+      <line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.4" y1="11.6" x2="19.8" y2="10.2"/>
+      <line x1="23" y1="22" x2="1" y2="22"/><polyline points="8 6 12 2 16 6"/>
+    </symbol>
+    <symbol id="sp-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
+    </symbol>
+  </svg>
+
+  <div class="container-fluid sp">
+    <div class="sp-head">
       <div>
-        <h1 class="sb-title"><i class="bi bi-calendar-week me-2"></i>Staffing &amp; Coverage</h1>
-        <p class="sb-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} · week of {{ monday|date:"M j" }} – {{ week_end|date:"M j, Y" }}. Coverage judged per time of day (~2 midday, 1 nights &amp; edges). Click a name to edit their schedule.</p>
+        <h1 class="sp-title">Weekly Staffing Pattern</h1>
+        <p class="sp-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} · the standard week — who works each day, who opens &amp; closes, and where a typical day runs thin. Click a name to edit their hours.</p>
       </div>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <div class="sb-toggle" role="group" aria-label="View">
-          <button type="button" class="sb-tgl active" data-view="table"><i class="bi bi-table me-1"></i>Table</button>
-          <button type="button" class="sb-tgl" data-view="timeline"><i class="bi bi-bar-chart-steps me-1"></i>Timeline</button>
-        </div>
-        <div class="sb-nav">
-          <a href="?week={{ prev_week|date:'Y-m-d' }}" title="Previous week"><i class="bi bi-chevron-left"></i></a>
-          <a href="{% url 'staffing_board' %}" class="{% if is_current_week %}sb-today{% endif %}">This week</a>
-          <a href="?week={{ next_week|date:'Y-m-d' }}" title="Next week"><i class="bi bi-chevron-right"></i></a>
-        </div>
+      <div class="sp-toggle" role="group" aria-label="View">
+        <button type="button" class="sp-tgl active" data-view="table">Table</button>
+        <button type="button" class="sp-tgl" data-view="timeline">Timeline</button>
       </div>
     </div>
 
-    <div id="sbTableView">
-    <div class="sb-scroll">
-      <div class="sb-matrix">
+    <!-- Table view -->
+    <div id="spTable">
+      <div class="sp-panel"><div class="sp-scroll">
+        <div class="sp-grid">
+          <div class="sp-corner">Dispatcher</div>
+          {% for wd in weekdays %}<div class="sp-ghead {% if wd.is_today %}sp-today{% endif %}">{{ wd.name }}</div>{% endfor %}
 
-        <!-- Coverage summary strip -->
-        <div class="sb-row sb-strip">
-          <div class="sb-strip-label">Coverage</div>
-          {% for d in days %}
-          <div class="sb-cov sb-risk-{{ d.risk }} {% if d.is_today %}is-today{% elif d.is_weekend %}is-weekend{% endif %}">
-            <div class="sb-cov-day">
-              <span>{{ d.day_name }} {{ d.date|date:"j" }}</span>
-              {% if d.is_today %}<span class="today-tag">TODAY</span>{% endif %}
-            </div>
-            <div class="sb-cov-head">
-              <span class="sb-badge">{{ d.risk_label }}</span>
-              <span class="sb-cov-on" title="{{ d.on_count }} scheduled · peak {{ d.peak }} on at once{% if d.opener %} · opens {{ d.opener.time_label }}{% endif %}{% for n in d.overnight %} · {{ n }} overnight{% endfor %}">{{ d.on_count }} on{% if d.oncall %} · {{ d.oncall|length }} on-call{% endif %}</span>
-            </div>
-            {% if d.oncall %}
-            <div class="sb-cov-line oncall"><i class="bi bi-telephone-inbound"></i><span>On-call: {% for o in d.oncall %}<b>{{ o.name }}</b>{% if not forloop.last %}, {% endif %}{% endfor %}</span></div>
-            {% endif %}
-            <div class="sb-cov-line issue-{{ d.worst_issue.level }}">
-              <i class="bi {% if d.worst_issue.level == 'crit' %}bi-exclamation-octagon{% elif d.worst_issue.level == 'soft' %}bi-exclamation-triangle{% else %}bi-check-circle{% endif %}"></i>
-              <span>{{ d.worst_issue.text }}</span>
-            </div>
+          <div class="sp-lab">Coverage</div>
+          {% for wd in weekdays %}
+          <div class="sp-covcell {% if wd.is_today %}sp-today{% endif %}">
+            <span class="sp-covn">{{ wd.peak }}</span>
+            <span class="sp-covtag lvl-{{ wd.cue.level }}">{{ wd.cue.text }}</span>
           </div>
           {% endfor %}
-        </div>
 
-        <!-- Grid header -->
-        <div class="sb-row sb-grid-head">
-          <div class="sb-gh-name">Dispatcher</div>
-          {% for d in days %}
-          <div class="sb-gh-day {% if d.is_today %}is-today{% endif %}">
-            <div class="sb-gh-dow">{{ d.day_name }}</div>
-            <div class="sb-gh-date">{{ d.date|date:"M j" }}</div>
-          </div>
-          {% endfor %}
-        </div>
-
-        <!-- Dispatcher rows -->
-        {% for row in rows %}
-        <div class="sb-row sb-grid-row">
-          <div class="sb-name">
-            <a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s schedule">{{ row.name }}</a>
-            <span class="sb-daycount">{{ row.working_days }}d{% if row.oncall_days %}<br>{{ row.oncall_days }} OC{% endif %}</span>
-          </div>
+          {% for row in rows %}
+          <div class="sp-name"><a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s hours">{{ row.name }}</a><span class="sp-days">{{ row.working_days }}d</span></div>
           {% for c in row.cells %}
-          <div class="sb-cell {% if c.is_working %}work{% if c.is_overnight %} overnight{% endif %}{% elif c.kind == 'none' and not c.is_oncall %}none{% else %}off{% endif %} {% if c.is_today %}is-today{% elif c.is_weekend %}is-weekend{% endif %}"
-               {% if c.tooltip %}title="{{ c.tooltip }}"{% endif %}>
-            {% if c.has_exception %}<span class="sb-exc" title="One-time change"></span>{% endif %}
+          <div class="sp-cell {% if not c.is_working %}sp-off{% elif c.overnight %}sp-night{% endif %} {% if c.is_today %}sp-today{% endif %}">
             {% if c.is_working %}
-              <span class="sb-pill">{% if c.is_overnight %}<i class="bi bi-moon-stars sb-moon"></i>{% endif %}{{ c.label }}</span>
-            {% elif not c.is_oncall %}
-              <span>{{ c.label }}</span>
+              {% if c.is_opener %}<svg class="sp-ic"><use href="#sp-sun"/></svg>{% endif %}
+              <span class="sp-hrs">{{ c.label }}</span>
+              {% if c.is_closer %}<svg class="sp-ic"><use href="#sp-moon"/></svg>{% endif %}
+            {% else %}
+              <span class="sp-hrs">{{ c.label }}</span>
             {% endif %}
-            {% if c.is_oncall %}<span class="sb-oc" title="On-call {{ c.oncall_label }}"><i class="bi bi-telephone-inbound"></i>on-call</span>{% endif %}
           </div>
           {% endfor %}
+          {% empty %}
+          <div class="sp-name" style="grid-column:1 / -1; color:var(--faint); padding:1.4rem 1.1rem;">No office dispatchers found.</div>
+          {% endfor %}
         </div>
-        {% empty %}
-        <div class="sb-row sb-grid-row">
-          <div class="sb-name" style="grid-column:1 / -1; color:var(--text3); justify-content:center; padding:1.5rem;">No office dispatchers found.</div>
-        </div>
-        {% endfor %}
-
-      </div>
+      </div></div>
     </div>
-    </div><!-- /sbTableView -->
 
     <!-- Timeline view -->
-    <div id="sbTimelineView" hidden>
-      <div class="sb-scroll">
-        <div class="sb-tl">
-          <div class="sb-tl-row sb-tl-axis">
-            <div class="sb-tl-label"></div>
-            <div class="sb-tl-track">
-              {% for t in hour_ticks %}<span class="sb-tick" style="left:{{ t.pos }}%">{{ t.label }}</span>{% endfor %}
-            </div>
+    <div id="spTimeline" hidden>
+      <div class="sp-panel"><div class="sp-scroll"><div class="sp-tlinner">
+        <div class="sp-tlaxis">{% for t in hour_ticks %}<span class="sp-tk" style="left:{{ t.pos }}%">{{ t.label }}</span>{% endfor %}</div>
+        {% for wd in weekdays %}
+        <div class="sp-tlday {% if wd.is_today %}sp-today{% endif %}">
+          <div class="sp-tlhead">
+            <span class="sp-tldow">{{ wd.name }}{% if wd.is_today %} · today{% endif %}</span>
+            <span class="sp-tloc">
+              {% if wd.opener %}<svg class="sp-ic"><use href="#sp-sun"/></svg>{{ wd.opener.name }} {{ wd.opener.time }}{% endif %}
+              {% if wd.closer %}&nbsp;&nbsp;<svg class="sp-ic"><use href="#sp-moon"/></svg>{{ wd.closer.name }} {{ wd.closer.time }}{% endif %}
+            </span>
           </div>
-          {% for d in days %}
-          <div class="sb-tl-row {% if d.is_today %}is-today{% elif d.is_weekend %}is-weekend{% endif %}">
-            <div class="sb-tl-label">
-              <span class="sb-tl-day">{{ d.day_name }} {{ d.date|date:"j" }}{% if d.is_today %} <span class="today-tag">TODAY</span>{% endif %}</span>
-              <span class="sb-risk-{{ d.risk }}"><span class="sb-badge">{{ d.risk_label }}</span></span>
+          <div class="sp-tllanes">
+            {% for p in grid_ticks %}<span class="sp-gl" style="left:{{ p }}%"></span>{% endfor %}
+            {% for g in wd.rail_gaps %}<span class="sp-dim" style="left:{{ g.left }}%;width:{{ g.width }}%" title="No coverage"></span>{% endfor %}
+            <div class="sp-lane"><div class="sp-bar sp-oncall" style="left:{{ wd.oncall_band.left }}%;width:{{ wd.oncall_band.width }}%">on-call</div></div>
+            {% for lane in wd.lanes %}
+            <div class="sp-lane">
+              {% for b in lane %}
+              <div class="sp-bar{% if b.is_opener %} sp-open{% endif %}{% if b.is_closer %} sp-close{% endif %}" style="left:{{ b.left }}%;width:{{ b.width }}%" title="{{ b.name }} · {{ b.label }}">
+                {% if b.is_opener %}<svg class="sp-ic"><use href="#sp-sun"/></svg>{% endif %}<span class="sp-nm">{{ b.name }}</span> {{ b.label }}{% if b.is_closer %}<svg class="sp-ic"><use href="#sp-moon"/></svg>{% endif %}
+              </div>
+              {% endfor %}
             </div>
-            <div class="sb-tl-track">
-              {% for t in hour_ticks %}<span class="sb-grid-line" style="left:{{ t.pos }}%"></span>{% endfor %}
-              {% for seg in d.timeline %}<div class="sb-seg lvl-{{ seg.level }}" style="left:{{ seg.left }}%;width:{{ seg.width }}%" title="{{ seg.from }} – {{ seg.to }}: {{ seg.count }} on{% if seg.target %} (need {{ seg.target }}){% endif %}"></div>{% endfor %}
-              {% for b in d.oncall_bands %}<div class="sb-seg-oc" style="left:{{ b.left }}%;width:{{ b.width }}%" title="On-call window"></div>{% endfor %}
-              {% if d.is_today %}<div class="sb-now" style="left:{{ now_frac }}%" title="Now"></div>{% endif %}
-            </div>
+            {% empty %}
+            <div class="sp-lane" style="color:var(--crit);font-size:.7rem;padding-left:.2rem;">No one scheduled</div>
+            {% endfor %}
+            {% if wd.is_today %}<span class="sp-now" style="left:{{ now_frac }}%"></span>{% endif %}
           </div>
-          {% endfor %}
         </div>
-      </div>
+        {% endfor %}
+      </div></div></div>
     </div>
 
-    <div class="sb-legend">
-      <span><span class="sb-dot d-covered"></span>Covered</span>
-      <span><span class="sb-dot d-tight"></span>Tight — at target, no buffer</span>
-      <span><span class="sb-dot d-understaffed"></span>Understaffed / edge uncovered</span>
-      <span><span class="sb-dot d-critical"></span>Critical — daytime hole</span>
-      <span><i class="bi bi-telephone-inbound" style="color:var(--info)"></i>On-call (overnight)</span>
-      <span><i class="bi bi-moon-stars" style="color:var(--info)"></i>Overnight shift</span>
-      <span><span class="sb-exc" style="position:static;display:inline-block"></span>One-time change</span>
-      <span class="text-muted">Timeline bar: <b style="color:var(--good)">green</b> met target · <b style="color:var(--warn)">amber</b> thin · <b style="color:var(--crit)">red</b> gap · hatched = on-call.</span>
+    <div class="sp-legend">
+      <span><svg class="sp-ic"><use href="#sp-sun"/></svg> Opener — earliest in</span>
+      <span><svg class="sp-ic"><use href="#sp-moon"/></svg> Closer — latest out</span>
+      <span><span class="sp-dot warn"></span> Runs thin</span>
+      <span><span class="sp-dot crit"></span> Coverage gap</span>
     </div>
+    <p class="sp-foot">The number is the most dispatchers on at once that day; a weekday is flagged only where it runs thin (below target) or leaves an uncovered hole. Overnight (12–6&nbsp;AM) is covered by the on-call person, marked per night on the <a href="{% url 'timeclock_manage' %}">Time&nbsp;Clock</a> page — so it shows as “on-call o/n,” not a gap.</p>
   </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
-  var KEY = 'sbCoverageView';
-  var tableV = document.getElementById('sbTableView');
-  var tlV = document.getElementById('sbTimelineView');
-  var btns = [].slice.call(document.querySelectorAll('.sb-tgl'));
+  var t = document.getElementById('spTable'), tl = document.getElementById('spTimeline');
+  var btns = [].slice.call(document.querySelectorAll('.sp-tgl'));
   function apply(v) {
-    var tl = (v === 'timeline');
-    if (tableV) tableV.hidden = tl;
-    if (tlV) tlV.hidden = !tl;
+    var isTl = (v === 'timeline');
+    if (t) t.hidden = isTl;
+    if (tl) tl.hidden = !isTl;
     btns.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
   }
   btns.forEach(function (b) {
     b.addEventListener('click', function () {
-      try { localStorage.setItem(KEY, b.dataset.view); } catch (e) {}
+      try { localStorage.setItem('spStaffView', b.dataset.view); } catch (e) {}
       apply(b.dataset.view);
     });
   });
   var saved = 'table';
-  try { saved = localStorage.getItem(KEY) || 'table'; } catch (e) {}
+  try { saved = localStorage.getItem('spStaffView') || 'table'; } catch (e) {}
   apply(saved);
 })();
 </script>

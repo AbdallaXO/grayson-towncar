@@ -5022,57 +5022,36 @@ def staff_schedule_action(request):
     return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
 
 
-def _parse_board_monday(request, today):
-    """``?week=YYYY-MM-DD`` snapped to that week's Monday; default = this week."""
-    base = today
-    raw = request.GET.get("week")
-    if raw:
-        try:
-            base = datetime.strptime(raw, "%Y-%m-%d").date()
-        except ValueError:
-            base = today
-    return base - timedelta(days=base.weekday())
-
-
 @login_required(login_url="login")
 @user_passes_test(_is_superuser, login_url="dashboard")
 def staffing_board(request):
-    """Weekly dispatcher staffing & coverage board (superuser).
+    """Dispatcher staffing & coverage board (superuser).
 
-    Rows = dispatchers, columns = the 7 days of the selected week, above a
-    per-day coverage summary strip (concurrent headcount vs target, opener,
-    closer, overnight, gaps, and 'alone' spans). Planned schedule only — reads
-    no clock data, so 'scheduled' and 'actual' stay separate concepts. Editing
-    reuses the existing per-staff schedule editor (staff_schedule_action).
+    Shows the recurring *weekly pattern* — columns are weekdays (Mon–Sun, not
+    specific dates), rows are dispatchers with their standard hours, read
+    straight from StaffWeeklySchedule. Marks the opener (earliest in) and closer
+    (latest out) each weekday, and flags a weekday only where coverage actually
+    breaks. Overnight (12–6 AM) is the on-call window, shown quietly (on-call is
+    marked per night on the Time Clock page). Editing a dispatcher's hours reuses
+    the existing per-staff schedule editor.
     """
-    today = timezone.localdate()
-    monday = _parse_board_monday(request, today)
-    roster = list(
-        _office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides")
-    )
-    data = coverage.week_coverage(monday, roster, today=today)
+    roster = list(_office_staff_qs().prefetch_related("weekly_schedule_rows"))
+    today_dow = timezone.localdate().weekday()
+    data = coverage.weekly_pattern(roster, today_dow=today_dow)
 
-    # For the Timeline view: hour-axis ticks and a "now" marker (% across the day).
+    # Timeline "now" marker (% across a 24h day) + hour-axis ticks.
     now = timezone.localtime()
-    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    now_frac = round((now - midnight).total_seconds() / 86400 * 100, 3)
-    hour_ticks = [
-        {"pos": round(h / 24 * 100, 3), "label": lbl}
-        for h, lbl in [(0, "12a"), (3, "3a"), (6, "6a"), (9, "9a"), (12, "12p"),
-                       (15, "3p"), (18, "6p"), (21, "9p"), (24, "12a")]
-    ]
+    now_frac = round((now.hour * 60 + now.minute) / 1440 * 100, 3)
+    hour_ticks = [{"pos": round(h / 24 * 100, 3), "label": lbl}
+                  for h, lbl in [(0, "12a"), (6, "6a"), (12, "12p"), (18, "6p"), (24, "12a")]]
+    grid_ticks = [t["pos"] for t in hour_ticks if 0 < t["pos"] < 100]
 
     return render(request, "dispatching/staffing_board.html", {
-        "monday": monday,
-        "week_end": monday + timedelta(days=6),
-        "today": today,
-        "is_current_week": monday == today - timedelta(days=today.weekday()),
-        "prev_week": monday - timedelta(days=7),
-        "next_week": monday + timedelta(days=7),
-        "dates": data["dates"],
-        "days": data["days"],
+        "weekdays": data["weekdays"],
         "rows": data["rows"],
         "roster_count": len(roster),
+        "today_dow": today_dow,
         "now_frac": now_frac,
         "hour_ticks": hour_ticks,
+        "grid_ticks": grid_ticks,
     })
