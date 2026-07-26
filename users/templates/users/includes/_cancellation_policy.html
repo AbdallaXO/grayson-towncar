@@ -1,5 +1,10 @@
-{# Canonical customer-facing cancellation policy sentence. Source of truth:
-   reservations/refund_policy.py CANCELLATION_POLICY_SENTENCE (mirrors the refund
-   engine tiers). Passed into the email context as `cancellation_policy`; the default
-   below keeps the copy correct even if a context forgets to supply it. #}
-{{ cancellation_policy|default:"Full refund for cancellations 48 or more hours before pickup; 50% refund for cancellations 24 to 48 hours before pickup; cancellations within 24 hours of pickup are non-refundable." }}
+{% comment %}
+Canonical customer-facing cancellation policy sentence. Source of truth:
+reservations/refund_policy.py CANCELLATION_POLICY_SENTENCE (mirrors the refund
+engine tiers). Passed into the email context as `cancellation_policy`; the default
+below keeps the copy correct even if a context forgets to supply it.
+
+NOTE: keep this as a comment block (not a hash-style comment) — Django's
+hash-style comment syntax is single-line only, so a multi-line one is NOT
+stripped and leaks verbatim into the rendered email/footer.
+{% endcomment %}{{ cancellation_policy|default:"Full refund for cancellations 48 or more hours before pickup; 50% refund for cancellations 24 to 48 hours before pickup; cancellations within 24 hours of pickup are non-refundable." }}
