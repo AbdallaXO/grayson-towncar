@@ -7,6 +7,8 @@ Three models:
 - StaffActivity: passive tracking for owner visibility into staff behavior
 """
 
+from datetime import time
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -677,3 +679,50 @@ class StaffScheduleOverride(models.Model):
     def __str__(self):
         kind_label = dict(self.KIND_CHOICES).get(self.kind, self.kind)
         return f"{self.user} — {self.date_range_display}: {kind_label}"
+
+
+class StaffOnCall(models.Model):
+    """
+    A dispatcher marked on-call for one date's overnight window (default 12 AM–6 AM).
+
+    On-call is *additive* — it does NOT replace the person's regular schedule; the
+    same day they may also work a normal shift (so this is a separate row, not a
+    StaffScheduleOverride, which the resolver treats as replacing the day). It is
+    ad-hoc per date (no recurring rotation yet). Times are Eastern wall-clock and
+    fall on ``date`` itself (00:00–06:00), so an on-call window does not cross
+    midnight. On-call is *planned* coverage only — logging that someone actually
+    took the on-call (paid, but not hourly) is a separate "actual" concept, kept
+    apart from this the same way TimeClockShift is kept apart from the schedule.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="oncall_shifts",
+    )
+    date = models.DateField(db_index=True, help_text="The calendar date whose early hours (default 12 AM–6 AM) this covers.")
+    start_time = models.TimeField(default=time(0, 0), help_text="Eastern wall-clock; on-call window start.")
+    end_time = models.TimeField(default=time(6, 0), help_text="Eastern wall-clock; on-call window end (same day, no midnight cross).")
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_oncall_shifts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "date")
+        ordering = ["date", "user"]
+        indexes = [
+            models.Index(fields=["date"], name="idx_oncall_date"),
+            models.Index(fields=["user", "date"], name="idx_oncall_user_date"),
+        ]
+        verbose_name = "Staff On-Call"
+        verbose_name_plural = "Staff On-Call"
+
+    def __str__(self):
+        return f"{self.user} — {self.date:%b %d, %Y}: on-call {self.start_time:%H:%M}–{self.end_time:%H:%M}"

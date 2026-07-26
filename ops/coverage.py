@@ -1,49 +1,57 @@
 """
 Cross-dispatcher coverage aggregation for the staffing board.
 
-The staffing board answers a question a per-cell grid physically cannot:
-"is each *day* adequately covered?" Coverage is a property of a column (a day),
-so for each day we build a **concurrency timeline** from every dispatcher's
-resolved *planned* schedule and read off the metrics that matter:
+Answers a question a per-cell grid can't: "is each *day* adequately covered?"
+For each day we build a concurrency timeline from every dispatcher's resolved
+*planned* schedule (plus anyone marked on-call), compare it against a
+time-of-day **target**, and surface the single worst coverage problem.
 
-    peak / minimum concurrent headcount, opener, closer, overnight workers,
-    "alone" spans (headcount == 1), and interior gaps (headcount == 0).
+Why tiered targets
+------------------
+A flat "2 people, all day" target lights the whole week red, because nobody is
+scheduled 2–6 AM (that's the on-call window) — so the thinnest moment is always
+0. Real staffing is tiered: ~2 during the busy core, 1 at the edges and
+overnight (covered by an on-call person). We encode that in ``target_at`` and
+judge each part of the day against the target for *that* time. Edit the few
+constants below to match how you actually staff — they drive every risk colour.
 
-Design notes
-------------
-* Planned data only. This module reads NO ``TimeClockShift`` — "scheduled" and
-  "actual" stay separate concepts (the bridge is ``ops.scheduling.schedule_vs_actual``,
-  used elsewhere). The board overlays live/clocked state in a later phase.
-* Reuses ``ops.scheduling.resolve_staff_schedule`` for every cell (override →
-  weekly → off priority) — the resolver is the single source of truth; we never
-  re-derive precedence or read override rows directly.
-* Reuses ``dispatching.schedule_risk`` for the risk vocabulary so the staff and
-  driver boards speak the same language (covered / tight / understaffed / critical).
-* Timezone: every interval is an aware Eastern datetime built exactly like
-  ``schedule_vs_actual`` (make_aware(combine(date, time))), so DST-day windows
-  are 23h/25h correctly and never compared as raw minutes-of-day.
-* Overnight windows (``end <= start``) roll their end to the next day and are
-  split across the two calendar days they touch: a Monday 8pm–2am shift
-  contributes 8pm–midnight to Monday's timeline and midnight–2am to Tuesday's.
-* No DB access of its own beyond what the resolver reads from prefetched
-  managers — callers MUST hand in a roster prefetched with
-  ``weekly_schedule_rows`` + ``schedule_overrides`` to stay O(roster) in queries.
+On-call
+-------
+Someone marked on-call (StaffOnCall, default 12 AM–6 AM) counts as a real body
+for coverage during that window — it's additive to any regular shift. So a night
+*with* an on-call person reads covered; a night with nobody reads under-target.
+On-call is planned coverage only; whether they actually *logged* the on-call is
+a separate concept (kept apart, like the time clock).
+
+Everything is planned-schedule only — this module reads no TimeClockShift.
+Timezone: intervals are aware Eastern datetimes (make_aware(combine(date,time)))
+so DST days are 23h/25h correctly; overnight shifts (end<=start) split across
+the two calendar days they touch. Callers must hand in a roster prefetched with
+weekly_schedule_rows + schedule_overrides to stay O(roster) in queries.
 """
 
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import datetime, time, timedelta
 
 from django.utils import timezone
 
 from drivers.availability import fmt_time_long
-from dispatching.schedule_risk import classify_risk, survivability_ok
 from . import scheduling
+from .models import StaffOnCall
 
 
-# Minimum concurrent dispatchers wanted per weekday (0=Mon … 6=Sun). A plain
-# constant on purpose: a table is scope creep until the founder needs no-deploy
-# edits. Weekdays want two on at the thinnest moment; weekends want at least one.
-COVERAGE_TARGET = {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 1, 6: 1}
-DEFAULT_TARGET = 1
+# ── Coverage targets (EDIT THESE to match how you staff) ──────────────
+# Minimum dispatchers wanted, by time of day. "Core" = the busy midday block;
+# everything outside it (early open, evening, and the 12–6 AM on-call window)
+# wants just 1. On-call fills that overnight 1.
+CORE_START = time(9, 0)    # 9 AM
+CORE_END = time(20, 0)     # 8 PM
+CORE_TARGET = {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 1, 6: 1}  # Mon–Fri want 2, weekends 1
+EDGE_TARGET = 1            # opening / evening / overnight (on-call)
+
+# A shortfall shorter than this isn't a real coverage problem — it's a handoff
+# sliver (e.g. on-call ends 6:00, the opener arrives 6:30). Keeps the board calm.
+MIN_ISSUE = timedelta(minutes=30)
 
 RISK_LABELS = {
     "covered": "Covered",
@@ -53,8 +61,11 @@ RISK_LABELS = {
 }
 
 
-def target_for(date):
-    return COVERAGE_TARGET.get(date.weekday(), DEFAULT_TARGET)
+def target_at(t, weekday):
+    """Minimum bodies wanted at local time ``t`` on ``weekday``."""
+    if CORE_START <= t < CORE_END:
+        return CORE_TARGET.get(weekday, 1)
+    return EDGE_TARGET
 
 
 # ── time helpers ──────────────────────────────────────────────────────
@@ -81,11 +92,8 @@ def _compact_time(t):
 
 
 def _resolved_window(sched, date):
-    """A resolved schedule dict → (start_dt, end_dt) aware, or None if off/none.
-
-    Overnight (``end <= start``) rolls the end to the next calendar day, so the
-    returned interval is always positive-length and may cross midnight.
-    """
+    """Resolved schedule dict → (start_dt, end_dt) aware, or None if off/none.
+    Overnight (end<=start) rolls the end to the next day."""
     if not sched.get("is_working") or not sched.get("start_time") or not sched.get("end_time"):
         return None
     tz = timezone.get_current_timezone()
@@ -98,173 +106,187 @@ def _resolved_window(sched, date):
 
 # ── interval sweep ────────────────────────────────────────────────────
 
-def _segments(intervals):
-    """Step function of concurrent count over the union span of ``intervals``.
+def _segments(intervals, boundary_points):
+    """Step function of concurrent count across the whole day.
 
-    ``intervals`` = list of (start_dt, end_dt). Returns [(seg_start, seg_end,
-    count)] over consecutive boundary points. Because boundary points are exactly
-    the interval endpoints, the first and last segments always have count >= 1,
-    so every count==0 segment is necessarily an *interior* gap. A shift ending
-    exactly when another starts reads as continuous (no false gap).
+    ``boundary_points`` (the day bounds + core-hours boundaries) are always
+    included, so the entire day is evaluated — an uncovered stretch with nobody
+    scheduled still shows as count 0 — and no segment straddles a target change.
+    Returns [(seg_start, seg_end, count)].
     """
-    if not intervals:
-        return []
-    points = sorted({i[0] for i in intervals} | {i[1] for i in intervals})
-    segs = []
-    for a, b in zip(points, points[1:]):
+    pts = sorted(set(boundary_points) | {i[0] for i in intervals} | {i[1] for i in intervals})
+    out = []
+    for a, b in zip(pts, pts[1:]):
         count = sum(1 for s, e in intervals if s <= a and e >= b)
-        segs.append((a, b, count))
-    return segs
+        out.append((a, b, count))
+    return out
 
 
-def _runs(segs, predicate):
-    """Merge consecutive segments whose count matches ``predicate`` into
-    [(start_dt, end_dt)] runs."""
-    runs, cur = [], None
-    for a, b, c in segs:
-        if predicate(c):
-            cur = (cur[0], b) if (cur and cur[1] == a) else (a, b)
-        elif cur:
-            runs.append(cur)
-            cur = None
-    if cur:
-        runs.append(cur)
-    return runs
-
-
-def _who_at(intervals_with_user, a, b):
-    """The single user covering segment [a, b), for 'alone' labelling."""
-    for s, e, u in intervals_with_user:
-        if s <= a and e >= b:
-            return u
-    return None
+def _merge_ct(enriched):
+    """Merge consecutive (a,b,count,target) segments that share count+target."""
+    merged = []
+    for a, b, c, t in enriched:
+        if merged and merged[-1][2] == c and merged[-1][3] == t:
+            merged[-1] = (merged[-1][0], b, c, t)
+        else:
+            merged.append((a, b, c, t))
+    return merged
 
 
 # ── public API ────────────────────────────────────────────────────────
 
-def day_coverage(target_date, roster, *, today=None, target=None):
+def day_coverage(target_date, roster, *, today=None, oncall_map=None):
     """Aggregate one calendar day's planned coverage across ``roster``.
 
-    ``roster`` should be prefetched (weekly_schedule_rows, schedule_overrides).
-    Includes the tail of the *previous* day's overnight shifts in the concurrency
-    math (someone who came on at 8pm yesterday still counts at 1am today).
+    ``oncall_map`` (optional) maps date -> list[StaffOnCall]; pass it to avoid a
+    per-day query. Includes the previous day's overnight tail and same-day
+    on-call bodies in the concurrency math.
     """
     if today is None:
         today = timezone.localdate()
-    if target is None:
-        target = target_for(target_date)
-
+    tz = timezone.get_current_timezone()
     day_start, day_end = _et_day_bounds(target_date)
     prev = target_date - timedelta(days=1)
+    weekday = target_date.weekday()
 
-    workers = []          # shifts that START today — drives opener/closer/list
-    clipped = []          # (start, end, user) intervals inside [day_start, day_end)
+    workers = []
+    intervals = []   # (start, end) covering bodies inside the day — shifts + on-call
 
     for u in roster:
-        # This day's window.
         sched = scheduling.resolve_staff_schedule(u, target_date)
         win = _resolved_window(sched, target_date)
         if win:
             start, end = win
             workers.append({
-                "user": u,
                 "name": u.get_full_name() or u.username,
                 "start_dt": start,
                 "end_dt": end,
                 "start_label": fmt_time_long(sched["start_time"]),
-                "end_label": fmt_time_long(sched["end_time"]),
-                "start_compact": _compact_time(sched["start_time"]),
-                "end_compact": _compact_time(sched["end_time"]),
                 "is_overnight": end > day_end,
-                "has_exception": sched.get("has_exception", False),
             })
             cs, ce = max(start, day_start), min(end, day_end)
             if ce > cs:
-                clipped.append((cs, ce, u))
-        # Previous day's overnight tail spilling into this day.
+                intervals.append((cs, ce))
         pwin = _resolved_window(scheduling.resolve_staff_schedule(u, prev), prev)
         if pwin:
             ps, pe = pwin
             cs, ce = max(ps, day_start), min(pe, day_end)
             if ce > cs:
-                clipped.append((cs, ce, u))
+                intervals.append((cs, ce))
+
+    # On-call bodies (default 12–6 AM), additive to any shift.
+    if oncall_map is None:
+        entries = list(
+            StaffOnCall.objects.filter(date=target_date, user__in=[u.id for u in roster])
+            .select_related("user")
+        )
+    else:
+        entries = oncall_map.get(target_date, [])
+    oncall = []
+    for oc in entries:
+        s = timezone.make_aware(datetime.combine(target_date, oc.start_time), tz)
+        e = timezone.make_aware(datetime.combine(target_date, oc.end_time), tz)
+        if e <= s:
+            e += timedelta(days=1)
+        oncall.append({
+            "name": oc.user.get_full_name() or oc.user.username,
+            "window": f"{_compact_time(oc.start_time)}–{_compact_time(oc.end_time)}",
+        })
+        cs, ce = max(s, day_start), min(e, day_end)
+        if ce > cs:
+            intervals.append((cs, ce))
 
     workers.sort(key=lambda w: (w["start_dt"], w["name"]))
 
-    intervals = [(s, e) for s, e, _ in clipped]
-    segs = _segments(intervals)
-    counts = [c for _, _, c in segs]
-    peak = max(counts) if counts else 0
-    min_concurrent = min(counts) if counts else 0
+    # Sweep, split at the core-hours boundaries so target is constant per segment.
+    core_lo = timezone.make_aware(datetime.combine(target_date, CORE_START), tz)
+    core_hi = timezone.make_aware(datetime.combine(target_date, CORE_END), tz)
+    segs = _segments(intervals, (day_start, day_end, core_lo, core_hi))
+    enriched = [(a, b, c, target_at(timezone.localtime(a).time(), weekday)) for a, b, c in segs]
+    peak = max((c for _, _, c, _ in enriched), default=0)
 
-    gap_runs = _runs(segs, lambda c: c == 0)
-    alone_runs = _runs(segs, lambda c: c == 1)
-    gaps = [{"start_label": _dt_label(a), "end_label": _dt_label(b)} for a, b in gap_runs]
-    alone = []
-    for a, b in alone_runs:
-        u = _who_at(clipped, a, b)
-        alone.append({
-            "start_label": _dt_label(a),
-            "end_label": _dt_label(b),
-            "name": (u.get_full_name() or u.username) if u else "",
-        })
+    # Merge into runs, then only stretches longer than MIN_ISSUE count as a
+    # problem — handoff slivers are ignored so the board stays calm.
+    sig = [(a, b, c, t) for a, b, c, t in _merge_ct(enriched) if (b - a) > MIN_ISSUE]
+    worst_deficit = max([t - c for _, _, c, t in sig], default=0)
+    worst_deficit = max(0, worst_deficit)
+    crit = any(c == 0 and t >= 2 for _, _, c, t in sig) or worst_deficit >= 2
+    soft = worst_deficit >= 1
 
-    on_count = len(workers)
-    delta = min_concurrent - target
-    if peak == 0 or gap_runs:
-        # Nobody on, or a hole inside the covered day — always the worst state.
+    if crit:
         risk = "critical"
+    elif soft:
+        risk = "understaffed"
+    elif any(c == t and t >= 2 for _, _, c, t in enriched):
+        risk = "tight"      # met core target exactly — no buffer
     else:
-        risk = classify_risk(delta, [])
-    survives = survivability_ok(min_concurrent, target)
+        risk = "covered"
 
-    opener = None
-    closer = None
-    if workers:
-        first = min(workers, key=lambda w: w["start_dt"])
-        last = max(workers, key=lambda w: w["end_dt"])
-        opener = {"name": first["name"], "time_label": first["start_label"]}
-        closer = {"name": last["name"], "time_label": _dt_label(last["end_dt"]),
-                  "is_overnight": last["is_overnight"]}
-    overnight = [{"name": w["name"], "end_label": _dt_label(w["end_dt"])}
-                 for w in workers if w["is_overnight"]]
+    # Single worst issue for the strip. Priority: daytime hole > big shortfall >
+    # overnight/edge uncovered > small shortfall.
+    issues = [(a, b, c, t) for a, b, c, t in sig if c < t]
+
+    def _sev(seg):
+        a, b, c, t = seg
+        if c == 0 and t >= 2:
+            return 0
+        if t - c >= 2:
+            return 1
+        if c == 0:
+            return 2
+        return 3
+
+    worst_issue = {"level": "ok", "text": "Fully covered"}
+    if issues:
+        a, b, c, t = min(issues, key=lambda s: (_sev(s), -(s[3] - s[2]), s[0]))
+        span = f"{_dt_label(a)} – {_dt_label(b)}"
+        if c == 0 and t >= 2:
+            worst_issue = {"level": "crit", "text": f"No coverage {span}"}
+        elif t - c >= 2:
+            worst_issue = {"level": "crit", "text": f"{c} of {t} · {span}"}
+        elif c == 0:
+            # Only the actual overnight window reads as an on-call gap; a morning
+            # or evening hole is just "uncovered".
+            overnight = timezone.localtime(a).time() < time(6)
+            worst_issue = {"level": "soft", "text": (f"No on-call {span}" if overnight else f"Uncovered {span}")}
+        else:
+            worst_issue = {"level": "soft", "text": f"{c} of {t} · {span}"}
+
+    coverage_span = None
+    if intervals:
+        coverage_span = f"{_dt_label(min(s for s, _ in intervals))} – {_dt_label(max(e for _, e in intervals))}"
 
     return {
         "date": target_date,
-        "weekday": target_date.weekday(),
+        "weekday": weekday,
         "day_name": target_date.strftime("%a"),
         "day_name_full": target_date.strftime("%A"),
         "is_today": target_date == today,
         "is_past": target_date < today,
-        "is_weekend": target_date.weekday() >= 5,
-        "target": target,
-        "on_count": on_count,
-        "peak": peak,
-        "min_concurrent": min_concurrent,
-        "delta": delta,
+        "is_weekend": weekday >= 5,
         "risk": risk,
         "risk_label": RISK_LABELS.get(risk, risk.title()),
-        "survives_callout": survives,
-        "opener": opener,
-        "closer": closer,
-        "overnight": overnight,
-        "gaps": gaps,
-        "alone": alone,
-        "workers": workers,
+        "on_count": len(workers),
+        "oncall": oncall,
+        "peak": peak,
+        "worst_issue": worst_issue,
+        "coverage_span": coverage_span,
+        "opener": ({"name": workers[0]["name"], "time_label": workers[0]["start_label"]} if workers else None),
+        "overnight": [w["name"] for w in workers if w["is_overnight"]],
     }
 
 
-def _cell(sched, date, today):
+def _cell(sched, date, today, oncall=None):
     """One dispatcher × one day cell for the grid, from a resolved schedule dict."""
     is_working = bool(sched.get("is_working"))
     st, et = sched.get("start_time"), sched.get("end_time")
     overnight = bool(is_working and st and et and et <= st)
     if is_working:
-        label = f"{_compact_time(st)}–{_compact_time(et)}"  # en dash
+        label = f"{_compact_time(st)}–{_compact_time(et)}"
     elif sched.get("kind") in ("off", "custom_hours"):
         label = "Off"
     else:
-        label = "—"  # em dash — no schedule set
+        label = "—"
     return {
         "date": date,
         "weekday": date.weekday(),
@@ -274,6 +296,8 @@ def _cell(sched, date, today):
         "kind": sched.get("kind"),
         "has_exception": sched.get("has_exception", False),
         "is_overnight": overnight,
+        "is_oncall": oncall is not None,
+        "oncall_label": (f"{_compact_time(oncall.start_time)}–{_compact_time(oncall.end_time)}" if oncall else ""),
         "label": label,
         "note": sched.get("note", ""),
         "tooltip": sched.get("tooltip", ""),
@@ -281,26 +305,35 @@ def _cell(sched, date, today):
 
 
 def week_coverage(monday, roster, *, today=None):
-    """Everything the staffing board renders for the Mon-anchored week.
-
-    Returns ``{dates, days, rows}`` where ``days`` is 7 ``day_coverage`` dicts
-    (the top summary strip) and ``rows`` is one per dispatcher with 7 grid cells.
-    ``roster`` must be prefetched with weekly_schedule_rows + schedule_overrides.
-    """
+    """Everything the staffing board renders for the Mon-anchored week:
+    ``{dates, days, rows}``. One query for the week's on-call entries."""
     if today is None:
         today = timezone.localdate()
     dates = [monday + timedelta(days=i) for i in range(7)]
 
-    days = [day_coverage(d, roster, today=today) for d in dates]
+    oncall_by_date = defaultdict(list)
+    oncall_by_user_date = {}
+    for oc in (
+        StaffOnCall.objects.filter(date__range=(dates[0], dates[-1]), user__in=[u.id for u in roster])
+        .select_related("user")
+    ):
+        oncall_by_date[oc.date].append(oc)
+        oncall_by_user_date[(oc.user_id, oc.date)] = oc
+
+    days = [day_coverage(d, roster, today=today, oncall_map=oncall_by_date) for d in dates]
 
     rows = []
     for u in roster:
-        cells = [_cell(scheduling.resolve_staff_schedule(u, d), d, today) for d in dates]
+        cells = [
+            _cell(scheduling.resolve_staff_schedule(u, d), d, today, oncall=oncall_by_user_date.get((u.id, d)))
+            for d in dates
+        ]
         rows.append({
             "user": u,
             "name": u.get_full_name() or u.username,
             "cells": cells,
             "working_days": sum(1 for c in cells if c["is_working"]),
+            "oncall_days": sum(1 for c in cells if c["is_oncall"]),
         })
 
     return {"dates": dates, "days": days, "rows": rows}

@@ -7,6 +7,7 @@ from .models import (
     EmailLog,
     TimeClockShift,
     TimeClockBreak,
+    StaffOnCall,
 )
 
 
@@ -104,3 +105,20 @@ class TimeClockBreakAdmin(admin.ModelAdmin):
     list_filter = ("auto_closed",)
     raw_id_fields = ("shift",)
     date_hierarchy = "break_start_at"
+
+
+@admin.register(StaffOnCall)
+class StaffOnCallAdmin(admin.ModelAdmin):
+    """Mark a dispatcher on-call for a date (default 12 AM–6 AM). Additive to their
+    regular schedule; feeds the staffing board's overnight coverage."""
+    list_display = ("date", "user", "start_time", "end_time", "note")
+    list_filter = ("date", "user")
+    search_fields = ("user__first_name", "user__last_name", "user__username", "note")
+    autocomplete_fields = ("user", "created_by")
+    date_hierarchy = "date"
+    ordering = ("-date",)
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
