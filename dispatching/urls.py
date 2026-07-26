@@ -466,6 +466,8 @@ urlpatterns = [
     path("timeclock/manage/entry-action/", ops_views.timeclock_entry_action, name="timeclock_entry_action"),
     path("timeclock/manage/schedule/", ops_views.staff_schedule_get, name="staff_schedule_get"),
     path("timeclock/manage/schedule/action/", ops_views.staff_schedule_action, name="staff_schedule_action"),
+    # ── Dispatcher Staffing & Coverage board (superuser) ──
+    path("staffing/", ops_views.staffing_board, name="staffing_board"),
     path("staff-metrics/", ops_views.staff_metrics_view, name="staff_metrics"),
     path("staff-kpis/", ops_views.staff_kpis_view, name="staff_kpis"),
     path("revenue-kpis/", ops_views.revenue_kpis_view, name="revenue_kpis"),

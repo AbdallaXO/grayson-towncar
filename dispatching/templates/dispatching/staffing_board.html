@@ -1,0 +1,212 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block title %}Dispatcher Staffing & Coverage{% endblock %}
+
+{% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .sb {
+    --page:#F6F7F9; --surface:#FFFFFF; --surface2:#FAFBFC; --surface3:#EEF1F4;
+    --hairline:rgba(20,22,28,0.09); --hairline2:rgba(20,22,28,0.14);
+    --text:#1A1D21; --text2:#5A6068; --text3:#9AA0A8;
+    --gold:#B0851C; --gold-soft:rgba(176,133,28,0.10); --gold-line:rgba(176,133,28,0.30);
+    --good:#2E7D52; --good-soft:rgba(46,125,82,0.10);
+    --warn:#B07A22; --warn-soft:rgba(176,122,34,0.12);
+    --crit:#C0504D; --crit-soft:rgba(192,80,77,0.12);
+    --info:#3A6EA5;
+    --name-col:186px; --day-col:minmax(96px,1fr);
+    font-family:'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    color:var(--text); background:var(--page); padding:1.1rem 0 3rem;
+  }
+  .sb-head { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
+  .sb-title { font-weight:800; font-size:1.45rem; margin:0; letter-spacing:-.01em; }
+  .sb-title i { color:var(--gold); }
+  .sb-sub { color:var(--text2); font-size:.85rem; margin:.15rem 0 0; }
+  .sb-nav { display:flex; align-items:center; gap:.4rem; }
+  .sb-nav a, .sb-nav span.sb-week {
+    display:inline-flex; align-items:center; gap:.35rem; font-size:.85rem; font-weight:600;
+    text-decoration:none; color:var(--text); background:var(--surface);
+    border:1px solid var(--hairline2); border-radius:.55rem; padding:.4rem .7rem;
+  }
+  .sb-nav a:hover { border-color:var(--gold-line); color:var(--gold); }
+  .sb-nav a.sb-today { background:var(--gold-soft); border-color:var(--gold-line); color:var(--gold); }
+  .sb-week { color:var(--text2)!important; font-weight:700!important; }
+
+  .sb-scroll { overflow-x:auto; border:1px solid var(--hairline2); border-radius:.8rem; background:var(--surface); }
+  .sb-matrix { min-width:920px; }
+
+  /* Shared column geometry so the strip and the grid align exactly. */
+  .sb-row { display:grid; grid-template-columns:var(--name-col) repeat(7, var(--day-col)); }
+
+  /* ── Coverage summary strip ── */
+  .sb-strip { border-bottom:2px solid var(--hairline2); }
+  .sb-strip-label {
+    padding:.6rem .8rem; font-size:.66rem; font-weight:800; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--text3); display:flex; align-items:flex-end;
+    border-right:1px solid var(--hairline);
+  }
+  .sb-cov { padding:.55rem .55rem .6rem; border-right:1px solid var(--hairline); border-top:3px solid transparent; }
+  .sb-cov.is-weekend { background:var(--surface2); }
+  .sb-cov.is-today { border-top-color:var(--gold); background:var(--gold-soft); }
+  .sb-cov:last-child { border-right:none; }
+  .sb-cov-day { font-size:.7rem; font-weight:700; color:var(--text2); display:flex; justify-content:space-between; align-items:center; }
+  .sb-cov-day .today-tag { font-size:.58rem; font-weight:800; color:var(--gold); letter-spacing:.05em; }
+  .sb-cov-head { display:flex; align-items:baseline; gap:.35rem; margin:.3rem 0 .35rem; }
+  .sb-cov-count { font-size:1.35rem; font-weight:800; line-height:1; }
+  .sb-cov-target { font-size:.72rem; color:var(--text3); font-weight:600; }
+  .sb-badge { display:inline-block; font-size:.62rem; font-weight:800; letter-spacing:.03em; text-transform:uppercase;
+    padding:.12rem .4rem; border-radius:.35rem; }
+  .sb-risk-covered .sb-cov-count { color:var(--good); } .sb-risk-covered .sb-badge { background:var(--good-soft); color:var(--good); }
+  .sb-risk-tight .sb-cov-count { color:var(--gold); } .sb-risk-tight .sb-badge { background:var(--gold-soft); color:var(--gold); }
+  .sb-risk-understaffed .sb-cov-count { color:var(--warn); } .sb-risk-understaffed .sb-badge { background:var(--warn-soft); color:var(--warn); }
+  .sb-risk-critical .sb-cov-count { color:var(--crit); } .sb-risk-critical .sb-badge { background:var(--crit-soft); color:var(--crit); }
+  .sb-cov-line { font-size:.68rem; color:var(--text2); display:flex; gap:.3rem; align-items:baseline; margin-top:.16rem; line-height:1.25; }
+  .sb-cov-line i { width:.85rem; color:var(--text3); flex:none; }
+  .sb-cov-line.warn { color:var(--crit); font-weight:600; } .sb-cov-line.warn i { color:var(--crit); }
+  .sb-cov-line.alone { color:var(--warn); } .sb-cov-line.alone i { color:var(--warn); }
+  .sb-cov-line b { font-weight:700; color:var(--text); }
+  .sb-cov-empty { font-size:.68rem; color:var(--crit); font-weight:600; margin-top:.35rem; }
+
+  /* ── Header row for the grid ── */
+  .sb-grid-head { border-bottom:1px solid var(--hairline2); background:var(--surface2); position:sticky; top:0; z-index:2; }
+  .sb-gh-name { padding:.5rem .8rem; font-size:.66rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); border-right:1px solid var(--hairline); }
+  .sb-gh-day { padding:.5rem .4rem; text-align:center; border-right:1px solid var(--hairline); }
+  .sb-gh-day:last-child { border-right:none; }
+  .sb-gh-day.is-today { background:var(--gold-soft); }
+  .sb-gh-dow { font-size:.72rem; font-weight:700; }
+  .sb-gh-date { font-size:.64rem; color:var(--text3); }
+
+  /* ── Dispatcher rows ── */
+  .sb-grid-row { border-bottom:1px solid var(--hairline); }
+  .sb-grid-row:last-child { border-bottom:none; }
+  .sb-grid-row:hover { background:var(--surface2); }
+  .sb-name { padding:.5rem .8rem; border-right:1px solid var(--hairline); display:flex; align-items:center; }
+  .sb-name a { color:var(--text); font-weight:700; font-size:.82rem; text-decoration:none; }
+  .sb-name a:hover { color:var(--gold); text-decoration:underline; }
+  .sb-name .sb-daycount { margin-left:auto; font-size:.62rem; color:var(--text3); font-weight:600; }
+  .sb-cell { padding:.42rem .4rem; text-align:center; border-right:1px solid var(--hairline); position:relative; font-size:.74rem; }
+  .sb-cell:last-child { border-right:none; }
+  .sb-cell.is-weekend { background:rgba(20,22,28,0.015); }
+  .sb-cell.is-today { background:var(--gold-soft); }
+  .sb-cell.off { color:var(--text3); }
+  .sb-cell.none { color:#C7CBD1; }
+  .sb-cell.work { color:var(--text); font-weight:600; }
+  .sb-pill { display:inline-block; padding:.18rem .34rem; border-radius:.35rem; background:var(--surface3); white-space:nowrap; }
+  .sb-cell.work .sb-pill { background:var(--gold-soft); color:var(--gold); }
+  .sb-cell.work.overnight .sb-pill { background:#3A4A860F; color:var(--info); }
+  .sb-exc { position:absolute; top:3px; right:4px; width:6px; height:6px; border-radius:50%; background:var(--warn); }
+  .sb-moon { font-size:.62rem; margin-right:.15rem; }
+
+  .sb-legend { display:flex; flex-wrap:wrap; gap:.75rem 1.2rem; margin-top:.8rem; font-size:.72rem; color:var(--text2); }
+  .sb-legend span { display:inline-flex; align-items:center; gap:.35rem; }
+  .sb-dot { width:9px; height:9px; border-radius:2px; display:inline-block; }
+  .d-covered{background:var(--good);} .d-tight{background:var(--gold);} .d-understaffed{background:var(--warn);} .d-critical{background:var(--crit);}
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid sb">
+    <div class="sb-head">
+      <div>
+        <h1 class="sb-title"><i class="bi bi-calendar-week me-2"></i>Staffing &amp; Coverage</h1>
+        <p class="sb-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} · week of {{ monday|date:"M j" }} – {{ week_end|date:"M j, Y" }}. Planned schedule — edit a dispatcher by clicking their name.</p>
+      </div>
+      <div class="sb-nav">
+        <a href="?week={{ prev_week|date:'Y-m-d' }}" title="Previous week"><i class="bi bi-chevron-left"></i></a>
+        <a href="{% url 'staffing_board' %}" class="{% if is_current_week %}sb-today{% endif %}">This week</a>
+        <a href="?week={{ next_week|date:'Y-m-d' }}" title="Next week"><i class="bi bi-chevron-right"></i></a>
+      </div>
+    </div>
+
+    <div class="sb-scroll">
+      <div class="sb-matrix">
+
+        <!-- Coverage summary strip -->
+        <div class="sb-row sb-strip">
+          <div class="sb-strip-label">Coverage</div>
+          {% for d in days %}
+          <div class="sb-cov sb-risk-{{ d.risk }} {% if d.is_today %}is-today{% elif d.is_weekend %}is-weekend{% endif %}">
+            <div class="sb-cov-day">
+              <span>{{ d.day_name }} {{ d.date|date:"j" }}</span>
+              {% if d.is_today %}<span class="today-tag">TODAY</span>{% endif %}
+            </div>
+            {% if d.on_count %}
+              <div class="sb-cov-head">
+                <span class="sb-cov-count">{{ d.min_concurrent }}</span>
+                <span class="sb-cov-target">/ {{ d.target }} min</span>
+                <span class="sb-badge ms-auto">{{ d.risk_label }}</span>
+              </div>
+              <div class="sb-cov-line"><i class="bi bi-people"></i><span>{{ d.on_count }} scheduled · peak {{ d.peak }}</span></div>
+              {% if d.opener %}<div class="sb-cov-line"><i class="bi bi-sunrise"></i><span><b>{{ d.opener.name }}</b> opens {{ d.opener.time_label }}</span></div>{% endif %}
+              {% if d.closer %}<div class="sb-cov-line"><i class="bi bi-sunset"></i><span><b>{{ d.closer.name }}</b> closes {{ d.closer.time_label }}</span></div>{% endif %}
+              {% for o in d.overnight %}<div class="sb-cov-line"><i class="bi bi-moon-stars"></i><span><b>{{ o.name }}</b> overnight → {{ o.end_label }}</span></div>{% endfor %}
+              {% for g in d.gaps %}<div class="sb-cov-line warn"><i class="bi bi-exclamation-triangle"></i><span>Gap {{ g.start_label }} – {{ g.end_label }}</span></div>{% endfor %}
+              {% for a in d.alone|slice:":2" %}<div class="sb-cov-line alone"><i class="bi bi-person"></i><span>Alone {{ a.start_label }} – {{ a.end_label }}</span></div>{% endfor %}
+              {% if d.alone|length > 2 %}<div class="sb-cov-line alone"><i></i><span>+{{ d.alone|length|add:"-2" }} more solo span(s)</span></div>{% endif %}
+            {% else %}
+              <div class="sb-cov-empty"><i class="bi bi-exclamation-octagon me-1"></i>No one scheduled</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Grid header -->
+        <div class="sb-row sb-grid-head">
+          <div class="sb-gh-name">Dispatcher</div>
+          {% for d in days %}
+          <div class="sb-gh-day {% if d.is_today %}is-today{% endif %}">
+            <div class="sb-gh-dow">{{ d.day_name }}</div>
+            <div class="sb-gh-date">{{ d.date|date:"M j" }}</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Dispatcher rows -->
+        {% for row in rows %}
+        <div class="sb-row sb-grid-row">
+          <div class="sb-name">
+            <a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s schedule">{{ row.name }}</a>
+            <span class="sb-daycount">{{ row.working_days }}d</span>
+          </div>
+          {% for c in row.cells %}
+          <div class="sb-cell {% if c.is_working %}work{% if c.is_overnight %} overnight{% endif %}{% elif c.kind == 'none' %}none{% else %}off{% endif %} {% if c.is_today %}is-today{% elif c.is_weekend %}is-weekend{% endif %}"
+               {% if c.tooltip %}title="{{ c.tooltip }}"{% endif %}>
+            {% if c.has_exception %}<span class="sb-exc" title="One-time change"></span>{% endif %}
+            {% if c.is_working %}
+              <span class="sb-pill">{% if c.is_overnight %}<i class="bi bi-moon-stars sb-moon"></i>{% endif %}{{ c.label }}</span>
+            {% else %}
+              {{ c.label }}
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% empty %}
+        <div class="sb-row sb-grid-row">
+          <div class="sb-name" style="grid-column:1 / -1; color:var(--text3); justify-content:center; padding:1.5rem;">No office dispatchers found.</div>
+        </div>
+        {% endfor %}
+
+      </div>
+    </div>
+
+    <div class="sb-legend">
+      <span><span class="sb-dot d-covered"></span>Covered — above target</span>
+      <span><span class="sb-dot d-tight"></span>Tight — at target, no buffer</span>
+      <span><span class="sb-dot d-understaffed"></span>Understaffed — below target</span>
+      <span><span class="sb-dot d-critical"></span>Critical — gap or no coverage</span>
+      <span><i class="bi bi-moon-stars" style="color:var(--info)"></i>Overnight shift</span>
+      <span><span class="sb-exc" style="position:static;display:inline-block"></span>One-time change</span>
+      <span class="text-muted">“Coverage” = fewest dispatchers on at once during the day.</span>
+    </div>
+  </div>
+{% endblock %}

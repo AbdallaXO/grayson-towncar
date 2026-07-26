@@ -48,6 +48,7 @@ from .services import (
     admin_delete_break,
 )
 from . import scheduling
+from . import coverage
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -4578,17 +4579,14 @@ def timeclock_export_csv(request):
 
 
 def _office_staff_qs():
-    """Office dispatchers: is_staff & active, excluding drivers/travel agents."""
-    from users.models import UserProfile
-    non_office = set(
-        UserProfile.objects.filter(Q(is_driver=True) | Q(is_travel_agent=True))
-        .values_list("user_id", flat=True)
-    )
-    return (
-        User.objects.filter(is_staff=True, is_active=True)
-        .exclude(id__in=non_office)
-        .order_by("first_name", "username")
-    )
+    """Office dispatchers: is_staff & active, excluding drivers/travel agents.
+
+    Thin wrapper over the importable ``ops.staff.office_staff_qs`` so the
+    staffing board and this module share one definition. (The two staff-metrics
+    views below keep their own inline variant on purpose — see ops/staff.py.)
+    """
+    from .staff import office_staff_qs
+    return office_staff_qs()
 
 
 def _tc_parse_et_dt(s):
@@ -4928,3 +4926,46 @@ def staff_schedule_action(request):
         return JsonResponse({"success": True})
 
     return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
+
+
+def _parse_board_monday(request, today):
+    """``?week=YYYY-MM-DD`` snapped to that week's Monday; default = this week."""
+    base = today
+    raw = request.GET.get("week")
+    if raw:
+        try:
+            base = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            base = today
+    return base - timedelta(days=base.weekday())
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="dashboard")
+def staffing_board(request):
+    """Weekly dispatcher staffing & coverage board (superuser).
+
+    Rows = dispatchers, columns = the 7 days of the selected week, above a
+    per-day coverage summary strip (concurrent headcount vs target, opener,
+    closer, overnight, gaps, and 'alone' spans). Planned schedule only — reads
+    no clock data, so 'scheduled' and 'actual' stay separate concepts. Editing
+    reuses the existing per-staff schedule editor (staff_schedule_action).
+    """
+    today = timezone.localdate()
+    monday = _parse_board_monday(request, today)
+    roster = list(
+        _office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides")
+    )
+    data = coverage.week_coverage(monday, roster, today=today)
+    return render(request, "dispatching/staffing_board.html", {
+        "monday": monday,
+        "week_end": monday + timedelta(days=6),
+        "today": today,
+        "is_current_week": monday == today - timedelta(days=today.weekday()),
+        "prev_week": monday - timedelta(days=7),
+        "next_week": monday + timedelta(days=7),
+        "dates": data["dates"],
+        "days": data["days"],
+        "rows": data["rows"],
+        "roster_count": len(roster),
+    })
