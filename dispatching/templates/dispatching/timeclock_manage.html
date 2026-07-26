@@ -95,6 +95,11 @@
             <div class="col-6 col-sm-3">
               <label class="form-label small mb-1">End date <span class="text-muted fw-normal">(repeats)</span></label>
               <input type="date" class="form-control form-control-sm" id="ocTo">
+              <div class="mt-1" style="font-size:.75rem;">
+                <button type="button" class="btn btn-link btn-sm p-0 me-2 oc-preset" data-days="14">+2 wks</button>
+                <button type="button" class="btn btn-link btn-sm p-0 me-2 oc-preset" data-days="30">+1 mo</button>
+                <button type="button" class="btn btn-link btn-sm p-0 oc-preset" data-days="90">+3 mo</button>
+              </div>
             </div>
             <div class="col-6 col-sm-1">
               <label class="form-label small mb-1">On</label>
@@ -210,6 +215,12 @@
   }
   const ocFrom = document.getElementById('ocFrom');
   if (ocFrom && !ocFrom.value) { ocFrom.value = nowLocal().slice(0, 10); }
+  document.querySelectorAll('.oc-preset').forEach(b => b.addEventListener('click', () => {
+    const base = ocFrom.value ? new Date(ocFrom.value + 'T00:00:00') : new Date();
+    base.setDate(base.getDate() + parseInt(b.dataset.days, 10));
+    const p = n => String(n).padStart(2, '0');
+    document.getElementById('ocTo').value = `${base.getFullYear()}-${p(base.getMonth()+1)}-${p(base.getDate())}`;
+  }));
   const ocForm = document.getElementById('oncallForm');
   if (ocForm) ocForm.addEventListener('submit', async (e) => {
     e.preventDefault();

@@ -245,6 +245,14 @@ class OnCallActionTests(TestCase):
                            "from": "2026-06-01", "weekdays": [0, 2]})  # Mon+Wed, no end
         self.assertEqual(resp.json()["created"], 2)  # 06-01 Mon, 06-03 Wed within the default week
 
+    def test_month_long_range_in_one_submit(self):
+        # Mon–Fri for all of June 2026 in a single add — no weekly repetition.
+        resp = self._post({"action": "add", "user_id": self.staff.id,
+                           "from": "2026-06-01", "to": "2026-06-30", "weekdays": [0, 1, 2, 3, 4]})
+        self.assertTrue(resp.json()["success"])
+        self.assertEqual(resp.json()["created"], 22)   # 22 weekdays in June 2026
+        self.assertEqual(StaffOnCall.objects.filter(user=self.staff).count(), 22)
+
     def test_overlong_range_rejected(self):
         resp = self._post({"action": "add", "user_id": self.staff.id,
                            "from": "2026-01-01", "to": "2026-12-31", "weekdays": [0]})

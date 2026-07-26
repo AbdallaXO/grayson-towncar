@@ -4744,8 +4744,8 @@ def timeclock_oncall_action(request):
                 return JsonResponse({"success": False, "error": "Pick a start and end date for the repeat."})
             if d1 < d0:
                 return JsonResponse({"success": False, "error": "End date must be on or after the start date."})
-            if (d1 - d0).days > 92:
-                return JsonResponse({"success": False, "error": "Keep the repeat range within about 3 months."})
+            if (d1 - d0).days > 186:
+                return JsonResponse({"success": False, "error": "Keep the repeat range within about 6 months."})
             d = d0
             while d <= d1:
                 if d.weekday() in weekdays:
