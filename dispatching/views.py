@@ -9419,6 +9419,10 @@ def refund_management(request):
         return redirect("dashboard")
 
     status_filter = request.GET.get("status", "")
+    type_filter = request.GET.get("type", "")
+    # "Review" tab: completed Full Cancellations — the ones worth eyeballing for
+    # a dispatcher who full-cancelled when they meant a partial / price adjustment.
+    review_mode = request.GET.get("review") == "full_cancellations"
 
     base_qs = RefundRequest.objects.select_related(
         'reservation',
@@ -9427,12 +9431,18 @@ def refund_management(request):
         'processed_by',
     ).prefetch_related('legs')
 
-    if status_filter:
-        refund_requests = base_qs.filter(status=status_filter).order_by('-requested_at')
-    else:
+    if review_mode:
         refund_requests = base_qs.filter(
-            status__in=['requested', 'processing', 'approved']
-        ).order_by('-requested_at')
+            status='completed', refund_type='full_cancellation'
+        ).order_by('-processed_at')
+    else:
+        if status_filter:
+            refund_requests = base_qs.filter(status=status_filter)
+        else:
+            refund_requests = base_qs.filter(status__in=['requested', 'processing', 'approved'])
+        if type_filter:
+            refund_requests = refund_requests.filter(refund_type=type_filter)
+        refund_requests = refund_requests.order_by('-requested_at')
 
     status_counts = {
         'requested': RefundRequest.objects.filter(status='requested').count(),
@@ -9440,11 +9450,16 @@ def refund_management(request):
         'approved': RefundRequest.objects.filter(status='approved').count(),
         'completed': RefundRequest.objects.filter(status='completed').count(),
         'rejected': RefundRequest.objects.filter(status='rejected').count(),
+        'full_cancel_review': RefundRequest.objects.filter(
+            status='completed', refund_type='full_cancellation'
+        ).count(),
     }
 
     context = {
         'refund_requests': refund_requests,
         'status_filter': status_filter,
+        'type_filter': type_filter,
+        'review_mode': review_mode,
         'status_counts': status_counts,
     }
 
@@ -9511,6 +9526,129 @@ def _process_stripe_refund(reservation, refund_amount, idem_prefix=None):
             logger.error(f"Refund processing error: {e}")
 
     return refunded_amount, refund_errors, stripe_ids
+
+
+def _execute_refund_approval(rr, user, refund_notes=""):
+    """
+    Execute an approved refund for a single, already-loaded RefundRequest whose
+    refund_type is final. Shared by process_refund (single) and
+    bulk_approve_refunds (many) so the money path never drifts between them.
+
+    Runs the Stripe refund (idempotency-keyed on the request), applies the
+    type-specific side effects (cancel legs / reservation for partial & full),
+    syncs the reservation's flat refund fields, and invalidates the capacity
+    cache. Returns a plain dict the caller turns into a response; it does not
+    raise for expected conditions.
+    """
+    reservation = rr.reservation
+
+    refund_amount = rr.amount
+    if not refund_amount or refund_amount <= 0:
+        return {"ok": False, "status": 400, "error": "No refund amount set"}
+
+    # Idempotency guard: atomically claim this request. If it isn't in an active
+    # state right now (already completed, or being processed elsewhere), bail
+    # instead of re-running the Stripe refunds.
+    claimed = RefundRequest.objects.filter(
+        id=rr.id, status__in=['requested', 'processing', 'approved'],
+    ).update(status='processing')
+    if not claimed:
+        return {"ok": False, "status": 409, "error": "This refund request was already processed."}
+    rr.refresh_from_db()
+
+    # Process Stripe refund (idempotency-keyed so a retry can't double-refund).
+    refunded_amount, refund_errors, stripe_ids = _process_stripe_refund(
+        reservation, refund_amount, idem_prefix=f"refund-{rr.id}"
+    )
+
+    if refund_errors and refunded_amount == 0:
+        # Total failure — release the claim so it can be retried, then report.
+        RefundRequest.objects.filter(id=rr.id).update(status='requested')
+        return {"ok": False, "status": 500,
+                "error": f"Failed to process refund: {'; '.join(refund_errors)}"}
+
+    # Partial failure: keep going but record the shortfall in the notes.
+    if refund_errors:
+        _shortfall = f"[PARTIAL REFUND — refunded ${refunded_amount} of ${refund_amount}; errors: {'; '.join(refund_errors)}]"
+        refund_notes = (refund_notes + "\n" + _shortfall).strip() if refund_notes else _shortfall
+
+    rr.stripe_refund_ids = stripe_ids
+
+    dates_to_invalidate = set()
+
+    if rr.refund_type == 'price_adjustment':
+        rr.status = 'completed'
+        rr.processed_by = user
+        rr.processed_at = timezone.now()
+        rr.notes = refund_notes
+        rr.save()
+
+    elif rr.refund_type == 'partial_cancellation':
+        # Cancel selected legs, keep reservation active. Cancellation is a FACT —
+        # always live, even on a held (drafted) day.
+        legs_to_cancel = rr.legs.all()
+        with sanctioned_live_write():
+            for leg in legs_to_cancel:
+                dates_to_invalidate.add(leg.pickup_date.isoformat())
+                leg.status = 'cancelled'
+                leg.payment_status = 'canceled'
+                leg.driver = None
+                leg.save(update_fields=['status', 'payment_status', 'driver'])
+
+        rr.status = 'completed'
+        rr.processed_by = user
+        rr.processed_at = timezone.now()
+        rr.notes = refund_notes
+        rr.save()
+
+        # If ALL legs are now cancelled, cancel the reservation too.
+        active_legs = reservation.legs.exclude(status='cancelled')
+        if not active_legs.exists():
+            reservation.status = 'cancelled'
+
+    elif rr.refund_type == 'full_cancellation':
+        # Cancel all legs + reservation (fact-write — always live).
+        with sanctioned_live_write():
+            for leg in reservation.legs.all():
+                dates_to_invalidate.add(leg.pickup_date.isoformat())
+                if leg.status != 'cancelled':
+                    leg.status = 'cancelled'
+                    leg.payment_status = 'canceled'
+                    leg.driver = None
+                    leg.save(update_fields=['status', 'payment_status', 'driver'])
+
+        reservation.status = 'cancelled'
+
+        rr.status = 'completed'
+        rr.processed_by = user
+        rr.processed_at = timezone.now()
+        rr.notes = refund_notes
+        rr.save()
+
+    # Sync flat fields on Reservation.
+    reservation.refund_status = 'completed'
+    reservation.refund_processed_by = user
+    reservation.refund_processed_at = timezone.now()
+    reservation.refund_notes = refund_notes
+    if refund_errors:
+        reservation.refund_notes = (refund_notes or "") + f"\n\nRefund processing notes: {'; '.join(refund_errors)}"
+    reservation.save()
+
+    # Invalidate capacity planner cache for affected dates.
+    for date_str in dates_to_invalidate:
+        cache.delete(f"capacity_planner_{date_str}")
+
+    logger.info(
+        f"Refund #{rr.id} ({rr.refund_type}) processed for reservation {reservation.id} "
+        f"by {user.username}. Amount: ${refunded_amount}"
+    )
+
+    return {
+        "ok": True, "status": 200,
+        "message": f"Refund processed successfully. Amount refunded: ${refunded_amount}",
+        "refunded_amount": refunded_amount,
+        "warnings": refund_errors if refund_errors else None,
+    }
 
 
 @login_required
@@ -9580,127 +9718,260 @@ def process_refund(request):
             return JsonResponse({"success": True, "message": "Refund request rejected."})
 
         # ── APPROVE ──
-        refund_amount = rr.amount
-        if not refund_amount or refund_amount <= 0:
-            return JsonResponse({"success": False, "error": "No refund amount set"}, status=400)
-
-        # Idempotency guard: atomically claim this request. If it isn't in an active
-        # state right now (already completed, or being processed in another tab / a
-        # double-submit), bail instead of re-running the Stripe refunds.
-        claimed = RefundRequest.objects.filter(
-            id=rr.id, status__in=['requested', 'processing', 'approved'],
-        ).update(status='processing')
-        if not claimed:
-            return JsonResponse(
-                {"success": False, "error": "This refund request was already processed."},
-                status=409,
-            )
-        rr.refresh_from_db()
-
-        # Process Stripe refund (idempotency-keyed on this request so a retry that slips
-        # past the claim guard still can't double-refund the same payment/amount).
-        refunded_amount, refund_errors, stripe_ids = _process_stripe_refund(
-            reservation, refund_amount, idem_prefix=f"refund-{rr.id}"
-        )
-
-        if refund_errors and refunded_amount == 0:
-            # Total failure — release the claim so it can be retried, then report.
-            RefundRequest.objects.filter(id=rr.id).update(status='requested')
-            return JsonResponse({
-                "success": False,
-                "error": f"Failed to process refund: {'; '.join(refund_errors)}"
-            }, status=500)
-
-        # Partial failure (some refunded, some errored): keep going but record the
-        # shortfall in the notes so it's visible instead of silently "completed".
-        if refund_errors:
-            _shortfall = f"[PARTIAL REFUND — refunded ${refunded_amount} of ${refund_amount}; errors: {'; '.join(refund_errors)}]"
-            refund_notes = (refund_notes + "\n" + _shortfall).strip() if refund_notes else _shortfall
-
-        # Store Stripe IDs on RefundRequest
-        rr.stripe_refund_ids = stripe_ids
-
-        # Branch by refund type
-        dates_to_invalidate = set()
-
-        if rr.refund_type == 'price_adjustment':
-            # Just refund money, no cancellations
-            rr.status = 'completed'
-            rr.processed_by = request.user
-            rr.processed_at = timezone.now()
-            rr.notes = refund_notes
-            rr.save()
-
-        elif rr.refund_type == 'partial_cancellation':
-            # Cancel selected legs, keep reservation active. Cancellation is a
-            # FACT — always live, even on a held (drafted) day.
-            legs_to_cancel = rr.legs.all()
-            with sanctioned_live_write():
-                for leg in legs_to_cancel:
-                    dates_to_invalidate.add(leg.pickup_date.isoformat())
-                    leg.status = 'cancelled'
-                    leg.payment_status = 'canceled'
-                    leg.driver = None
-                    leg.save(update_fields=['status', 'payment_status', 'driver'])
-
-            rr.status = 'completed'
-            rr.processed_by = request.user
-            rr.processed_at = timezone.now()
-            rr.notes = refund_notes
-            rr.save()
-
-            # If ALL legs are now cancelled, cancel the reservation too
-            active_legs = reservation.legs.exclude(status='cancelled')
-            if not active_legs.exists():
-                reservation.status = 'cancelled'
-
-        elif rr.refund_type == 'full_cancellation':
-            # Cancel all legs + reservation (fact-write — always live)
-            with sanctioned_live_write():
-                for leg in reservation.legs.all():
-                    dates_to_invalidate.add(leg.pickup_date.isoformat())
-                    if leg.status != 'cancelled':
-                        leg.status = 'cancelled'
-                        leg.payment_status = 'canceled'
-                        leg.driver = None
-                        leg.save(update_fields=['status', 'payment_status', 'driver'])
-
-            reservation.status = 'cancelled'
-
-            rr.status = 'completed'
-            rr.processed_by = request.user
-            rr.processed_at = timezone.now()
-            rr.notes = refund_notes
-            rr.save()
-
-        # Sync flat fields on Reservation
-        reservation.refund_status = 'completed'
-        reservation.refund_processed_by = request.user
-        reservation.refund_processed_at = timezone.now()
-        reservation.refund_notes = refund_notes
-        if refund_errors:
-            reservation.refund_notes = (refund_notes or "") + f"\n\nRefund processing notes: {'; '.join(refund_errors)}"
-        reservation.save()
-
-        # Invalidate capacity planner cache for affected dates
-        for date_str in dates_to_invalidate:
-            cache.delete(f"capacity_planner_{date_str}")
-
-        logger.info(
-            f"Refund #{rr.id} ({rr.refund_type}) processed for reservation {reservation.id} "
-            f"by {request.user.username}. Amount: ${refunded_amount}"
-        )
-
+        result = _execute_refund_approval(rr, request.user, refund_notes)
+        if not result["ok"]:
+            return JsonResponse({"success": False, "error": result["error"]}, status=result["status"])
         return JsonResponse({
             "success": True,
-            "message": f"Refund processed successfully. Amount refunded: ${refunded_amount}",
-            "warnings": refund_errors if refund_errors else None,
+            "message": result["message"],
+            "warnings": result.get("warnings"),
         })
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
     except Exception as e:
         logger.error(f"Error processing refund: {str(e)}", exc_info=True)
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required
+@require_POST
+def bulk_approve_refunds(request):
+    """
+    Superuser: approve several ALREADY-REQUESTED refunds in one batch.
+
+    Full Cancellations are deliberately excluded — they wipe an entire
+    reservation and must be approved one at a time (with the "CANCEL ALL"
+    guardrail) so a batch can never mass-cancel bookings by accident. Each
+    selected request is processed independently through the SAME money path as
+    single approval (_execute_refund_approval); one failure never aborts the
+    others.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        raw_ids = data.get("refund_request_ids", []) or []
+        try:
+            ids = [int(x) for x in raw_ids]
+        except (ValueError, TypeError):
+            return JsonResponse({"success": False, "error": "Invalid selection."}, status=400)
+        if not ids:
+            return JsonResponse({"success": False, "error": "No refunds selected."}, status=400)
+
+        results = []
+        for rr in RefundRequest.objects.select_related('reservation').filter(id__in=ids):
+            if rr.refund_type == 'full_cancellation':
+                results.append({
+                    "id": rr.id, "reservation": rr.reservation.id, "ok": False,
+                    "error": "Full Cancellations must be approved individually.",
+                })
+                continue
+            if rr.status != 'requested':
+                results.append({
+                    "id": rr.id, "reservation": rr.reservation.id, "ok": False,
+                    "error": f"Not awaiting approval (status: {rr.get_status_display()}).",
+                })
+                continue
+
+            res = _execute_refund_approval(rr, request.user)
+            results.append({
+                "id": rr.id,
+                "reservation": rr.reservation.id,
+                "ok": res["ok"],
+                "error": res.get("error"),
+                "amount": str(res.get("refunded_amount")) if res["ok"] else None,
+            })
+
+        approved = [r for r in results if r["ok"]]
+        failed = [r for r in results if not r["ok"]]
+
+        logger.info(
+            f"Bulk refund approval by {request.user.username}: "
+            f"{len(approved)} approved, {len(failed)} skipped/failed (ids={ids})."
+        )
+
+        return JsonResponse({
+            "success": True,
+            "approved_count": len(approved),
+            "failed_count": len(failed),
+            "results": results,
+            "message": (
+                f"Approved {len(approved)} refund(s)."
+                + (f" {len(failed)} were skipped (see details)." if failed else "")
+            ),
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error in bulk refund approval: {str(e)}", exc_info=True)
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+def _prior_leg_state(leg):
+    """
+    Recover a leg's status + payment_status from just before it was cancelled,
+    using simple_history. When a leg is cancelled, the pre-cancel snapshot is the
+    most recent historical row whose status was NOT 'cancelled'.
+
+    Falls back to sensible active defaults (in-progress / paid) if no such history
+    row exists — a refunded leg was, by definition, paid for at some point.
+    Driver is intentionally NOT recovered here; correction leaves it unassigned
+    for manual reassignment on the board.
+    """
+    try:
+        prior = (
+            leg.history.exclude(status='cancelled')
+            .order_by('-history_date', '-history_id')
+            .first()
+        )
+    except Exception:
+        prior = None
+
+    if prior is not None:
+        return (prior.status or 'in-progress'), (prior.payment_status or 'paid')
+    return 'in-progress', 'paid'
+
+
+@login_required
+@require_POST
+def correct_refund(request):
+    """
+    Superuser correction for a PROCESSED refund whose type was wrong — e.g. a
+    dispatcher chose "Full Cancellation" when it should have been a Price
+    Adjustment or Partial Cancellation, which wrongly cancelled every leg and the
+    whole reservation.
+
+    Restores the wrongly-cancelled legs (status + payment_status recovered from
+    history; driver left blank for manual reassignment), reactivates the
+    reservation, and reclassifies the RefundRequest — appending an audit note.
+
+    It deliberately does NOT touch Stripe: money already refunded stays refunded.
+    This only repairs the operational state so the trip runs again; any
+    over-refund is re-collected separately as a new charge.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        refund_request_id = data.get("refund_request_id")
+        new_type = data.get("new_refund_type")
+        keep_cancelled_leg_ids = data.get("keep_cancelled_leg_ids", []) or []
+        note = (data.get("note") or "").strip()
+
+        if new_type not in ('price_adjustment', 'partial_cancellation'):
+            return JsonResponse(
+                {"success": False, "error": "Corrected type must be Price Adjustment or Partial Cancellation."},
+                status=400,
+            )
+
+        rr = get_object_or_404(
+            RefundRequest.objects.select_related('reservation'), id=refund_request_id
+        )
+        reservation = rr.reservation
+
+        if rr.status != 'completed':
+            return JsonResponse(
+                {"success": False, "error": "Only a completed refund can be corrected."}, status=400
+            )
+        if rr.refund_type != 'full_cancellation':
+            return JsonResponse(
+                {"success": False, "error": "Only a Full Cancellation refund can be corrected here."},
+                status=400,
+            )
+
+        # The legs the full-cancel took down are exactly the ones currently
+        # cancelled on this reservation.
+        cancelled_legs = list(reservation.legs.filter(status='cancelled'))
+
+        try:
+            keep_ids = {int(x) for x in keep_cancelled_leg_ids}
+        except (ValueError, TypeError):
+            return JsonResponse({"success": False, "error": "Invalid leg selection."}, status=400)
+
+        # Partial correction with no leg left cancelled is really a price
+        # adjustment — guard against a no-op "partial".
+        if new_type == 'partial_cancellation' and not keep_ids:
+            return JsonResponse(
+                {"success": False, "error": "Select at least one leg to keep cancelled, or choose Price Adjustment."},
+                status=400,
+            )
+
+        dates_to_invalidate = set()
+        restored_ids = []
+        kept_ids = []
+        with sanctioned_live_write():
+            for leg in cancelled_legs:
+                dates_to_invalidate.add(leg.pickup_date.isoformat())
+                if new_type == 'partial_cancellation' and leg.id in keep_ids:
+                    kept_ids.append(leg.id)
+                    continue  # genuinely cancelled — leave it
+                prior_status, prior_payment = _prior_leg_state(leg)
+                leg.status = prior_status
+                leg.payment_status = prior_payment
+                # driver intentionally left as-is (unassigned) for manual reassignment
+                leg.save(update_fields=['status', 'payment_status'])
+                restored_ids.append(leg.id)
+
+        # Reactivate the reservation if it now has any active leg.
+        if reservation.status == 'cancelled' and reservation.legs.exclude(status='cancelled').exists():
+            reservation.status = 'confirmed'
+
+        # Reclassify the refund request + rebuild its leg set.
+        rr.refund_type = new_type
+        if new_type == 'partial_cancellation':
+            rr.legs.set([l for l in cancelled_legs if l.id in keep_ids])
+        else:
+            rr.legs.clear()
+
+        type_label = dict(RefundRequest.REFUND_TYPE_CHOICES)[new_type]
+        stamp = timezone.now().strftime('%Y-%m-%d %H:%M')
+        who = request.user.get_full_name() or request.user.username
+        audit = (
+            f"[CORRECTED {stamp} by {who}] Full Cancellation → {type_label}. "
+            f"Restored {len(restored_ids)} leg(s)"
+            + (f", kept {len(kept_ids)} cancelled" if kept_ids else "")
+            + f". Drivers left unassigned for manual reassignment. "
+            f"Stripe refund of ${rr.amount} was NOT changed."
+        )
+        if note:
+            audit += f" Note: {note}"
+        rr.notes = (rr.notes + "\n" + audit).strip() if rr.notes else audit
+        rr.save(update_fields=['refund_type', 'notes'])
+
+        # Keep the reservation's flat refund fields honest for the detail view.
+        reservation.refund_notes = (
+            (reservation.refund_notes + "\n" + audit).strip()
+            if reservation.refund_notes else audit
+        )
+        reservation.save()
+
+        for date_str in dates_to_invalidate:
+            cache.delete(f"capacity_planner_{date_str}")
+
+        logger.info(
+            f"Refund #{rr.id} corrected (full_cancellation → {new_type}) by {request.user.username}. "
+            f"Restored legs: {restored_ids}; kept cancelled: {kept_ids}"
+        )
+
+        return JsonResponse({
+            "success": True,
+            "message": (
+                f"Refund corrected to {type_label}. {len(restored_ids)} leg(s) restored"
+                + (f", {len(kept_ids)} kept cancelled" if kept_ids else "")
+                + f". Reassign drivers on the board. The ${rr.amount} already refunded "
+                f"via Stripe was not changed — re-collect any over-refund separately."
+            ),
+            "restored_leg_ids": restored_ids,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error correcting refund: {str(e)}", exc_info=True)
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
 
 

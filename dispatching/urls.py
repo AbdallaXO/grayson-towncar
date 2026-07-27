@@ -323,6 +323,16 @@ urlpatterns = [
         name="process_refund",
     ),
     path(
+        "correct-refund/",
+        views.correct_refund,
+        name="correct_refund",
+    ),
+    path(
+        "bulk-approve-refunds/",
+        views.bulk_approve_refunds,
+        name="bulk_approve_refunds",
+    ),
+    path(
         "refund-suggestion/",
         views.refund_suggestion,
         name="refund_suggestion",

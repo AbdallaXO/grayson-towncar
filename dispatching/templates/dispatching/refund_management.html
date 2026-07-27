@@ -58,30 +58,63 @@
             </a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if status_filter == 'rejected' %}active{% endif %}"
+            <a class="nav-link {% if status_filter == 'rejected' and not review_mode %}active{% endif %}"
                href="{% url 'refund_management' %}?status=rejected">
               Rejected <span class="badge bg-secondary">{{ status_counts.rejected }}</span>
+            </a>
+          </li>
+          <li class="nav-item ms-auto" role="presentation">
+            <a class="nav-link {% if review_mode %}active{% endif %}"
+               href="{% url 'refund_management' %}?review=full_cancellations"
+               title="Completed Full Cancellations — review these for anyone who full-cancelled when they meant a partial cancel or price adjustment.">
+              <i class="bi bi-shield-exclamation me-1"></i>Review Full Cancels
+              <span class="badge bg-danger">{{ status_counts.full_cancel_review }}</span>
             </a>
           </li>
         </ul>
       </div>
     </div>
 
+    {% if review_mode %}
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="alert alert-light border">
+          <i class="bi bi-shield-exclamation text-danger me-2"></i>
+          These are <strong>completed Full Cancellations</strong> (whole reservation + all legs cancelled). Check the
+          <strong>Processed By</strong> column. If one should have been a partial cancel or price adjustment, open the
+          reservation and click <strong>Correct</strong> to restore the legs. (The Stripe refund itself is never changed.)
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Refund Requests Table -->
     {% if refund_requests %}
     <div class="row">
       <div class="col-12">
+        <!-- Bulk approve action bar (appears when eligible refunds are selected) -->
+        <div id="bulkApproveBar" class="alert alert-primary d-flex justify-content-between align-items-center" style="display:none;">
+          <span><strong id="bulkSelectedCount">0</strong> refund(s) selected</span>
+          <button type="button" class="btn btn-primary btn-sm" id="bulkApproveBtn">
+            <i class="bi bi-check2-all me-1"></i>Approve selected
+          </button>
+        </div>
         <div class="card shadow-sm">
           <div class="card-body">
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead class="table-light">
                   <tr>
+                    <th style="width:34px;">
+                      <input type="checkbox" class="form-check-input" id="bulkSelectAll"
+                             title="Select all eligible (Requested, not Full Cancellation)">
+                    </th>
                     <th>Reservation</th>
                     <th>Customer</th>
                     <th>Type</th>
                     <th>Legs</th>
                     <th>Requested By</th>
+                    <th>Processed By</th>
                     <th>Requested At</th>
                     <th>Amount</th>
                     <th>Suggested</th>
@@ -93,6 +126,18 @@
                 <tbody>
                   {% for rr in refund_requests %}
                   <tr>
+                    <td>
+                      {% if rr.status == 'requested' and rr.refund_type != 'full_cancellation' %}
+                        <input type="checkbox" class="form-check-input bulk-refund-cb"
+                               value="{{ rr.id }}"
+                               data-res="#{{ rr.reservation.id }}"
+                               data-customer="{{ rr.reservation.customer.get_full_name }}"
+                               data-type="{{ rr.get_refund_type_display }}"
+                               data-amount="{{ rr.amount|floatformat:2 }}">
+                      {% elif rr.status == 'requested' and rr.refund_type == 'full_cancellation' %}
+                        <i class="bi bi-lock text-muted" title="Full Cancellation — approve individually with the CANCEL ALL guard"></i>
+                      {% endif %}
+                    </td>
                     <td>
                       <a href="{% url 'reservation_details' rr.reservation.uuid %}" class="fw-bold">
                         #{{ rr.reservation.id }}
@@ -126,6 +171,14 @@
                     </td>
                     <td>
                       <div class="fw-semibold">{% if rr.requested_by %}{{ rr.requested_by.get_full_name|default:rr.requested_by.username }}{% else %}System{% endif %}</div>
+                    </td>
+                    <td>
+                      {% if rr.processed_by %}
+                        <div class="fw-semibold">{{ rr.processed_by.get_full_name|default:rr.processed_by.username }}</div>
+                        {% if rr.processed_at %}<small class="text-muted">{{ rr.processed_at|date:"M d, Y" }}</small>{% endif %}
+                      {% else %}
+                        <small class="text-muted">&mdash;</small>
+                      {% endif %}
                     </td>
                     <td>
                       {{ rr.requested_at|date:"M d, Y" }}<br>
@@ -186,6 +239,13 @@
                             <i class="bi bi-x-circle"></i>
                           </button>
                         {% endif %}
+                        {% if rr.status == 'completed' and rr.refund_type == 'full_cancellation' %}
+                          <a href="{% url 'reservation_details' rr.reservation.uuid %}"
+                             class="btn btn-outline-primary"
+                             title="Wrong type? Open the reservation and click Correct to restore the legs.">
+                            <i class="bi bi-wrench-adjustable"></i> Correct
+                          </a>
+                        {% endif %}
                       </div>
                     </td>
                   </tr>
@@ -209,6 +269,46 @@
     {% endif %}
   </div>
 
+  <!-- Bulk Approve Confirmation Modal -->
+  <div class="modal fade" id="bulkApproveModal" tabindex="-1" aria-labelledby="bulkApproveModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="bulkApproveModalLabel">
+            <i class="bi bi-check2-all me-2"></i>Approve these refunds?
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning">
+            <i class="bi bi-cash-coin me-2"></i>
+            This sends each Stripe refund <strong>immediately</strong>. Review the list — the total is real money going out.
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr><th>Reservation</th><th>Customer</th><th>Type</th><th class="text-end">Amount</th></tr>
+              </thead>
+              <tbody id="bulkApproveList"></tbody>
+              <tfoot>
+                <tr class="fw-bold border-top">
+                  <td colspan="3" class="text-end">Total</td>
+                  <td class="text-end" id="bulkApproveTotal">$0.00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="bulkApproveConfirmBtn">
+            <i class="bi bi-check me-1"></i>Approve all
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Approve/Reject Refund Modal -->
   <div class="modal fade" id="refundActionModal" tabindex="-1" aria-labelledby="refundActionModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -228,6 +328,14 @@
                 <option value="full_cancellation">Full Cancellation (refund + cancel all legs + reservation)</option>
               </select>
               <div class="form-text text-warning" id="refundTypeWarning"></div>
+            </div>
+            <!-- Guardrail: full cancellation must be typed out to confirm -->
+            <div class="mb-3" id="fullCancelConfirmGroup" style="display:none;">
+              <label for="fullCancelConfirm" class="form-label fw-bold text-danger">
+                This cancels the ENTIRE reservation. Type <code>CANCEL ALL</code> to confirm.
+              </label>
+              <input type="text" class="form-control border-danger" id="fullCancelConfirm"
+                     autocomplete="off" placeholder="CANCEL ALL">
             </div>
             <div class="mb-3">
               <label for="refundActionNotes" class="form-label">Admin Notes (Optional)</label>
@@ -284,7 +392,26 @@
               } else {
                   w.textContent = 'Refund only — no legs or reservation will be cancelled.';
               }
+              updateFullCancelGate();
           }
+
+          // Full Cancellation must be typed out ("CANCEL ALL") before Confirm enables.
+          function updateFullCancelGate() {
+              const isApprove = currentAction === 'approve';
+              const isFull = document.getElementById('refundTypeOverride').value === 'full_cancellation';
+              const group = document.getElementById('fullCancelConfirmGroup');
+              const confirmInput = document.getElementById('fullCancelConfirm');
+              const submitBtn = document.getElementById('refundActionSubmitBtn');
+              const gated = isApprove && isFull;
+              group.style.display = gated ? 'block' : 'none';
+              if (gated) {
+                  submitBtn.disabled = confirmInput.value.trim().toUpperCase() !== 'CANCEL ALL';
+              } else {
+                  submitBtn.disabled = false;
+              }
+          }
+
+          document.getElementById('fullCancelConfirm').addEventListener('input', updateFullCancelGate);
 
           // Reject refund
           document.querySelectorAll('.reject-refund-btn').forEach(btn => {
@@ -305,6 +432,9 @@
               document.getElementById('refundActionAlert').textContent = message;
               document.getElementById('refundActionSubmitBtn').className = `btn btn-${type}`;
               document.getElementById('refundActionNotes').value = '';
+              // Reset the full-cancel guardrail each time the modal opens.
+              document.getElementById('fullCancelConfirm').value = '';
+              updateFullCancelGate();
               refundActionModal.show();
           }
 
@@ -350,6 +480,101 @@
                       submitBtn.innerHTML = originalText;
                   });
           });
+
+          // ── Bulk approve (Requested, non-Full-Cancellation only) ──
+          const bulkBoxes = Array.from(document.querySelectorAll('.bulk-refund-cb'));
+          const bulkBar = document.getElementById('bulkApproveBar');
+          const bulkCountEl = document.getElementById('bulkSelectedCount');
+          const bulkSelectAll = document.getElementById('bulkSelectAll');
+
+          function selectedBulkBoxes() {
+              return bulkBoxes.filter(cb => cb.checked);
+          }
+
+          function refreshBulkBar() {
+              const n = selectedBulkBoxes().length;
+              bulkCountEl.textContent = n;
+              bulkBar.style.display = n > 0 ? 'flex' : 'none';
+              if (bulkSelectAll) {
+                  bulkSelectAll.checked = n > 0 && n === bulkBoxes.length;
+                  bulkSelectAll.indeterminate = n > 0 && n < bulkBoxes.length;
+              }
+          }
+
+          bulkBoxes.forEach(cb => cb.addEventListener('change', refreshBulkBar));
+          if (bulkSelectAll) {
+              bulkSelectAll.addEventListener('change', function() {
+                  bulkBoxes.forEach(cb => { cb.checked = this.checked; });
+                  refreshBulkBar();
+              });
+          }
+
+          const bulkApproveModalEl = document.getElementById('bulkApproveModal');
+          if (bulkApproveModalEl) {
+              const bulkApproveModal = new bootstrap.Modal(bulkApproveModalEl);
+              const bulkApproveBtn = document.getElementById('bulkApproveBtn');
+
+              bulkApproveBtn.addEventListener('click', function() {
+                  const chosen = selectedBulkBoxes();
+                  if (chosen.length === 0) return;
+                  const listEl = document.getElementById('bulkApproveList');
+                  listEl.innerHTML = '';
+                  let total = 0;
+                  chosen.forEach(cb => {
+                      const amt = parseFloat(cb.dataset.amount) || 0;
+                      total += amt;
+                      const tr = document.createElement('tr');
+                      tr.innerHTML =
+                          '<td>' + cb.dataset.res + '</td>' +
+                          '<td>' + (cb.dataset.customer || '') + '</td>' +
+                          '<td>' + (cb.dataset.type || '') + '</td>' +
+                          '<td class="text-end">$' + amt.toFixed(2) + '</td>';
+                      listEl.appendChild(tr);
+                  });
+                  document.getElementById('bulkApproveTotal').textContent = '$' + total.toFixed(2);
+                  bulkApproveModal.show();
+              });
+
+              document.getElementById('bulkApproveConfirmBtn').addEventListener('click', function() {
+                  const ids = selectedBulkBoxes().map(cb => parseInt(cb.value));
+                  const btn = this;
+                  const originalText = btn.innerHTML;
+                  btn.disabled = true;
+                  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Approving...';
+
+                  fetch('/dispatching/bulk-approve-refunds/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': '{{ csrf_token }}'
+                          },
+                          body: JSON.stringify({ refund_request_ids: ids })
+                      })
+                      .then(response => response.json())
+                      .then(data => {
+                          if (data.success) {
+                              let msg = data.message;
+                              const failed = (data.results || []).filter(r => !r.ok);
+                              if (failed.length) {
+                                  msg += '\n\nSkipped:\n' + failed.map(r => '• #' + r.reservation + ' — ' + r.error).join('\n');
+                              }
+                              alert(msg);
+                              window.location.reload();
+                          } else {
+                              alert('Error: ' + (data.error || 'Unknown error'));
+                              btn.disabled = false;
+                              btn.innerHTML = originalText;
+                          }
+                      })
+                      .catch(error => {
+                          alert('Error: ' + error);
+                          btn.disabled = false;
+                          btn.innerHTML = originalText;
+                      });
+              });
+          }
+
+          refreshBulkBar();
       });
   </script>
 {% endblock content %}
