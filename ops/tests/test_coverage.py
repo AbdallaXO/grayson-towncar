@@ -9,6 +9,7 @@ from datetime import datetime, time, timedelta
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from ops import coverage
 from ops.models import StaffWeeklySchedule, StaffScheduleOverride, StaffOnCall
@@ -231,6 +232,229 @@ class WeeklyPatternTests(TestCase):
         mon = coverage.weekly_pattern(_proster(), today_dow=0)["weekdays"][0]
         self.assertEqual(len(mon["lanes"]), 1)
         self.assertEqual(len(mon["lanes"][0]), 2)
+
+
+class MyWeekTests(TestCase):
+    """The dispatcher's whole-week pattern view — every day, who's on + hours."""
+
+    def _me_and_week(self, dow=0):
+        me = _staff("me", "Me")
+        _weekly(me, dow, time(7, 30), time(16))     # 7:30a–4p
+        return me, coverage.my_week(me, _proster(), today_dow=dow)
+
+    def test_shape_and_no_risk_fields(self):
+        me, data = self._me_and_week()
+        self.assertEqual(len(data["days"]), 7)
+        self.assertTrue(data["has_schedule"])
+        self.assertTrue(data["on_roster"])
+        self.assertEqual(data["working_days"], 1)
+        mon = data["days"][0]
+        self.assertTrue(mon["is_working"])
+        self.assertTrue(mon["is_today"])
+        # Reassuring by design: none of the admin board's risk vocabulary leaks in.
+        for banned in ("risk", "cue", "peak", "thin", "target", "worst_issue"):
+            self.assertNotIn(banned, mon)
+
+    def test_roster_on_lists_everyone_with_hours(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(9), time(17))
+        _weekly(_staff("luis", "Luis"), 0, time(6), time(12))     # opener
+        _weekly(_staff("iris", "Iris"), 0, time(14), time(22))    # closer
+        mon = coverage.my_week(me, _proster(), today_dow=0)["days"][0]
+        self.assertEqual([p["name"] for p in mon["roster_on"]], ["Luis", "Me", "Iris"])  # by start; own name, is_me flags it
+        me_row = next(p for p in mon["roster_on"] if p["is_me"])
+        self.assertEqual(me_row["window"], "9:00 AM – 5:00 PM")
+        self.assertTrue(mon["roster_on"][0]["is_opener"])          # Luis opens
+        self.assertTrue(mon["roster_on"][-1]["is_closer"])         # Iris closes
+
+    def test_off_day_still_shows_who_is_working(self):
+        # The whole-week ask: on a day the viewer is OFF, still show who's on.
+        me = _staff("me", "Me")                                    # no Monday shift → off Monday
+        _weekly(_staff("luis", "Luis"), 0, time(6), time(15))      # a coworker works Monday
+        mon = coverage.my_week(me, _proster(), today_dow=0)["days"][0]
+        self.assertFalse(mon["is_working"])
+        self.assertEqual([p["name"] for p in mon["roster_on"]], ["Luis"])
+        self.assertFalse(any(p["is_me"] for p in mon["roster_on"]))
+
+    def test_solo_day_is_just_you(self):
+        me, data = self._me_and_week()
+        row = data["days"][0]["roster_on"]
+        self.assertEqual(len(row), 1)
+        self.assertTrue(row[0]["is_me"])
+
+    def test_full_readable_time_format(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(9), time(17))
+        mon = coverage.my_week(me, _proster(), today_dow=0)["days"][0]
+        self.assertEqual(mon["label"], "9:00 AM – 5:00 PM")        # full AM/PM, always :MM
+        self.assertEqual(mon["roster_on"][0]["window"], "9:00 AM – 5:00 PM")
+
+    def test_opener_closer_marks(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(6), time(12))           # earliest in
+        _weekly(_staff("late", "Late"), 0, time(10), time(22))              # latest out
+        mon = coverage.my_week(me, _proster(), today_dow=0)["days"][0]
+        self.assertTrue(mon["is_opener"])
+        self.assertFalse(mon["is_closer"])
+
+    def test_off_and_no_schedule_states(self):
+        me = _staff("me", "Me")
+        _weekly(me, 0, time(9), time(17))
+        _weekly(me, 1, None, None, is_working=False)   # explicit off Tuesday
+        data = coverage.my_week(me, _proster(), today_dow=0)
+        self.assertEqual(data["days"][1]["label"], "Off")     # explicit off
+        self.assertEqual(data["days"][2]["label"], "—")       # no row at all
+        self.assertFalse(data["days"][1]["is_working"])
+
+    def test_not_on_roster_is_calm(self):
+        outsider = User.objects.create_user("ghost", is_staff=False)
+        data = coverage.my_week(outsider, _proster(), today_dow=0)
+        self.assertFalse(data["on_roster"])
+        self.assertFalse(data["has_schedule"])
+        self.assertEqual(data["working_days"], 0)
+
+    def test_today_timeline_flags_me(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(7, 30), time(16))
+        _weekly(_staff("co", "Co"), 0, time(9), time(17))
+        tl = coverage.my_today_timeline(me, _proster(), today_dow=0)
+        self.assertTrue(tl["i_am_working"])
+        self.assertEqual(tl["on_count"], 2)
+        self.assertEqual(len(tl["bars"]), 2)                 # one row per person
+        self.assertEqual([b["is_me"] for b in tl["bars"]], [True, False])  # sorted by start: me 7:30 first
+        self.assertEqual(len([b for b in tl["bars"] if b["is_me"]]), 1)
+
+
+class DayViewActualTests(TestCase):
+    """The *actual* day view: recurring pattern resolved against one-off overrides."""
+
+    def test_story_beats(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(7, 30), time(16))
+        _weekly(_staff("luis", "Luis"), 0, time(6), time(12))       # opener, leaves first
+        _weekly(_staff("iris", "Iris"), 0, time(14), time(22))      # arrives after, carries on
+        dv = coverage.day_view_actual(me, _roster(), MONDAY, today=MONDAY)
+        self.assertEqual([b["kind"] for b in dv["beats"]], ["open", "leave", "handoff"])
+        self.assertEqual((dv["beats"][0]["who"], dv["beats"][0]["time"]), ("Luis", "6:00 AM"))
+        self.assertEqual(dv["beats"][1]["remaining"], ["You"])
+        self.assertEqual(dv["beats"][2]["to"], [{"name": "Iris", "until": "10:00 PM"}])
+
+    def test_names_everyone_at_a_handoff(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(9), time(17))
+        _weekly(_staff("luis", "Luis"), 0, time(7, 30), time(16))
+        _weekly(_staff("jo", "Joseph"), 0, time(9, 30), time(20))
+        dv = coverage.day_view_actual(me, _roster(), MONDAY, today=MONDAY)
+        leave = next(b for b in dv["beats"] if b["kind"] == "leave")
+        self.assertEqual(set(leave["remaining"]), {"You", "Joseph"})
+
+    def test_sick_day_drops_coworker_and_rethreads(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(9), time(17))
+        _weekly(_staff("luis", "Luis"), 0, time(7, 30), time(16))    # opener, leaves before me
+        jo = _staff("jo", "Joseph"); _weekly(jo, 0, time(9, 30), time(20))  # normally stays past me
+        StaffScheduleOverride.objects.create(user=jo, date=MONDAY, kind="off")   # out sick this Monday
+        dv = coverage.day_view_actual(me, _roster(), MONDAY, today=MONDAY)
+        self.assertEqual([p["name"] for p in dv["roster_on"]], ["Luis", "Me"])  # Joseph dropped
+        self.assertEqual(dv["exceptions"], [{"name": "Joseph", "kind": "off", "label": ""}])
+        # With nobody after me now, the story re-threads and I'm the Closer.
+        self.assertIn("close_me", [b["kind"] for b in dv["beats"]])
+
+    def test_custom_hours_override_shows_changed(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(9), time(17))
+        jo = _staff("jo", "Joseph"); _weekly(jo, 0, time(9, 30), time(20))
+        StaffScheduleOverride.objects.create(user=jo, date=MONDAY, kind="custom_hours",
+                                             start_time=time(11), end_time=time(15))
+        dv = coverage.day_view_actual(me, _roster(), MONDAY, today=MONDAY)
+        jo_row = next(p for p in dv["roster_on"] if p["name"] == "Joseph")
+        self.assertEqual(jo_row["window"], "11:00 AM – 3:00 PM")
+        self.assertEqual(dv["exceptions"], [{"name": "Joseph", "kind": "custom", "label": "11:00 AM – 3:00 PM"}])
+
+    def test_my_week_actual_has_seven(self):
+        me = _staff("me", "Me"); _weekly(me, 0, time(9), time(17))
+        dvs = coverage.my_week_actual(me, _roster(), MONDAY, today=MONDAY)
+        self.assertEqual(len(dvs), 7)
+        self.assertEqual(dvs[0]["on_count"], 1)      # Monday: me
+        self.assertEqual(dvs[1]["on_count"], 0)      # Tuesday: nobody
+
+
+class MyCoverageViewTests(TestCase):
+    def setUp(self):
+        self.url = reverse("my_coverage")
+
+    def test_plain_dispatcher_can_view_own_week(self):
+        # The access change: a non-superuser staffer CAN reach this (unlike the board).
+        me = _staff("disp", "Dispatch")
+        me.set_password("pw"); me.save()
+        _weekly(me, timezone.localdate().weekday(), time(9), time(17))
+        self.client.force_login(me)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "dispatching/my_coverage.html")
+        self.assertContains(resp, "My Schedule")
+
+    def test_no_alarming_language(self):
+        me = _staff("solo", "Solo")
+        _weekly(me, timezone.localdate().weekday(), time(6), time(23))   # a long solo day
+        self.client.force_login(me)
+        html = self.client.get(self.url).content.decode().lower()
+        for banned in ("understaffed", "critical", "coverage gap", "no coverage", "runs thin"):
+            self.assertNotIn(banned, html)
+
+    def test_oncall_names_who_is_on(self):
+        # A teammate on-call is shown by name + window (not just a hatch band).
+        dow = timezone.localdate().weekday()
+        me = _staff("me", "Me"); _weekly(me, dow, time(9), time(17))
+        ona = _staff("ona", "Ona Smith"); _oncall(ona, timezone.localdate())
+        self.client.force_login(me)
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "On-call tonight")
+        self.assertContains(resp, "Ona Smith")        # names the on-call person
+        self.assertContains(resp, "12:00 AM")          # with the full window
+
+    def test_oncall_marks_self_as_you(self):
+        me = _staff("oncaller", "Ona")
+        _weekly(me, timezone.localdate().weekday(), time(9), time(17))
+        _oncall(me, timezone.localdate())
+        self.client.force_login(me)
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "On-call tonight")
+        self.assertContains(resp, "You")               # the viewer's own on-call reads "You"
+
+    def test_no_schedule_empty_state(self):
+        me = _staff("blank", "Blank")           # on roster, no weekly rows
+        self.client.force_login(me)
+        self.assertContains(self.client.get(self.url), "No schedule set yet")
+
+    def test_day_story_renders(self):
+        dow = timezone.localdate().weekday()
+        me = _staff("me", "Me"); _weekly(me, dow, time(7, 30), time(16))
+        luis = _staff("luis", "Luis"); _weekly(luis, dow, time(6), time(12))    # opens, hands off
+        iris = _staff("iris", "Iris"); _weekly(iris, dow, time(14), time(22))   # I hand off to
+        self.client.force_login(me)
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "opens at")          # the opener beat
+        self.assertContains(resp, "hands off to")      # Luis hands off while I'm on
+        self.assertContains(resp, "you hand off to")   # I hand off when I leave
+        self.assertContains(resp, "Luis")
+        self.assertContains(resp, "Iris")
+
+    def test_day_switch_scaffold_present(self):
+        # Every weekday gets a switchable day-view panel, and each week row is a
+        # clickable target carrying its weekday index.
+        me = _staff("me", "Me"); _weekly(me, timezone.localdate().weekday(), time(9), time(17))
+        self.client.force_login(me)
+        html = self.client.get(self.url).content.decode()
+        self.assertEqual(html.count('class="mc-dayview"'), 7)
+        self.assertEqual(html.count('data-dow='), 14)     # 7 day-view panels + 7 week rows
+        self.assertIn("tap any day below to switch", html)
+
+    def test_sick_day_shows_off_note_in_day_view(self):
+        # Today's day-view reflects a one-off absence; the week list stays the pattern.
+        today = timezone.localdate()
+        dow = today.weekday()
+        me = _staff("me", "Me"); _weekly(me, dow, time(9), time(17))
+        jo = _staff("jo", "Joseph"); _weekly(jo, dow, time(9, 30), time(20))
+        StaffScheduleOverride.objects.create(user=jo, date=today, kind="off")
+        self.client.force_login(me)
+        resp = self.client.get(self.url)
+        self.assertContains(resp, "off today")            # calm exception note in the day-view
+
+    def test_anonymous_redirected(self):
+        self.assertEqual(self.client.get(self.url).status_code, 302)
 
 
 class StaffingBoardViewTests(TestCase):

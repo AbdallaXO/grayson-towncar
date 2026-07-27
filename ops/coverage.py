@@ -394,6 +394,18 @@ def _fmt_min(m):
     return f"{h12}:{mm:02d}{ap}" if mm else f"{h12}{ap}"
 
 
+def _fmt_min_long(m):
+    """Minutes-of-day -> full readable clock: '9:00 AM', '7:30 AM', '12:00 AM'.
+
+    Always shows minutes and a full AM/PM (the dispatcher view uses this; the
+    admin board keeps the dense ``_fmt_min`` form)."""
+    m %= 1440
+    h, mm = divmod(m, 60)
+    ap = "AM" if h < 12 else "PM"
+    h12 = h % 12 or 12
+    return f"{h12}:{mm:02d} {ap}"
+
+
 def _pct_min(m):
     return round(m / 1440 * 100, 3)
 
@@ -530,3 +542,288 @@ def weekly_pattern(roster, today_dow=None):
         })
 
     return {"weekdays": weekdays, "rows": rows}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Dispatcher-facing view — "my week & who I'm on with" (Phase 2).
+#
+# The calm flip side of weekly_pattern, scoped to ONE viewer. It answers
+# "which days do I work, who am I on with, and where are the handoffs?" and
+# deliberately carries NO coverage-risk fields — no gaps, no "thin", no
+# targets, no headcount-vs-target, no red. Reassuring, never alarming.
+# Same recurring StaffWeeklySchedule data (weekday pattern, Mon–Sun) as
+# weekly_pattern; a dispatcher never sees the admin board's risk language.
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _pattern_by_dow(roster):
+    """weekday -> list of working shift dicts across ``roster`` (recurring pattern).
+
+    Kept separate from ``weekly_pattern``'s own build so the dispatcher view
+    can't destabilise the admin board. ``roster`` must be prefetched with
+    ``weekly_schedule_rows``. Overnight shifts roll ``em`` past 1440.
+    """
+    by_dow = {d: [] for d in range(7)}
+    for u in roster:
+        name = u.get_full_name() or u.username
+        for r in u.weekly_schedule_rows.all():
+            if r.is_working and r.start_time and r.end_time:
+                sm, em = _min_of(r.start_time), _min_of(r.end_time)
+                overnight = em <= sm
+                if overnight:
+                    em += 1440
+                by_dow[r.day_of_week].append({
+                    "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
+                    "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em),
+                })
+    return by_dow
+
+
+def _my_shifts(me):
+    """My weekday -> shift dict (or None for an explicit off), plus has_schedule."""
+    my_shifts, has_schedule = {}, False
+    if me is not None:
+        for r in me.weekly_schedule_rows.all():
+            has_schedule = True
+            if r.is_working and r.start_time and r.end_time:
+                sm, em = _min_of(r.start_time), _min_of(r.end_time)
+                overnight = em <= sm
+                if overnight:
+                    em += 1440
+                my_shifts[r.day_of_week] = {
+                    "sm": sm, "em": em, "overnight": overnight,
+                    "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em),
+                    "label": f"{_fmt_min_long(sm)} – {_fmt_min_long(em)}",
+                }
+            else:
+                my_shifts[r.day_of_week] = None
+    return my_shifts, has_schedule
+
+
+def _me_label(user):
+    """The viewer's own display name — their real name, or "You" if none is set."""
+    return user.get_full_name() or "You"
+
+
+def _roster_on(shifts, user):
+    """Everyone working a day, as display rows (viewer flagged ``is_me`` and shown
+    by their own name), sorted by start with the day's opener/closer marked."""
+    shifts = sorted(shifts, key=lambda s: (s["sm"], s["em"]))
+    opener = min(shifts, key=lambda s: s["sm"]) if shifts else None
+    closer = max(shifts, key=lambda s: s["em"]) if shifts else None
+    me_label = _me_label(user)
+    return [{
+        "name": me_label if s["uid"] == user.id else s["name"],
+        "window": f'{s["start_label"]} – {s["end_label"]}',
+        "is_me": s["uid"] == user.id,
+        "is_opener": opener is not None and s is opener,
+        "is_closer": closer is not None and s is closer,
+        "overnight": s["overnight"],
+    } for s in shifts], opener, closer
+
+
+def my_week(user, roster, today_dow=None):
+    """One dispatcher's whole week (Mon–Sun, recurring pattern).
+
+    Shows *every* day — including days the viewer is off — with who's working and
+    their hours, so a dispatcher can review coverage across the week. The viewer's
+    own row is flagged ``is_me``. This is the standard-pattern reference; the
+    *actual* day, with one-off sick/off overrides applied, is ``day_view_actual``.
+    ``roster`` must be prefetched with ``weekly_schedule_rows``. No risk fields.
+    """
+    me = next((u for u in roster if u.id == user.id), None)
+    by_dow = _pattern_by_dow(roster)
+    my_shifts, has_schedule = _my_shifts(me)
+
+    days, working_days = [], 0
+    for d in range(7):
+        roster_on, opener, closer = _roster_on(by_dow[d], user)
+        mine = my_shifts.get(d)
+        is_working = mine is not None
+        if is_working:
+            working_days += 1
+        days.append({
+            "dow": d, "name": DAY_NAMES[d], "is_today": d == today_dow, "is_weekend": d >= 5,
+            "is_working": is_working,
+            "label": mine["label"] if is_working else ("Off" if d in my_shifts else "—"),
+            "is_opener": bool(is_working and opener and opener["uid"] == user.id),
+            "is_closer": bool(is_working and closer and closer["uid"] == user.id),
+            "roster_on": roster_on,
+            "on_count": len(by_dow[d]),
+        })
+
+    return {
+        "days": days,
+        "working_days": working_days,
+        "has_schedule": has_schedule,
+        "on_roster": me is not None,
+        "me_name": (me.get_full_name() or me.username) if me else "",
+    }
+
+
+# ── The day's story (shared by pattern + actual-date views) ───────────
+
+def _overlaps(mine_sm, mine_em, shifts, exclude_uid):
+    """Coworkers in ``shifts`` whose shift overlaps [mine_sm, mine_em), sorted by
+    start. Each carries sm/em so the story builder can thread the hand-offs."""
+    withs = []
+    for s in shifts:
+        if s["uid"] == exclude_uid:
+            continue
+        if s["sm"] < mine_em and mine_sm < s["em"]:
+            withs.append({"name": s["name"], "sm": s["sm"], "em": s["em"]})
+    withs.sort(key=lambda w: (w["sm"], w["em"]))
+    return withs
+
+
+def _story_beats(mine, withs):
+    """Chronological day-story beats from the viewer's shift + overlapping coworkers.
+
+    ``mine`` = {sm, em, start_label, end_label}; ``withs`` from ``_overlaps``. Beats:
+    who opens, each hand-off while I'm on (a coworker leaves → who's left carries
+    on), and who I hand to when I leave (or I'm the closer). Calm, factual.
+    """
+    a_sm, a_em = mine["sm"], mine["em"]
+    if not withs:
+        return []
+    parts = [{"name": "You", "you": True, "sm": a_sm, "em": a_em}]
+    parts += [{"name": w["name"], "you": False, "sm": w["sm"], "em": w["em"]} for w in withs]
+
+    beats = []
+    first_in = min(parts, key=lambda p: (p["sm"], p["name"]))
+    if first_in["you"]:
+        beats.append({"kind": "open_me", "time": mine["start_label"]})
+    else:
+        beats.append({"kind": "open", "who": first_in["name"],
+                      "time": _fmt_min_long(first_in["sm"]), "until": _fmt_min_long(first_in["em"])})
+    for lv in sorted((p for p in parts if not p["you"] and p["em"] < a_em), key=lambda p: p["em"]):
+        remaining = [("You" if p["you"] else p["name"]) for p in parts
+                     if p is not lv and p["sm"] <= lv["em"] < p["em"]]
+        beats.append({"kind": "leave", "who": lv["name"], "time": _fmt_min_long(lv["em"]),
+                      "remaining": remaining})
+    staying = sorted((p for p in parts if not p["you"] and p["sm"] < a_em < p["em"]), key=lambda p: -p["em"])
+    if staying:
+        beats.append({"kind": "handoff", "time": mine["end_label"],
+                      "to": [{"name": p["name"], "until": _fmt_min_long(p["em"])} for p in staying]})
+    else:
+        beats.append({"kind": "close_me", "time": mine["end_label"]})
+    return beats
+
+
+# ── The *actual* day — recurring pattern resolved against one-off overrides ──
+
+def _resolved_shift(uid, name, sched):
+    """A resolved-schedule dict → a shift dict (or None if off/none), long labels."""
+    if not sched.get("is_working") or not sched.get("start_time") or not sched.get("end_time"):
+        return None
+    sm, em = _min_of(sched["start_time"]), _min_of(sched["end_time"])
+    overnight = em <= sm
+    if overnight:
+        em += 1440
+    return {"uid": uid, "name": name, "sm": sm, "em": em, "overnight": overnight,
+            "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em)}
+
+
+def _pattern_working(user, dow):
+    """True if the user's *recurring* pattern has them working ``dow`` (0–6)."""
+    for r in user.weekly_schedule_rows.all():
+        if r.day_of_week == dow:
+            return bool(r.is_working and r.start_time and r.end_time)
+    return False
+
+
+def day_view_actual(user, roster, target_date, today):
+    """The *actual* day for ``target_date``: each schedule resolved against one-off
+    overrides (sick/off, custom hours), so the timeline, story, and 'off today'
+    notes reflect what's really happening — unlike the recurring pattern.
+
+    ``roster`` must be prefetched with ``weekly_schedule_rows`` AND
+    ``schedule_overrides``. Returns the dict the day-view panel renders.
+    """
+    dow = target_date.weekday()
+    shifts, exceptions = [], []
+    for u in roster:
+        name = u.get_full_name() or u.username
+        sched = scheduling.resolve_staff_schedule(u, target_date)
+        sh = _resolved_shift(u.id, name, sched)
+        if sh:
+            shifts.append(sh)
+        # Surface anyone whose day differs from their usual pattern (calm, factual).
+        if sched.get("has_exception") and u.id != user.id:
+            if not sched.get("is_working") and _pattern_working(u, dow):
+                exceptions.append({"name": name, "kind": "off", "label": ""})
+            elif sched.get("is_working") and sched.get("kind") == "custom_hours" and sh:
+                exceptions.append({"name": name, "kind": "custom",
+                                   "label": f'{sh["start_label"]} – {sh["end_label"]}'})
+
+    roster_on, opener, closer = _roster_on(shifts, user)
+    timeline = _day_timeline(user, shifts)
+
+    mine = next((s for s in shifts if s["uid"] == user.id), None)
+    beats, label = [], None
+    if mine:
+        label = f'{mine["start_label"]} – {mine["end_label"]}'
+        beats = _story_beats(mine, _overlaps(mine["sm"], mine["em"], shifts, user.id))
+
+    return {
+        "dow": dow, "name": DAY_NAMES[dow], "is_today": target_date == today,
+        "is_working": mine is not None, "label": label,
+        "is_opener": bool(mine and opener and opener["uid"] == user.id),
+        "is_closer": bool(mine and closer and closer["uid"] == user.id),
+        "beats": beats, "timeline": timeline, "roster_on": roster_on,
+        "on_count": len(shifts), "exceptions": exceptions,
+    }
+
+
+def my_week_actual(user, roster, monday, today):
+    """One ``day_view_actual`` for each date of the week starting ``monday`` (Mon–Sun)."""
+    return [day_view_actual(user, roster, monday + timedelta(days=i), today) for i in range(7)]
+
+
+def _day_timeline(user, shifts):
+    """Single-day timeline: one row per person (Gantt style, no lane-packing),
+    sorted by start. Each bar carries geometry plus where to put its hours label
+    so it never clips — inside a wide bar, otherwise just outside the near end."""
+    shifts = sorted(shifts, key=lambda s: (s["sm"], s["em"]))
+    opener = min(shifts, key=lambda s: s["sm"]) if shifts else None
+    closer = max(shifts, key=lambda s: s["em"]) if shifts else None
+    me_label = _me_label(user)
+
+    bars = []
+    for s in shifts:
+        left = _pct_min(s["sm"])
+        width = _pct_min(min(s["em"], 1440) - s["sm"])
+        end = round(left + width, 3)
+        # Name always sits inside the pill; the time joins it inside when the pill
+        # is wide enough, otherwise it floats just outside the near end (no clip).
+        if width >= 22:
+            time_side = "inside"
+        elif end <= 72:
+            time_side = "right"
+        else:
+            time_side = "left"
+        bars.append({
+            "name": me_label if s["uid"] == user.id else s["name"],
+            "is_me": s["uid"] == user.id,
+            "left": left, "width": width, "end": end,
+            "hours": f'{s["start_label"]} – {s["end_label"]}',
+            "is_opener": bool(opener and s is opener),
+            "is_closer": bool(closer and s is closer),
+            "overnight": s["overnight"],
+            "time_side": time_side,
+        })
+
+    return {
+        "bars": bars,
+        "on_count": len(shifts),
+        "i_am_working": any(s["uid"] == user.id for s in shifts),
+        "oncall_band": {"left": _pct_min(ONCALL_WINDOW[0]),
+                        "width": _pct_min(ONCALL_WINDOW[1] - ONCALL_WINDOW[0])},
+    }
+
+
+def my_today_timeline(user, roster, today_dow):
+    """The single-day pattern timeline for ``today_dow`` (thin wrapper on
+    ``_day_timeline``). The live view uses ``day_view_actual`` instead, which also
+    applies one-off overrides; this remains for the pattern-only case."""
+    return _day_timeline(user, _pattern_by_dow(roster)[today_dow])

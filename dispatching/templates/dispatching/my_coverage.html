@@ -1,0 +1,372 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+{% block title %}My Schedule{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Dispatcher "My Schedule" — calm, premium, never alarming. Montserrat (already
+     loaded) for a modern feel; richer role colours; a Gantt-style day timeline. */
+  body { background-color:#F4F1EA !important; }
+  .mc {
+    --bg:#F4F1EA; --surface:#FFFFFF; --surface2:#FBF9F4;
+    --line:rgba(28,24,16,0.09); --line2:rgba(28,24,16,0.16); --gl:rgba(28,24,16,0.055);
+    --ink:#1E1C17; --muted:#6A645B; --faint:#9A948B;
+    --gold:#8A6A12; --gold-fill:#B98F26; --gold-soft:rgba(185,143,38,0.20); --gold-line:rgba(160,120,26,0.55);
+    --open:#2C7A4C; --open-soft:rgba(44,122,76,0.17); --open-line:rgba(44,122,76,0.55);
+    --close:#3A4C87; --close-soft:rgba(58,76,135,0.17); --close-line:rgba(58,76,135,0.55);
+    --oncall:#5A4A94; --oncall-soft:rgba(90,74,148,0.18); --oncall-line:rgba(90,74,148,0.5);
+    --absent:#B4530A; --absent-soft:rgba(180,83,10,0.13); --absent-line:rgba(180,83,10,0.45);
+    --bar:#ECE6DB; --bar-line:rgba(28,24,16,0.16);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,monospace;
+    --sans:"Montserrat",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink); padding:1.5rem 0 4rem;
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+  }
+  .mc-wrap { max-width:1180px; margin:0 auto; padding:0 1.4rem; }
+  .mc *, .mc *::before, .mc *::after { box-sizing:border-box; }
+
+  @keyframes mc-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  @keyframes mc-fade { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+
+  .mc-head { margin-bottom:1.6rem; animation:mc-in .4s ease both; }
+  .mc-title { font-size:1.75rem; font-weight:700; letter-spacing:-.025em; margin:0; line-height:1.1; }
+  .mc-title .mc-ic { width:22px; height:22px; color:var(--gold); vertical-align:-3px; margin-right:.5rem; }
+  .mc-sub { color:var(--muted); font-size:.92rem; margin:.4rem 0 0; max-width:64ch; line-height:1.5; font-weight:400; }
+
+  .mc-ic { width:14px; height:14px; color:var(--gold); flex:none; }
+  .mc-ic.ic-open { color:var(--open); } .mc-ic.ic-close { color:var(--close); }
+  .mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+  /* On-call — the night watch. Violet, names who's covering. */
+  .mc-oncall { display:flex; align-items:center; gap:.65rem; margin-bottom:1.2rem; padding:.8rem 1.1rem;
+    background:var(--oncall-soft); border:1px solid var(--oncall-line); border-left:4px solid var(--oncall);
+    border-radius:13px; font-size:.95rem; color:var(--ink); animation:mc-in .45s ease both; }
+  .mc-oncall .mc-ic { width:18px; height:18px; color:var(--oncall); }
+  .mc-oncall b { font-weight:700; }
+  .mc-oncall .dim { color:var(--muted); font-family:var(--mono); font-size:.84rem; }
+
+  .mc-sec { font-size:.7rem; text-transform:uppercase; letter-spacing:.13em; color:var(--faint);
+    font-weight:700; margin:2rem .2rem .8rem; }
+  .mc-sec:first-of-type { margin-top:0; }
+  .mc-sec-hint { text-transform:none; letter-spacing:0; font-weight:500; color:var(--faint); }
+
+  .mc-panel { background:var(--surface); border:1px solid var(--line2); border-radius:18px;
+    box-shadow:0 1px 2px rgba(20,16,8,0.04), 0 10px 34px rgba(20,16,8,0.06); }
+
+  /* ── Day view ── */
+  .mc-today { padding:1.4rem 1.5rem 1.5rem; animation:mc-in .5s ease both; }
+  .mc-dayview { animation:mc-fade .32s ease; }
+  .mc-today-line { display:flex; align-items:center; flex-wrap:wrap; gap:.65rem .9rem; margin-bottom:1.1rem; }
+  .mc-today-tag { font-size:.66rem; text-transform:uppercase; letter-spacing:.11em; font-weight:700;
+    color:var(--gold); background:var(--gold-soft); padding:.28rem .6rem; border-radius:999px; }
+  .mc-today-what { font-size:1.25rem; font-weight:700; letter-spacing:-.015em; display:inline-flex; align-items:center; gap:.4rem; }
+  .mc-today-what .mono { font-weight:600; }
+  .mc-today-what .mc-ic { width:18px; height:18px; }
+  .mc-today-off { color:var(--muted); font-weight:600; font-size:1.05rem; }
+
+  /* Absence — prominent so a coworker being out today is impossible to miss. */
+  .mc-absence { display:flex; align-items:center; gap:.6rem; margin:0 0 1.1rem; padding:.75rem 1.05rem;
+    background:var(--absent-soft); border:1px solid var(--absent-line); border-left:4px solid var(--absent);
+    border-radius:12px; color:var(--ink); font-size:.95rem; line-height:1.4; }
+  .mc-absence .mc-ic { width:19px; height:19px; color:var(--absent); }
+  .mc-absence b { font-weight:700; }
+
+  /* Gantt timeline: one row per person, name on the left, hours beside the bar. */
+  .mc-tlscroll { overflow-x:auto; scrollbar-width:thin; scrollbar-color:var(--line2) transparent; }
+  .mc-tlscroll::-webkit-scrollbar { height:8px; }
+  .mc-tlscroll::-webkit-scrollbar-thumb { background:var(--line2); border-radius:4px; }
+  /* Gantt: one row per person; the name lives INSIDE the coloured pill, with the
+     hours on their own line inside (wide pill) or floated just outside (narrow). */
+  .mc-gantt { min-width:760px; position:relative; }
+  .mc-gaxis { position:relative; height:22px; margin-bottom:3px; }
+  .mc-tk { position:absolute; top:4px; font-size:.66rem; color:var(--faint); font-family:var(--mono); white-space:nowrap; }
+  .mc-grow { position:relative; height:46px;
+    background-image:repeating-linear-gradient(90deg,var(--gl) 0 1px,transparent 1px);
+    background-size:12.5% 100%; }
+  .mc-gbar { position:absolute; top:5px; bottom:5px; border-radius:9px; background:var(--bar);
+    border:1px solid var(--bar-line); display:flex; flex-direction:column; justify-content:center; gap:1px;
+    padding:.16rem .6rem; overflow:hidden; transition:filter .15s ease, transform .15s ease; }
+  .mc-grow:hover .mc-gbar { filter:brightness(1.04); }
+  .mc-gbar .bn { display:flex; align-items:center; gap:.3rem; font-weight:700; font-size:.82rem;
+    letter-spacing:-.005em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink); }
+  .mc-gbar .bn .mc-ic { width:12px; height:12px; flex:none; }
+  .mc-gbar .bt { font-family:var(--mono); font-size:.72rem; color:var(--muted); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  .mc-gbar.me { background:linear-gradient(180deg,rgba(185,143,38,0.30),rgba(185,143,38,0.17));
+    border-color:var(--gold-line); box-shadow:0 1px 6px rgba(160,120,26,0.24); }
+  .mc-gbar.me .bn { color:var(--gold); } .mc-gbar.me .bt { color:var(--ink); }
+  .mc-gbar.op { background:var(--open-soft); border-color:var(--open-line); } .mc-gbar.op .bn { color:var(--open); }
+  .mc-gbar.cl { background:var(--close-soft); border-color:var(--close-line); } .mc-gbar.cl .bn { color:var(--close); }
+  .mc-gbar.oc { background:var(--oncall-soft); border:1px dashed var(--oncall-line); } .mc-gbar.oc .bn { color:var(--oncall); }
+  .mc-gbar.oc.assigned { border-style:solid; }
+  .mc-gtime-out { position:absolute; top:0; bottom:0; display:flex; align-items:center; white-space:nowrap;
+    font-family:var(--mono); font-size:.73rem; color:var(--muted); padding:0 .55rem; pointer-events:none; }
+  .mc-gtime-out.lt { transform:translateX(-100%); }
+  .mc-gnow { position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--ink); opacity:.5; z-index:4; border-radius:2px; }
+  .mc-quiet { color:var(--muted); font-size:.86rem; padding:.6rem .3rem; }
+
+  /* Story beats */
+  .mc-story { display:flex; flex-direction:column; gap:.55rem; margin-top:1.2rem; padding-left:1rem;
+    border-left:2px solid var(--line); }
+  .mc-beat { display:flex; align-items:baseline; gap:.6rem; font-size:.92rem; line-height:1.5; color:var(--muted); }
+  .mc-beat .mc-bt-ic { width:15px; height:15px; flex:none; color:var(--faint); transform:translateY(2px); }
+  .mc-beat .mc-bt-ic.ic-open { color:var(--open); } .mc-beat .mc-bt-ic.ic-close { color:var(--close); }
+  .mc-beat b { color:var(--ink); font-weight:650; }
+  .mc-beat .mono { color:var(--ink); font-family:var(--mono); font-size:.86rem; }
+  .mc-beat .dim { color:var(--faint); }
+
+  /* ── Your week ── */
+  .mc-week { display:flex; flex-direction:column; gap:.7rem; }
+  .mc-day { border:1px solid var(--line2); border-radius:16px; background:var(--surface); overflow:hidden;
+    display:grid; grid-template-columns:132px 1fr; cursor:pointer; animation:mc-in .5s ease backwards;
+    transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+  .mc-day:hover { transform:translateY(-2px); border-color:var(--gold-line);
+    box-shadow:0 6px 20px rgba(20,16,8,0.09); }
+  .mc-day.mc-today-row { border-color:var(--gold-line); }
+  .mc-day.selected { border-color:var(--gold-line); box-shadow:0 0 0 2px var(--gold-line), 0 6px 20px rgba(20,16,8,0.08); }
+  .mc-day.mc-off { background:var(--surface2); }
+  .mc-dname { padding:1rem 1.1rem; border-right:1px solid var(--line); display:flex; flex-direction:column;
+    gap:.35rem; justify-content:center; align-items:flex-start; }
+  .mc-dname .d { font-weight:700; font-size:1.05rem; letter-spacing:-.01em; }
+  .mc-day.selected .mc-dname .d { color:var(--gold); }
+  .mc-dname .t { font-size:.58rem; text-transform:uppercase; letter-spacing:.1em; font-weight:700; color:var(--gold); }
+  .mc-dname .tag { font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; font-weight:700;
+    padding:.18rem .5rem; border-radius:999px; }
+  .mc-dname .tag-on { color:var(--gold); background:var(--gold-soft); }
+  .mc-dname .tag-off { color:var(--faint); background:rgba(28,24,16,0.06); }
+  .mc-body { padding:1rem 1.15rem; display:flex; align-items:center; min-width:0; }
+  .mc-roster { display:flex; flex-wrap:wrap; gap:.55rem 1.3rem; align-items:center; }
+  .mc-person { display:inline-flex; align-items:center; gap:.36rem; font-size:.9rem; white-space:nowrap; }
+  .mc-person .pn { font-weight:600; }
+  .mc-person .pw { color:var(--muted); font-size:.8rem; }
+  .mc-person.me .pn { color:var(--gold); font-weight:700; }
+  .mc-person.op .pn { color:var(--open); } .mc-person.cl .pn { color:var(--close); }
+  .mc-person .mc-ic { width:12px; height:12px; }
+  .mc-offlabel { color:var(--faint); font-size:.9rem; }
+
+  .mc-empty { padding:3rem 1.5rem; text-align:center; color:var(--muted); }
+  .mc-empty .mc-ic { width:30px; height:30px; color:var(--faint); margin-bottom:.6rem; }
+  .mc-empty p { margin:0; font-size:.98rem; }
+
+  .mc-legend { display:flex; flex-wrap:wrap; gap:.6rem 1.6rem; margin-top:1.5rem; padding:0 .2rem;
+    font-size:.82rem; color:var(--muted); }
+  .mc-legend span { display:inline-flex; align-items:center; gap:.45rem; }
+  .mc-legend .mc-ic { width:14px; height:14px; }
+  .mc-foot { margin-top:1rem; padding:0 .2rem; font-size:.8rem; color:var(--faint); line-height:1.55; max-width:74ch; }
+
+  @media (max-width:600px) {
+    .mc-day { grid-template-columns:1fr; }
+    .mc-dname { border-right:none; border-bottom:1px solid var(--line); flex-direction:row; align-items:center; gap:.7rem; padding:.7rem 1.1rem; }
+    .mc-title { font-size:1.5rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="mc-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
+    </symbol>
+    <symbol id="mc-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="4" y1="12" x2="16" y2="12"/><polyline points="11 7 16 12 11 17"/>
+    </symbol>
+    <symbol id="mc-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="8" y1="12" x2="20" y2="12"/><polyline points="15 7 20 12 15 17"/>
+    </symbol>
+    <symbol id="mc-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4.5" width="18" height="17" rx="2.5"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="8" y1="2.5" x2="8" y2="6.5"/><line x1="16" y1="2.5" x2="16" y2="6.5"/>
+    </symbol>
+    <!-- Opener = unlocks / opens up (shackle open on the right). -->
+    <symbol id="mc-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>
+    </symbol>
+    <!-- Closer = locks up (closed padlock). -->
+    <symbol id="mc-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+    </symbol>
+    <!-- Someone out today. -->
+    <symbol id="mc-absent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><line x1="16.5" y1="11" x2="22" y2="11"/>
+    </symbol>
+  </svg>
+
+  <div class="container-fluid mc">
+    <div class="mc-wrap">
+      <div class="mc-head">
+        <h1 class="mc-title"><svg class="mc-ic"><use href="#mc-cal"/></svg>My Schedule</h1>
+        <p class="mc-sub">The days you work and who you&rsquo;re on with each shift &mdash; your standard week.</p>
+      </div>
+
+      {% if oncall_today %}
+      <div class="mc-oncall">
+        <svg class="mc-ic"><use href="#mc-moon"/></svg>
+        <span><b>On-call tonight:</b>
+          {% for o in oncall_today %}{% if not forloop.first %} &middot; {% endif %}<b>{{ o.name }}</b> <span class="dim">{{ o.window }}</span>{% endfor %}
+        </span>
+      </div>
+      {% endif %}
+
+      {% if not on_roster or not has_schedule %}
+      <div class="mc-panel mc-empty">
+        <svg class="mc-ic"><use href="#mc-cal"/></svg>
+        {% if not on_roster %}
+        <p>You&rsquo;re not on the dispatch roster. If that&rsquo;s not right, check with your manager.</p>
+        {% else %}
+        <p>No schedule set yet &mdash; ask your manager to add your weekly hours.</p>
+        {% endif %}
+      </div>
+      {% else %}
+
+      {# ── Day view (switchable, actual date with overrides) ── #}
+      <div class="mc-sec">Day view <span class="mc-sec-hint">&mdash; tap any day below to switch</span></div>
+      <div class="mc-panel mc-today">
+        {% for dv in day_views %}
+        <div class="mc-dayview" data-dow="{{ dv.dow }}"{% if not dv.is_today %} hidden{% endif %}>
+          <div class="mc-today-line">
+            <span class="mc-today-tag">{{ dv.name }}{% if dv.is_today %} &middot; Today{% endif %}</span>
+            {% if dv.is_working %}
+              <span class="mc-today-what">
+                You&rsquo;re on
+                {% if dv.is_opener %}<svg class="mc-ic ic-open"><use href="#mc-open"/></svg>{% endif %}
+                <span class="mono">{{ dv.label }}</span>
+                {% if dv.is_closer %}<svg class="mc-ic ic-close"><use href="#mc-close"/></svg>{% endif %}
+              </span>
+            {% else %}
+              <span class="mc-today-what mc-today-off">You&rsquo;re off{% if dv.is_today %} today{% endif %}{% if dv.on_count %} &mdash; here&rsquo;s who&rsquo;s on{% endif %}</span>
+            {% endif %}
+          </div>
+
+          {% if dv.exceptions %}
+          <div class="mc-absence">
+            <svg class="mc-ic"><use href="#mc-absent"/></svg>
+            <span>{% for e in dv.exceptions %}{% if not forloop.first %} &middot; {% endif %}<b>{{ e.name }}</b> {% if e.kind == 'off' %}is off{% if dv.is_today %} today{% endif %}{% else %}on {{ e.label }} (changed){% endif %}{% endfor %}</span>
+          </div>
+          {% endif %}
+
+          {% if dv.on_count %}
+          <div class="mc-tlscroll"><div class="mc-gantt">
+            <div class="mc-gaxis">{% for t in hour_ticks %}<span class="mc-tk" style="left:{{ t.pos }}%;transform:translateX({{ t.tx }})">{{ t.label }}</span>{% endfor %}</div>
+            <div class="mc-grow">
+              <div class="mc-gbar oc{% if dv.is_today and oncall_today %} assigned{% endif %}" style="left:{{ dv.timeline.oncall_band.left }}%;width:{{ dv.timeline.oncall_band.width }}%">
+                <span class="bn"><svg class="mc-ic" style="color:var(--oncall)"><use href="#mc-moon"/></svg>On-call</span>
+                {% if dv.is_today and oncall_today %}<span class="bt">{{ oncall_today.0.short }}</span>{% endif %}
+              </div>
+              {% if dv.is_today %}<span class="mc-gnow" style="left:{{ now_frac }}%"></span>{% endif %}
+            </div>
+            {% for b in dv.timeline.bars %}
+            <div class="mc-grow{% if b.is_me %} me{% endif %}">
+              <div class="mc-gbar{% if b.is_me %} me{% elif b.is_opener %} op{% elif b.is_closer %} cl{% endif %}" style="left:{{ b.left }}%;width:{{ b.width }}%" title="{{ b.name }} · {{ b.hours }}">
+                <span class="bn">{% if b.is_opener %}<svg class="mc-ic ic-open"><use href="#mc-open"/></svg>{% elif b.is_closer %}<svg class="mc-ic ic-close"><use href="#mc-close"/></svg>{% endif %}{{ b.name }}</span>
+                {% if b.time_side == 'inside' %}<span class="bt">{{ b.hours }}</span>{% endif %}
+              </div>
+              {% if b.time_side == 'right' %}<span class="mc-gtime-out" style="left:{{ b.end }}%">{{ b.hours }}</span>{% endif %}
+              {% if b.time_side == 'left' %}<span class="mc-gtime-out lt" style="left:{{ b.left }}%">{{ b.hours }}</span>{% endif %}
+              {% if dv.is_today %}<span class="mc-gnow" style="left:{{ now_frac }}%"></span>{% endif %}
+            </div>
+            {% endfor %}
+          </div></div>
+          {% else %}
+          <p class="mc-quiet">No one is scheduled {% if dv.is_today %}today{% else %}on {{ dv.name }}{% endif %}.</p>
+          {% endif %}
+
+          {% if dv.beats %}
+          <div class="mc-story">
+            {% for b in dv.beats %}
+            <div class="mc-beat">
+              {% if b.kind == 'open' %}
+                <svg class="mc-bt-ic ic-open"><use href="#mc-open"/></svg>
+                <span><b>{{ b.who }}</b> opens at <span class="mono">{{ b.time }}</span>, on till <span class="mono">{{ b.until }}</span> &mdash; already on when you clock in.</span>
+              {% elif b.kind == 'open_me' %}
+                <svg class="mc-bt-ic ic-open"><use href="#mc-open"/></svg>
+                <span>You&rsquo;re the <b>Opener</b> &mdash; first in at <span class="mono">{{ b.time }}</span>.</span>
+              {% elif b.kind == 'leave' %}
+                <svg class="mc-bt-ic"><use href="#mc-in"/></svg>
+                <span>At <span class="mono">{{ b.time }}</span>, <b>{{ b.who }}</b> hands off to {% for n in b.remaining %}{% if not forloop.first %}{% if forloop.last %} and {% else %}, {% endif %}{% endif %}<b>{{ n }}</b>{% endfor %}.</span>
+              {% elif b.kind == 'handoff' %}
+                <svg class="mc-bt-ic"><use href="#mc-out"/></svg>
+                <span>At <span class="mono">{{ b.time }}</span>, you hand off to {% for t in b.to %}{% if not forloop.first %}{% if forloop.last %} and {% else %}, {% endif %}{% endif %}<b>{{ t.name }}</b> <span class="dim">(on till <span class="mono">{{ t.until }}</span>)</span>{% endfor %}.</span>
+              {% elif b.kind == 'close_me' %}
+                <svg class="mc-bt-ic ic-close"><use href="#mc-close"/></svg>
+                <span>You&rsquo;re the <b>Closer</b> &mdash; last one out at <span class="mono">{{ b.time }}</span>.</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      {# ── Your week — every day, who's on & their hours ── #}
+      <div class="mc-sec">Your week &middot; {{ working_days }} day{{ working_days|pluralize }} on <span class="mc-sec-hint">&mdash; every day, who&rsquo;s working</span></div>
+      <div class="mc-week">
+        {% for d in days %}
+        <div class="mc-day {% if d.is_today %}mc-today-row selected{% endif %} {% if not d.is_working %}mc-off{% endif %}"
+             data-dow="{{ d.dow }}" role="button" tabindex="0" aria-label="Show {{ d.name }} in the day view"
+             style="animation-delay:calc({{ forloop.counter0 }} * 45ms)">
+          <div class="mc-dname">
+            <span class="d">{{ d.name }}</span>
+            {% if d.is_today %}<span class="t">Today</span>{% endif %}
+            {% if d.is_working %}<span class="tag tag-on">You&rsquo;re on</span>{% else %}<span class="tag tag-off">You&rsquo;re off</span>{% endif %}
+          </div>
+          <div class="mc-body">
+            {% if d.roster_on %}
+            <div class="mc-roster">
+              {% for p in d.roster_on %}
+              <span class="mc-person{% if p.is_me %} me{% elif p.is_opener %} op{% elif p.is_closer %} cl{% endif %}">
+                {% if p.is_opener %}<svg class="mc-ic ic-open"><use href="#mc-open"/></svg>{% elif p.is_closer %}<svg class="mc-ic ic-close"><use href="#mc-close"/></svg>{% endif %}
+                <span class="pn">{{ p.name }}</span>
+                <span class="pw mono">{{ p.window }}</span>
+              </span>
+              {% endfor %}
+            </div>
+            {% else %}
+            <span class="mc-offlabel">No one scheduled.</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="mc-legend">
+        <span><svg class="mc-ic ic-open"><use href="#mc-open"/></svg> Opener &mdash; opens up, first in</span>
+        <span><svg class="mc-ic ic-close"><use href="#mc-close"/></svg> Closer &mdash; locks up, last out</span>
+        <span><svg class="mc-ic" style="color:var(--oncall)"><use href="#mc-moon"/></svg> On-call &mdash; overnight watch</span>
+        <span><svg class="mc-ic" style="color:var(--absent)"><use href="#mc-absent"/></svg> Off today &mdash; out for the day</span>
+      </div>
+      <p class="mc-foot">Your week is your standard weekly hours; the day view up top shows the actual day, including anyone out or on changed hours. Overnight (12&ndash;6&nbsp;AM) is covered by the on-call person. If something looks off, your manager can adjust it.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var views = [].slice.call(document.querySelectorAll('.mc-dayview'));
+  var rows = [].slice.call(document.querySelectorAll('.mc-day[data-dow]'));
+  if (!views.length || !rows.length) return;
+
+  function select(dow) {
+    dow = String(dow);
+    views.forEach(function (v) {
+      var show = v.dataset.dow === dow;
+      v.hidden = !show;
+      if (show) { v.style.animation = 'none'; void v.offsetWidth; v.style.animation = ''; }
+    });
+    rows.forEach(function (r) { r.classList.toggle('selected', r.dataset.dow === dow); });
+  }
+
+  rows.forEach(function (r) {
+    r.addEventListener('click', function () { select(r.dataset.dow); });
+    r.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(r.dataset.dow); }
+    });
+  });
+})();
+</script>
+{% endblock %}

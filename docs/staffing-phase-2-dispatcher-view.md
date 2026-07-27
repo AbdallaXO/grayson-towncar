@@ -1,5 +1,20 @@
 # Staffing — Phase 2: the Dispatcher-Facing View
 
+_Status: **shipped** (my-week + who-with **and** the today timeline). Phase 1 (admin board) is shipped. The only remaining thread is the separate on-call self-log button (see bottom)._
+
+## What shipped
+
+Live at `/dispatching/my-schedule/` (route name `my_coverage`), gated `@login_required` + `_is_staff` — **any dispatcher, not superuser-only**. This is the confirmed teammate-visibility change: dispatchers now see each other's *scheduled hours*, but only through this calm, read-only lens (their own week + who overlaps them), never the admin coverage board.
+
+- **Backend** — `ops/coverage.py::my_week(user, roster, today_dow)` (my cells + per-day overlapping coworkers with in/out, `arrives_after_me`/`leaves_before_me`, and plain `handoff_from`/`handoff_to`) and `my_today_timeline(user, roster, today_dow)` (my bar + coworkers' bars on one axis, `is_me` flagged). Both read the recurring weekday pattern from `StaffWeeklySchedule` via a shared `_pattern_by_dow` helper — **no risk/gap/thin/target fields are produced**. View: `ops/views.py::my_coverage` (also does a date-scoped `StaffOnCall` lookup for "on-call tonight", caller only).
+- **Template** — `dispatching/templates/dispatching/my_coverage.html`, its own calm `mc-*` design system (warm neutral ground, gold accent, mono times, ☀/🌙 opener/closer). No red, no dims, no "understaffed/critical/gap" language anywhere.
+- **Nav** — "My Schedule" link in `dispatcher_navbar.html`, non-superuser branch, next to Clock. Superusers keep the admin "Staffing" link.
+- **Tests** — `ops/tests/test_coverage.py`: `MyWeekTests` + `MyCoverageViewTests` (overlap, handoffs, solo, opener/closer, off/no-schedule empty states, the non-superuser access change, on-call banner, and an assertion that no alarming vocabulary renders).
+
+> **Local DB note:** the `my_coverage` view queries `StaffOnCall`; a dev DB that hasn't run `ops.0013_staffoncall` (and the other pending migrations) will 500. Run `migrate` locally before hitting the page.
+
+## Original plan (kept for reference)
+
 _Status: planned. Phase 1 (admin board) is shipped. Pick this up later._
 
 ## Where Phase 1 left off (what's already built)

@@ -5055,3 +5055,71 @@ def staffing_board(request):
         "hour_ticks": hour_ticks,
         "grid_ticks": grid_ticks,
     })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+def my_coverage(request):
+    """Dispatcher-facing "My Schedule" — the calm flip side of the admin board.
+
+    Any dispatcher (not superuser-only) sees their OWN recurring week: the days
+    they work, who they're on with each shift, the handoffs, and a single calm
+    "today" timeline. It carries none of the admin board's coverage-risk
+    language — no gaps, "thin", targets, or red. Read-only; schedule edits stay
+    with admins. On-call for *tonight* is looked up per date for the viewer only.
+    """
+    roster = list(_office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides"))
+    today = timezone.localdate()
+    today_dow = today.weekday()
+    monday = today - timedelta(days=today_dow)
+    # "Your week" is the standard recurring pattern (every day, who's on + hours);
+    # the switchable "Day view" is the *actual* date, with one-off sick/off + custom
+    # hours applied, so it reflects what's really happening.
+    week = coverage.my_week(request.user, roster, today_dow=today_dow)
+    day_views = coverage.my_week_actual(request.user, roster, monday, today)
+
+    # Who's on-call tonight — date-based, now shown plainly by name (a teammate's
+    # coverage is useful to see), with the viewer's own marked "You". Informational.
+    oncall_today = []
+    for oc in (StaffOnCall.objects.filter(date=today, user__in=[u.id for u in roster])
+               .select_related("user").order_by("start_time")):
+        is_me = oc.user_id == request.user.id
+        disp = oc.user.get_full_name() or oc.user.username
+        s = oc.start_time.hour * 60 + oc.start_time.minute
+        e = oc.end_time.hour * 60 + oc.end_time.minute
+        oncall_today.append({
+            "name": "You" if is_me else disp,
+            "short": "You" if is_me else (disp.split()[0] if disp.split() else disp),
+            "window": f"{coverage._fmt_min_long(s)} – {coverage._fmt_min_long(e)}",
+            "is_me": is_me,
+        })
+
+    # Timeline "now" marker + hour-axis ticks. Every 3 hours with a full AM/PM
+    # label; edge ticks align inward (translateX) so they never overflow the
+    # scroll box (which would otherwise surface a stray horizontal scrollbar).
+    now = timezone.localtime()
+    now_frac = round((now.hour * 60 + now.minute) / 1440 * 100, 3)
+
+    def _axis_label(h):
+        hh = h % 24
+        return f"{hh % 12 or 12} {'AM' if hh < 12 else 'PM'}"
+
+    hour_ticks = []
+    for h in range(0, 25, 3):
+        tx = "0" if h == 0 else ("-100%" if h == 24 else "-50%")
+        hour_ticks.append({"pos": round(h / 24 * 100, 3), "label": _axis_label(h), "tx": tx})
+    grid_ticks = [round(h / 24 * 100, 3) for h in range(3, 24, 3)]
+
+    return render(request, "dispatching/my_coverage.html", {
+        "days": week["days"],
+        "day_views": day_views,
+        "working_days": week["working_days"],
+        "has_schedule": week["has_schedule"],
+        "on_roster": week["on_roster"],
+        "me_name": week["me_name"],
+        "oncall_today": oncall_today,
+        "today_dow": today_dow,
+        "now_frac": now_frac,
+        "hour_ticks": hour_ticks,
+        "grid_ticks": grid_ticks,
+    })

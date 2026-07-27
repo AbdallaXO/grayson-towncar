@@ -49,6 +49,10 @@
             {% elif timeclock_state == 'on_break' %}<span class="badge bg-info text-dark rounded-pill" style="font-size:0.65rem;">Break</span>
             {% else %}<span class="badge bg-secondary rounded-pill" style="font-size:0.65rem;">Out</span>{% endif %}</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'my_coverage' %}active{% endif %}"
+             href="{% url 'my_coverage' %}" title="Your week & who you're on with"><i class="bi bi-calendar-week me-1"></i>My Schedule</a>
+        </li>
         {% endif %}
         {% if request.user.is_superuser %}
         <li class="nav-item">
@@ -66,6 +70,7 @@
               <a class="dropdown-item {% if request.resolver_match.url_name == 'drivers_extend' %}active{% endif %}"
                  href="{% url 'drivers_extend' %}"><i class="bi bi-people-fill me-2"></i>All Drivers</a>
             </li>
+            {% if request.user.is_superuser %}
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_payment_management' %}active{% endif %}"
                  href="{% url 'driver_payment_management' %}"><i class="bi bi-currency-dollar me-2"></i>Driver Pay</a>
@@ -74,6 +79,7 @@
               <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_pay_rates' %}active{% endif %}"
                  href="{% url 'driver_pay_rates' %}"><i class="bi bi-sliders me-2"></i>Pay Rates</a>
             </li>
+            {% endif %}
             <li><hr class="dropdown-divider" style="border-color: rgba(255,255,255,0.1);"></li>
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_schedules_dashboard' %}active{% endif %}"
