@@ -811,11 +811,14 @@ class FullPublishedCardTests(TestCase):
                     result = qe.quote(
                         vehicle_type=vehicle_type,
                         trip_type=trip_type,
-                        # Deliberately absurd mileage: if the card were not
-                        # winning, the formula would produce a wild number and
-                        # this assertion would fail loudly.
-                        miles=Decimal("500"),
-                        minutes=600,
+                        # A PLAUSIBLE card-route distance. This used to pass an
+                        # absurd 500 mi to prove the card was winning, but
+                        # MAX_CARD_ROUTE_MI now (correctly) refuses a card match
+                        # on a trip that long — that guard is what stops every
+                        # Florida seaport being quoted at the Port Canaveral
+                        # price. is_rate_card below is the real assertion.
+                        miles=Decimal("25"),
+                        minutes=35,
                         pickup_location=route.origin,
                         dropoff_location=route.destination,
                     )
@@ -829,8 +832,8 @@ class FullPublishedCardTests(TestCase):
             with self.subTest(vehicle=vehicle_type, route=str(route)):
                 result = qe.quote(
                     vehicle_type=vehicle_type,
-                    miles=Decimal("500"),
-                    minutes=600,
+                    miles=Decimal("25"),
+                    minutes=35,
                     pickup_location=route.destination,
                     dropoff_location=route.origin,
                 )
@@ -1138,3 +1141,134 @@ class AirportPickupFeeTests(RateCardFixtureMixin, TestCase):
         self.assertEqual(result.price, Decimal("955"))
         self.assertEqual(result.breakdown["gratuity_amount"], Decimal("191.00"))
         self.assertEqual(result.breakdown["total_with_gratuity"], Decimal("1146.00"))
+
+
+class SeaportOvermatchRegressionTests(RateCardFixtureMixin, TestCase):
+    """Regression: every Florida seaport collapsed onto Port Canaveral.
+
+    Port Canaveral's DB aliases include the generic "Cruise Terminal",
+    "Cruise Port", "Carnival" and "Royal Caribbean". So "Port Everglades Cruise
+    Terminal, Fort Lauderdale" matched the Port Canaveral zone, and a 218 mi run
+    to Fort Lauderdale was quoted at the published $185 instead of $850 —
+    labelled "this is our published rate", telling the dispatcher not to
+    override it. A 78% underquote on the founder's calibrated route.
+
+    The defence is MAX_CARD_ROUTE_MI, not the alias list: the card describes
+    Orlando-area work whose longest route is ~72 mi, so any card match on a much
+    longer trip means the address matcher over-matched.
+    """
+
+    def setUp(self):
+        self.build_card()
+        self.disney = self.locations["All WDW Disney Property Resorts"]
+        self.canaveral = self.locations["Port Canaveral"]
+        # Mirror the generic aliases that live in the production database.
+        self.canaveral.aliases = (
+            "Cape Canaveral, Cocoa Beach, Carnival, Royal Caribbean, "
+            "Disney Cruise, Norwegian Cruise, Celebrity Cruises, "
+            "Cruise Terminal, Cruise Port"
+        )
+        self.canaveral.save()
+
+    FAR_PORTS = [
+        "Port Everglades Cruise Terminal, Fort Lauderdale, FL",
+        "PortMiami Cruise Terminal F, 1015 N America Way, Miami FL",
+        "Royal Caribbean Terminal A, 1861 Eller Dr, Fort Lauderdale FL",
+        "Carnival Cruise Terminal 2, 651 Channelside Dr, Tampa FL",
+        "Port of Palm Beach Cruise Port, Riviera Beach FL",
+    ]
+
+    def test_far_seaports_are_not_quoted_at_the_canaveral_card_price(self):
+        locations = list(Location.objects.all())
+        for address in self.FAR_PORTS:
+            with self.subTest(address=address):
+                dropoff, _kw = qe.match_location(address, locations)
+                result = qe.quote(
+                    vehicle_type="towncar", miles=Decimal("218"), minutes=194,
+                    pickup_location=self.disney, dropoff_location=dropoff,
+                    snapped_pickup=self.disney, snapped_dropoff=dropoff,
+                )
+                self.assertEqual(result.source, qe.SOURCE_FORMULA)
+                self.assertEqual(result.price, Decimal("850"))
+
+    def test_the_dispatcher_is_told_why_the_card_was_rejected(self):
+        """Silently repricing would be almost as bad — the dispatcher needs to
+        know the address looked like a published route but could not be one."""
+        locations = list(Location.objects.all())
+        dropoff, _kw = qe.match_location(self.FAR_PORTS[0], locations)
+        result = qe.quote(
+            vehicle_type="towncar", miles=Decimal("218"), minutes=194,
+            pickup_location=self.disney, dropoff_location=dropoff,
+            snapped_pickup=self.disney, snapped_dropoff=dropoff,
+        )
+        joined = " ".join(result.notes)
+        self.assertIn("far too long", joined)
+        self.assertIn("seaport", joined)
+
+    def test_the_real_port_canaveral_still_gets_its_card_price(self):
+        """The guard must not break the route it protects."""
+        result = qe.quote(
+            vehicle_type="towncar", miles=Decimal("72"), minutes=60,
+            pickup_location=self.disney, dropoff_location=self.canaveral,
+            snapped_pickup=self.disney, snapped_dropoff=self.canaveral,
+        )
+        self.assertTrue(result.is_rate_card)
+        self.assertEqual(result.price, Decimal("185.00"))
+
+    def test_every_published_route_stays_under_the_guard(self):
+        """If any real card route were longer than MAX_CARD_ROUTE_MI the guard
+        would silently disable it, so pin the assumption."""
+        self.assertGreaterEqual(qe.MAX_CARD_ROUTE_MI, Decimal("80"))
+        result = qe.quote(
+            vehicle_type="towncar", miles=qe.MAX_CARD_ROUTE_MI, minutes=75,
+            pickup_location=self.disney, dropoff_location=self.canaveral,
+            snapped_pickup=self.disney, snapped_dropoff=self.canaveral,
+        )
+        self.assertTrue(result.is_rate_card)
+
+    def test_generic_cruise_words_are_not_seeded_by_us(self):
+        """Our own alias seeds must not add the ambiguous cruise terms back."""
+        seeded = qe.DEFAULT_LOCATION_ALIASES["Port Canaveral"]
+        lowered = [a.lower() for a in seeded]
+        for banned in ("cruise terminal", "cruise port", "canaveral"):
+            self.assertNotIn(banned, lowered)
+
+
+class RoundTripAirportFeeTests(RateCardFixtureMixin, TestCase):
+    """A round trip that ENDS at an airport still collects there on the way
+    home, so it must carry the fee. Before the fix, the same two addresses
+    priced $20 apart depending on which box they were typed into — and the page
+    ships a swap button one click away."""
+
+    def setUp(self):
+        self.build_card()
+        self.url = reverse("quote_calculator_api")
+        self.staff = User.objects.create_user(
+            username="disp2", password="pw12345!", is_staff=True
+        )
+        self.client.force_login(self.staff)
+
+    def _roundtrip(self, pickup, dropoff):
+        with patch("drivers.utils.get_drive_time", return_value={
+            "distance_text": "9.0 mi", "duration_text": "18 mins",
+            "duration_seconds": 1080,
+        }):
+            return self.client.post(
+                self.url,
+                data=json.dumps({
+                    "pickup": pickup, "dropoff": dropoff,
+                    "vehicle": "towncar", "trip_type": "roundtrip",
+                }),
+                content_type="application/json",
+            ).json()
+
+    def test_airport_at_either_end_of_a_round_trip_carries_the_fee(self):
+        out = self._roundtrip(
+            "Orlando International Airport (MCO), FL", "742 Evergreen Terrace FL"
+        )
+        back = self._roundtrip(
+            "742 Evergreen Terrace FL", "Orlando International Airport (MCO), FL"
+        )
+        self.assertEqual(out["price"], back["price"])
+        for body in (out, back):
+            self.assertIn("airport_pickup_fee", body["internal"])

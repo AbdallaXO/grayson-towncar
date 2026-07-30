@@ -239,6 +239,22 @@ ZONE_REPRESENTATIVE_ADDRESS: dict[str, str] = {
 # gets the mileage formula instead of a snapped card price.
 SNAP_MAX_MI = Decimal("15")
 
+# ── Plausibility guard on rate-card matches ────────────────────────────────
+# The published card describes Orlando-area work only; its longest route is
+# Disney <-> Port Canaveral at roughly 72 mi. So a "card match" on a trip much
+# longer than that is not a card trip — it is the address matcher over-matching.
+#
+# This is not hypothetical. Port Canaveral's aliases include the generic
+# "Cruise Terminal", "Cruise Port", "Carnival" and "Royal Caribbean", so
+# "Port Everglades Cruise Terminal, Fort Lauderdale" matched Port Canaveral and
+# a 218 mi run to Fort Lauderdale was quoted at the published $185 instead of
+# $850 — stamped "this is our published rate", telling the dispatcher not to
+# override it. Same for PortMiami, Port of Palm Beach and the Tampa terminals.
+#
+# Guarding on distance kills the whole class rather than one alias: any zone
+# alias that over-matches a far-away address now fails this check.
+MAX_CARD_ROUTE_MI = Decimal("90")
+
 # Reference point for "how far out is the pickup".
 BASE_LOCATION = "Orlando International Airport, Orlando, FL"
 
@@ -354,8 +370,12 @@ DEFAULT_LOCATION_ALIASES: dict[str, tuple[str, ...]] = {
         "ChampionsGate", "Champions Gate", "Reunion Resort", "Omni Orlando",
         "Masters Blvd",
     ),
+    # Deliberately NOT "Cruise Terminal" / "Cruise Port" / cruise-line names:
+    # every Florida seaport uses those words, so they matched Port Everglades,
+    # PortMiami and the Tampa terminals. The DB aliases still carry them, which
+    # is why MAX_CARD_ROUTE_MI is the real defence.
     "Port Canaveral": (
-        "Port Canaveral", "Cape Canaveral", "Cruise Terminal", "Canaveral",
+        "Port Canaveral", "Cape Canaveral",
     ),
     "Sea World": (
         "SeaWorld", "Sea World", "Discovery Cove", "Aquatica",
@@ -805,8 +825,15 @@ def quote(
     is_roundtrip = trip_type == "roundtrip"
 
     # ── 1. Published rate card wins ──
-    exact_card, reverse_card = lookup_card_rates(
-        vehicle_type, pickup_location, dropoff_location
+    # ...but only when the measured distance is consistent with a card route.
+    # See MAX_CARD_ROUTE_MI: generic zone aliases can match a far-away address.
+    card_distance_plausible = (
+        miles is None or Decimal(miles) <= MAX_CARD_ROUTE_MI
+    )
+    exact_card, reverse_card = (
+        lookup_card_rates(vehicle_type, pickup_location, dropoff_location)
+        if card_distance_plausible
+        else (None, None)
     )
     card = exact_card or reverse_card
     if card:
@@ -858,6 +885,14 @@ def quote(
         # Card routes are all in-area, so they carry the recommended gratuity.
         _attach_gratuity(result, result.price, mandatory=False)
         return result
+
+    # A card row existed but the trip is far too long to be that route — the
+    # address matcher over-matched. Say so, rather than silently repricing.
+    rejected_card = None
+    if not card_distance_plausible:
+        rejected_card = lookup_card_rate(
+            vehicle_type, pickup_location, dropoff_location
+        )
 
     # ── 2. Local: in-area work, which never carries an empty return ──
     # In-area means an end resolves to a card zone (by name or by snapping) and
@@ -1009,11 +1044,21 @@ def quote(
             "Could not work out how far the pickup is from us, so the price is "
             "the same in either direction."
         )
-    result.notes.append(
-        "Out-of-town trip with no published rate. The price covers driving the "
-        "car out and bringing it back. If this should be one of our usual areas, "
-        "check the address spelling before quoting."
-    )
+    if rejected_card is not None:
+        result.notes.append(
+            f"Note: the address matched our "
+            f"{rejected_card.route.origin.name} / "
+            f"{rejected_card.route.destination.name} published route, but this "
+            f"trip is {Decimal(miles).quantize(Decimal('1'))} mi — far too long "
+            f"to be that route. Priced as out-of-town instead. (Several Florida "
+            f"seaports share wording with Port Canaveral.)"
+        )
+    else:
+        result.notes.append(
+            "Out-of-town trip with no published rate. The price covers driving "
+            "the car out and bringing it back. If this should be one of our usual "
+            "areas, check the address spelling before quoting."
+        )
     if airport_pickup:
         _apply_airport_fee(result, is_roundtrip)
     # Out-of-town work bills the gratuity on top of the fare.

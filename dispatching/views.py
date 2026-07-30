@@ -18591,8 +18591,13 @@ def quote_calculator_api(request):
         "snapped_pickup": snapped_pickup,
         "snapped_dropoff": snapped_dropoff,
         # Commercial lane / tunnel access when we collect at a terminal. Never
-        # applied to a published card price — see quote_engine.
-        "airport_pickup": quote_engine.is_airport_pickup(pickup),
+        # applied to a published card price — see quote_engine. On a ROUND trip
+        # the return leg collects at the outbound drop-off, so an airport there
+        # is also an airport pickup; without this, the same two addresses priced
+        # $20 apart depending on which box they were typed into.
+        "airport_pickup": quote_engine.is_airport_pickup(pickup) or (
+            trip_type == "roundtrip" and quote_engine.is_airport_pickup(dropoff)
+        ),
     }
 
     try:

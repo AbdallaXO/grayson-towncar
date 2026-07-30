@@ -903,23 +903,42 @@
       }
 
       function renderZones(data) {
-          function zoneLabel(matched, snapped, snapMiles) {
-              if (matched) return '<b>' + matched + '</b>';
-              if (snapped) {
-                  return '<b>' + snapped + '</b> <span>(nearest zone'
-                      + (snapMiles ? ', ' + snapMiles + ' mi away' : '') + ')</span>';
+          // Zone names are DB-authored, so build these as TEXT nodes rather than
+          // innerHTML — a renamed Location must not be able to inject markup.
+          function zonePart(label, matched, snapped, snapMiles) {
+              const span = document.createElement('span');
+              span.appendChild(document.createTextNode(label + ': '));
+              const b = document.createElement('b');
+              b.textContent = matched || snapped || 'no match';
+              span.appendChild(b);
+              if (!matched && snapped) {
+                  span.appendChild(document.createTextNode(
+                      ' (nearest zone' + (snapMiles ? ', ' + snapMiles + ' mi away' : '') + ')'));
               }
-              return '<b>no match</b>';
+              return span;
           }
+          const info = document.getElementById('match-info');
+          info.textContent = '';
+          const pin = document.createElement('i');
+          pin.className = 'fas fa-map-pin me-1';
+          info.appendChild(pin);
           const parts = [
-              'Pickup: ' + zoneLabel(data.matched_pickup, data.snapped_pickup, data.snapped_pickup_miles),
-              'Drop-off: ' + zoneLabel(data.matched_dropoff, data.snapped_dropoff, data.snapped_dropoff_miles),
+              zonePart('Pickup', data.matched_pickup, data.snapped_pickup, data.snapped_pickup_miles),
+              zonePart('Drop-off', data.matched_dropoff, data.snapped_dropoff, data.snapped_dropoff_miles),
           ];
           if (data.pickup_miles_from_base) {
-              parts.push('Pickup is <b>' + data.pickup_miles_from_base + ' mi</b> from base');
+              const s2 = document.createElement('span');
+              s2.appendChild(document.createTextNode('Pickup is '));
+              const b2 = document.createElement('b');
+              b2.textContent = data.pickup_miles_from_base + ' mi';
+              s2.appendChild(b2);
+              s2.appendChild(document.createTextNode(' from base'));
+              parts.push(s2);
           }
-          document.getElementById('match-info').innerHTML =
-              '<i class="fas fa-map-pin me-1"></i>' + parts.join(' &nbsp;·&nbsp; ');
+          parts.forEach(function (part, i) {
+              if (i) info.appendChild(document.createTextNode(' · '));
+              info.appendChild(part);
+          });
       }
   });
   </script>

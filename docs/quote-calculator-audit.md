@@ -444,6 +444,53 @@ Fitted to hit all three Port Everglades floors exactly: **$850 / $920 / $1,400**
 
 ---
 
+## 6d. Post-push review — blocker found and fixed (2026-07-29)
+
+A multi-reviewer adversarial pass over the change set (5 lenses, each finding attacked by 2 skeptics) raised 20 findings; 8 survived refutation. One was a genuine **blocker**, reproduced against the production database and fixed immediately after the first push.
+
+### ⚠ Every Florida seaport was quoted at the Port Canaveral card price
+
+`Location` id=8 (Port Canaveral) carries these **database** aliases:
+
+```
+Cape Canaveral, Cocoa Beach, Cocoa, Carnival, Royal Caribbean, Disney Cruise,
+Norwegian Cruise, MSC Cruises, Princess Cruises, Celebrity Cruises,
+Cruise Terminal, Cruise Port
+```
+
+`Cruise Terminal`, `Cruise Port`, `Carnival` and `Royal Caribbean` are words **every** Florida seaport uses. So:
+
+| Typed address | Matched via | Quoted |
+|---|---|---|
+| Port Everglades Cruise Terminal, Fort Lauderdale | `Cruise Terminal` | **$185** |
+| PortMiami Cruise Terminal F, Miami | `Cruise Terminal` | **$185** |
+| Royal Caribbean Terminal A, Fort Lauderdale | `Royal Caribbean` | **$185** |
+| Carnival Cruise Terminal 2, Tampa | `Carnival` | **$185** |
+
+Disney → Port Everglades is **218 mi** and the founder's floor is **$850**. It was quoted at **$185** — a **78% underquote** — and labelled *"This is our published rate for this trip… Quote this, not a custom price,"* which actively told the dispatcher not to override it. The correct $850 was computed and stored in `breakdown["custom_estimate_not_used"]`, a key the template does not render, so it was thrown away where nobody could see it.
+
+**This was a regression introduced by D1.** Before the rewrite, the headline price was the formula price and a matched card row was only shown as an informational "existing rate". Making the card authoritative promoted the wrong row to the quoted number.
+
+**Why 87 tests missed it:** the Port Everglades anchor tests call `quote()` with `miles=218` but **no** `pickup_location`/`dropoff_location`, so address matching was never exercised on that route. The alias test only asserted the positive Port Canaveral case, with no negative.
+
+### The fix — guard on distance, not on aliases
+
+`MAX_CARD_ROUTE_MI = 90`. The published card describes Orlando-area work whose longest route is Disney ⇄ Port Canaveral at ~72 mi, so a card match on a much longer trip means the matcher over-matched. Deleting the offending aliases would not have worked — they live in the database, not just in the code seed — and would have fixed only this one symptom. The distance guard kills the whole class: **any** zone alias that over-matches a distant address now fails it.
+
+A rejected match is **not silent**. The dispatcher is told the address matched a published route but the trip is far too long to be it, and that several Florida seaports share wording with Port Canaveral. Six regression tests cover all five seaports, the note, and that the real 72-mi Port Canaveral route still gets its card price.
+
+### Also fixed in the same pass
+
+- **Round-trip airport fee asymmetry.** The fee was read from the pickup box only, but a round trip's return leg collects at the outbound drop-off. MCO → residence priced $20 above residence → MCO for the same car and addresses — with a swap button one click away. Now either end triggers it on a round trip.
+- **Stored XSS in the zone diagnostics.** `Location.name` was interpolated into `innerHTML`. A Location renamed in the admin could execute script in every dispatcher's session. Now built from text nodes, matching how `card_route` was already handled. Privileged-author only, but a one-line fix.
+
+### Known, not yet fixed
+
+- **A price cliff at the 60-mile service-area boundary.** 59.9 mi → $155 fare with a *suggested* tip; 60.1 mi → $255 with a *billed* tip. The two sides use different formulas (one direction of driving vs doubled), so a tenth of a mile moves the guest total ~65%. Needs a business decision on where the empty return starts applying, so it is not a code fix I should guess at.
+- **Up to 21 sequential Distance Matrix calls per quote** (1 route + 10 zones per unmatched end), against 1 before. ~$0.21 and ~5 s per click while a dispatcher is on the phone. Batching the zone measurements into one call would cut the latency; the cost is per-element either way.
+
+---
+
 ## 7. What shipped — 2026-07-29
 
 All pricing rules moved out of `dispatching/views.py` into **`dispatching/quote_engine.py`**, so they are testable without a request and validated against the published card. **73 tests in `dispatching/tests_quote_engine.py`, all passing; full 852-test dispatching suite green.**
