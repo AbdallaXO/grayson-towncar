@@ -219,3 +219,46 @@ class FlightRefreshTask(models.Model):
 
     def __str__(self):
         return f"{self.task_id} ({self.state.get('status', 'unknown')})"
+
+
+class ChauffeurExceptionDismissal(models.Model):
+    """A superuser marked one "Worth a conversation" entry handled.
+
+    Episode semantics (SOP-003): while the same (driver, rule) keeps firing, the entry
+    stays out of the active list and shows under the collapsed "Handled" line. When a
+    KPI render sees the rule no longer firing, ``cleared_at`` is set — the dismissal is
+    spent — so the same problem starting again later surfaces as a fresh conversation.
+    Undo deletes the row outright.
+
+    Spending is judged ONLY on renders of the window the dismissal was made on
+    (``window``), and only while the driver is actually in the rendered roster. Rules
+    have window-scaled floors, so a glance at another window must not clear a dismissal
+    whose condition still holds where it was dismissed — and a deactivated driver or an
+    empty roster is not an ended episode, just an unevaluated one.
+    """
+
+    driver = models.ForeignKey("drivers.Driver", on_delete=models.CASCADE,
+                               related_name="exception_dismissals")
+    #: One of load_insights.EXCEPTION_RULES — validated at the endpoint, not here,
+    #: so a rule renamed in code doesn't strand old rows at migration time.
+    rule = models.CharField(max_length=40)
+    #: The window key ("7"/"30"/"90") the superuser was viewing when they dismissed.
+    window = models.CharField(max_length=3, default="30")
+    dismissed_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+    note = models.CharField(max_length=200, blank=True, default="")
+    cleared_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["driver", "rule"],
+                condition=models.Q(cleared_at=None),
+                name="uniq_active_dismissal_per_driver_rule",
+            ),
+        ]
+
+    def __str__(self):
+        state = "cleared" if self.cleared_at else "active"
+        return f"{self.driver} · {self.rule} ({state})"

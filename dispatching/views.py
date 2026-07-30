@@ -36,6 +36,8 @@ from reservations.utils import _run_in_background
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
+from . import quote_engine
+from django.templatetags.static import static
 from drivers.models import (
     Driver,
     DriverPayment,
@@ -18419,53 +18421,84 @@ def cancel_duplicate_reservation(request):
 
 
 # ── Quote Calculator ────────────────────────────────────────────────
-# Formula constants per vehicle type: (base_fee, per_mile_rate, rt_multiplier)
-# These are CUSTOM/RESIDENTIAL rates (higher than standard hotel zone rates
-# because the driver has a dead leg back). Prices rounded to nearest $5.
-QUOTE_FORMULA = {
-    "towncar":      (Decimal("55"),  Decimal("3.35"), Decimal("1.90")),
-    "mini_van":     (Decimal("60"),  Decimal("3.55"), Decimal("1.85")),
-    "suv":          (Decimal("65"),  Decimal("3.85"), Decimal("1.90")),
-    "van":          (Decimal("70"),  Decimal("4.25"), Decimal("1.93")),
-    "Van(14 Pax)":  (Decimal("85"),  Decimal("5.85"), Decimal("1.95")),
-}
-# Minimum one-way price per vehicle — short trips can't go below this
-QUOTE_MINIMUMS = {
-    "towncar":      Decimal("135"),
-    "mini_van":     Decimal("135"),
-    "suv":          Decimal("170"),
-    "van":          Decimal("175"),
-    "Van(14 Pax)":  Decimal("220"),
-}
-# Display/iteration order: cheapest to most expensive
-VEHICLE_TIER_ORDER = ["towncar", "mini_van", "suv", "van", "Van(14 Pax)"]
-VEHICLE_LABELS = {
-    "towncar": "Towncar",
-    "suv": "SUV",
-    "mini_van": "Mini Van",
-    "van": "Van",
-    "Van(14 Pax)": "Van (14 Pax)",
+# All pricing rules live in dispatching/quote_engine.py so they can be tested
+# without a request and validated against the published rate card. See
+# dispatching/tests_quote_engine.py and docs/quote-calculator-audit.md.
+#
+# OPEN TO ALL DISPATCHERS (is_staff) as of 2026-07-29. The page carries a standing
+# "Demo - still in progress" banner telling dispatchers to double-check unusual
+# numbers with Ab & Ray before quoting a guest, which is what makes that safe
+# while the rates are still being calibrated. SOP-002 D06 updated to match.
+
+
+# Static art per vehicle for the calculator's picker. Mirrors the landing page's
+# optimized assets rather than Vehicle.image, which is not guaranteed to exist in
+# every environment.
+QUOTE_VEHICLE_IMAGES = {
+    "towncar": "images/towncar.webp",
+    "mini_van": "images/minivan.webp",
+    "suv": "images/suburban.webp",
+    "van": "images/van.webp",
+    "Van(14 Pax)": "images/sprinter.webp",
 }
 
 
-def _round_to_5(price):
-    """Round a Decimal price to the nearest $5."""
-    return Decimal(5) * round(price / Decimal(5))
+def _quote_result_to_json(result):
+    """Serialise a QuoteResult for the calculator page.
+
+    `price` is the only figure to show a guest. `internal` and `notes` are the
+    dispatcher-only panel — they explain where the number came from, including
+    the empty-return share the guest never sees.
+    """
+    internal = {k: str(v) for k, v in result.breakdown.items()}
+    internal["direction"] = result.direction
+    return {
+        "price": str(result.price),
+        "oneway": str(result.oneway_price) if result.oneway_price is not None else None,
+        "roundtrip": (
+            str(result.roundtrip_price) if result.roundtrip_price is not None else None
+        ),
+        "vehicle_type": result.vehicle_type,
+        "vehicle_label": result.vehicle_label,
+        "source": result.source,
+        "source_label": {
+            quote_engine.SOURCE_RATE_CARD: "Published rate card",
+            quote_engine.SOURCE_LOCAL_CUSTOM: "Local custom",
+        }.get(result.source, "Custom estimate"),
+        "card_route": result.card_route,
+        "gratuity_suggested": result.gratuity_suggested,
+        "gratuity_mandatory": result.gratuity_mandatory,
+        "internal": internal,
+        "notes": result.notes,
+    }
 
 
 @login_required(login_url="login")
 def quote_calculator(request):
-    """Quote calculator page — admin only (under review)."""
-    if not request.user.is_superuser:
+    """Quote calculator page — any dispatcher."""
+    if not request.user.is_staff:
         return redirect("dashboard")
-    vehicles = Vehicle.objects.all()
-    formula_display = [
-        (vt, VEHICLE_LABELS.get(vt, vt), str(base), str(pm))
-        for vt, (base, pm, _rt) in QUOTE_FORMULA.items()
+
+    # Driven by the rate config, not the Vehicle table: the dropdown should
+    # offer exactly what can be priced, and it must agree with the all-vehicles
+    # comparison in the result. (Previously it was every Vehicle row while the
+    # formula silently fell back to towncar pricing for anything unrecognised —
+    # and it went blank entirely if the Vehicle table was empty.)
+    vehicles = [
+        {"value": vt, "label": rates.label}
+        for vt, rates in quote_engine.VEHICLE_RATES.items()
     ]
+    # The rate STRUCTURE (base fees, per-mile rates, minimums, hourly floors) is
+    # deliberately not passed to the template. Dispatchers get the price, plus a
+    # per-quote internal breakdown they can open if a guest pushes back — not the
+    # standing rate sheet for every vehicle.
     context = {
         "vehicles": vehicles,
-        "formula_display": formula_display,
+        "vehicle_images": {
+            vt: static(path)
+            for vt, path in QUOTE_VEHICLE_IMAGES.items()
+            if vt in quote_engine.VEHICLE_RATES
+        },
         "google_maps_key": getattr(settings, "GOOGLE_MAPS_API_KEY", ""),
     }
     return render(request, "dispatching/quote_calculator.html", context)
@@ -18474,8 +18507,8 @@ def quote_calculator(request):
 @login_required(login_url="login")
 @require_POST
 def quote_calculator_api(request):
-    """AJAX endpoint: calculate quote from pickup/dropoff addresses."""
-    if not request.user.is_superuser:
+    """AJAX endpoint: price a trip from pickup/dropoff addresses."""
+    if not request.user.is_staff:
         return JsonResponse({"error": "Unauthorized"}, status=403)
 
     try:
@@ -18483,107 +18516,127 @@ def quote_calculator_api(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid request"}, status=400)
 
-    pickup = data.get("pickup", "").strip()
-    dropoff = data.get("dropoff", "").strip()
-    vehicle_type = data.get("vehicle", "towncar")
-    trip_type = data.get("trip_type", "oneway")
+    pickup = (data.get("pickup") or "").strip()
+    dropoff = (data.get("dropoff") or "").strip()
+    vehicle_type = data.get("vehicle") or "towncar"
+    trip_type = data.get("trip_type") or "oneway"
 
     if not pickup or not dropoff:
         return JsonResponse({"error": "Both addresses are required."})
+    if vehicle_type not in quote_engine.VEHICLE_RATES:
+        return JsonResponse(
+            {"error": f"No quote rates are configured for '{vehicle_type}'."}
+        )
 
-    # Get distance from Google Distance Matrix
     from drivers.utils import get_drive_time
+
     drive_info = get_drive_time(pickup, dropoff)
     if not drive_info:
         return JsonResponse({
             "error": "Could not calculate distance. Check the addresses and try again."
         })
 
-    # Parse miles from distance_text (e.g. "45.2 mi")
-    distance_text = drive_info.get("distance_text", "0 mi")
+    miles = quote_engine.parse_distance_miles(drive_info.get("distance_text"))
+    if miles is None:
+        return JsonResponse({"error": "Could not read the distance for that route."})
+
+    duration_seconds = drive_info.get("duration_seconds")
+    minutes = int(round(duration_seconds / 60)) if duration_seconds else None
+
+    # Match both ends against the published card. Longest alias wins, so the
+    # result no longer depends on Location row order.
+    locations = list(Location.objects.all())
+    pickup_location, pickup_keyword = quote_engine.match_location(pickup, locations)
+    dropoff_location, dropoff_keyword = quote_engine.match_location(dropoff, locations)
+
+    # Direction only changes the price on genuinely long trips, so only spend a
+    # second Distance Matrix call when it can actually matter.
+    pickup_miles_from_base = None
+    if miles > quote_engine.LONG_DISTANCE_THRESHOLD_MI:
+        base_info = get_drive_time(quote_engine.BASE_LOCATION, pickup)
+        if base_info:
+            pickup_miles_from_base = quote_engine.parse_distance_miles(
+                base_info.get("distance_text")
+            )
+
+    # An end that did not match a zone by name may still sit INSIDE one — a
+    # residence near MCO should price off the MCO routes, which is how the
+    # founder prices these by hand. Only worth measuring for trips short enough
+    # to be in-area; get_drive_time caches, so repeat addresses are free.
+    def _snap(address):
+        if miles > quote_engine.SERVICE_AREA_RADIUS_MI:
+            return None, None
+
+        def measure(zone_address):
+            info = get_drive_time(address, zone_address)
+            return quote_engine.parse_distance_miles(
+                info.get("distance_text")
+            ) if info else None
+
+        return quote_engine.snap_to_zone(address, locations, measure)
+
+    snapped_pickup, snap_pickup_mi = (
+        (pickup_location, None) if pickup_location else _snap(pickup)
+    )
+    snapped_dropoff, snap_dropoff_mi = (
+        (dropoff_location, None) if dropoff_location else _snap(dropoff)
+    )
+
+    quote_kwargs = {
+        "miles": miles,
+        "minutes": minutes,
+        "pickup_location": pickup_location,
+        "dropoff_location": dropoff_location,
+        "pickup_miles_from_base": pickup_miles_from_base,
+        "snapped_pickup": snapped_pickup,
+        "snapped_dropoff": snapped_dropoff,
+        # Commercial lane / tunnel access when we collect at a terminal. Never
+        # applied to a published card price — see quote_engine.
+        "airport_pickup": quote_engine.is_airport_pickup(pickup),
+    }
+
     try:
-        miles = Decimal(distance_text.replace(",", "").split()[0])
-    except Exception:
-        return JsonResponse({"error": "Could not parse distance."})
+        selected = quote_engine.quote(
+            vehicle_type=vehicle_type, trip_type=trip_type, **quote_kwargs
+        )
+        all_vehicles = quote_engine.quote_all_vehicles(
+            trip_type=trip_type, **quote_kwargs
+        )
+    except (KeyError, ValueError) as exc:
+        logger.warning("Quote calculator failed for %s -> %s: %s", pickup, dropoff, exc)
+        return JsonResponse({"error": "Could not price that trip."})
 
-    # Calculate for selected vehicle
-    base_fee, per_mile, rt_mult = QUOTE_FORMULA.get(vehicle_type, QUOTE_FORMULA["towncar"])
-    min_ow = QUOTE_MINIMUMS.get(vehicle_type, Decimal("100"))
-    oneway_price = max(_round_to_5(base_fee + per_mile * miles), min_ow)
-    roundtrip_price = _round_to_5(oneway_price * rt_mult)
-
-    if trip_type == "roundtrip":
-        suggested_price = roundtrip_price
-    else:
-        suggested_price = oneway_price
-
-    mileage_fee = _round_to_5(per_mile * miles)
-
-    # Calculate for ALL vehicles
-    all_vehicles = []
-    for vt in VEHICLE_TIER_ORDER:
-        vb, vpm, vrt = QUOTE_FORMULA[vt]
-        v_min = QUOTE_MINIMUMS.get(vt, Decimal("100"))
-        v_ow = max(_round_to_5(vb + vpm * miles), v_min)
-        v_rt = _round_to_5(v_ow * vrt)
-        all_vehicles.append({
-            "vehicle_type": vt,
-            "label": VEHICLE_LABELS.get(vt, vt),
-            "oneway": str(v_ow),
-            "roundtrip": str(v_rt),
-        })
-
-    # Check if an existing Rate matches this route
-    existing_rate = None
-    pickup_lower = pickup.lower()
-    dropoff_lower = dropoff.lower()
-    locations = Location.objects.all()
-    pickup_match = None
-    dropoff_match = None
-    for loc in locations:
-        keywords = [loc.name.lower()]
-        if loc.aliases:
-            keywords += [a.strip().lower() for a in loc.aliases.split(",")]
-        for kw in keywords:
-            if kw and kw in pickup_lower:
-                pickup_match = loc
-                break
-        for kw in keywords:
-            if kw and kw in dropoff_lower:
-                dropoff_match = loc
-                break
-
-    if pickup_match and dropoff_match:
-        rate = Rate.objects.filter(
-            vehicle__vehicle_type=vehicle_type,
-            route__origin=pickup_match,
-            route__destination=dropoff_match,
-        ).select_related("route__origin", "route__destination").first()
-        if not rate:
-            rate = Rate.objects.filter(
-                vehicle__vehicle_type=vehicle_type,
-                route__origin=dropoff_match,
-                route__destination=pickup_match,
-            ).select_related("route__origin", "route__destination").first()
-        if rate:
-            existing_rate = {
-                "route": f"{rate.route.origin.name} → {rate.route.destination.name}",
-                "oneway": str(rate.oneway_price),
-                "roundtrip": str(rate.round_trip_price),
-            }
-
-    return JsonResponse({
-        "suggested_price": str(suggested_price),
+    payload = _quote_result_to_json(selected)
+    payload.update({
+        "trip_type": trip_type,
         "trip_type_label": "Round Trip" if trip_type == "roundtrip" else "One Way",
-        "vehicle_type": vehicle_type,
-        "vehicle_label": VEHICLE_LABELS.get(vehicle_type, vehicle_type),
-        "distance_text": distance_text,
+        "distance_text": drive_info.get("distance_text", "N/A"),
         "duration_text": drive_info.get("duration_text", "N/A"),
-        "base_fee": str(base_fee),
-        "mileage_fee": str(mileage_fee),
-        "all_vehicles": all_vehicles,
-        "existing_rate": existing_rate,
+        "miles": str(miles.quantize(Decimal("0.1"))),
+        "matched_pickup": pickup_location.name if pickup_location else None,
+        "matched_dropoff": dropoff_location.name if dropoff_location else None,
+        "matched_pickup_keyword": pickup_keyword,
+        "matched_dropoff_keyword": dropoff_keyword,
+        "snapped_pickup": (
+            snapped_pickup.name if snapped_pickup and not pickup_location else None
+        ),
+        "snapped_dropoff": (
+            snapped_dropoff.name if snapped_dropoff and not dropoff_location else None
+        ),
+        "snapped_pickup_miles": (
+            str(snap_pickup_mi.quantize(Decimal("0.1"))) if snap_pickup_mi else None
+        ),
+        "snapped_dropoff_miles": (
+            str(snap_dropoff_mi.quantize(Decimal("0.1"))) if snap_dropoff_mi else None
+        ),
+        "pickup_miles_from_base": (
+            str(pickup_miles_from_base.quantize(Decimal("0.1")))
+            if pickup_miles_from_base is not None
+            else None
+        ),
+        "all_vehicles": [_quote_result_to_json(r) for r in all_vehicles],
     })
+    return JsonResponse(payload)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -19746,3 +19799,244 @@ def deny_timeoff_request(request, override_id):
     invalidate_pending_timeoff_count()
     messages.success(request, f"Denied time off for {override.driver}.")
     return redirect("dispatcher_timeoff_requests")
+
+
+# ============================================================================
+# CHAUFFEUR LOAD & FAIRNESS
+# Two pages over one metrics core (dispatching/load_metrics.py) plus one rules
+# module (dispatching/load_insights.py):
+#   chauffeur_load  — any dispatcher. Counted workload + findings. No judgement calls.
+#   chauffeur_kpis  — superuser. Adds the "worth a conversation" exceptions list.
+# Money deliberately absent from both — it moves to the future Driver economics page.
+# Reference for what every section means: SOPS/chauffeur-load-metrics.md (SOP-003).
+# Plan + audit findings: docs/chauffeur-load-views.md
+# ============================================================================
+
+_LOAD_WINDOWS = {"7": 7, "30": 30, "90": 90}
+_LOAD_WINDOW_DEFAULT = "30"
+
+
+def _chauffeur_load_context(request, *, include_exceptions):
+    """Shared context builder. The ONLY difference between the two pages is
+    include_exceptions: the dispatcher context never contains the exceptions list or
+    the row flags derived from it, so no template branch can leak them."""
+    from dispatching.load_insights import build_insights
+    from dispatching.load_metrics import (
+        build_fleet_summary, build_load_rows, serialize_rows,
+    )
+
+    win_key = request.GET.get("window", _LOAD_WINDOW_DEFAULT)
+    if win_key not in _LOAD_WINDOWS:
+        win_key = _LOAD_WINDOW_DEFAULT
+    window_days = _LOAD_WINDOWS[win_key]
+
+    today = timezone.localdate()
+    end = today - timedelta(days=1)          # yesterday: today is still in progress
+    start = end - timedelta(days=window_days - 1)
+    prior_end = start - timedelta(days=1)    # the equal window immediately before
+    prior_start = prior_end - timedelta(days=window_days - 1)
+
+    rows = build_load_rows(start, end, today=today)
+    summary = build_fleet_summary(rows, window_days=window_days)
+    # Lite pass: counted numbers only, for the tile comparisons and the trend finding.
+    prior_rows = build_load_rows(prior_start, prior_end, today=today, lite=True)
+    prior_summary = build_fleet_summary(prior_rows, window_days=window_days)
+
+    insights = build_insights(rows, window_days, prior_rows=prior_rows,
+                              include_admin_link=include_exceptions)
+    exceptions, handled_exceptions = [], []
+    if include_exceptions:
+        exceptions, handled_exceptions = _apply_exception_dismissals(
+            insights["exceptions"], insights["fired"], win_key,
+            roster_ids={r["id"] for r in rows})
+    # Handled entries lose the roster highlight too — the flag means "waiting".
+    flagged_ids = {e["driver_id"] for e in exceptions}
+
+    return {
+        # Passed through |json_script in the template rather than pre-dumped, so
+        # escaping is Django's problem and not ours.
+        "rows_data": serialize_rows(rows, flagged_ids=flagged_ids),
+        "summary": summary,
+        "prior_summary": prior_summary if prior_summary["drivers"] else None,
+        "findings": insights["findings"],
+        "exceptions": exceptions,
+        "handled_exceptions": handled_exceptions,
+        "is_kpi_page": include_exceptions,
+        "window_key": win_key,
+        "window_days": window_days,
+        "window_choices": [("7", "7 days"), ("30", "30 days"), ("90", "90 days")],
+        "range_start": start,
+        "range_end": end,
+        "unlabelled_count": summary.get("unlabelled", 0),
+        "page_kind": "kpis" if include_exceptions else "load",
+    }
+
+
+def _apply_exception_dismissals(exceptions, fired, win_key, roster_ids):
+    """Split the exceptions list into (active, handled) using episode semantics.
+
+    A dismissal suppresses its (driver, rule) entry while that rule keeps firing.
+    Spending — setting cleared_at when the episode is over — happens only when the
+    window the dismissal was MADE on is being viewed, and only while its driver is in
+    the rendered roster. Rule floors scale with the window, so another window's render
+    must not judge the episode; and a deactivated driver or an empty roster is an
+    unevaluated episode, not an ended one — spending there would silently discard the
+    dismissal (and its note) with no undo path.
+
+    ``fired`` comes pre-collapse from build_insights and includes outranked rules, so
+    a collapse or a bigger problem taking priority never spends a dismissal early. A
+    dismissal whose pair fires but has no display entry (outranked or collapsed) still
+    gets a fallback handled row, so it stays visible and undo-able.
+    """
+    from dispatching.load_insights import RULE_LABELS
+    from dispatching.models import ChauffeurExceptionDismissal
+
+    dismissals = list(
+        ChauffeurExceptionDismissal.objects
+        .filter(cleared_at__isnull=True)
+        .select_related("dismissed_by", "driver__profile")
+    )
+    if not dismissals:
+        return exceptions, []
+
+    fired_set = set(fired)
+    spent = [d.id for d in dismissals
+             if d.window == win_key
+             and d.driver_id in roster_ids
+             and (d.driver_id, d.rule) not in fired_set]
+    if spent:
+        ChauffeurExceptionDismissal.objects.filter(id__in=spent).update(
+            cleared_at=timezone.now())
+        dismissals = [d for d in dismissals if d.id not in set(spent)]
+
+    def _handled_meta(d):
+        return {
+            "dismissal_id": d.id,
+            "dismissed_by": (d.dismissed_by.get_full_name()
+                             or d.dismissed_by.get_username()) if d.dismissed_by else "",
+            "dismissed_at": d.dismissed_at,
+            "note": d.note,
+        }
+
+    by_pair = {(d.driver_id, d.rule): d for d in dismissals}
+    active, handled = [], []
+    for e in exceptions:
+        d = by_pair.pop((e["driver_id"], e["rule"]), None)
+        if d is None:
+            active.append(e)
+        else:
+            handled.append({**e, **_handled_meta(d)})
+
+    # Suppressions with no display entry this render: the rule still fires but was
+    # outranked or collapsed. Without a fallback row the dismissal would be invisible
+    # and impossible to undo until it happened to win the listing again.
+    from dispatching.load_metrics import _display_name, _initials, avatar_color
+    for (driver_id, rule), d in by_pair.items():
+        if (driver_id, rule) not in fired_set:
+            continue
+        handled.append({
+            "driver_id": driver_id,
+            "name": _display_name(d.driver),
+            "initials": _initials(d.driver),
+            "color": avatar_color(driver_id),
+            "employment_type": d.driver.employment_type or "",
+            "employment_label": "",
+            "rule": rule,
+            "reason": f"{RULE_LABELS.get(rule, rule)} — still applies.",
+            **_handled_meta(d),
+        })
+    return active, handled
+
+
+@login_required(login_url="login")
+def chauffeur_load(request):
+    """Dispatcher-facing chauffeur load. Counted workload + findings only."""
+    if not request.user.is_staff:
+        messages.error(request, "Permission denied.")
+        return redirect("dashboard")
+    return render(request, "dispatching/chauffeur_load.html",
+                  _chauffeur_load_context(request, include_exceptions=False))
+
+
+@login_required(login_url="login")
+def chauffeur_kpis(request):
+    """Management chauffeur KPIs. Adds the exceptions list and its row flags."""
+    if not request.user.is_superuser:
+        messages.error(request, "Permission denied.")
+        return redirect("dashboard")
+    return render(request, "dispatching/chauffeur_load.html",
+                  _chauffeur_load_context(request, include_exceptions=True))
+
+
+def _redirect_to_kpis(request):
+    win = request.POST.get("window", _LOAD_WINDOW_DEFAULT)
+    if win not in _LOAD_WINDOWS:
+        win = _LOAD_WINDOW_DEFAULT
+    return redirect(f"{reverse('chauffeur_kpis')}?window={win}")
+
+
+@login_required(login_url="login")
+@require_POST
+def chauffeur_exception_dismiss(request):
+    """Mark one "Worth a conversation" entry handled (episode semantics — see the
+    ChauffeurExceptionDismissal docstring)."""
+    from dispatching.load_insights import EXCEPTION_RULES
+    from dispatching.models import ChauffeurExceptionDismissal
+    from drivers.models import Driver
+
+    if not request.user.is_superuser:
+        messages.error(request, "Permission denied.")
+        return redirect("dashboard")
+
+    rule = request.POST.get("rule", "")
+    if rule not in EXCEPTION_RULES:
+        messages.error(request, "Unknown rule.")
+        return _redirect_to_kpis(request)
+    try:
+        driver_id = int(request.POST.get("driver_id", ""))
+    except (TypeError, ValueError):
+        messages.error(request, "Unknown chauffeur.")
+        return _redirect_to_kpis(request)
+    driver = get_object_or_404(Driver, id=driver_id)
+    note = (request.POST.get("note") or "").strip()[:200]
+    window = request.POST.get("window", _LOAD_WINDOW_DEFAULT)
+    if window not in _LOAD_WINDOWS:
+        window = _LOAD_WINDOW_DEFAULT
+
+    obj, created = ChauffeurExceptionDismissal.objects.get_or_create(
+        driver=driver, rule=rule, cleared_at=None,
+        defaults={"dismissed_by": request.user, "note": note, "window": window},
+    )
+    if not created and note and not obj.note:
+        obj.note = note
+        obj.save(update_fields=["note"])
+    messages.success(
+        request,
+        f"Marked handled for {driver}. It stays under Handled while the situation "
+        f"lasts, and will come back only if it happens again after clearing.",
+    )
+    return _redirect_to_kpis(request)
+
+
+@login_required(login_url="login")
+@require_POST
+def chauffeur_exception_undo(request):
+    """Bring a handled entry back to the active list."""
+    from dispatching.models import ChauffeurExceptionDismissal
+
+    if not request.user.is_superuser:
+        messages.error(request, "Permission denied.")
+        return redirect("dashboard")
+
+    try:
+        dismissal_id = int(request.POST.get("dismissal_id", ""))
+    except (TypeError, ValueError):
+        messages.error(request, "Not found.")
+        return _redirect_to_kpis(request)
+    dismissal = get_object_or_404(
+        ChauffeurExceptionDismissal,
+        id=dismissal_id, cleared_at__isnull=True,
+    )
+    dismissal.delete()
+    messages.success(request, "Back on the list.")
+    return _redirect_to_kpis(request)

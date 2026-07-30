@@ -12,7 +12,20 @@ class Driver(models.Model):
         ("inhouse", "Inhouse"),
         ("affiliate", "Affiliate/Outhouse"),
     ]
-    
+
+    # Employment commitment. This is NOT cosmetic: it decides what an available day
+    # *means*, and therefore what every load/utilisation metric means.
+    #   full_time  -> an available day is a COMMITMENT. A day available but not worked
+    #                 is a finding (they expected work and got none).
+    #   part_time  -> an available day is an OFFER. Not working it is normal.
+    # Deliberately blank by default — guessing inverts the meaning of the metrics, so an
+    # unlabelled driver is reported as "unlabelled" rather than silently assumed.
+    EMPLOYMENT_TYPE_CHOICES = [
+        ("full_time", "Full time — works every available day"),
+        ("part_time", "Part time — available days are offers, not commitments"),
+    ]
+
+
     profile = models.OneToOneField(User, on_delete=models.CASCADE)
     phone_number = models.CharField(max_length=25, null=True, blank=True, help_text="Driver's phone number")
     vehicle = models.CharField(null=True, blank=True, max_length=55)
@@ -54,6 +67,17 @@ class Driver(models.Model):
         choices=DRIVER_TYPE_CHOICES,
         default="affiliate",
         help_text="Inhouse drivers work for the company and can drive any vehicle. Affiliates are contractors with specific vehicles."
+    )
+    employment_type = models.CharField(
+        max_length=20,
+        choices=EMPLOYMENT_TYPE_CHOICES,
+        blank=True,
+        default="",
+        help_text="Full time means they are expected to work every day they are marked "
+                  "available, so an unworked available day is a real gap. Part time means "
+                  "available days are offers they need not take. Leave blank if unsure — "
+                  "the load reports show unlabelled drivers separately rather than guessing, "
+                  "because the wrong label inverts what every number means.",
     )
     is_active = models.BooleanField(
         default=True,

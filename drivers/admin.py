@@ -40,6 +40,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "email",
         "phone_number",
         "driver_type_display",
+        "employment_type",
         "vehicle",
         "unpaid_legs_count",
         "unpaid_amount",
@@ -52,6 +53,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "profile__is_active",
         "payment_method",
         "driver_type",
+        "employment_type",
     ]
     search_fields = [
         "profile__username",
@@ -74,6 +76,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "profile",
                     "is_active",
                     "driver_type",
+                    "employment_type",
                     "phone_number",
                     "vehicle",
                     "schedule",

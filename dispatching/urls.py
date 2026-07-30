@@ -37,6 +37,17 @@ urlpatterns = [
     path("legs-list/", views.legs_list, name="legs_list"),
     path("inhouse-schedule/", views.inhouse_schedule, name="inhouse_schedule"),
     path("driver-schedules/", views.driver_schedules_dashboard, name="driver_schedules_dashboard"),
+
+    # Chauffeur load & fairness — dispatcher variant + superuser KPI variant (adds the
+    # exceptions list). No money on either — that is the future Driver economics page.
+    # See SOPS/chauffeur-load-metrics.md and docs/chauffeur-load-views.md
+    path("chauffeur-load/", views.chauffeur_load, name="chauffeur_load"),
+    path("chauffeur-kpis/", views.chauffeur_kpis, name="chauffeur_kpis"),
+    path("chauffeur-kpis/handled/", views.chauffeur_exception_dismiss,
+         name="chauffeur_exception_dismiss"),
+    path("chauffeur-kpis/handled/undo/", views.chauffeur_exception_undo,
+         name="chauffeur_exception_undo"),
+
     path("leg/<int:id>/history/", views.leg_history, name="leg_history"),
     path("leg/<int:id>/history/partial/", views.leg_history_partial, name="leg_history_partial"),
     path("statistics/", views.statistics_page, name="statistics_page"),

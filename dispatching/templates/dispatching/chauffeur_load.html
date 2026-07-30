@@ -1,0 +1,740 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% comment %}
+Chauffeur Load & Fairness — one template, two pages.
+
+  /dispatching/chauffeur-load/   any dispatcher   include_exceptions=False
+  /dispatching/chauffeur-kpis/   superuser        include_exceptions=True
+
+The only difference between the pages is the "Worth a conversation" panel and the row
+flags derived from it: the dispatcher context never CONTAINS them (see
+views._chauffeur_load_context), so there is nothing for a template branch to leak.
+
+No money renders here at all — revenue/pay/margin belong to the future Driver economics
+page. What every section means, and the exact rule thresholds behind the findings and
+exceptions: SOPS/chauffeur-load-metrics.md (SOP-003).
+
+Note for editors: an automated test asserts the rendered HTML of BOTH pages never
+contains "$", "utilisation"/"utilization", "share of work" or the word "gap" — the last
+one is why the CSS below spaces flex/grid children with margins instead of the flexbox
+g-a-p property. Keep it that way.
+{% endcomment %}
+
+{% block title %}{% if is_kpi_page %}Chauffeur KPIs{% else %}Chauffeur Load{% endif %}{% endblock %}
+
+{% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Tokens mirror .sm in inhouse_schedule.html so the two pages feel like one system. */
+  .cl {
+    --page:#F6F7F9; --surface:#FFFFFF; --surface2:#FAFBFC; --surface3:#EEF1F4;
+    --hairline:rgba(20,22,28,0.07); --hairline2:rgba(20,22,28,0.13);
+    --text:#1A1D21; --text2:#5A6068; --text3:#9AA0A8;
+    --gold:#B0851C; --gold-soft:rgba(176,133,28,0.09); --gold-line:rgba(176,133,28,0.28);
+    --under:#3A6EA5; --over:#B0651C;
+    --bar:#6B7480; --cell:#4A525C;
+    --header-bg:#1A1D21; --header-tx:#F2F3F5; --header-tx2:rgba(242,243,245,0.58);
+    --shadow:0 1px 2px rgba(20,22,28,.05), 0 6px 18px rgba(20,22,28,.045);
+    background: var(--page); color: var(--text);
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-feature-settings: 'tnum' 1; font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased; min-height: 100vh; font-size: 14px; line-height: 1.45;
+  }
+  .cl *, .cl *::before, .cl *::after { box-sizing: border-box; }
+  body.chauffeur-load-page { background: #F6F7F9; }
+  body.chauffeur-load-page > main, body.chauffeur-load-page main { padding: 0 !important; }
+
+  .cl-wrap { max-width: 1500px; margin: 0 auto; padding: 0 22px 64px; }
+  .cl .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin: 0; }
+
+  /* header */
+  .cl-hdr { background: var(--header-bg); color: var(--header-tx); }
+  .cl-hdr-in { max-width: 1500px; margin: 0 auto; padding: 20px 22px 22px; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+  .cl-hdr h1 { margin: 5px 0 3px; font-size: 25px; font-weight: 700; letter-spacing: -.018em; }
+  .cl-hdr .sub { margin: 0; font-size: 12.5px; color: var(--header-tx2); }
+  .cl-hdr-right { display: flex; align-items: flex-end; flex-wrap: wrap; }
+  .cl-hdr-right > * + * { margin-left: 18px; }
+  .cl-grp { display: flex; flex-direction: column; }
+  .cl-grp > * + * { margin-top: 5px; }
+  .cl-grp .lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--header-tx2); }
+  .cl-chips { display: flex; }
+  .cl-chip { font: inherit; font-size: 11.5px; font-weight: 500; padding: 6px 11px; border-radius: 6px; background: rgba(255,255,255,.05); color: var(--header-tx2); border: 1px solid rgba(255,255,255,.10); text-decoration: none; }
+  .cl-chip + .cl-chip { margin-left: 4px; }
+  .cl-chip:hover { color: var(--header-tx); }
+  .cl-chip.on { background: rgba(201,162,39,.16); color: #E8C766; border-color: rgba(201,162,39,.42); }
+  .cl-xlink { font-size: 11.5px; color: var(--header-tx2); text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,.3); }
+  .cl-xlink:hover { color: #E8C766; }
+  .cl-soon { font-size: 11px; color: rgba(242,243,245,0.38); cursor: default; }
+
+  /* tiles */
+  .cl-tiles { display: grid; margin: 14px -6px 0; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .cl-tile { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; padding: 14px 16px 15px; box-shadow: var(--shadow); margin: 6px; }
+  .cl-tile .k { font-size: 9.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+  .cl-tile .v { font-size: 26px; font-weight: 700; letter-spacing: -.025em; line-height: 1.05; }
+  .cl-tile .s { font-size: 11.5px; color: var(--text2); margin-top: 6px; }
+  .cl-tile.flag { border-color: var(--gold-line); background: var(--gold-soft); }
+  .cl-tile.flag .k { color: var(--gold); }
+
+  /* panels */
+  .cl-panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px; box-shadow: var(--shadow); margin-top: 20px; }
+  .cl-panel-hd { padding: 15px 18px 14px; border-bottom: 1px solid var(--hairline); display: flex; justify-content: space-between; flex-wrap: wrap; align-items: flex-start; }
+  .cl-panel-hd h2 { margin: 4px 0 0; font-size: 15.5px; font-weight: 700; letter-spacing: -.012em; }
+  .cl-mseg { display: inline-flex; padding: 3px; border-radius: 7px; background: var(--surface3); border: 1px solid var(--hairline2); flex-shrink: 0; }
+  .cl-mseg button { font: inherit; font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 5px; border: 0; cursor: pointer; background: transparent; color: var(--text2); white-space: nowrap; }
+  .cl-mseg button + button { margin-left: 2px; }
+  .cl-mseg button[aria-pressed="true"] { background: var(--surface); color: var(--gold); box-shadow: 0 1px 2px rgba(20,22,28,.08); }
+  .cl-mseg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+  /* findings */
+  .cl-findings { list-style: none; margin: 0; padding: 4px 0; }
+  .cl-findings li { padding: 11px 18px; font-size: 13px; line-height: 1.55; }
+  .cl-findings li + li { border-top: 1px solid var(--hairline); }
+  .cl-findings li::before { content: "—"; color: var(--gold); font-weight: 700; margin-right: 9px; }
+  .cl-findings a { color: var(--gold); }
+
+  /* exceptions */
+  .cl-exc { list-style: none; margin: 0; padding: 4px 0; }
+  .cl-exc li { display: flex; align-items: center; padding: 10px 18px; flex-wrap: wrap; }
+  .cl-exc li + li { border-top: 1px solid var(--hairline); }
+  .cl-exc .av { margin-right: 10px; }
+  .cl-exc .exc-who { min-width: 180px; margin-right: 16px; }
+  .cl-exc .nm { font-size: 13px; font-weight: 600; }
+  .cl-exc .exc-reason { flex: 1; font-size: 12.5px; color: var(--text2); min-width: 240px; }
+  .cl-exc .exc-reason b { color: var(--text); }
+  .cl-exc .exc-meta { display: block; margin-top: 2px; font-size: 11px; color: var(--text3); }
+  .cl-exc .exc-done { display: inline-flex; align-items: center; margin-left: 14px; }
+  .cl-exc .exc-done .exc-note { font: inherit; font-size: 11px; padding: 4px 8px; width: 150px; border-radius: 6px; border: 1px solid var(--hairline2); background: var(--surface); color: var(--text); }
+  .cl-exc .exc-done .exc-note:focus-visible { outline: 2px solid var(--gold-line); outline-offset: 1px; }
+  .cl-exc .exc-done button { font: inherit; font-size: 11px; font-weight: 600; margin-left: 6px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--hairline2); background: var(--surface); color: var(--text2); cursor: pointer; white-space: nowrap; }
+  .cl-exc .exc-done button:hover { color: var(--gold); border-color: var(--gold-line); }
+  .cl-exc .exc-done button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .cl-exc.muted-list .exc-reason, .cl-exc.muted-list .nm { color: var(--text3); }
+  .cl .exc-allclear { padding: 14px 18px; font-size: 12.5px; color: var(--text3); }
+  .cl details.exc-handled { border-top: 1px solid var(--hairline); }
+  .cl details.exc-handled > summary { padding: 11px 18px; background: var(--surface2); list-style: none; cursor: pointer; font-size: 11.5px; font-weight: 500; color: var(--text2); display: flex; align-items: center; }
+  .cl details.exc-handled > summary::-webkit-details-marker { display: none; }
+  .cl details.exc-handled > summary:hover { color: var(--gold); }
+  .cl details.exc-handled > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .cl details.exc-handled > summary .ic { width: 15px; height: 15px; margin-right: 6px; border-radius: 50%; border: 1px solid var(--hairline2); display: grid; place-items: center; font-size: 9px; color: var(--text3); }
+  .cl details.exc-handled[open] > summary .ic { background: var(--gold-soft); border-color: var(--gold-line); color: var(--gold); }
+
+  /* distribution */
+  .cl-swarm-box { padding: 26px 18px 10px; }
+  .cl-swarm { position: relative; height: 104px; border-radius: 8px; border: 1px solid var(--hairline); background: var(--surface2); }
+  .cl-swarm .edge { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--gold-line); }
+  .cl-swarm .edge .cap { position: absolute; top: -19px; left: 0; transform: translateX(-50%); font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+  .cl-dot { position: absolute; width: 13px; height: 13px; border-radius: 50%; background: var(--bar); border: 2px solid var(--surface); transform: translate(-50%, 50%); cursor: pointer; padding: 0; transition: transform .12s ease; }
+  .cl-dot:hover, .cl-dot:focus-visible { transform: translate(-50%, 50%) scale(1.35); z-index: 5; }
+  .cl-dot:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .cl-dot.ft { background: var(--cell); }
+  .cl-dot.pt { background: var(--bar); width: 11px; height: 11px; }
+  .cl-axis { position: relative; height: 20px; margin-top: 2px; font-size: 10.5px; color: var(--text3); }
+  .cl-axis .tick { position: absolute; transform: translateX(-50%); top: 3px; }
+  .cl-note { font-size: 12px; color: var(--text2); margin: 4px 0 0; max-width: 76ch; }
+  .cl-legend { display: flex; flex-wrap: wrap; padding: 8px 18px 18px; font-size: 11.5px; color: var(--text2); }
+  .cl-legend .li { display: inline-flex; align-items: center; margin-right: 18px; }
+  .cl-legend .sw { width: 12px; height: 12px; border-radius: 50%; background: var(--cell); flex: 0 0 12px; margin-right: 7px; }
+  .cl-legend .sw.pt { width: 10px; height: 10px; background: var(--bar); flex: 0 0 10px; }
+
+  /* NOTE: .cl-tip lives OUTSIDE .cl (it is a fixed overlay), so it cannot use the
+     .cl custom properties — they are scoped to that element. Colours are literal on
+     purpose. Using var(--header-bg) here rendered a fully transparent tooltip with the
+     page text bleeding through it. */
+  .cl-tip {
+    position: fixed; z-index: 1080; pointer-events: none; opacity: 0;
+    transition: opacity .1s ease;
+    background: #1A1D21; color: #F2F3F5;
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    border-radius: 7px; padding: 9px 11px; font-size: 11.5px; line-height: 1.5;
+    box-shadow: 0 8px 22px rgba(0,0,0,.32); max-width: 250px;
+  }
+  .cl-tip.on { opacity: 1; }
+  .cl-tip b { font-size: 12.5px; color: #FFFFFF; }
+  .cl-tip .r { color: rgba(242,243,245,0.58); }
+
+  /* controls */
+  .cl-controls { display: flex; align-items: center; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--hairline); background: var(--surface2); }
+  .cl-controls > * + * { margin-left: 10px; }
+  .cl-search { font: inherit; font-size: 12.5px; padding: 7px 11px; border-radius: 7px; border: 1px solid var(--hairline2); background: var(--surface); color: var(--text); min-width: 170px; }
+  .cl-search:focus-visible { outline: 2px solid var(--gold-line); outline-offset: 1px; }
+  .cl-controls .spacer { margin-left: auto; }
+  .cl-controls .basis-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--text3); }
+  .cl-controls .count { font-size: 11.5px; color: var(--text3); }
+
+  /* table */
+  .cl-scroll { overflow-x: auto; }
+  .cl table { border-collapse: collapse; width: 100%; min-width: 980px; }
+  .cl thead th { text-align: left; padding: 0; border-bottom: 1px solid var(--hairline2); background: var(--surface); position: sticky; top: 0; z-index: 2; vertical-align: bottom; }
+  .cl thead th > .hcell, .cl thead th > button { display: block; width: 100%; padding: 10px 12px 9px; border: 0; background: none; font: inherit; text-align: inherit; color: inherit; }
+  .cl thead th > button { cursor: pointer; }
+  .cl .hname { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); display: block; }
+  .cl thead th > button:hover .hname { color: var(--text); }
+  .cl thead th[aria-sort] .hname { color: var(--gold); }
+  .cl th.r .hname { text-align: right; }
+  .cl th.r, .cl td.r { text-align: right; }
+
+  .cl tbody td { padding: 9px 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+  .cl tbody tr:hover td { background: var(--surface2); }
+  .cl tr.cohort td { background: var(--surface3); padding: 7px 12px; border-bottom: 1px solid var(--hairline2); font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--text2); }
+  .cl tr.cohort .gstat { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 11.5px; color: var(--text3); margin-left: 10px; }
+
+  .cl .who { display: flex; align-items: center; }
+  .cl .av { width: 27px; height: 27px; border-radius: 50%; flex: 0 0 27px; display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; }
+  .cl .who .av { margin-right: 10px; }
+  .cl .who .nm { font-size: 13px; font-weight: 600; }
+  .cl .emp { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .1em; padding: 1px 5px; border-radius: 3px; background: var(--surface3); color: var(--text2); margin-left: 6px; vertical-align: 1px; }
+  .cl .emp.q { background: var(--gold-soft); color: var(--gold); }
+  .cl .big { font-size: 14px; font-weight: 700; letter-spacing: -.02em; }
+  .cl .muted { color: var(--text2); font-size: 12px; }
+  .cl .dim { color: var(--text3); font-size: 12px; }
+  .cl .two { line-height: 1.3; }
+  .cl .two .b { display: block; font-size: 12.5px; }
+  .cl .two .s { display: block; font-size: 10.5px; color: var(--text3); }
+
+  .cl .idle { font-size: 14px; font-weight: 700; color: var(--text3); }
+  .cl .idle.hot { color: var(--over); }
+  .cl .idle .d { font-size: 10.5px; font-weight: 500; color: var(--text3); margin-left: 2px; }
+
+  .cl .tpd { display: flex; align-items: center; justify-content: flex-end; }
+  .cl .tpd-bar { width: 44px; height: 6px; border-radius: 3px; background: var(--surface3); position: relative; overflow: hidden; flex: 0 0 44px; margin-right: 9px; }
+  .cl .tpd-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bar); border-radius: 0 3px 3px 0; }
+
+  /* day strip */
+  .cl .strip { display: flex; align-items: flex-end; height: 22px; }
+  .cl .cellwrap { position: relative; display: flex; align-items: flex-end; }
+  .cl .cellwrap + .cellwrap { margin-left: 5px; }
+  .cl .cellwrap.future::before { content: ""; position: absolute; left: -3px; top: -4px; bottom: -4px; width: 1px; background: var(--gold-line); }
+  .cl .cel { width: 8px; height: 16px; border-radius: 2px; background: transparent; }
+  .cl .cellwrap .cel + .cel { margin-left: 2px; }
+  .cl .cel.worked { background: var(--cell); }
+  .cl .cel.spare { border: 1px solid var(--hairline2); }
+  .cl .cel.offday { background: var(--hairline); height: 3px; border-radius: 1px; }
+  .cl .cel.timeoff { background: var(--under); opacity: .55; }
+  .cl .strip-legend { display: flex; flex-wrap: wrap; padding: 12px 18px 16px; font-size: 11.5px; color: var(--text2); }
+  .cl .strip-legend .li { display: inline-flex; align-items: center; margin-right: 16px; }
+  .cl .strip-legend .cel { flex: 0 0 8px; margin-right: 7px; }
+  .cl .off-cell { font-size: 11.5px; color: var(--text2); }
+  .cl .off-cell.none { color: var(--text3); }
+
+  .cl .empty { padding: 40px 18px; text-align: center; color: var(--text2); font-size: 13px; }
+  .cl-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--hairline); font-size: 11.5px; color: var(--text3); max-width: 88ch; }
+  .cl-foot p { margin: 0 0 9px; }
+  .cl-foot code { background: var(--surface3); padding: 1px 5px; border-radius: 3px; }
+
+  @media (max-width: 720px) {
+    .cl-hdr-in, .cl-panel-hd { flex-direction: column; align-items: stretch; }
+    .cl-hdr-right > * + * { margin-left: 0; margin-top: 10px; }
+    .cl-tile .v { font-size: 23px; }
+    .cl-exc .exc-who { min-width: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .cl *, .cl *::before, .cl *::after { transition: none !important; } }
+</style>
+{% endblock %}
+
+{% block body_class %}chauffeur-load-page{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include "dispatching/dispatcher_navbar.html" %}
+
+{{ rows_data|json_script:"cl-data" }}
+
+<div class="cl">
+  <header class="cl-hdr">
+    <div class="cl-hdr-in">
+      <div>
+        <p class="eyebrow">Chauffeur operations</p>
+        <h1>{% if is_kpi_page %}Chauffeur KPIs{% else %}Availability &amp; Load{% endif %}</h1>
+        <p class="sub">
+          {{ range_start|date:"M j" }} &ndash; {{ range_end|date:"M j, Y" }}
+          &middot; {{ summary.drivers }} active in-house chauffeur{{ summary.drivers|pluralize }}
+          {% if unlabelled_count %}&middot; {{ unlabelled_count }} not yet labelled full/part time{% endif %}
+        </p>
+      </div>
+      <div class="cl-hdr-right">
+        <div class="cl-grp">
+          <span class="lbl">Window</span>
+          <div class="cl-chips">
+            {% for key, label in window_choices %}
+              <a class="cl-chip {% if key == window_key %}on{% endif %}"
+                 href="?window={{ key }}">{{ label }}</a>
+            {% endfor %}
+          </div>
+        </div>
+        {% if user.is_superuser %}
+        <div class="cl-grp">
+          <span class="lbl">View</span>
+          {% if is_kpi_page %}
+            <a class="cl-xlink" href="{% url 'chauffeur_load' %}?window={{ window_key }}">See the dispatcher version</a>
+            <span class="cl-soon" title="Not built yet">Pay &amp; revenue &rarr; Driver economics (coming soon)</span>
+          {% else %}
+            <a class="cl-xlink" href="{% url 'chauffeur_kpis' %}?window={{ window_key }}">Open Chauffeur KPIs</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <div class="cl-wrap">
+
+    <section class="cl-tiles">
+      <div class="cl-tile">
+        <div class="k">Trips completed</div>
+        <div class="v">{{ summary.legs|intcomma }}</div>
+        <div class="s">
+          {% if prior_summary %}
+            {{ prior_summary.legs|intcomma }} in the previous {{ window_days }} days
+          {% else %}
+            across {{ summary.worked_days|intcomma }} worked day{{ summary.worked_days|pluralize }}
+          {% endif %}
+        </div>
+      </div>
+      <div class="cl-tile">
+        <div class="k">Trips per working day</div>
+        <div class="v">{% if summary.median_per_worked_day %}{{ summary.median_per_worked_day|floatformat:1 }}{% else %}&mdash;{% endif %}</div>
+        <div class="s">
+          fleet median{% if prior_summary.median_per_worked_day %} &middot; was {{ prior_summary.median_per_worked_day|floatformat:1 }} in the previous {{ window_days }} days{% endif %}
+        </div>
+      </div>
+      <div class="cl-tile {% if summary.ft_idle_days %}flag{% endif %}">
+        <div class="k">Full-time days idle</div>
+        {% if summary.full_time %}
+          <div class="v">{{ summary.ft_idle_days }}</div>
+          <div class="s">
+            of {{ summary.ft_avail_days }} available day{{ summary.ft_avail_days|pluralize }}{% if prior_summary.full_time %} &middot; {{ prior_summary.ft_idle_days }} in the previous {{ window_days }} days{% endif %}
+          </div>
+        {% else %}
+          <div class="v">&mdash;</div>
+          <div class="s">no chauffeur is labelled full time yet</div>
+        {% endif %}
+      </div>
+      <div class="cl-tile {% if summary.zero_work_drivers %}flag{% endif %}">
+        <div class="k">Available, never drove</div>
+        <div class="v">{{ summary.zero_work_drivers|length }}</div>
+        <div class="s">
+          {% if summary.zero_work_drivers %}
+            {{ summary.zero_work_drivers|slice:":4"|join:", " }}{% if summary.zero_work_drivers|length > 4 %} and {{ summary.zero_work_drivers|length|add:"-4" }} more{% endif %}
+          {% else %}
+            everyone who was available drove at least once
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    {% if findings %}
+    <section class="cl-panel">
+      <div class="cl-panel-hd">
+        <div>
+          <p class="eyebrow">This window</p>
+          <h2>What stands out</h2>
+        </div>
+      </div>
+      <ul class="cl-findings">
+        {% for f in findings %}
+          <li>{{ f.text }}{% if f.admin_link %} <a href="/admin/drivers/driver/">Set the labels</a>.{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if exceptions or handled_exceptions %}
+    <section class="cl-panel">
+      <div class="cl-panel-hd">
+        <div>
+          <p class="eyebrow">Exceptions</p>
+          <h2>Worth a conversation</h2>
+        </div>
+      </div>
+      {% if exceptions %}
+      <ul class="cl-exc">
+        {% for e in exceptions %}
+        <li>
+          <span class="av" style="background:{{ e.color }}">{{ e.initials }}</span>
+          <span class="exc-who"><span class="nm">{{ e.name }}</span><span class="emp {% if not e.employment_type %}q{% endif %}">{% if e.employment_type == 'full_time' %}FT{% elif e.employment_type == 'part_time' %}PT{% else %}?{% endif %}</span></span>
+          <span class="exc-reason">{{ e.reason }}</span>
+          <form class="exc-done" method="post" action="{% url 'chauffeur_exception_dismiss' %}">
+            {% csrf_token %}
+            <input type="hidden" name="driver_id" value="{{ e.driver_id }}" />
+            <input type="hidden" name="rule" value="{{ e.rule }}" />
+            <input type="hidden" name="window" value="{{ window_key }}" />
+            <input class="exc-note" type="text" name="note" maxlength="200"
+                   placeholder="note (optional)" aria-label="Note (optional)" />
+            <button type="submit">Handled</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="exc-allclear">Nothing waiting &mdash; everything current is marked handled below.</div>
+      {% endif %}
+      {% if handled_exceptions %}
+      <details class="exc-handled">
+        <summary><span class="ic">&#10003;</span> Handled ({{ handled_exceptions|length }})</summary>
+        <ul class="cl-exc muted-list">
+          {% for e in handled_exceptions %}
+          <li>
+            <span class="av" style="background:{{ e.color }}">{{ e.initials }}</span>
+            <span class="exc-who"><span class="nm">{{ e.name }}</span></span>
+            <span class="exc-reason">{{ e.reason }}
+              <span class="exc-meta">{% if e.dismissed_by %}handled by {{ e.dismissed_by }} &middot; {% endif %}{{ e.dismissed_at|date:"M j" }}{% if e.note %} &middot; &ldquo;{{ e.note }}&rdquo;{% endif %}</span>
+            </span>
+            <form class="exc-done" method="post" action="{% url 'chauffeur_exception_undo' %}">
+              {% csrf_token %}
+              <input type="hidden" name="dismissal_id" value="{{ e.dismissal_id }}" />
+              <input type="hidden" name="window" value="{{ window_key }}" />
+              <button type="submit">Undo</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="cl-panel">
+      <div class="cl-panel-hd">
+        <div>
+          <p class="eyebrow">Distribution</p>
+          <h2>Where the work landed</h2>
+          <p class="cl-note" id="cl-swarmnote"></p>
+        </div>
+        <div class="cl-mseg" role="group" aria-label="Distribution metric">
+          <button type="button" data-metric="trips" aria-pressed="true">Trips per day</button>
+          <button type="button" data-metric="idle" aria-pressed="false">Days idle</button>
+        </div>
+      </div>
+      <div class="cl-swarm-box">
+        <div class="cl-swarm" id="cl-swarm"></div>
+        <div class="cl-axis" id="cl-axis" aria-hidden="true"></div>
+      </div>
+      <div class="cl-legend">
+        <span class="li"><span class="sw"></span> Full time</span>
+        <span class="li"><span class="sw pt"></span> Part time / unlabelled</span>
+      </div>
+    </section>
+
+    <section class="cl-panel">
+      <div class="cl-panel-hd">
+        <div>
+          <p class="eyebrow">Roster</p>
+          <h2>Load by chauffeur</h2>
+        </div>
+      </div>
+
+      <div class="cl-controls">
+        <input class="cl-search" id="cl-q" type="search" placeholder="Find a chauffeur&hellip;" aria-label="Find a chauffeur" />
+        <span class="spacer"></span>
+        <span class="basis-lbl">Trips averaged per</span>
+        <div class="cl-mseg" role="group" aria-label="Trips averaged per">
+          <button type="button" data-basis="per_worked_day" aria-pressed="true">Worked day</button>
+          <button type="button" data-basis="per_available_day" aria-pressed="false">Available day</button>
+          <button type="button" data-basis="per_week" aria-pressed="false">Week</button>
+          <button type="button" data-basis="per_month" aria-pressed="false">Month</button>
+        </div>
+        <span class="count" id="cl-count"></span>
+      </div>
+
+      <div class="cl-scroll">
+        <table id="cl-tbl">
+          <thead>
+            <tr>
+              <th data-k="name"><button type="button"><span class="hname">Chauffeur</span></button></th>
+              <th><span class="hcell"><span class="hname">Vehicle</span></span></th>
+              <th class="r" data-k="avail_days"><button type="button"><span class="hname">Days available</span></button></th>
+              <th class="r" data-k="worked_days"><button type="button"><span class="hname">Days worked</span></button></th>
+              <th class="r" data-k="idle_days" aria-sort="descending"><button type="button"><span class="hname">Days idle</span></button></th>
+              <th class="r" data-k="legs"><button type="button"><span class="hname">Trips</span></button></th>
+              <th class="r" data-k="rate"><button type="button"><span class="hname" id="cl-rate-hd">Per worked day</span></button></th>
+              <th><span class="hcell"><span class="hname">Last 3 weeks &middot; next 7</span></span></th>
+              <th><span class="hcell"><span class="hname">Next time off</span></span></th>
+            </tr>
+          </thead>
+          <tbody id="cl-rows"></tbody>
+        </table>
+      </div>
+
+      <div class="strip-legend">
+        <span class="li"><span class="cel worked"></span> Worked &mdash; taller means more trips</span>
+        <span class="li"><span class="cel spare"></span> Available, nothing assigned</span>
+        <span class="li"><span class="cel offday"></span> Scheduled day off</span>
+        <span class="li"><span class="cel timeoff"></span> Approved time off</span>
+        <span class="li" style="color:var(--gold)">&#9474; Today</span>
+      </div>
+    </section>
+
+    <footer class="cl-foot">
+      <p>How to read this page &mdash; every rule behind the findings above, and why a
+      part-timer&rsquo;s idle days are not judged &mdash; lives in
+      <code>SOPS/chauffeur-load-metrics.md</code> (SOP-003).</p>
+    </footer>
+  </div>
+</div>
+
+<div class="cl-tip" id="cl-tip" role="status" aria-live="polite"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  "use strict";
+
+  var D = JSON.parse(document.getElementById("cl-data").textContent);
+  var PAST_CELLS = 21;
+  var NCOLS = 9;
+
+  var COHORTS = [
+    {key: "full_time", label: "Full time"},
+    {key: "part_time", label: "Part time"},
+    {key: "",          label: "Not labelled yet"}
+  ];
+
+  var BASIS_HEAD = {
+    per_worked_day: "Per worked day", per_available_day: "Per available day",
+    per_week: "Per week", per_month: "Per month"
+  };
+  var BASIS_UNIT = {
+    per_worked_day: "trips per worked day", per_available_day: "trips per available day",
+    per_week: "trips per week", per_month: "trips per month"
+  };
+
+  var basis = "per_worked_day", metric = "trips";
+  var sortKey = "idle_days", sortDir = -1, query = "";
+
+  var med = function (a) {
+    a = a.filter(function (v) { return v !== null && v !== undefined; })
+         .sort(function (x, y) { return x - y; });
+    return a.length ? a[Math.floor(a.length / 2)] : 0;
+  };
+  var rateOf = function (d) { return d[basis] || 0; };
+
+  var METRICS = {
+    trips: {
+      get: rateOf, fmt: function (v) { return v.toFixed(1); },
+      note: function () {
+        return "One dot per chauffeur, placed by " + BASIS_UNIT[basis] +
+          ". The line marks the fleet median.";
+      }
+    },
+    idle: {
+      get: function (d) { return d.idle_days; }, fmt: function (v) { return Math.round(v) + "d"; },
+      note: function () {
+        return "One dot per chauffeur, placed by days they were available but had no trips.";
+      }
+    }
+  };
+
+  /* ── distribution ─────────────────────────────────────────────────── */
+  var swarm = document.getElementById("cl-swarm");
+  var axisEl = document.getElementById("cl-axis");
+  var tip = document.getElementById("cl-tip");
+
+  function buildSwarm() {
+    if (!D.length) { swarm.innerHTML = ""; axisEl.innerHTML = ""; return; }
+    var M = METRICS[metric];
+    var vals = D.map(M.get);
+    var axMax = (Math.max.apply(null, vals) * 1.12) || 1;
+    var m = med(vals);
+
+    swarm.innerHTML = '<div class="edge" style="left:' + (m / axMax * 100).toFixed(1) +
+      '%"><span class="cap">Fleet median ' + M.fmt(m) + "</span></div>";
+
+    var placed = [];
+    D.slice().sort(function (a, b) { return M.get(a) - M.get(b); }).forEach(function (d) {
+      var x = M.get(d) / axMax * 100, row = 0;
+      while (placed.some(function (p) { return p.row === row && Math.abs(p.x - x) < 4.6; })) { row++; }
+      placed.push({row: row, x: x});
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "cl-dot " + (d.is_full_time ? "ft" : "pt");
+      b.style.left = x + "%";
+      b.style.bottom = (11 + row * 17) + "px";
+      b.setAttribute("aria-label", d.name + ", " + M.fmt(M.get(d)));
+      b.addEventListener("mouseenter", function (e) { showTip(e, d); });
+      b.addEventListener("focus", function (e) { showTip(e, d); });
+      b.addEventListener("mouseleave", hideTip);
+      b.addEventListener("blur", hideTip);
+      swarm.appendChild(b);
+    });
+
+    axisEl.innerHTML = [0, .25, .5, .75, 1].map(function (f) {
+      return '<span class="tick" style="left:' + (f * 100) + '%">' + M.fmt(axMax * f) + "</span>";
+    }).join("");
+    document.getElementById("cl-swarmnote").textContent = M.note();
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+  }
+
+  function showTip(e, d) {
+    tip.innerHTML = "<b>" + esc(d.name) + "</b> <span class='r'>" + esc(d.employment_label) + "</span><br>" +
+      '<span class="r">Trips</span> ' + d.legs + " over " + d.worked_days + " days" +
+      (d.worked_days ? " · <b>" + d.per_worked_day.toFixed(1) + "</b>/day" : "") + "<br>" +
+      '<span class="r">Available</span> ' + d.avail_days + "d · idle <b>" + d.idle_days + "d</b>";
+    // Measure after setting content, then flip below the dot when there isn't room
+    // above. A fixed offset collided with the fleet-median caption and could push the
+    // tooltip off the top of the viewport.
+    var dot = e.target.getBoundingClientRect();
+    tip.style.visibility = "hidden";
+    tip.classList.add("on");
+    var box = tip.getBoundingClientRect();
+    var PAD = 12;
+
+    var top = dot.top - box.height - PAD;
+    if (top < 8) { top = dot.bottom + PAD; }                       // flip below
+    var maxTop = window.innerHeight - box.height - 8;
+    if (top > maxTop) { top = Math.max(8, maxTop); }
+
+    var left = dot.left + dot.width / 2 - box.width / 2;           // centre on the dot
+    left = Math.max(8, Math.min(left, window.innerWidth - box.width - 8));
+
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+    tip.style.visibility = "";
+  }
+  function hideTip() { tip.classList.remove("on"); }
+
+  /* ── day strip ────────────────────────────────────────────────────── */
+  function strip(d) {
+    var maxL = 0;
+    d.cells.forEach(function (c) { if (c.legs > maxL) { maxL = c.legs; } });
+    var past = "", fut = "";
+    d.cells.forEach(function (c, i) {
+      var st = c.kind === "worked"
+        ? "height:" + Math.max(6, Math.round(16 * (c.legs / (maxL || 1)))) + "px" : "";
+      var ttl = c.kind === "worked" ? c.label + " — " + c.legs + " trips"
+        : c.kind === "spare" ? c.label + (c.is_future ? " — available" : " — available, nothing assigned")
+        : c.kind === "timeoff" ? c.label + " — approved time off"
+        : c.label + " — scheduled day off";
+      var el = '<span class="cel ' + c.kind + '" style="' + st + '" title="' + esc(ttl) + '"></span>';
+      if (i < PAST_CELLS) { past += el; } else { fut += el; }
+    });
+    return '<div class="strip"><span class="cellwrap">' + past +
+           '</span><span class="cellwrap future">' + fut + "</span></div>";
+  }
+
+  /* ── table ────────────────────────────────────────────────────────── */
+  var rowsEl = document.getElementById("cl-rows");
+
+  function render() {
+    if (!D.length) {
+      rowsEl.innerHTML = '<tr><td colspan="' + NCOLS + '" class="empty">' +
+        "No active in-house chauffeurs found for this window.</td></tr>";
+      document.getElementById("cl-count").textContent = "";
+      return;
+    }
+    var rMax = Math.max.apply(null, D.map(rateOf)) || 1;
+    var visible = D.filter(function (d) {
+      return !query || d.name.toLowerCase().indexOf(query) > -1;
+    });
+    var html = "", shown = 0;
+
+    COHORTS.forEach(function (co) {
+      var group = visible.filter(function (d) { return d.employment_type === co.key; });
+      if (!group.length) { return; }
+      group.sort(function (a, b) {
+        var x = sortKey === "rate" ? rateOf(a) : a[sortKey];
+        var y = sortKey === "rate" ? rateOf(b) : b[sortKey];
+        if (typeof x === "string") { return x.localeCompare(y) * sortDir; }
+        return ((x || 0) - (y || 0)) * sortDir;
+      });
+      // Cohort totals come from the FULL cohort, not the search-filtered slice, so the
+      // group header stays a stable reference while you type in the search box.
+      var all = D.filter(function (d) { return d.employment_type === co.key; });
+      var gWorked = all.reduce(function (s, d) { return s + d.worked_days; }, 0);
+      var gAvail = all.reduce(function (s, d) { return s + d.avail_days; }, 0);
+      var stat = gAvail
+        ? "drove on " + gWorked + " of " + gAvail + " available days" : "";
+      html += '<tr class="cohort"><td colspan="' + NCOLS + '">' + co.label + " · " +
+        all.length + (stat ? '<span class="gstat">' + stat + "</span>" : "") + "</td></tr>";
+
+      group.forEach(function (d) {
+        shown++;
+        var rate = rateOf(d);
+        var dec = (basis === "per_week" || basis === "per_month") ? 0 : 1;
+        var empChip = d.employment_type
+          ? '<span class="emp">' + (d.is_full_time ? "FT" : "PT") + "</span>"
+          : '<span class="emp q" title="Not labelled">?</span>';
+
+        html += "<tr>" +
+          '<td><div class="who"><span class="av" style="background:' + d.color + '">' +
+            esc(d.initials) + '</span><span><span class="nm">' + esc(d.name) + "</span>" + empChip +
+            "</span></div></td>" +
+          '<td class="two"><span class="b dim">' + esc(d.vehicle_classes) + '</span>' +
+            '<span class="s">' + esc(d.vehicle_car) + "</span></td>" +
+          '<td class="r muted">' + d.avail_days + "</td>" +
+          '<td class="r muted">' + d.worked_days + "</td>" +
+          // Emphasis is server-decided: flagged means "on the exceptions list above".
+          '<td class="r"><span class="idle' + (d.flagged ? " hot" : "") + '">' + d.idle_days +
+            '<span class="d">d</span></span></td>' +
+          '<td class="r big">' + d.legs + "</td>" +
+          '<td class="r"><div class="tpd"><span class="tpd-bar"><span class="tpd-fill" style="width:' +
+            (rate / rMax * 100).toFixed(1) + '%"></span></span><span class="big">' +
+            rate.toFixed(dec) + "</span></div></td>" +
+          "<td>" + strip(d) + "</td>" +
+          '<td class="off-cell' + (d.next_time_off ? "" : " none") + '">' +
+            (d.next_time_off ? esc(d.next_time_off) : "—") + "</td>" +
+          "</tr>";
+      });
+    });
+
+    rowsEl.innerHTML = html;
+    document.getElementById("cl-count").textContent = shown + " of " + D.length;
+  }
+
+  /* ── wiring ───────────────────────────────────────────────────────── */
+  Array.prototype.forEach.call(document.querySelectorAll("#cl-tbl th[data-k]"), function (th) {
+    th.querySelector("button").addEventListener("click", function () {
+      var k = th.getAttribute("data-k");
+      if (sortKey === k) { sortDir *= -1; } else { sortKey = k; sortDir = (k === "name") ? 1 : -1; }
+      Array.prototype.forEach.call(document.querySelectorAll("#cl-tbl th[data-k]"), function (o) {
+        o.removeAttribute("aria-sort");
+      });
+      th.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
+      render();
+    });
+  });
+
+  document.getElementById("cl-q").addEventListener("input", function (e) {
+    query = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-basis]"), function (b) {
+    b.addEventListener("click", function () {
+      basis = b.getAttribute("data-basis");
+      Array.prototype.forEach.call(document.querySelectorAll("[data-basis]"), function (o) {
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+      document.getElementById("cl-rate-hd").textContent = BASIS_HEAD[basis];
+      if (metric === "trips") { buildSwarm(); }
+      render();
+    });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-metric]"), function (b) {
+    b.addEventListener("click", function () {
+      metric = b.getAttribute("data-metric");
+      Array.prototype.forEach.call(document.querySelectorAll("[data-metric]"), function (o) {
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+      buildSwarm();
+    });
+  });
+
+  buildSwarm();
+  render();
+}());
+</script>
+{% endblock %}

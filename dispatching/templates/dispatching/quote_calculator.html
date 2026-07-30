@@ -8,201 +8,543 @@
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
 
-  <div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="row mb-3">
-      <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center flex-wrap">
-          <h1 class="mb-0 fs-2 fw-bold">
-            <i class="fas fa-calculator me-2"></i>Quote Calculator
-          </h1>
-          <a href="{% url 'dispatcher_booking_start' %}" class="btn btn-dark">
-            <i class="fas fa-plus me-1"></i>New Booking
-          </a>
-        </div>
-        <p class="text-muted mt-1 mb-0">Estimate prices for custom or long-distance trips</p>
-      </div>
-    </div>
+  {% comment %}
+    Quote Calculator — internal dispatcher tool.
 
-    <div class="row g-4">
-      <!-- Left: Input Form -->
-      <div class="col-lg-7">
-        <div class="card shadow-sm">
-          <div class="card-header bg-dark text-white">
-            <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Trip Details</h5>
-          </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label fw-bold">Pickup Address</label>
-                <input type="text" class="form-control form-control-lg" id="pickup-address"
-                       placeholder="e.g., Orlando International Airport (MCO)" autocomplete="off">
-              </div>
-              <div class="col-12">
-                <label class="form-label fw-bold">Drop-off Address</label>
-                <input type="text" class="form-control form-control-lg" id="dropoff-address"
-                       placeholder="e.g., 123 Main St, Tampa, FL" autocomplete="off">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Vehicle Type</label>
-                <select class="form-select form-select-lg" id="vehicle-type">
-                  {% for vehicle in vehicles %}
-                    <option value="{{ vehicle.vehicle_type }}"
-                            {% if vehicle.vehicle_type == "towncar" %}selected{% endif %}>
-                      {{ vehicle.get_vehicle_type_display }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Trip Type</label>
-                <div class="d-flex gap-2 mt-1">
-                  <button type="button" class="btn btn-outline-dark trip-type-btn active flex-fill" data-value="oneway">
-                    One Way
-                  </button>
-                  <button type="button" class="btn btn-outline-dark trip-type-btn flex-fill" data-value="roundtrip">
-                    Round Trip
-                  </button>
-                </div>
-              </div>
-              <div class="col-12">
-                <button type="button" class="btn btn-warning btn-lg w-100 fw-bold" id="calculate-btn">
-                  <i class="fas fa-calculator me-2"></i>Calculate Quote
+    All styles are scoped under .qc so nothing leaks into other dispatcher
+    pages. Palette matches the dispatcher navbar (#1a1d21 / #C9A227).
+
+    The rate structure — base fees, per-mile rates, minimums — is deliberately
+    NOT shown as a standing rate sheet. Dispatchers get the price and, per
+    quote, an internal breakdown they can open if a guest pushes back.
+
+    NB: use {% templatetag openblock %} comment {% templatetag closeblock %} for
+    multi-line notes — Django's {# … #} is single-line only and a multi-line one
+    renders as visible text on the page.
+  {% endcomment %}
+  {{ vehicle_images|json_script:"qc-vehicle-images" }}
+
+  <style>
+    .qc {
+      --qc-ink: #1a1d21;
+      --qc-ink-2: #24282e;
+      --qc-gold: #c9a227;
+      --qc-gold-dim: rgba(201, 162, 39, .14);
+      --qc-line: rgba(16, 18, 21, .09);
+      --qc-muted: #6f7681;
+      --qc-bg: #f6f6f4;
+      font-family: 'Montserrat', system-ui, sans-serif;
+      background: var(--qc-bg);
+      min-height: 100vh;
+      padding: 2.25rem 0 4rem;
+    }
+
+    /* ── Page head ── */
+    .qc-head { margin-bottom: 2rem; }
+    .qc-eyebrow {
+      font-size: .68rem; font-weight: 600; letter-spacing: .16em;
+      text-transform: uppercase; color: var(--qc-gold); margin-bottom: .3rem;
+    }
+    .qc-title {
+      font-size: clamp(1.6rem, 2.4vw, 2.1rem); font-weight: 700;
+      letter-spacing: -.02em; color: var(--qc-ink); margin: 0;
+    }
+    .qc-sub { color: var(--qc-muted); font-size: .87rem; margin: .35rem 0 0; max-width: 46ch; }
+    .qc-newbooking {
+      background: var(--qc-ink); color: #fff; border: 0; border-radius: 999px;
+      padding: .6rem 1.3rem; font-size: .82rem; font-weight: 600;
+      letter-spacing: .02em; text-decoration: none; white-space: nowrap;
+      transition: background .2s ease, transform .2s ease;
+    }
+    .qc-newbooking:hover { background: var(--qc-gold); color: var(--qc-ink); transform: translateY(-1px); }
+
+    /* ── Demo notice ──
+       Remove this block and the .qc-demo markup together when the pricing is
+       signed off and the tool comes out of demo. */
+    .qc-demo {
+      display: flex; align-items: flex-start; gap: .85rem;
+      background: #fdf8e7; border: 1px solid rgba(201, 162, 39, .45);
+      border-left: 4px solid var(--qc-gold); border-radius: 10px;
+      padding: .95rem 1.15rem; margin-bottom: 1.75rem;
+      font-size: .85rem; line-height: 1.55; color: #5c4a10;
+    }
+    .qc-demo i { color: var(--qc-gold); font-size: 1.05rem; margin-top: .12rem; }
+    .qc-demo strong { color: #4a3b08; }
+
+    /* ── Panels ── */
+    .qc-panel {
+      background: #fff; border: 1px solid var(--qc-line); border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(16,18,21,.03), 0 8px 24px rgba(16,18,21,.04);
+      overflow: hidden;
+    }
+    .qc-panel + .qc-panel { margin-top: 1.25rem; }
+    .qc-panel-head {
+      padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--qc-line);
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .qc-panel-title {
+      font-size: .74rem; font-weight: 700; letter-spacing: .13em;
+      text-transform: uppercase; color: var(--qc-ink); margin: 0;
+    }
+    .qc-panel-body { padding: 1.5rem; }
+
+    /* ── Route input, as a connected timeline ── */
+    .qc-route { position: relative; padding-left: 1.9rem; }
+    .qc-route::before {
+      content: ''; position: absolute; left: 5px; top: 2.35rem; bottom: 2.35rem;
+      width: 2px; background: linear-gradient(var(--qc-gold), var(--qc-line));
+    }
+    .qc-stop { position: relative; }
+    .qc-stop + .qc-stop { margin-top: 1.15rem; }
+    .qc-stop::before {
+      content: ''; position: absolute; left: -1.9rem; top: 2.15rem;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: #fff; border: 2px solid var(--qc-gold);
+    }
+    .qc-stop.is-dest::before { background: var(--qc-ink); border-color: var(--qc-ink); }
+    /* Swap — dispatchers quote the return leg constantly. */
+    .qc-swap {
+      position: absolute; right: .55rem; top: 50%; transform: translateY(-50%);
+      z-index: 2; width: 34px; height: 34px; border-radius: 50%;
+      border: 1px solid var(--qc-line); background: #fff; color: var(--qc-muted);
+      cursor: pointer; font-size: .8rem;
+      transition: all .18s ease;
+    }
+    .qc-swap:hover {
+      border-color: var(--qc-gold); color: var(--qc-ink);
+      transform: translateY(-50%) rotate(180deg);
+    }
+
+    .qc-label {
+      display: block; font-size: .7rem; font-weight: 600; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--qc-muted); margin-bottom: .4rem;
+    }
+    .qc-input {
+      width: 100%; border: 1px solid var(--qc-line); border-radius: 10px;
+      padding: .8rem 1rem; font-size: .95rem; color: var(--qc-ink);
+      background: #fdfdfc; transition: border-color .18s ease, box-shadow .18s ease;
+    }
+    .qc-input:focus {
+      outline: 0; border-color: var(--qc-gold);
+      box-shadow: 0 0 0 3px var(--qc-gold-dim); background: #fff;
+    }
+    .qc-input::placeholder { color: #a9aeb6; }
+    select.qc-input { cursor: pointer; }
+
+    /* ── Segmented control ── */
+    .qc-seg { display: flex; gap: 4px; padding: 4px; background: #f1f1ee; border-radius: 10px; }
+    .qc-seg button {
+      flex: 1; border: 0; background: transparent; border-radius: 7px;
+      padding: .58rem .5rem; font-size: .84rem; font-weight: 600;
+      color: var(--qc-muted); cursor: pointer; transition: all .18s ease;
+    }
+    .qc-seg button:hover { color: var(--qc-ink); }
+    .qc-seg button.active {
+      background: var(--qc-ink); color: #fff; box-shadow: 0 1px 3px rgba(16,18,21,.2);
+    }
+
+    .qc-calc {
+      width: 100%; border: 0; border-radius: 10px; margin-top: 1.5rem;
+      background: var(--qc-gold); color: var(--qc-ink);
+      padding: .95rem; font-size: .9rem; font-weight: 700; letter-spacing: .05em;
+      text-transform: uppercase; cursor: pointer;
+      transition: filter .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+    .qc-calc:hover {
+      filter: brightness(1.07); transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(201,162,39,.32);
+    }
+    .qc-calc:active { transform: translateY(0); }
+
+    /* ── Map ── */
+    #qc-map { width: 100%; height: 340px; background: #ececea; }
+    .qc-map-note { padding: .7rem 1.5rem; font-size: .73rem; color: var(--qc-muted); }
+
+    /* ── Result: dark hero ── */
+    .qc-hero {
+      background: linear-gradient(160deg, var(--qc-ink) 0%, var(--qc-ink-2) 100%);
+      color: #fff; padding: 1.6rem 1.5rem; text-align: center; position: relative;
+    }
+    .qc-srcbadge {
+      display: inline-block; font-size: .62rem; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase;
+      padding: .3rem .7rem; border-radius: 999px; margin-bottom: .9rem;
+      background: var(--qc-gold-dim); color: var(--qc-gold);
+      border: 1px solid rgba(201,162,39,.35);
+    }
+    .qc-srcbadge.is-card { background: rgba(76,175,110,.16); color: #7fd39b; border-color: rgba(127,211,155,.35); }
+    /* Selected vehicle art, sitting above the figure. */
+    .qc-hero-img {
+      display: block; max-width: 190px; max-height: 82px; margin: 0 auto .55rem;
+      object-fit: contain; filter: drop-shadow(0 8px 14px rgba(0,0,0,.45));
+    }
+    .qc-price {
+      font-size: clamp(2.7rem, 6.5vw, 3.9rem); font-weight: 700;
+      letter-spacing: -.035em; line-height: 1; margin: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .qc-price-meta {
+      margin-top: .8rem; font-size: .74rem; font-weight: 600;
+      letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.62);
+    }
+    .qc-price-meta span + span::before { content: '·'; margin: 0 .55rem; color: var(--qc-gold); }
+    .qc-quotehint {
+      margin: 1rem 0 0; font-size: .76rem; color: rgba(255,255,255,.55); font-style: italic;
+    }
+    .qc-grat {
+      margin-top: .9rem; padding-top: .8rem; border-top: 1px solid rgba(255,255,255,.1);
+      display: flex; justify-content: center; gap: 1.4rem; flex-wrap: wrap;
+      font-size: .76rem; color: rgba(255,255,255,.62);
+    }
+    .qc-grat b { color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .qc-grat-total b { color: var(--qc-gold); }
+    /* Copy — dispatchers paste the quote into email or SMS. */
+    .qc-copy {
+      position: absolute; top: 1rem; right: 1rem; width: 32px; height: 32px;
+      border-radius: 8px; border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.06); color: rgba(255,255,255,.75);
+      cursor: pointer; font-size: .78rem; transition: all .18s ease;
+    }
+    .qc-copy:hover { background: var(--qc-gold); color: var(--qc-ink); border-color: var(--qc-gold); }
+    .qc-copy.is-done { background: #4caf6e; border-color: #4caf6e; color: #fff; }
+
+    /* ── Facts strip ── */
+    .qc-facts { display: grid; grid-template-columns: 1fr 1fr; }
+    .qc-fact { padding: 1.05rem 1.5rem; }
+    .qc-fact + .qc-fact { border-left: 1px solid var(--qc-line); }
+    .qc-fact-k {
+      font-size: .66rem; font-weight: 600; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--qc-muted); margin-bottom: .3rem;
+    }
+    .qc-fact-v {
+      font-size: 1.15rem; font-weight: 600; color: var(--qc-ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Alerts ── */
+    .qc-note {
+      margin: 1.1rem 1.5rem 0; padding: .8rem 1rem; border-radius: 10px;
+      font-size: .82rem; line-height: 1.5;
+      background: rgba(76,175,110,.09); border-left: 3px solid #4caf6e; color: #1f4a30;
+    }
+
+    /* ── Vehicle picker ── */
+    .qc-section-k {
+      font-size: .68rem; font-weight: 700; letter-spacing: .13em;
+      text-transform: uppercase; color: var(--qc-muted);
+      padding: 0 1.5rem; margin-bottom: .5rem;
+    }
+    .qc-section-hint {
+      font-size: .7rem; color: var(--qc-muted); font-style: italic;
+      padding: 0 1.5rem; margin-bottom: .7rem;
+    }
+    .qc-veh { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .qc-veh th {
+      font-size: .64rem; font-weight: 600; letter-spacing: .11em;
+      text-transform: uppercase; color: var(--qc-muted);
+      padding: .45rem 1.5rem; border-bottom: 1px solid var(--qc-line); text-align: left;
+    }
+    .qc-veh th.num, .qc-veh td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .qc-veh td { padding: .5rem 1.5rem; border-bottom: 1px solid rgba(16,18,21,.05); }
+    .qc-veh tbody tr { cursor: pointer; transition: background .15s ease; }
+    .qc-veh tbody tr:hover { background: #faf9f5; }
+    .qc-veh tr:last-child td { border-bottom: 0; }
+    .qc-veh tr.is-sel { background: var(--qc-gold-dim); }
+    .qc-veh tr.is-sel td { font-weight: 700; color: var(--qc-ink); }
+    .qc-veh tr.is-sel td:first-child { box-shadow: inset 3px 0 0 var(--qc-gold); }
+    .qc-veh-name { display: flex; align-items: center; gap: .7rem; }
+    .qc-veh-img {
+      width: 62px; height: 38px; object-fit: contain; flex: 0 0 62px;
+    }
+    .qc-tag {
+      display: inline-block; font-size: .58rem; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase; padding: .12rem .4rem;
+      border-radius: 4px; margin-left: .4rem;
+      background: rgba(76,175,110,.16); color: #2f7a4c;
+    }
+
+    /* ── Internal panel ── */
+    .qc-internal { border-top: 1px solid var(--qc-line); background: #fbfbfa; }
+    .qc-internal-toggle {
+      width: 100%; border: 0; background: transparent; text-align: left;
+      padding: .95rem 1.5rem; cursor: pointer;
+      font-size: .7rem; font-weight: 700; letter-spacing: .11em;
+      text-transform: uppercase; color: var(--qc-ink);
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .qc-internal-toggle:hover { color: var(--qc-gold); }
+    .qc-internal-toggle .qc-chev { margin-left: auto; transition: transform .2s ease; }
+    .qc-internal-toggle[aria-expanded="true"] .qc-chev { transform: rotate(180deg); }
+    .qc-internal-body { padding: 0 1.5rem 1.35rem; }
+    .qc-internal-hint {
+      font-size: .78rem; color: var(--qc-muted); font-style: italic;
+      margin: 0 0 .9rem; line-height: 1.5;
+    }
+    .qc-internal-for {
+      font-size: .68rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--qc-gold); margin-bottom: .6rem;
+    }
+    .qc-kv { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .qc-kv td { padding: .38rem 0; border-bottom: 1px dashed rgba(16,18,21,.08); }
+    .qc-kv td:last-child {
+      text-align: right; font-weight: 600; color: var(--qc-ink);
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
+    .qc-kv tr.is-sub td:first-child { padding-left: 1rem; color: var(--qc-muted); }
+    .qc-kv tr.is-sub td:last-child { font-weight: 500; color: var(--qc-muted); }
+    .qc-kv tr.is-driver td {
+      background: var(--qc-gold-dim); font-weight: 700; color: #6b5410;
+      padding-left: .6rem; padding-right: .6rem; border-radius: 5px;
+    }
+    /* Long text values (a comparable route name) get their own full-width row.
+       Left in the nowrap value column they force the table wider than the panel
+       and push every dollar figure off the right edge. */
+    .qc-kv tr.is-wide td {
+      text-align: left; font-weight: 500; color: var(--qc-muted);
+      white-space: normal; line-height: 1.45;
+    }
+    .qc-kv tr.is-wide b { color: var(--qc-ink); font-weight: 600; display: block; margin-top: .1rem; }
+    .qc-notes { margin: .9rem 0 0; padding-left: 1.1rem; font-size: .79rem; color: var(--qc-muted); }
+    .qc-notes li + li { margin-top: .4rem; }
+    .qc-match {
+      padding: .8rem 1.5rem; border-top: 1px solid var(--qc-line);
+      font-size: .73rem; color: var(--qc-muted);
+    }
+    .qc-match b { color: var(--qc-ink); font-weight: 600; }
+
+    /* ── States ── */
+    .qc-blank, .qc-loading, .qc-err { padding: 4rem 1.5rem; text-align: center; }
+    .qc-blank i, .qc-err i { font-size: 2.6rem; margin-bottom: 1rem; display: block; }
+    .qc-blank i { color: #d3d5d1; }
+    .qc-err i { color: #d9534f; }
+    .qc-blank p, .qc-loading p { color: var(--qc-muted); font-size: .87rem; margin: 0; }
+    .qc-spinner {
+      width: 34px; height: 34px; margin: 0 auto 1.15rem; border-radius: 50%;
+      border: 2.5px solid var(--qc-line); border-top-color: var(--qc-gold);
+      animation: qcSpin .7s linear infinite;
+    }
+    @keyframes qcSpin { to { transform: rotate(360deg); } }
+    .qc-reveal { animation: qcUp .42s cubic-bezier(.2,.7,.3,1) both; }
+    @keyframes qcUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+    @media (max-width: 575px) {
+      .qc-panel-body { padding: 1.15rem; }
+      .qc-fact, .qc-veh th, .qc-veh td, .qc-internal-body, .qc-match { padding-left: 1.15rem; padding-right: 1.15rem; }
+      .qc-note { margin-left: 1.15rem; margin-right: 1.15rem; }
+      .qc-section-k, .qc-section-hint { padding-left: 1.15rem; padding-right: 1.15rem; }
+      .qc-veh-img { width: 46px; flex-basis: 46px; }
+      #qc-map { height: 260px; }
+    }
+  </style>
+
+  <div class="qc">
+    <div class="container">
+
+      <!-- Head -->
+      <div class="qc-head d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <div class="qc-eyebrow">Dispatch</div>
+          <h1 class="qc-title">Quote Calculator</h1>
+          <p class="qc-sub">
+            For trips that aren't on the rate card. If a trip is on the card, the card price is used automatically.
+          </p>
+        </div>
+        <a href="{% url 'dispatcher_booking_start' %}" class="qc-newbooking">
+          <i class="fas fa-plus me-1"></i>New Booking
+        </a>
+      </div>
+
+      <div class="qc-demo">
+        <i class="fas fa-flask"></i>
+        <div>
+          <strong>Demo &mdash; still in progress.</strong>
+          These prices are still being calibrated, so treat every quote as a starting point.
+          If a number looks off, or the trip is unusual, <strong>double-check with Ab &amp; Ray
+          before quoting a guest.</strong>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <!-- ── Input + map ── -->
+        <div class="col-lg-7">
+          <div class="qc-panel">
+            <div class="qc-panel-head">
+              <h2 class="qc-panel-title">Trip</h2>
+            </div>
+            <div class="qc-panel-body">
+              <div class="qc-route">
+                <button type="button" class="qc-swap" id="swap-btn"
+                        title="Swap pickup and drop-off">
+                  <i class="fas fa-exchange-alt" style="transform: rotate(90deg);"></i>
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Rate Card Reference -->
-        <div class="card shadow-sm mt-4">
-          <div class="card-header bg-light">
-            <h5 class="mb-0">
-              <i class="fas fa-info-circle me-2"></i>How It Works
-            </h5>
-          </div>
-          <div class="card-body">
-            <div class="row text-center">
-              <div class="col-4">
-                <div class="fs-3 text-warning mb-1"><i class="fas fa-route"></i></div>
-                <small class="text-muted">Google Maps calculates distance</small>
-              </div>
-              <div class="col-4">
-                <div class="fs-3 text-warning mb-1"><i class="fas fa-cogs"></i></div>
-                <small class="text-muted">Formula applies base + per-mile rate</small>
-              </div>
-              <div class="col-4">
-                <div class="fs-3 text-warning mb-1"><i class="fas fa-dollar-sign"></i></div>
-                <small class="text-muted">You get a suggested price to use or adjust</small>
-              </div>
-            </div>
-            <hr>
-            <div class="small text-muted">
-              <strong>Vehicle base rates (per mile):</strong>
-              <div class="row mt-2">
-                {% for vt, label, base, per_mile in formula_display %}
-                <div class="col-6 col-md-3 mb-1">
-                  <span class="badge bg-dark">{{ label }}</span>
-                  ${{ base }} + ${{ per_mile }}/mi
+                <div class="qc-stop">
+                  <label class="qc-label" for="pickup-address">Pickup</label>
+                  <input type="text" class="qc-input" id="pickup-address"
+                         placeholder="Orlando International Airport (MCO)" autocomplete="off">
                 </div>
-                {% endfor %}
-              </div>
-              <div class="mt-2">Round trip multiplier varies by vehicle &nbsp;|&nbsp; Prices rounded to nearest $5</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right: Results -->
-      <div class="col-lg-5">
-        <!-- Loading spinner -->
-        <div id="calc-loading" class="d-none">
-          <div class="card shadow-sm">
-            <div class="card-body text-center py-5">
-              <div class="spinner-border text-warning mb-3" role="status"></div>
-              <p class="text-muted mb-0">Calculating distance via Google Maps...</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Results card (hidden until calculated) -->
-        <div id="calc-results" class="d-none">
-          <div class="card shadow-sm border-success">
-            <div class="card-header bg-success text-white">
-              <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Suggested Quote</h5>
-            </div>
-            <div class="card-body">
-              <!-- Big price -->
-              <div class="text-center mb-4">
-                <div class="display-3 fw-bold text-success" id="result-price">$0</div>
-                <span class="badge bg-dark fs-6" id="result-trip-type">One Way</span>
-                <span class="badge fs-6" id="result-vehicle" style="background-color: #c8a84e; color: #fff;">Towncar</span>
+                <div class="qc-stop is-dest">
+                  <label class="qc-label" for="dropoff-address">Drop-off</label>
+                  <input type="text" class="qc-input" id="dropoff-address"
+                         placeholder="123 Main St, Tampa, FL" autocomplete="off">
+                </div>
               </div>
 
-              <!-- Trip details -->
-              <div class="border rounded p-3 bg-light mb-3">
-                <div class="row g-2">
-                  <div class="col-6">
-                    <small class="text-dark fw-semibold d-block">Distance</small>
-                    <strong class="fs-5" id="result-distance">--</strong>
-                  </div>
-                  <div class="col-6">
-                    <small class="text-dark fw-semibold d-block">Drive Time</small>
-                    <strong class="fs-5" id="result-duration">--</strong>
-                  </div>
-                  <div class="col-6">
-                    <small class="text-dark fw-semibold d-block">Base Fee</small>
-                    <strong class="fs-5" id="result-base">--</strong>
-                  </div>
-                  <div class="col-6">
-                    <small class="text-dark fw-semibold d-block">Mileage Fee</small>
-                    <strong class="fs-5" id="result-mileage">--</strong>
+              <div class="row g-3 mt-4">
+                <div class="col-sm-6">
+                  <label class="qc-label" for="vehicle-type">Vehicle</label>
+                  <select class="qc-input" id="vehicle-type">
+                    {% for vehicle in vehicles %}
+                      <option value="{{ vehicle.value }}"
+                              {% if vehicle.value == "towncar" %}selected{% endif %}>
+                        {{ vehicle.label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-sm-6">
+                  <label class="qc-label">Trip type</label>
+                  <div class="qc-seg">
+                    <button type="button" class="trip-type-btn active" data-value="oneway">One Way</button>
+                    <button type="button" class="trip-type-btn" data-value="roundtrip">Round Trip</button>
                   </div>
                 </div>
               </div>
 
-              <!-- All vehicle comparison -->
-              <h6 class="fw-bold mb-2"><i class="fas fa-car me-1"></i> All Vehicle Options</h6>
-              <table class="table table-sm table-bordered mb-3">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Vehicle</th>
-                    <th class="text-end">One Way</th>
-                    <th class="text-end">Round Trip</th>
-                  </tr>
-                </thead>
-                <tbody id="result-all-vehicles"></tbody>
-              </table>
+              <button type="button" class="qc-calc" id="calculate-btn">Calculate Quote</button>
+            </div>
+          </div>
 
-              <!-- Existing rate match -->
-              <div id="existing-rate-match" class="d-none">
-                <div class="alert alert-info mb-0 py-2">
-                  <i class="fas fa-database me-1"></i>
-                  <strong>Existing rate found:</strong> <span id="existing-rate-text"></span>
-                </div>
+          <!-- Route map (appears once a quote resolves) -->
+          <div class="qc-panel d-none" id="map-panel">
+            <div class="qc-panel-head">
+              <h2 class="qc-panel-title">Route</h2>
+              <span class="qc-panel-title" style="color:var(--qc-muted);letter-spacing:.06em;"
+                    id="map-summary"></span>
+            </div>
+            <div id="qc-map"></div>
+            <div class="qc-map-note">
+              <i class="fas fa-info-circle me-1"></i>
+              Distance and price come from the pickup and drop-off addresses, not from this map.
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Result ── -->
+        <div class="col-lg-5">
+
+          <!-- Loading -->
+          <div id="calc-loading" class="d-none">
+            <div class="qc-panel">
+              <div class="qc-loading">
+                <div class="qc-spinner"></div>
+                <p>Measuring the route&hellip;</p>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Error card -->
-        <div id="calc-error" class="d-none">
-          <div class="card shadow-sm border-danger">
-            <div class="card-body text-center py-4">
-              <i class="fas fa-exclamation-triangle text-danger fs-1 mb-2"></i>
-              <p class="mb-0" id="error-message">Something went wrong</p>
+          <!-- Results -->
+          <div id="calc-results" class="d-none">
+            <div class="qc-panel">
+              <div class="qc-hero">
+                <button type="button" class="qc-copy" id="copy-btn" title="Copy quote">
+                  <i class="fas fa-copy"></i>
+                </button>
+                <span class="qc-srcbadge" id="result-source">Custom estimate</span>
+                <img class="qc-hero-img d-none" id="result-image" alt="" src="">
+                <div class="qc-price" id="result-price">$0</div>
+                <div class="qc-price-meta">
+                  <span id="result-trip-type">One Way</span><span id="result-vehicle">Towncar</span>
+                </div>
+                <p class="qc-quotehint" id="result-hint">This is the figure to give the guest.</p>
+                <div class="qc-grat d-none" id="result-gratuity">
+                  <span><span id="grat-label-a">fare</span> <b id="grat-amount">$0</b></span>
+                  <span class="qc-grat-total"><span id="grat-label-b">gratuity</span> <b id="grat-total">$0</b></span>
+                </div>
+              </div>
+
+              <!-- Rate-card banner -->
+              <div id="card-match" class="d-none">
+                <div class="qc-note">
+                  <i class="fas fa-check-circle me-1"></i>
+                  <strong>Published rate:</strong> <span id="card-route-text"></span>
+                </div>
+              </div>
+
+              <!-- Facts -->
+              <div class="qc-facts">
+                <div class="qc-fact">
+                  <div class="qc-fact-k">Distance</div>
+                  <div class="qc-fact-v" id="result-distance">&ndash;&ndash;</div>
+                </div>
+                <div class="qc-fact">
+                  <div class="qc-fact-k">Drive time</div>
+                  <div class="qc-fact-v" id="result-duration">&ndash;&ndash;</div>
+                </div>
+              </div>
+
+              <!-- Vehicle picker -->
+              <div style="border-top:1px solid var(--qc-line); padding-top:1.1rem;">
+                <div class="qc-section-k">All vehicles</div>
+                <div class="qc-section-hint">Click a vehicle to see its price and breakdown.</div>
+                <table class="qc-veh">
+                  <thead>
+                    <tr>
+                      <th>Vehicle</th>
+                      <th class="num">One way</th>
+                      <th class="num">Round trip</th>
+                    </tr>
+                  </thead>
+                  <tbody id="result-all-vehicles"></tbody>
+                </table>
+              </div>
+
+              <!-- Internal breakdown -->
+              <div class="qc-internal">
+                <button class="qc-internal-toggle collapsed" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#internal-panel"
+                        aria-expanded="false" aria-controls="internal-panel">
+                  <i class="fas fa-lock"></i>
+                  Internal breakdown &mdash; not for the guest
+                  <i class="fas fa-chevron-down qc-chev"></i>
+                </button>
+                <div class="collapse" id="internal-panel">
+                  <div class="qc-internal-body">
+                    <div class="qc-internal-for" id="internal-for">Towncar</div>
+                    <p class="qc-internal-hint">
+                      For your understanding, so you can hold the price if a guest pushes back.
+                      The guest gets one number.
+                    </p>
+                    <table class="qc-kv"><tbody id="internal-rows"></tbody></table>
+                    <ul class="qc-notes" id="internal-notes"></ul>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Zone diagnostics -->
+              <div class="qc-match" id="match-info"></div>
             </div>
           </div>
-        </div>
 
-        <!-- Empty state -->
-        <div id="calc-empty">
-          <div class="card shadow-sm">
-            <div class="card-body text-center py-5">
-              <i class="fas fa-calculator text-muted" style="font-size: 4rem;"></i>
-              <p class="text-muted mt-3 mb-0">Enter pickup & drop-off addresses and hit Calculate</p>
+          <!-- Error -->
+          <div id="calc-error" class="d-none">
+            <div class="qc-panel">
+              <div class="qc-err">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p class="mb-0" id="error-message">Something went wrong</p>
+              </div>
             </div>
           </div>
+
+          <!-- Empty -->
+          <div id="calc-empty">
+            <div class="qc-panel">
+              <div class="qc-blank">
+                <i class="fas fa-route"></i>
+                <p>Enter a pickup and drop-off, then calculate.</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -215,29 +557,58 @@
       const vehicleSelect = document.getElementById('vehicle-type');
       const calculateBtn = document.getElementById('calculate-btn');
       const tripTypeBtns = document.querySelectorAll('.trip-type-btn');
+      const VEHICLE_IMAGES = JSON.parse(
+          document.getElementById('qc-vehicle-images').textContent);
       let tripType = 'oneway';
+      // Last response, so clicking a vehicle re-renders without another call.
+      let lastQuote = null;
 
-      // Google Places Autocomplete
-      function initAutocomplete() {
-          if (typeof google !== 'undefined' && google.maps && google.maps.places) {
-              new google.maps.places.Autocomplete(pickupInput, {
-                  types: ['geocode', 'establishment'],
-                  componentRestrictions: { country: 'us' }
-              });
-              new google.maps.places.Autocomplete(dropoffInput, {
-                  types: ['geocode', 'establishment'],
-                  componentRestrictions: { country: 'us' }
+      // ── Google Maps: autocomplete + route drawing ──
+      let directionsService = null, directionsRenderer = null, map = null;
+
+      function initMaps() {
+          if (!(window.google && google.maps)) return;
+          if (google.maps.places) {
+              [pickupInput, dropoffInput].forEach(input => {
+                  new google.maps.places.Autocomplete(input, {
+                      types: ['geocode', 'establishment'],
+                      componentRestrictions: { country: 'us' }
+                  });
               });
           }
+          map = new google.maps.Map(document.getElementById('qc-map'), {
+              zoom: 10,
+              center: { lat: 28.4312, lng: -81.3081 },   // MCO
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: true,
+          });
+          directionsService = new google.maps.DirectionsService();
+          directionsRenderer = new google.maps.DirectionsRenderer({
+              map: map,
+              polylineOptions: { strokeColor: '#c9a227', strokeWeight: 5, strokeOpacity: .9 },
+          });
       }
-      // Try init immediately or wait for maps to load
-      if (typeof google !== 'undefined') {
-          initAutocomplete();
-      } else {
-          window.initQuoteAutocomplete = initAutocomplete;
+      window.initQuoteAutocomplete = initMaps;
+      if (window.google && google.maps) initMaps();
+
+      function drawRoute(pickup, dropoff) {
+          const panel = document.getElementById('map-panel');
+          if (!directionsService) return;              // Maps unavailable — skip
+          directionsService.route({
+              origin: pickup, destination: dropoff,
+              travelMode: google.maps.TravelMode.DRIVING,
+          }, function (result, status) {
+              if (status !== 'OK') { panel.classList.add('d-none'); return; }
+              directionsRenderer.setDirections(result);
+              panel.classList.remove('d-none');
+              const leg = result.routes[0] && result.routes[0].legs[0];
+              document.getElementById('map-summary').textContent =
+                  leg ? leg.distance.text + ' · ' + leg.duration.text : '';
+          });
       }
 
-      // Trip type toggle
+      // ── Controls ──
       tripTypeBtns.forEach(btn => {
           btn.addEventListener('click', function() {
               tripTypeBtns.forEach(b => b.classList.remove('active'));
@@ -246,17 +617,19 @@
           });
       });
 
-      // Calculate
+      document.getElementById('swap-btn').addEventListener('click', function() {
+          const tmp = pickupInput.value;
+          pickupInput.value = dropoffInput.value;
+          dropoffInput.value = tmp;
+      });
+
       calculateBtn.addEventListener('click', function() {
           const pickup = pickupInput.value.trim();
           const dropoff = dropoffInput.value.trim();
-          const vehicle = vehicleSelect.value;
-
           if (!pickup || !dropoff) {
-              showError('Please enter both pickup and drop-off addresses.');
+              showError('Please enter both a pickup and a drop-off address.');
               return;
           }
-
           showLoading();
 
           fetch("{% url 'quote_calculator_api' %}", {
@@ -266,87 +639,287 @@
                   'X-CSRFToken': '{{ csrf_token }}',
               },
               body: JSON.stringify({
-                  pickup: pickup,
-                  dropoff: dropoff,
-                  vehicle: vehicle,
-                  trip_type: tripType,
+                  pickup: pickup, dropoff: dropoff,
+                  vehicle: vehicleSelect.value, trip_type: tripType,
               })
           })
           .then(r => r.json())
           .then(data => {
-              if (data.error) {
-                  showError(data.error);
-              } else {
-                  showResults(data);
-              }
+              if (data.error) { showError(data.error); return; }
+              lastQuote = data;
+              showResults(data, data.vehicle_type);
+              drawRoute(pickup, dropoff);
           })
           .catch(() => showError('Network error. Please try again.'));
       });
 
-      // Also calculate on Enter key
       [pickupInput, dropoffInput].forEach(input => {
           input.addEventListener('keydown', function(e) {
-              if (e.key === 'Enter') {
-                  e.preventDefault();
-                  calculateBtn.click();
-              }
+              if (e.key === 'Enter') { e.preventDefault(); calculateBtn.click(); }
           });
       });
 
+      // ── Copy the quote for pasting into email or SMS ──
+      document.getElementById('copy-btn').addEventListener('click', function() {
+          if (!lastQuote) return;
+          const v = currentVehicle(lastQuote, selectedVehicleType);
+          const g = (v.internal || {});
+          // Mirror how the price is actually quoted: fare, then gratuity.
+          const lines = [v.vehicle_label + ' · ' + lastQuote.trip_type_label];
+          if (g.gratuity_amount && v.gratuity_mandatory) {
+              lines.push('Fare: $' + v.price + ' plus 20% gratuity ($' + g.gratuity_amount + ')');
+              lines.push('Total: $' + g.total_with_gratuity);
+          } else if (g.gratuity_amount) {
+              lines.push('Fare: $' + v.price + ' (20% gratuity suggested, $' + g.gratuity_amount + ')');
+          } else {
+              lines.push('Price: $' + v.price);
+          }
+          lines.push(lastQuote.distance_text + ' · ' + lastQuote.duration_text);
+          const text = lines.join('\n');
+          const btn = this;
+          navigator.clipboard.writeText(text).then(function() {
+              btn.classList.add('is-done');
+              btn.innerHTML = '<i class="fas fa-check"></i>';
+              setTimeout(function() {
+                  btn.classList.remove('is-done');
+                  btn.innerHTML = '<i class="fas fa-copy"></i>';
+              }, 1600);
+          });
+      });
+
+      function show(id) { document.getElementById(id).classList.remove('d-none'); }
+      function hide(id) { document.getElementById(id).classList.add('d-none'); }
+
       function showLoading() {
-          document.getElementById('calc-empty').classList.add('d-none');
-          document.getElementById('calc-results').classList.add('d-none');
-          document.getElementById('calc-error').classList.add('d-none');
-          document.getElementById('calc-loading').classList.remove('d-none');
+          ['calc-empty', 'calc-results', 'calc-error'].forEach(hide);
+          show('calc-loading');
       }
 
       function showError(msg) {
-          document.getElementById('calc-empty').classList.add('d-none');
-          document.getElementById('calc-results').classList.add('d-none');
-          document.getElementById('calc-loading').classList.add('d-none');
-          document.getElementById('calc-error').classList.remove('d-none');
+          ['calc-empty', 'calc-results', 'calc-loading'].forEach(hide);
+          document.getElementById('map-panel').classList.add('d-none');
+          show('calc-error');
           document.getElementById('error-message').textContent = msg;
       }
 
-      function showResults(data) {
-          document.getElementById('calc-empty').classList.add('d-none');
-          document.getElementById('calc-loading').classList.add('d-none');
-          document.getElementById('calc-error').classList.add('d-none');
-          document.getElementById('calc-results').classList.remove('d-none');
+      // Rows for the internal breakdown, in display order. Anything the engine
+      // returns that isn't listed here is intentionally not surfaced.
+      // Plain-language rows only. Deliberately NOT shown: rate per mile, earned
+      // per mile driven, hourly floor, implied $ per driver-hour, raw price
+      // before rounding. Those are owner economics in logistics vocabulary — a
+      // dispatcher would have to translate them mid-call. The engine still
+      // computes them, so re-exposing any is a one-line change here.
+      const INTERNAL_ROWS = [
+          ['comparable_route',              'Same price as our',              '',  false],
+          ['comparable_card_price',         'That trip normally costs',       '$', false],
+          ['custom_premium_pct',            'Added for a private address',    '',  false],
+          ['miles',                         'Trip distance',                  ' mi', false],
+          ['mileage_fee',                   'Charge for the driving',         '$', false],
+          ['revenue_leg_share',             'Driving the guest',              '$', true],
+          ['empty_return_share',            'Bringing the car back',          '$', true],
+          ['committed_hours',               'Hours the car is tied up',       ' h', false],
+          ['direction_discount_pct',        'Discount for heading out of town','', false],
+          ['local_floor',                   'Our minimum charge',             '$', false],
+          ['minimum',                       'Our minimum charge',             '$', false],
+          ['conflicting_reverse_card_price','Published price the other way',  '$', false],
+          ['airport_pickup_fee',            'Airport pickup (lane/tunnel)',   '$', false],
+          ['gratuity_amount',               'Gratuity (20%)',                 '$', false],
+          ['total_with_gratuity',           'Fare plus gratuity',             '$', false],
+      ];
+      const PERCENT_KEYS = ['direction_discount_pct', 'custom_premium_pct'];
+      // A few labels read better with the unit after the number.
+      const SUFFIX_PREFIXES = [' mi', ' h'];
 
-          document.getElementById('result-price').textContent = '$' + data.suggested_price;
-          document.getElementById('result-trip-type').textContent = data.trip_type_label;
-          document.getElementById('result-vehicle').textContent = data.vehicle_label;
+      let selectedVehicleType = null;
+
+      function currentVehicle(data, vehicleType) {
+          const list = data.all_vehicles || [];
+          for (let i = 0; i < list.length; i++) {
+              if (list[i].vehicle_type === vehicleType) return list[i];
+          }
+          return data;   // fall back to the top-level payload
+      }
+
+      function showResults(data, vehicleType) {
+          ['calc-empty', 'calc-loading', 'calc-error'].forEach(hide);
+          show('calc-results');
+          selectedVehicleType = vehicleType;
+
+          const panel = document.getElementById('calc-results');
+          panel.classList.remove('qc-reveal');
+          void panel.offsetWidth;              // restart the reveal animation
+          panel.classList.add('qc-reveal');
+
+          renderVehicle(data, currentVehicle(data, vehicleType));
+          renderVehicleList(data, vehicleType);
+          renderZones(data);
+
+          // Trip facts are shared across vehicles.
           document.getElementById('result-distance').textContent = data.distance_text;
           document.getElementById('result-duration').textContent = data.duration_text;
-          document.getElementById('result-base').textContent = '$' + data.base_fee;
-          document.getElementById('result-mileage').textContent = '$' + data.mileage_fee;
+      }
 
-          // All vehicles table
+      // Everything that changes when a different vehicle is selected.
+      function renderVehicle(data, v) {
+          document.getElementById('result-price').textContent = '$' + v.price;
+          document.getElementById('result-trip-type').textContent = data.trip_type_label;
+          document.getElementById('result-vehicle').textContent = v.vehicle_label;
+          document.getElementById('internal-for').textContent = v.vehicle_label;
+
+          const img = document.getElementById('result-image');
+          const src = VEHICLE_IMAGES[v.vehicle_type];
+          if (src) {
+              img.src = src;
+              img.alt = v.vehicle_label;
+              img.classList.remove('d-none');
+          } else {
+              img.classList.add('d-none');
+          }
+
+          const badge = document.getElementById('result-source');
+          badge.textContent = v.source_label;
+          badge.classList.toggle('is-card', v.source === 'rate_card');
+
+          // Gratuity differs by regime and guests ask outright, so say which
+          // rule applies right under the figure.
+          const internal = v.internal || {};
+          const grat = document.getElementById('result-gratuity');
+          const gratA = document.getElementById('grat-amount');
+          const gratB = document.getElementById('grat-total');
+          const gratLabelA = document.getElementById('grat-label-a');
+          const gratLabelB = document.getElementById('grat-label-b');
+          if (internal.gratuity_amount && v.gratuity_mandatory) {
+              // Out of town — we bill the 20%, so say both numbers.
+              grat.classList.remove('d-none');
+              gratLabelA.textContent = '+20% gratuity';
+              gratA.textContent = '$' + internal.gratuity_amount;
+              gratLabelB.textContent = 'guest pays';
+              gratB.textContent = '$' + internal.total_with_gratuity;
+              document.getElementById('result-hint').textContent =
+                  'Say “$' + v.price + ' plus 20% gratuity”. Out of town — the gratuity is billed, not optional.';
+          } else if (internal.gratuity_amount && v.gratuity_suggested) {
+              // Local — the tip is the guest's call.
+              grat.classList.remove('d-none');
+              gratLabelA.textContent = '+20% suggested gratuity';
+              gratA.textContent = '$' + internal.gratuity_amount;
+              gratLabelB.textContent = 'with gratuity';
+              gratB.textContent = '$' + internal.total_with_gratuity;
+              document.getElementById('result-hint').textContent =
+                  'Quote this as the fare. Gratuity is suggested on top, not billed.';
+          } else {
+              grat.classList.add('d-none');
+              document.getElementById('result-hint').textContent =
+                  'This is the figure to give the guest.';
+          }
+
+          // Rate-card banner
+          const cardMatch = document.getElementById('card-match');
+          if (v.source === 'rate_card' && v.card_route) {
+              cardMatch.classList.remove('d-none');
+              document.getElementById('card-route-text').textContent =
+                  v.card_route + ' — $' + v.oneway + ' one way / $' + v.roundtrip + ' round trip';
+          } else {
+              cardMatch.classList.add('d-none');
+          }
+
+          renderInternal(internal, v.notes || []);
+      }
+
+      function renderInternal(internal, notes) {
+          const rows = document.getElementById('internal-rows');
+          rows.innerHTML = '';
+          INTERNAL_ROWS.forEach(([key, label, prefix, isSub]) => {
+              const value = internal[key];
+              if (value === undefined || value === null || value === '') return;
+              if (key === 'direction_discount_pct' && Number(value) === 0) return;
+              // Only mention the minimum when it actually set the price, and the
+              // hours only when time drove it — otherwise they read as charges
+              // that applied when they didn't.
+              if ((key === 'minimum' || key === 'local_floor')
+                  && internal.minimum_applied !== 'True') return;
+              if (key === 'committed_hours'
+                  && internal.time_floor_applied !== 'True') return;
+              const tr = document.createElement('tr');
+              // A route name is long free text, not a figure — give it the full
+              // width so it wraps instead of squeezing the number column.
+              if (key === 'comparable_route') {
+                  tr.classList.add('is-wide');
+                  tr.innerHTML = '<td colspan="2">' + label + '<b></b></td>';
+                  tr.querySelector('b').textContent = value;
+                  rows.appendChild(tr);
+                  return;
+              }
+              if (isSub) tr.classList.add('is-sub');
+              let shown;
+              if (PERCENT_KEYS.indexOf(key) !== -1) shown = '+' + value + '%';
+              else if (SUFFIX_PREFIXES.indexOf(prefix) !== -1) shown = value + prefix;
+              else shown = prefix + value;
+              tr.innerHTML = '<td>' + (isSub ? '└ ' : '') + label + '</td><td>' + shown + '</td>';
+              rows.appendChild(tr);
+          });
+          // Say plainly which rule set the price.
+          const driver =
+              internal.minimum_applied === 'True' ? 'Our minimum charge set this price' :
+              internal.time_floor_applied === 'True' ? 'The driver’s time set this price, not the distance' : null;
+          if (driver) {
+              const tr = document.createElement('tr');
+              tr.className = 'is-driver';
+              tr.innerHTML = '<td colspan="2">' + driver + '</td>';
+              rows.appendChild(tr);
+          }
+
+          const list = document.getElementById('internal-notes');
+          list.innerHTML = '';
+          notes.forEach(n => {
+              const li = document.createElement('li');
+              li.textContent = n;
+              list.appendChild(li);
+          });
+      }
+
+      function renderVehicleList(data, selected) {
           const tbody = document.getElementById('result-all-vehicles');
           tbody.innerHTML = '';
-          data.all_vehicles.forEach(v => {
+          (data.all_vehicles || []).forEach(v => {
               const row = document.createElement('tr');
-              if (v.vehicle_type === data.vehicle_type) {
-                  row.classList.add('table-success');
-              }
-              row.innerHTML = `
-                  <td>${v.label}</td>
-                  <td class="text-end fw-bold">$${v.oneway}</td>
-                  <td class="text-end fw-bold">$${v.roundtrip}</td>
-              `;
+              if (v.vehicle_type === selected) row.classList.add('is-sel');
+              const img = VEHICLE_IMAGES[v.vehicle_type]
+                  ? '<img class="qc-veh-img" src="' + VEHICLE_IMAGES[v.vehicle_type] + '" alt="">'
+                  : '';
+              const tag = v.source === 'rate_card' ? '<span class="qc-tag">card</span>' : '';
+              row.innerHTML =
+                  '<td><span class="qc-veh-name">' + img + '<span>' + v.vehicle_label + tag + '</span></span></td>' +
+                  '<td class="num">$' + (v.oneway || '--') + '</td>' +
+                  '<td class="num">$' + (v.roundtrip || '--') + '</td>';
+              // Clicking a row switches the headline AND the breakdown to it.
+              row.addEventListener('click', function() {
+                  selectedVehicleType = v.vehicle_type;
+                  vehicleSelect.value = v.vehicle_type;   // keep the form in sync
+                  renderVehicle(data, v);
+                  renderVehicleList(data, v.vehicle_type);
+              });
               tbody.appendChild(row);
           });
+      }
 
-          // Existing rate match
-          const existingDiv = document.getElementById('existing-rate-match');
-          if (data.existing_rate) {
-              existingDiv.classList.remove('d-none');
-              document.getElementById('existing-rate-text').textContent =
-                  data.existing_rate.route + ' — $' + data.existing_rate.oneway + ' OW / $' + data.existing_rate.roundtrip + ' RT';
-          } else {
-              existingDiv.classList.add('d-none');
+      function renderZones(data) {
+          function zoneLabel(matched, snapped, snapMiles) {
+              if (matched) return '<b>' + matched + '</b>';
+              if (snapped) {
+                  return '<b>' + snapped + '</b> <span>(nearest zone'
+                      + (snapMiles ? ', ' + snapMiles + ' mi away' : '') + ')</span>';
+              }
+              return '<b>no match</b>';
           }
+          const parts = [
+              'Pickup: ' + zoneLabel(data.matched_pickup, data.snapped_pickup, data.snapped_pickup_miles),
+              'Drop-off: ' + zoneLabel(data.matched_dropoff, data.snapped_dropoff, data.snapped_dropoff_miles),
+          ];
+          if (data.pickup_miles_from_base) {
+              parts.push('Pickup is <b>' + data.pickup_miles_from_base + ' mi</b> from base');
+          }
+          document.getElementById('match-info').innerHTML =
+              '<i class="fas fa-map-pin me-1"></i>' + parts.join(' &nbsp;·&nbsp; ');
       }
   });
   </script>
@@ -354,12 +927,4 @@
   {% if google_maps_key %}
   <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places&callback=initQuoteAutocomplete" async defer></script>
   {% endif %}
-
-  <style>
-    .trip-type-btn.active {
-        background-color: #212529 !important;
-        color: #fff !important;
-        border-color: #212529 !important;
-    }
-  </style>
 {% endblock %}
