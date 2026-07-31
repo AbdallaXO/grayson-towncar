@@ -120,17 +120,30 @@ class TimeOfDayBucketTests(SimpleTestCase):
         self.assertEqual(best_flight_arrival_local(f), datetime(2026, 5, 1, 12, 0))
 
 
+class _FilteredRows(list):
+    """Result of _StatusHistory.filter(): a real QuerySet is ITERABLE as well as
+    supporting .first()/.order_by(). first_status_times() iterates the filter result
+    to find the EARLIEST row per status, so a stand-in that only offered .first()
+    raised TypeError there."""
+    def first(self):
+        return self[0] if self else None
+
+    def order_by(self, *a):
+        return self
+
+
 class _StatusHistory(list):
-    """Minimal stand-in for leg.status_history supporting .filter(...).first()."""
+    """Minimal stand-in for leg.status_history supporting .all() and
+    .filter(...) — iterable, .first(), .order_by()."""
+    def all(self):
+        return _FilteredRows(self)
+
     def filter(self, **kw):
         if "status" in kw:
             rows = [x for x in self if x.status == kw["status"]]
         else:
             rows = [x for x in self if x.status in kw.get("status__in", [])]
-        return SimpleNamespace(
-            first=lambda: (rows[0] if rows else None),
-            order_by=lambda *a: SimpleNamespace(first=lambda: (rows[0] if rows else None)),
-        )
+        return _FilteredRows(rows)
 
 
 def _fake_return_leg(drive_min, store_stop=False):

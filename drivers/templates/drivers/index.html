@@ -49,15 +49,29 @@
               <div class="gt-label">Your Vehicle {% if is_today %}Today{% else %}· {{ selected_date|date:"D, M j" }}{% endif %}</div>
               <div style="font-weight:600;font-size:0.9375rem;">
                 {% if vehicle_assignment.vehicle.vehicle_type %}{{ vehicle_assignment.vehicle.vehicle_type.get_vehicle_type_display }} · {% endif %}#{{ vehicle_assignment.vehicle.vehicle_number }}
-                <span style="color:var(--gt-text-secondary);font-weight:500;">{{ vehicle_assignment.vehicle.year }} {{ vehicle_assignment.vehicle.make }} {{ vehicle_assignment.vehicle.model }}</span>
               </div>
+            </div>
+          </div>
+          {% if vehicle_assignment.share_window or vehicle_assignment.share_partners %}
+            <div style="background:rgba(249,115,22,0.09);border-top:1px solid rgba(249,115,22,0.3);padding:10px 16px;">
               {% if vehicle_assignment.share_window %}
-                <div style="font-size:0.8125rem;color:var(--gt-orange);font-weight:500;margin-top:2px;">
+                <div style="font-size:0.875rem;color:var(--gt-orange);font-weight:700;">
                   <i class="bi bi-people-fill"></i> Shared car — your window {{ vehicle_assignment.share_window }}
                 </div>
               {% endif %}
+              {% for p in vehicle_assignment.share_partners %}
+                <div style="font-size:0.875rem;line-height:1.45;{% if not forloop.first or vehicle_assignment.share_window %}margin-top:4px;{% endif %}">
+                  {% if p.relation == "before" %}
+                    <strong>{{ p.short_name }}</strong> has the car before you{% if p.end_label %} · until <strong>{{ p.end_label }}</strong>{% endif %}{% if p.est_free %} · should be done ~<strong>{{ p.est_free }}</strong>{% endif %}
+                  {% elif p.relation == "after" %}
+                    <strong>{{ p.short_name }}</strong> takes the car after you{% if p.start_label %} · from <strong>{{ p.start_label }}</strong>{% endif %}{% if p.first_pickup %} · their first pickup <strong>{{ p.first_pickup|date:"g:i A" }}</strong>{% endif %}
+                  {% else %}
+                    <strong>{{ p.short_name }}</strong> also drives this car {% if is_today %}today{% else %}that day{% endif %}{% if p.first_pickup %} · their first pickup <strong>{{ p.first_pickup|date:"g:i A" }}</strong>{% endif %}
+                  {% endif %}
+                </div>
+              {% endfor %}
             </div>
-          </div>
+          {% endif %}
         </div>
       {% endif %}
 

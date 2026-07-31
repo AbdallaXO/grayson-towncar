@@ -5,8 +5,15 @@ Otherwise renders a real <button> that opens #keoiModal, populated purely from
 its own data-* attributes (no fetch on open). Django auto-escapes every value;
 newlines in the description survive attribute encoding and dataset reads.
 Never color-only: binoculars icon + literal "KEOI" + category text always shown.
+
+The description is rendered as a visible second line, not just a title= tooltip.
+"Tight Schedule" tells a dispatcher nothing; "cruise clears 9:40, Alex 25 min
+out" tells them everything, and that was the part you had to click to see.
+Keep the markup in step with buildKeoiBadge() in _keoi_modal.html, which
+recreates it client-side after a save.
 {% endcomment %}
 {% if keoi %}
+<div class="keoi-block">
 {% if readonly %}
   <span class="keoi-badge keoi-badge-readonly"
         title="KEOI · {{ keoi.get_category_display }} · {{ keoi.get_operational_status_display }} — {{ keoi.description|truncatechars:140 }}"
@@ -22,6 +29,9 @@ Never color-only: binoculars icon + literal "KEOI" + category text always shown.
           data-keoi-id="{{ keoi.id }}"
           data-keoi-leg-id="{{ leg.id }}"
           data-keoi-leg-label="{{ leg.reservation.customer.get_full_name }} · {{ leg.pickup_time|time:'g:i A' }} · Res #{{ leg.reservation.id }}"
+          data-keoi-leg-name="{{ leg.reservation.customer.get_full_name }}"
+          data-keoi-leg-time="{{ leg.pickup_time|time:'g:i A' }}"
+          data-keoi-sort="{{ leg.pickup_time|time:'H:i' }}"
           data-keoi-category="{{ keoi.category }}"
           data-keoi-category-label="{{ keoi.get_category_display }}"
           data-keoi-status="{{ keoi.operational_status }}"
@@ -39,4 +49,6 @@ Never color-only: binoculars icon + literal "KEOI" + category text always shown.
     <span class="keoi-status-pill keoi-status-{{ keoi.operational_status }}">{{ keoi.get_operational_status_display }}</span>
   </button>
 {% endif %}
+  <div class="keoi-desc">{{ keoi.description|truncatechars:160 }}</div>
+</div>
 {% endif %}

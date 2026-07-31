@@ -764,7 +764,13 @@ def _get_best_flight_arrival(leg) -> 'datetime | None':
     SCHEDULED arrival instead — the decision-time value, excluding later delays.
     """
     from dispatching.analytics import best_flight_arrival_local, scheduled_flight_arrival_local
-    flight = getattr(leg, 'flight_information', None)
+    from dispatching.pickup_policy import controlling_flight
+    # Resolve via the CONTROLLING flight (LegFlight.is_controlling, falling back to the
+    # legacy flight_information OneToOne). A multi-flight leg whose flight only exists
+    # as a LegFlight row used to resolve to None here and silently lose its arrival
+    # timing, while samsara_risk — which already used controlling_flight — showed it a
+    # live badge. One resolution, both engines.
+    flight = controlling_flight(leg)
     if USE_SCHEDULED_ARRIVAL_FOR_EVAL:
         return scheduled_flight_arrival_local(flight)
     return best_flight_arrival_local(flight)
@@ -958,6 +964,32 @@ def chain_clear_dt(leg, target_date: date) -> datetime:
     elif trip == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
         dwell = STATIC_FLOOR_DWELL_MIN
     return anchor + timedelta(minutes=dwell + drive + store_stop)
+
+
+def chain_clear_dt_from_actual(leg, actual_pickup_dt) -> datetime:
+    """chain_clear_dt re-anchored on the RECORDED pickup time.
+
+    Once the guest is in the car the dwell is no longer an estimate — it happened —
+    so all that remains is the in-job drive (plus any Publix stop). A driver who
+    tapped picked-up at 2:30 on a 2:00 landing has run 15 minutes ahead of the
+    planning model, and the board should say so instead of insisting he clears at
+    the modelled time.
+
+    DISPLAY ONLY, and only for a leg that is genuinely under way. Planning paths
+    (auto-assign, feasibility, swaps) must keep using chain_clear_dt(): there the
+    45-min dwell is protective, and optimism seats jobs that cannot be done — the
+    same reason chain_clear_dt never lets an early-trending flight pull it earlier.
+    """
+    from dispatching.analytics import categorize_location
+    pickup_cat = categorize_location(leg.pickup_location)
+    dropoff_cat = categorize_location(leg.dropoff_location)
+    drive = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat), DEFAULT_DRIVE_TIME)
+    store_stop = 0
+    if (leg.get_trip_type() == 'arrival'
+            and getattr(leg, 'reservation', None) is not None
+            and getattr(leg.reservation, 'store_stop', False)):
+        store_stop = PUBLIX_STOP_MINUTES
+    return actual_pickup_dt + timedelta(minutes=drive + store_stop)
 
 
 def chain_repo_minutes(from_text, to_text, from_category, to_category) -> int:

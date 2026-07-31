@@ -539,7 +539,70 @@ class KeoiBoardTests(_KeoiFixtureMixin, TestCase):
             leg = self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)
             self._keoi(leg)
         r = self.client.get(reverse("dashboard") + "?date=" + FUTURE.isoformat())
-        self.assertContains(r, "KEOI (3)")
+        # The count sits in its own span so syncKeoiStrip can update it in place
+        # after an AJAX save; assert on the span, not on "KEOI (3)".
+        self.assertContains(r, '<span class="keoi-pill-count">3</span>')
+
+    def test_watching_strip_lists_every_flagged_leg(self):
+        for _ in range(2):
+            leg = self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)
+            self._keoi(leg)
+        r = self.client.get(reverse("dashboard") + "?date=" + FUTURE.isoformat())
+        self.assertContains(r, 'id="keoiStrip"')
+        self.assertContains(r, '<span id="keoiStripCount">2</span>')
+        self.assertContains(r, 'class="keoi-strip-item"', count=2)
+        # visible, not collapsed
+        self.assertNotContains(r, 'class="keoi-strip d-none"')
+
+    def test_watching_strip_hidden_when_nothing_flagged(self):
+        self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)
+        r = self.client.get(reverse("dashboard") + "?date=" + FUTURE.isoformat())
+        # Still in the DOM (syncKeoiStrip needs a mount point) but hidden.
+        self.assertContains(r, 'class="keoi-strip d-none"')
+        self.assertNotContains(r, 'class="keoi-strip-item"')
+
+    def test_watching_strip_is_whole_day_not_the_filtered_view(self):
+        """The strip answers 'what is flagged today', so another filter being on
+        must not shrink it — otherwise a dispatcher filtered to one driver would
+        believe the rest of the day is clear."""
+        mine = self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)
+        self._keoi(mine, description="my flagged leg")
+        other_driver = Driver.objects.create(
+            profile=User.objects.create_user("keoi_otherdrv", password="x"),
+            driver_type="inhouse",
+        )
+        theirs = self._leg(pickup_date=FUTURE, status="in-progress", driver=other_driver)
+        self._keoi(theirs, description="their flagged leg")
+        r = self.client.get(reverse("dashboard") + "?date=" + FUTURE.isoformat()
+                            + "&driver=%d" % self.driver.id)
+        self.assertContains(r, '<span id="keoiStripCount">2</span>')
+        self.assertContains(r, 'class="keoi-strip-item"', count=2)
+        # ...while the table itself is still filtered to the one driver.
+        self.assertNotContains(r, "leg-card-%d" % theirs.id)
+
+    def test_description_is_visible_text_not_only_a_tooltip(self):
+        """v1 put the description only in title=/the modal, so the sentence that
+        says what to watch never reached the eye. It is a rendered line now."""
+        leg = self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)
+        self._keoi(leg, description="cruise clears 9:40, Alex 25 min out")
+        r = self.client.get(reverse("dashboard") + "?date=" + FUTURE.isoformat())
+        self.assertContains(
+            r, '<div class="keoi-desc">cruise clears 9:40, Alex 25 min out</div>')
+
+    def test_row_rail_does_not_yield_to_danger_rows(self):
+        """The v1 row tint was suppressed on .table-danger/.table-warning rows —
+        it disappeared on exactly the jobs worth flagging. The rail must be keyed
+        to tr.leg-keoi with no :not() escape hatch. (VIP and time-changed keep
+        theirs: they tint the background, which genuinely has to yield.)"""
+        leg = self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)
+        self._keoi(leg)
+        r = self.client.get(reverse("dashboard") + "?date=" + FUTURE.isoformat())
+        html = r.content.decode()
+        row = html[html.index('id="leg-row-%d"' % leg.id) - 900:
+                   html.index('id="leg-row-%d"' % leg.id)]
+        self.assertIn("leg-keoi", row)
+        self.assertIn("tr.leg-keoi > td {", html)
+        self.assertNotIn("tr.leg-keoi:not(", html)
 
     def test_flag_renders_on_moved_date(self):
         leg = self._leg(pickup_date=FUTURE, status="in-progress", driver=self.driver)

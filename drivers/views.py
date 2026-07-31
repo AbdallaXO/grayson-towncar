@@ -66,9 +66,9 @@ def _hour_label(hour):
 
 
 def _vehicle_assignment_map(driver, start, end):
-    """date → DriverVehicleAssignment (with a .share_window label attached) for
-    an in-house driver's planned units in [start, end]. Affiliates drive their
-    own cars, so they get an empty map."""
+    """date → DriverVehicleAssignment (with .share_window / .share_partners /
+    .share_note attached) for an in-house driver's planned units in [start, end].
+    Affiliates drive their own cars, so they get an empty map."""
     if driver.driver_type != "inhouse":
         return {}
     assignments = (
@@ -83,7 +83,56 @@ def _vehicle_assignment_map(driver, start, end):
             end_lbl = _hour_label(dva.planned_end_hour)
             dva.share_window = f"{start_lbl} – {end_lbl}" if end_lbl else f"from {start_lbl}"
         out[dva.date] = dva
+    if out:
+        _attach_share_partners(driver, out, start, end)
     return out
+
+
+def _attach_share_partners(driver, assignments_by_date, start, end):
+    """When another driver holds the SAME unit on the same day (Day Setup shared
+    cars), attach who they are so both sides can see the handoff: the earlier
+    driver learns someone needs the car after them, the later driver learns who
+    has it first and when it should be free. One extra query for the whole range."""
+    partner_rows = (
+        DriverVehicleAssignment.objects
+        .select_related("driver", "driver__profile")
+        .filter(
+            date__gte=start,
+            date__lte=end,
+            vehicle_id__in={dva.vehicle_id for dva in assignments_by_date.values()},
+        )
+        .exclude(driver=driver)
+    )
+    by_day_vehicle = {}
+    for row in partner_rows:
+        by_day_vehicle.setdefault((row.date, row.vehicle_id), []).append(row)
+
+    for dva in assignments_by_date.values():
+        partners = by_day_vehicle.get((dva.date, dva.vehicle_id), [])
+        partners.sort(key=lambda p: (p.planned_start_hour is None, p.planned_start_hour or 0))
+        notes = []
+        for p in partners:
+            p.short_name = p.driver.profile.first_name or str(p.driver)
+            p_start = _hour_label(p.planned_start_hour)
+            p_end = _hour_label(p.planned_end_hour)
+            p.start_label = p_start
+            p.end_label = p_end
+            if p.planned_start_hour is not None:
+                p.window = f"{p_start} – {p_end}" if p_end else f"from {p_start}"
+            else:
+                p.window = ""
+            if dva.planned_start_hour is not None and p.planned_start_hour is not None:
+                p.relation = "after" if p.planned_start_hour >= dva.planned_start_hour else "before"
+            else:
+                p.relation = ""
+            if p.relation == "after":
+                notes.append(f"then {p.short_name}")
+            elif p.relation == "before":
+                notes.append(f"{p.short_name} before you")
+            else:
+                notes.append(f"with {p.short_name}")
+        dva.share_partners = partners
+        dva.share_note = " · ".join(notes)
 
 
 def _annotate_legs_with_scheduling(legs_list, target_date):
@@ -286,6 +335,35 @@ def index(request):
     vehicle_assignment = _vehicle_assignment_map(
         driver, selected_date, selected_date
     ).get(selected_date)
+
+    # ── Shared car: live handoff context ──
+    # The earlier driver sees the partner's first pickup (when the car is needed);
+    # the later driver sees when the partner's last job should wrap up (when the
+    # car should be free). Timing cache is already warm from the scheduling pass.
+    if vehicle_assignment:
+        for p in getattr(vehicle_assignment, "share_partners", []):
+            p_legs = list(
+                Leg.objects.filter(driver=p.driver, pickup_date=selected_date)
+                .exclude(status="cancelled")
+                .exclude(reservation__status="cancelled")
+                .order_by("pickup_time")
+            )
+            if not p_legs:
+                continue
+            p.first_pickup = p_legs[0].pickup_time
+            try:
+                end_dt = estimate_job_end_time(p_legs[-1], selected_date)
+                if end_dt:
+                    p.est_free = end_dt.strftime("%I:%M %p").lstrip("0")
+            except Exception:
+                pass
+            # No planned windows (plain double assignment): infer who drives
+            # first from actual first pickups, so the later driver sees when
+            # the car frees up instead of a generic "also drives this car".
+            if not p.relation and legs_list:
+                p.relation = (
+                    "after" if p.first_pickup >= legs_list[0].pickup_time else "before"
+                )
 
     return render(
         request, "drivers/index.html", {

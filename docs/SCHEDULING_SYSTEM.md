@@ -181,11 +181,22 @@ These get replaced automatically as real data accumulates.
 
 ### Inter-Job Buffer
 
-**10 minutes** is always added between jobs. This accounts for:
-- Walking passenger to the door / unloading luggage
-- Quick bathroom break
-- Repositioning to next pickup
-- Minor delays
+**No flat padding is added between jobs.** A turnaround needs only the real
+repositioning drive (`feasibility_guards.SAFETY_PAD_MIN = 0`, set to 0 by founder
+decision — dispatch monitors and adjusts live, so the engine should allow tight
+back-to-back turns). `scheduler.INTER_JOB_BUFFER = 5` survives as a scoring nudge,
+not a feasibility requirement.
+
+Two graces DO apply, and they answer different questions:
+- **`pickup_policy.ARRIVAL_MEET_GRACE_MIN` (10)** — how long after the plane reaches
+  the gate the DRIVER must be at the in-terminal meet point. This is the definition
+  of "late" for an airport arrival, everywhere on the board.
+- **`pickup_policy.PAX_READY_MIN` (15)** — when the GUEST is realistically ready to
+  roll (deplane, walk, bags). Feeds chain/end-time math only; never lateness.
+
+Note this grace is credited only when the driver is ALREADY at that airport
+(`required_turnaround(..., same_terminal=True)`). A driver repositioning in from a
+resort pays the full drive with no grace.
 
 ### How Drive Time Is Looked Up
 
@@ -212,7 +223,7 @@ Job end = pickup_time + drive_time
 
 **When a driver is free for the next job:**
 ```
-Available time = job_end + 10 min buffer
+Available time = job_end + required_turnaround(reposition_drive, ...)
 ```
 
 ---

@@ -5,6 +5,9 @@ __pycache__/
 
 # Local scratch / production-derived audit artifacts (never commit)
 /scratch/
+# Artifact-render temp files + failed-verification screenshots (build junk)
+*.tmp-*.verification-failure.png
+*.html.tmp-*
 # Local Claude resume/status doc + ad-hoc deployment log dumps (never commit)
 /claude.md
 *logs_last_deployment.json

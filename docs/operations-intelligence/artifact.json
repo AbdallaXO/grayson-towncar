@@ -1,0 +1,2300 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Grayson Towncar Operations Intelligence",
+    "description": "Evidence-backed audit of operational data trust, scheduling assumptions, analytics opportunities, and roadmap priorities.",
+    "generatedAt": "2026-07-31T21:07:39+00:00",
+    "cards": [
+      {
+        "id": "legs_card",
+        "description": "Service legs present in the selected source.",
+        "dataset": "summary",
+        "sourceId": "snapshot_inventory",
+        "metrics": [
+          {
+            "label": "Service legs",
+            "field": "legs",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "chain_card",
+        "description": "Completed legs since 2026-02-01 with a valid first-event status chain.",
+        "dataset": "summary",
+        "sourceId": "status_history_sql",
+        "metrics": [
+          {
+            "label": "Valid status-chain coverage",
+            "field": "cohort_chain_rate",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "route_card",
+        "description": "Route timing buckets with at least five usable observations.",
+        "dataset": "summary",
+        "sourceId": "route_metric_sql",
+        "metrics": [
+          {
+            "label": "Usable route buckets",
+            "field": "reliable_route_buckets",
+            "format": "number"
+          },
+          {
+            "label": "All route buckets",
+            "field": "total_route_buckets",
+            "format": "number"
+          }
+        ]
+      },
+      {
+        "id": "date_card",
+        "description": "Legs with pickup years outside the bounded validity window.",
+        "dataset": "summary",
+        "sourceId": "snapshot_inventory",
+        "metrics": [
+          {
+            "label": "Invalid pickup dates",
+            "field": "invalid_pickup_dates",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "chain_coverage_chart",
+        "title": "Status-event coverage by service month",
+        "subtitle": "Completed legs from 2026-02-01 through 2026-07-31; monthly cohort size is available in tooltips.",
+        "type": "line",
+        "dataset": "chain_trend",
+        "sourceId": "status_history_sql",
+        "encodings": {
+          "x": {
+            "field": "month",
+            "type": "temporal",
+            "label": "Service month"
+          },
+          "y": {
+            "field": "rate",
+            "type": "quantitative",
+            "label": "Coverage rate",
+            "format": "percent"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          },
+          "tooltip": [
+            {
+              "field": "completed_legs",
+              "type": "quantitative",
+              "label": "Completed legs"
+            }
+          ]
+        },
+        "valueFormat": "percent",
+        "layout": "full"
+      },
+      {
+        "id": "route_confidence_chart",
+        "title": "Route timing buckets by sample depth",
+        "subtitle": "456 derived buckets as of 2026-07-31; scheduler use starts at five samples.",
+        "type": "bar",
+        "dataset": "route_confidence",
+        "sourceId": "route_metric_sql",
+        "encodings": {
+          "x": {
+            "field": "confidence_bucket",
+            "type": "ordinal",
+            "label": "Samples per bucket"
+          },
+          "y": {
+            "field": "route_buckets",
+            "type": "quantitative",
+            "label": "Route buckets"
+          },
+          "tooltip": [
+            {
+              "field": "underlying_samples",
+              "type": "quantitative",
+              "label": "Underlying samples"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full"
+      },
+      {
+        "id": "monthly_volume_chart",
+        "title": "Booked service legs by month",
+        "subtitle": "Last 18 months through the analysis cutoff; cancelled records excluded and current month may be incomplete.",
+        "type": "line",
+        "dataset": "monthly_volume",
+        "sourceId": "snapshot_inventory",
+        "encodings": {
+          "x": {
+            "field": "month",
+            "type": "temporal",
+            "label": "Service month"
+          },
+          "y": {
+            "field": "scheduled_legs",
+            "type": "quantitative",
+            "label": "Booked legs"
+          }
+        },
+        "valueFormat": "number",
+        "layout": "full"
+      },
+      {
+        "id": "roadmap_chart",
+        "title": "Roadmap priority score",
+        "subtitle": "Impact is weighted twice and reduced by implementation effort; phase still controls sequence.",
+        "type": "bar",
+        "dataset": "roadmap",
+        "sourceId": "roadmap_scoring_sql",
+        "encodings": {
+          "x": {
+            "field": "recommendation",
+            "type": "nominal",
+            "label": "Recommendation"
+          },
+          "y": {
+            "field": "priority_score",
+            "type": "quantitative",
+            "label": "Priority score"
+          },
+          "tooltip": [
+            {
+              "field": "phase",
+              "type": "quantitative",
+              "label": "Phase"
+            },
+            {
+              "field": "confidence",
+              "type": "nominal",
+              "label": "Confidence"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "system_map_table",
+        "title": "Operational system map",
+        "subtitle": "Current systems of record, write paths, automation, and trust risks.",
+        "dataset": "system_map",
+        "sourceId": "scheduler_code",
+        "defaultSort": {
+          "field": "stage",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "stage",
+            "label": "Stage",
+            "type": "text"
+          },
+          {
+            "field": "system_of_record",
+            "label": "System of record",
+            "type": "text"
+          },
+          {
+            "field": "primary_writes",
+            "label": "Primary writes",
+            "type": "text"
+          },
+          {
+            "field": "automation",
+            "label": "Automation",
+            "type": "text"
+          },
+          {
+            "field": "trust_risk",
+            "label": "Trust risk",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "trust_table",
+        "title": "Data trust matrix",
+        "subtitle": "Safe analytical uses and limitations for the current source.",
+        "dataset": "trust_matrix",
+        "sourceId": "analysis_code",
+        "defaultSort": {
+          "field": "data_asset",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "data_asset",
+            "label": "Data asset",
+            "type": "text"
+          },
+          {
+            "field": "grain",
+            "label": "Grain",
+            "type": "text"
+          },
+          {
+            "field": "coverage",
+            "label": "Coverage",
+            "type": "text"
+          },
+          {
+            "field": "trust",
+            "label": "Trust",
+            "type": "text"
+          },
+          {
+            "field": "safe_use",
+            "label": "Safe use",
+            "type": "text"
+          },
+          {
+            "field": "limitation",
+            "label": "Limitation",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "quality_table",
+        "title": "Material data-quality findings",
+        "subtitle": "Issues ordered by decision risk; counts and dates are source-specific.",
+        "dataset": "quality_findings",
+        "sourceId": "analysis_code",
+        "defaultSort": {
+          "field": "severity",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "severity",
+            "label": "Severity",
+            "type": "text"
+          },
+          {
+            "field": "finding",
+            "label": "Finding",
+            "type": "text"
+          },
+          {
+            "field": "evidence",
+            "label": "Evidence",
+            "type": "text"
+          },
+          {
+            "field": "analytical_risk",
+            "label": "Why it matters",
+            "type": "text"
+          },
+          {
+            "field": "confidence",
+            "label": "Confidence",
+            "type": "text"
+          },
+          {
+            "field": "recommended_fix",
+            "label": "Recommended fix",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "route_table",
+        "title": "Observed drive-time segments",
+        "subtitle": "Eligible in-house completed legs; first picked-up to first completed, minimum 10 samples per row.",
+        "dataset": "route_summary",
+        "sourceId": "status_history_sql",
+        "defaultSort": {
+          "field": "samples",
+          "direction": "desc"
+        },
+        "columns": [
+          {
+            "field": "route",
+            "label": "Route",
+            "type": "text"
+          },
+          {
+            "field": "trip_type",
+            "label": "Trip type",
+            "type": "text"
+          },
+          {
+            "field": "samples",
+            "label": "Samples",
+            "format": "number"
+          },
+          {
+            "field": "observed_median_minutes",
+            "label": "Median min",
+            "format": "number"
+          },
+          {
+            "field": "observed_p75_minutes",
+            "label": "P75 min",
+            "format": "number"
+          },
+          {
+            "field": "static_minutes",
+            "label": "Static min",
+            "format": "number"
+          },
+          {
+            "field": "median_minus_static",
+            "label": "Median - static",
+            "format": "number",
+            "movement": true
+          }
+        ]
+      },
+      {
+        "id": "kpi_table",
+        "title": "Recommended operating KPI framework",
+        "subtitle": "Definitions precede targets; readiness reflects current instrumentation.",
+        "dataset": "kpi_framework",
+        "sourceId": "analysis_code",
+        "defaultSort": {
+          "field": "role",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "role",
+            "label": "Role",
+            "type": "text"
+          },
+          {
+            "field": "metric",
+            "label": "Metric",
+            "type": "text"
+          },
+          {
+            "field": "definition",
+            "label": "Definition",
+            "type": "text"
+          },
+          {
+            "field": "cadence",
+            "label": "Cadence",
+            "type": "text"
+          },
+          {
+            "field": "current_readiness",
+            "label": "Readiness",
+            "type": "text"
+          },
+          {
+            "field": "required_work",
+            "label": "Required work",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "predictive_table",
+        "title": "Predictive feature readiness",
+        "subtitle": "Chronological baseline results are preliminary until the fresh snapshot rerun.",
+        "dataset": "predictive_matrix",
+        "sourceId": "analysis_code",
+        "defaultSort": {
+          "field": "candidate",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "candidate",
+            "label": "Candidate",
+            "type": "text"
+          },
+          {
+            "field": "label_quality",
+            "label": "Label quality",
+            "type": "text"
+          },
+          {
+            "field": "prototype_result",
+            "label": "Prototype result",
+            "type": "text"
+          },
+          {
+            "field": "decision",
+            "label": "Decision",
+            "type": "text"
+          },
+          {
+            "field": "next_gate",
+            "label": "Next gate",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "roadmap_table",
+        "title": "Prioritized operations intelligence roadmap",
+        "subtitle": "Phase controls sequencing; score = 2 x impact - effort.",
+        "dataset": "roadmap",
+        "sourceId": "roadmap_scoring_sql",
+        "defaultSort": {
+          "field": "phase",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "phase",
+            "label": "Phase",
+            "format": "number"
+          },
+          {
+            "field": "recommendation",
+            "label": "Recommendation",
+            "type": "text"
+          },
+          {
+            "field": "impact",
+            "label": "Impact",
+            "format": "number"
+          },
+          {
+            "field": "effort",
+            "label": "Effort",
+            "format": "number"
+          },
+          {
+            "field": "priority_score",
+            "label": "Score",
+            "format": "number"
+          },
+          {
+            "field": "confidence",
+            "label": "Confidence",
+            "type": "text"
+          },
+          {
+            "field": "why",
+            "label": "Why",
+            "type": "text"
+          },
+          {
+            "field": "problem",
+            "label": "Problem",
+            "type": "text"
+          },
+          {
+            "field": "expected_impact",
+            "label": "Expected impact",
+            "type": "text"
+          },
+          {
+            "field": "complexity",
+            "label": "Complexity",
+            "type": "text"
+          },
+          {
+            "field": "dependencies",
+            "label": "Dependencies",
+            "type": "text"
+          },
+          {
+            "field": "risks_and_guardrails",
+            "label": "Risks / guardrails",
+            "type": "text"
+          }
+        ],
+        "density": "dense"
+      },
+      {
+        "id": "validation_questions_table",
+        "title": "Targeted operations validation questions",
+        "subtitle": "Eight unresolved questions that materially affect definitions or recommendations.",
+        "dataset": "validation_questions",
+        "sourceId": "analysis_code",
+        "defaultSort": {
+          "field": "priority",
+          "direction": "asc"
+        },
+        "columns": [
+          {
+            "field": "priority",
+            "label": "Priority",
+            "format": "number"
+          },
+          {
+            "field": "question",
+            "label": "Question",
+            "type": "text"
+          },
+          {
+            "field": "decision_affected",
+            "label": "Decision affected",
+            "type": "text"
+          },
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "snapshot_inventory",
+        "label": "Preliminary local SQLite working copy",
+        "path": "content/db.sqlite3"
+      },
+      {
+        "id": "status_history_sql",
+        "label": "Leg execution status reconstruction",
+        "path": "docs/operations-intelligence/operations_intelligence_audit.ipynb"
+      },
+      {
+        "id": "route_metric_sql",
+        "label": "Route timing metric profile",
+        "path": "docs/operations-intelligence/operations_intelligence_audit.ipynb"
+      },
+      {
+        "id": "roadmap_scoring_sql",
+        "label": "Roadmap impact-effort scoring",
+        "path": "docs/operations-intelligence/analysis.py"
+      },
+      {
+        "id": "analysis_code",
+        "label": "Reproducible operational analysis",
+        "path": "docs/operations-intelligence/analysis.py"
+      },
+      {
+        "id": "scheduler_code",
+        "label": "Scheduling and feasibility implementation",
+        "path": "dispatching/scheduler.py"
+      },
+      {
+        "id": "workflow_code",
+        "label": "Operational write paths",
+        "path": "reservations/admin.py"
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Grayson Towncar Operations Intelligence"
+      },
+      {
+        "id": "executive_summary",
+        "type": "markdown",
+        "body": "## Executive Summary\n\n- **Build the data foundation before automating dispatch.** The package rates this analysis **needs revision** because the requested fresh production snapshot was not available; it uses a preliminary working copy and must be rerun before operational decisions.\n- **Recent trip-execution data is useful only inside a bounded cohort.** The eligible status-history period begins **2026-02-01**, and valid first-event status-chain coverage is **60.2%** across **13,298** completed legs.\n- **Current scheduling intelligence mixes explicit static rules with thin derived history.** Only **115 of 456** route buckets have at least five samples, while chain feasibility intentionally uses the static model.\n- **The highest-value sequence is instrumentation, governed scorecards, shadow analytics, then bounded automation.** Flight-delay, pickup-delay, and farm-out models should not move to production with current labels."
+      },
+      {
+        "id": "headline_metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "legs_card",
+          "chain_card",
+          "route_card",
+          "date_card"
+        ]
+      },
+      {
+        "id": "source_fingerprint",
+        "type": "markdown",
+        "sourceId": "snapshot_inventory",
+        "body": "## Source trust and reproducibility\n\n- **Selected source:** `content/db.sqlite3` (preliminary working copy); requested snapshot present: **False**.\n- **SHA-256:** `1b8fb83f23067e3a5bc044561d746aa39cb77a69ac7cb1838a4681c15dd5e5e5`; file modified UTC: **2026-07-31T20:54:14.687728+00:00**. The source does not encode a separate export timestamp.\n- **Integrity and schema:** SQLite quick-check **ok**; **99** tables; **312** recorded migrations; latest applied **2026-07-30 02:47:33.990790**.\n- **Analysis contract:** cutoff **2026-07-31** in **America/New_York**; the database was opened with SQLite `mode=ro` and `PRAGMA query_only=ON`."
+      },
+      {
+        "id": "system_heading",
+        "type": "markdown",
+        "body": "## The operation is well represented, but its history is uneven\n\nThe application covers the full customer and operating lifecycle. The weakness is not a lack of tables; it is inconsistent event creation, recent-only decision history, and derived datasets that are not continuously populated. The map below separates live systems of record from analytical limitations."
+      },
+      {
+        "id": "system_map",
+        "type": "markdown",
+        "body": "### Lead and quote\n- **System of record:** Lead, Quote, FollowUpTask, LeadActivity\n- **Material writes:** booking forms, staff views, GHL synchronization\n- **Mechanism:** 30-minute follow-up scheduler; hourly lost-lead and pre-pickup passes\n- **Trust risk:** message and sync logs exist, but definitions span several tables\n\n### Booking\n- **System of record:** Customer, Reservation, Leg, LegStop, LegFlight\n- **Material writes:** public booking, staff/admin entry, payment callbacks\n- **Mechanism:** pricing, attribution, unpaid reminders, confirmation communications\n- **Trust risk:** manual and bulk admin paths can bypass event instrumentation\n\n### Scheduling\n- **System of record:** Leg assignment plus drafts, snapshots, and driver windows\n- **Material writes:** dispatcher board, auto-assignment, manual assignment\n- **Mechanism:** static feasibility model, flight-aware floor, swap/gap/span passes\n- **Trust risk:** decision history is recent; current assignment fields are mutable\n\n### Trip execution\n- **System of record:** Leg current status and LegStatus event history\n- **Material writes:** driver portal, dispatcher board, bulk status tools\n- **Mechanism:** reservation completion and selected route-metric refreshes\n- **Trust risk:** repeated events and bypass paths make timestamp meaning ambiguous\n\n### Flight operations\n- **System of record:** Flight and LegFlight\n- **Material writes:** AeroAPI refresh and staff edits\n- **Mechanism:** tiered refresh every scheduler cycle; overnight confirmation sweep\n- **Trust risk:** latest state is retained, but forecast observations are overwritten\n\n### Operational tasking\n- **System of record:** OperationalTask, CommunicationAttempt, EmailLog\n- **Material writes:** task generator, staff actions, communications\n- **Mechanism:** task scan each 30-minute scheduler cycle\n- **Trust risk:** staff activity and communication history begin recently\n\n### Payment and payout\n- **System of record:** Payment, Reservation payment fields, LegPayment, DriverPayment\n- **Material writes:** Stripe callbacks and staff payout workflows\n- **Mechanism:** reservation reconciliation and unpaid reminder policies\n- **Trust risk:** duplicated summary fields require reconciliation to transactions\n\n### Fleet telemetry\n- **System of record:** latest Samsara fields on FleetVehicle\n- **Material writes:** read-only Samsara polling\n- **Mechanism:** separate in-process poller\n- **Trust risk:** latest position only; no historical trajectory table is populated"
+      },
+      {
+        "id": "trust_heading",
+        "type": "markdown",
+        "body": "## Reliable analysis requires explicit eligibility windows\n\nBooked demand is broadly usable after date and status normalization. Execution timing, schedule churn, staff activity, payments, and flight behavior require narrower rules. Historical GPS paths, decision-time flight forecasts, and populated capacity/demand aggregates are missing rather than merely incomplete."
+      },
+      {
+        "id": "trust_matrix",
+        "type": "markdown",
+        "body": "### Reservations and booked legs\n- **Coverage:** 13,934 reservations; 24,124 legs\n- **Trust:** Conditional\n- **Safe use:** booked demand and service mix after excluding invalid dates/statuses\n- **Limitation:** mutable operational state and date outliers\n\n### Status history\n- **Coverage:** usable cohort begins 2026-02-01; 69,212 events\n- **Trust:** Conditional\n- **Safe use:** duration distributions after chain and timing validation\n- **Limitation:** repeats, late backfills, and write-path bypasses\n\n### Flights\n- **Coverage:** 25,456 flights; actual-time coverage 78.6% in cohort\n- **Trust:** Conditional\n- **Safe use:** current flight operations and final actual-time availability\n- **Limitation:** no historical forecast snapshots for prediction-at-decision-time\n\n### Schedule drafts and snapshots\n- **Coverage:** 199 snapshots; 20 drafts\n- **Trust:** Conditional\n- **Safe use:** recent schedule-change and publish-workflow analysis\n- **Limitation:** short history and mutable pre-instrumentation decisions\n\n### Audit log\n- **Coverage:** 2026-07-18 to 2026-07-31\n- **Trust:** Unreliable historically\n- **Safe use:** recent workflow spot checks only\n- **Limitation:** recent start and incomplete write-path coverage\n\n### Route timing metrics\n- **Coverage:** 456 buckets; 115 have at least 5 samples\n- **Trust:** Conditional\n- **Safe use:** display estimates for sufficiently sampled, recently refreshed buckets\n- **Limitation:** sparse/stale buckets and incomplete refresh triggers\n\n### Payments and payouts\n- **Coverage:** 14,652 customer payments; 17,730 leg payments\n- **Trust:** Conditional\n- **Safe use:** reconciliation when transaction records control summary fields\n- **Limitation:** multiple representations of paid and refunded amounts\n\n### Staff and communications activity\n- **Coverage:** activity since 2026-07-11; communications since 2026-03-17\n- **Trust:** Conditional\n- **Safe use:** recent workload and workflow adoption analysis\n- **Limitation:** not a historical productivity series\n\n### Driver capacity and demand aggregates\n- **Coverage:** 0 capacity rows; 0 demand rows\n- **Trust:** Missing\n- **Safe use:** none until population and freshness checks exist\n- **Limitation:** implemented models are not populated\n\n### Historical GPS trajectories\n- **Coverage:** 0 driver-location rows\n- **Trust:** Missing\n- **Safe use:** latest vehicle visibility only via FleetVehicle fields\n- **Limitation:** no historical route, dwell, or deadhead reconstruction"
+      },
+      {
+        "id": "quality_heading",
+        "type": "markdown",
+        "body": "## Workflow differences create the most important data defects\n\nDriver and dispatcher status paths create event history, while bulk admin completion updates current state directly. Repeated events then make first-versus-last timestamp selection consequential. These are product workflow issues with analytical consequences—not isolated cleanup tasks."
+      },
+      {
+        "id": "quality_findings",
+        "type": "markdown",
+        "body": "### The required fresh production snapshot is absent\n- **Severity:** Critical\n- **Evidence:** Analysis used content/db.sqlite3 as a preliminary working copy\n- **Why it matters:** headline values cannot be certified as production-current\n- **Recommended fix:** place an immutable export at the requested path and rerun the notebook\n\n### Bulk completion bypasses status-event creation\n- **Severity:** High\n- **Evidence:** reservation and leg admin actions use bulk update while driver/dispatcher paths create LegStatus rows\n- **Why it matters:** current status and event history diverge by workflow\n- **Recommended fix:** route all transitions through one transactional state-change service\n\n### Capacity, demand, and GPS analytical tables are unpopulated\n- **Severity:** High\n- **Evidence:** capacity=0, demand=0, driver locations=0\n- **Why it matters:** utilization, supply/demand, deadhead, and route-path claims are not directly measurable\n- **Recommended fix:** populate governed aggregates and retain consented telemetry only for defined uses\n\n### Completed-leg event history is incomplete outside the instrumented cohort\n- **Severity:** High\n- **Evidence:** cohort begins 2026-02-01; timely completion-event rate is 95.4%\n- **Why it matters:** historic on-time and duration trends would be biased\n- **Recommended fix:** publish metric eligibility windows and backfill only with explicit provenance\n\n### Flight forecasts are overwritten rather than snapshotted\n- **Severity:** High\n- **Evidence:** Flight stores the latest scheduled, estimated, and actual times but no observation history\n- **Why it matters:** delay accuracy at assignment time and leakage-safe models cannot be reconstructed\n- **Recommended fix:** append immutable forecast observations with observed_at and provider metadata\n\n### Route metrics are sparse, stale, and refreshed from selected paths only\n- **Severity:** High\n- **Evidence:** 115 of 456 buckets have at least 5 samples; 185 are more than 14 days stale at cutoff\n- **Why it matters:** display estimates vary in quality and silently fall back to static assumptions\n- **Recommended fix:** refresh from every completion path and enforce sample/freshness gates\n\n### Status events can repeat and earliest/latest semantics can disagree\n- **Severity:** High\n- **Evidence:** 1,440 completed legs contain repeats; 189 change validity by semantic choice\n- **Why it matters:** route and service-duration metrics can change based on ORM ordering\n- **Recommended fix:** define canonical occurred_at semantics and make transitions idempotent\n\n### Pickup dates contain implausible outliers\n- **Severity:** Medium\n- **Evidence:** 2 legs fall outside 2015-2028; maximum is 3220-03-06\n- **Why it matters:** unbounded queries and time series produce misleading ranges\n- **Recommended fix:** validate service dates on write and quarantine existing outliers\n\n### Schedule and staff audit coverage is recent\n- **Severity:** Medium\n- **Evidence:** audit starts 2026-07-18; staff activity starts 2026-07-11\n- **Why it matters:** historical schedule churn and staff productivity cannot be compared consistently\n- **Recommended fix:** define retention and event coverage SLAs before scorecard use"
+      },
+      {
+        "id": "coverage_interpretation",
+        "type": "markdown",
+        "body": "## Status history becomes usable only recently\n\nThe line chart begins at the algorithmically selected instrumentation boundary of **2026-02-01**: the first month with at least 100 completed legs and at least 75% timely completion-event capture. Differences between first-event and last-event validity show why transition semantics must be fixed before an on-time KPI is institutionalized."
+      },
+      {
+        "id": "chain_coverage",
+        "type": "chart",
+        "chartId": "chain_coverage_chart",
+        "layout": "full"
+      },
+      {
+        "id": "timing_interpretation",
+        "type": "markdown",
+        "body": "## Route history is promising but not yet an operational control\n\nThe scheduler reads a derived route bucket only after five samples for display estimates, while chain feasibility deliberately uses static Orlando-area travel times, a 45-minute airport dwell assumption, and small buffers. Thin and stale buckets make a governed shadow comparison the safe next step."
+      },
+      {
+        "id": "route_confidence",
+        "type": "chart",
+        "chartId": "route_confidence_chart",
+        "layout": "full"
+      },
+      {
+        "id": "route_baseline_text",
+        "type": "markdown",
+        "body": "### Chronological drive-duration baseline\n\nA leakage-safe chronological holdout includes **1,430** legs. The current static route table has mean absolute error **9.2 minutes**; a simple historical route median has **8.2 minutes**. This is a baseline diagnostic—not evidence to change production scheduling—because the source is preliminary and status semantics remain conditional."
+      },
+      {
+        "id": "route_segments",
+        "type": "table",
+        "tableId": "route_table",
+        "layout": "full"
+      },
+      {
+        "id": "demand_heading",
+        "type": "markdown",
+        "body": "## Demand forecasting can begin with a transparent baseline\n\nA weekday-median demand baseline was evaluated on **28 held-out service days**. Its error is **22.50 legs/day**, compared with **24.14** for an overall-median baseline. Booking-as-of snapshots are still required before staffing forecasts can incorporate lead time. The volume chart shows booked service dates, not verified completed trips, and the current month may be partial."
+      },
+      {
+        "id": "monthly_volume",
+        "type": "chart",
+        "chartId": "monthly_volume_chart",
+        "layout": "full"
+      },
+      {
+        "id": "kpi_heading",
+        "type": "markdown",
+        "body": "## Measure service reliability, coverage, and schedule stability\n\nThe KPI system should stay small: three outcomes supported by operational drivers and safety guardrails. Targets should wait until at least four to eight weeks of stable, source-aware instrumentation establish a defensible baseline."
+      },
+      {
+        "id": "kpi_framework",
+        "type": "markdown",
+        "body": "### On-time pickup rate\n- **Role:** Primary KPI\n- **Definition:** eligible legs with a verified actual pickup timestamp inside the agreed trip-type SLA divided by eligible legs\n- **Cadence:** weekly with daily exception review\n- **Readiness:** Not decision-ready\n- **Required work:** define pickup semantics/SLA; make status events idempotent and source-aware\n\n### In-house coverage rate\n- **Role:** Primary KPI\n- **Definition:** eligible service legs assigned to active in-house drivers by the dispatch cutoff divided by eligible scheduled legs\n- **Cadence:** daily and weekly\n- **Readiness:** Conditional\n- **Required work:** define dispatch cutoff and distinguish intentional affiliates from reactive farm-outs\n\n### Published-schedule reliability\n- **Role:** Primary KPI\n- **Definition:** published legs whose driver and vehicle remain unchanged through pickup divided by published eligible legs\n- **Cadence:** weekly\n- **Readiness:** Recent cohorts only\n- **Required work:** make publish snapshots and reassignment reason codes complete\n\n### Valid status-chain coverage\n- **Role:** Driver\n- **Definition:** completed eligible legs with ordered on-way, picked-up, and completed events inside duration bounds\n- **Cadence:** daily quality control\n- **Readiness:** Conditional\n- **Required work:** standardize first/last/reversal semantics\n\n### Assignment lead time\n- **Role:** Driver\n- **Definition:** hours from the canonical first committed driver assignment to scheduled pickup\n- **Cadence:** weekly by trip type\n- **Readiness:** Proxy only\n- **Required work:** retain first assignment separately from latest assignment\n\n### Clear-time prediction error\n- **Role:** Driver\n- **Definition:** absolute difference between predicted and verified actual clear time on eligible legs\n- **Cadence:** weekly by route/time bucket\n- **Readiness:** Prototype-ready cohort\n- **Required work:** version predictions and retain the value used at scheduling time\n\n### Overlong duty-day rate\n- **Role:** Guardrail\n- **Definition:** driver-days above the agreed raw/effective span threshold divided by worked driver-days\n- **Cadence:** daily and weekly\n- **Readiness:** Conditional\n- **Required work:** confirm actual duty boundaries and break-credit policy\n\n### Near-term uncovered-leg rate\n- **Role:** Guardrail\n- **Definition:** eligible legs unassigned inside the agreed hours-to-pickup threshold divided by eligible near-term legs\n- **Cadence:** continuous operations alert\n- **Readiness:** Conditional\n- **Required work:** define intentional affiliate/unassigned exclusions"
+      },
+      {
+        "id": "predictive_heading",
+        "type": "markdown",
+        "body": "## Predictive work should remain in shadow mode\n\nSimple duration and demand baselines are feasible for learning and measurement. Delay and farm-out automation are blocked by missing decision-time observations or ambiguous labels. A model should never be trained on the latest overwritten state and presented as though it knew that information at dispatch time."
+      },
+      {
+        "id": "predictive_readiness",
+        "type": "markdown",
+        "body": "### Flight delay risk at dispatch time\n- **Label quality:** Missing historical forecast snapshots\n- **Prototype:** Blocked\n- **Decision:** Do not model yet\n- **Next gate:** retain provider observations and assignment-time features\n\n### Pickup delay risk\n- **Label quality:** Pickup event meaning and SLA are not canonical\n- **Prototype:** Blocked\n- **Decision:** Do not automate\n- **Next gate:** define actual pickup and capture transition source/reversal\n\n### Drive-duration baseline\n- **Label quality:** 7,150 eligible in-house status chains\n- **Prototype:** historical-route MAE 8.2 min vs static 9.2 min on 1,430 held-out legs\n- **Decision:** Shadow-test only\n- **Next gate:** fresh snapshot, route normalization, complete write-path refresh\n\n### Airport dwell baseline\n- **Label quality:** 2,865 arrival legs with on-location to picked-up events\n- **Prototype:** median 25.5 min; p75 40.6 min\n- **Decision:** Interpret as a workflow proxy\n- **Next gate:** confirm what on-location means operationally\n\n### Daily demand forecast\n- **Label quality:** 181 service days from eligible cohort\n- **Prototype:** weekday-median MAE 22.50 legs vs overall-median 24.14\n- **Decision:** Use as planning baseline after fresh rerun\n- **Next gate:** add booking-as-of snapshots for lead-time-aware forecasts\n\n### Chained-trip feasibility\n- **Label quality:** Status chains exist but lateness and decision-time inputs are incomplete\n- **Prototype:** Conditional\n- **Decision:** Backtest rules, not production automation\n- **Next gate:** version clear-time predictions and define lateness outcomes\n\n### Farm-out risk\n- **Label quality:** Affiliate assignment is only a proxy for reactive farm-out\n- **Prototype:** Conditional\n- **Decision:** Do not train on current label\n- **Next gate:** capture assignment reason and decision timestamp"
+      },
+      {
+        "id": "roadmap_heading",
+        "type": "markdown",
+        "body": "## The roadmap starts with event integrity, not machine learning\n\nPhase 1 makes operational decisions observable and testable. Phase 2 turns that foundation into governed scorecards. Phase 3 introduces shadow decision support. Phase 4 permits only bounded automation with monitoring, rollback, and owner approval."
+      },
+      {
+        "id": "roadmap_priority",
+        "type": "markdown",
+        "body": "### Impact–effort matrix\n\n- **High impact / medium effort:** canonical transitions, immutable events, flight observations, and schedule decision snapshots.\n- **High impact / low effort:** nightly data-quality gates.\n- **Medium-to-high impact / medium effort:** governed refreshes, weekly scorecards, reconciliation, and shadow baselines.\n- **Conditional impact / high effort:** dispatcher decision support and production predictive automation."
+      },
+      {
+        "id": "roadmap_detail",
+        "type": "markdown",
+        "body": "### Canonical transition service\n- **Phase:** 1\n- **Impact:** 5\n- **Effort:** 3\n- **Priority score:** 7.0\n- **Confidence:** High\n- **Why it matters:** Unify every leg/reservation status change and emit one idempotent event.\n- **Problem addressed:** Current status and history diverge across driver, dispatcher, and admin paths.\n- **Expected impact:** Reliable service timing and fewer workflow-specific defects.\n- **Complexity:** Medium\n- **Dependencies:** Application transaction boundary and admin refactor.\n- **Risks and guardrails:** Migration must preserve current staff workflows; add audit-only rollout first.\n\n### Flight forecast observation history\n- **Phase:** 1\n- **Impact:** 5\n- **Effort:** 3\n- **Priority score:** 7.0\n- **Confidence:** High\n- **Why it matters:** Append each provider observation instead of overwriting the latest state.\n- **Problem addressed:** Decision-time delay information cannot be reconstructed.\n- **Expected impact:** Enables honest arrival-risk and staffing analysis.\n- **Complexity:** Medium\n- **Dependencies:** AeroAPI refresh path, retention policy, provider cost controls.\n- **Risks and guardrails:** Bound refresh cadence and retain provider timestamps.\n\n### Immutable operational event contract\n- **Phase:** 1\n- **Impact:** 5\n- **Effort:** 3\n- **Priority score:** 7.0\n- **Confidence:** High\n- **Why it matters:** Store occurred_at, recorded_at, source, actor, reason, reversal, and idempotency key.\n- **Problem addressed:** Repeated events have ambiguous first-versus-last meaning.\n- **Expected impact:** Stable labels for KPIs and models.\n- **Complexity:** Medium\n- **Dependencies:** Canonical transition service and event taxonomy.\n- **Risks and guardrails:** Avoid rewriting history; corrections must be additive.\n\n### Schedule decision snapshots and reason codes\n- **Phase:** 1\n- **Impact:** 5\n- **Effort:** 3\n- **Priority score:** 7.0\n- **Confidence:** High\n- **Why it matters:** Snapshot publish state and every material reassignment with reason and decision time.\n- **Problem addressed:** Schedule churn and reactive farm-outs are only partially observable.\n- **Expected impact:** Measures plan stability and improves dispatcher decision support.\n- **Complexity:** Medium\n- **Dependencies:** Draft/snapshot workflow and assignment service.\n- **Risks and guardrails:** Keep snapshots compact and distinguish preview from commitment.\n\n### Nightly data-quality gates\n- **Phase:** 1\n- **Impact:** 4\n- **Effort:** 2\n- **Priority score:** 6.0\n- **Confidence:** High\n- **Why it matters:** Monitor invalid dates/enums, event completeness, freshness, joins, and empty derived tables.\n- **Problem addressed:** Known defects can silently enter reporting cohorts.\n- **Expected impact:** Prevents misleading scorecards and catches instrumentation regressions quickly.\n- **Complexity:** Low\n- **Dependencies:** Stable metric eligibility rules and alert owner.\n- **Risks and guardrails:** Use rate-based, late-arrival-aware thresholds.\n\n### Governed metric refresh pipeline\n- **Phase:** 2\n- **Impact:** 4\n- **Effort:** 3\n- **Priority score:** 5.0\n- **Confidence:** High\n- **Why it matters:** Refresh route, capacity, and demand aggregates from all completion paths with freshness metadata.\n- **Problem addressed:** Existing models are sparse, stale, or empty.\n- **Expected impact:** Creates a consistent source for planning and monitoring.\n- **Complexity:** Medium\n- **Dependencies:** Canonical events and scheduled batch execution.\n- **Risks and guardrails:** Do not serve low-sample buckets without fallback labels.\n\n### Weekly operations scorecard\n- **Phase:** 2\n- **Impact:** 4\n- **Effort:** 3\n- **Priority score:** 5.0\n- **Confidence:** Medium\n- **Why it matters:** Publish three primary KPIs with drivers, guardrails, cohorts, and owners.\n- **Problem addressed:** Leadership lacks a stable operating view.\n- **Expected impact:** Faster exception management and trend accountability.\n- **Complexity:** Medium\n- **Dependencies:** At least four weeks of stable instrumentation.\n- **Risks and guardrails:** No targets until definitions and baselines are validated.\n\n### Payment reconciliation checks\n- **Phase:** 2\n- **Impact:** 3\n- **Effort:** 2\n- **Priority score:** 4.0\n- **Confidence:** Medium\n- **Why it matters:** Reconcile transaction rows to reservation summaries and leg payouts daily.\n- **Problem addressed:** Multiple paid/refunded representations can drift.\n- **Expected impact:** Reduces manual review and protects margin reporting.\n- **Complexity:** Low\n- **Dependencies:** Canonical transaction precedence and exception ownership.\n- **Risks and guardrails:** Never auto-correct money without review and audit.\n\n### Duration and demand shadow baselines\n- **Phase:** 3\n- **Impact:** 4\n- **Effort:** 3\n- **Priority score:** 5.0\n- **Confidence:** Medium\n- **Why it matters:** Version simple median/weekday baselines and compare them with current rules offline.\n- **Problem addressed:** Static timing and staffing assumptions lack recurring accuracy measurement.\n- **Expected impact:** Improves forecasts without premature model complexity.\n- **Complexity:** Medium\n- **Dependencies:** Fresh eligible cohorts and stored prediction-as-of values.\n- **Risks and guardrails:** Shadow only until calibration and segment stability pass.\n\n### Dispatcher exception decision support\n- **Phase:** 3\n- **Impact:** 4\n- **Effort:** 4\n- **Priority score:** 4.0\n- **Confidence:** Medium\n- **Why it matters:** Surface predicted clear time, uncertainty, coverage, and reason-coded override.\n- **Problem addressed:** Dispatchers cannot see confidence or learn systematically from overrides.\n- **Expected impact:** Better tight-turn and farm-out choices while preserving human control.\n- **Complexity:** High\n- **Dependencies:** Validated baselines, UI design, alert-fatigue review.\n- **Risks and guardrails:** Never hide static fallback or force an assignment.\n\n### Production predictive automation\n- **Phase:** 4\n- **Impact:** 3\n- **Effort:** 5\n- **Priority score:** 1.0\n- **Confidence:** Low\n- **Why it matters:** Automate only bounded decisions after shadow tests and operational sign-off.\n- **Problem addressed:** Current labels are not strong enough for autonomous action.\n- **Expected impact:** Potential long-run efficiency once evidence is reliable.\n- **Complexity:** Very high\n- **Dependencies:** All prior phases, monitoring, rollback, and owner approval.\n- **Risks and guardrails:** Do not automate pickup-delay, farm-out, or chain decisions yet."
+      },
+      {
+        "id": "questions_heading",
+        "type": "markdown",
+        "body": "## Further questions for operations\n\nThe requested targeted validation pass could not be completed without an operations stakeholder. These eight questions are deliberately limited to decisions that change metric definitions, model labels, or roadmap confidence; unanswered items remain caveats."
+      },
+      {
+        "id": "validation_questions",
+        "type": "markdown",
+        "body": "### When a driver records the same status more than once, should the first valid event or the last correction represent actual time?\n- **Priority:** 1\n- **Decision affected:** Status-chain semantics and all duration metrics\n- **Status:** Awaiting operations validation\n\n### What exactly does pickup_time mean for arrivals, departures, cruise trips, and point-to-point work?\n- **Priority:** 2\n- **Decision affected:** On-time pickup and dwell definitions\n- **Status:** Awaiting operations validation\n\n### Does driver_assigned_at represent the first commitment, the latest assignment, or both depending on workflow?\n- **Priority:** 3\n- **Decision affected:** Assignment lead time and churn\n- **Status:** Awaiting operations validation\n\n### Which affiliate assignments are planned partnerships versus last-minute farm-outs?\n- **Priority:** 4\n- **Decision affected:** In-house coverage and farm-out labels\n- **Status:** Awaiting operations validation\n\n### How often are bulk admin completion actions used, and in which operating scenarios?\n- **Priority:** 5\n- **Decision affected:** Magnitude of missing status history\n- **Status:** Awaiting operations validation\n\n### Which schedule state is the operational commitment: draft submission, review, publish, notification, or another moment?\n- **Priority:** 6\n- **Decision affected:** Published-schedule reliability\n- **Status:** Awaiting operations validation\n\n### What lateness thresholds should define an on-time pickup by trip type?\n- **Priority:** 7\n- **Decision affected:** Primary KPI and prediction labels\n- **Status:** Awaiting operations validation\n\n### Which route, store-stop, terminal, traffic, or handoff exceptions most often invalidate static timing?\n- **Priority:** 8\n- **Decision affected:** Route segmentation and scheduler guardrails\n- **Status:** Awaiting operations validation"
+      },
+      {
+        "id": "caveats",
+        "type": "markdown",
+        "body": "## Caveats and Assumptions\n\n- **Validation status: Needs revision.** Source integrity passed SQLite quick-check (`ok`), but production freshness is unverified because `scratch/operations_intelligence/prod_snapshot.sqlite3` was absent.\n- The analysis cutoff is **2026-07-31** in **America/New_York**. Django timestamps are treated as UTC and converted before comparison with local service dates.\n- Status-chain and duration findings use bounded cohorts, first-event semantics, in-house drivers, and explicit plausibility limits. They are associations and operational proxies, not causal claims.\n- Route categories are privacy-preserving operational groupings. Historical GPS, complete driver-contact timing, immutable schedule decisions, and flight forecast observations were unavailable.\n- No production database, application behavior, schema, schedule, or external system was changed."
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-31T21:07:39+00:00",
+    "status": "partial",
+    "datasets": {
+      "summary": [
+        {
+          "reservations": 13934,
+          "legs": 24124,
+          "cohort_chain_rate": 0.6021206196420514,
+          "reliable_route_buckets": 115,
+          "total_route_buckets": 456,
+          "invalid_pickup_dates": 2
+        }
+      ],
+      "source_profile": [
+        {
+          "requested_path": "scratch/operations_intelligence/prod_snapshot.sqlite3",
+          "selected_path": "content/db.sqlite3",
+          "source_tier": "preliminary working copy",
+          "fresh_snapshot_present": false,
+          "size_bytes": 114671616,
+          "modified_utc": "2026-07-31T20:54:14.687728+00:00",
+          "sha256": "1b8fb83f23067e3a5bc044561d746aa39cb77a69ac7cb1838a4681c15dd5e5e5",
+          "quick_check": "ok",
+          "table_count": 99,
+          "migration_count": 312,
+          "latest_migration": "2026-07-30 02:47:33.990790",
+          "analysis_cutoff": "2026-07-31",
+          "timezone": "America/New_York"
+        }
+      ],
+      "table_inventory": [
+        {
+          "domain": "Reservations",
+          "table": "reservations_reservation",
+          "rows": 13934,
+          "first_record": "2025-04-27 13:42:14",
+          "latest_record": "2026-07-27 18:05:48",
+          "state": "available"
+        },
+        {
+          "domain": "Legs",
+          "table": "reservations_leg",
+          "rows": 24124,
+          "first_record": "2026-01-10 15:29:09",
+          "latest_record": "2026-07-11 18:24:05",
+          "state": "available"
+        },
+        {
+          "domain": "Status events",
+          "table": "reservations_legstatus",
+          "rows": 69212,
+          "first_record": "2026-02-08 04:19:29",
+          "latest_record": "2026-07-11 20:37:59",
+          "state": "available"
+        },
+        {
+          "domain": "Flights",
+          "table": "reservations_flight",
+          "rows": 25456,
+          "first_record": "2025-12-04 05:31:32",
+          "latest_record": "2026-07-31 20:54:27",
+          "state": "available"
+        },
+        {
+          "domain": "Audit events",
+          "table": "reservations_auditlog",
+          "rows": 260,
+          "first_record": "2026-07-18 21:45:45",
+          "latest_record": "2026-07-31 20:15:08",
+          "state": "available"
+        },
+        {
+          "domain": "Schedule snapshots",
+          "table": "reservations_schedulesnapshot",
+          "rows": 199,
+          "first_record": "2026-02-10 23:55:19",
+          "latest_record": "2026-07-31 20:14:24",
+          "state": "available"
+        },
+        {
+          "domain": "Schedule snapshot entries",
+          "table": "reservations_schedulesnapshotentry",
+          "rows": 10744,
+          "first_record": null,
+          "latest_record": null,
+          "state": "available"
+        },
+        {
+          "domain": "Schedule drafts",
+          "table": "reservations_scheduledraft",
+          "rows": 20,
+          "first_record": "2026-06-11 22:05:20",
+          "latest_record": "2026-06-22 01:08:15",
+          "state": "available"
+        },
+        {
+          "domain": "Draft assignments",
+          "table": "reservations_draftassignment",
+          "rows": 923,
+          "first_record": null,
+          "latest_record": null,
+          "state": "available"
+        },
+        {
+          "domain": "Draft events",
+          "table": "reservations_scheduledraftevent",
+          "rows": 551,
+          "first_record": null,
+          "latest_record": null,
+          "state": "available"
+        },
+        {
+          "domain": "Route timing buckets",
+          "table": "reservations_routetimingmetric",
+          "rows": 456,
+          "first_record": "2026-02-10 22:31:25",
+          "latest_record": "2026-07-31 19:16:28",
+          "state": "available"
+        },
+        {
+          "domain": "Daily driver capacity",
+          "table": "reservations_driverdailycapacity",
+          "rows": 0,
+          "first_record": null,
+          "latest_record": null,
+          "state": "empty"
+        },
+        {
+          "domain": "Demand patterns",
+          "table": "reservations_demandpattern",
+          "rows": 0,
+          "first_record": null,
+          "latest_record": null,
+          "state": "empty"
+        },
+        {
+          "domain": "Driver locations",
+          "table": "reservations_driverlocation",
+          "rows": 0,
+          "first_record": null,
+          "latest_record": null,
+          "state": "empty"
+        },
+        {
+          "domain": "Drivers",
+          "table": "drivers_driver",
+          "rows": 51,
+          "first_record": null,
+          "latest_record": null,
+          "state": "available"
+        },
+        {
+          "domain": "Fleet vehicles",
+          "table": "drivers_fleetvehicle",
+          "rows": 14,
+          "first_record": null,
+          "latest_record": null,
+          "state": "available"
+        },
+        {
+          "domain": "Driver-vehicle assignments",
+          "table": "drivers_drivervehicleassignment",
+          "rows": 1987,
+          "first_record": null,
+          "latest_record": null,
+          "state": "available"
+        },
+        {
+          "domain": "Leg payments",
+          "table": "drivers_legpayment",
+          "rows": 17730,
+          "first_record": "2026-05-19 03:56:18",
+          "latest_record": "2026-07-07 18:57:44",
+          "state": "available"
+        },
+        {
+          "domain": "Customer payments",
+          "table": "payment_payment",
+          "rows": 14652,
+          "first_record": "2025-04-14 15:11:07",
+          "latest_record": "2026-07-11 20:12:32",
+          "state": "available"
+        },
+        {
+          "domain": "Operational tasks",
+          "table": "ops_operationaltask",
+          "rows": 7993,
+          "first_record": "2026-03-15 13:46:56",
+          "latest_record": "2026-07-31 20:06:31",
+          "state": "available"
+        },
+        {
+          "domain": "Communication attempts",
+          "table": "ops_communicationattempt",
+          "rows": 511,
+          "first_record": "2026-03-17 15:00:13",
+          "latest_record": "2026-07-31 18:20:38",
+          "state": "available"
+        },
+        {
+          "domain": "Staff activity",
+          "table": "ops_staffactivity",
+          "rows": 201,
+          "first_record": "2026-07-11 20:52:02",
+          "latest_record": "2026-07-31 21:07:13",
+          "state": "available"
+        },
+        {
+          "domain": "Email log",
+          "table": "ops_emaillog",
+          "rows": 10547,
+          "first_record": "2026-04-03 23:08:31",
+          "latest_record": "2026-07-31 18:20:38",
+          "state": "available"
+        },
+        {
+          "domain": "Time-clock shifts",
+          "table": "ops_timeclockshift",
+          "rows": 70,
+          "first_record": "2026-06-02 20:01:13",
+          "latest_record": "2026-07-11 20:43:14",
+          "state": "available"
+        },
+        {
+          "domain": "Follow-up tasks",
+          "table": "ghl_integration_followuptask",
+          "rows": 274,
+          "first_record": "2026-07-27 19:27:55",
+          "latest_record": "2026-07-31 20:54:15",
+          "state": "available"
+        },
+        {
+          "domain": "Lead activities",
+          "table": "ghl_integration_leadactivity",
+          "rows": 1541,
+          "first_record": "2026-07-27 19:27:54",
+          "latest_record": "2026-07-31 20:54:15",
+          "state": "available"
+        },
+        {
+          "domain": "GHL sync logs",
+          "table": "ghl_integration_ghlsynclog",
+          "rows": 1,
+          "first_record": "2026-07-18 19:13:19",
+          "latest_record": "2026-07-18 19:13:19",
+          "state": "available"
+        }
+      ],
+      "status_summary": [
+        {
+          "instrumentation_start": "2026-02-01",
+          "cohort_completed_legs": 13298,
+          "cohort_chain_rate": 0.6021206196420514,
+          "cohort_timely_completion_rate": 0.9536772446984509,
+          "semantic_disagreement": 189,
+          "legs_with_repeated_status": 1440,
+          "late_backfill_completed_events": 192,
+          "exact_duplicate_events": 0
+        }
+      ],
+      "status_repeat_summary": [
+        {
+          "status": "confirmed",
+          "repeated_leg_status_pairs": 2941,
+          "extra_events": 3672,
+          "max_occurrences": 12,
+          "status_label": "Confirmed"
+        },
+        {
+          "status": "on-the-way",
+          "repeated_leg_status_pairs": 648,
+          "extra_events": 819,
+          "max_occurrences": 10,
+          "status_label": "On The Way"
+        },
+        {
+          "status": "picked-up",
+          "repeated_leg_status_pairs": 546,
+          "extra_events": 721,
+          "max_occurrences": 16,
+          "status_label": "Picked Up"
+        },
+        {
+          "status": "on-location",
+          "repeated_leg_status_pairs": 493,
+          "extra_events": 653,
+          "max_occurrences": 8,
+          "status_label": "On Location"
+        },
+        {
+          "status": "in-progress",
+          "repeated_leg_status_pairs": 508,
+          "extra_events": 642,
+          "max_occurrences": 5,
+          "status_label": "In Progress"
+        },
+        {
+          "status": "completed",
+          "repeated_leg_status_pairs": 477,
+          "extra_events": 613,
+          "max_occurrences": 7,
+          "status_label": "Completed"
+        }
+      ],
+      "system_map": [
+        {
+          "stage": "Lead and quote",
+          "system_of_record": "Lead, Quote, FollowUpTask, LeadActivity",
+          "primary_writes": "booking forms, staff views, GHL synchronization",
+          "automation": "30-minute follow-up scheduler; hourly lost-lead and pre-pickup passes",
+          "trust_risk": "message and sync logs exist, but definitions span several tables"
+        },
+        {
+          "stage": "Booking",
+          "system_of_record": "Customer, Reservation, Leg, LegStop, LegFlight",
+          "primary_writes": "public booking, staff/admin entry, payment callbacks",
+          "automation": "pricing, attribution, unpaid reminders, confirmation communications",
+          "trust_risk": "manual and bulk admin paths can bypass event instrumentation"
+        },
+        {
+          "stage": "Scheduling",
+          "system_of_record": "Leg assignment plus drafts, snapshots, and driver windows",
+          "primary_writes": "dispatcher board, auto-assignment, manual assignment",
+          "automation": "static feasibility model, flight-aware floor, swap/gap/span passes",
+          "trust_risk": "decision history is recent; current assignment fields are mutable"
+        },
+        {
+          "stage": "Trip execution",
+          "system_of_record": "Leg current status and LegStatus event history",
+          "primary_writes": "driver portal, dispatcher board, bulk status tools",
+          "automation": "reservation completion and selected route-metric refreshes",
+          "trust_risk": "repeated events and bypass paths make timestamp meaning ambiguous"
+        },
+        {
+          "stage": "Flight operations",
+          "system_of_record": "Flight and LegFlight",
+          "primary_writes": "AeroAPI refresh and staff edits",
+          "automation": "tiered refresh every scheduler cycle; overnight confirmation sweep",
+          "trust_risk": "latest state is retained, but forecast observations are overwritten"
+        },
+        {
+          "stage": "Operational tasking",
+          "system_of_record": "OperationalTask, CommunicationAttempt, EmailLog",
+          "primary_writes": "task generator, staff actions, communications",
+          "automation": "task scan each 30-minute scheduler cycle",
+          "trust_risk": "staff activity and communication history begin recently"
+        },
+        {
+          "stage": "Payment and payout",
+          "system_of_record": "Payment, Reservation payment fields, LegPayment, DriverPayment",
+          "primary_writes": "Stripe callbacks and staff payout workflows",
+          "automation": "reservation reconciliation and unpaid reminder policies",
+          "trust_risk": "duplicated summary fields require reconciliation to transactions"
+        },
+        {
+          "stage": "Fleet telemetry",
+          "system_of_record": "latest Samsara fields on FleetVehicle",
+          "primary_writes": "read-only Samsara polling",
+          "automation": "separate in-process poller",
+          "trust_risk": "latest position only; no historical trajectory table is populated"
+        }
+      ],
+      "trust_matrix": [
+        {
+          "data_asset": "Reservations and booked legs",
+          "grain": "one reservation / one service leg",
+          "coverage": "13,934 reservations; 24,124 legs",
+          "trust": "Conditional",
+          "safe_use": "booked demand and service mix after excluding invalid dates/statuses",
+          "limitation": "mutable operational state and date outliers"
+        },
+        {
+          "data_asset": "Status history",
+          "grain": "one status event per leg transition attempt",
+          "coverage": "usable cohort begins 2026-02-01; 69,212 events",
+          "trust": "Conditional",
+          "safe_use": "duration distributions after chain and timing validation",
+          "limitation": "repeats, late backfills, and write-path bypasses"
+        },
+        {
+          "data_asset": "Flights",
+          "grain": "latest known state per flight",
+          "coverage": "25,456 flights; actual-time coverage 78.6% in cohort",
+          "trust": "Conditional",
+          "safe_use": "current flight operations and final actual-time availability",
+          "limitation": "no historical forecast snapshots for prediction-at-decision-time"
+        },
+        {
+          "data_asset": "Schedule drafts and snapshots",
+          "grain": "schedule version and leg assignment",
+          "coverage": "199 snapshots; 20 drafts",
+          "trust": "Conditional",
+          "safe_use": "recent schedule-change and publish-workflow analysis",
+          "limitation": "short history and mutable pre-instrumentation decisions"
+        },
+        {
+          "data_asset": "Audit log",
+          "grain": "selected model/field action",
+          "coverage": "2026-07-18 to 2026-07-31",
+          "trust": "Unreliable historically",
+          "safe_use": "recent workflow spot checks only",
+          "limitation": "recent start and incomplete write-path coverage"
+        },
+        {
+          "data_asset": "Route timing metrics",
+          "grain": "trip/route/time/day bucket",
+          "coverage": "456 buckets; 115 have at least 5 samples",
+          "trust": "Conditional",
+          "safe_use": "display estimates for sufficiently sampled, recently refreshed buckets",
+          "limitation": "sparse/stale buckets and incomplete refresh triggers"
+        },
+        {
+          "data_asset": "Payments and payouts",
+          "grain": "customer transaction, reservation summary, and leg payout",
+          "coverage": "14,652 customer payments; 17,730 leg payments",
+          "trust": "Conditional",
+          "safe_use": "reconciliation when transaction records control summary fields",
+          "limitation": "multiple representations of paid and refunded amounts"
+        },
+        {
+          "data_asset": "Staff and communications activity",
+          "grain": "staff action or communication attempt",
+          "coverage": "activity since 2026-07-11; communications since 2026-03-17",
+          "trust": "Conditional",
+          "safe_use": "recent workload and workflow adoption analysis",
+          "limitation": "not a historical productivity series"
+        },
+        {
+          "data_asset": "Driver capacity and demand aggregates",
+          "grain": "driver-day / service-hour",
+          "coverage": "0 capacity rows; 0 demand rows",
+          "trust": "Missing",
+          "safe_use": "none until population and freshness checks exist",
+          "limitation": "implemented models are not populated"
+        },
+        {
+          "data_asset": "Historical GPS trajectories",
+          "grain": "driver/vehicle position observation",
+          "coverage": "0 driver-location rows",
+          "trust": "Missing",
+          "safe_use": "latest vehicle visibility only via FleetVehicle fields",
+          "limitation": "no historical route, dwell, or deadhead reconstruction"
+        }
+      ],
+      "quality_findings": [
+        {
+          "severity": "Critical",
+          "confidence": "High",
+          "finding": "The required fresh production snapshot is absent",
+          "evidence": "Analysis used content/db.sqlite3 as a preliminary working copy",
+          "analytical_risk": "headline values cannot be certified as production-current",
+          "recommended_fix": "place an immutable export at the requested path and rerun the notebook"
+        },
+        {
+          "severity": "High",
+          "confidence": "High",
+          "finding": "Bulk completion bypasses status-event creation",
+          "evidence": "reservation and leg admin actions use bulk update while driver/dispatcher paths create LegStatus rows",
+          "analytical_risk": "current status and event history diverge by workflow",
+          "recommended_fix": "route all transitions through one transactional state-change service"
+        },
+        {
+          "severity": "High",
+          "confidence": "High",
+          "finding": "Capacity, demand, and GPS analytical tables are unpopulated",
+          "evidence": "capacity=0, demand=0, driver locations=0",
+          "analytical_risk": "utilization, supply/demand, deadhead, and route-path claims are not directly measurable",
+          "recommended_fix": "populate governed aggregates and retain consented telemetry only for defined uses"
+        },
+        {
+          "severity": "High",
+          "confidence": "High",
+          "finding": "Completed-leg event history is incomplete outside the instrumented cohort",
+          "evidence": "cohort begins 2026-02-01; timely completion-event rate is 95.4%",
+          "analytical_risk": "historic on-time and duration trends would be biased",
+          "recommended_fix": "publish metric eligibility windows and backfill only with explicit provenance"
+        },
+        {
+          "severity": "High",
+          "confidence": "High",
+          "finding": "Flight forecasts are overwritten rather than snapshotted",
+          "evidence": "Flight stores the latest scheduled, estimated, and actual times but no observation history",
+          "analytical_risk": "delay accuracy at assignment time and leakage-safe models cannot be reconstructed",
+          "recommended_fix": "append immutable forecast observations with observed_at and provider metadata"
+        },
+        {
+          "severity": "High",
+          "confidence": "High",
+          "finding": "Route metrics are sparse, stale, and refreshed from selected paths only",
+          "evidence": "115 of 456 buckets have at least 5 samples; 185 are more than 14 days stale at cutoff",
+          "analytical_risk": "display estimates vary in quality and silently fall back to static assumptions",
+          "recommended_fix": "refresh from every completion path and enforce sample/freshness gates"
+        },
+        {
+          "severity": "High",
+          "confidence": "High",
+          "finding": "Status events can repeat and earliest/latest semantics can disagree",
+          "evidence": "1,440 completed legs contain repeats; 189 change validity by semantic choice",
+          "analytical_risk": "route and service-duration metrics can change based on ORM ordering",
+          "recommended_fix": "define canonical occurred_at semantics and make transitions idempotent"
+        },
+        {
+          "severity": "Medium",
+          "confidence": "High",
+          "finding": "Pickup dates contain implausible outliers",
+          "evidence": "2 legs fall outside 2015-2028; maximum is 3220-03-06",
+          "analytical_risk": "unbounded queries and time series produce misleading ranges",
+          "recommended_fix": "validate service dates on write and quarantine existing outliers"
+        },
+        {
+          "severity": "Medium",
+          "confidence": "High",
+          "finding": "Schedule and staff audit coverage is recent",
+          "evidence": "audit starts 2026-07-18; staff activity starts 2026-07-11",
+          "analytical_risk": "historical schedule churn and staff productivity cannot be compared consistently",
+          "recommended_fix": "define retention and event coverage SLAs before scorecard use"
+        }
+      ],
+      "chain_trend": [
+        {
+          "month": "2026-02-01",
+          "month_label": "Feb 2026",
+          "metric": "Timely completion event",
+          "rate": 0.7644670050761422,
+          "completed_legs": 1970
+        },
+        {
+          "month": "2026-02-01",
+          "month_label": "Feb 2026",
+          "metric": "Valid first-event chain",
+          "rate": 0.5289340101522843,
+          "completed_legs": 1970
+        },
+        {
+          "month": "2026-02-01",
+          "month_label": "Feb 2026",
+          "metric": "Valid last-event chain",
+          "rate": 0.534010152284264,
+          "completed_legs": 1970
+        },
+        {
+          "month": "2026-03-01",
+          "month_label": "Mar 2026",
+          "metric": "Timely completion event",
+          "rate": 0.9639953542392566,
+          "completed_legs": 2583
+        },
+        {
+          "month": "2026-03-01",
+          "month_label": "Mar 2026",
+          "metric": "Valid first-event chain",
+          "rate": 0.605497483546264,
+          "completed_legs": 2583
+        },
+        {
+          "month": "2026-03-01",
+          "month_label": "Mar 2026",
+          "metric": "Valid last-event chain",
+          "rate": 0.6116918312040264,
+          "completed_legs": 2583
+        },
+        {
+          "month": "2026-04-01",
+          "month_label": "Apr 2026",
+          "metric": "Timely completion event",
+          "rate": 0.990257209664848,
+          "completed_legs": 2566
+        },
+        {
+          "month": "2026-04-01",
+          "month_label": "Apr 2026",
+          "metric": "Valid first-event chain",
+          "rate": 0.6114575214341388,
+          "completed_legs": 2566
+        },
+        {
+          "month": "2026-04-01",
+          "month_label": "Apr 2026",
+          "metric": "Valid last-event chain",
+          "rate": 0.6161340607950117,
+          "completed_legs": 2566
+        },
+        {
+          "month": "2026-05-01",
+          "month_label": "May 2026",
+          "metric": "Timely completion event",
+          "rate": 0.9951636904761905,
+          "completed_legs": 2688
+        },
+        {
+          "month": "2026-05-01",
+          "month_label": "May 2026",
+          "metric": "Valid first-event chain",
+          "rate": 0.6335565476190477,
+          "completed_legs": 2688
+        },
+        {
+          "month": "2026-05-01",
+          "month_label": "May 2026",
+          "metric": "Valid last-event chain",
+          "rate": 0.6365327380952381,
+          "completed_legs": 2688
+        },
+        {
+          "month": "2026-06-01",
+          "month_label": "Jun 2026",
+          "metric": "Timely completion event",
+          "rate": 0.99266692396758,
+          "completed_legs": 2591
+        },
+        {
+          "month": "2026-06-01",
+          "month_label": "Jun 2026",
+          "metric": "Valid first-event chain",
+          "rate": 0.6032419915090699,
+          "completed_legs": 2591
+        },
+        {
+          "month": "2026-06-01",
+          "month_label": "Jun 2026",
+          "metric": "Valid last-event chain",
+          "rate": 0.6040138942493246,
+          "completed_legs": 2591
+        },
+        {
+          "month": "2026-07-01",
+          "month_label": "Jul 2026",
+          "metric": "Timely completion event",
+          "rate": 0.9977777777777778,
+          "completed_legs": 900
+        },
+        {
+          "month": "2026-07-01",
+          "month_label": "Jul 2026",
+          "metric": "Valid first-event chain",
+          "rate": 0.6288888888888889,
+          "completed_legs": 900
+        },
+        {
+          "month": "2026-07-01",
+          "month_label": "Jul 2026",
+          "metric": "Valid last-event chain",
+          "rate": 0.6411111111111111,
+          "completed_legs": 900
+        }
+      ],
+      "route_metric_summary": [
+        {
+          "total_buckets": 456,
+          "reliable_buckets": 115,
+          "high_confidence_buckets": 41,
+          "stale_buckets_14d": 185
+        }
+      ],
+      "route_confidence": [
+        {
+          "order": 1,
+          "confidence_bucket": "20+ samples",
+          "route_buckets": 41,
+          "underlying_samples": 4815
+        },
+        {
+          "order": 2,
+          "confidence_bucket": "10-19 samples",
+          "route_buckets": 36,
+          "underlying_samples": 498
+        },
+        {
+          "order": 3,
+          "confidence_bucket": "5-9 samples",
+          "route_buckets": 38,
+          "underlying_samples": 258
+        },
+        {
+          "order": 4,
+          "confidence_bucket": "1-4 samples",
+          "route_buckets": 341,
+          "underlying_samples": 522
+        }
+      ],
+      "route_summary": [
+        {
+          "route": "Disney Resort -> MCO Terminal",
+          "trip_type": "return",
+          "samples": 2698,
+          "observed_median_minutes": 33.1,
+          "observed_p75_minutes": 36.5,
+          "observed_p90_minutes": 40.5,
+          "static_minutes": 30,
+          "median_minus_static": 3.1
+        },
+        {
+          "route": "MCO Terminal -> Disney Resort",
+          "trip_type": "arrival",
+          "samples": 2325,
+          "observed_median_minutes": 35.7,
+          "observed_p75_minutes": 44.0,
+          "observed_p90_minutes": 56.9,
+          "static_minutes": 30,
+          "median_minus_static": 5.7
+        },
+        {
+          "route": "Port Canaveral Area -> MCO Terminal",
+          "trip_type": "cruise",
+          "samples": 244,
+          "observed_median_minutes": 49.5,
+          "observed_p75_minutes": 55.2,
+          "observed_p90_minutes": 62.8,
+          "static_minutes": 55,
+          "median_minus_static": -5.5
+        },
+        {
+          "route": "MCO Terminal -> Other Hotel",
+          "trip_type": "arrival",
+          "samples": 206,
+          "observed_median_minutes": 44.7,
+          "observed_p75_minutes": 53.4,
+          "observed_p90_minutes": 61.9,
+          "static_minutes": 25,
+          "median_minus_static": 19.7
+        },
+        {
+          "route": "Universal Resort -> MCO Terminal",
+          "trip_type": "return",
+          "samples": 160,
+          "observed_median_minutes": 23.6,
+          "observed_p75_minutes": 26.8,
+          "observed_p90_minutes": 30.4,
+          "static_minutes": 25,
+          "median_minus_static": -1.4
+        },
+        {
+          "route": "Other Hotel -> MCO Terminal",
+          "trip_type": "return",
+          "samples": 155,
+          "observed_median_minutes": 30.8,
+          "observed_p75_minutes": 37.0,
+          "observed_p90_minutes": 45.7,
+          "static_minutes": 25,
+          "median_minus_static": 5.8
+        },
+        {
+          "route": "MCO Terminal -> Other",
+          "trip_type": "arrival",
+          "samples": 152,
+          "observed_median_minutes": 40.6,
+          "observed_p75_minutes": 51.8,
+          "observed_p90_minutes": 64.4,
+          "static_minutes": 35,
+          "median_minus_static": 5.6
+        },
+        {
+          "route": "MCO Terminal -> Universal Resort",
+          "trip_type": "arrival",
+          "samples": 145,
+          "observed_median_minutes": 28.4,
+          "observed_p75_minutes": 37.1,
+          "observed_p90_minutes": 49.0,
+          "static_minutes": 25,
+          "median_minus_static": 3.4
+        },
+        {
+          "route": "Disney Resort -> SFB Terminal",
+          "trip_type": "return",
+          "samples": 144,
+          "observed_median_minutes": 58.8,
+          "observed_p75_minutes": 62.7,
+          "observed_p90_minutes": 69.1,
+          "static_minutes": 60,
+          "median_minus_static": -1.2
+        },
+        {
+          "route": "Other -> MCO Terminal",
+          "trip_type": "return",
+          "samples": 131,
+          "observed_median_minutes": 32.0,
+          "observed_p75_minutes": 36.7,
+          "observed_p90_minutes": 44.4,
+          "static_minutes": 35,
+          "median_minus_static": -3.0
+        },
+        {
+          "route": "SFB Terminal -> Disney Resort",
+          "trip_type": "arrival",
+          "samples": 107,
+          "observed_median_minutes": 60.1,
+          "observed_p75_minutes": 74.5,
+          "observed_p90_minutes": 86.7,
+          "static_minutes": 60,
+          "median_minus_static": 0.1
+        },
+        {
+          "route": "MCO Terminal -> Port Canaveral Area",
+          "trip_type": "cruise",
+          "samples": 89,
+          "observed_median_minutes": 54.4,
+          "observed_p75_minutes": 66.4,
+          "observed_p90_minutes": 80.8,
+          "static_minutes": 55,
+          "median_minus_static": -0.6
+        },
+        {
+          "route": "Disney Resort -> Port Canaveral Area",
+          "trip_type": "cruise",
+          "samples": 59,
+          "observed_median_minutes": 74.6,
+          "observed_p75_minutes": 81.3,
+          "observed_p90_minutes": 96.0,
+          "static_minutes": 72,
+          "median_minus_static": 2.6
+        },
+        {
+          "route": "Port Canaveral Area -> Disney Resort",
+          "trip_type": "cruise",
+          "samples": 56,
+          "observed_median_minutes": 69.8,
+          "observed_p75_minutes": 80.6,
+          "observed_p90_minutes": 90.6,
+          "static_minutes": 72,
+          "median_minus_static": -2.2
+        },
+        {
+          "route": "Disney Resort -> Universal Resort",
+          "trip_type": "other",
+          "samples": 53,
+          "observed_median_minutes": 29.1,
+          "observed_p75_minutes": 32.5,
+          "observed_p90_minutes": 36.7,
+          "static_minutes": 28,
+          "median_minus_static": 1.1
+        },
+        {
+          "route": "Disney Resort -> Other",
+          "trip_type": "other",
+          "samples": 50,
+          "observed_median_minutes": 35.4,
+          "observed_p75_minutes": 46.8,
+          "observed_p90_minutes": 75.4,
+          "static_minutes": 35,
+          "median_minus_static": 0.4
+        },
+        {
+          "route": "Universal Resort -> Disney Resort",
+          "trip_type": "other",
+          "samples": 45,
+          "observed_median_minutes": 29.4,
+          "observed_p75_minutes": 32.9,
+          "observed_p90_minutes": 35.2,
+          "static_minutes": 28,
+          "median_minus_static": 1.4
+        },
+        {
+          "route": "Other -> Disney Resort",
+          "trip_type": "other",
+          "samples": 29,
+          "observed_median_minutes": 33.8,
+          "observed_p75_minutes": 59.0,
+          "observed_p90_minutes": 72.5,
+          "static_minutes": 35,
+          "median_minus_static": -1.2
+        },
+        {
+          "route": "Other -> Port Canaveral Area",
+          "trip_type": "cruise",
+          "samples": 27,
+          "observed_median_minutes": 65.4,
+          "observed_p75_minutes": 74.0,
+          "observed_p90_minutes": 81.0,
+          "static_minutes": 35,
+          "median_minus_static": 30.4
+        },
+        {
+          "route": "Other Hotel -> Port Canaveral Area",
+          "trip_type": "cruise",
+          "samples": 25,
+          "observed_median_minutes": 58.3,
+          "observed_p75_minutes": 64.3,
+          "observed_p90_minutes": 68.0,
+          "static_minutes": 55,
+          "median_minus_static": 3.3
+        },
+        {
+          "route": "Port Canaveral Area -> Other",
+          "trip_type": "cruise",
+          "samples": 17,
+          "observed_median_minutes": 57.5,
+          "observed_p75_minutes": 72.6,
+          "observed_p90_minutes": 79.2,
+          "static_minutes": 35,
+          "median_minus_static": 22.5
+        },
+        {
+          "route": "Other -> Universal Resort",
+          "trip_type": "other",
+          "samples": 16,
+          "observed_median_minutes": 25.0,
+          "observed_p75_minutes": 33.4,
+          "observed_p90_minutes": 51.0,
+          "static_minutes": 35,
+          "median_minus_static": -10.0
+        },
+        {
+          "route": "Other Hotel -> Disney Resort",
+          "trip_type": "other",
+          "samples": 16,
+          "observed_median_minutes": 28.1,
+          "observed_p75_minutes": 34.7,
+          "observed_p90_minutes": 39.8,
+          "static_minutes": 25,
+          "median_minus_static": 3.1
+        },
+        {
+          "route": "Universal Resort -> Other",
+          "trip_type": "other",
+          "samples": 15,
+          "observed_median_minutes": 25.4,
+          "observed_p75_minutes": 36.2,
+          "observed_p90_minutes": 63.2,
+          "static_minutes": 35,
+          "median_minus_static": -9.6
+        },
+        {
+          "route": "Port Canaveral Area -> Other Hotel",
+          "trip_type": "cruise",
+          "samples": 14,
+          "observed_median_minutes": 68.0,
+          "observed_p75_minutes": 78.4,
+          "observed_p90_minutes": 90.6,
+          "static_minutes": 55,
+          "median_minus_static": 13.0
+        },
+        {
+          "route": "Disney Resort -> Other Hotel",
+          "trip_type": "other",
+          "samples": 13,
+          "observed_median_minutes": 27.1,
+          "observed_p75_minutes": 61.9,
+          "observed_p90_minutes": 79.8,
+          "static_minutes": 25,
+          "median_minus_static": 2.1
+        },
+        {
+          "route": "Universal Resort -> Port Canaveral Area",
+          "trip_type": "cruise",
+          "samples": 13,
+          "observed_median_minutes": 65.0,
+          "observed_p75_minutes": 68.3,
+          "observed_p90_minutes": 73.2,
+          "static_minutes": 60,
+          "median_minus_static": 5.0
+        },
+        {
+          "route": "Disney Resort -> Disney Resort",
+          "trip_type": "other",
+          "samples": 12,
+          "observed_median_minutes": 13.5,
+          "observed_p75_minutes": 18.5,
+          "observed_p90_minutes": 22.1,
+          "static_minutes": 12,
+          "median_minus_static": 1.5
+        },
+        {
+          "route": "Airport Hotel -> Port Canaveral Area",
+          "trip_type": "cruise",
+          "samples": 11,
+          "observed_median_minutes": 58.5,
+          "observed_p75_minutes": 64.7,
+          "observed_p90_minutes": 75.8,
+          "static_minutes": 55,
+          "median_minus_static": 3.5
+        },
+        {
+          "route": "Port Canaveral Area -> Universal Resort",
+          "trip_type": "cruise",
+          "samples": 11,
+          "observed_median_minutes": 66.9,
+          "observed_p75_minutes": 76.1,
+          "observed_p90_minutes": 86.1,
+          "static_minutes": 60,
+          "median_minus_static": 6.9
+        }
+      ],
+      "route_baseline_summary": [
+        {
+          "eligible_observations": 7150,
+          "train_observations": 5720,
+          "test_observations": 1430,
+          "static_mae_minutes": 9.2,
+          "historical_median_mae_minutes": 8.2,
+          "mae_improvement": 0.11278900851437712,
+          "dwell_samples": 2865,
+          "dwell_median_minutes": 25.5,
+          "dwell_p75_minutes": 40.6,
+          "dwell_p90_minutes": 58.2
+        }
+      ],
+      "monthly_volume": [
+        {
+          "month": "2025-04-01",
+          "scheduled_legs": 3
+        },
+        {
+          "month": "2025-05-01",
+          "scheduled_legs": 38
+        },
+        {
+          "month": "2025-06-01",
+          "scheduled_legs": 64
+        },
+        {
+          "month": "2025-07-01",
+          "scheduled_legs": 149
+        },
+        {
+          "month": "2025-08-01",
+          "scheduled_legs": 322
+        },
+        {
+          "month": "2025-09-01",
+          "scheduled_legs": 464
+        },
+        {
+          "month": "2025-10-01",
+          "scheduled_legs": 740
+        },
+        {
+          "month": "2025-11-01",
+          "scheduled_legs": 1004
+        },
+        {
+          "month": "2025-12-01",
+          "scheduled_legs": 1164
+        },
+        {
+          "month": "2026-01-01",
+          "scheduled_legs": 1480
+        },
+        {
+          "month": "2026-02-01",
+          "scheduled_legs": 1999
+        },
+        {
+          "month": "2026-03-01",
+          "scheduled_legs": 2627
+        },
+        {
+          "month": "2026-04-01",
+          "scheduled_legs": 2731
+        },
+        {
+          "month": "2026-05-01",
+          "scheduled_legs": 2859
+        },
+        {
+          "month": "2026-06-01",
+          "scheduled_legs": 2734
+        },
+        {
+          "month": "2026-07-01",
+          "scheduled_legs": 2182
+        }
+      ],
+      "demand_baseline_summary": [
+        {
+          "daily_rows": 181,
+          "train_days": 153,
+          "test_days": 28,
+          "weekday_median_mae_legs": 22.5,
+          "overall_median_mae_legs": 24.14
+        }
+      ],
+      "operations_summary": [
+        {
+          "legs": 15132,
+          "assigned_legs": 14066,
+          "inhouse_legs": 11083,
+          "affiliate_legs": 2983,
+          "completed_legs": 13298,
+          "assigned_drivers": 48,
+          "assignment_rate": 0.929553264604811,
+          "affiliate_share_of_assigned": 0.2120716621640836,
+          "assignment_lead_samples": 14054,
+          "assignment_lead_median_hours": 15.6,
+          "assignment_lead_p25_hours": 7.7,
+          "snapshot_comparable_assignments": 5211,
+          "snapshot_assignment_changes": 1875,
+          "snapshot_change_rate": 0.35981577432354633
+        }
+      ],
+      "payment_summary": [
+        {
+          "completed_reservations": 10202,
+          "completed_not_marked_paid": 2795,
+          "manual_review": 0,
+          "apparent_balance": 2945
+        }
+      ],
+      "flight_summary": [
+        {
+          "arrival_legs": 7514,
+          "linked_flight": 7414,
+          "scheduled_time": 6796,
+          "estimated_time": 6785,
+          "actual_time": 5903,
+          "linked_flight_rate": 0.9866915091828586,
+          "scheduled_time_rate": 0.9044450359329252,
+          "estimated_time_rate": 0.9029811019430397,
+          "actual_time_rate": 0.785600212935853,
+          "blank_flight_type": 24730,
+          "total_flights": 25456
+        }
+      ],
+      "kpi_framework": [
+        {
+          "role": "Primary KPI",
+          "metric": "On-time pickup rate",
+          "definition": "eligible legs with a verified actual pickup timestamp inside the agreed trip-type SLA divided by eligible legs",
+          "cadence": "weekly with daily exception review",
+          "current_readiness": "Not decision-ready",
+          "required_work": "define pickup semantics/SLA; make status events idempotent and source-aware"
+        },
+        {
+          "role": "Primary KPI",
+          "metric": "In-house coverage rate",
+          "definition": "eligible service legs assigned to active in-house drivers by the dispatch cutoff divided by eligible scheduled legs",
+          "cadence": "daily and weekly",
+          "current_readiness": "Conditional",
+          "required_work": "define dispatch cutoff and distinguish intentional affiliates from reactive farm-outs"
+        },
+        {
+          "role": "Primary KPI",
+          "metric": "Published-schedule reliability",
+          "definition": "published legs whose driver and vehicle remain unchanged through pickup divided by published eligible legs",
+          "cadence": "weekly",
+          "current_readiness": "Recent cohorts only",
+          "required_work": "make publish snapshots and reassignment reason codes complete"
+        },
+        {
+          "role": "Driver",
+          "metric": "Valid status-chain coverage",
+          "definition": "completed eligible legs with ordered on-way, picked-up, and completed events inside duration bounds",
+          "cadence": "daily quality control",
+          "current_readiness": "Conditional",
+          "required_work": "standardize first/last/reversal semantics"
+        },
+        {
+          "role": "Driver",
+          "metric": "Assignment lead time",
+          "definition": "hours from the canonical first committed driver assignment to scheduled pickup",
+          "cadence": "weekly by trip type",
+          "current_readiness": "Proxy only",
+          "required_work": "retain first assignment separately from latest assignment"
+        },
+        {
+          "role": "Driver",
+          "metric": "Clear-time prediction error",
+          "definition": "absolute difference between predicted and verified actual clear time on eligible legs",
+          "cadence": "weekly by route/time bucket",
+          "current_readiness": "Prototype-ready cohort",
+          "required_work": "version predictions and retain the value used at scheduling time"
+        },
+        {
+          "role": "Guardrail",
+          "metric": "Overlong duty-day rate",
+          "definition": "driver-days above the agreed raw/effective span threshold divided by worked driver-days",
+          "cadence": "daily and weekly",
+          "current_readiness": "Conditional",
+          "required_work": "confirm actual duty boundaries and break-credit policy"
+        },
+        {
+          "role": "Guardrail",
+          "metric": "Near-term uncovered-leg rate",
+          "definition": "eligible legs unassigned inside the agreed hours-to-pickup threshold divided by eligible near-term legs",
+          "cadence": "continuous operations alert",
+          "current_readiness": "Conditional",
+          "required_work": "define intentional affiliate/unassigned exclusions"
+        }
+      ],
+      "predictive_matrix": [
+        {
+          "candidate": "Flight delay risk at dispatch time",
+          "label_quality": "Missing historical forecast snapshots",
+          "prototype_result": "Blocked",
+          "decision": "Do not model yet",
+          "next_gate": "retain provider observations and assignment-time features"
+        },
+        {
+          "candidate": "Pickup delay risk",
+          "label_quality": "Pickup event meaning and SLA are not canonical",
+          "prototype_result": "Blocked",
+          "decision": "Do not automate",
+          "next_gate": "define actual pickup and capture transition source/reversal"
+        },
+        {
+          "candidate": "Drive-duration baseline",
+          "label_quality": "7,150 eligible in-house status chains",
+          "prototype_result": "historical-route MAE 8.2 min vs static 9.2 min on 1,430 held-out legs",
+          "decision": "Shadow-test only",
+          "next_gate": "fresh snapshot, route normalization, complete write-path refresh"
+        },
+        {
+          "candidate": "Airport dwell baseline",
+          "label_quality": "2,865 arrival legs with on-location to picked-up events",
+          "prototype_result": "median 25.5 min; p75 40.6 min",
+          "decision": "Interpret as a workflow proxy",
+          "next_gate": "confirm what on-location means operationally"
+        },
+        {
+          "candidate": "Daily demand forecast",
+          "label_quality": "181 service days from eligible cohort",
+          "prototype_result": "weekday-median MAE 22.50 legs vs overall-median 24.14",
+          "decision": "Use as planning baseline after fresh rerun",
+          "next_gate": "add booking-as-of snapshots for lead-time-aware forecasts"
+        },
+        {
+          "candidate": "Chained-trip feasibility",
+          "label_quality": "Status chains exist but lateness and decision-time inputs are incomplete",
+          "prototype_result": "Conditional",
+          "decision": "Backtest rules, not production automation",
+          "next_gate": "version clear-time predictions and define lateness outcomes"
+        },
+        {
+          "candidate": "Farm-out risk",
+          "label_quality": "Affiliate assignment is only a proxy for reactive farm-out",
+          "prototype_result": "Conditional",
+          "decision": "Do not train on current label",
+          "next_gate": "capture assignment reason and decision timestamp"
+        }
+      ],
+      "roadmap": [
+        {
+          "phase": 1,
+          "recommendation": "Canonical transition service",
+          "impact": 5,
+          "effort": 3,
+          "confidence": "High",
+          "priority_score": 7.0,
+          "why": "Unify every leg/reservation status change and emit one idempotent event.",
+          "problem": "Current status and history diverge across driver, dispatcher, and admin paths.",
+          "expected_impact": "Reliable service timing and fewer workflow-specific defects.",
+          "complexity": "Medium",
+          "dependencies": "Application transaction boundary and admin refactor.",
+          "risks_and_guardrails": "Migration must preserve current staff workflows; add audit-only rollout first."
+        },
+        {
+          "phase": 1,
+          "recommendation": "Flight forecast observation history",
+          "impact": 5,
+          "effort": 3,
+          "confidence": "High",
+          "priority_score": 7.0,
+          "why": "Append each provider observation instead of overwriting the latest state.",
+          "problem": "Decision-time delay information cannot be reconstructed.",
+          "expected_impact": "Enables honest arrival-risk and staffing analysis.",
+          "complexity": "Medium",
+          "dependencies": "AeroAPI refresh path, retention policy, provider cost controls.",
+          "risks_and_guardrails": "Bound refresh cadence and retain provider timestamps."
+        },
+        {
+          "phase": 1,
+          "recommendation": "Immutable operational event contract",
+          "impact": 5,
+          "effort": 3,
+          "confidence": "High",
+          "priority_score": 7.0,
+          "why": "Store occurred_at, recorded_at, source, actor, reason, reversal, and idempotency key.",
+          "problem": "Repeated events have ambiguous first-versus-last meaning.",
+          "expected_impact": "Stable labels for KPIs and models.",
+          "complexity": "Medium",
+          "dependencies": "Canonical transition service and event taxonomy.",
+          "risks_and_guardrails": "Avoid rewriting history; corrections must be additive."
+        },
+        {
+          "phase": 1,
+          "recommendation": "Schedule decision snapshots and reason codes",
+          "impact": 5,
+          "effort": 3,
+          "confidence": "High",
+          "priority_score": 7.0,
+          "why": "Snapshot publish state and every material reassignment with reason and decision time.",
+          "problem": "Schedule churn and reactive farm-outs are only partially observable.",
+          "expected_impact": "Measures plan stability and improves dispatcher decision support.",
+          "complexity": "Medium",
+          "dependencies": "Draft/snapshot workflow and assignment service.",
+          "risks_and_guardrails": "Keep snapshots compact and distinguish preview from commitment."
+        },
+        {
+          "phase": 1,
+          "recommendation": "Nightly data-quality gates",
+          "impact": 4,
+          "effort": 2,
+          "confidence": "High",
+          "priority_score": 6.0,
+          "why": "Monitor invalid dates/enums, event completeness, freshness, joins, and empty derived tables.",
+          "problem": "Known defects can silently enter reporting cohorts.",
+          "expected_impact": "Prevents misleading scorecards and catches instrumentation regressions quickly.",
+          "complexity": "Low",
+          "dependencies": "Stable metric eligibility rules and alert owner.",
+          "risks_and_guardrails": "Use rate-based, late-arrival-aware thresholds."
+        },
+        {
+          "phase": 2,
+          "recommendation": "Governed metric refresh pipeline",
+          "impact": 4,
+          "effort": 3,
+          "confidence": "High",
+          "priority_score": 5.0,
+          "why": "Refresh route, capacity, and demand aggregates from all completion paths with freshness metadata.",
+          "problem": "Existing models are sparse, stale, or empty.",
+          "expected_impact": "Creates a consistent source for planning and monitoring.",
+          "complexity": "Medium",
+          "dependencies": "Canonical events and scheduled batch execution.",
+          "risks_and_guardrails": "Do not serve low-sample buckets without fallback labels."
+        },
+        {
+          "phase": 2,
+          "recommendation": "Weekly operations scorecard",
+          "impact": 4,
+          "effort": 3,
+          "confidence": "Medium",
+          "priority_score": 5.0,
+          "why": "Publish three primary KPIs with drivers, guardrails, cohorts, and owners.",
+          "problem": "Leadership lacks a stable operating view.",
+          "expected_impact": "Faster exception management and trend accountability.",
+          "complexity": "Medium",
+          "dependencies": "At least four weeks of stable instrumentation.",
+          "risks_and_guardrails": "No targets until definitions and baselines are validated."
+        },
+        {
+          "phase": 2,
+          "recommendation": "Payment reconciliation checks",
+          "impact": 3,
+          "effort": 2,
+          "confidence": "Medium",
+          "priority_score": 4.0,
+          "why": "Reconcile transaction rows to reservation summaries and leg payouts daily.",
+          "problem": "Multiple paid/refunded representations can drift.",
+          "expected_impact": "Reduces manual review and protects margin reporting.",
+          "complexity": "Low",
+          "dependencies": "Canonical transaction precedence and exception ownership.",
+          "risks_and_guardrails": "Never auto-correct money without review and audit."
+        },
+        {
+          "phase": 3,
+          "recommendation": "Duration and demand shadow baselines",
+          "impact": 4,
+          "effort": 3,
+          "confidence": "Medium",
+          "priority_score": 5.0,
+          "why": "Version simple median/weekday baselines and compare them with current rules offline.",
+          "problem": "Static timing and staffing assumptions lack recurring accuracy measurement.",
+          "expected_impact": "Improves forecasts without premature model complexity.",
+          "complexity": "Medium",
+          "dependencies": "Fresh eligible cohorts and stored prediction-as-of values.",
+          "risks_and_guardrails": "Shadow only until calibration and segment stability pass."
+        },
+        {
+          "phase": 3,
+          "recommendation": "Dispatcher exception decision support",
+          "impact": 4,
+          "effort": 4,
+          "confidence": "Medium",
+          "priority_score": 4.0,
+          "why": "Surface predicted clear time, uncertainty, coverage, and reason-coded override.",
+          "problem": "Dispatchers cannot see confidence or learn systematically from overrides.",
+          "expected_impact": "Better tight-turn and farm-out choices while preserving human control.",
+          "complexity": "High",
+          "dependencies": "Validated baselines, UI design, alert-fatigue review.",
+          "risks_and_guardrails": "Never hide static fallback or force an assignment."
+        },
+        {
+          "phase": 4,
+          "recommendation": "Production predictive automation",
+          "impact": 3,
+          "effort": 5,
+          "confidence": "Low",
+          "priority_score": 1.0,
+          "why": "Automate only bounded decisions after shadow tests and operational sign-off.",
+          "problem": "Current labels are not strong enough for autonomous action.",
+          "expected_impact": "Potential long-run efficiency once evidence is reliable.",
+          "complexity": "Very high",
+          "dependencies": "All prior phases, monitoring, rollback, and owner approval.",
+          "risks_and_guardrails": "Do not automate pickup-delay, farm-out, or chain decisions yet."
+        }
+      ],
+      "validation_questions": [
+        {
+          "priority": 1,
+          "question": "When a driver records the same status more than once, should the first valid event or the last correction represent actual time?",
+          "decision_affected": "Status-chain semantics and all duration metrics",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 2,
+          "question": "What exactly does pickup_time mean for arrivals, departures, cruise trips, and point-to-point work?",
+          "decision_affected": "On-time pickup and dwell definitions",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 3,
+          "question": "Does driver_assigned_at represent the first commitment, the latest assignment, or both depending on workflow?",
+          "decision_affected": "Assignment lead time and churn",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 4,
+          "question": "Which affiliate assignments are planned partnerships versus last-minute farm-outs?",
+          "decision_affected": "In-house coverage and farm-out labels",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 5,
+          "question": "How often are bulk admin completion actions used, and in which operating scenarios?",
+          "decision_affected": "Magnitude of missing status history",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 6,
+          "question": "Which schedule state is the operational commitment: draft submission, review, publish, notification, or another moment?",
+          "decision_affected": "Published-schedule reliability",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 7,
+          "question": "What lateness thresholds should define an on-time pickup by trip type?",
+          "decision_affected": "Primary KPI and prediction labels",
+          "status": "Awaiting operations validation"
+        },
+        {
+          "priority": 8,
+          "question": "Which route, store-stop, terminal, traffic, or handoff exceptions most often invalidate static timing?",
+          "decision_affected": "Route segmentation and scheduler guardrails",
+          "status": "Awaiting operations validation"
+        }
+      ]
+    },
+    "accessIssues": [
+      {
+        "id": "fresh_snapshot_missing",
+        "dataset": "all",
+        "message": "Required production snapshot scratch/operations_intelligence/prod_snapshot.sqlite3 was unavailable; values come from content/db.sqlite3 and are preliminary."
+      },
+      {
+        "id": "operations_validation_pending",
+        "dataset": "validation_questions",
+        "message": "Targeted operations stakeholder validation is pending; unresolved semantics reduce recommendation confidence."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "id": "snapshot_inventory",
+      "label": "Preliminary local SQLite working copy",
+      "path": "content/db.sqlite3",
+      "query": {
+        "engine": "sqlite",
+        "sql": "SELECT name, type FROM sqlite_master WHERE type = 'table' ORDER BY name",
+        "description": "Read-only inventory and aggregate profiling of the operational SQLite source.",
+        "executed_at": "2026-07-31T21:07:39+00:00",
+        "tables_used": [
+          "reservations_reservation",
+          "reservations_leg",
+          "reservations_legstatus",
+          "reservations_flight",
+          "reservations_auditlog",
+          "reservations_schedulesnapshot",
+          "reservations_schedulesnapshotentry",
+          "reservations_scheduledraft",
+          "reservations_draftassignment",
+          "reservations_scheduledraftevent",
+          "reservations_routetimingmetric",
+          "reservations_driverdailycapacity",
+          "reservations_demandpattern",
+          "reservations_driverlocation",
+          "drivers_driver",
+          "drivers_fleetvehicle",
+          "drivers_drivervehicleassignment",
+          "drivers_legpayment",
+          "payment_payment",
+          "ops_operationaltask",
+          "ops_communicationattempt",
+          "ops_staffactivity",
+          "ops_emaillog",
+          "ops_timeclockshift",
+          "ghl_integration_followuptask",
+          "ghl_integration_leadactivity",
+          "ghl_integration_ghlsynclog"
+        ]
+      }
+    },
+    {
+      "id": "status_history_sql",
+      "label": "Leg execution status reconstruction",
+      "path": "docs/operations-intelligence/operations_intelligence_audit.ipynb",
+      "query": {
+        "engine": "sqlite",
+        "sql": "WITH event_bounds AS (\n  SELECT\n    l.id AS leg_id,\n    l.pickup_date,\n    l.pickup_time,\n    l.status AS current_status,\n    l.driver_id,\n    r.trip_type,\n    MIN(CASE WHEN s.status = 'on-the-way' THEN s.timestamp END) AS first_on_way,\n    MIN(CASE WHEN s.status = 'on-location' THEN s.timestamp END) AS first_on_location,\n    MIN(CASE WHEN s.status = 'picked-up' THEN s.timestamp END) AS first_picked_up,\n    MIN(CASE WHEN s.status = 'completed' THEN s.timestamp END) AS first_completed,\n    MAX(CASE WHEN s.status = 'on-the-way' THEN s.timestamp END) AS last_on_way,\n    MAX(CASE WHEN s.status = 'on-location' THEN s.timestamp END) AS last_on_location,\n    MAX(CASE WHEN s.status = 'picked-up' THEN s.timestamp END) AS last_picked_up,\n    MAX(CASE WHEN s.status = 'completed' THEN s.timestamp END) AS last_completed,\n    SUM(CASE WHEN s.status = 'on-the-way' THEN 1 ELSE 0 END) AS count_on_way,\n    SUM(CASE WHEN s.status = 'on-location' THEN 1 ELSE 0 END) AS count_on_location,\n    SUM(CASE WHEN s.status = 'picked-up' THEN 1 ELSE 0 END) AS count_picked_up,\n    SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS count_completed\n  FROM reservations_leg l\n  JOIN reservations_reservation r ON r.id = l.reservation_id\n  LEFT JOIN reservations_legstatus s ON s.leg_id = l.id\n  WHERE l.pickup_date IS NOT NULL\n  GROUP BY l.id, l.pickup_date, l.pickup_time, l.status, l.driver_id, r.trip_type\n)\nSELECT * FROM event_bounds\nORDER BY pickup_date, pickup_time, leg_id",
+        "description": "Reconstructs first and last status events at one row per leg; calculations are in the notebook.",
+        "executed_at": "2026-07-31T21:07:39+00:00",
+        "tables_used": [
+          "reservations_leg",
+          "reservations_reservation",
+          "reservations_legstatus"
+        ]
+      }
+    },
+    {
+      "id": "route_metric_sql",
+      "label": "Route timing metric profile",
+      "path": "docs/operations-intelligence/operations_intelligence_audit.ipynb",
+      "query": {
+        "engine": "sqlite",
+        "sql": "SELECT trip_type, pickup_location_category, dropoff_location_category,\n       time_of_day_category, day_type, sample_count, avg_airport_dwell_time,\n       median_airport_dwell_time, p75_airport_dwell_time, p90_airport_dwell_time,\n       avg_drive_time, median_drive_time, p75_drive_time, p90_drive_time,\n       avg_total_time, median_total_time, p75_total_time, p90_total_time,\n       last_calculated\nFROM reservations_routetimingmetric\nORDER BY sample_count DESC",
+        "description": "Profiles route timing buckets, sample sizes, missing values, and freshness.",
+        "executed_at": "2026-07-31T21:07:39+00:00",
+        "tables_used": [
+          "reservations_routetimingmetric"
+        ]
+      }
+    },
+    {
+      "id": "roadmap_scoring_sql",
+      "label": "Roadmap impact-effort scoring",
+      "path": "docs/operations-intelligence/analysis.py",
+      "query": {
+        "engine": "sqlite",
+        "sql": "WITH roadmap(phase, recommendation, impact, effort, confidence) AS (\n  VALUES\n    (1, 'Canonical transition service', 5, 3, 'High'),\n    (1, 'Immutable operational event contract', 5, 3, 'High'),\n    (1, 'Flight forecast observation history', 5, 3, 'High'),\n    (1, 'Schedule decision snapshots and reason codes', 5, 3, 'High'),\n    (1, 'Nightly data-quality gates', 4, 2, 'High'),\n    (2, 'Governed metric refresh pipeline', 4, 3, 'High'),\n    (2, 'Weekly operations scorecard', 4, 3, 'Medium'),\n    (2, 'Payment reconciliation checks', 3, 2, 'Medium'),\n    (3, 'Duration and demand shadow baselines', 4, 3, 'Medium'),\n    (3, 'Dispatcher exception decision support', 4, 4, 'Medium'),\n    (4, 'Production predictive automation', 3, 5, 'Low')\n)\nSELECT phase, recommendation, impact, effort, confidence,\n       (impact * 2.0) - effort AS priority_score\nFROM roadmap\nORDER BY phase, priority_score DESC, recommendation",
+        "description": "Scores the explicitly documented roadmap inputs as two times impact minus effort; phase controls final sequence.",
+        "executed_at": "2026-07-31T21:07:39+00:00",
+        "tables_used": []
+      }
+    },
+    {
+      "id": "analysis_code",
+      "label": "Reproducible operational analysis",
+      "path": "docs/operations-intelligence/analysis.py"
+    },
+    {
+      "id": "scheduler_code",
+      "label": "Scheduling and feasibility implementation",
+      "path": "dispatching/scheduler.py"
+    },
+    {
+      "id": "workflow_code",
+      "label": "Operational write paths",
+      "path": "reservations/admin.py"
+    }
+  ],
+  "package_info": {
+    "originUrl": "artifact://grayson-towncar-operations-intelligence",
+    "controls": {
+      "edit": false,
+      "refresh": false
+    }
+  }
+}

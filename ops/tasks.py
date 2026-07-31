@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 
+from dispatching import pickup_policy
+
 from .models import OperationalTask
 from .services import create_task, close_task
 
@@ -18,9 +20,12 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-# Minutes after flight gate arrival before passenger is realistically ready.
-# Prevents false driver conflicts for back-to-back airport pickups.
-AIRPORT_ARRIVAL_GRACE_MINUTES = 15
+# Minutes after flight gate arrival before the PASSENGER is realistically ready
+# (deplane, walk, bags). Prevents false driver conflicts for back-to-back airport
+# pickups. Deliberately NOT the same number as the driver's meet deadline
+# (pickup_policy.ARRIVAL_MEET_GRACE_MIN = 10) — they answer different questions:
+# when must the driver be standing there, vs when can the car actually pull away.
+AIRPORT_ARRIVAL_GRACE_MINUTES = pickup_policy.PAX_READY_MIN
 
 # Default estimated trip duration when no RouteTimingMetric data exists.
 FALLBACK_TRIP_DURATION_MINUTES = 75
@@ -43,11 +48,10 @@ MAJOR_THRESHOLD = 120
 # SEPARATE from the scheduler's AIRPORT_ARRIVAL_GRACE_MINUTES so the morning
 # safety flag stays conservative even if the deplaning grace is retuned.
 TIGHT_TURN_ENABLED = True
-TIGHT_TURN_RED_AFTER_MIN = 15
-# Board "landing early" badge: flag an arrival whose flight is now this many
-# minutes (or more) earlier than the booked pickup time. (Used in the Leg helper
-# in reservations/models.py; mirrored here for reference.)
-EARLY_ARRIVAL_BADGE_MIN = 15
+# Past this many minutes after the raw arrival the driver has missed his meet
+# deadline -> red. Sourced from the one policy constant so the task queue, the
+# board and auto-assign cannot drift apart again.
+TIGHT_TURN_RED_AFTER_MIN = pickup_policy.ARRIVAL_MEET_GRACE_MIN
 
 # Priority matrix: (severity_tier, days_until_bucket) → Priority
 # severity_tier: "minor" (30-60min), "moderate" (60-120min), "major" (120+min)
@@ -65,6 +69,19 @@ _PRIORITY_MATRIX = {
     ("major", "soon"): OperationalTask.Priority.MEDIUM,
     ("major", "distant"): OperationalTask.Priority.LOW,
 }
+
+# ── Unpaid-reservation task grace period ────────────────────────────────────
+# A reservation booked today and not yet paid is not a chase-worthy problem —
+# customers routinely settle within a few hours of checkout, and a PAYMENT_CHASE
+# task raised minutes after booking is pure board noise. Give every booking a
+# half day to pay before it can become a task.
+#
+# Measured from created_at only. The pickup date does NOT shorten it: a trip five
+# days out and a trip tomorrow both wait the same 12 hours. A booking made in the
+# evening is therefore not chased until the next morning — the customer-facing
+# reminder engine still covers the gap (ops/unpaid_reminders.py sends its first
+# email 2h after booking and flags T-2h cases for manual cancellation review).
+UNPAID_TASK_BOOKING_GRACE = timedelta(hours=12)
 
 # Due-date offsets per priority (how long staff has to address)
 _DUE_DELAYS = {
@@ -130,9 +147,11 @@ def _get_effective_ready_time(leg, target_date):
     (passenger needs time to deplane, walk to pickup).
     For all other legs: just the pickup_time.
     """
-    trip_type = leg.get_trip_type()
-
-    if trip_type == "arrival" and leg.flight_information:
+    # is_flight_tracked_arrival(), not trip_type == "arrival": an airport->cruise-port
+    # transfer is flight-gated too, and the sibling helper _get_raw_arrival_dt in this
+    # same module has always used the broader predicate. The two disagreeing meant a
+    # cruise guest's ready time silently fell back to the booked pickup.
+    if leg.is_flight_tracked_arrival():
         try:
             from dispatching.scheduler import _get_best_flight_arrival
             flight_dt = _get_best_flight_arrival(leg)
@@ -149,8 +168,14 @@ def _get_effective_ready_time(leg, target_date):
 def _get_raw_arrival_dt(leg, target_date):
     """Best available flight arrival for an airport-arrival leg, normalized to
     target_date, WITHOUT any deplaning grace. Returns a datetime or None when the
-    leg isn't an airport arrival or has no usable flight arrival time."""
-    if not leg.is_flight_tracked_arrival() or not leg.flight_information:
+    leg isn't an airport arrival or has no usable flight arrival time.
+
+    Resolves through pickup_policy.controlling_flight so a multi-flight leg whose
+    flight lives only on a LegFlight row (no legacy flight_information OneToOne)
+    still gets tight-turn detection. Before this, such a leg got a live GPS badge
+    but was invisible to this scanner."""
+    from dispatching.pickup_policy import controlling_flight
+    if not leg.is_flight_tracked_arrival() or controlling_flight(leg) is None:
         return None
     try:
         from dispatching.scheduler import _get_best_flight_arrival
@@ -226,7 +251,14 @@ def classify_turn(prev_leg, curr_leg, target_date):
         late = risk["late"]
         if late <= 0:
             return None  # driver is there before the flight lands — comfortable
-        risk["tier"] = "red" if late >= TIGHT_TURN_RED_AFTER_MIN else "amber"
+        # The driver is due at the in-terminal meet point by gate + the meet grace
+        # (pickup_policy.ARRIVAL_MEET_GRACE_MIN = 10, the founder's rule: a 10:30
+        # flight means he's inside and waiting by 10:40). So:
+        #   late <= 10  -> amber, he makes it but with no margin left
+        #   late  > 10  -> red, he is past the deadline
+        # This replaces a flat 15, which called an 12-min-late driver "tight" while
+        # auto-assign — running on the 10-min grace — had already judged him late.
+        risk["tier"] = "red" if late > TIGHT_TURN_RED_AFTER_MIN else "amber"
         return risk
 
     # curr_leg isn't an airport arrival (no raw flight time) → booked-pickup overlap.
@@ -887,6 +919,9 @@ def _scan_unpaid_reservations():
     """
     Create payment_chase tasks for confirmed reservations with upcoming legs
     that are not fully paid.
+
+    Reservations booked less than UNPAID_TASK_BOOKING_GRACE ago are left alone
+    regardless of pickup date.
     """
     from reservations.models import Reservation
     from payment.models import Payment
@@ -934,6 +969,11 @@ def _scan_unpaid_reservations():
             earliest_leg = candidate
             break
         if not earliest_leg:
+            continue
+
+        # Booking grace: a reservation booked today is never chased today,
+        # whatever its pickup date. Give the customer a day to pay first.
+        if res.created_at and (now - res.created_at) < UNPAID_TASK_BOOKING_GRACE:
             continue
 
         days_until = (earliest_leg.pickup_date - today).days

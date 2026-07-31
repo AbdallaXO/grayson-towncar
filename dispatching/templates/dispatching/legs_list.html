@@ -76,24 +76,43 @@
           border: 1px solid #e8b923 !important;
           font-weight: 800 !important;
       }
-      /* KEOI ("Keep Eye On It") read-only badge (Legs List — the future-dates surface). */
-      tr.leg-keoi:not(.table-danger):not(.table-warning):not(.leg-vip) > td {
-          background-color: rgba(13,148,136,.07) !important;
+      /* KEOI ("Keep Eye On It") read-only badge (Legs List — the future-dates
+         surface). Kept in step with legs_filter.html: KEOI owns a near-black chip
+         with a teal eye reversed out, and a bottom rail on every cell that never
+         yields to .table-danger/.table-warning/.leg-vip — v1's background tint
+         was switched off on exactly those rows, i.e. the ones worth flagging.
+         Bottom edge because the left belongs to the flight rails and VIP's gold
+         (tr.leg-vip > td:first-child, above). Top AND bottom so the flagged row
+         reads as an enclosed block rather than an ambiguous divider. */
+      tr.leg-keoi > td {
+          box-shadow: inset 0 3px 0 0 #111827, inset 0 -3px 0 0 #111827;
       }
-      tr.leg-keoi > td:last-child { box-shadow: inset -4px 0 0 0 #111827; }
       .keoi-badge {
-          display: inline-flex; align-items: center; gap: 4px;
-          background: #e6fffa; color: #111827; border: 2px solid #111827;
-          font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 8px;
-          min-height: 28px; line-height: 1.1; white-space: nowrap; text-align: left;
-          box-shadow: 0 1px 2px rgba(0,0,0,.2);
+          display: inline-flex; align-items: center; gap: 5px;
+          background: #111827; color: #fff; border: 2px solid #111827;
+          font-size: 0.8em; font-weight: 800; padding: 3px 10px; border-radius: 8px;
+          min-height: 30px; line-height: 1.1; white-space: nowrap; text-align: left;
+          box-shadow: 0 1px 3px rgba(0,0,0,.35);
       }
-      .keoi-badge .bi-binoculars-fill { color: #0d9488; font-size: 0.82rem; }
+      .keoi-badge .bi-binoculars-fill { color: #5eead4; font-size: 1.05em; }
       .keoi-badge-readonly { cursor: default; }
-      .keoi-badge-cat { font-weight: 700; }
+      .keoi-badge-label { letter-spacing: .04em; }
+      .keoi-badge-cat { font-weight: 700; color: #5eead4; }
+      /* The description was unreachable on this page: the badge is a readonly
+         <span> with no modal, so the only access was a 140-char title= tooltip. */
+      .keoi-desc {
+          font-size: 0.78em; font-weight: 600; line-height: 1.25;
+          color: #111827; white-space: normal; overflow-wrap: anywhere;
+          margin-top: 3px; padding-left: 7px;
+          border-left: 3px solid #0d9488;
+          /* Clamped like the dashboard's. This page has no modal (readonly
+             badge), so the title= tooltip remains the way to read a long note. */
+          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+          overflow: hidden;
+      }
       .keoi-status-pill {
           display: inline-flex; align-items: center; gap: 3px;
-          font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+          font-size: 0.72em; font-weight: 700; padding: 1px 7px; border-radius: 8px;
       }
       .keoi-status-pill::before {
           content: ""; display: inline-block; width: 6px; height: 6px;

@@ -48,9 +48,11 @@ Every candidate job gets a score. Highest score wins. Here's every factor:
 
 ### 1. Buffer Quality
 
-**What it is**: The gap (in minutes) between when the driver finishes their previous job and when the new job starts. Includes repositioning drive time + 10 min personal buffer.
+**What it is**: The gap (in minutes) between when the driver finishes their previous job and when the new job starts, after paying the repositioning drive. There is no flat personal buffer on top — `SAFETY_PAD_MIN = 0` by founder decision.
 
-**Example**: Driver finishes at Disney at 9:15 AM. New job picks up at MCO at 10:30 AM. Drive Disney→MCO is 30 min. Buffer = 10:30 - (9:15 + 30 min drive + 10 min buffer) = 35 min spare.
+**Example**: Driver finishes at Disney at 9:15 AM. New job picks up at MCO at 10:30 AM. Drive Disney→MCO is 30 min. Buffer = 10:30 − (9:15 + 30 min drive) = 45 min spare.
+
+**Airport arrivals differ**: if the driver is already AT that terminal, the turnaround is credited −10 min (`pickup_policy.ARRIVAL_MEET_GRACE_MIN`) because the guests are still deplaning — so a same-terminal MCO drop → MCO arrival turn can legitimately be negative. Repositioning in from elsewhere gets no grace.
 
 **Auto-Assign scoring**:
 | Buffer (minutes) | Score | Why |

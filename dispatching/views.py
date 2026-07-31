@@ -37,6 +37,7 @@ from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
 from . import quote_engine
+from . import pickup_policy
 from django.templatetags.static import static
 from drivers.models import (
     Driver,
@@ -228,7 +229,11 @@ def index(request):
 
     # KEOI ("Keep Eye On It") filter — count basis is the whole day (matches
     # vehicle_type_counts semantics); reads leg.active_keoi (prefetched, no query).
-    keoi_count = sum(1 for l in _all_day_legs if l.active_keoi)
+    # keoi_legs feeds the "Watching today" strip above the table: whole-day basis
+    # too, so the strip never shrinks just because a driver/vehicle filter is on —
+    # the strip's job is "everything flagged today", not "flagged within this view".
+    keoi_legs = [l for l in _all_day_legs if l.active_keoi]
+    keoi_count = len(keoi_legs)
     if keoi_filter == "active":
         legs = [l for l in legs if l.active_keoi]
 
@@ -513,31 +518,14 @@ def index(request):
         from drivers.views import _annotate_legs_with_live_eta
         _annotate_legs_with_live_eta(list(legs) if not isinstance(legs, list) else legs)
 
-    # Compute turnaround warnings: flag legs where gap from previous leg is < 20 min
     _legs_list = list(legs) if not isinstance(legs, list) else legs
-    _driver_legs = {}
-    for leg in _legs_list:
-        leg.turnaround_warning = None
-        leg.turnaround_level = ''
-        if leg.driver_id:
-            _driver_legs.setdefault(leg.driver_id, []).append(leg)
-    for _d_id, _d_legs in _driver_legs.items():
-        _d_legs.sort(key=lambda l: l.pickup_time)
-        for i in range(1, len(_d_legs)):
-            prev_leg = _d_legs[i - 1]
-            cur_leg = _d_legs[i]
-            if prev_leg._estimated_end_dt:
-                cur_pickup_dt = datetime.combine(selected_date, cur_leg.pickup_time)
-                gap_min = int((cur_pickup_dt - prev_leg._estimated_end_dt).total_seconds() / 60)
-                if gap_min < 0:
-                    cur_leg.turnaround_warning = f"Overlap: conflicts by {abs(gap_min)} min"
-                    cur_leg.turnaround_level = 'danger'
-                elif gap_min < 10:
-                    cur_leg.turnaround_warning = f"Critical: only {gap_min} min gap"
-                    cur_leg.turnaround_level = 'danger'
-                elif gap_min < 20:
-                    cur_leg.turnaround_warning = f"Tight turnaround: {gap_min} min gap"
-                    cur_leg.turnaround_level = 'warning'
+
+    # (Removed) A per-leg turnaround_warning pass used to run here, banding the raw
+    # clock gap at 0/10/20 with no repositioning drive and no deplaning grace. No
+    # template ever rendered it, and its numbers contradicted the feasibility engine,
+    # so it was pure cost and a trap for anyone who later wired it up. The board's
+    # turnaround signal is the timeline gap chip, now engine-backed via
+    # _gap_turn_slack(); the per-row signal is the conflict-task badge just below.
 
     # Open driver-conflict / tight-turn tasks → red "Conflict → task" badge on
     # the row so the board itself points at the task queue (one query).
@@ -591,10 +579,18 @@ def index(request):
                 _mins = (_ago_secs % 3600) // 60
                 _ago_str = f"{_hrs}h {_mins}m ago" if _mins else f"{_hrs}h ago"
             _status_label = dict(LegStatus.STATUS_CHOICES).get(_latest.status, _latest.status).title()
+            # Earliest 'picked-up' tap, naive local to match the gap math. _sh_list is
+            # newest-first, so overwriting keeps the EARLIEST — the true start. The gap
+            # chips re-anchor a turn on this fact (see _gap_turn_slack).
+            _picked_up_local = None
+            for _sh in _sh_list:
+                if _sh.status == 'picked-up':
+                    _picked_up_local = timezone.localtime(_sh.timestamp).replace(tzinfo=None)
             _leg_status_map[_tleg.id] = {
                 'status_label': _status_label,
                 'status_time': _local_ts.strftime('%I:%M %p').lstrip('0'),
                 'status_ago': _ago_str,
+                'picked_up_dt': _picked_up_local,
             }
 
     # Collect unassigned + affiliate legs for gap suggestions
@@ -744,11 +740,21 @@ def index(request):
                 for _ul in _gap_candidates:
                     if _ul['pickup_dt'] >= _gap_start_dt and _ul['pickup_dt'] < _gap_end_dt:
                         _fitting.append(_ul)
+            # Tight/critical come from the feasibility engine, not the raw clock gap,
+            # so the chip and the assignment check can never describe the same turn
+            # differently. _gap_min stays the raw gap — that's what the label shows.
+            # A recorded pickup on the previous leg re-anchors its clear time, so a
+            # driver running ahead of the plan stops showing a stale amber.
+            _prev_sinfo = _leg_status_map.get(_sched.slots[_i].leg_id)
+            _turn_band = pickup_policy.turn_band(_gap_turn_slack(
+                _sched.slots[_i], _sched.slots[_i + 1], selected_date,
+                prev_leg=_leg_by_id.get(_sched.slots[_i].leg_id),
+                prev_picked_up_dt=(_prev_sinfo.get('picked_up_dt') if _prev_sinfo else None)))
             _gaps.append({
                 'gap_minutes': _gap_min,
                 'gap_display': _gap_display,
-                'is_tight': _gap_min < 20,
-                'is_critical': _gap_min < 10,
+                'is_tight': _turn_band == 'tight',
+                'is_critical': _turn_band == 'critical',
                 'is_big': _is_big,
                 'fitting_unassigned': _fitting,
                 'position_pct': _gap_pos,
@@ -866,6 +872,7 @@ def index(request):
         "vehicle_filter": vehicle_filter,
         "keoi_filter": keoi_filter,
         "keoi_count": keoi_count,
+        "keoi_legs": keoi_legs,
         "vehicle_type_counts": vehicle_type_counts,
         "total_legs": len(legs),
         "afterhours_owed_count": afterhours_owed_count,
@@ -1258,6 +1265,19 @@ def schedule_board(request):
             # ── Truthful pill geometry ───────────────────────────────────────
             # Resolve the pill's effective start/end from REALITY wherever it's known
             # (actual pickup / actual clear / still-running-now), estimate otherwise.
+            # When this pickup should actually have HAPPENED. For a flight-tracked
+            # arrival (including an airport->cruise-port transfer, whose trip_type
+            # reads 'cruise') that's gate arrival + the real airport dwell, so a
+            # delayed flight moves the bar out instead of reporting the driver late
+            # for a plane still in the air, and a driver waiting at baggage claim on
+            # schedule isn't called overdue.
+            _risk_leg_src = _leg_by_id_overlay.get(slot.leg_id)
+            _expected_dt, _deadline_basis = (None, '')
+            _flight_gated = None
+            if _risk_leg_src is not None:
+                _expected_dt, _deadline_basis = pickup_policy.pickup_expected_dt(
+                    _risk_leg_src, aware=False)
+                _flight_gated = _risk_leg_src.is_flight_tracked_arrival()
             _span = _truthful_pill_span(
                 sched_start_dt=datetime.combine(selected_date, slot.pickup_time),
                 est_end_dt=slot.estimated_end_time,
@@ -1267,6 +1287,8 @@ def schedule_board(request):
                 completed_dt=(_sinfo.get('completed_dt') if _sinfo else None),
                 now_dt=_now_local_naive,
                 is_today=_board_is_today_geom,
+                expected_pickup_dt=_expected_dt,
+                is_flight_gated=_flight_gated,
             )
             slot.late_start = _span['late_start']
             slot.late_start_mins = _span['late_start_mins']
@@ -1300,7 +1322,12 @@ def schedule_board(request):
             slot.risk_tier = _risk['tier']
             slot.risk_source = _risk['source']
             slot.risk_label = _risk['label']
-            slot.risk_reason = _risk['reason']
+            # Name the rule that fired. A dispatcher who can see "flight gated 10:42 ·
+            # meet by 10:52" can VERIFY the flag instead of having to trust it — which
+            # is the difference between a signal and a decoration.
+            slot.risk_reason = (
+                f"{_risk['reason']} · {_deadline_basis}"
+                if _risk['tier'] and _deadline_basis else _risk['reason'])
             slot.gps_eta_mins = _gps_eta if _gps_status else None
 
             _start_min = _mins_from_left(_span['eff_start'])
@@ -2663,12 +2690,71 @@ _LATE_START_MIN = 10      # a departure picked up >= this many min after its sch
                           # pickup is flagged as a late start (earliest downstream-risk signal)
 _PICKUP_OVERDUE_MIN = 3   # the pickup time has passed by >= this many min with NO pickup
                           # recorded -> flag "pickup overdue" (a still-open job at risk)
+# ...but stop shouting once it's clearly just an unpressed status button. The GPS
+# engine has always capped its own past-pickup badge at 45 min ("a pickup overdue by
+# hours that nobody marked done is noise, not a live-ETA signal"); the clock flags
+# never did, which is what produced the 70m/108m-late pills that crowded out real
+# reds. Same judgement, now applied on both sides (pickup_policy.OVERDUE_STALE_MIN).
+_PICKUP_OVERDUE_STALE_MIN = pickup_policy.OVERDUE_STALE_MIN
 # Statuses that mean the driver is actively working toward this pickup. Their ABSENCE
 # once the pickup is overdue is the difference between "late but en route" and "stalled".
 _MOVING_STATUSES = ('on-the-way', 'on-location')
 # Samsara-sweep ETA targets that represent a PICKUP deadline (so the will-he-make-it
 # band is worth surfacing). 'dropoff' has no deadline; a driver mid-trip isn't at risk.
 _GPS_PICKUP_TARGETS = ('pickup', 'next_pickup')
+
+
+def _gap_turn_slack(prev_slot, next_slot, target_date, prev_leg=None,
+                    prev_picked_up_dt=None):
+    """Real turnaround slack (minutes) between two consecutive slots of one driver.
+
+        slack = next pickup - (prev clear + required_turnaround)
+
+    This is the SAME arithmetic scheduler.check_feasibility uses to decide whether a
+    leg may be seated, so a turn the assignment engine calls legal can no longer
+    render red on the board, and one it calls impossible can no longer render clean.
+
+    What it replaces: a raw clock gap banded at <20 / <10 with no repositioning drive
+    and no deplaning grace. That made a same-terminal MCO drop -> arrival look
+    "critical" (the engine considers it fine — the guest is still deplaning) while a
+    25-minute gap that needs a 30-minute reposition looked perfectly healthy.
+
+    REALITY BEATS THE PLAN, but only on facts: when the previous leg has a RECORDED
+    pickup (``prev_picked_up_dt``), the clear time is re-anchored on it — the dwell
+    already happened, so only the drive is left. Without that, a driver who picked up
+    15 min early kept showing an amber "tight" chip while the live GPS badge beside it
+    read on-time, and the two contradicted each other on screen. A live GPS projection
+    is deliberately NOT used here: it's a forecast, and a chip that wrongly goes green
+    is worse than one that wrongly goes amber.
+
+    Returns None when the slots don't carry enough information to judge.
+    """
+    from dispatching.scheduler import (
+        _slot_chain_end, chain_repo_minutes, chain_clear_dt_from_actual,
+    )
+    from dispatching import feasibility_guards as fg
+
+    if prev_slot is None or next_slot is None or next_slot.pickup_time is None:
+        return None
+    try:
+        if prev_leg is not None and prev_picked_up_dt is not None:
+            prev_end = chain_clear_dt_from_actual(prev_leg, prev_picked_up_dt)
+        else:
+            prev_end = _slot_chain_end(prev_slot, target_date)
+        next_pickup = datetime.combine(target_date, next_slot.pickup_time)
+        repo = chain_repo_minutes(
+            prev_slot.dropoff_location, next_slot.pickup_location,
+            prev_slot.dropoff_category, next_slot.pickup_category,
+        )
+        req = fg.required_turnaround(
+            repo,
+            fg.is_airport_arrival(next_slot.trip_type, next_slot.pickup_category),
+            same_terminal=(prev_slot.dropoff_category == next_slot.pickup_category),
+        )
+        return int((next_pickup - (prev_end + timedelta(minutes=req))).total_seconds() / 60)
+    except Exception:
+        # Never let a timing-table miss break the board render; fall back to no chip.
+        return None
 
 
 def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
@@ -2804,7 +2890,9 @@ def _slot_duration_minutes(day, pickup_time, end_dt, *, floor=15):
 
 def _truthful_pill_span(*, sched_start_dt, est_end_dt, status, trip_type,
                         picked_up_dt, completed_dt, now_dt, is_today,
-                        late_min=_LATE_START_MIN, overdue_min=_PICKUP_OVERDUE_MIN):
+                        late_min=_LATE_START_MIN, overdue_min=_PICKUP_OVERDUE_MIN,
+                        expected_pickup_dt=None, is_flight_gated=None,
+                        stale_min=_PICKUP_OVERDUE_STALE_MIN):
     """Resolve a timeline pill's effective start/end + risk flags from REALITY.
 
     The board draws a pill from the plan (scheduled pickup -> estimated clear) until
@@ -2819,15 +2907,40 @@ def _truthful_pill_span(*, sched_start_dt, est_end_dt, status, trip_type,
                            -> shift the LEFT edge to the ACTUAL pickup. Arrivals are
                               flight-gated, so a "late" pickup there is the flight, not
                               the driver, and is never flagged;
-      * PICKUP OVERDUE: the scheduled pickup has passed by >= ``overdue_min`` and NO
-                        pickup is recorded -> flag it. This catches the ABSENCE of
-                        progress, which no status badge can show. "Stalled" (the loud
-                        one) means the driver isn't even reporting movement yet.
+      * PICKUP OVERDUE: the EXPECTED pickup time has passed by >= ``overdue_min``
+                        and NO pickup is recorded -> flag it. This catches the ABSENCE
+                        of progress, which no status badge can show. "Stalled" (the
+                        loud one) means the driver isn't even reporting movement yet.
+                        Expires after ``stale_min``: past that nobody has acted on it,
+                        so it's an unpressed button, not a live risk.
+
+    ``expected_pickup_dt`` is when the job should have STARTED — guest in the car —
+    which is not the booked slot for a flight-tracked arrival: there it is gate
+    arrival + the real airport dwell (~45 min of deplaning, walking and bags), via
+    dispatching/pickup_policy.pickup_expected_dt. Two things this fixes: a 90-minute
+    flight delay used to paint a critical "90m late" while the plane was still
+    airborne, and a perfectly on-schedule airport pickup used to read "35 min
+    overdue" the moment it passed the driver's own 10-minute meet deadline.
+    Note this is deliberately NOT pickup_deadline() — that answers "must the driver
+    be there yet", which is the live-ETA question, not this one.
+    Defaults to ``sched_start_dt`` so existing callers and tests are unchanged.
+
+    ``is_flight_gated`` says the pickup waits on a plane, so a "late" pickup is the
+    flight's doing and never the driver's. Defaults to ``trip_type == 'arrival'``, but
+    callers should pass ``leg.is_flight_tracked_arrival()`` — that also covers the
+    airport->cruise-port transfer, whose trip_type reads 'cruise' while its pickup is
+    every bit as flight-gated as a plain arrival.
 
     All datetimes are naive local, matching ``datetime.combine(day, pickup_time)``.
     Returns a dict; callers turn ``eff_start``/``eff_end`` into on-screen percentages.
     This is a pure function (no DB, no wall clock) so the rules can be unit-tested.
     """
+    if expected_pickup_dt is None:
+        expected_pickup_dt = sched_start_dt
+    elif timezone.is_aware(expected_pickup_dt):
+        expected_pickup_dt = timezone.make_naive(expected_pickup_dt)
+    if is_flight_gated is None:
+        is_flight_gated = (trip_type == 'arrival')
     if est_end_dt is not None and timezone.is_aware(est_end_dt):
         est_end_dt = timezone.make_naive(est_end_dt)
 
@@ -2851,8 +2964,8 @@ def _truthful_pill_span(*, sched_start_dt, est_end_dt, status, trip_type,
     _picked = (picked_up_dt is not None) or (status == 'picked-up')
     _active = status not in ('completed', 'cancelled')
 
-    # LEFT edge — late-start for departures only.
-    if trip_type != 'arrival' and picked_up_dt is not None:
+    # LEFT edge — late-start for departures only (never for a flight-gated pickup).
+    if not is_flight_gated and picked_up_dt is not None:
         _late = (picked_up_dt - sched_start_dt).total_seconds() / 60.0
         if _late >= late_min:
             out['late_start'] = True
@@ -2860,23 +2973,35 @@ def _truthful_pill_span(*, sched_start_dt, est_end_dt, status, trip_type,
             out['actual_pickup_dt'] = picked_up_dt
             out['eff_start'] = picked_up_dt
 
-    # START risk — pickup time has come and gone with no pickup recorded. Earliest sign
-    # a job is slipping, and the one thing a status badge can't show: its own absence.
+    # START risk — the pickup should have happened by now and nothing is recorded.
+    # Earliest sign a job is slipping, and the one thing a status badge can't show:
+    # its own absence. Measured against expected_pickup_dt, so a delayed flight moves
+    # the bar out rather than reporting a driver late for a plane that hasn't landed,
+    # and an airport pickup isn't called overdue while the guest is still deplaning.
+    _never_started = False
     if (is_today and _active and not _picked
-            and now_dt > sched_start_dt + timedelta(minutes=overdue_min)):
-        out['pickup_overdue'] = True
-        out['pickup_overdue_mins'] = int(round((now_dt - sched_start_dt).total_seconds() / 60.0))
-        # Stalled = not even an en-route / on-location report. That's the red one; a
-        # driver who IS moving but a little past pickup is only amber.
-        out['pickup_stalled'] = status not in _MOVING_STATUSES
+            and now_dt > expected_pickup_dt + timedelta(minutes=overdue_min)):
+        _never_started = status not in _MOVING_STATUSES
+        _overdue_mins = int(round((now_dt - expected_pickup_dt).total_seconds() / 60.0))
+        # Expire the FLAG once it ages out: past stale_min nobody has acted on it, so
+        # it's an unpressed status button, not a live risk, and leaving it up buries
+        # the flags that still mean something. The geometry below still knows the job
+        # never started (_never_started), so an aged-out leg doesn't suddenly start
+        # drawing as a long busy bar.
+        if _overdue_mins <= stale_min:
+            out['pickup_overdue'] = True
+            out['pickup_overdue_mins'] = _overdue_mins
+            # Stalled = not even an en-route / on-location report. That's the red one; a
+            # driver who IS moving but a little past pickup is only amber.
+            out['pickup_stalled'] = _never_started
 
     # RIGHT edge — actual clear once complete; extend to now while overrunning. A job the
-    # driver never started (stalled) isn't "running long" — don't draw it as a busy bar;
-    # the pickup-overdue flag carries that case.
+    # driver never started isn't "running long" — don't draw it as a busy bar; the
+    # pickup-overdue flag (while it's still live) carries that case.
     if status == 'completed' and completed_dt is not None:
         out['eff_end'] = completed_dt
         out['cleared_is_actual'] = True
-    elif (is_today and _active and not out['pickup_stalled']
+    elif (is_today and _active and not _never_started
           and est_end_dt is not None and now_dt > est_end_dt):
         out['eff_end'] = now_dt
         out['overrunning'] = True
@@ -2905,6 +3030,10 @@ def _pickup_risk(*, pickup_overdue, pickup_stalled, overdue_mins,
         * ``late``    — GPS-confirmed past the pickup, still not there.
     The clock flags (``pickup_stalled`` / ``pickup_overdue``) are the FALLBACK for when
     there's no fresh telematics at all — affiliates, un-onboarded vehicles, stale GPS.
+    They are exactly that — a fallback — so a fresh GPS ``on_time`` SUPPRESSES them:
+    the clock only knows nobody pressed a button, while the telemetry knows the car is
+    positioned to make the pickup. Any other GPS state (missing, ``unknown``, stale)
+    leaves the clock in charge, because no signal is not a clean bill of health.
 
     Returns ``{tier, source, label, reason}``; tier is '', 'watch' or 'critical'.
     Pure function so the precedence can be unit-tested.
@@ -2919,7 +3048,13 @@ def _pickup_risk(*, pickup_overdue, pickup_stalled, overdue_mins,
     if gps_status == 'late':
         return {'tier': 'critical', 'source': 'gps',
                 'label': 'late', 'reason': gps_reason or 'Past pickup — still en route'}
-    if pickup_stalled:
+    # A fresh GPS 'on_time' OUTRANKS the clock's stalled flag. The clock only knows
+    # that no button was pressed; the vehicle telemetry knows the car is positioned to
+    # make it. Believing the clock over live GPS is what put a critical red on drivers
+    # who were demonstrably fine — usually just a driver who hadn't tapped "on the way".
+    # Absent / stale / 'unknown' GPS still yields to the clock: no signal is not a
+    # clean bill of health.
+    if pickup_stalled and gps_status != 'on_time':
         return {'tier': 'critical', 'source': 'clock',
                 'label': f'{overdue_mins}m late',
                 'reason': f'Pickup {overdue_mins} min overdue — no driver status yet'}
@@ -2929,7 +3064,7 @@ def _pickup_risk(*, pickup_overdue, pickup_stalled, overdue_mins,
         return {'tier': 'watch', 'source': 'gps',
                 'label': _eta if _eta else 'watch',   # pin icon already implies "ETA"
                 'reason': gps_reason or 'Little slack to pickup'}
-    if pickup_overdue:
+    if pickup_overdue and gps_status != 'on_time':
         return {'tier': 'watch', 'source': 'clock',
                 'label': f'{overdue_mins}m late',
                 'reason': f'Pickup {overdue_mins} min overdue — driver en route'}
@@ -3080,6 +3215,7 @@ def check_driver_feasibility(request):
             build_driver_schedules, check_feasibility, preload_timing_cache,
             estimate_job_end_time,
         )
+        from dispatching import feasibility_guards as fg
         from drivers.models import Driver
 
         leg = Leg.objects.select_related(
@@ -3173,9 +3309,31 @@ def check_driver_feasibility(request):
                 "avail_status": eff["status"],
             })
 
-        from dispatching.models import SchedulerSettings
-        cfg = SchedulerSettings.get_settings()
-        result = check_feasibility(driver_schedule, leg, target_date, arrival_grace=cfg.arrival_grace_minutes)
+        # Guard C (duty-span cap / clear-by / night rule) used to be skipped entirely on
+        # this path: no driver_window meant the manual dropdown and drag-and-drop were
+        # checked more loosely than auto-assign, so the board would happily accept an
+        # assignment the engine would have refused. enforce_cap=False keeps the founder
+        # rule "flag but do it" — a dispatcher's deliberate long day is surfaced as a
+        # warning, never hard-blocked.
+        #
+        # The arrival grace also comes from pickup_policy now, not
+        # SchedulerSettings.arrival_grace_minutes (15) — that field is the PASSENGER-ready
+        # time, and using it here quietly judged manual assignments against a looser
+        # deadline than the 10-minute meet rule auto-assign enforces.
+        _mw_eff = driver.get_effective_availability(target_date)
+        _mw_max = _mw_eff.get("max_hours")
+        manual_window = fg.get_effective_window(
+            driver.id,
+            configured={"start": _mw_eff.get("start_hour"), "end": _mw_eff.get("end_hour"),
+                        "max_hours": (float(_mw_max) if _mw_max else None),
+                        "flexible": bool(_mw_eff.get("flexible"))},
+            enforce_cap=False,
+        )
+        result = check_feasibility(
+            driver_schedule, leg, target_date,
+            arrival_grace=pickup_policy.ARRIVAL_MEET_GRACE_MIN,
+            driver_window=manual_window,
+        )
         end_time = estimate_job_end_time(leg, target_date)
 
         warnings = list(result.warnings) if result.warnings else []
@@ -10516,6 +10674,9 @@ def capacity_planner(request):
 
     # Build leg-id → latest status info map for timeline popup
     _cp_leg_status_map = {}
+    # O(1) leg lookup so the gap chips can re-anchor a turn on the RECORDED pickup
+    # (see _gap_turn_slack) exactly like the dispatch board does.
+    _cp_leg_by_id = {_l.id: _l for _l in legs_list}
     _cp_now = timezone.now()
     for _cpleg in legs_list:
         _sh_list = list(_cpleg.status_history.all())  # already prefetched, ordered -timestamp
@@ -10532,10 +10693,17 @@ def capacity_planner(request):
                 _mins = (_ago_secs % 3600) // 60
                 _ago_str = f"{_hrs}h {_mins}m ago" if _mins else f"{_hrs}h ago"
             _status_label = dict(LegStatus.STATUS_CHOICES).get(_latest.status, _latest.status).title()
+            # Earliest 'picked-up' tap, naive local to match the gap math. _sh_list is
+            # newest-first, so overwriting keeps the EARLIEST — the true start.
+            _cp_picked_up_local = None
+            for _sh in _sh_list:
+                if _sh.status == 'picked-up':
+                    _cp_picked_up_local = timezone.localtime(_sh.timestamp).replace(tzinfo=None)
             _cp_leg_status_map[_cpleg.id] = {
                 'status_label': _status_label,
                 'status_time': _local_ts.strftime('%I:%M %p').lstrip('0'),
                 'status_ago': _ago_str,
+                'picked_up_dt': _cp_picked_up_local,
             }
 
     # Get previous day's last leg per driver (for overnight turnaround display).
@@ -10622,13 +10790,21 @@ def capacity_planner(request):
                 gap_display = f"{gh}h,{gm}m" if gm else f"{gh}h"
             else:
                 gap_display = f"{gap_min}m"
+            # Same feasibility-backed banding as the dispatch board's timeline (see
+            # _gap_turn_slack) — these two gap blocks are the same chip and must not
+            # drift apart again, including the recorded-pickup re-anchor.
+            _prev_sinfo = _cp_leg_status_map.get(sched.slots[i].leg_id)
+            _turn_band = pickup_policy.turn_band(_gap_turn_slack(
+                sched.slots[i], sched.slots[i + 1], selected_date,
+                prev_leg=_cp_leg_by_id.get(sched.slots[i].leg_id),
+                prev_picked_up_dt=(_prev_sinfo.get('picked_up_dt') if _prev_sinfo else None)))
             gaps.append({
                 'after_leg': sched.slots[i].leg_id,
                 'before_leg': sched.slots[i + 1].leg_id,
                 'gap_minutes': gap_min,
                 'gap_display': gap_display,
-                'is_tight': gap_min < 20,
-                'is_critical': gap_min < 10,
+                'is_tight': _turn_band == 'tight',
+                'is_critical': _turn_band == 'critical',
                 'position_pct': gap_pos,
                 'width_pct': gap_width,
             })

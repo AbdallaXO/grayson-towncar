@@ -394,9 +394,20 @@ class EvaluateTests(TestCase):
         r = self._eval(self._target(minutes_out=15), _veh_ns(), drive_min=10)  # slack 5
         self.assertEqual(r["dispatch_risk_status"], "watch")
 
-    def test_watch_idle_near_pickup(self):
-        r = self._eval(self._target(minutes_out=25), _veh_ns(movement="idle"), drive_min=5)  # slack 20 but idle+near
+    def test_parked_with_real_slack_is_on_time(self):
+        # The live 2026-07-31 false amber, in miniature: a driver 5 min away with a
+        # pickup 25 min out is sitting still because that is the correct thing to do.
+        # The retired rule ("idle and pickup within 30 min") ambered him; slack of 20
+        # minutes is not a risk, and calling it one is what made dispatchers stop
+        # reading the colour.
+        r = self._eval(self._target(minutes_out=25), _veh_ns(movement="idle"), drive_min=5)
+        self.assertEqual(r["dispatch_risk_status"], "on_time")
+
+    def test_parked_when_he_should_be_rolling_is_watch(self):
+        # Same idle vehicle, but now only 3 minutes of slack — he needs to move.
+        r = self._eval(self._target(minutes_out=8), _veh_ns(movement="idle"), drive_min=5)
         self.assertEqual(r["dispatch_risk_status"], "watch")
+        self.assertIn("not moving", r["dispatch_risk_reason"])
 
     def test_at_risk(self):
         r = self._eval(self._target(minutes_out=20), _veh_ns(), drive_min=40)  # slack -20
@@ -643,9 +654,21 @@ class PanelStateTests(TestCase):
         self.assertEqual(p["state"], "tight")
         self.assertEqual(p["headline"], "5 min buffer")
 
-    def test_tight_when_stalled_in_window(self):
+    def test_stopped_with_real_slack_is_on_track(self):
+        # 10 min out, pickup in 40 => 30 minutes of slack. Parked is fine. The old
+        # PANEL_DEPARTURE_WINDOW_MIN rule (any stop within 45 min of pickup) called
+        # this a stall, which is the panel's copy of the board's false amber.
         p = build_panel_context(
             self._leg(dispatch_eta_minutes=10, dispatch_eta_target_time=self.now + timedelta(minutes=40),
+                      dispatch_is_moving=False, dispatch_stationary_minutes=15),
+            self.now)
+        self.assertEqual(p["state"], "on_track")
+
+    def test_tight_when_stalled_and_slack_is_gone(self):
+        # 10 min out, pickup in 13 => 3 minutes of slack, and he has been parked 15
+        # minutes. Now "not moving" is the story.
+        p = build_panel_context(
+            self._leg(dispatch_eta_minutes=10, dispatch_eta_target_time=self.now + timedelta(minutes=13),
                       dispatch_is_moving=False, dispatch_stationary_minutes=15),
             self.now)
         self.assertEqual(p["state"], "tight")

@@ -126,7 +126,8 @@ class AssignedVehicleTests(TestCase):
         resp = self.client.get(reverse("drivers_dashboard"))
         self.assertContains(resp, "Your Vehicle")
         self.assertContains(resp, "#009")
-        self.assertContains(resp, "Suburban")
+        # Year/make/model intentionally not shown — drivers know units by number
+        self.assertNotContains(resp, "Suburban")
 
     def test_shared_car_window_rendered(self):
         DriverVehicleAssignment.objects.create(
@@ -166,6 +167,122 @@ class AssignedVehicleTests(TestCase):
         self.client.force_login(self.driver.profile)
         resp = self.client.get(reverse("schedule"))
         self.assertNotContains(resp, "#009")
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
+class SharedCarPartnerTests(TestCase):
+    """Two drivers on one unit the same day: each side of the handoff sees the
+    other — the AM driver learns who takes the car after them (and their first
+    pickup), the PM driver learns who has it first (and when it frees up)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.am_driver = _make_driver("am_share_driver", first="Alex")
+        cls.pm_driver = _make_driver("pm_share_driver", first="Sam")
+        cls.reservation, cls.vehicle_type = _bootstrap_reservation()
+        cls.today = timezone.localdate()
+        cls.unit = FleetVehicle.objects.create(
+            vehicle_number="007", vehicle_type=cls.vehicle_type,
+            year=2023, make="Chevy", model="Suburban",
+        )
+        DriverVehicleAssignment.objects.create(
+            driver=cls.am_driver, date=cls.today, vehicle=cls.unit,
+            planned_start_hour=4, planned_end_hour=15,
+        )
+        DriverVehicleAssignment.objects.create(
+            driver=cls.pm_driver, date=cls.today, vehicle=cls.unit,
+            planned_start_hour=15, planned_end_hour=23,
+        )
+        _make_leg(cls.reservation, cls.am_driver, pickup_date=cls.today)  # 9:00 AM
+        Leg.objects.create(
+            reservation=cls.reservation, driver=cls.pm_driver,
+            pickup_date=cls.today, pickup_time=time(16, 0),
+            pickup_location="Disney", dropoff_location="MCO",
+            status="confirmed",
+        )
+
+    def test_am_driver_sees_partner_taking_over(self):
+        self.client.force_login(self.am_driver.profile)
+        resp = self.client.get(reverse("drivers_dashboard"))
+        self.assertContains(resp, "Sam")
+        self.assertContains(resp, "takes the car after you")
+        self.assertContains(resp, "their first pickup")
+        self.assertContains(resp, "4:00 PM")
+        # Their own split window still shows
+        self.assertContains(resp, "Shared car")
+        self.assertContains(resp, "4 AM – 3 PM")
+
+    def test_pm_driver_sees_partner_holding_it_first(self):
+        self.client.force_login(self.pm_driver.profile)
+        resp = self.client.get(reverse("drivers_dashboard"))
+        self.assertContains(resp, "Alex")
+        self.assertContains(resp, "has the car before you")
+        self.assertContains(resp, "3 PM – 11 PM")
+
+    def test_weekly_schedule_names_partner_both_ways(self):
+        self.client.force_login(self.am_driver.profile)
+        resp = self.client.get(reverse("schedule"))
+        self.assertContains(resp, "then Sam")
+        self.client.force_login(self.pm_driver.profile)
+        resp = self.client.get(reverse("schedule"))
+        self.assertContains(resp, "Alex before you")
+
+    def test_double_assignment_without_windows_still_names_partner(self):
+        other_unit = FleetVehicle.objects.create(
+            vehicle_number="011", vehicle_type=self.vehicle_type,
+            year=2021, make="Ford", model="Transit",
+        )
+        d1 = _make_driver("nw_share1", first="Kim")
+        d2 = _make_driver("nw_share2", first="Lee")
+        DriverVehicleAssignment.objects.create(driver=d1, date=self.today, vehicle=other_unit)
+        DriverVehicleAssignment.objects.create(driver=d2, date=self.today, vehicle=other_unit)
+        self.client.force_login(d1.profile)
+        resp = self.client.get(reverse("drivers_dashboard"))
+        self.assertContains(resp, "Lee")
+        self.assertContains(resp, "also drives this car")
+
+    def test_no_windows_infers_handoff_order_from_pickups(self):
+        """Without planned windows, actual first pickups decide who is
+        'before' and who is 'after' — so the later driver still learns when
+        the car should free up."""
+        unit = FleetVehicle.objects.create(
+            vehicle_number="013", vehicle_type=self.vehicle_type,
+            year=2022, make="GMC", model="Yukon",
+        )
+        early = _make_driver("infer_early", first="Omar")
+        late = _make_driver("infer_late", first="Rita")
+        DriverVehicleAssignment.objects.create(driver=early, date=self.today, vehicle=unit)
+        DriverVehicleAssignment.objects.create(driver=late, date=self.today, vehicle=unit)
+        _make_leg(self.reservation, early, pickup_date=self.today)  # 9:00 AM
+        Leg.objects.create(
+            reservation=self.reservation, driver=late,
+            pickup_date=self.today, pickup_time=time(18, 0),
+            pickup_location="Disney", dropoff_location="MCO",
+            status="confirmed",
+        )
+        self.client.force_login(early.profile)
+        resp = self.client.get(reverse("drivers_dashboard"))
+        self.assertContains(resp, "Rita")
+        self.assertContains(resp, "takes the car after you")
+        self.assertContains(resp, "6:00 PM")
+        self.client.force_login(late.profile)
+        resp = self.client.get(reverse("drivers_dashboard"))
+        self.assertContains(resp, "Omar")
+        self.assertContains(resp, "has the car before you")
+
+    def test_solo_assignment_shows_no_partner_line(self):
+        solo_unit = FleetVehicle.objects.create(
+            vehicle_number="012", vehicle_type=self.vehicle_type,
+            year=2020, make="Lincoln", model="Navigator",
+        )
+        solo = _make_driver("solo_share_driver", first="Jo")
+        DriverVehicleAssignment.objects.create(driver=solo, date=self.today, vehicle=solo_unit)
+        self.client.force_login(solo.profile)
+        resp = self.client.get(reverse("drivers_dashboard"))
+        self.assertContains(resp, "#012")
+        self.assertNotContains(resp, "takes the car after you")
+        self.assertNotContains(resp, "has the car before you")
+        self.assertNotContains(resp, "also drives this car")
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")

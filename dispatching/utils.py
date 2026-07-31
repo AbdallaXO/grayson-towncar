@@ -52,7 +52,10 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         ).prefetch_related(
             "reservation__legs",
             "legstop_set",  # leg.additional_dropoffs / has_intermediate_stops in list templates
-            "legflight_set",  # leg.legflight_set count in list templates (avoid per-row N+1)
+            # leg.legflight_set count in list templates, AND the controlling flight the
+            # pickup-risk deadline reads (pickup_policy.controlling_flight) — pulling
+            # __flight in keeps that a cache hit instead of a per-row query.
+            "legflight_set__flight",
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
             Prefetch("status_history", queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')),
             Prefetch(

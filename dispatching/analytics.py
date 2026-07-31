@@ -438,6 +438,58 @@ MAX_OTW_TO_PICKUP = 180      # 3 hours max from on-the-way to picked-up
 MAX_PICKUP_TO_COMPLETE = MAX_DRIVE_MINUTES  # Reuse the 3-hour (180 min) drive cap
 
 
+def first_status_times(leg, statuses=None) -> Dict[str, object]:
+    """
+    Return {status: EARLIEST timestamp} for a leg's status history.
+
+    Why this exists (subtle, and it bit every timing calculation in this module):
+    `LegStatus.Meta.ordering = ['-timestamp']` — newest first. So BOTH
+    `leg.status_history.all()` (iterate + break on first match) AND
+    `leg.status_history.filter(status='picked-up').first()` return the LATEST
+    row for that status, not the earliest. Measured against production, 3.7-5.9%
+    of legs carry more than one row per status (driver re-taps, the payroll bulk
+    update, the driver-unassign auto-reset). For those legs "when did the driver
+    first say picked-up" was being answered with the last re-tap instead.
+
+    Worse, `has_valid_status_chain` disagreed with itself: its DB branch sorted
+    ascending while its prefetched branch inherited the descending Meta ordering.
+    Validation and measurement could therefore be looking at different rows on
+    the same leg.
+
+    Every timing question in this module wants the FIRST occurrence — the moment
+    the event actually happened. This helper answers that explicitly by comparing
+    timestamps rather than trusting queryset ordering, so it stays correct even
+    if Meta.ordering changes later.
+
+    Works off prefetched `status_history` when available (no extra query),
+    otherwise hits the DB once.
+
+    Args:
+        leg: Leg instance
+        statuses: optional iterable of status names to limit to
+
+    Returns:
+        dict of status -> earliest timestamp (only for statuses present)
+    """
+    wanted = set(statuses) if statuses else None
+
+    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
+        rows = leg.status_history.all()          # already in memory — do not re-filter in SQL
+    elif wanted:
+        rows = leg.status_history.filter(status__in=wanted)
+    else:
+        rows = leg.status_history.all()
+
+    earliest: Dict[str, object] = {}
+    for s in rows:
+        if wanted is not None and s.status not in wanted:
+            continue
+        current = earliest.get(s.status)
+        if current is None or s.timestamp < current:
+            earliest[s.status] = s.timestamp
+    return earliest
+
+
 def has_valid_status_chain(leg) -> bool:
     """
     Check if a leg has a complete, valid status chain for analytics.
@@ -451,17 +503,9 @@ def has_valid_status_chain(leg) -> bool:
     Returns:
         True if the leg has valid timing data for analytics.
     """
-    # Gather status timestamps from prefetched or DB
-    statuses = {}
-    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
-        for s in leg.status_history.all():
-            if s.status in REQUIRED_ANALYTICS_STATUSES and s.status not in statuses:
-                statuses[s.status] = s.timestamp
-    else:
-        from reservations.models import LegStatus
-        for s in leg.status_history.filter(status__in=REQUIRED_ANALYTICS_STATUSES).order_by('timestamp'):
-            if s.status not in statuses:
-                statuses[s.status] = s.timestamp
+    # Earliest occurrence of each required status — see first_status_times() for
+    # why .first() / .all() cannot be trusted here.
+    statuses = first_status_times(leg, REQUIRED_ANALYTICS_STATUSES)
 
     # Must have all required statuses
     if not REQUIRED_ANALYTICS_STATUSES.issubset(statuses.keys()):
@@ -525,23 +569,15 @@ def calculate_gate_to_completed_time(leg) -> Optional[int]:
     if not gate_arrival:
         return None
 
-    # Get completed timestamp from status history
-    completed_status = None
-    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
-        for s in leg.status_history.all():
-            if s.status == 'completed':
-                completed_status = s
-                break
-    else:
-        completed_status = leg.status_history.filter(status='completed').first()
+    # Earliest 'completed' tap — see first_status_times() for why not .first()
+    completed_time = first_status_times(leg, ('completed',)).get('completed')
 
-    if not completed_status:
+    if not completed_time:
         return None
 
     # Make naive for comparison
     if timezone.is_aware(gate_arrival):
         gate_arrival = timezone.make_naive(gate_arrival, timezone.get_current_timezone())
-    completed_time = completed_status.timestamp
     if timezone.is_aware(completed_time):
         completed_time = timezone.make_naive(completed_time, timezone.get_current_timezone())
 
@@ -589,24 +625,16 @@ def calculate_airport_dwell_time(leg) -> Optional[int]:
     if not gate_arrival:
         return None
 
-    # Get picked-up timestamp from status history
-    # Use Python filtering to avoid N+1 when status_history is prefetched
-    picked_up_status = None
-    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
-        for s in leg.status_history.all():
-            if s.status == 'picked-up':
-                picked_up_status = s
-                break
-    else:
-        picked_up_status = leg.status_history.filter(status='picked-up').first()
-    if not picked_up_status:
+    # Earliest 'picked-up' tap — the moment the passenger actually got in the car.
+    # See first_status_times() for why .first() returns the wrong row here.
+    picked_up_time = first_status_times(leg, ('picked-up',)).get('picked-up')
+    if not picked_up_time:
         return None  # No timestamp data available
 
     # Calculate time difference
     if timezone.is_aware(gate_arrival):
         gate_arrival = timezone.make_naive(gate_arrival, timezone.get_current_timezone())
 
-    picked_up_time = picked_up_status.timestamp
     if timezone.is_aware(picked_up_time):
         picked_up_time = timezone.make_naive(picked_up_time, timezone.get_current_timezone())
 
@@ -644,26 +672,13 @@ def calculate_drive_time(leg) -> Optional[int]:
     """
     from reservations.models import LegStatus
 
-    # Get picked-up and completed timestamps
-    # Use Python filtering to avoid N+1 when status_history is prefetched
-    picked_up_status = None
-    completed_status = None
-    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
-        for s in leg.status_history.all():
-            if s.status == 'picked-up' and picked_up_status is None:
-                picked_up_status = s
-            elif s.status == 'completed' and completed_status is None:
-                completed_status = s
-    else:
-        picked_up_status = leg.status_history.filter(status='picked-up').first()
-        completed_status = leg.status_history.filter(status='completed').first()
+    # Earliest occurrence of each — see first_status_times() for why .first() lies.
+    times = first_status_times(leg, ('picked-up', 'completed'))
+    picked_up_time = times.get('picked-up')
+    completed_time = times.get('completed')
 
-    if not picked_up_status or not completed_status:
+    if not picked_up_time or not completed_time:
         return None  # No timestamp data available
-
-    # Calculate time difference
-    picked_up_time = picked_up_status.timestamp
-    completed_time = completed_status.timestamp
 
     if timezone.is_aware(picked_up_time):
         picked_up_time = timezone.make_naive(picked_up_time, timezone.get_current_timezone())
@@ -716,22 +731,17 @@ def calculate_turnaround_time(leg1, leg2) -> Optional[int]:
     if not leg1.driver or not leg2.driver or leg1.driver != leg2.driver:
         return None
 
-    # Get leg1 completed timestamp (may not exist for older legs)
-    leg1_completed = leg1.status_history.filter(status='completed').first()
-    if not leg1_completed:
+    # Earliest 'completed' on leg1 (may not exist for older legs)
+    leg1_time = first_status_times(leg1, ('completed',)).get('completed')
+    if not leg1_time:
         return None  # No timestamp data available
 
-    # Get leg2 picked-up timestamp (or next available status)
-    leg2_pickup = leg2.status_history.filter(
-        status__in=['picked-up', 'on-location', 'on-the-way']
-    ).order_by('timestamp').first()
+    # Earliest moment leg2 started moving — whichever of these came first
+    leg2_times = first_status_times(leg2, ('picked-up', 'on-location', 'on-the-way'))
+    leg2_time = min(leg2_times.values()) if leg2_times else None
 
-    if not leg2_pickup:
+    if not leg2_time:
         return None  # No timestamp data available
-
-    # Calculate time difference
-    leg1_time = leg1_completed.timestamp
-    leg2_time = leg2_pickup.timestamp
 
     if timezone.is_aware(leg1_time):
         leg1_time = timezone.make_naive(leg1_time, timezone.get_current_timezone())
@@ -997,13 +1007,15 @@ def calculate_driver_daily_capacity_for_date(driver, target_date: date) -> Dict:
     # Calculate total revenue
     total_revenue = sum((leg.revenue_share or Decimal('0.00')) for leg in legs)
 
-    # Calculate active hours (first pickup to last dropoff) - requires timestamps
-    first_pickup = legs[0].status_history.filter(status='picked-up').first()
-    last_completed = legs[-1].status_history.filter(status='completed').first()
+    # Calculate active hours (first pickup to last dropoff) - requires timestamps.
+    # `legs` is ordered, so legs[0] is the day's first job and legs[-1] the last.
+    # Both want the EARLIEST tap of their status — see first_status_times().
+    first_pickup = first_status_times(legs[0], ('picked-up',)).get('picked-up')
+    last_completed = first_status_times(legs[-1], ('completed',)).get('completed')
 
     total_active_hours = None
     if first_pickup and last_completed:
-        delta = last_completed.timestamp - first_pickup.timestamp
+        delta = last_completed - first_pickup
         total_active_hours = Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
 
     # Calculate turnaround times - requires timestamps

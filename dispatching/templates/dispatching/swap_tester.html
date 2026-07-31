@@ -516,10 +516,14 @@
         });
     };
 
+    // Mirrors pickup_policy.turn_band / scheduler.check_feasibility: negative is
+    // infeasible, under 15 is "Tight". The old 20/10 split was the only genuinely
+    // client-side threshold in the app and it disagreed with the server — a 12-min
+    // buffer showed red here while the engine only called it tight.
     function bufferClass(mins) {
-        if (mins >= 20) return 'buffer-green';
-        if (mins >= 10) return 'buffer-orange';
-        return 'buffer-red';
+        if (mins < 0) return 'buffer-red';
+        if (mins < 15) return 'buffer-orange';
+        return 'buffer-green';
     }
 
     function renderSwapResults(legId, data) {

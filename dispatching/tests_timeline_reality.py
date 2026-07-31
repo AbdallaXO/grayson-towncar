@@ -221,14 +221,29 @@ class TruthfulPillSpanTests(TestCase):
         # Never picked up, no movement, and even the estimate has passed: this is a
         # STALLED pickup, not an overrun. The bar must not extend to now (which would
         # imply the driver is busy) — the pickup-overdue flag carries it instead.
+        # Clock sits 35 min past pickup: overdue enough to flag, still inside the
+        # staleness window (pickup_policy.OVERDUE_STALE_MIN).
         span = _truthful_pill_span(
-            sched_start_dt=_dt(16, 30), est_end_dt=_dt(17, 15),
+            sched_start_dt=_dt(16, 30), est_end_dt=_dt(16, 50),
             status='assigned', trip_type='return',
             picked_up_dt=None, completed_dt=None,
-            now_dt=_dt(17, 30), is_today=True)
+            now_dt=_dt(17, 5), is_today=True)
         self.assertTrue(span['pickup_stalled'])
         self.assertFalse(span['overrunning'])
-        self.assertEqual(span['eff_end'], _dt(17, 15))   # stays at the estimate
+        self.assertEqual(span['eff_end'], _dt(16, 50))   # stays at the estimate
+
+    def test_aged_out_stalled_pickup_still_does_not_draw_a_busy_bar(self):
+        # Same shape, but hours past pickup: the FLAG expires (it's an unpressed
+        # status button, not a live risk) while the geometry must not flip and start
+        # drawing the leg as though the driver were working it.
+        span = _truthful_pill_span(
+            sched_start_dt=_dt(16, 30), est_end_dt=_dt(16, 50),
+            status='assigned', trip_type='return',
+            picked_up_dt=None, completed_dt=None,
+            now_dt=_dt(18, 30), is_today=True)
+        self.assertFalse(span['pickup_stalled'])
+        self.assertFalse(span['overrunning'])
+        self.assertEqual(span['eff_end'], _dt(16, 50))
 
 
 class PickupRiskUnifierTests(TestCase):

@@ -86,7 +86,9 @@ click handler (see frrToast for the same trap).
   const metaEl = document.getElementById('keoiMeta');
   const saveBtn = document.getElementById('keoiSaveBtn');
   const removeBtn = document.getElementById('keoiRemoveBtn');   // null if no perm
-  let currentLegLabel = '';
+  // Identity of the leg the modal is currently open on, captured from the
+  // trigger's data-* attrs so the badge and the strip can both be rebuilt.
+  let currentLegMeta = { label: '', name: '', time: '', sort: '' };
 
   // Local toast — the board's showToast is scoped inside a click handler.
   function keoiToast(message, type) {
@@ -129,9 +131,19 @@ click handler (see frrToast for the same trap).
     errorEl.classList.remove('d-none');
   }
 
-  // Build a KEOI badge button (matches _keoi_badge.html) with createElement +
-  // textContent so user-supplied description text is never parsed as HTML.
-  function buildKeoiBadge(k, legId, legLabel) {
+  function truncate(s, n) {
+    s = s || '';
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+
+  // Build the KEOI block (must match _keoi_badge.html: a .keoi-block wrapper
+  // holding the badge button plus the visible .keoi-desc line). createElement +
+  // textContent throughout so user-supplied description text is never parsed
+  // as HTML.
+  function buildKeoiBadge(k, legId, meta) {
+    const wrap = document.createElement('div');
+    wrap.className = 'keoi-block';
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'keoi-badge';
@@ -139,7 +151,10 @@ click handler (see frrToast for the same trap).
     btn.setAttribute('data-bs-target', '#keoiModal');
     btn.dataset.keoiId = k.id;
     btn.dataset.keoiLegId = legId;
-    btn.dataset.keoiLegLabel = legLabel || '';
+    btn.dataset.keoiLegLabel = meta.label || '';
+    btn.dataset.keoiLegName = meta.name || '';
+    btn.dataset.keoiLegTime = meta.time || '';
+    btn.dataset.keoiSort = meta.sort || '';
     btn.dataset.keoiCategory = k.category;
     btn.dataset.keoiCategoryLabel = k.category_label;
     btn.dataset.keoiStatus = k.operational_status;
@@ -149,8 +164,7 @@ click handler (see frrToast for the same trap).
     btn.dataset.keoiCreatedAt = k.created_at_display || '';
     btn.dataset.keoiUpdatedBy = k.updated_by || '';
     btn.dataset.keoiUpdatedAt = k.updated_at_display || '';
-    const shortDesc = (k.description || '').length > 140 ? k.description.slice(0, 140) + '…' : (k.description || '');
-    btn.title = 'KEOI · ' + k.category_label + ' · ' + k.status_label + ' — ' + shortDesc;
+    btn.title = 'KEOI · ' + k.category_label + ' · ' + k.status_label + ' — ' + truncate(k.description, 140);
     btn.setAttribute('aria-label', 'Keep eye on it: ' + k.category_label + ', status ' + k.status_label + '. Opens details.');
     const icon = document.createElement('i');
     icon.className = 'bi bi-binoculars-fill';
@@ -168,14 +182,71 @@ click handler (see frrToast for the same trap).
     pill.className = 'keoi-status-pill keoi-status-' + k.operational_status;
     pill.textContent = k.status_label;
     btn.appendChild(pill);
-    return btn;
+    wrap.appendChild(btn);
+
+    const desc = document.createElement('div');
+    desc.className = 'keoi-desc';
+    desc.textContent = truncate(k.description, 160);
+    wrap.appendChild(desc);
+    return wrap;
+  }
+
+  // Keep the "Watching today" strip in step with the board. Without this the
+  // strip and its count would silently drift from reality until a reload —
+  // exactly the kind of thing that teaches dispatchers not to trust the feature.
+  function syncKeoiStrip(legId, keoi, meta) {
+    const strip = document.getElementById('keoiStrip');
+    const items = document.getElementById('keoiStripItems');
+    const countEl = document.getElementById('keoiStripCount');
+    if (!strip || !items) return;
+
+    const existing = items.querySelector('.keoi-strip-item[data-leg-id="' + legId + '"]');
+    if (!keoi) {
+      if (existing) existing.remove();
+    } else {
+      const item = existing || document.createElement('button');
+      if (!existing) {
+        item.type = 'button';
+        item.className = 'keoi-strip-item';
+        item.dataset.legId = legId;
+        item.dataset.sort = meta.sort || '';
+        const t = document.createElement('span');
+        t.className = 'keoi-strip-time';
+        t.textContent = meta.time || '';
+        const n = document.createElement('span');
+        n.textContent = meta.name || '';
+        const c = document.createElement('span');
+        c.className = 'keoi-strip-cat';
+        item.appendChild(t);
+        item.appendChild(n);
+        item.appendChild(c);
+      }
+      item.dataset.keoiStatus = keoi.operational_status;
+      item.title = keoi.category_label + ' · ' + keoi.status_label + ' — ' + truncate(keoi.description, 140);
+      item.setAttribute('aria-label', 'Jump to flagged trip: ' + (meta.name || '') + ' at ' + (meta.time || '') + ', ' + keoi.category_label);
+      item.querySelector('.keoi-strip-cat').textContent = keoi.category_label;
+      if (!existing) {
+        // Insert in pickup-time order so the strip reads like the day does.
+        const mine = item.dataset.sort || '';
+        const after = Array.from(items.children).find(el => (el.dataset.sort || '') > mine);
+        items.insertBefore(item, after || null);
+      }
+    }
+    const n = items.querySelectorAll('.keoi-strip-item').length;
+    if (countEl) countEl.textContent = n;
+    strip.classList.toggle('d-none', n === 0);
+
+    // The day-filter pill carries the same number; leave its text alone when the
+    // pill is absent (zero-flag page load) rather than fabricating markup.
+    document.querySelectorAll('.keoi-pill .keoi-pill-count').forEach(el => { el.textContent = n; });
   }
 
   // Update the board in place — no reload.
-  function renderKeoi(legId, keoi, legLabel) {
+  function renderKeoi(legId, keoi, meta) {
+    meta = meta || {};
     document.querySelectorAll('.keoi-slot[data-leg-id="' + legId + '"]').forEach(slot => {
       slot.textContent = '';
-      if (keoi) slot.appendChild(buildKeoiBadge(keoi, legId, legLabel));
+      if (keoi) slot.appendChild(buildKeoiBadge(keoi, legId, meta));
     });
     const row = document.getElementById('leg-row-' + legId);
     if (row) row.classList.toggle('leg-keoi', !!keoi);
@@ -187,19 +258,62 @@ click handler (see frrToast for the same trap).
     document.querySelectorAll('.keoi-add-btn[data-keoi-leg-id="' + legId + '"]').forEach(b => {
       b.classList.toggle('d-none', !!keoi);
     });
+    syncKeoiStrip(legId, keoi, meta);
+  }
+
+  // Strip click -> scroll the leg into view and reuse the existing 3s highlight
+  // fade. Delegated, so items added by syncKeoiStrip work without rebinding.
+  const stripItems = document.getElementById('keoiStripItems');
+  if (stripItems) {
+    // The board renders every leg TWICE: #leg-row-N in the desktop table
+    // (.d-none.d-lg-block) and #leg-card-N in the card list (.d-lg-none). Exactly
+    // one is rendered at any width, so picking by id order alone scrolled to the
+    // display:none copy below the lg breakpoint and the click looked dead.
+    // offsetParent is null for anything inside a display:none subtree.
+    function visibleLegEl(legId) {
+      return [document.getElementById('leg-row-' + legId),
+              document.getElementById('leg-card-' + legId)]
+             .find(el => el && el.offsetParent !== null) || null;
+    }
+
+    stripItems.addEventListener('click', function (ev) {
+      const item = ev.target.closest('.keoi-strip-item');
+      if (!item) return;
+      const legId = item.dataset.legId;
+      const target = visibleLegEl(legId);
+      if (!target) {
+        // The strip is whole-day but the table is filtered, so a flagged leg can
+        // legitimately be absent from the current view (another driver, another
+        // trip type). Reload the day focused on it rather than dead-clicking —
+        // ?highlight= is the board's existing deep-link (views.index).
+        const strip = document.getElementById('keoiStrip');
+        const d = strip && strip.dataset.date ? strip.dataset.date : '';
+        window.location.search = '?date=' + encodeURIComponent(d) + '&highlight=' + encodeURIComponent(legId);
+        return;
+      }
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.remove('leg-highlight');
+      void target.offsetWidth;                 // restart the CSS animation
+      target.classList.add('leg-highlight');
+    });
   }
 
   modalEl.addEventListener('show.bs.modal', function (ev) {
     const t = ev.relatedTarget;
     const d = t ? t.dataset : {};
     const isEdit = !!(d.keoiId);
-    currentLegLabel = d.keoiLegLabel || '';
+    currentLegMeta = {
+      label: d.keoiLegLabel || '',
+      name: d.keoiLegName || '',
+      time: d.keoiLegTime || '',
+      sort: d.keoiSort || '',
+    };
 
     errorEl.classList.add('d-none');
     errorEl.textContent = '';
     legIdInput.value = d.keoiLegId || '';
     keoiIdInput.value = d.keoiId || '';
-    legLabelEl.textContent = currentLegLabel;
+    legLabelEl.textContent = currentLegMeta.label;
     titleEl.textContent = isEdit ? 'Edit watch flag' : 'Keep Eye On It';
     categorySel.value = d.keoiCategory || '';
     descEl.value = d.keoiDescription || '';
@@ -249,7 +363,7 @@ click handler (see frrToast for the same trap).
         if (!j.success) { showError(j.error || 'Could not save the flag.'); return; }
         bootstrap.Modal.getInstance(modalEl)?.hide();
         keoiToast(j.created ? 'KEOI flag added.' : 'KEOI flag updated.', 'success');
-        renderKeoi(legId, j.keoi, currentLegLabel);
+        renderKeoi(legId, j.keoi, currentLegMeta);
       })
       .catch(() => { saveBtn.disabled = false; showError('Network error — please try again.'); });
   });
@@ -272,7 +386,7 @@ click handler (see frrToast for the same trap).
           if (!j.success) { showError(j.error || 'Could not remove the flag.'); return; }
           bootstrap.Modal.getInstance(modalEl)?.hide();
           keoiToast('KEOI flag removed.', 'success');
-          renderKeoi(legId, null, currentLegLabel);
+          renderKeoi(legId, null, currentLegMeta);
         })
         .catch(() => { removeBtn.disabled = false; showError('Network error — please try again.'); });
     });

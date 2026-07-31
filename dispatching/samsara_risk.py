@@ -15,16 +15,18 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 
 from drivers.utils import get_drive_time
+from dispatching import pickup_policy
 
 logger = logging.getLogger(__name__)
 
-# Tunables.
-WATCH_SLACK_MIN = 10        # < this much spare time to a pickup => "watch"
-IDLE_NEAR_PICKUP_MIN = 30   # within this window + not moving => at least "watch"
+# Tunables. The band/slack thresholds live in dispatching/pickup_policy.py so the
+# sweep, the panel, the timeline pill and the gap chips can't drift apart again.
+WATCH_SLACK_MIN = pickup_policy.WATCH_SLACK_MIN
 # How long after a scheduled pickup we still surface a live "late" badge. Beyond
 # this the leg is treated as stale/handled by the normal status workflow (a pickup
-# overdue by hours that nobody marked done is noise, not a live-ETA signal).
-PAST_PICKUP_GRACE_MIN = 45
+# overdue by hours that nobody marked done is noise, not a live-ETA signal). The
+# board's clock flags now draw the same line via pickup_policy.OVERDUE_STALE_MIN.
+PAST_PICKUP_GRACE_MIN = pickup_policy.OVERDUE_STALE_MIN
 
 # A stale GPS fix from a PARKED car is still usable this long (ignition-off
 # gateways report sparsely; the car hasn't moved, so the old fix is still where
@@ -32,14 +34,16 @@ PAST_PICKUP_GRACE_MIN = 45
 PARKED_POSITION_MAX_AGE_HOURS = 8
 
 # Live-tracking PANEL display tunables.
-PANEL_TIGHT_BUFFER_MIN = 10      # spare time under this => "tight"
+PANEL_TIGHT_BUFFER_MIN = pickup_policy.WATCH_SLACK_MIN   # spare time under this => "tight"
 # Above this much slack the "arrives N min early" projection is noise (the driver
 # isn't en route yet) -> show a calm waiting card instead: pickup countdown +
 # how far the vehicle sits from it. Risk states ignore this (a far-future pickup
 # the car can't reach in time must still warn).
 PANEL_WAIT_SLACK_MIN = 60
 PANEL_DWELL_MIN = 8              # stationary at least this long => stalled candidate
-PANEL_DEPARTURE_WINDOW_MIN = 45  # only treat "not moving" as a problem this close to pickup
+# NOTE: the old PANEL_DEPARTURE_WINDOW_MIN (45) is gone. "Not moving" is now gated
+# on slack via pickup_policy.should_flag_not_moving — how far the car still has to
+# drive is what decides whether sitting still is a problem, not the raw countdown.
 # For an ALREADY-OVERDUE pickup where the driver isn't on the way (usually just stale
 # status), we stay quiet — except an arrival whose flight is already at the gate while
 # the vehicle is still more than this many minutes out (amber warning, he should be moving).
@@ -60,8 +64,6 @@ ETA_MOVE_REUSE_M = 150
 # stored value until the leg enters the window.
 ETA_FAR_FUTURE_MIN = 180
 
-# Leg statuses meaning the driver is still heading TO the pickup.
-_HEADING_TO_PICKUP = {"in-progress", "confirmed", "on-the-way", None, ""}
 # Leg statuses meaning the driver has the guest / is at pickup -> next stop is dropoff.
 _ON_TRIP = {"picked-up", "on-location"}
 _DONE = {"completed", "cancelled"}
@@ -69,19 +71,18 @@ _DONE = {"completed", "cancelled"}
 
 def effective_pickup_dt(leg):
     """
-    Flight-aware pickup datetime for a leg. For a same-day arrival flight, use the
-    best-available flight arrival (so a delay widens the window correctly);
-    otherwise the scheduled pickup. Returns an aware datetime or None.
+    When the driver is DUE at this pickup — the deadline the live ETA is judged
+    against. Delegates to pickup_policy.pickup_deadline, so a flight-tracked arrival
+    resolves to gate arrival + the 10-minute in-terminal meet grace (a delay widens
+    the window correctly) and everything else to the booked pickup.
+
+    The grace matters: without it this measured against the raw gate time, so a
+    driver who would arrive at 2:05 for a 2:00 landing read "at risk" even though
+    the founder rule gives him until 2:10 and auto-assign had already seated the job
+    on that basis. Returns an aware datetime or None.
     """
-    flight = getattr(leg, "controlling_flight", None)
-    if flight:
-        arr = flight.best_arrival_local()
-        if arr and timezone.localdate(arr) == leg.pickup_date:
-            return arr
-    if not leg.pickup_date or not leg.pickup_time:
-        return None
-    naive = datetime.combine(leg.pickup_date, leg.pickup_time)
-    return timezone.make_aware(naive) if timezone.is_naive(naive) else naive
+    deadline, _basis = pickup_policy.pickup_deadline(leg, aware=True)
+    return deadline
 
 
 def choose_active_target(legs, now=None):
@@ -296,22 +297,26 @@ def evaluate(vehicle, target, now=None, eta_override=None, eta_origin=None,
 
     slack = minutes_to_target - drive_min
     is_not_moving = vehicle.samsara_movement_status in ("idle", "off")
+    # "Not moving" is judged against SLACK, never raw time-to-pickup. The old rule
+    # (pickup within 30 min + idle => watch) fired on a driver parked 5 min from a
+    # pickup 21 min out — 16 minutes of slack, and exactly what a good driver does
+    # while he waits. It ambered most of the parked fleet and taught dispatchers
+    # that amber means nothing. It is no longer its own band: thin slack is already
+    # caught below, and being stopped only sharpens the REASON we show for it.
+    stalled = pickup_policy.should_flag_not_moving(slack, not is_not_moving)
 
-    if slack < 0:
-        fields["dispatch_risk_status"] = "at_risk"
+    band = pickup_policy.classify_slack(slack)
+    fields["dispatch_risk_status"] = band
+    if band == pickup_policy.AT_RISK:
         fields["dispatch_risk_reason"] = (
             f"ETA {drive_min} min vs pickup in {round(minutes_to_target)} min"
         )
-    elif slack < WATCH_SLACK_MIN:
-        fields["dispatch_risk_status"] = "watch"
-        fields["dispatch_risk_reason"] = f"Only {round(slack)} min slack to pickup"
-    elif minutes_to_target <= IDLE_NEAR_PICKUP_MIN and is_not_moving:
-        fields["dispatch_risk_status"] = "watch"
+    elif band == pickup_policy.WATCH:
         fields["dispatch_risk_reason"] = (
-            f"Pickup in {round(minutes_to_target)} min, vehicle not moving"
+            f"Only {round(slack)} min slack, vehicle not moving" if stalled
+            else f"Only {round(slack)} min slack to pickup"
         )
     else:
-        fields["dispatch_risk_status"] = "on_time"
         fields["dispatch_risk_reason"] = f"{round(slack)} min slack"
     return fields
 
@@ -527,10 +532,15 @@ def build_panel_context(leg, now=None):
             return {"state": "tight", "headline": f"Flight landed · vehicle ~{eta} min out", **base}
         return None  # overdue + not started + not an arrival -> stay quiet (stale status)
 
-    # Tight: thin slack, or stalled inside the departure window.
+    # Tight: thin slack, or stopped when he should be rolling. The stall test is
+    # gated on SLACK (pickup_policy.should_flag_not_moving), not on raw minutes to
+    # pickup — a car parked 5 min from a pickup 45 min out is not a stall, and the
+    # old PANEL_DEPARTURE_WINDOW_MIN rule called it one. Movement must be KNOWN
+    # false; an unknown movement state never raises anything.
     is_moving = display["moving"]
     stalled = (is_moving is False and stationary is not None
-               and stationary >= PANEL_DWELL_MIN and minutes_to_pickup <= PANEL_DEPARTURE_WINDOW_MIN)
+               and stationary >= PANEL_DWELL_MIN
+               and pickup_policy.should_flag_not_moving(slack, False))
     if slack < PANEL_TIGHT_BUFFER_MIN or stalled:
         headline = "Vehicle not moving" if stalled else f"{slack} min buffer"
         return {"state": "tight", "headline": headline, **base}

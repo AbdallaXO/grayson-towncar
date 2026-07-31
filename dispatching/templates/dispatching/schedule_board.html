@@ -71,12 +71,28 @@
       /* KEOI ("Keep Eye On It") watch flag — high-contrast BLACK chip with a teal
          eye so it stands out on a dense, colorful board (heavier than the refund
          flag); black outline on the slot; banner + note in the hover popup. */
+      /* Bright teal on the black bar — teal is unused anywhere else on this board,
+         so the eye is the one saturated mark on an otherwise dark rectangle. */
       .tl-keoi-flag {
-          background: #111827; color: #5eead4; font-weight: 800;
+          background: #5eead4; color: #062a26; font-weight: 800;
           font-size: 0.58rem; line-height: 1; padding: 1px 3px; border-radius: 2px;
-          margin-left: 2px; flex-shrink: 0; border: 1px solid #5eead4;
+          margin-left: 2px; flex-shrink: 0;
       }
-      .timeline-slot.has-keoi { box-shadow: inset 0 0 0 2px #111827; }
+      /* Edge bar, mirroring .has-note::after: absolutely positioned, so it costs
+         no room in the label flow and survives every shed threshold. The inline
+         .tl-keoi-flag chip was 10th of 12 flex children in an overflow:hidden box
+         — on a busy day it was pushed past the clip edge and the flag silently
+         disappeared from the board. ::before is unused elsewhere on the slot
+         (notes own ::after), so the two markers coexist. */
+      /* Edge stripe: carries the TRIP-TYPE colour now that the bar itself is black
+         (colours assigned per trip type just below the trip-type fills). Absolute,
+         so it costs no room in the label flow and no shed threshold can reach it —
+         the inline chip was 10th of 12 flex children in an overflow:hidden box. */
+      .timeline-slot.has-keoi::before {
+          content: ''; position: absolute; top: 0; bottom: 0; left: 0;
+          width: 5px; border-radius: 4px 0 0 4px;
+          pointer-events: none; z-index: 1;
+      }
       .tl-keoi-banner {
           background: #e6fffa; color: #0f766e; border: 1px solid #0d9488;
           font-weight: 800; font-size: 0.72rem; padding: 4px 6px; border-radius: 5px;
@@ -96,13 +112,15 @@
       .tl-time-text {
           min-width: 0; overflow: hidden; text-overflow: ellipsis;
       }
-      .tl-vip-star, .tl-unpaid-flag, .tl-refund-flag { flex-shrink: 0; }
+      .tl-vip-star, .tl-unpaid-flag, .tl-refund-flag, .tl-keoi-flag { flex-shrink: 0; }
       /* Shed in order of REDUNDANCY, not markup order:
          1. status badge first — the coloured strip along the bottom already says it;
          2. then vehicle + Publix, which nothing else encodes;
          3. time last, and only when truly impossible — position on the axis already
             conveys it, so a blank bar is still locatable in time.
-         The risk flags ($ unpaid, refund) are never shed at any width. */
+         The risk flags ($ unpaid, refund) are never shed at any width. KEOI is
+         also never shed, and additionally carries .has-keoi::before — an absolute
+         edge bar that no width threshold can reach. */
       @container (max-width: 80px) {
           /* Status is already encoded by the full-width strip along the bottom edge,
              so the badge is the first thing worth spending. It was squeezing the time
@@ -132,6 +150,11 @@
           /* Genuinely nothing fits — keep the bar as a coloured risk marker. */
           .tl-time-text, .tl-vehicle-badge, .tl-publix-badge { display: none !important; }
       }
+      /* Clear the ::before edge bar (6px + 2px rule). Declared AFTER the container
+         queries so it survives their `padding` shorthand at narrow widths — the
+         bar exists at every width, so the inset must too. padding-left only, so
+         the narrow-width right padding still applies. */
+      .timeline-slot.has-keoi { padding-left: 11px; }
       /* background-COLOR, never the `background` shorthand: the shorthand resets
          background-image, which silently killed the .refund-pending hatch on every
          slot (every slot carries a trip-type class, and these rules come later). */
@@ -139,6 +162,20 @@
       .timeline-slot.return { background-color: #2e7d32; }
       .timeline-slot.cruise { background-color: #c2410c; }
       .timeline-slot.other { background-color: #6a1b9a; }
+      /* KEOI takes the FILL channel — the last one free on this bar (outline is
+         unpaid/refund, box-shadow is the VIP gold ring, background-image is the
+         refund hatch). A black ring was still just another rectangle among ~90
+         saturated bars; being the only BLACK bar on the board is unmistakable at
+         a glance, which is the entire point of the flag.
+         background-COLOR, never the shorthand — the shorthand resets
+         background-image and would kill the .refund-pending hatch (see above).
+         Trip type is not lost: it moves to the ::before edge stripe below, and it
+         is still in the hover popup. */
+      .timeline-slot.has-keoi { background-color: #0b1220; }
+      .timeline-slot.arrival.has-keoi::before { background: #4a9eff; }
+      .timeline-slot.return.has-keoi::before  { background: #4ade80; }
+      .timeline-slot.cruise.has-keoi::before  { background: #fb923c; }
+      .timeline-slot.other.has-keoi::before   { background: #c084fc; }
       .timeline-slot .tl-status-strip {
           position: absolute; bottom: 0; left: 0; right: 0;
           height: 5px; border-radius: 0 0 4px 4px;
@@ -983,7 +1020,7 @@
           <small class="text-muted">|</small>
           <small><span class="tl-publix-badge" style="font-size:0.5rem;"><i class="bi bi-cart3"></i></span> Publix stop (arrivals)</small>
           <small class="text-muted">|</small>
-          <small><span class="tl-keoi-flag"><i class="bi bi-eye-fill"></i></span> KEOI (keep eye on it)</small>
+          <small><span style="display:inline-block;width:10px;height:10px;background:#0b1220;border-left:3px solid #4a9eff;border-radius:2px;vertical-align:middle;"></span> <span class="tl-keoi-flag"><i class="bi bi-eye-fill"></i></span> KEOI — black bar (edge = trip type)</small>
           <small class="text-muted">|</small>
           <small class="text-muted"><i class="bi bi-grip-vertical"></i> Drag jobs between drivers</small>
         </div>

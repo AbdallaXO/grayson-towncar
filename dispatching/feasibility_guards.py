@@ -178,7 +178,17 @@ def required_turnaround(reposition_drive_min, next_is_airport_arrival, same_term
 
 
 def is_airport_arrival(trip_type, pickup_category):
-    return trip_type == "arrival" and pickup_category in AIRPORT_TERMINALS
+    """Is this pickup gated on an inbound flight at an airport terminal?
+
+    'cruise' counts when the pickup is AT a terminal: that is an airport->cruise-port
+    transfer (e.g. MCO -> Port Canaveral), which is functionally an arrival — the
+    driver is meeting a plane — even though Leg.get_trip_type() labels it 'cruise'
+    because the DROPOFF is a port. Leg.is_flight_tracked_arrival() has always drawn
+    the line this way, and scheduler.estimate_job_end_time already gives these legs
+    arrival dwell; this guard was the odd one out, silently denying them the
+    deplaning grace and making legitimate same-terminal turns look infeasible.
+    A from-cruise leg is unaffected: it picks up at the port, not a terminal."""
+    return trip_type in ("arrival", "cruise") and pickup_category in AIRPORT_TERMINALS
 
 
 # ════════════════════════════════════════════════════════════════════════════

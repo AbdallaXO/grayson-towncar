@@ -159,6 +159,15 @@
       .timeline-slot.return { background: #2e7d32; }
       .timeline-slot.cruise { background: #e65100; }
       .timeline-slot.other { background: #6a1b9a; }
+      /* KEOI takes the FILL channel (kept in step with schedule_board.html): being
+         the only BLACK bar beats any ring on a dense, saturated timeline. Trip type
+         moves to the ::before edge stripe. background-COLOR, not the shorthand, so
+         the .refund-pending hatch below still composes. */
+      .timeline-slot.has-keoi { background-color: #0b1220; }
+      .timeline-slot.arrival.has-keoi::before { background: #4a9eff; }
+      .timeline-slot.return.has-keoi::before  { background: #4ade80; }
+      .timeline-slot.cruise.has-keoi::before  { background: #fb923c; }
+      .timeline-slot.other.has-keoi::before   { background: #c084fc; }
       /* Refund pending — must NOT blend in with normal trips */
       .timeline-slot.refund-pending {
           outline: 2px solid #dc2626; outline-offset: -2px;
@@ -268,6 +277,13 @@
           color: #856404;
           z-index: 4;
           pointer-events: none;
+      }
+      /* Tight = the engine can seat it, but there's under 15 min of real slack once
+         the repositioning drive is paid for. Amber, and now an explicit rule: the
+         template has always emitted .gap-tight and nothing ever styled it. */
+      .timeline-gap.gap-tight {
+          border-color: #ffc107;
+          color: #856404;
       }
       .timeline-gap.gap-critical {
           border-color: #dc3545;
@@ -520,31 +536,69 @@
       }
       .time-change-ack-btn:hover { background: #7b1fa2; border-color: #7b1fa2; color: #fff; }
 
-      /* KEOI ("Keep Eye On It") watch flag — teal, the one calm unclaimed hue
-         (danger red, warning amber, VIP/history golds, time-changed purple are
-         all taken). Never color-only: binoculars icon + "KEOI" + category text.
-         Row tint yields to safety colors like VIP does; the right-edge rail
-         never yields (the left edge belongs to flight flags / VIP). */
-      tr.leg-keoi:not(.table-danger):not(.table-warning):not(.leg-time-changed) > td {
-          background-color: rgba(13,148,136,.07) !important;
+      /* KEOI ("Keep Eye On It") watch flag.
+
+         v1 keyed KEOI to a calm teal tint on the row background. Two problems,
+         both fixed here:
+           1. The tint was rgba(13,148,136,.07) — ~3% off white — AND it was
+              switched off whenever the row was also .table-danger/.table-warning/
+              .leg-time-changed. Those are exactly the jobs someone bothered to
+              flag, so KEOI vanished precisely where it mattered most.
+           2. Teal is not an unclaimed hue on this page (Publix bg-success,
+              IN-HOUSE bg-success, drop-off #1b5e20, guest-note #0f766e), so a
+              mint chip read as "fine", not "watch this".
+         KEOI now owns a channel nothing else uses: a solid near-black chip with
+         the teal eye reversed out, plus a black rail along the BOTTOM of every
+         cell. Background stays free for the safety colors, so nothing yields.
+
+         Bottom, not left or right, on purpose. The left edge already belongs to
+         the flight-alert/watch rails (tr.leg-flag-*) and VIP's gold (tr.leg-vip >
+         td:first-child) — taking it would do to them exactly what v1 did to KEOI.
+         The right edge is where v1's rail was, and it sits inside
+         .table-responsive, so it scrolled off-screen at intermediate widths while
+         the row's left stayed visible. The bottom edge is unclaimed and spans the
+         full row at any horizontal scroll position.
+
+         Top AND bottom: a single bottom rule reads as a divider and is ambiguous
+         about which of the two adjacent rows it belongs to. Bracketing the row
+         top and bottom makes the flagged row an enclosed block. */
+      tr.leg-keoi > td {
+          box-shadow: inset 0 3px 0 0 #111827, inset 0 -3px 0 0 #111827;
       }
-      tr.leg-keoi > td:last-child { box-shadow: inset -4px 0 0 0 #111827; }
-      .card.leg-keoi { box-shadow: inset -4px 0 0 0 #111827; }
+      .card.leg-keoi { box-shadow: inset 0 3px 0 0 #111827, inset 0 -3px 0 0 #111827; }
+      /* Sized in em, not rem: this table is .fs-5 (20px body), so a .7rem badge
+         rendered at 11.2px — smaller than the luggage badge next to it, and 56%
+         the size of the customer name. em tracks the row. */
       .keoi-badge {
-          display: inline-flex; align-items: center; gap: 4px;
-          background: #e6fffa; color: #111827; border: 2px solid #111827;
-          font-size: 0.7rem; font-weight: 800; padding: 2px 8px; border-radius: 8px;
-          min-height: 28px; line-height: 1.1; white-space: nowrap; cursor: pointer;
-          text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+          display: inline-flex; align-items: center; gap: 5px;
+          background: #111827; color: #fff; border: 2px solid #111827;
+          font-size: 0.8em; font-weight: 800; padding: 3px 10px; border-radius: 8px;
+          min-height: 30px; line-height: 1.1; white-space: nowrap; cursor: pointer;
+          text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,.35);
       }
-      .keoi-badge .bi-binoculars-fill { color: #0d9488; font-size: 0.82rem; }
-      .keoi-badge:hover { background: #ccfbf1; }
-      .keoi-badge:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
+      .keoi-badge .bi-binoculars-fill { color: #5eead4; font-size: 1.05em; }
+      .keoi-badge:hover { background: #000; border-color: #000; }
+      .keoi-badge:focus-visible { outline: 2px solid #5eead4; outline-offset: 2px; }
       .keoi-badge-readonly { cursor: default; }
-      .keoi-badge-cat { font-weight: 700; }
+      .keoi-badge-label { letter-spacing: .04em; }
+      .keoi-badge-cat { font-weight: 700; color: #5eead4; }
+      /* The description is the whole point of the flag — show it, don't hide it
+         behind a title= tooltip and a click. Wraps (the badge itself stays
+         nowrap) and is capped at 160 chars server-side. */
+      .keoi-desc {
+          font-size: 0.72em; font-weight: 600; line-height: 1.25;
+          color: #111827; white-space: normal; overflow-wrap: anywhere;
+          margin-top: 3px; padding-left: 7px;
+          border-left: 3px solid #0d9488;
+          /* Clamped to 3 lines: the Customer cell is 15% wide, so an unclamped
+             160-char note would push the row several times its normal height and
+             the table would stop being scannable. Full text stays in the modal. */
+          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+          overflow: hidden;
+      }
       .keoi-status-pill {
           display: inline-flex; align-items: center; gap: 3px;
-          font-size: 0.6rem; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+          font-size: 0.72em; font-weight: 700; padding: 1px 7px; border-radius: 8px;
       }
       .keoi-status-pill::before {
           content: ""; display: inline-block; width: 6px; height: 6px;
@@ -555,23 +609,73 @@
       .keoi-status-backup_arranged { background: #ecfdf5; color: #047857; }
       .keoi-add-btn { color: #0f766e; }
       .keoi-add-btn:hover { color: #0d9488; }
+      /* Both states stay black-with-teal so the pill reads as the same object as
+         the badge. The engaged state is signalled by a teal ring + the ✕, not by
+         a fill swap — a solid light-aqua fill looked like a different feature. */
       .keoi-pill { font-size: 0.72rem; }
-      .keoi-pill-off { background: #e6fffa; color: #0f766e; border: 1px solid #0d9488; }
-      .keoi-pill-off:hover { background: #ccfbf1; }
-      .keoi-pill-on { background: #0d9488; color: #fff; border: 1px solid #0d9488; }
-      .keoi-pill-on:hover { background: #0f766e; color: #fff; }
+      .keoi-pill-off { background: #111827; color: #5eead4; border: 1px solid #111827; }
+      .keoi-pill-off:hover { background: #000; color: #5eead4; border-color: #5eead4; }
+      .keoi-pill-on {
+          background: #111827; color: #5eead4; border: 1px solid #5eead4;
+          box-shadow: 0 0 0 2px rgba(94,234,212,.35);
+      }
+      .keoi-pill-on:hover { background: #000; color: #5eead4; }
+
+      /* "Watching today" strip — a pinned index of the day's flagged jobs above
+         the table. v1 counted and filtered flagged legs but never re-sorted them,
+         so an 11 PM flag sat at row 138 of 140 and was found only by scrolling.
+         Whole-day basis (see keoi_legs in views.index) so other filters never
+         shrink it. Hidden entirely when nothing is flagged. */
+      .keoi-strip {
+          background: #111827; color: #fff;
+          border-bottom: 3px solid #5eead4;
+          padding: 8px 12px;
+      }
+      .keoi-strip-head {
+          display: inline-flex; align-items: center; gap: 6px;
+          font-size: .8rem; font-weight: 800; letter-spacing: .03em;
+          color: #5eead4; margin-right: 10px; white-space: nowrap;
+      }
+      .keoi-strip-items { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+      .keoi-strip-item {
+          display: inline-flex; align-items: baseline; gap: 6px;
+          background: #1f2937; color: #fff; border: 1px solid #374151;
+          border-radius: 999px; padding: 3px 11px;
+          font-size: .78rem; font-weight: 700; line-height: 1.3;
+          cursor: pointer; text-align: left;
+      }
+      .keoi-strip-item:hover { background: #374151; border-color: #5eead4; color: #fff; }
+      .keoi-strip-item:focus-visible { outline: 2px solid #5eead4; outline-offset: 2px; }
+      .keoi-strip-time { color: #5eead4; font-weight: 800; }
+      .keoi-strip-cat { color: #d1d5db; font-weight: 600; font-size: .92em; }
+      /* Unhandled flags carry a red dot; the strip is an index, so the dot is the
+         only place operational_status earns space here. */
+      .keoi-strip-item[data-keoi-status="needs_attention"]::before {
+          content: ""; width: 7px; height: 7px; border-radius: 50%;
+          background: #fb7185; flex-shrink: 0; align-self: center;
+      }
       .keoi-modal-header { background: #0d9488; color: #fff; }
       .keoi-save-btn { background: #0d9488; border-color: #0d9488; color: #fff; }
       .keoi-save-btn:hover { background: #0f766e; border-color: #0f766e; color: #fff; }
       .keoi-meta { border-top: 1px solid #eee; padding-top: 8px; }
       /* Timeline KEOI marker — high-contrast black chip so it reads at ~8px on a
          dense, colorful timeline; teal eye keeps the KEOI identity. */
+      /* Filled teal, not outlined — the bar underneath is black now, so a black
+         chip with a teal border read as an empty box. Matches schedule_board.html. */
       .tl-keoi-flag {
-          background: #111827; color: #5eead4; font-weight: 800;
+          background: #5eead4; color: #062a26; font-weight: 800;
           font-size: 0.58rem; line-height: 1; padding: 1px 3px; border-radius: 2px;
-          margin-left: 2px; flex-shrink: 0; border: 1px solid #5eead4;
+          margin-left: 2px; flex-shrink: 0;
       }
-      .timeline-slot.has-keoi { box-shadow: inset 0 0 0 2px #111827; }
+      /* Absolute edge bar — same reasoning as the schedule board: the slot is
+         overflow:hidden with a nowrap flex label, so an inline chip near the end
+         of the run gets clipped away on short bars. This one cannot be. */
+      .timeline-slot.has-keoi::before {
+          content: ''; position: absolute; top: 0; bottom: 0; left: 0;
+          width: 5px; border-radius: 3px 0 0 3px;
+          pointer-events: none; z-index: 1;
+      }
+      .timeline-slot.has-keoi { padding-left: 10px; }
       /* KEOI banner inside the timeline hover popup */
       .tl-keoi-banner {
           background: #e6fffa; color: #0f766e; border: 1px solid #0d9488;
@@ -835,12 +939,12 @@
           {% if keoi_filter == 'active' %}
             <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}"
                class="badge text-decoration-none keoi-pill keoi-pill-on" title="Showing only flagged legs — click to clear">
-              <i class="bi bi-binoculars-fill me-1"></i>KEOI ({{ keoi_count }}) <i class="bi bi-x-lg ms-1"></i>
+              <i class="bi bi-binoculars-fill me-1"></i>KEOI (<span class="keoi-pill-count">{{ keoi_count }}</span>) <i class="bi bi-x-lg ms-1"></i>
             </a>
           {% else %}
             <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if confirm_filter == 'unconfirmed' %}&confirm=unconfirmed{% endif %}&keoi=active"
                class="badge text-decoration-none keoi-pill keoi-pill-off" title="Show only legs flagged Keep-Eye-On-It">
-              <i class="bi bi-binoculars-fill me-1"></i>KEOI ({{ keoi_count }})
+              <i class="bi bi-binoculars-fill me-1"></i>KEOI (<span class="keoi-pill-count">{{ keoi_count }}</span>)
             </a>
           {% endif %}
           {% endif %}
@@ -1132,6 +1236,36 @@
         </div>
       </div>
       <div class="card-body p-0">
+        {% comment %}
+          "Watching today" — pinned index of every KEOI-flagged leg on this date,
+          regardless of the driver/vehicle/trip-type filters in force. Kept in the
+          DOM even when empty (hidden via .d-none) so syncKeoiStrip in
+          _keoi_modal.html can add the first item without a reload.
+          ({% templatetag openbrace %}# #{% templatetag closebrace %} is
+          single-line only — a multi-line one renders as page text.)
+        {% endcomment %}
+        <div class="keoi-strip{% if not keoi_count %} d-none{% endif %}" id="keoiStrip"
+             data-date="{{ selected_date|date:'Y-m-d' }}">
+          <span class="keoi-strip-head">
+            <i class="bi bi-binoculars-fill" aria-hidden="true"></i>
+            {# One element, not a bare text node — .keoi-strip-head is an inline-flex with a gap, and a bare text node becomes its own flex item, putting the gap inside the label. #}
+            <span>Watching today (<span id="keoiStripCount">{{ keoi_count }}</span>)</span>
+          </span>
+          <span class="keoi-strip-items" id="keoiStripItems">
+            {% for kleg in keoi_legs %}
+              <button type="button" class="keoi-strip-item"
+                      data-leg-id="{{ kleg.id }}"
+                      data-sort="{{ kleg.pickup_time|time:'H:i' }}"
+                      data-keoi-status="{{ kleg.active_keoi.operational_status }}"
+                      title="{{ kleg.active_keoi.get_category_display }} · {{ kleg.active_keoi.get_operational_status_display }} — {{ kleg.active_keoi.description|truncatechars:140 }}"
+                      aria-label="Jump to flagged trip: {{ kleg.reservation.customer.get_full_name }} at {{ kleg.pickup_time|time:'g:i A' }}, {{ kleg.active_keoi.get_category_display }}">
+                <span class="keoi-strip-time">{{ kleg.pickup_time|time:'g:i A' }}</span>
+                <span>{{ kleg.reservation.customer.get_full_name }}</span>
+                <span class="keoi-strip-cat">{{ kleg.active_keoi.get_category_display }}</span>
+              </button>
+            {% endfor %}
+          </span>
+        </div>
         <!-- Desktop View of Legs Table -->
         <div class="table-responsive d-none d-lg-block">
           <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
@@ -1671,6 +1805,9 @@
                                   class="btn btn-sm btn-link p-0 text-decoration-none keoi-add-btn{% if leg.active_keoi %} d-none{% endif %}"
                                   data-keoi-leg-id="{{ leg.id }}"
                                   data-keoi-leg-label="{{ leg.reservation.customer.get_full_name }} · {{ leg.pickup_time|time:'g:i A' }} · Res #{{ leg.reservation.id }}"
+                                  data-keoi-leg-name="{{ leg.reservation.customer.get_full_name }}"
+                                  data-keoi-leg-time="{{ leg.pickup_time|time:'g:i A' }}"
+                                  data-keoi-sort="{{ leg.pickup_time|time:'H:i' }}"
                                   data-bs-toggle="modal"
                                   data-bs-target="#keoiModal">
                             <i class="bi bi-binoculars-fill me-1"></i>KEOI
@@ -2076,6 +2213,9 @@
                                     class="btn btn-sm btn-link p-0 text-decoration-none keoi-add-btn{% if leg.active_keoi %} d-none{% endif %}"
                                     data-keoi-leg-id="{{ leg.id }}"
                                     data-keoi-leg-label="{{ leg.reservation.customer.get_full_name }} · {{ leg.pickup_time|time:'g:i A' }} · Res #{{ leg.reservation.id }}"
+                                    data-keoi-leg-name="{{ leg.reservation.customer.get_full_name }}"
+                                    data-keoi-leg-time="{{ leg.pickup_time|time:'g:i A' }}"
+                                    data-keoi-sort="{{ leg.pickup_time|time:'H:i' }}"
                                     data-bs-toggle="modal"
                                     data-bs-target="#keoiModal">
                               <i class="bi bi-binoculars-fill me-1"></i>KEOI

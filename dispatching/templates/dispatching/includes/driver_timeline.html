@@ -125,7 +125,7 @@
                   {% elif gap.is_tight or gap.is_critical %}
                     <div class="timeline-gap {% if gap.is_critical %}gap-critical{% else %}gap-tight{% endif %}"
                          style="left: {{ gap.position_pct }}%; width: {{ gap.width_pct }}%;"
-                         title="{{ gap.gap_display }} gap">
+                         title="{{ gap.gap_display }} gap — {% if gap.is_critical %}not enough time to clear and reposition{% else %}tight once the reposition drive is paid for{% endif %}">
                       <span>{{ gap.gap_display }}</span>
                     </div>
                   {% endif %}
@@ -148,7 +148,8 @@
         <small><span style="display:inline-block;width:10px;height:5px;background:#ff9100;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-on-the-way" style="font-size:0.5rem;">OTW</span> On the Way</small>
         <small><span style="display:inline-block;width:10px;height:5px;background:#40c4ff;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-confirmed" style="font-size:0.5rem;">C</span> Confirmed</small>
         <small class="text-muted">|</small>
-        <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #dc3545;border-radius:2px;"></span> Tight gap</small>
+        <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #ffc107;border-radius:2px;"></span> Tight turn</small>
+        <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #dc3545;border-radius:2px;"></span> Won't make it</small>
         <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #0d6efd;border-radius:2px;background:rgba(13,110,253,0.08);"></span> Open gap</small>
       </div>
     </div>
