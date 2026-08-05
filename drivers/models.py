@@ -612,8 +612,107 @@ class FleetVehicle(models.Model):
                   "Drives the 'vehicle not moving' dwell detection.",
     )
 
+    # --- Vehicle master identity (Fleet Management) ----------------------
+    # VIN and plate were already being fetched from Samsara's /fleet/vehicles and
+    # printed to stdout by samsara_sync_vehicles --list-mappings, then discarded.
+    # Storing them buys two things: auto-mapping on onboarding, and a SECOND
+    # identity to check the samsara_vehicle_id against — a gateway moved between
+    # cars is otherwise silent and re-attributes all history.
+    vin = models.CharField(
+        max_length=17, blank=True, default="", db_index=True,
+        help_text="17-char VIN. Synced from Samsara where available; blank = unknown.",
+    )
+    license_plate = models.CharField(
+        max_length=16, blank=True, default="",
+        help_text="Plate as Samsara reports it. Identification/display only.",
+    )
+    samsara_name = models.CharField(
+        max_length=128, blank=True, default="",
+        help_text="Samsara's own label for this vehicle. Shown beside vehicle_number "
+                  "so a mis-typed samsara_vehicle_id is obvious at a glance.",
+    )
+
+    # --- Toll transponder -------------------------------------------------
+    # Central Florida runs on tolls (417/408/528 to MCO, the Beachline to Port
+    # Canaveral), so "which transponder is in which car" is a question that gets
+    # asked when a toll bill needs reconciling or a unit swaps drivers.
+    # Type is stored because both SunPass and E-PASS are common here and they
+    # bill through different accounts.
+    TRANSPONDER_TYPE_CHOICES = [
+        ("sunpass", "SunPass"),
+        ("epass", "E-PASS"),
+        ("other", "Other"),
+    ]
+    transponder_number = models.CharField(
+        max_length=32, blank=True, default="", db_index=True,
+        help_text="Transponder / account number mounted in this vehicle. "
+                  "Blank = none assigned.",
+    )
+    transponder_type = models.CharField(
+        max_length=16, choices=TRANSPONDER_TYPE_CHOICES, blank=True, default="",
+        help_text="Which toll network this transponder bills through.",
+    )
+
+    # --- Compliance dates (manual; no Samsara involvement) ---------------
+    # Deliberately NOT a status enum. There is no such thing as a car that
+    # 'can't work today' in this operation (dispatching/day_setup.py:33-36) —
+    # these are dates that drive a warning label, never a capacity subtraction.
+    in_service_since = models.DateField(null=True, blank=True)
+    registration_expires_on = models.DateField(null=True, blank=True)
+    insurance_expires_on = models.DateField(null=True, blank=True)
+    next_inspection_on = models.DateField(null=True, blank=True)
+
+    # --- Latest telematics (Fleet Management) ----------------------------
+    # Same contract as the samsara_* block above: written ONLY by the background
+    # poller, never from a request path, all nullable so an un-onboarded car or a
+    # GPS-only asset gateway simply leaves them empty. An absent reading must
+    # NEVER overwrite a good stored value with NULL.
+    samsara_odometer_meters = models.DecimalField(
+        max_digits=14, decimal_places=1, null=True, blank=True,
+        help_text="Latest odometer in METERS (canonical unit). NULL = never reported.",
+    )
+    samsara_odometer_source = models.CharField(
+        max_length=8, blank=True, default="",
+        help_text="Which counter produced it: obd (exact) / gps (estimate). "
+                  "Stored, never inferred at render — see dispatching/mileage.py.",
+    )
+    samsara_odometer_at = models.DateTimeField(
+        null=True, blank=True, help_text="Samsara's timestamp for the odometer sample."
+    )
+    samsara_gps_distance_meters = models.DecimalField(
+        max_digits=14, decimal_places=1, null=True, blank=True,
+        help_text="Cumulative gpsDistanceMeters. The mileage FALLBACK baseline.",
+    )
+    samsara_fuel_percent = models.PositiveSmallIntegerField(null=True, blank=True)
+    samsara_battery_millivolts = models.PositiveIntegerField(null=True, blank=True)
+    samsara_engine_state = models.CharField(
+        max_length=16, blank=True, default="",
+        help_text="Running / Idle / Off, as Samsara reports it.",
+    )
+    samsara_engine_seconds = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Engine hours in seconds (obdEngineSeconds). Frequently absent on "
+                  "light-duty OBD-II — populated opportunistically, nothing is built "
+                  "on it. Do not add a feature that requires this without checking "
+                  "coverage first (manage.py fleet_probe).",
+    )
+    samsara_open_fault_count = models.PositiveSmallIntegerField(null=True, blank=True)
+    samsara_faults_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["vehicle_number"]
+        constraints = [
+            # A duplicate id silently maps two cars to one GPS feed: the poller
+            # builds {samsara_vehicle_id: vehicle} and the last row wins, so the
+            # other car goes dark with no error. Partial so the 3 un-onboarded
+            # units (and every future one) can keep sharing the "" default —
+            # partial coverage is the designed steady state, not a backlog.
+            models.UniqueConstraint(
+                fields=["samsara_vehicle_id"],
+                condition=~Q(samsara_vehicle_id=""),
+                name="uniq_fleetvehicle_samsara_vehicle_id",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.vehicle_number} - {self.year} {self.make} {self.model}"
@@ -642,6 +741,24 @@ class FleetVehicle(models.Model):
         if total_min < 60:
             return f"{total_min}m ago"
         return f"{total_min // 60}h {total_min % 60}m ago"
+
+    @property
+    def odometer_miles(self):
+        """
+        Latest odometer in miles, or None when we have never had a reading.
+
+        None is NOT zero — templates must render it as an em-dash. A car with a
+        GPS-only gateway legitimately never gets one, and showing 0 would make it
+        look brand new.
+        """
+        from dispatching.mileage import meters_to_miles
+
+        return meters_to_miles(self.samsara_odometer_meters, places=0)
+
+    @property
+    def odometer_is_estimate(self) -> bool:
+        """True when the stored odometer came from GPS distance, not the OBD bus."""
+        return self.samsara_odometer_source == "gps"
 
 
 class DriverVehicleAssignment(models.Model):
@@ -1223,3 +1340,341 @@ class DriverPaymentExport(models.Model):
             f"Gusto export {self.from_date}→{self.to_date} "
             f"({self.selected_driver_count} drivers, ${self.total_amount})"
         )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# FLEET MANAGEMENT
+#
+# All five models live here in drivers/models.py rather than in a new app. Two
+# reasons: they all hang off FleetVehicle, and one app keeps the migration
+# collision surface to a single file — Samsara migrations have already collided
+# across branches once (the abandoned `samsara` branch carries a
+# samsara_integration/0001 depending on a drivers/0025 that never existed on
+# main). Do not resurrect that app.
+# ════════════════════════════════════════════════════════════════════════════
+
+
+class VehicleDayReading(models.Model):
+    """
+    One row per vehicle per LOCAL day: the odometer at both ends and the miles
+    between them.
+
+    Derived and re-runnable, never accumulated. The nightly recomputes
+    `miles_driven` from the stored start/end every time it runs, so running it
+    twice produces the same row — there is no `miles += delta` anywhere, because
+    an accumulator can never be repaired once it drifts.
+
+    `miles_driven = NULL` means UNKNOWN and must render as an em-dash. Zero means
+    the car provably did not move. Conflating them makes a dead gateway look like
+    a parked car and poisons every total above it, so any aggregate must state
+    its coverage ("1,842 mi across 26 of 31 days").
+
+    Backfill: nothing in OUR database can reconstruct a past day — Samsara GPS is
+    overwritten every 3 minutes and was never historized here
+    (docs/operational-data-audit.md). But Samsara's own /fleet/vehicles/stats/history
+    endpoint IS entitled on this account (confirmed by manage.py fleet_probe,
+    2026-08-05), so a date-window backfill is possible and is the right way to
+    repair a gap — re-pull from the vendor rather than carry our own sample
+    archive. Until that command exists, this table accrues forward only.
+    """
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.PROTECT, related_name="day_readings"
+    )
+    date = models.DateField(
+        db_index=True,
+        help_text="LOCAL service date (America/New_York). Always derive with "
+                  "timezone.localdate() — USE_TZ is on, so a naive UTC date would "
+                  "put the 8pm-to-midnight window on the wrong day.",
+    )
+    # Which gateway produced this day. If it changes mid-series the mileage
+    # resolver refuses to diff across it rather than inventing a six-figure day.
+    samsara_vehicle_id = models.CharField(max_length=64, blank=True, default="")
+
+    start_odometer_meters = models.DecimalField(
+        max_digits=14, decimal_places=1, null=True, blank=True
+    )
+    end_odometer_meters = models.DecimalField(
+        max_digits=14, decimal_places=1, null=True, blank=True
+    )
+    start_gps_distance_meters = models.DecimalField(
+        max_digits=14, decimal_places=1, null=True, blank=True
+    )
+    end_gps_distance_meters = models.DecimalField(
+        max_digits=14, decimal_places=1, null=True, blank=True
+    )
+
+    miles_driven = models.DecimalField(
+        max_digits=8, decimal_places=1, null=True, blank=True,
+        help_text="DERIVED from start/end via dispatching.mileage. "
+                  "NULL = unknown (render as em-dash), 0 = provably did not move.",
+    )
+    mileage_source = models.CharField(
+        max_length=8, blank=True, default="",
+        help_text="obd (exact) / gps (estimate) / none. Stored so the UI can mark "
+                  "provenance and an audit can tell a reading from an estimate.",
+    )
+    mileage_note = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Why a reading was rejected or fell back. Diagnostics only.",
+    )
+
+    sample_count = models.PositiveIntegerField(
+        default=0, help_text="Polls that contributed. Low count = sparse day."
+    )
+    has_gap = models.BooleanField(
+        default=False,
+        help_text="True when the feed was silent long enough that this day is "
+                  "under-counted. Makes a sparse day visibly sparse instead of "
+                  "silently wrong.",
+    )
+    first_sample_at = models.DateTimeField(null=True, blank=True)
+    last_sample_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "vehicle__vehicle_number"]
+        constraints = [
+            # The idempotency key. The nightly upserts on it, so a re-run (or two
+            # workers racing) can never produce a second row for the same day.
+            models.UniqueConstraint(
+                fields=["vehicle", "date"], name="uniq_vehicle_day_reading"
+            ),
+        ]
+        indexes = [models.Index(fields=["date", "vehicle"])]
+
+    def __str__(self):
+        miles = "—" if self.miles_driven is None else f"{self.miles_driven} mi"
+        return f"{self.vehicle.vehicle_number} {self.date}: {miles}"
+
+
+class VehicleServiceSchedule(models.Model):
+    """
+    A recurring maintenance interval for one vehicle — "oil every 5,000 mi or 6
+    months, whichever comes first".
+
+    This is the part of fleet management Samsara cannot supply, and the reason
+    odometer is worth collecting at all: the odometer is an INPUT, not a
+    deliverable. Due-ness is computed in dispatching/fleet_health.py against the
+    vehicle's latest odometer, never stored, so it cannot go stale.
+    """
+
+    SERVICE_TYPE_CHOICES = [
+        ("oil", "Oil change"),
+        ("tires", "Tires"),
+        ("brakes", "Brakes"),
+        ("transmission", "Transmission"),
+        ("inspection", "Inspection"),
+        ("other", "Other"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.CASCADE, related_name="service_schedules"
+    )
+    service_type = models.CharField(max_length=32, choices=SERVICE_TYPE_CHOICES)
+    interval_miles = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Due this many miles after the last one."
+    )
+    interval_days = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Due this many days after the last one."
+    )
+    last_done_on = models.DateField(null=True, blank=True)
+    last_done_odometer_miles = models.DecimalField(
+        max_digits=10, decimal_places=1, null=True, blank=True
+    )
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["vehicle__vehicle_number", "service_type"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle", "service_type"],
+                name="uniq_vehicle_service_schedule",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.vehicle.vehicle_number} {self.get_service_type_display()}"
+
+    @property
+    def due_at_odometer_miles(self):
+        """Odometer at which this falls due, or None for a date-only interval."""
+        if self.interval_miles is None or self.last_done_odometer_miles is None:
+            return None
+        return self.last_done_odometer_miles + Decimal(self.interval_miles)
+
+    @property
+    def due_on_date(self):
+        """Date on which this falls due, or None for a mileage-only interval."""
+        if self.interval_days is None or self.last_done_on is None:
+            return None
+        return self.last_done_on + timedelta(days=self.interval_days)
+
+
+class VehicleServiceRecord(models.Model):
+    """
+    A maintenance event that actually happened. Manually logged — Samsara does
+    not know what the shop did.
+
+    `out_of_service_from/to` is a LABEL everywhere it appears, never a capacity
+    subtraction. Feeding per-unit vehicle state back into dispatch gating was
+    built once as Guard A and deliberately removed for firing false positives off
+    stale data (dispatching/feasibility_guards.py:140-144). Do not repeat it.
+    """
+
+    SERVICE_TYPE_CHOICES = VehicleServiceSchedule.SERVICE_TYPE_CHOICES + [
+        ("repair", "Repair"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.PROTECT, related_name="service_records"
+    )
+    service_type = models.CharField(max_length=32, choices=SERVICE_TYPE_CHOICES)
+    performed_on = models.DateField(db_index=True)
+    odometer_miles = models.DecimalField(
+        max_digits=10, decimal_places=1, null=True, blank=True
+    )
+    vendor = models.CharField(max_length=120, blank=True)
+    cost = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True)
+    description = models.TextField(blank=True)
+
+    out_of_service_from = models.DateField(null=True, blank=True)
+    out_of_service_to = models.DateField(null=True, blank=True)
+
+    fault_reference = models.CharField(
+        max_length=120, blank=True, default="",
+        help_text="Free text: the fault code or Samsara issue this addressed.",
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="vehicle_service_records",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-performed_on", "-id"]
+
+    def __str__(self):
+        return (
+            f"{self.vehicle.vehicle_number} {self.get_service_type_display()} "
+            f"{self.performed_on}"
+        )
+
+
+class VehicleFault(models.Model):
+    """
+    An open (or since-resolved) fault EPISODE — not one row per poll.
+
+    A fault seen on 1,000 consecutive polls is one row whose `last_seen_at`
+    advances and whose `occurrence_count` increments. The partial unique on
+    unresolved rows enforces that, so the sync can upsert blindly.
+
+    Critical rule for the sync: NEVER mass-resolve on a failed API call. An empty
+    response because Samsara 500'd is indistinguishable from "all faults cleared"
+    unless the caller checks status first — and silently closing every fault is
+    exactly the failure that makes people stop trusting the page.
+    """
+
+    SOURCE_CHOICES = [
+        ("obd_fault", "OBD fault code"),
+        ("maintenance", "Samsara maintenance issue"),
+        ("dvir", "DVIR defect"),
+    ]
+    SEVERITY_CHOICES = [
+        ("critical", "Critical"),
+        ("warning", "Warning"),
+        ("info", "Info"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.PROTECT, related_name="faults"
+    )
+    source = models.CharField(
+        max_length=16, choices=SOURCE_CHOICES, default="obd_fault", db_index=True
+    )
+    external_id = models.CharField(
+        max_length=64,
+        help_text="Samsara's own id for this fault/issue. The idempotency key — "
+                  "never generate our own.",
+    )
+    code = models.CharField(max_length=32, blank=True, default="")
+    severity = models.CharField(
+        max_length=16, choices=SEVERITY_CHOICES, blank=True, default=""
+    )
+    description = models.CharField(max_length=255, blank=True, default="")
+
+    first_seen_at = models.DateTimeField()
+    last_seen_at = models.DateTimeField(db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    occurrence_count = models.PositiveIntegerField(default=1)
+
+    raw = models.JSONField(
+        null=True, blank=True,
+        help_text="The Samsara payload for this episode. Bounded (one row per "
+                  "episode, not per sample) so it stays cheap — unlike a raw "
+                  "sample ledger, which would reach millions of rows a year.",
+    )
+
+    class Meta:
+        ordering = ["-last_seen_at"]
+        constraints = [
+            # One OPEN episode per (vehicle, source, external_id). Resolved rows
+            # are exempt so the same code recurring later opens a fresh episode
+            # instead of colliding with the historical one.
+            models.UniqueConstraint(
+                fields=["vehicle", "source", "external_id"],
+                condition=Q(resolved_at__isnull=True),
+                name="uniq_open_vehicle_fault",
+            ),
+        ]
+        indexes = [models.Index(fields=["vehicle", "resolved_at"])]
+
+    def __str__(self):
+        state = "open" if self.resolved_at is None else "resolved"
+        return f"{self.vehicle.vehicle_number} {self.code or self.source} ({state})"
+
+    @property
+    def is_open(self) -> bool:
+        return self.resolved_at is None
+
+
+class FleetSyncState(models.Model):
+    """
+    Health (and, if the delta feed is ever entitled, cursor) for one Samsara feed.
+    One row per feed key.
+
+    This exists because of a real ~25-day outage: `.env` defined SAMSARA_API_KEY
+    while settings read SAMSARA_API_TOKEN, so the poller no-op'd every cycle and
+    every mapped vehicle sat frozen at 2026-07-11 — and nothing in the product
+    noticed, because there was no feed-health surface anywhere. The tile that
+    renders `last_success_at` is the single highest-value pixel in this module.
+
+    On `cursor`: the /fleet/vehicles/stats endpoint's `pagination.endCursor` is
+    INTRA-RESPONSE paging over the vehicle list, not a resume token — persisting
+    it would resume a vehicle listing, not a data stream. This field stays empty
+    unless and until the cursor-resumable /fleet/vehicles/stats/feed endpoint is
+    confirmed entitled (manage.py fleet_probe shows it exists as a route).
+    """
+
+    feed = models.CharField(
+        max_length=32, unique=True,
+        help_text="Feed key: 'vehicle_stats' | 'faults' | 'nightly_reconcile'.",
+    )
+    cursor = models.TextField(
+        blank=True, default="",
+        help_text="Resume cursor for a DELTA feed only. Blank for snapshot polls.",
+    )
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    last_success_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    last_status = models.CharField(max_length=16, blank=True, default="")
+    last_error = models.TextField(blank=True, default="")
+    consecutive_failures = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["feed"]
+
+    def __str__(self):
+        return f"{self.feed}: {self.last_status or 'never run'}"

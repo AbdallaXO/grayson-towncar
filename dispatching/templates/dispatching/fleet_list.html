@@ -1,0 +1,239 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}Fleet{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+<style>
+  /* .tap-table-wrap is overflow:hidden, which clips a wide table instead of
+     letting it scroll. Fleet rows carry more columns than the agency table. */
+  .fleet-table-wrap { overflow-x: auto; }
+
+  .fleet-chip {
+    display: inline-block; padding: 2px 8px; margin: 1px 2px 1px 0;
+    border-radius: 999px; font-size: .72rem; font-weight: 600;
+    white-space: nowrap; line-height: 1.5;
+  }
+  .fleet-chip.critical { background: #fdeaea; color: #a12020; border: 1px solid #f3c9c9; }
+  .fleet-chip.warn     { background: #fef6e7; color: #8a5b00; border: 1px solid #f3e0b8; }
+  .fleet-chip.info     { background: #eef2f7; color: #44546a; border: 1px solid #dbe3ec; }
+
+  /* Provenance marker. gps is deliberately softer than obd — an estimate should
+     not look as confident as a reading off the vehicle's own odometer. */
+  .fleet-src {
+    font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
+    padding: 1px 4px; border-radius: 3px; margin-left: 4px; vertical-align: 1px;
+  }
+  .fleet-src.obd { background: #e8f1ea; color: #3d6b4a; }
+  .fleet-src.gps { background: #f1f1f1; color: #8a8a8a; }
+
+  /* Unknown. Never a zero. */
+  .fleet-unknown { color: #b0b0b0; }
+
+  .fleet-feed {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 16px;
+    font-size: .86rem; border: 1px solid transparent;
+  }
+  .fleet-feed .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+  .fleet-feed.ok       { background: #f0f7f2; border-color: #d6e8dc; color: #2f5c40; }
+  .fleet-feed.ok .dot  { background: #3d8b5a; }
+  .fleet-feed.warn     { background: #fef6e7; border-color: #f3e0b8; color: #8a5b00; }
+  .fleet-feed.warn .dot{ background: #d69a1a; }
+  .fleet-feed.critical { background: #fdeaea; border-color: #f3c9c9; color: #a12020; }
+  .fleet-feed.critical .dot { background: #c0392b; }
+  .fleet-feed .feed-label { font-weight: 700; }
+  .fleet-feed .feed-fix { margin-left: auto; font-size: .78rem; opacity: .85; }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">Fleet</h1>
+      <div class="tap-subtitle">
+        Every vehicle, its condition, and what needs attention before tomorrow morning.
+      </div>
+    </div>
+  </div>
+
+  {# Feed health. The one line that would have caught a silent 25-day outage. #}
+  <div class="fleet-feed {{ feed.level }}">
+    <span class="dot"></span>
+    <span class="feed-label">Samsara: {{ feed.label }}</span>
+    <span>{{ feed.detail }}</span>
+    {% if feed.level == "critical" %}
+      <span class="feed-fix">
+        Check SAMSARA_API_TOKEN, then run <code>manage.py fleet_probe</code>
+      </span>
+    {% endif %}
+  </div>
+
+  <div class="tap-summary">
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Vehicles (filtered)</div>
+      <div class="tap-stat-value">{{ total_vehicles }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Active</div>
+      <div class="tap-stat-value gold">{{ total_active }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">On Samsara</div>
+      <div class="tap-stat-value">{{ total_mapped }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Need Attention</div>
+      <div class="tap-stat-value {% if total_attention %}red{% endif %}">{{ total_attention }}</div>
+    </div>
+  </div>
+
+  <form method="get" class="tap-filter">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <input type="search" name="q" value="{{ search }}" class="form-control"
+               placeholder="Search unit, make, model, VIN, plate, or transponder…">
+      </div>
+      <div class="col-md-2">
+        <select name="status" class="form-select">
+          <option value="active"   {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          <option value="all"      {% if status_filter == "all" %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select name="coverage" class="form-select">
+          <option value="all"      {% if coverage_filter == "all" %}selected{% endif %}>All vehicles</option>
+          <option value="mapped"   {% if coverage_filter == "mapped" %}selected{% endif %}>On Samsara</option>
+          <option value="unmapped" {% if coverage_filter == "unmapped" %}selected{% endif %}>Not onboarded</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="sort" class="form-select">
+          <option value="number"    {% if sort == "number" %}selected{% endif %}>Sort: Unit</option>
+          <option value="odometer"  {% if sort == "odometer" %}selected{% endif %}>Sort: Odometer</option>
+          <option value="attention" {% if sort == "attention" %}selected{% endif %}>Sort: Attention</option>
+        </select>
+      </div>
+      <div class="col-md-1 text-end">
+        <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search"></i></button>
+      </div>
+    </div>
+  </form>
+
+  <div class="tap-table-wrap fleet-table-wrap">
+    <table class="tap-table">
+      <thead>
+        <tr>
+          <th>Unit</th>
+          <th>Vehicle</th>
+          <th>Plate / VIN</th>
+          <th>Transponder</th>
+          <th class="text-end">Odometer</th>
+          <th class="text-end">Last {{ window_days }}d</th>
+          <th>Needs attention</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>
+            <a href="{% url 'fleet_detail' row.vehicle.pk %}" class="row-link">
+              <div class="tap-name">#{{ row.vehicle.vehicle_number }}</div>
+              {% if row.vehicle.samsara_name and row.vehicle.samsara_name != row.vehicle.vehicle_number %}
+                <div class="tap-sub">{{ row.vehicle.samsara_name }}</div>
+              {% endif %}
+            </a>
+          </td>
+          <td>
+            <div>{{ row.vehicle.year }} {{ row.vehicle.make }} {{ row.vehicle.model }}</div>
+            {% if row.vehicle.vehicle_type %}
+              <div class="tap-sub">{{ row.vehicle.vehicle_type.vehicle_type }}</div>
+            {% endif %}
+          </td>
+          <td class="tap-sub">
+            {{ row.vehicle.license_plate|default:"—" }}
+            {% if row.vehicle.vin %}<div>{{ row.vehicle.vin }}</div>{% endif %}
+          </td>
+          <td class="tap-sub">
+            {% if row.vehicle.transponder_number %}
+              {{ row.vehicle.transponder_number }}
+              {% if row.vehicle.transponder_type %}
+                <div>{{ row.vehicle.get_transponder_type_display }}</div>
+              {% endif %}
+            {% else %}
+              <span class="fleet-unknown">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if row.odometer is None %}
+              <span class="fleet-unknown">—</span>
+            {% else %}
+              {{ row.odometer|intcomma }}
+              <span class="fleet-src {% if row.odometer_estimated %}gps{% else %}obd{% endif %}">
+                {% if row.odometer_estimated %}gps{% else %}obd{% endif %}
+              </span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if row.recent_miles is None %}
+              <span class="fleet-unknown">—</span>
+            {% else %}
+              {{ row.recent_miles|floatformat:0|intcomma }} mi
+              {% if row.coverage %}<div class="tap-sub">{{ row.coverage }}</div>{% endif %}
+            {% endif %}
+          </td>
+          <td>
+            {% for chip in row.chips %}
+              <span class="fleet-chip {{ chip.level }}" title="{{ chip.detail }}">{{ chip.label }}</span>
+            {% empty %}
+              {% if row.vehicle.samsara_vehicle_id %}
+                <span class="tap-sub">Nothing flagged</span>
+              {% else %}
+                <span class="tap-sub">Not on Samsara</span>
+              {% endif %}
+            {% endfor %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'fleet_detail' row.vehicle.pk %}" class="tap-action-btn outline">
+              View <i class="bi bi-arrow-right"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8">
+            <div class="tap-empty">
+              <i class="bi bi-truck"></i>
+              No vehicles match your filters.
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tap-sub mt-3">
+    An em-dash means no reading, not zero miles.
+    <span class="fleet-src obd">obd</span> is the vehicle's own odometer;
+    <span class="fleet-src gps">gps</span> is estimated from GPS distance.
+    {% if nightly and nightly.last_success_at %}
+      Nightly reconcile last ran {{ nightly.last_success_at|timesince }} ago.
+    {% else %}
+      Nightly reconcile has not run yet.
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

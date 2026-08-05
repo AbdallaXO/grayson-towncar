@@ -5,6 +5,7 @@ from . import flight_verify_views
 from . import overnight_views
 from . import keoi_views
 from . import db_health
+from . import fleet_views
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 from ops import leads_board as ops_leads
@@ -66,6 +67,22 @@ urlpatterns = [
     path("vehicle-profit/export.csv", views.vehicle_profit_report_csv, name="vehicle_profit_report_csv"),
     path("fleet-intel/", views.fleet_intel_dashboard, name="fleet_intel_dashboard"),
     path("fleet-intel/legs/", views.fleet_intel_leaks, name="fleet_intel_leaks"),
+
+    # Fleet Management — vehicle condition, mileage, maintenance. Distinct from
+    # fleet-intel/ above, which is a revenue-leak report, not a vehicle view.
+    path("fleet/", fleet_views.fleet_list, name="fleet_list"),
+    path("fleet/<int:pk>/", fleet_views.fleet_detail, name="fleet_detail"),
+    # In-page editing so the fleet job never needs the Django admin.
+    path("fleet/<int:pk>/details/", fleet_views.fleet_update_details,
+         name="fleet_update_details"),
+    path("fleet/<int:pk>/schedule/", fleet_views.fleet_save_schedule,
+         name="fleet_save_schedule"),
+    path("fleet/schedule/<int:pk>/delete/", fleet_views.fleet_delete_schedule,
+         name="fleet_delete_schedule"),
+    path("fleet/<int:pk>/service/", fleet_views.fleet_add_service,
+         name="fleet_add_service"),
+    path("fleet/service/<int:pk>/delete/", fleet_views.fleet_delete_service,
+         name="fleet_delete_service"),
     path("farmout-optimizer/", views.farmout_optimizer, name="farmout_optimizer"),
     path("farmout-optimizer/apply/", views.farmout_apply, name="farmout_apply"),
     # Recovery Advisor — live disruption cards + one-click apply + snooze

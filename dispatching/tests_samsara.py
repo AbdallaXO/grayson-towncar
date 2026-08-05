@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 import requests
 from django.contrib.auth.models import User
+from django.db import IntegrityError
 from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -26,8 +27,26 @@ from rates.models import Vehicle, Location, Route, Rate
 from reservations.models import Customer, Reservation, Leg
 from drivers.models import Driver, FleetVehicle, DriverVehicleAssignment
 from dispatching.samsara_service import (
-    SamsaraService, parse_gps_record, resolve_assigned_fleet_vehicle,
+    EXTENDED_STAT_TYPES, MAX_STAT_TYPES_PER_REQUEST, SamsaraService,
+    parse_gps_record, parse_stats_record, resolve_assigned_fleet_vehicle,
 )
+
+
+def _extended_chunk_count():
+    """How many requests the extended types take at Samsara's 4-per-call cap."""
+    return -(-len(EXTENDED_STAT_TYPES) // MAX_STAT_TYPES_PER_REQUEST)
+
+
+def _cycle(gps, extended=None):
+    """
+    One poll cycle's worth of mocked responses: the gps call, then one per
+    extended chunk. Only the FIRST chunk carries data — the rest come back
+    empty-but-successful, which is also what a real cycle looks like when the
+    later chunk's types aren't reported by any vehicle.
+    """
+    empty = {"status": "success", "data": []}
+    first = extended if extended is not None else empty
+    return [gps, first] + [empty] * (_extended_chunk_count() - 1)
 from dispatching.samsara_scheduler import sync_vehicles, sweep_eta
 from dispatching import samsara_risk
 from dispatching.samsara_risk import (
@@ -170,9 +189,19 @@ class SyncVehiclesTests(TestCase):
         }]}
         with patch.object(SamsaraService, "get_vehicle_stats", return_value=stats) as m:
             out = sync_vehicles()
-        m.assert_called_once()
-        # only the mapped id was requested
-        self.assertEqual(m.call_args.kwargs["vehicle_ids"], ["veh-1"])
+        # gps goes in its OWN call so a bad extended type can never take live
+        # position tracking down with it; the extended types are then chunked to
+        # Samsara's 4-per-request cap. Derived, not hardcoded, so growing the
+        # type list doesn't break this test — it just costs another chunk.
+        self.assertEqual(m.call_count, 1 + _extended_chunk_count())
+        gps_call, *extended_calls = m.call_args_list
+        self.assertEqual(gps_call.kwargs["types"], ("gps",))
+        for call in extended_calls:
+            self.assertNotIn("gps", call.kwargs["types"])
+            self.assertLessEqual(len(call.kwargs["types"]), MAX_STAT_TYPES_PER_REQUEST)
+        # only the mapped id was requested, on every call
+        for call in m.call_args_list:
+            self.assertEqual(call.kwargs["vehicle_ids"], ["veh-1"])
         self.assertEqual(out["updated"], 1)
         mapped.refresh_from_db()
         unmapped.refresh_from_db()
@@ -192,6 +221,290 @@ class SyncVehiclesTests(TestCase):
         self.assertEqual(out["updated"], 0)
         mapped.refresh_from_db()
         self.assertIsNone(mapped.samsara_last_seen_at)
+
+
+class ParseStatsRecordTests(TestCase):
+    """Extended telemetry parsing. Fixture-driven, no HTTP."""
+
+    def test_full_payload_maps_every_field(self):
+        out = parse_stats_record({
+            "id": "veh-1",
+            "obdOdometerMeters": {"value": 80467200, "time": "2026-08-05T12:00:00Z"},
+            "gpsDistanceMeters": {"value": 1234567},
+            "fuelPercents": {"value": 62},
+            "batteryMilliVolts": {"value": 12600},
+            "engineStates": {"value": "Running"},
+            "obdEngineSeconds": {"value": 9000000},
+            "faultCodes": {"time": "2026-08-05T12:00:00Z",
+                           "obdii": {"checkEngineLightIsOn": [], "diagnosticTroubleCodes": [
+                               {"dtcShortCode": "P0301"}, {"dtcShortCode": "P0420"}]}},
+        })
+        self.assertEqual(out["samsara_odometer_meters"], Decimal("80467200"))
+        self.assertEqual(out["samsara_odometer_source"], "obd")
+        self.assertIsNotNone(out["samsara_odometer_at"])
+        self.assertEqual(out["samsara_gps_distance_meters"], Decimal("1234567"))
+        self.assertEqual(out["samsara_fuel_percent"], 62)
+        self.assertEqual(out["samsara_battery_millivolts"], 12600)
+        self.assertEqual(out["samsara_engine_state"], "Running")
+        self.assertEqual(out["samsara_engine_seconds"], 9000000)
+        self.assertEqual(out["samsara_open_fault_count"], 2)
+
+    def test_fuel_is_read_from_the_singular_response_key(self):
+        # THE name trap. You request "fuelPercents"; /fleet/vehicles/stats hands
+        # back "fuelPercent". Reading the requested name found nothing, which
+        # looked exactly like "the plan has no fuel data" while the Samsara
+        # dashboard was showing 83% and 41% for the same cars.
+        out = parse_stats_record({"id": "v", "fuelPercent": {
+            "time": "2026-08-05T23:17:08Z", "value": 83}})
+        self.assertEqual(out["samsara_fuel_percent"], 83)
+
+    def test_engine_state_is_read_from_the_singular_response_key(self):
+        out = parse_stats_record({"id": "v", "engineState": {
+            "time": "2026-08-05T23:17:08Z", "value": "Off"}})
+        self.assertEqual(out["samsara_engine_state"], "Off")
+
+    def test_plural_spelling_still_works(self):
+        # /stats/feed and /stats/history use the plural. One parser, both shapes.
+        out = parse_stats_record({"id": "v", "fuelPercents": [
+            {"time": "2026-08-05T22:00:00Z", "value": 90},
+            {"time": "2026-08-05T23:00:00Z", "value": 41}]})
+        self.assertEqual(out["samsara_fuel_percent"], 41)  # newest wins
+
+    def test_a_series_takes_the_latest_entry(self):
+        out = parse_stats_record({"id": "v", "obdOdometerMeters": [
+            {"value": 1000}, {"value": 2000}]})
+        self.assertEqual(out["samsara_odometer_meters"], Decimal("2000"))
+
+    def test_every_requested_type_can_be_parsed_from_its_real_response_key(self):
+        # Guards the whole mapping: if a future type is added to
+        # EXTENDED_STAT_TYPES whose response key differs, this fails loudly
+        # instead of silently reporting "not reported" forever.
+        from dispatching.samsara_service import _STAT_KEY_ALIASES, _stat_block
+
+        for stat_type in EXTENDED_STAT_TYPES:
+            key = _STAT_KEY_ALIASES.get(stat_type, (stat_type,))[0]
+            record = {"id": "v", key: {"value": 1}}
+            self.assertIsNotNone(
+                _stat_block(record, stat_type),
+                f"{stat_type} cannot be read back from its response key {key}")
+
+    def test_absent_types_emit_no_keys(self):
+        # THE contract: a GPS-only asset gateway must not produce Nones that
+        # blank out good stored values on the next bulk_update.
+        out = parse_stats_record({"id": "veh-1"})
+        self.assertEqual(out, {})
+
+    def test_partial_payload_emits_only_what_arrived(self):
+        out = parse_stats_record({"id": "v", "fuelPercents": {"value": 40}})
+        self.assertEqual(list(out.keys()), ["samsara_fuel_percent"])
+        self.assertNotIn("samsara_odometer_meters", out)
+
+    def test_gps_distance_never_populates_the_odometer(self):
+        # gpsDistanceMeters is distance-since-install, not the vehicle's
+        # odometer. Writing it to the odometer column would show a 3-year-old
+        # Suburban with 8,000 miles on the clock.
+        out = parse_stats_record({"id": "v", "gpsDistanceMeters": {"value": 12874752}})
+        self.assertIn("samsara_gps_distance_meters", out)
+        self.assertNotIn("samsara_odometer_meters", out)
+        self.assertNotIn("samsara_odometer_source", out)
+
+    def test_null_values_are_skipped_not_written(self):
+        out = parse_stats_record({
+            "id": "v",
+            "obdOdometerMeters": {"value": None},
+            "fuelPercents": {"value": None},
+        })
+        self.assertEqual(out, {})
+
+    def test_healthy_obdii_vehicle_reports_zero_faults(self):
+        # THE regression that made every car look broken: obdii's
+        # diagnosticTroubleCodes[] is a list of ECUs, not of faults. A healthy
+        # Suburban returns four empty ECU entries; counting entries reported
+        # "4 faults" on a car with none. Shape verified against live data.
+        out = parse_stats_record({"id": "v", "faultCodes": {
+            "obdii": {"diagnosticTroubleCodes": [
+                {"confirmedDtcs": [], "pendingDtcs": [], "permanentDtcs": [],
+                 "milStatus": False, "txId": 417001745},
+                {"confirmedDtcs": [], "pendingDtcs": [], "permanentDtcs": [],
+                 "milStatus": False, "txId": 417001752},
+                {"confirmedDtcs": [], "pendingDtcs": [], "permanentDtcs": [],
+                 "milStatus": False, "txId": 417001768},
+                {"confirmedDtcs": [], "pendingDtcs": [], "permanentDtcs": [],
+                 "milStatus": False, "txId": 417001771},
+            ]}}})
+        self.assertEqual(out["samsara_open_fault_count"], 0)
+
+    def test_confirmed_and_permanent_dtcs_are_counted(self):
+        out = parse_stats_record({"id": "v", "faultCodes": {
+            "obdii": {"diagnosticTroubleCodes": [
+                {"confirmedDtcs": [{"dtcShortCode": "P0301"}],
+                 "pendingDtcs": [], "permanentDtcs": [{"dtcShortCode": "P0420"}],
+                 "milStatus": True},
+                {"confirmedDtcs": [], "pendingDtcs": [], "permanentDtcs": [],
+                 "milStatus": False},
+            ]}}})
+        self.assertEqual(out["samsara_open_fault_count"], 2)
+
+    def test_pending_dtcs_alone_do_not_raise_a_badge(self):
+        # A pending code is one unconfirmed occurrence. Badging it would put red
+        # on healthy cars, which is how a warning surface loses its meaning.
+        out = parse_stats_record({"id": "v", "faultCodes": {
+            "obdii": {"diagnosticTroubleCodes": [
+                {"confirmedDtcs": [], "pendingDtcs": [{"dtcShortCode": "P0128"}],
+                 "permanentDtcs": [], "milStatus": False},
+            ]}}})
+        self.assertEqual(out["samsara_open_fault_count"], 0)
+
+    def test_lit_check_engine_light_with_no_readable_code_still_counts(self):
+        out = parse_stats_record({"id": "v", "faultCodes": {
+            "obdii": {"diagnosticTroubleCodes": [
+                {"confirmedDtcs": [], "pendingDtcs": [], "permanentDtcs": [],
+                 "milStatus": True},
+            ]}}})
+        self.assertEqual(out["samsara_open_fault_count"], 1)
+
+    def test_j1939_entries_are_faults_themselves(self):
+        # Heavy-duty bus nests differently: the list entries ARE the faults.
+        out = parse_stats_record({"id": "v", "faultCodes": {
+            "j1939": {"diagnosticTroubleCodes": [
+                {"spn": 100, "fmi": 1}, {"spn": 110, "fmi": 3},
+            ]}}})
+        self.assertEqual(out["samsara_open_fault_count"], 2)
+
+    def test_a_bus_that_reported_nothing_wrong_writes_a_real_zero(self):
+        out = parse_stats_record({"id": "v", "faultCodes": {
+            "obdii": {"diagnosticTroubleCodes": []}}})
+        self.assertEqual(out["samsara_open_fault_count"], 0)
+
+    def test_faultcodes_with_only_a_timestamp_is_not_an_answer(self):
+        # No bus reported. Absent, not "clean" — writing 0 here would clear a
+        # real badge the next time a car went quiet.
+        out = parse_stats_record({"id": "v", "faultCodes": {"time": "2026-08-05T12:00:00Z"}})
+        self.assertNotIn("samsara_open_fault_count", out)
+
+    def test_missing_faultcodes_writes_no_count(self):
+        out = parse_stats_record({"id": "v", "fuelPercents": {"value": 10}})
+        self.assertNotIn("samsara_open_fault_count", out)
+
+    def test_fuel_is_clamped_to_0_100(self):
+        self.assertEqual(
+            parse_stats_record({"id": "v", "fuelPercents": {"value": 140}})["samsara_fuel_percent"],
+            100)
+        self.assertEqual(
+            parse_stats_record({"id": "v", "fuelPercents": {"value": -5}})["samsara_fuel_percent"],
+            0)
+
+    def test_garbage_values_do_not_raise(self):
+        for junk in ["", "n/a", [], {}, None]:
+            out = parse_stats_record({
+                "id": "v",
+                "fuelPercents": {"value": junk},
+                "batteryMilliVolts": {"value": junk},
+                "obdEngineSeconds": {"value": junk},
+            })
+            self.assertNotIn("samsara_fuel_percent", out)
+
+    def test_empty_record_is_safe(self):
+        self.assertEqual(parse_stats_record({}), {})
+        self.assertEqual(parse_stats_record(None), {})
+
+
+class ExtendedTelemetryIsolationTests(TestCase):
+    """
+    The extended stats call must never be able to break live GPS tracking —
+    that is the entire reason it is a separate request.
+    """
+
+    def _fleet(self, number, samsara_id=""):
+        return FleetVehicle.objects.create(
+            vehicle_number=number, year=2022, make="M", model="X",
+            samsara_vehicle_id=samsara_id)
+
+    def _gps_payload(self):
+        return {"status": "success", "data": [{
+            "id": "veh-1",
+            "gps": {"latitude": 28.43, "longitude": -81.31,
+                    "time": "2026-08-05T12:00:00Z", "speedMilesPerHour": 30.0,
+                    "reverseGeo": {"formattedLocation": "near MCO"}},
+        }]}
+
+    def test_gps_still_commits_when_extended_call_fails(self):
+        # Simulates an unentitled stat type erroring every extended chunk.
+        vehicle = self._fleet("301", samsara_id="veh-1")
+        failure = {"status": "error", "error": "stat type not entitled"}
+        responses = [self._gps_payload()] + [failure] * _extended_chunk_count()
+        with patch.object(SamsaraService, "get_vehicle_stats", side_effect=responses):
+            out = sync_vehicles()
+        self.assertEqual(out["status"], "success")
+        self.assertEqual(out["updated"], 1)
+        self.assertEqual(out["telemetry"], 0)
+        vehicle.refresh_from_db()
+        self.assertEqual(vehicle.samsara_last_location_label, "near MCO")
+        self.assertIsNone(vehicle.samsara_odometer_meters)
+
+    def test_extended_values_land_alongside_gps(self):
+        vehicle = self._fleet("302", samsara_id="veh-1")
+        extended = {"status": "success", "data": [{
+            "id": "veh-1",
+            "obdOdometerMeters": {"value": 80467200},
+            "fuelPercents": {"value": 55},
+        }]}
+        with patch.object(SamsaraService, "get_vehicle_stats",
+                          side_effect=_cycle(self._gps_payload(), extended)):
+            out = sync_vehicles()
+        self.assertEqual(out["telemetry"], 1)
+        vehicle.refresh_from_db()
+        self.assertEqual(vehicle.samsara_odometer_meters, Decimal("80467200.0"))
+        self.assertEqual(vehicle.samsara_fuel_percent, 55)
+        self.assertEqual(vehicle.samsara_last_location_label, "near MCO")
+
+    def test_telemetry_lands_for_a_vehicle_with_no_gps_fix(self):
+        # A car parked in a garage reports no fix but still has an odometer.
+        vehicle = self._fleet("303", samsara_id="veh-2")
+        gps = {"status": "success", "data": [{"id": "veh-2", "gps": {}}]}
+        extended = {"status": "success", "data": [
+            {"id": "veh-2", "obdOdometerMeters": {"value": 1609344}}]}
+        with patch.object(SamsaraService, "get_vehicle_stats",
+                          side_effect=_cycle(gps, extended)):
+            out = sync_vehicles()
+        vehicle.refresh_from_db()
+        self.assertEqual(vehicle.samsara_odometer_meters, Decimal("1609344.0"))
+        self.assertIsNone(vehicle.samsara_last_seen_at)
+        self.assertEqual(out["telemetry"], 1)
+
+    def test_absent_reading_does_not_null_a_stored_value(self):
+        # The invariant that makes stale-but-real beat fresh-and-null.
+        vehicle = self._fleet("304", samsara_id="veh-1")
+        FleetVehicle.objects.filter(pk=vehicle.pk).update(
+            samsara_odometer_meters=Decimal("80467200.0"), samsara_fuel_percent=70)
+        extended = {"status": "success", "data": [
+            {"id": "veh-1", "fuelPercents": {"value": 65}}]}  # no odometer this cycle
+        with patch.object(SamsaraService, "get_vehicle_stats",
+                          side_effect=_cycle(self._gps_payload(), extended)):
+            sync_vehicles()
+        vehicle.refresh_from_db()
+        self.assertEqual(vehicle.samsara_odometer_meters, Decimal("80467200.0"))
+        self.assertEqual(vehicle.samsara_fuel_percent, 65)
+
+
+class SamsaraVehicleIdUniquenessTests(TestCase):
+    def test_two_vehicles_cannot_share_a_samsara_id(self):
+        # Without this, the poller's {samsara_id: vehicle} dict silently drops
+        # one car and it goes dark with no error anywhere.
+        FleetVehicle.objects.create(
+            vehicle_number="401", year=2022, make="M", model="X",
+            samsara_vehicle_id="dup-1")
+        with self.assertRaises(IntegrityError):
+            FleetVehicle.objects.create(
+                vehicle_number="402", year=2022, make="M", model="X",
+                samsara_vehicle_id="dup-1")
+
+    def test_many_vehicles_may_share_the_blank_default(self):
+        # Partial coverage is the designed steady state, not a backlog.
+        for n in ("403", "404", "405"):
+            FleetVehicle.objects.create(
+                vehicle_number=n, year=2022, make="M", model="X")
+        self.assertEqual(FleetVehicle.objects.filter(samsara_vehicle_id="").count(), 3)
 
 
 @override_settings(SAMSARA_API_TOKEN="")

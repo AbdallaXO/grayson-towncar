@@ -5,6 +5,10 @@ from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, 
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
 from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile, DriverPushSubscription, DriverWakeupCheck
+from .models import (
+    FleetSyncState, VehicleDayReading, VehicleFault, VehicleServiceRecord,
+    VehicleServiceSchedule,
+)
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -1043,14 +1047,93 @@ class FleetVehicleAdmin(admin.ModelAdmin):
                     "is_active", "samsara_vehicle_id", "notes"]
     list_editable = ["max_passenger_capacity", "max_luggage_capacity",
                      "is_active", "samsara_vehicle_id", "notes"]
-    search_fields = ["vehicle_number", "make", "model", "samsara_vehicle_id"]
+    search_fields = ["vehicle_number", "make", "model", "samsara_vehicle_id",
+                     "vin", "license_plate", "transponder_number"]
     list_filter = ["is_active", "vehicle_type", "year", "make"]
-    # Live position is written only by the Samsara poller — show, don't edit.
+    # Everything the Samsara poller writes is show-don't-edit. Hand-editing these
+    # would be silently overwritten within 3 minutes anyway, and a typo'd
+    # odometer would corrupt the next day's mileage delta.
     readonly_fields = [
         "samsara_last_location_label", "samsara_movement_status",
         "samsara_last_latitude", "samsara_last_longitude",
         "samsara_last_seen_at", "samsara_last_synced_at",
+        "samsara_stationary_since", "samsara_name",
+        "samsara_odometer_meters", "samsara_odometer_source", "samsara_odometer_at",
+        "samsara_gps_distance_meters", "samsara_fuel_percent",
+        "samsara_battery_millivolts", "samsara_engine_state",
+        "samsara_engine_seconds", "samsara_open_fault_count", "samsara_faults_at",
     ]
+
+
+# ── Fleet Management ────────────────────────────────────────────────────────
+# Service schedules and records are the ONLY fleet models a human edits. The
+# rest are written by the poller/nightly and are read-only here so a hand edit
+# can't be silently overwritten three minutes later.
+
+
+@admin.register(VehicleServiceSchedule)
+class VehicleServiceScheduleAdmin(admin.ModelAdmin):
+    list_display = ["vehicle", "service_type", "interval_miles", "interval_days",
+                    "last_done_on", "last_done_odometer_miles", "is_active"]
+    list_editable = ["interval_miles", "interval_days", "last_done_on",
+                     "last_done_odometer_miles", "is_active"]
+    list_filter = ["service_type", "is_active", "vehicle"]
+    search_fields = ["vehicle__vehicle_number", "notes"]
+
+
+@admin.register(VehicleServiceRecord)
+class VehicleServiceRecordAdmin(admin.ModelAdmin):
+    list_display = ["vehicle", "service_type", "performed_on", "odometer_miles",
+                    "vendor", "cost", "out_of_service_from", "out_of_service_to"]
+    list_filter = ["service_type", "vehicle", "performed_on"]
+    search_fields = ["vehicle__vehicle_number", "vendor", "description",
+                     "fault_reference"]
+    date_hierarchy = "performed_on"
+    readonly_fields = ["created_at"]
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(VehicleDayReading)
+class VehicleDayReadingAdmin(admin.ModelAdmin):
+    list_display = ["vehicle", "date", "miles_driven", "mileage_source",
+                    "sample_count", "has_gap", "mileage_note"]
+    list_filter = ["mileage_source", "has_gap", "vehicle", "date"]
+    search_fields = ["vehicle__vehicle_number"]
+    date_hierarchy = "date"
+    # Derived rows. The nightly recomputes them from start/end on every run, so
+    # any edit here is discarded — read-only rather than misleading.
+    readonly_fields = [f.name for f in VehicleDayReading._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(VehicleFault)
+class VehicleFaultAdmin(admin.ModelAdmin):
+    list_display = ["vehicle", "code", "source", "severity", "first_seen_at",
+                    "last_seen_at", "resolved_at", "occurrence_count"]
+    list_filter = ["source", "severity", "vehicle"]
+    search_fields = ["vehicle__vehicle_number", "code", "description",
+                     "external_id"]
+    readonly_fields = [f.name for f in VehicleFault._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(FleetSyncState)
+class FleetSyncStateAdmin(admin.ModelAdmin):
+    list_display = ["feed", "last_status", "last_success_at", "last_run_at",
+                    "consecutive_failures"]
+    readonly_fields = ["feed", "cursor", "last_run_at", "last_success_at",
+                       "last_status", "last_error", "consecutive_failures"]
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(DriverDateOverride)

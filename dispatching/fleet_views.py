@@ -1,0 +1,581 @@
+"""
+Fleet Management pages: a searchable vehicle list and a per-vehicle detail page,
+plus the JSON endpoints that let a dispatcher run the whole fleet job from those
+two pages instead of the Django admin.
+
+Editing lives HERE, not in admin, by explicit request. The split is:
+  * A human owns compliance dates, service intervals and service records.
+  * The poller owns every samsara_* column and VehicleDayReading.
+Nothing below writes a poller-owned field — a hand edit there would be silently
+overwritten within three minutes, and a typo'd odometer would corrupt the next
+day's mileage delta.
+
+DB-ONLY. These views never call Samsara. Two hard runtime ceilings make that
+non-negotiable: reservations/middleware.py sets a 30-second Postgres
+statement_timeout on web requests, and railway.json runs gunicorn with
+--timeout 60. A synchronous external call in a render path already caused a
+worker-timeout incident once (docs/Samsara_feature_handoff.md). All collection
+happens in the background poller; all aggregation happens in the nightly.
+
+Rendering rules enforced here and in the templates:
+  * NULL mileage renders as an em-dash, never 0. Zero means the car provably did
+    not move; a dash means we do not know. Conflating them makes a dead gateway
+    look like a parked car.
+  * Every derived number carries its provenance (obd = exact, gps = estimate).
+  * Every total states its coverage.
+"""
+import json
+from datetime import timedelta
+from decimal import Decimal, InvalidOperation
+
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q, Sum
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.views.decorators.http import require_POST
+
+from dispatching import fleet_health
+from dispatching.fleet_sync import FEED_NIGHTLY, FEED_VEHICLE_STATS
+from dispatching.samsara_service import EXTENDED_STAT_TYPES
+from drivers.models import (
+    DriverVehicleAssignment, FleetSyncState, FleetVehicle, VehicleDayReading,
+    VehicleFault, VehicleServiceRecord, VehicleServiceSchedule,
+)
+
+# How much recent history the detail page shows. Small on purpose — this is an
+# operations page, not an analytics tool.
+DETAIL_DAY_WINDOW = 30
+
+
+def _natural_key(vehicle_number):
+    """
+    Sort '001' < '10' < '13' the way a human reads a unit board.
+
+    The fleet numbers this company uses are a mix of zero-padded ('001') and
+    plain ('10'), so a plain string sort puts #10 before #002.
+    """
+    number = (vehicle_number or "").strip()
+    digits = "".join(ch for ch in number if ch.isdigit())
+    return (0, int(digits), number) if digits else (1, 0, number)
+
+
+@login_required
+@staff_member_required
+def fleet_list(request):
+    """Every vehicle in one searchable, filterable list."""
+    search = (request.GET.get("q") or "").strip()
+    status = request.GET.get("status", "active")   # active | inactive | all
+    coverage = request.GET.get("coverage", "all")  # all | mapped | unmapped
+    sort = request.GET.get("sort", "number")       # number | odometer | attention
+
+    now = timezone.now()
+    today = timezone.localdate(now)
+
+    vehicles_qs = FleetVehicle.objects.select_related("vehicle_type")
+
+    if status == "active":
+        vehicles_qs = vehicles_qs.filter(is_active=True)
+    elif status == "inactive":
+        vehicles_qs = vehicles_qs.filter(is_active=False)
+
+    if coverage == "mapped":
+        vehicles_qs = vehicles_qs.exclude(samsara_vehicle_id="")
+    elif coverage == "unmapped":
+        # The onboarding backlog, finally visible in the product instead of only
+        # in `samsara_sync_vehicles --list-mappings` on someone's terminal.
+        vehicles_qs = vehicles_qs.filter(samsara_vehicle_id="")
+
+    if search:
+        vehicles_qs = vehicles_qs.filter(
+            Q(vehicle_number__icontains=search)
+            | Q(make__icontains=search)
+            | Q(model__icontains=search)
+            | Q(vin__icontains=search)
+            | Q(license_plate__icontains=search)
+            | Q(samsara_name__icontains=search)
+            | Q(transponder_number__icontains=search)
+        )
+
+    vehicles_qs = vehicles_qs.annotate(
+        open_faults=Count("faults", filter=Q(faults__resolved_at__isnull=True),
+                          distinct=True),
+    )
+
+    vehicles = list(vehicles_qs)
+    vehicle_ids = [v.id for v in vehicles]
+
+    # One query each for the things every row needs — no per-row lookups.
+    shop_records = {}
+    for record in VehicleServiceRecord.objects.filter(
+        vehicle_id__in=vehicle_ids, out_of_service_from__isnull=False
+    ):
+        shop_records.setdefault(record.vehicle_id, []).append(record)
+
+    schedules = {}
+    for schedule in VehicleServiceSchedule.objects.filter(
+        vehicle_id__in=vehicle_ids, is_active=True
+    ):
+        schedules.setdefault(schedule.vehicle_id, []).append(schedule)
+
+    window_start = today - timedelta(days=DETAIL_DAY_WINDOW)
+    recent_miles = {
+        row["vehicle_id"]: row
+        for row in VehicleDayReading.objects.filter(
+            vehicle_id__in=vehicle_ids, date__gte=window_start, date__lte=today
+        )
+        .values("vehicle_id")
+        .annotate(
+            miles=Sum("miles_driven"),
+            known_days=Count("id", filter=Q(miles_driven__isnull=False)),
+            total_days=Count("id"),
+        )
+    }
+
+    rows = []
+    for vehicle in vehicles:
+        in_shop = fleet_health.is_in_shop(shop_records.get(vehicle.id, []), today)
+        chips = fleet_health.vehicle_readiness(
+            vehicle, now, open_fault_count=vehicle.open_faults, in_shop=in_shop
+        )
+        chips += fleet_health.compliance_findings(vehicle, today)
+
+        odometer = vehicle.odometer_miles
+        for schedule in schedules.get(vehicle.id, []):
+            chips += fleet_health.service_findings(schedule, odometer, today)
+
+        miles = recent_miles.get(vehicle.id) or {}
+        rows.append({
+            "vehicle": vehicle,
+            "chips": chips,
+            "attention": sum(1 for c in chips if c["level"] == fleet_health.CRITICAL),
+            "warnings": sum(1 for c in chips if c["level"] == fleet_health.WARN),
+            "odometer": odometer,
+            "odometer_estimated": vehicle.odometer_is_estimate,
+            # None (not 0) when nothing is known — the template renders an em-dash.
+            "recent_miles": miles.get("miles"),
+            "coverage": fleet_health.summarise_coverage(
+                miles.get("known_days", 0), miles.get("total_days", 0)
+            ),
+        })
+
+    if sort == "odometer":
+        # Unknown odometers sort last rather than as 0.
+        rows.sort(key=lambda r: (r["odometer"] is None, -(r["odometer"] or 0)))
+    elif sort == "attention":
+        rows.sort(key=lambda r: (-r["attention"], -r["warnings"],
+                                 _natural_key(r["vehicle"].vehicle_number)))
+    else:
+        rows.sort(key=lambda r: _natural_key(r["vehicle"].vehicle_number))
+
+    stats_state = FleetSyncState.objects.filter(feed=FEED_VEHICLE_STATS).first()
+    nightly_state = FleetSyncState.objects.filter(feed=FEED_NIGHTLY).first()
+
+    context = {
+        "rows": rows,
+        "search": search,
+        "status_filter": status,
+        "coverage_filter": coverage,
+        "sort": sort,
+        "total_vehicles": len(rows),
+        "total_active": sum(1 for r in rows if r["vehicle"].is_active),
+        "total_mapped": sum(1 for r in rows if r["vehicle"].samsara_vehicle_id),
+        "total_attention": sum(1 for r in rows if r["attention"]),
+        # The highest-value pixel on the page: is data arriving at all?
+        "feed": fleet_health.feed_health(stats_state, now),
+        "nightly": nightly_state,
+        "window_days": DETAIL_DAY_WINDOW,
+    }
+    return render(request, "dispatching/fleet_list.html", context)
+
+
+@login_required
+@staff_member_required
+def fleet_detail(request, pk):
+    """Everything known about one physical car."""
+    now = timezone.now()
+    today = timezone.localdate(now)
+
+    vehicle = get_object_or_404(
+        FleetVehicle.objects.select_related("vehicle_type"), pk=pk
+    )
+
+    service_records = list(
+        VehicleServiceRecord.objects.filter(vehicle=vehicle)
+        .select_related("created_by")[:25]
+    )
+    in_shop = fleet_health.is_in_shop(service_records, today)
+
+    open_faults = list(
+        VehicleFault.objects.filter(vehicle=vehicle, resolved_at__isnull=True)
+    )
+    recent_faults = list(
+        VehicleFault.objects.filter(vehicle=vehicle, resolved_at__isnull=False)[:10]
+    )
+
+    chips = fleet_health.vehicle_readiness(
+        vehicle, now, open_fault_count=len(open_faults), in_shop=in_shop
+    )
+    chips += fleet_health.compliance_findings(vehicle, today)
+
+    odometer = vehicle.odometer_miles
+    schedules = []
+    for schedule in VehicleServiceSchedule.objects.filter(
+        vehicle=vehicle, is_active=True
+    ):
+        findings = fleet_health.service_findings(schedule, odometer, today)
+        chips += findings
+        schedules.append({"schedule": schedule, "findings": findings})
+
+    window_start = today - timedelta(days=DETAIL_DAY_WINDOW)
+    days = list(
+        VehicleDayReading.objects.filter(
+            vehicle=vehicle, date__gte=window_start, date__lte=today
+        ).order_by("-date")
+    )
+    # None, not 0, when no day in the window has a known figure — the template
+    # renders it as an em-dash so "no data" never reads as "did not move".
+    known = [d for d in days if d.miles_driven is not None]
+    total_miles = sum(d.miles_driven for d in known) if known else None
+
+    # Who has been in this car lately — the only job<->physical-car link that
+    # exists, since Leg.vehicle points at the TYPE (rates.Vehicle), never here.
+    assignments = list(
+        DriverVehicleAssignment.objects
+        .filter(vehicle=vehicle, date__gte=window_start, date__lte=today)
+        .select_related("driver")
+        .order_by("-date")[:20]
+    )
+
+    context = {
+        "vehicle": vehicle,
+        "chips": sorted(chips, key=lambda c: {"critical": 0, "warn": 1, "info": 2}[c["level"]]),
+        "odometer": odometer,
+        "odometer_estimated": vehicle.odometer_is_estimate,
+        "in_shop": in_shop,
+        "schedules": schedules,
+        "service_records": service_records,
+        "open_faults": open_faults,
+        "recent_faults": recent_faults,
+        "days": days,
+        "total_miles": total_miles,
+        "coverage": fleet_health.summarise_coverage(len(known), len(days)),
+        "assignments": assignments,
+        "window_days": DETAIL_DAY_WINDOW,
+        "feed": fleet_health.feed_health(
+            FleetSyncState.objects.filter(feed=FEED_VEHICLE_STATS).first(), now
+        ),
+        "service_types": VehicleServiceRecord.SERVICE_TYPE_CHOICES,
+        "schedule_types": VehicleServiceSchedule.SERVICE_TYPE_CHOICES,
+        "transponder_types": FleetVehicle.TRANSPONDER_TYPE_CHOICES,
+        # Derived from what we actually ASK Samsara for, so these labels stay
+        # true on their own. fuelPercents and engineStates returned HTTP 200
+        # with the field absent for 11/11 vehicles (measured twice, including
+        # mid-drive), so they aren't requested — a bare em-dash there would read
+        # as "pending" forever instead of "this fleet's gateways don't send it".
+        "fuel_collected": "fuelPercents" in EXTENDED_STAT_TYPES,
+        "engine_state_collected": "engineStates" in EXTENDED_STAT_TYPES,
+        "engine_hours_collected": "obdEngineSeconds" in EXTENDED_STAT_TYPES,
+        "engine_hours": (
+            round(vehicle.samsara_engine_seconds / 3600)
+            if vehicle.samsara_engine_seconds else None
+        ),
+    }
+    return render(request, "dispatching/fleet_detail.html", context)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Edit endpoints — everything a dispatcher needs, without the Django admin
+#
+# House shape (dispatching/views.py admin_travel_agent_* endpoints): POST-only,
+# staff-only, JSON body in, {"success": bool, ...} out, never a 500 for bad user
+# input. Errors carry a sentence a dispatcher can act on.
+# ════════════════════════════════════════════════════════════════════════════
+
+def _body(request):
+    try:
+        return json.loads(request.body or "{}"), None
+    except json.JSONDecodeError:
+        return None, JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+
+def _opt_date(raw, label):
+    """'' / None -> None (clearing a date is legitimate). Bad text -> error."""
+    if raw in (None, ""):
+        return None, None
+    parsed = parse_date(str(raw))
+    if parsed is None:
+        return None, f"{label} must be a date (YYYY-MM-DD)."
+    return parsed, None
+
+
+def _opt_decimal(raw, label, *, minimum=None):
+    if raw in (None, ""):
+        return None, None
+    try:
+        value = Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return None, f"{label} must be a number."
+    if minimum is not None and value < minimum:
+        return None, f"{label} can't be less than {minimum}."
+    return value, None
+
+
+def _opt_int(raw, label, *, minimum=None):
+    if raw in (None, ""):
+        return None, None
+    try:
+        value = int(str(raw).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None, f"{label} must be a whole number."
+    if minimum is not None and value < minimum:
+        return None, f"{label} can't be less than {minimum}."
+    return value, None
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_update_details(request, pk):
+    """
+    JSON: compliance dates + notes on one vehicle.
+
+    Only fields a HUMAN owns. VIN, plate and every samsara_* column are absent
+    on purpose — those come from Samsara and an edit here would be overwritten
+    by the next poll or the nightly master refresh.
+    """
+    vehicle = get_object_or_404(FleetVehicle, pk=pk)
+    data, error = _body(request)
+    if error:
+        return error
+
+    fields = {}
+    for key, label in (
+        ("in_service_since", "In-service date"),
+        ("registration_expires_on", "Registration expiry"),
+        ("insurance_expires_on", "Insurance expiry"),
+        ("next_inspection_on", "Next inspection"),
+    ):
+        if key not in data:
+            continue
+        value, message = _opt_date(data.get(key), label)
+        if message:
+            return JsonResponse({"success": False, "error": message}, status=400)
+        fields[key] = value
+
+    if "notes" in data:
+        fields["notes"] = (data.get("notes") or "").strip()
+
+    if "transponder_number" in data:
+        fields["transponder_number"] = (data.get("transponder_number") or "").strip()[:32]
+    if "transponder_type" in data:
+        transponder_type = (data.get("transponder_type") or "").strip()
+        valid = {c[0] for c in FleetVehicle.TRANSPONDER_TYPE_CHOICES}
+        if transponder_type and transponder_type not in valid:
+            return JsonResponse(
+                {"success": False, "error": "Unknown transponder type."}, status=400)
+        fields["transponder_type"] = transponder_type
+
+    if not fields:
+        return JsonResponse({"success": False, "error": "Nothing to update."}, status=400)
+
+    for key, value in fields.items():
+        setattr(vehicle, key, value)
+    vehicle.save(update_fields=list(fields))
+    return JsonResponse({"success": True})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_save_schedule(request, pk):
+    """
+    JSON: create or update one maintenance interval on a vehicle.
+
+    Upserts on (vehicle, service_type) — the model's unique key — so re-saving
+    the same type edits the existing row instead of raising IntegrityError.
+    """
+    vehicle = get_object_or_404(FleetVehicle, pk=pk)
+    data, error = _body(request)
+    if error:
+        return error
+
+    service_type = (data.get("service_type") or "").strip()
+    valid = {c[0] for c in VehicleServiceSchedule.SERVICE_TYPE_CHOICES}
+    if service_type not in valid:
+        return JsonResponse(
+            {"success": False, "error": "Pick a service type."}, status=400)
+
+    interval_miles, message = _opt_int(data.get("interval_miles"), "Mileage interval", minimum=1)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    interval_days, message = _opt_int(data.get("interval_days"), "Day interval", minimum=1)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    if interval_miles is None and interval_days is None:
+        # A schedule with neither can never come due — it would sit on the page
+        # looking active while silently doing nothing.
+        return JsonResponse({
+            "success": False,
+            "error": "Set a mileage interval, a day interval, or both.",
+        }, status=400)
+
+    last_done_on, message = _opt_date(data.get("last_done_on"), "Last done date")
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    last_odo, message = _opt_decimal(
+        data.get("last_done_odometer_miles"), "Last done odometer", minimum=0)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    schedule, created = VehicleServiceSchedule.objects.update_or_create(
+        vehicle=vehicle,
+        service_type=service_type,
+        defaults={
+            "interval_miles": interval_miles,
+            "interval_days": interval_days,
+            "last_done_on": last_done_on,
+            "last_done_odometer_miles": last_odo,
+            "is_active": bool(data.get("is_active", True)),
+            "notes": (data.get("notes") or "").strip(),
+        },
+    )
+    return JsonResponse({"success": True, "created": created, "id": schedule.id})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_delete_schedule(request, pk):
+    """JSON: remove a maintenance interval."""
+    schedule = get_object_or_404(VehicleServiceSchedule, pk=pk)
+    schedule.delete()
+    return JsonResponse({"success": True})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_add_service(request, pk):
+    """
+    JSON: log a service that happened.
+
+    Side effect worth knowing about: if an active schedule exists for the same
+    service type, its last-done date and odometer advance to this record. That
+    is the point — logging an oil change should reset the oil interval without
+    anyone re-typing it in a second place. Only advances forward, so
+    back-filling an older receipt can't un-do a newer service.
+    """
+    vehicle = get_object_or_404(FleetVehicle, pk=pk)
+    data, error = _body(request)
+    if error:
+        return error
+
+    service_type = (data.get("service_type") or "").strip()
+    valid = {c[0] for c in VehicleServiceRecord.SERVICE_TYPE_CHOICES}
+    if service_type not in valid:
+        return JsonResponse({"success": False, "error": "Pick a service type."}, status=400)
+
+    performed_on, message = _opt_date(data.get("performed_on"), "Date performed")
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    if performed_on is None:
+        return JsonResponse(
+            {"success": False, "error": "Date performed is required."}, status=400)
+    if performed_on > timezone.localdate():
+        return JsonResponse(
+            {"success": False, "error": "Date performed can't be in the future."},
+            status=400)
+
+    odometer, message = _opt_decimal(data.get("odometer_miles"), "Odometer", minimum=0)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    cost, message = _opt_decimal(data.get("cost"), "Cost", minimum=0)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    oos_from, message = _opt_date(data.get("out_of_service_from"), "Out-of-service start")
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    oos_to, message = _opt_date(data.get("out_of_service_to"), "Out-of-service end")
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    if oos_from and oos_to and oos_to < oos_from:
+        return JsonResponse(
+            {"success": False, "error": "Out-of-service end is before its start."},
+            status=400)
+    if oos_to and not oos_from:
+        return JsonResponse({
+            "success": False,
+            "error": "Give an out-of-service start date as well as an end date.",
+        }, status=400)
+
+    record = VehicleServiceRecord.objects.create(
+        vehicle=vehicle,
+        service_type=service_type,
+        performed_on=performed_on,
+        odometer_miles=odometer,
+        vendor=(data.get("vendor") or "").strip()[:120],
+        cost=cost,
+        description=(data.get("description") or "").strip(),
+        out_of_service_from=oos_from,
+        out_of_service_to=oos_to,
+        fault_reference=(data.get("fault_reference") or "").strip()[:120],
+        created_by=request.user,
+    )
+
+    advanced = _advance_schedule(vehicle, service_type, performed_on, odometer)
+    return JsonResponse({
+        "success": True,
+        "id": record.id,
+        "schedule_advanced": advanced,
+    })
+
+
+def _advance_schedule(vehicle, service_type, performed_on, odometer):
+    """
+    Move the matching interval's baseline forward. Returns True if it moved.
+
+    Guarded against going backwards: logging a receipt from three months ago
+    must not reset an interval that a more recent service already advanced.
+    """
+    schedule = VehicleServiceSchedule.objects.filter(
+        vehicle=vehicle, service_type=service_type, is_active=True
+    ).first()
+    if schedule is None:
+        return False
+
+    changed = []
+    if schedule.last_done_on is None or performed_on > schedule.last_done_on:
+        schedule.last_done_on = performed_on
+        changed.append("last_done_on")
+    if odometer is not None and (
+        schedule.last_done_odometer_miles is None
+        or odometer > schedule.last_done_odometer_miles
+    ):
+        schedule.last_done_odometer_miles = odometer
+        changed.append("last_done_odometer_miles")
+
+    if not changed:
+        return False
+    schedule.save(update_fields=changed)
+    return True
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_delete_service(request, pk):
+    """
+    JSON: remove a service record.
+
+    Deliberately does NOT rewind the schedule baseline — recomputing which of
+    the remaining records should own it is guesswork, and a silently-rewound
+    interval is worse than a stale one. Re-save the schedule to correct it.
+    """
+    record = get_object_or_404(VehicleServiceRecord, pk=pk)
+    record.delete()
+    return JsonResponse({"success": True})

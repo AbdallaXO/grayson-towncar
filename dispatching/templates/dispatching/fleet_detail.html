@@ -1,0 +1,754 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}#{{ vehicle.vehicle_number }} — Fleet{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+<style>
+  .fleet-table-wrap { overflow-x: auto; }
+
+  .fleet-chip {
+    display: inline-block; padding: 3px 10px; margin: 2px 4px 2px 0;
+    border-radius: 999px; font-size: .76rem; font-weight: 600; white-space: nowrap;
+  }
+  .fleet-chip.critical { background: #fdeaea; color: #a12020; border: 1px solid #f3c9c9; }
+  .fleet-chip.warn     { background: #fef6e7; color: #8a5b00; border: 1px solid #f3e0b8; }
+  .fleet-chip.info     { background: #eef2f7; color: #44546a; border: 1px solid #dbe3ec; }
+
+  .fleet-src {
+    font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
+    padding: 1px 4px; border-radius: 3px; margin-left: 4px; vertical-align: 1px;
+  }
+  .fleet-src.obd { background: #e8f1ea; color: #3d6b4a; }
+  .fleet-src.gps { background: #f1f1f1; color: #8a8a8a; }
+  .fleet-unknown { color: #b0b0b0; }
+
+  .fleet-panel {
+    background: #fff; border: 1px solid #e6e6e6; border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 18px;
+  }
+  .fleet-panel h2 {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .07em;
+    color: #7a7a7a; margin: 0 0 14px; font-weight: 700;
+  }
+  .fleet-kv { display: grid; grid-template-columns: 150px 1fr; gap: 7px 14px; font-size: .9rem; }
+  .fleet-kv dt { color: #7a7a7a; font-weight: 500; }
+  .fleet-kv dd { margin: 0; }
+
+  .fleet-big { font-size: 1.7rem; font-weight: 700; line-height: 1.1; }
+  .fleet-big-label {
+    font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: #8a8a8a;
+  }
+
+  .fleet-feed-line { font-size: .82rem; margin-bottom: 14px; }
+  .fleet-feed-line.critical { color: #a12020; font-weight: 600; }
+  .fleet-feed-line.warn { color: #8a5b00; }
+  .fleet-feed-line.ok { color: #3d8b5a; }
+
+  .fleet-panel-head { display: flex; align-items: center; justify-content: space-between; }
+  .fleet-panel-head h2 { margin-bottom: 14px; }
+  .fleet-mini-btn {
+    border: 1px solid #d8d8d8; background: #fff; border-radius: 6px;
+    font-size: .74rem; padding: 3px 10px; color: #333; cursor: pointer;
+    white-space: nowrap;
+  }
+  .fleet-mini-btn:hover { background: #f5f5f5; border-color: #bbb; }
+  .fleet-mini-btn.danger { color: #a12020; border-color: #eccaca; }
+  .fleet-mini-btn.danger:hover { background: #fdf3f3; }
+
+  .fleet-row-actions { opacity: 0; transition: opacity .12s; }
+  tr:hover .fleet-row-actions,
+  .fleet-log-row:hover .fleet-row-actions { opacity: 1; }
+
+  .fleet-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 11px 20px; border-radius: 8px; font-size: .88rem; font-weight: 600;
+    color: #fff; opacity: 0; pointer-events: none; transition: opacity .2s;
+    z-index: 3000;
+  }
+  .fleet-toast.show { opacity: 1; }
+  .fleet-toast.ok { background: #2f6b45; }
+  .fleet-toast.err { background: #a12020; }
+
+  .modal-body label { font-size: .78rem; color: #666; font-weight: 600; margin-bottom: 3px; }
+  .modal-body .form-control, .modal-body .form-select { font-size: .9rem; }
+  .fleet-form-hint { font-size: .74rem; color: #8a8a8a; margin-top: 3px; }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">
+        #{{ vehicle.vehicle_number }}
+        <span class="tap-sub">{{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }}</span>
+      </h1>
+      <div class="tap-subtitle">
+        {% if vehicle.is_active %}Active{% else %}Inactive{% endif %}
+        {% if vehicle.vehicle_type %} · {{ vehicle.vehicle_type.vehicle_type }}{% endif %}
+        {% if in_shop %} · <strong>In shop</strong>{% endif %}
+      </div>
+    </div>
+    <div class="tap-tab-row">
+      <a href="{% url 'fleet_list' %}" class="tap-tab">
+        <i class="bi bi-arrow-left"></i> All vehicles
+      </a>
+    </div>
+  </div>
+
+  <div class="fleet-feed-line {{ feed.level }}">
+    Samsara: {{ feed.label }} — {{ feed.detail }}
+  </div>
+
+  {% if chips %}
+  <div class="fleet-panel">
+    <h2>Needs attention</h2>
+    {% for chip in chips %}
+      <span class="fleet-chip {{ chip.level }}">{{ chip.label }}{% if chip.detail %} · {{ chip.detail }}{% endif %}</span>
+    {% endfor %}
+    <div class="tap-sub mt-2">
+      Advisory only — none of this blocks an assignment or removes the car from
+      the schedule.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="fleet-panel">
+        <h2>Identity</h2>
+        <dl class="fleet-kv">
+          <dt>Unit</dt><dd>#{{ vehicle.vehicle_number }}</dd>
+          <dt>VIN</dt><dd>{{ vehicle.vin|default:"—" }}</dd>
+          <dt>Plate</dt><dd>{{ vehicle.license_plate|default:"—" }}</dd>
+          <dt>Samsara ID</dt>
+          <dd>
+            {% if vehicle.samsara_vehicle_id %}
+              {{ vehicle.samsara_vehicle_id }}
+            {% else %}
+              <span class="fleet-unknown">Not onboarded</span>
+            {% endif %}
+          </dd>
+          <dt>Samsara name</dt><dd>{{ vehicle.samsara_name|default:"—" }}</dd>
+          <dt>In service since</dt><dd>{{ vehicle.in_service_since|default:"—" }}</dd>
+          <dt>Transponder</dt>
+          <dd>
+            {% if vehicle.transponder_number %}
+              {{ vehicle.transponder_number }}
+              {% if vehicle.transponder_type %}
+                <span class="tap-sub">{{ vehicle.get_transponder_type_display }}</span>
+              {% endif %}
+            {% else %}
+              <span class="fleet-unknown">none assigned</span>
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+
+      <div class="fleet-panel">
+        <div class="fleet-panel-head">
+          <h2>Compliance</h2>
+          <button class="fleet-mini-btn" data-bs-toggle="modal" data-bs-target="#detailsModal">
+            <i class="bi bi-pencil"></i> Edit
+          </button>
+        </div>
+        <dl class="fleet-kv">
+          <dt>Registration</dt><dd>{{ vehicle.registration_expires_on|default:"—" }}</dd>
+          <dt>Insurance</dt><dd>{{ vehicle.insurance_expires_on|default:"—" }}</dd>
+          <dt>Next inspection</dt><dd>{{ vehicle.next_inspection_on|default:"—" }}</dd>
+        </dl>
+      </div>
+
+      <div class="fleet-panel">
+        <h2>Notes</h2>
+        <div style="font-size:.88rem;white-space:pre-wrap;">{{ vehicle.notes|default:"—" }}</div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="fleet-panel">
+        <h2>Current condition</h2>
+        <div class="mb-3">
+          <div class="fleet-big-label">Odometer</div>
+          <div class="fleet-big">
+            {% if odometer is None %}
+              <span class="fleet-unknown">—</span>
+            {% else %}
+              {{ odometer|intcomma }}
+              <span class="fleet-src {% if odometer_estimated %}gps{% else %}obd{% endif %}">
+                {% if odometer_estimated %}gps{% else %}obd{% endif %}
+              </span>
+            {% endif %}
+          </div>
+        </div>
+        <dl class="fleet-kv">
+          <dt>Fuel</dt>
+          <dd>
+            {% if not fuel_collected %}
+              <span class="fleet-unknown" title="Samsara returns no fuel level for any vehicle in this fleet — the gateways don't report the OBD fuel PID. Not a sync problem.">not reported</span>
+            {% elif vehicle.samsara_fuel_percent is None %}
+              <span class="fleet-unknown">—</span>
+            {% else %}{{ vehicle.samsara_fuel_percent }}%{% endif %}
+          </dd>
+          <dt>Battery</dt>
+          <dd>{% if vehicle.samsara_battery_millivolts is None %}<span class="fleet-unknown">—</span>{% else %}{{ vehicle.samsara_battery_millivolts|floatformat:0 }} mV{% endif %}</dd>
+          <dt>Engine</dt>
+          <dd>
+            {% if not engine_state_collected %}
+              <span class="fleet-unknown" title="Samsara returns no engine state for any vehicle in this fleet.">not reported</span>
+            {% else %}{{ vehicle.samsara_engine_state|default:"—" }}{% endif %}
+          </dd>
+          <dt>Engine hours</dt>
+          <dd>
+            {% if engine_hours %}{{ engine_hours|intcomma }} h
+            {% else %}<span class="fleet-unknown" title="Engine hours come off a PID that only some of these vehicles expose.">—</span>{% endif %}
+          </dd>
+          <dt>Position</dt>
+          <dd>
+            {% if vehicle.samsara_last_location_label %}
+              {{ vehicle.samsara_last_location_label }}
+              <div class="tap-sub">{{ vehicle.samsara_age_display }}</div>
+            {% else %}
+              <span class="fleet-unknown">—</span>
+            {% endif %}
+          </dd>
+          <dt>Movement</dt>
+          <dd>{{ vehicle.samsara_movement_status|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="fleet-panel">
+        <h2>Use — last {{ window_days }} days</h2>
+        <div class="fleet-big-label">Miles driven</div>
+        <div class="fleet-big">
+          {% if total_miles is None %}
+            <span class="fleet-unknown">—</span>
+          {% else %}
+            {{ total_miles|floatformat:0|intcomma }}
+          {% endif %}
+        </div>
+        {% if coverage %}<div class="tap-sub">{{ coverage }}</div>{% endif %}
+        <div class="tap-sub mt-2">
+          Mileage accrues forward from the day this page shipped. Earlier days
+          can be back-filled from Samsara's history endpoint if it's ever worth it.
+        </div>
+      </div>
+
+      <div class="fleet-panel">
+        <h2>Recent drivers</h2>
+        {% for a in assignments %}
+          <div class="d-flex justify-content-between" style="font-size:.88rem;padding:3px 0;">
+            <span>{{ a.driver.name|default:a.driver }}</span>
+            <span class="tap-sub">{{ a.date }}</span>
+          </div>
+        {% empty %}
+          <div class="tap-sub">No assignments in this window.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="fleet-panel">
+    <div class="fleet-panel-head">
+      <h2>Maintenance schedule</h2>
+      <button class="fleet-mini-btn" onclick="openSchedule()">
+        <i class="bi bi-plus-lg"></i> Add interval
+      </button>
+    </div>
+    {% if schedules %}
+      <div class="tap-table-wrap fleet-table-wrap">
+        <table class="tap-table">
+          <thead>
+            <tr>
+              <th>Service</th><th>Interval</th><th>Last done</th>
+              <th>Due at</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in schedules %}
+            <tr>
+              <td>{{ item.schedule.get_service_type_display }}</td>
+              <td class="tap-sub">
+                {% if item.schedule.interval_miles %}{{ item.schedule.interval_miles|intcomma }} mi{% endif %}
+                {% if item.schedule.interval_miles and item.schedule.interval_days %} / {% endif %}
+                {% if item.schedule.interval_days %}{{ item.schedule.interval_days }} days{% endif %}
+              </td>
+              <td class="tap-sub">
+                {{ item.schedule.last_done_on|default:"—" }}
+                {% if item.schedule.last_done_odometer_miles %}
+                  <div>{{ item.schedule.last_done_odometer_miles|floatformat:0|intcomma }} mi</div>
+                {% endif %}
+              </td>
+              <td class="tap-sub">
+                {% if item.schedule.due_at_odometer_miles %}
+                  {{ item.schedule.due_at_odometer_miles|floatformat:0|intcomma }} mi
+                {% endif %}
+                {% if item.schedule.due_on_date %}
+                  <div>{{ item.schedule.due_on_date }}</div>
+                {% endif %}
+                {% if not item.schedule.due_at_odometer_miles and not item.schedule.due_on_date %}
+                  <span class="fleet-unknown">— needs a baseline</span>
+                {% endif %}
+              </td>
+              <td>
+                {% for f in item.findings %}
+                  <span class="fleet-chip {{ f.level }}">{{ f.label }} · {{ f.detail }}</span>
+                {% empty %}
+                  <span class="tap-sub">OK</span>
+                {% endfor %}
+              </td>
+              <td class="text-end fleet-row-actions" style="white-space:nowrap;">
+                <button class="fleet-mini-btn"
+                        onclick='openSchedule({{ item.schedule.id }}, "{{ item.schedule.service_type }}", "{{ item.schedule.interval_miles|default_if_none:"" }}", "{{ item.schedule.interval_days|default_if_none:"" }}", "{{ item.schedule.last_done_on|date:"Y-m-d" }}", "{{ item.schedule.last_done_odometer_miles|default_if_none:"" }}")'>
+                  Edit
+                </button>
+                <button class="fleet-mini-btn danger"
+                        onclick="deleteSchedule({{ item.schedule.id }}, '{{ item.schedule.get_service_type_display|escapejs }}')">
+                  Remove
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="tap-sub">
+        No service intervals set for this vehicle. Without at least an oil
+        interval, the odometer we collect has nothing to feed —
+        <a href="#" onclick="openSchedule(); return false;">add one</a>.
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="fleet-panel">
+        <h2>Faults</h2>
+        {% for fault in open_faults %}
+          <div style="padding:5px 0;border-bottom:1px solid #f0f0f0;">
+            <span class="fleet-chip critical">{{ fault.code|default:fault.get_source_display }}</span>
+            {{ fault.description|default:"" }}
+            <div class="tap-sub">
+              First seen {{ fault.first_seen_at|date:"M j, Y" }} ·
+              seen {{ fault.occurrence_count }}×
+            </div>
+          </div>
+        {% empty %}
+          <div class="tap-sub">
+            {% if vehicle.samsara_vehicle_id %}
+              No open faults.
+            {% else %}
+              Not on Samsara — no fault reporting for this vehicle.
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        {% if recent_faults %}
+          <div class="tap-sub mt-3" style="font-weight:600;">Recently resolved</div>
+          {% for fault in recent_faults %}
+            <div class="tap-sub">
+              {{ fault.code|default:fault.get_source_display }} —
+              resolved {{ fault.resolved_at|date:"M j, Y" }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="fleet-panel">
+        <div class="fleet-panel-head">
+          <h2>Service history</h2>
+          <button class="fleet-mini-btn" onclick="openService()">
+            <i class="bi bi-plus-lg"></i> Log service
+          </button>
+        </div>
+        {% for record in service_records %}
+          <div class="fleet-log-row" style="padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:.88rem;">
+            <div class="d-flex justify-content-between align-items-start">
+              <span><strong>{{ record.get_service_type_display }}</strong>
+                {% if record.vendor %} · {{ record.vendor }}{% endif %}</span>
+              <span style="white-space:nowrap;">
+                <span class="tap-sub">{{ record.performed_on }}</span>
+                <button class="fleet-mini-btn danger fleet-row-actions ms-2"
+                        onclick="deleteService({{ record.id }}, '{{ record.get_service_type_display|escapejs }}')">
+                  Delete
+                </button>
+              </span>
+            </div>
+            <div class="tap-sub">
+              {% if record.odometer_miles %}{{ record.odometer_miles|floatformat:0|intcomma }} mi{% endif %}
+              {% if record.cost %} · ${{ record.cost|floatformat:2|intcomma }}{% endif %}
+              {% if record.out_of_service_from %}
+                · out of service {{ record.out_of_service_from }}
+                {% if record.out_of_service_to %}→ {{ record.out_of_service_to }}{% endif %}
+              {% endif %}
+            </div>
+            {% if record.description %}<div class="tap-sub">{{ record.description }}</div>{% endif %}
+          </div>
+        {% empty %}
+          <div class="tap-sub">
+            No service logged yet — <a href="#" onclick="openService(); return false;">log the first one</a>.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="fleet-panel">
+    <h2>Daily mileage — last {{ window_days }} days</h2>
+    <div class="tap-table-wrap fleet-table-wrap">
+      <table class="tap-table">
+        <thead>
+          <tr>
+            <th>Date</th><th class="text-end">Miles</th><th>Source</th>
+            <th class="text-end">Samples</th><th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in days %}
+          <tr>
+            <td>{{ day.date }}</td>
+            <td class="text-end">
+              {% if day.miles_driven is None %}
+                <span class="fleet-unknown">—</span>
+              {% else %}
+                {{ day.miles_driven|floatformat:1 }}
+              {% endif %}
+            </td>
+            <td>
+              {% if day.mileage_source == "obd" or day.mileage_source == "gps" %}
+                <span class="fleet-src {{ day.mileage_source }}">{{ day.mileage_source }}</span>
+              {% else %}
+                <span class="fleet-unknown">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end tap-sub">
+              {{ day.sample_count }}{% if day.has_gap %} <span title="feed gap — day is under-counted">⚠</span>{% endif %}
+            </td>
+            <td class="tap-sub">{{ day.mileage_note|default:"" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5">
+              <div class="tap-empty">
+                <i class="bi bi-speedometer2"></i>
+                No mileage recorded yet for this vehicle.
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+{# ── Edit compliance dates + notes ─────────────────────────────────────── #}
+<div class="modal fade" id="detailsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Vehicle details — #{{ vehicle.vehicle_number }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label>In service since</label>
+            <input type="date" id="f_in_service_since" class="form-control"
+                   value="{{ vehicle.in_service_since|date:'Y-m-d' }}">
+          </div>
+          <div class="col-6">
+            <label>Registration expires</label>
+            <input type="date" id="f_registration_expires_on" class="form-control"
+                   value="{{ vehicle.registration_expires_on|date:'Y-m-d' }}">
+          </div>
+          <div class="col-6">
+            <label>Insurance expires</label>
+            <input type="date" id="f_insurance_expires_on" class="form-control"
+                   value="{{ vehicle.insurance_expires_on|date:'Y-m-d' }}">
+          </div>
+          <div class="col-6">
+            <label>Next inspection</label>
+            <input type="date" id="f_next_inspection_on" class="form-control"
+                   value="{{ vehicle.next_inspection_on|date:'Y-m-d' }}">
+          </div>
+          <div class="col-7">
+            <label>Toll transponder</label>
+            <input type="text" id="f_transponder_number" class="form-control"
+                   maxlength="32" value="{{ vehicle.transponder_number }}"
+                   placeholder="Transponder / account number">
+          </div>
+          <div class="col-5">
+            <label>Toll network</label>
+            <select id="f_transponder_type" class="form-select">
+              <option value="">—</option>
+              {% for value, label in transponder_types %}
+                <option value="{{ value }}" {% if vehicle.transponder_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <div class="fleet-form-hint">
+              Which transponder is mounted in this car. Searchable from the fleet
+              list, so a toll charge can be traced back to a unit.
+            </div>
+          </div>
+          <div class="col-12">
+            <label>Notes</label>
+            <textarea id="f_notes" class="form-control" rows="3">{{ vehicle.notes }}</textarea>
+          </div>
+        </div>
+        <div class="fleet-form-hint">
+          VIN, plate and all live readings come from Samsara and can't be edited
+          here — the next sync would overwrite them.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" onclick="saveDetails()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Add / edit a maintenance interval ─────────────────────────────────── #}
+<div class="modal fade" id="scheduleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="scheduleTitle">Add interval</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label>Service</label>
+            <select id="s_service_type" class="form-select">
+              {% for value, label in schedule_types %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label>Every … miles</label>
+            <input type="number" id="s_interval_miles" class="form-control" min="1" placeholder="5000">
+          </div>
+          <div class="col-6">
+            <label>Every … days</label>
+            <input type="number" id="s_interval_days" class="form-control" min="1" placeholder="180">
+          </div>
+          <div class="col-12">
+            <div class="fleet-form-hint">
+              Fill either or both — whichever comes first is what falls due.
+            </div>
+          </div>
+          <div class="col-6">
+            <label>Last done on</label>
+            <input type="date" id="s_last_done_on" class="form-control">
+          </div>
+          <div class="col-6">
+            <label>Odometer when last done</label>
+            <input type="number" id="s_last_done_odometer_miles" class="form-control" min="0"
+                   placeholder="{{ odometer|default_if_none:'' }}">
+          </div>
+          <div class="col-12">
+            <div class="fleet-form-hint">
+              Without a baseline the interval can't compute a due point, so it
+              renders as "needs a baseline" until you set one.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" onclick="saveSchedule()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Log a service that happened ───────────────────────────────────────── #}
+<div class="modal fade" id="serviceModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Log service — #{{ vehicle.vehicle_number }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label>Service</label>
+            <select id="r_service_type" class="form-select">
+              {% for value, label in service_types %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label>Date performed</label>
+            <input type="date" id="r_performed_on" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label>Odometer</label>
+            <input type="number" id="r_odometer_miles" class="form-control" min="0">
+            <div class="fleet-form-hint">Pre-filled with the current reading.</div>
+          </div>
+          <div class="col-md-6">
+            <label>Vendor / shop</label>
+            <input type="text" id="r_vendor" class="form-control" maxlength="120">
+          </div>
+          <div class="col-md-6">
+            <label>Cost</label>
+            <input type="number" id="r_cost" class="form-control" min="0" step="0.01">
+          </div>
+          <div class="col-md-6">
+            <label>Out of service from</label>
+            <input type="date" id="r_out_of_service_from" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label>Out of service to</label>
+            <input type="date" id="r_out_of_service_to" class="form-control">
+          </div>
+          <div class="col-12">
+            <div class="fleet-form-hint">
+              An out-of-service window shows as a label on this page. It never
+              removes the car from the schedule or from auto-assign.
+            </div>
+          </div>
+          <div class="col-12">
+            <label>What was done</label>
+            <textarea id="r_description" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" onclick="saveService()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fleet-toast" id="fleetToast"></div>
+
+<script>
+(function () {
+  const CSRF = '{{ csrf_token }}';
+  const VEHICLE = {{ vehicle.pk }};
+  const CURRENT_ODO = {{ odometer|default_if_none:"null" }};
+
+  const URLS = {
+    details:  "{% url 'fleet_update_details' vehicle.pk %}",
+    schedule: "{% url 'fleet_save_schedule' vehicle.pk %}",
+    service:  "{% url 'fleet_add_service' vehicle.pk %}",
+  };
+
+  function toast(msg, ok) {
+    const t = document.getElementById('fleetToast');
+    t.textContent = msg;
+    t.className = 'fleet-toast ' + (ok ? 'ok' : 'err') + ' show';
+    setTimeout(() => t.classList.remove('show'), 2600);
+  }
+  window.fleetToast = toast;
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(body),
+    }).then(r => r.json().catch(() => ({success: false, error: 'Server error'})));
+  }
+  window.fleetPost = post;
+
+  const val = id => (document.getElementById(id).value || '').trim();
+
+  // Reload so every derived figure on the page — due-ness, chips, the
+  // attention panel — is recomputed server-side rather than patched in JS
+  // and drifting from what the next render would say.
+  function done(msg) { toast(msg, true); setTimeout(() => location.reload(), 650); }
+
+  window.saveDetails = function () {
+    post(URLS.details, {
+      in_service_since: val('f_in_service_since'),
+      registration_expires_on: val('f_registration_expires_on'),
+      insurance_expires_on: val('f_insurance_expires_on'),
+      next_inspection_on: val('f_next_inspection_on'),
+      transponder_number: val('f_transponder_number'),
+      transponder_type: document.getElementById('f_transponder_type').value,
+      notes: document.getElementById('f_notes').value,
+    }).then(d => d.success ? done('Saved') : toast(d.error || 'Could not save', false));
+  };
+
+  window.openSchedule = function (id, type, miles, days, lastOn, lastOdo) {
+    document.getElementById('scheduleTitle').textContent = id ? 'Edit interval' : 'Add interval';
+    document.getElementById('s_service_type').value = type || 'oil';
+    document.getElementById('s_service_type').disabled = !!id;  // it's the key
+    document.getElementById('s_interval_miles').value = miles || '';
+    document.getElementById('s_interval_days').value = days || '';
+    document.getElementById('s_last_done_on').value = lastOn || '';
+    document.getElementById('s_last_done_odometer_miles').value = lastOdo || '';
+    new bootstrap.Modal(document.getElementById('scheduleModal')).show();
+  };
+
+  window.saveSchedule = function () {
+    post(URLS.schedule, {
+      service_type: document.getElementById('s_service_type').value,
+      interval_miles: val('s_interval_miles'),
+      interval_days: val('s_interval_days'),
+      last_done_on: val('s_last_done_on'),
+      last_done_odometer_miles: val('s_last_done_odometer_miles'),
+    }).then(d => d.success ? done('Interval saved') : toast(d.error || 'Could not save', false));
+  };
+
+  window.deleteSchedule = function (id, label) {
+    if (!confirm('Remove the ' + label + ' interval? Service history is kept.')) return;
+    post("{% url 'fleet_delete_schedule' 0 %}".replace('/0/', '/' + id + '/'), {})
+      .then(d => d.success ? done('Interval removed') : toast(d.error || 'Could not remove', false));
+  };
+
+  window.openService = function () {
+    document.getElementById('r_performed_on').value = new Date().toISOString().slice(0, 10);
+    if (CURRENT_ODO !== null) document.getElementById('r_odometer_miles').value = CURRENT_ODO;
+    new bootstrap.Modal(document.getElementById('serviceModal')).show();
+  };
+
+  window.saveService = function () {
+    post(URLS.service, {
+      service_type: document.getElementById('r_service_type').value,
+      performed_on: val('r_performed_on'),
+      odometer_miles: val('r_odometer_miles'),
+      vendor: val('r_vendor'),
+      cost: val('r_cost'),
+      out_of_service_from: val('r_out_of_service_from'),
+      out_of_service_to: val('r_out_of_service_to'),
+      description: document.getElementById('r_description').value,
+    }).then(d => {
+      if (!d.success) return toast(d.error || 'Could not save', false);
+      done(d.schedule_advanced ? 'Logged — interval reset' : 'Service logged');
+    });
+  };
+
+  window.deleteService = function (id, label) {
+    if (!confirm('Delete this ' + label + ' record?')) return;
+    post("{% url 'fleet_delete_service' 0 %}".replace('/0/', '/' + id + '/'), {})
+      .then(d => d.success ? done('Record deleted') : toast(d.error || 'Could not delete', false));
+  };
+})();
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

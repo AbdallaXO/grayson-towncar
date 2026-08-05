@@ -104,18 +104,93 @@ def sync_vehicles() -> dict:
         vehicle.samsara_last_synced_at = now
         to_update.append(vehicle)
 
+    # --- extended telemetry (Fleet Management) ---------------------------
+    # Deliberately a SECOND call rather than more types on the one above: if any
+    # of these types is unentitled on the plan and Samsara errors the whole
+    # response, live position tracking on the dispatch board must not go with it.
+    # One extra request per 3 minutes for an 11-vehicle fleet is cheap insurance.
+    telemetry_touched = _apply_extended_stats(service, by_samsara_id, to_update)
+
     if to_update:
-        FleetVehicle.objects.bulk_update(
-            to_update,
-            [
-                "samsara_last_latitude", "samsara_last_longitude",
-                "samsara_last_location_label", "samsara_movement_status",
-                "samsara_last_seen_at", "samsara_last_synced_at",
-                "samsara_stationary_since",
-            ],
-        )
-    logger.info(f"Samsara: synced {len(to_update)} vehicle(s)")
-    return {"status": "success", "updated": len(to_update)}
+        fields = [
+            "samsara_last_latitude", "samsara_last_longitude",
+            "samsara_last_location_label", "samsara_movement_status",
+            "samsara_last_seen_at", "samsara_last_synced_at",
+            "samsara_stationary_since",
+        ] + _EXTENDED_FIELDS
+        FleetVehicle.objects.bulk_update(to_update, fields)
+    logger.info(
+        f"Samsara: synced {len(to_update)} vehicle(s) "
+        f"({telemetry_touched} with extended telemetry)"
+    )
+    return {
+        "status": "success",
+        "updated": len(to_update),
+        "telemetry": telemetry_touched,
+    }
+
+
+# Every FleetVehicle column parse_stats_record can emit. bulk_update needs the
+# full list, but because the parser only setattr's keys PRESENT in the payload,
+# an unreported field is written back with the value it already had — never
+# nulled. Stale-but-real beats fresh-and-null.
+_EXTENDED_FIELDS = [
+    "samsara_odometer_meters", "samsara_odometer_source", "samsara_odometer_at",
+    "samsara_gps_distance_meters", "samsara_fuel_percent",
+    "samsara_battery_millivolts", "samsara_engine_state",
+    "samsara_engine_seconds", "samsara_open_fault_count", "samsara_faults_at",
+]
+
+
+def _apply_extended_stats(service, by_samsara_id, to_update):
+    """
+    Fetch odometer/fuel/battery/engine/faults and set them on the instances the
+    GPS pass already collected. Returns how many vehicles got any value.
+
+    Never raises and never fails the cycle: if this call errors (unentitled type,
+    rate limit, network), the GPS sync above still commits normally.
+
+    Vehicles that reported extended stats but had no usable GPS fix are appended
+    to `to_update` so their telemetry still lands.
+    """
+    from dispatching.samsara_service import (
+        EXTENDED_STAT_TYPES, MAX_STAT_TYPES_PER_REQUEST, parse_stats_record,
+    )
+
+    vehicle_ids = list(by_samsara_id.keys())
+    already = {id(v) for v in to_update}
+    touched_ids = set()
+
+    # Samsara caps a stats request at 4 types. Chunk rather than assume the list
+    # is short enough — a 5th type added later must cost an extra request, not
+    # 400 the whole call and silently drop every reading.
+    for start in range(0, len(EXTENDED_STAT_TYPES), MAX_STAT_TYPES_PER_REQUEST):
+        chunk = EXTENDED_STAT_TYPES[start:start + MAX_STAT_TYPES_PER_REQUEST]
+        result = service.get_vehicle_stats(vehicle_ids=vehicle_ids, types=chunk)
+        if result.get("status") != "success":
+            logger.info(
+                "Samsara extended telemetry unavailable this cycle for "
+                f"{','.join(chunk)}: {result.get('status')} ({result.get('error')}) "
+                "— GPS sync unaffected. Run `manage.py fleet_probe` to see which "
+                "stat types this account actually returns."
+            )
+            continue  # other chunks may still succeed
+
+        for record in result.get("data", []):
+            vehicle = by_samsara_id.get(str(record.get("id")))
+            if vehicle is None:
+                continue
+            fields = parse_stats_record(record)
+            if not fields:
+                continue
+            for attr, value in fields.items():
+                setattr(vehicle, attr, value)
+            touched_ids.add(vehicle.id or id(vehicle))
+            if id(vehicle) not in already:
+                to_update.append(vehicle)
+                already.add(id(vehicle))
+
+    return len(touched_ids)
 
 
 _ETA_FIELDS = [
@@ -209,6 +284,53 @@ def sweep_eta(now=None, refresh_eta=True) -> dict:
     return {"status": "ok", "drivers": len(by_driver), "flagged": flagged}
 
 
+def _record_stats_health(result):
+    """
+    Stamp the vehicle_stats feed so a silent outage becomes visible.
+
+    Cheap (one row) and worth it: this poller ran for ~25 days against a token
+    the settings module never read, reported nothing wrong, and every mapped
+    vehicle sat frozen at 2026-07-11 with nobody noticing.
+    """
+    try:
+        from dispatching.fleet_sync import FEED_VEHICLE_STATS, record_feed_result
+
+        status = (result or {}).get("status") or "error"
+        record_feed_result(
+            FEED_VEHICLE_STATS, status, error=(result or {}).get("error", "")
+        )
+    except Exception as e:
+        logger.warning(f"Could not record Samsara feed health: {e}")
+
+
+def _run_fleet_work():
+    """
+    Fleet Management per-cycle work: daily mileage accrual, plus the nightly
+    reconcile when the local-clock gate opens.
+
+    Fully isolated — an exception here must never stop the GPS poll or the ETA
+    sweep, and must never propagate to the loop's restart path.
+    """
+    try:
+        from dispatching.fleet_sync import (
+            accrue_vehicle_day, reconcile_fleet, should_reconcile,
+        )
+    except Exception as e:
+        logger.warning(f"Fleet sync unavailable: {e}")
+        return
+
+    try:
+        accrue_vehicle_day()
+    except Exception as e:
+        logger.error(f"Fleet daily accrual failed: {e}", exc_info=True)
+
+    try:
+        if should_reconcile():
+            reconcile_fleet()
+    except Exception as e:
+        logger.error(f"Fleet nightly reconcile failed: {e}", exc_info=True)
+
+
 def _run_scheduler():
     """Daemon loop. Dies with the process. Survives any per-cycle exception."""
     time.sleep(60)  # let Django finish booting
@@ -219,7 +341,8 @@ def _run_scheduler():
         try:
             acquired = _try_advisory_lock()
             if acquired:
-                sync_vehicles()  # free GPS poll, every cycle
+                result = sync_vehicles()  # free GPS poll, every cycle
+                _record_stats_health(result)
                 # Throttle the paid Google ETA recompute to ETA_REFRESH_SECONDS; the
                 # band math inside sweep_eta still runs every cycle either way.
                 now_mono = time.monotonic()
@@ -227,6 +350,11 @@ def _run_scheduler():
                 sweep_eta(refresh_eta=refresh)
                 if refresh:
                     _last_eta_refresh_at = now_mono
+                # Fleet Management: accrue today's mileage every cycle, and run
+                # the nightly reconcile when the local clock says so. Both are
+                # guarded so neither can take the poller (or the ETA badges the
+                # dispatch board depends on) down with it.
+                _run_fleet_work()
             else:
                 logger.debug("Another worker holds the Samsara poller lock, skipping cycle")
         except Exception as e:
