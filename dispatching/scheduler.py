@@ -302,13 +302,16 @@ def get_driver_vehicle_type(driver_id: int, target_date: date) -> Optional[str]:
     return None
 
 
-def load_all_driver_vtypes(target_date: date) -> Dict[int, str]:
+def load_all_driver_vtypes(target_date: date, rows=None) -> Dict[int, str]:
     """Load vehicle type strings for ALL drivers assigned on a given date.
-    Returns {driver_id: vehicle_type_str} dict. Single DB query."""
+    Returns {driver_id: vehicle_type_str} dict. Single DB query — or zero when
+    the caller passes ``rows`` (the date's DriverVehicleAssignment rows,
+    select_related vehicle__vehicle_type) so one fetch feeds every builder."""
     from drivers.models import DriverVehicleAssignment
-    assignments = DriverVehicleAssignment.objects.select_related(
-        'vehicle__vehicle_type'
-    ).filter(date=target_date)
+    assignments = rows if rows is not None else (
+        DriverVehicleAssignment.objects.select_related(
+            'vehicle__vehicle_type'
+        ).filter(date=target_date))
     result = {}
     for a in assignments:
         if a.vehicle and a.vehicle.vehicle_type:
@@ -1186,19 +1189,24 @@ def check_feasibility(
     )
 
 
-def build_vehicle_caps(driver_ids, target_date: date) -> Dict[int, dict]:
+def build_vehicle_caps(driver_ids, target_date: date, rows=None) -> Dict[int, dict]:
     """Map {driver_id: {"pax", "lug", "label"}} for drivers whose assigned physical
     car carries an opt-in per-unit scheduling cap (FleetVehicle.max_passenger_capacity
     / max_luggage_capacity). Drivers on uncapped units are omitted entirely, so the
     common case adds nothing. Drives Guard A' in check_feasibility — see DriverDaySchedule.
+    Pass ``rows`` (the date's DVA rows, select_related vehicle) to skip the query.
     """
     from drivers.models import DriverVehicleAssignment
 
     caps = {}
-    qs = (DriverVehicleAssignment.objects
-          .filter(date=target_date, vehicle__isnull=False, driver_id__in=list(driver_ids))
-          .select_related("vehicle"))
+    ids = set(driver_ids)
+    qs = rows if rows is not None else (
+        DriverVehicleAssignment.objects
+        .filter(date=target_date, vehicle__isnull=False, driver_id__in=list(ids))
+        .select_related("vehicle"))
     for dva in qs:
+        if dva.vehicle_id is None or dva.driver_id not in ids:
+            continue
         v = dva.vehicle
         max_pax = v.max_passenger_capacity
         max_lug = v.max_luggage_capacity
@@ -1208,13 +1216,16 @@ def build_vehicle_caps(driver_ids, target_date: date) -> Dict[int, dict]:
     return caps
 
 
-def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, DriverDaySchedule]:
+def build_driver_schedules(legs, drivers, target_date: date, dva_rows=None) -> Dict[int, DriverDaySchedule]:
     """
     Build a DriverDaySchedule for each driver from the day's assigned legs.
+    ``dva_rows`` (the date's DriverVehicleAssignment rows, select_related
+    vehicle) lets the caller share one DVA fetch with the other builders.
     """
     from dispatching.analytics import categorize_location
 
-    vehicle_caps = build_vehicle_caps([d.id for d in drivers], target_date)
+    vehicle_caps = build_vehicle_caps([d.id for d in drivers], target_date,
+                                      rows=dva_rows)
 
     schedules = {}
     for driver in drivers:
@@ -2955,19 +2966,24 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
     return final_assignments, moves
 
 
-def build_sharer_partners(driver_ids, target_date):
+def build_sharer_partners(driver_ids, target_date, rows=None):
     """Map {driver_id: {other drivers sharing the SAME physical vehicle that date}}.
 
     Built from DriverVehicleAssignment: a vehicle held by >1 working driver is one
     physical unit split across shifts (Day Setup AM/PM share or an advisor freed-unit
     accept). Feed the result to sharers_conflict() to gate any insert against the
-    car-share partner's jobs. Mirrors the inline construction in suggest_assignments()."""
+    car-share partner's jobs. Mirrors the inline construction in suggest_assignments().
+    Pass ``rows`` (the date's DVA rows) to skip the query."""
     from drivers.models import DriverVehicleAssignment
 
     working = set(driver_ids)
+    if rows is None:
+        rows = DriverVehicleAssignment.objects.filter(
+            date=target_date, vehicle__isnull=False, driver_id__in=working)
     unit_holders = {}
-    for dva in DriverVehicleAssignment.objects.filter(
-            date=target_date, vehicle__isnull=False, driver_id__in=working):
+    for dva in rows:
+        if dva.vehicle_id is None or dva.driver_id not in working:
+            continue
         unit_holders.setdefault(dva.vehicle_id, []).append(dva.driver_id)
     partners = {}
     for holders in unit_holders.values():

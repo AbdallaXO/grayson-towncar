@@ -193,6 +193,9 @@
   .cf-act-item .mono{ color:var(--ink-mute); flex:0 0 auto; font-size:11px; }
   .cf-act-empty{ font-size:12px; color:var(--ink-faint); font-style:italic; padding:6px 0; }
 </style>
+{# Recovery Advisor block below renders the SAME card the board rail draws, so
+   it shares the rail's stylesheet rather than carrying a second copy. #}
+{% include "dispatching/includes/_recovery_advisor_styles.html" %}
 {% endblock extra_css %}
 
 {% block footer %}{% endblock footer %}
@@ -366,6 +369,9 @@
       </div>
       {% endif %}
 
+      <!-- Recovery Advisor — whole-board-validated plans (renders nothing without advisor_card) -->
+      {% include "dispatching/includes/_advisor_plans.html" %}
+
       <!-- Resolution Ladder -->
       <div class="cf-card">
         <div class="cf-card-h"><i class="bi bi-list-ol" style="color:var(--gold-deep)"></i><span class="lbl">Resolution Ladder</span></div>
@@ -404,7 +410,10 @@
               <div class="cf-step-body">
                 <div class="cf-step-head"><span class="cf-step-title">Cover in-house</span>{% if redesign.monitor_first %}<span class="cf-tag cf-tag-mute">If it slips</span>{% else %}<span class="cf-tag cf-tag-gold">Do this</span>{% endif %}</div>
                 <div class="cf-step-desc">Reassign the {% if redesign.gate_str %}arrival{% else %}conflicting{% endif %} leg to a free in-house driver — the primary fix, no margin lost.{% if ladder.checked and not ladder.inhouse %} None are open in this window; free one up with a <a href="{% url 'dashboard' %}?date={{ pickup_date_str }}&highlight={{ task.leg_id }}" target="_blank">swap on the board</a>.{% endif %}</div>
-                <div id="cfStep2Body" class="cf-cands">
+                {% if advisor_card %}
+                <button type="button" class="cf-act" data-ra-more="cfStep2Body"><i class="bi bi-three-dots"></i> More options (no feasibility check)</button>
+                {% endif %}
+                <div id="cfStep2Body" class="cf-cands" {% if advisor_card %}hidden{% endif %}>
                   {% for c in ladder.inhouse %}
                   <div class="cf-cand">
                     <div class="cf-cand-ini free">{{ c.name|slice:":1"|upper }}</div>
@@ -429,7 +438,10 @@
                 <div class="cf-step-desc">Hand the leg to a partner operator. Costs margin — only after in-house is exhausted.</div>
                 {% if ladder.step3_unlocked %}
                 <div class="cf-step-note"><i class="bi bi-info-circle"></i> No in-house driver fits — review a swap on the board first, then farm out if needed.</div>
-                <div id="cfStep3Body" class="cf-cands">
+                {% if advisor_card %}
+                <button type="button" class="cf-act" data-ra-more="cfStep3Body"><i class="bi bi-three-dots"></i> More options (no feasibility check)</button>
+                {% endif %}
+                <div id="cfStep3Body" class="cf-cands" {% if advisor_card %}hidden{% endif %}>
                   {% for a in ladder.affiliates %}
                   <div class="cf-cand">
                     <div class="cf-cand-ini aff">{{ a.name|slice:":1"|upper }}</div>

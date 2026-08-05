@@ -6,6 +6,7 @@
 
 {% block extra_css %}
   {% include "dispatching/includes/_samsara_panel_styles.html" %}
+  {% include "dispatching/includes/_recovery_advisor_styles.html" %}
   <style>
       /* Ensure interactive elements show pointer cursor */
       .form-select, .btn { cursor: pointer; }
@@ -851,6 +852,13 @@
 
     {% include 'dispatching/includes/_draft_banner.html' %}
 
+    <!-- Recovery Advisor rail (live disruption cards; needs selected_date + is_held).
+         SUPERUSER-ONLY while the owner trials it — the endpoints enforce the same
+         rule (advisor_views.advisor_visible_to), so this is presentation, not the
+         security boundary. -->
+    {% if user.is_superuser %}
+    {% include 'dispatching/includes/_recovery_advisor.html' %}
+    {% endif %}
 
     <!-- Driver Coverage Bar -->
     {% if driver_coverage.total > 0 %}

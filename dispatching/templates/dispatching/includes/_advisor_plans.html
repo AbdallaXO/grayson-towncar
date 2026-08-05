@@ -1,0 +1,345 @@
+{% comment %}
+Recovery Advisor on the conflict task detail page — server-rendered from
+``advisor_card`` (one card dict from conflict_advisor.compute_advisor_state,
+picked for this task's leg by ops.views._advisor_card_for_task). Renders
+NOTHING when advisor_card is absent, so the page is unchanged on failure.
+
+This is the SAME card the board rail draws, from the SAME server-built
+``display`` block — plain-language headline and story, the conflict as one
+timeline, and per plan the board after the move with the receiving driver's
+real next job on the lane. Geometry arrives as percentages from
+advisor_display.Axis; this template places, it never calculates. Styles come
+from _recovery_advisor_styles.html (included by this page's extra_css), so the
+two surfaces cannot drift apart.
+
+A card whose ``display`` failed to build falls back to the engine's raw text —
+the same degradation contract the rail has. The engine's own words are never
+lost either way: they sit under each plan's "Show the math".
+
+Unlike the legacy .cf-assign candidates below it, every plan here has been
+through whole-board validation — so when this block renders, the page's
+no-feasibility-check candidate lists collapse under a "More options"
+disclosure (this include ships the [data-ra-more] JS for that).
+
+Apply buttons POST the plan's ready-made apply payload to
+recovery_advisor_apply (re-validated server-side; 409 on drift) and, on
+success, return to the task queue — matching the existing .cf-assign flow.
+A held day answers 409 with a live-override instruction; we re-confirm and
+retry with live_override_confirmed once. UNCHANGED by the redesign.
+{% endcomment %}
+{% if advisor_card %}
+<div class="cf-card" id="raTaskAdvisor">
+  <div class="cf-card-h">
+    <i class="bi bi-broadcast-pin" style="color:var(--gold-deep)"></i>
+    <span class="lbl">Recovery Advisor</span>
+  </div>
+  <div class="cf-card-b">
+    <div class="ra-body">
+      <div class="ra-card sev-{{ advisor_card.severity }}">
+
+        {# ── The problem, named ── #}
+        <div class="ra-card-top">
+          <span class="ra-sev sev-{{ advisor_card.severity }}">{{ advisor_card.severity }}</span>
+          <span class="ra-headline">{{ advisor_card.display.headline|default:advisor_card.headline }}</span>
+        </div>
+        {% with story=advisor_card.display.story|default:advisor_card.narrative %}
+        {% if story %}<p class="ra-story">{{ story }}</p>{% endif %}
+        {% endwith %}
+        {% if advisor_card.display.scope %}
+        <div class="ra-meta">
+          <span class="ra-scope">
+            <span>⏱ {{ advisor_card.display.scope.text }}</span>
+            <span class="ra-tick">✓</span>
+            <span>{{ advisor_card.display.scope.detail }}</span>
+          </span>
+        </div>
+        {% endif %}
+
+        {# ── The conflict, drawn once ── #}
+        {% with tl=advisor_card.display.conflict %}
+        {% if tl %}
+        <div class="ra-sec">
+          <div class="ra-sec-label">{{ tl.title }}</div>
+          {% if tl.subtitle %}<div class="ra-sec-sub">{{ tl.subtitle }}</div>{% endif %}
+          <div class="ra-tl"><div class="ra-tl-inner">
+            <div class="ra-tl-grid">
+              <div></div>
+              <div class="ra-axis">
+                {% for t in tl.axis.ticks %}
+                <span class="{% if t.edge == 'start' %}is-start{% elif t.edge == 'end' %}is-end{% endif %}"
+                      style="left:{{ t.left_pct }}%">{{ t.label }}</span>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="ra-tl-grid">
+              {% with lane0=tl.lanes.0 %}
+              <div class="ra-lane-name">
+                {% if lane0.driver %}
+                <span class="ra-avatar">{{ lane0.initial }}</span>
+                <div><div class="ra-nm">{{ lane0.driver }}</div><div class="ra-rl">driver</div></div>
+                {% endif %}
+              </div>
+              {% endwith %}
+              <div class="ra-plot" style="padding-top:1rem">
+                {% for t in tl.axis.ticks %}{% if not t.edge %}
+                <div class="ra-gridline{% if t.hour %} is-hour{% endif %}" style="left:{{ t.left_pct }}%"></div>
+                {% endif %}{% endfor %}
+                {% for m in tl.markers %}
+                <div class="ra-marker m-{{ m.kind }}" style="left:{{ m.left_pct }}%"></div>
+                <span class="ra-marker-tag m-{{ m.kind }}" style="left:{{ m.left_pct }}%">{{ m.label }}</span>
+                {% endfor %}
+                {% for lane in tl.lanes %}
+                <div class="ra-row"{% if forloop.first %} style="margin-top:.35rem"{% endif %}>
+                  {% for b in lane.blocks %}
+                  <div class="ra-block b-{{ b.type }}{% if b.trip %} trip-{{ b.trip }}{% endif %}"
+                       style="left:{{ b.left_pct }}%;width:{{ b.width_pct }}%"
+                       title="{{ b.time }} {{ b.label }}">
+                    {% if b.time %}<span class="ra-t">{{ b.time }}</span>{% endif %}<span>{{ b.label }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endfor %}
+                {% if tl.bracket %}
+                <div class="ra-gap-row">
+                  <div class="ra-bracket{% if tl.bracket.tone == 'amber' %} is-amber{% endif %}" style="left:{{ tl.bracket.left_pct }}%;width:{{ tl.bracket.width_pct }}%"></div>
+                  <span class="ra-bracket-tag{% if tl.bracket.tone == 'amber' %} is-amber{% endif %}" style="left:{{ tl.bracket.mid_pct }}%">{{ tl.bracket.label }}{% if tl.bracket.detail %}<small> · {{ tl.bracket.detail }}</small>{% endif %}</span>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% if tl.legend %}
+            <div class="ra-legend">
+              {% for l in tl.legend %}
+              <span class="ra-lg"><span class="ra-sw {{ l.cls }}"></span><span>{{ l.label }}</span></span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div></div>
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# ── The ways to fix it, ranked exactly as the engine ranked them ── #}
+        {% if advisor_card.plans %}
+        <div class="ra-sec">
+          <div class="ra-sec-label">{{ advisor_card.plans|length }} way{{ advisor_card.plans|length|pluralize }} to fix it</div>
+          <div class="ra-sec-sub">The timelines show the schedule after the move.</div>
+
+          {% for plan in advisor_card.plans %}
+          <div class="ra-fix">
+            <div class="ra-fix-head">
+              <span class="ra-rank">#{{ plan.rank }}</span>
+              <span class="ra-fix-title">{{ plan.display.headline|default:plan.title }}</span>
+              {# One money format everywhere — the engine's own _fmt_money, so a
+                 $120 farm is "$120" on this page and on the board rail alike. #}
+              {% if plan.display.price_label %}<span class="ra-price">{{ plan.display.price_label }}</span>
+              {% elif plan.price_impact is not None %}<span class="ra-price">${{ plan.price_impact }}</span>{% endif %}
+              {% if plan.apply %}
+              <button type="button" class="ra-apply-btn" data-ra-apply="{{ plan.id }}">
+                {{ plan.display.action_label|default:"Apply this move" }}
+              </button>
+              {% endif %}
+            </div>
+
+            {# the board AFTER this move, lane per driver #}
+            {% with after=plan.display.after %}
+            {% if after %}
+            <div class="ra-mini"><div class="ra-mini-inner">
+              <div class="ra-tl-grid">
+                <div></div>
+                <div class="ra-axis">
+                  {% for t in after.axis.ticks %}
+                  <span class="{% if t.edge == 'start' %}is-start{% elif t.edge == 'end' %}is-end{% endif %}"
+                        style="left:{{ t.left_pct }}%">{{ t.label }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+              {% for lane in after.lanes %}
+              <div class="ra-tl-grid">
+                <div class="ra-lane-name">
+                  {% if lane.driver %}
+                  <span class="ra-avatar{% if lane.role == 'to' %} is-to{% elif lane.role == 'affiliate' %} is-affiliate{% endif %}">{{ lane.initial }}</span>
+                  <div><div class="ra-nm">{{ lane.driver }}</div>
+                       {% if lane.cleared %}<div class="ra-cleared">✓ conflict cleared</div>
+                       {% else %}<div class="ra-rl">{% if lane.role == 'affiliate' %}affiliate{% else %}driver{% endif %}</div>{% endif %}</div>
+                  {% endif %}
+                </div>
+                <div class="ra-mini-row">
+                  {% for t in after.axis.ticks %}{% if not t.edge %}
+                  <div class="ra-gridline{% if t.hour %} is-hour{% endif %}" style="left:{{ t.left_pct }}%"></div>
+                  {% endif %}{% endfor %}
+                  {% for g in lane.gaps %}
+                  {% if g.kind == 'room' %}
+                  <div class="ra-room" style="left:{{ g.left_pct }}%;width:{{ g.width_pct }}%" title="{{ g.label }}">{{ g.label }}</div>
+                  {% else %}
+                  <div class="ra-squeeze" style="left:{{ g.left_pct }}%;width:{{ g.width_pct }}%"></div>
+                  <span class="ra-squeeze-tag" style="left:{{ g.left_pct }}%">{{ g.label }} →</span>
+                  {% endif %}
+                  {% endfor %}
+                  {% for b in lane.blocks %}
+                  <div class="ra-block b-{{ b.type }}{% if b.trip %} trip-{{ b.trip }}{% endif %}"
+                       style="left:{{ b.left_pct }}%;width:{{ b.width_pct }}%"
+                       title="{{ b.time }} {{ b.label }}">
+                    {% if b.time %}<span class="ra-t">{{ b.time }}</span>{% endif %}<span>{{ b.label }}</span>
+                  </div>
+                  {% endfor %}
+                  {% if lane.tag %}
+                  <span class="ra-moved-tag" style="left:{{ lane.tag.left_pct }}%">⤵ {{ lane.tag.text }}</span>
+                  {% endif %}
+                  {% if lane.note %}<span class="ra-lane-note">{{ lane.note }}</span>{% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div></div>
+            {% endif %}
+            {% endwith %}
+
+            {% if plan.display.outcome %}<p class="ra-outcome">{{ plan.display.outcome }}</p>{% endif %}
+            {% if plan.display.warnings %}
+            <div class="ra-chips">
+              {% for w in plan.display.warnings %}
+              <span class="ra-chip is-{{ w.tone }}"><span class="ra-ic">{% if w.tone == 'red' %}✖{% else %}⚠{% endif %}</span><span>{{ w.text }}</span></span>
+              {% endfor %}
+            </div>
+            {% elif plan.risks %}
+            {# Degraded path: display failed to build. The engine's risks must
+               still be VISIBLE next to a live Apply button — burying them in
+               the collapsed "Show the math" would hide a safety line behind a
+               click the dispatcher has no reason to make. #}
+            <div class="ra-chips">
+              {% for r in plan.risks %}
+              <span class="ra-chip is-amber"><span class="ra-ic">⚠</span><span>{{ r }}</span></span>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {# the engine's own output, verbatim — the audit trail #}
+            {% with math=plan.display.math %}
+            <details class="ra-math">
+              <summary>Show the math</summary>
+              <div class="ra-math-body">
+                {% if math %}
+                  {% if math.why %}<span class="ra-math-h">engine reasoning</span>
+                  <ul>{% for w in math.why %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+                  {% if math.risks %}<span class="ra-math-h">engine risks</span>
+                  <ul>{% for r in math.risks %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+                  {% if math.facts %}<span class="ra-math-h">numbers</span>
+                  <ul>{% for f in math.facts %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+                  {% if math.narrative %}<span class="ra-math-h">detection</span>
+                  <ul><li>{{ math.narrative }}</li></ul>{% endif %}
+                {% else %}
+                  {% if plan.why %}<span class="ra-math-h">engine reasoning</span>
+                  <ul>{% for w in plan.why %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+                  {% if plan.risks %}<span class="ra-math-h">engine risks</span>
+                  <ul>{% for r in plan.risks %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+                  <span class="ra-math-h">numbers</span>
+                  <ul><li>{{ plan.title }}</li><li>issue class: {{ advisor_card.basis|default:"n/a" }}</li></ul>
+                {% endif %}
+              </div>
+            </details>
+            {% endwith %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="ra-note">
+          {% if advisor_card.no_internal_solution %}No clean in-house fix exists for this one.{% else %}No options this pass — the board may have changed; refresh.{% endif %}
+        </div>
+        {% with why=advisor_card.display.why_nobody|default:advisor_card.diagnostic %}
+        {% if why %}<div class="ra-diag">{{ why }}</div>{% endif %}
+        {% endwith %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{{ advisor_card|json_script:"raAdvisorCard" }}
+<script>
+(function raTaskAdvisorInit() {
+  'use strict';
+  // The ladder's [data-ra-more] buttons sit BELOW this include — wait for the
+  // full document before wiring anything.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', raTaskAdvisorInit);
+    return;
+  }
+  var cardEl = document.getElementById('raAdvisorCard');
+  if (!cardEl) return;
+  var card = JSON.parse(cardEl.textContent);
+  var canStage = {{ advisor_can_stage|yesno:'true,false' }};
+  var plansById = {};
+  (card.plans || []).forEach(function (p) { plansById[p.id] = p; });
+
+  function cookie(n) { var m = document.cookie.match('(^|;)\\s*' + n + '\\s*=\\s*([^;]+)'); return m ? m.pop() : ''; }
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cookie('csrftoken') },
+      body: JSON.stringify(body || {}),
+    }).then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j }; }); });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ra-apply]'), function (btn) {
+    btn.addEventListener('click', function () {
+      var plan = plansById[btn.dataset.raApply];
+      if (!plan || !plan.apply) return;
+      // Confirmation reads the plain-language move list when there is one; the
+      // engine's own move summaries remain the fallback.
+      var disp = plan.display || {};
+      var lines = (plan.moves || []).map(function (m) {
+        return '• ' + (m.summary || ('Leg ' + m.leg_id)) + ': ' + m.action +
+               (m.from ? ' ' + m.from : '') + (m.to ? ' → ' + m.to : '');
+      });
+      var msg = 'Apply "' + (disp.headline || plan.title) + '"?\n\n' + lines.join('\n');
+      var warn = (disp.warnings || []).map(function (w) { return w.text; });
+      if (!warn.length) warn = plan.risks || [];
+      if (warn.length) msg += '\n\nCheck first:\n' + warn.map(function (r) { return '• ' + r; }).join('\n');
+      if (!confirm(msg)) return;
+      var orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = 'Applying…';
+      function send(payload) {
+        post('{% url "recovery_advisor_apply" %}', payload).then(function (r) {
+          if (r.data.success) { location.href = '{% url "task_queue" %}'; return; }
+          var err = r.data.error || 'Apply failed';
+          if (r.status === 409 && err.indexOf('held') !== -1 && !payload.live_override_confirmed && !payload.stage) {
+            // Held-day policy: explicit extra confirmation, then apply LIVE;
+            // staging into the draft is the secondary choice for
+            // sandbox-granted users (owner decision).
+            if (confirm('This day is held by a draft — apply to the LIVE board anyway?')) {
+              payload.live_override_confirmed = true;
+              send(payload);
+              return;
+            }
+            if (canStage && confirm('Stage this plan into the draft instead? (live board unchanged until publish)')) {
+              payload.stage = true;
+              send(payload);
+              return;
+            }
+            btn.disabled = false; btn.innerHTML = orig;
+            return;
+          }
+          if (r.status === 409) {
+            alert('Board changed since these options were worked out — refreshing.');
+            location.reload();
+            return;
+          }
+          btn.disabled = false; btn.innerHTML = orig;
+          alert(err);
+        }).catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Network error'); });
+      }
+      send(JSON.parse(JSON.stringify(plan.apply)));
+    });
+  });
+
+  // Legacy no-feasibility-check candidate lists stay collapsed while advisor
+  // plans are on the page — one click brings them back.
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ra-more]'), function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.getElementById(btn.dataset.raMore);
+      if (el) { el.hidden = false; }
+      btn.remove();
+    });
+  });
+})();
+</script>
+{% endif %}

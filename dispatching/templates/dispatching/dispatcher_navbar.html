@@ -17,7 +17,7 @@
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-             href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
+             href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard{% if critical_disruption_count %} <span class="badge bg-danger rounded-pill" id="raCritBadge" style="font-size: 0.65rem;" title="Critical disruptions on today's board (Recovery Advisor)">{{ critical_disruption_count }}</span>{% endif %}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'reservations_list' %}active{% endif %}"

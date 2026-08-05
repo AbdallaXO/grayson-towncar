@@ -27,6 +27,20 @@ def pending_task_count(request):
     return {"ops_pending_count": count}
 
 
+def critical_disruption_count(request):
+    """Red pill on the dispatch Dashboard link: today's visible critical
+    Recovery Advisor cards.
+
+    Cache-READ-only — ``ra_crit_count`` is mirrored by the advisor state
+    endpoint whenever it computes today's board (dispatching/advisor_views.py);
+    this NEVER computes anything itself and degrades to 0 when the cache is
+    cold or expired (TTL 300 s)."""
+    from dispatching.advisor_views import advisor_visible_to
+    if not hasattr(request, "user") or not advisor_visible_to(request.user):
+        return {}
+    return {"critical_disruption_count": cache.get("ra_crit_count") or 0}
+
+
 def timeclock_status(request):
     """
     Inject the logged-in staffer's live clock state for the navbar pill:

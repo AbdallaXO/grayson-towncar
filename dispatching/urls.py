@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import advisor_views
 from . import flight_verify_views
 from . import overnight_views
 from . import keoi_views
@@ -67,6 +68,15 @@ urlpatterns = [
     path("fleet-intel/legs/", views.fleet_intel_leaks, name="fleet_intel_leaks"),
     path("farmout-optimizer/", views.farmout_optimizer, name="farmout_optimizer"),
     path("farmout-optimizer/apply/", views.farmout_apply, name="farmout_apply"),
+    # Recovery Advisor — live disruption cards + one-click apply + snooze
+    path("recovery-advisor/", advisor_views.recovery_advisor_state,
+         name="recovery_advisor_state"),
+    path("recovery-advisor/apply/", advisor_views.recovery_advisor_apply,
+         name="recovery_advisor_apply"),
+    path("recovery-advisor/snooze/", advisor_views.recovery_advisor_snooze,
+         name="recovery_advisor_snooze"),
+    path("recovery-advisor/file-task/", advisor_views.recovery_advisor_file_task,
+         name="recovery_advisor_file_task"),
     path("route-timing/legs/", views.route_timing_leg_details, name="route_timing_leg_details"),
     path("route-timing/exclude-leg/", views.route_timing_exclude_leg, name="route_timing_exclude_leg"),
     path("recalculate-route-metrics/", views.recalculate_route_metrics, name="recalculate_route_metrics"),

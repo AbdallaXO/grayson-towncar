@@ -2706,55 +2706,13 @@ _GPS_PICKUP_TARGETS = ('pickup', 'next_pickup')
 
 def _gap_turn_slack(prev_slot, next_slot, target_date, prev_leg=None,
                     prev_picked_up_dt=None):
-    """Real turnaround slack (minutes) between two consecutive slots of one driver.
-
-        slack = next pickup - (prev clear + required_turnaround)
-
-    This is the SAME arithmetic scheduler.check_feasibility uses to decide whether a
-    leg may be seated, so a turn the assignment engine calls legal can no longer
-    render red on the board, and one it calls impossible can no longer render clean.
-
-    What it replaces: a raw clock gap banded at <20 / <10 with no repositioning drive
-    and no deplaning grace. That made a same-terminal MCO drop -> arrival look
-    "critical" (the engine considers it fine — the guest is still deplaning) while a
-    25-minute gap that needs a 30-minute reposition looked perfectly healthy.
-
-    REALITY BEATS THE PLAN, but only on facts: when the previous leg has a RECORDED
-    pickup (``prev_picked_up_dt``), the clear time is re-anchored on it — the dwell
-    already happened, so only the drive is left. Without that, a driver who picked up
-    15 min early kept showing an amber "tight" chip while the live GPS badge beside it
-    read on-time, and the two contradicted each other on screen. A live GPS projection
-    is deliberately NOT used here: it's a forecast, and a chip that wrongly goes green
-    is worse than one that wrongly goes amber.
-
-    Returns None when the slots don't carry enough information to judge.
-    """
-    from dispatching.scheduler import (
-        _slot_chain_end, chain_repo_minutes, chain_clear_dt_from_actual,
-    )
-    from dispatching import feasibility_guards as fg
-
-    if prev_slot is None or next_slot is None or next_slot.pickup_time is None:
-        return None
-    try:
-        if prev_leg is not None and prev_picked_up_dt is not None:
-            prev_end = chain_clear_dt_from_actual(prev_leg, prev_picked_up_dt)
-        else:
-            prev_end = _slot_chain_end(prev_slot, target_date)
-        next_pickup = datetime.combine(target_date, next_slot.pickup_time)
-        repo = chain_repo_minutes(
-            prev_slot.dropoff_location, next_slot.pickup_location,
-            prev_slot.dropoff_category, next_slot.pickup_category,
-        )
-        req = fg.required_turnaround(
-            repo,
-            fg.is_airport_arrival(next_slot.trip_type, next_slot.pickup_category),
-            same_terminal=(prev_slot.dropoff_category == next_slot.pickup_category),
-        )
-        return int((next_pickup - (prev_end + timedelta(minutes=req))).total_seconds() / 60)
-    except Exception:
-        # Never let a timing-table miss break the board render; fall back to no chip.
-        return None
+    """Thin delegate — promoted to ``board_validation.turn_slack_minutes`` so the
+    Recovery Advisor runs the exact formula the board renders (full docstring
+    there). Kept under this name for the board's call sites and existing tests."""
+    from dispatching.board_validation import turn_slack_minutes
+    return turn_slack_minutes(prev_slot, next_slot, target_date,
+                              prev_leg=prev_leg,
+                              prev_picked_up_dt=prev_picked_up_dt)
 
 
 def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
@@ -3017,59 +2975,13 @@ def _truthful_pill_span(*, sched_start_dt, est_end_dt, status, trip_type,
 
 def _pickup_risk(*, pickup_overdue, pickup_stalled, overdue_mins,
                  gps_status, gps_eta_mins, gps_reason):
-    """Fold the live-GPS "will he make the pickup?" band together with the clock-based
-    pickup flags into ONE escalating cue, so a dispatcher sees a single signal per bar.
-
-    The GPS band (from the Samsara sweep — ``dispatch_risk_status``) is the PROACTIVE
-    signal: it fires *before* the pickup time, which is the whole point — time to line
-    up a backup before the guest is affected.
-        * ``at_risk`` — the vehicle's live ETA exceeds the time left to the pickup
-                        (he's simply too far to make it);
-        * ``watch``   — thin slack, or sitting still with the pickup coming up
-                        (not on the way soon enough);
-        * ``late``    — GPS-confirmed past the pickup, still not there.
-    The clock flags (``pickup_stalled`` / ``pickup_overdue``) are the FALLBACK for when
-    there's no fresh telematics at all — affiliates, un-onboarded vehicles, stale GPS.
-    They are exactly that — a fallback — so a fresh GPS ``on_time`` SUPPRESSES them:
-    the clock only knows nobody pressed a button, while the telemetry knows the car is
-    positioned to make the pickup. Any other GPS state (missing, ``unknown``, stale)
-    leaves the clock in charge, because no signal is not a clean bill of health.
-
-    Returns ``{tier, source, label, reason}``; tier is '', 'watch' or 'critical'.
-    Pure function so the precedence can be unit-tested.
-    """
-    _eta = f'{gps_eta_mins}m' if gps_eta_mins is not None else None
-
-    # ── critical: won't make it, or already blown the pickup ──
-    if gps_status == 'at_risk':
-        return {'tier': 'critical', 'source': 'gps',
-                'label': _eta if _eta else 'at risk',   # pin icon already implies "ETA"
-                'reason': gps_reason or 'GPS ETA exceeds time to pickup'}
-    if gps_status == 'late':
-        return {'tier': 'critical', 'source': 'gps',
-                'label': 'late', 'reason': gps_reason or 'Past pickup — still en route'}
-    # A fresh GPS 'on_time' OUTRANKS the clock's stalled flag. The clock only knows
-    # that no button was pressed; the vehicle telemetry knows the car is positioned to
-    # make it. Believing the clock over live GPS is what put a critical red on drivers
-    # who were demonstrably fine — usually just a driver who hadn't tapped "on the way".
-    # Absent / stale / 'unknown' GPS still yields to the clock: no signal is not a
-    # clean bill of health.
-    if pickup_stalled and gps_status != 'on_time':
-        return {'tier': 'critical', 'source': 'clock',
-                'label': f'{overdue_mins}m late',
-                'reason': f'Pickup {overdue_mins} min overdue — no driver status yet'}
-
-    # ── watch: cutting it close / not moving / past pickup but en route ──
-    if gps_status == 'watch':
-        return {'tier': 'watch', 'source': 'gps',
-                'label': _eta if _eta else 'watch',   # pin icon already implies "ETA"
-                'reason': gps_reason or 'Little slack to pickup'}
-    if pickup_overdue and gps_status != 'on_time':
-        return {'tier': 'watch', 'source': 'clock',
-                'label': f'{overdue_mins}m late',
-                'reason': f'Pickup {overdue_mins} min overdue — driver en route'}
-
-    return {'tier': '', 'source': '', 'label': '', 'reason': ''}
+    """Thin delegate — promoted to ``pickup_policy.pickup_risk`` (the GPS-over-clock
+    precedence ladder; full docstring there) so the Recovery Advisor and the board
+    read the identical fold. Kept under this name for existing call sites/tests."""
+    return pickup_policy.pickup_risk(
+        pickup_overdue=pickup_overdue, pickup_stalled=pickup_stalled,
+        overdue_mins=overdue_mins, gps_status=gps_status,
+        gps_eta_mins=gps_eta_mins, gps_reason=gps_reason)
 
 
 def _affiliate_feasibility(leg, driver, target_date):
@@ -15842,6 +15754,13 @@ def find_swap_suggestions(request):
             "reservation__vehicle", "vehicle",
             "driver", "driver__profile", "flight_information",
         )
+        .prefetch_related(
+            # build_driver_schedules reads per-leg stop counts, the reservation's
+            # payment_status and the controlling flight. Without these it N+1s
+            # (~3 queries x leg) — 953 queries on a 161-leg day. Same prefetches
+            # conflict_advisor.build_board_state carries, for the same reason.
+            "legflight_set__flight", "legstop_set", "reservation__payments",
+        )
     )
 
     # Build current schedules
@@ -15863,6 +15782,15 @@ def find_swap_suggestions(request):
         target_date=target_date,
         sharer_partners=sharer_partners,
     )
+
+    # One board for every solution — the planning-clock sweep caches onto it,
+    # so drawing N solutions costs one sweep, not N. The target leg is added
+    # explicitly: it is unassigned, so it is not in the in-house legs query.
+    from dispatching.advisor_display import (safe_display, swap_board,
+                                             swap_timeline)
+    tl_legs = dict(all_legs_by_id)
+    tl_legs.setdefault(target_leg.id, target_leg)
+    tl_board = safe_display(swap_board, schedules, tl_legs, target_date)
 
     # Serialize solutions
     solutions_data = []
@@ -15886,6 +15814,12 @@ def find_swap_suggestions(request):
             "target_driver_id": sol.target_driver_id,
             "target_buffer": sol.target_buffer_minutes,
             "moves": moves_data,
+            # The board after this swap, drawn by the SAME builder the Recovery
+            # Advisor uses (dispatching/advisor_display.py). None if it could
+            # not be built — the move list below it still renders.
+            "timeline": (safe_display(swap_timeline, tl_board, sol.moves,
+                                      target_leg.id)
+                         if tl_board is not None else None),
         })
 
     # Serialize diagnostic report (only present when no solutions found)
@@ -15919,82 +15853,12 @@ class _SwapInfeasible(Exception):
 
 
 def _revalidate_swap_feasibility(valid_moves, target_date):
-    """Re-run the FULL feasibility check (Guards A capacity + B turnaround + C window)
-    on the board that WOULD result from applying `valid_moves`. Returns (ok, reason).
-
-    Only drivers that GAIN a leg need checking (removing a leg can't make a driver's
-    remaining legs infeasible). Read-only; mutates only in-memory copies."""
-    from reservations.models import Leg as _Leg
-    from dispatching.scheduler import (
-        check_feasibility, build_driver_schedules, estimate_job_end_time,
-        build_sharer_partners, sharers_conflict,
-    )
-    from dispatching import feasibility_guards as fg
-
-    move_map = {leg_id: to_driver_id for leg_id, to_driver_id in valid_moves}
-    receiving_driver_ids = set(move_map.values())
-
-    legs = list(
-        _Leg.objects.filter(pickup_date=target_date)
-        .exclude(reservation__status="cancelled").exclude(status="cancelled")
-        .select_related("driver", "reservation", "reservation__vehicle", "vehicle", "flight_information")
-    )
-    legs_by_id = {l.id: l for l in legs}
-    for leg_id in move_map:
-        if leg_id not in legs_by_id:
-            return False, f"leg {leg_id} not found on {target_date}"
-
-    # Apply the moves in memory.
-    drv_objs = {d.id: d for d in Driver.objects.filter(id__in=receiving_driver_ids)}
-    for leg_id, to_did in move_map.items():
-        if to_did not in drv_objs:
-            return False, f"driver {to_did} not found"
-        l = legs_by_id[leg_id]
-        l.driver = drv_objs[to_did]
-        l.driver_id = to_did
-    for l in legs:
-        l._estimated_end_dt = estimate_job_end_time(l, target_date)
-
-    # Shared-car gate: a receiving driver who SHARES a physical vehicle with another
-    # working driver can't take a leg that overlaps the partner's jobs — the car is one
-    # unit. Build the partner map over every driver holding a leg, plus post-move
-    # schedules so sharers_conflict() can compare against the partner's real slots.
-    all_leg_driver_ids = {l.driver_id for l in legs if l.driver_id}
-    sharer_partners = build_sharer_partners(all_leg_driver_ids, target_date)
-    if sharer_partners:
-        share_drv_ids = set(all_leg_driver_ids)
-        for _ps in sharer_partners.values():
-            share_drv_ids.update(_ps)
-        share_drv_objs = {d.id: d for d in Driver.objects.filter(id__in=share_drv_ids)}
-        post_move_schedules = build_driver_schedules(
-            legs, list(share_drv_objs.values()), target_date)
-
-    def _cfg_window(did):
-        d = drv_objs.get(did)
-        if not d:
-            return None
-        eff = d.get_effective_availability(target_date)
-        mh = eff.get("max_hours")
-        return {"start": eff.get("start_hour"), "end": eff.get("end_hour"),
-                "max_hours": (float(mh) if mh else None), "flexible": bool(eff.get("flexible"))}
-
-    for did in receiving_driver_ids:
-        drv_legs = [l for l in legs if l.driver_id == did]
-        # enforce_cap=False: this validates a swap the DISPATCHER explicitly chose — the
-        # duty-span cap (Span Governor) must never hard-block an intentional manual move.
-        window = fg.get_effective_window(did, configured=_cfg_window(did), enforce_cap=False)
-        for L in drv_legs:
-            others = [l for l in drv_legs if l.id != L.id]
-            sched = build_driver_schedules(others, [drv_objs[did]], target_date).get(did)
-            feas = check_feasibility(sched, L, target_date, driver_window=window)
-            if not feas.feasible:
-                return False, f"leg {L.id} on driver {did} would be infeasible: {feas.reason}"
-            # One physical car: reject if this leg overlaps a car-share partner's jobs.
-            if sharer_partners and sharers_conflict(
-                    L, did, sharer_partners, post_move_schedules, target_date):
-                return False, (f"leg {L.id} on driver {did} would overlap a car-share "
-                               f"partner's job (shared vehicle)")
-    return True, ""
+    """Thin delegate — promoted to ``board_validation.revalidate_moves_against_db``
+    (full docstring there) so the Recovery Advisor's apply path re-runs the exact
+    same DB-backed check ``execute_swap`` uses. Kept under this name for existing
+    call sites and the tests that patch it here."""
+    from dispatching.board_validation import revalidate_moves_against_db
+    return revalidate_moves_against_db(valid_moves, target_date)
 
 
 @login_required
@@ -16161,6 +16025,13 @@ def swap_tester(request):
             "reservation", "reservation__customer",
             "reservation__vehicle", "vehicle",
             "driver", "driver__profile", "flight_information",
+        )
+        .prefetch_related(
+            # build_driver_schedules reads per-leg stop counts, the reservation's
+            # payment_status and the controlling flight. Without these it N+1s
+            # (~3 queries x leg) — 953 queries on a 161-leg day. Same prefetches
+            # conflict_advisor.build_board_state carries, for the same reason.
+            "legflight_set__flight", "legstop_set", "reservation__payments",
         )
         .order_by("pickup_time")
     )

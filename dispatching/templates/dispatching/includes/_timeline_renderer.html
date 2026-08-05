@@ -1,0 +1,193 @@
+{% comment %}
+Shared client-side timeline renderer — `window.RATimeline`.
+
+ONE renderer for every surface that draws the job timeline: the Recovery
+Advisor rail (_recovery_advisor.html) and the Swap Tester (swap_tester.html).
+The conflict-task page renders the same structures server-side in Django
+(_advisor_plans.html); those three are kept in step by rendering from the SAME
+server-built dict.
+
+GEOMETRY ARRIVES AS PERCENTAGES. Everything here places, nothing calculates —
+`dispatching/advisor_display.py` owns the arithmetic (Axis.pct / Axis.span), so
+a block, a bracket and a spare-time band cannot disagree across surfaces. If you
+find yourself computing a left/width here, put it in advisor_display instead.
+
+Requires _recovery_advisor_styles.html on the page for the ra-* classes.
+Include once, before any script that calls RATimeline.
+{% endcomment %}
+<script>
+(function () {
+  'use strict';
+  if (window.RATimeline) return;            // idempotent if included twice
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function place(node, left, width) {
+    if (left != null) node.style.left = left + '%';
+    if (width != null) node.style.width = width + '%';
+    return node;
+  }
+
+  function buildAxis(ticks) {
+    var ax = el('div', 'ra-axis');
+    (ticks || []).forEach(function (t) {
+      var s = el('span', t.edge === 'start' ? 'is-start'
+                       : (t.edge === 'end' ? 'is-end' : null), t.label);
+      s.style.left = t.left_pct + '%';
+      ax.appendChild(s);
+    });
+    return ax;
+  }
+
+  function addGridlines(plot, ticks) {
+    (ticks || []).forEach(function (t) {
+      if (t.edge) return;
+      place(plot.appendChild(el('div', 'ra-gridline' + (t.hour ? ' is-hour' : ''))),
+            t.left_pct);
+    });
+  }
+
+  // Job colour comes from the trip type — the dispatch board's own palette —
+  // while a block's ROLE in the plan (moved / the receiver's own work / the
+  // drive back / the hole left behind) is carried by outline and opacity, so
+  // the two codings never fight.
+  function addBlocks(row, blocks) {
+    (blocks || []).forEach(function (b) {
+      var n = el('div', 'ra-block b-' + b.type + (b.trip ? ' trip-' + b.trip : ''));
+      if (b.time) n.appendChild(el('span', 'ra-t', b.time));
+      n.appendChild(el('span', null, b.label));
+      n.title = (b.time ? b.time + ' — ' : '') + b.label;
+      if (b.leg_id != null) n.dataset.raLeg = b.leg_id;
+      row.appendChild(place(n, b.left_pct, b.width_pct));
+    });
+  }
+
+  function laneName(lane) {
+    var cell = el('div', 'ra-lane-name');
+    if (!lane.driver) return cell;
+    cell.appendChild(el('span', 'ra-avatar' +
+      (lane.role === 'to' ? ' is-to'
+       : (lane.role === 'affiliate' ? ' is-affiliate' : '')), lane.initial));
+    var box = el('div');
+    box.appendChild(el('div', 'ra-nm', lane.driver));
+    if (lane.cleared) {
+      box.appendChild(el('div', 'ra-cleared', '✓ conflict cleared'));
+    } else {
+      box.appendChild(el('div', 'ra-rl',
+        lane.role === 'affiliate' ? 'affiliate' : 'driver'));
+    }
+    cell.appendChild(box);
+    return cell;
+  }
+
+  // The problem, drawn once: the committed run and the drive-back/reset that
+  // follows it on the driver's lane, the pickup at risk below, and the bracket
+  // measuring what can't be closed.
+  function buildConflictTimeline(tl) {
+    var wrap = el('div', 'ra-tl'), inner = el('div', 'ra-tl-inner');
+    var ticks = (tl.axis || {}).ticks || [];
+
+    var head = el('div', 'ra-tl-grid');
+    head.appendChild(el('div'));
+    head.appendChild(buildAxis(ticks));
+    inner.appendChild(head);
+
+    var grid = el('div', 'ra-tl-grid');
+    grid.appendChild(laneName(tl.lanes[0] || {}));
+    var plot = el('div', 'ra-plot');
+    plot.style.paddingTop = '1rem';
+    addGridlines(plot, ticks);
+    (tl.markers || []).forEach(function (m) {
+      place(plot.appendChild(el('div', 'ra-marker m-' + m.kind)), m.left_pct);
+      place(plot.appendChild(el('span', 'ra-marker-tag m-' + m.kind, m.label)),
+            m.left_pct);
+    });
+    (tl.lanes || []).forEach(function (lane, i) {
+      var row = el('div', 'ra-row');
+      if (i === 0) row.style.marginTop = '.35rem';
+      addBlocks(row, lane.blocks);
+      plot.appendChild(row);
+    });
+    if (tl.bracket) {
+      var gr = el('div', 'ra-gap-row');
+      var tone = tl.bracket.tone === 'amber' ? ' is-amber' : '';
+      place(gr.appendChild(el('div', 'ra-bracket' + tone)),
+            tl.bracket.left_pct, tl.bracket.width_pct);
+      var tag = el('span', 'ra-bracket-tag' + tone);
+      tag.appendChild(el('span', null, tl.bracket.label));
+      if (tl.bracket.detail) tag.appendChild(el('small', null, ' · ' + tl.bracket.detail));
+      place(gr.appendChild(tag), tl.bracket.mid_pct);
+      plot.appendChild(gr);
+    }
+    grid.appendChild(plot);
+    inner.appendChild(grid);
+
+    if (tl.legend && tl.legend.length) {
+      var lg = el('div', 'ra-legend');
+      tl.legend.forEach(function (l) {
+        var item = el('span', 'ra-lg');
+        item.appendChild(el('span', 'ra-sw ' + l.cls));
+        item.appendChild(el('span', null, l.label));
+        lg.appendChild(item);
+      });
+      inner.appendChild(lg);
+    }
+    wrap.appendChild(inner);
+    return wrap;
+  }
+
+  // The board AFTER a move, lane per driver: what the old driver keeps (with a
+  // dashed ghost where the run used to be), where the run landed, and the real
+  // next job it has to fit in front of.
+  function buildAfterTimeline(after) {
+    var wrap = el('div', 'ra-mini'), inner = el('div', 'ra-mini-inner');
+    var ticks = (after.axis || {}).ticks || [];
+
+    var head = el('div', 'ra-tl-grid');
+    head.appendChild(el('div'));
+    head.appendChild(buildAxis(ticks));
+    inner.appendChild(head);
+
+    (after.lanes || []).forEach(function (lane) {
+      var grid = el('div', 'ra-tl-grid');
+      grid.appendChild(laneName(lane));
+      var row = el('div', 'ra-mini-row');
+      addGridlines(row, ticks);
+      (lane.gaps || []).forEach(function (g) {
+        if (g.kind === 'room') {
+          var r = el('div', 'ra-room', g.label);
+          r.title = g.label;
+          row.appendChild(place(r, g.left_pct, g.width_pct));
+        } else {
+          row.appendChild(place(el('div', 'ra-squeeze'), g.left_pct, g.width_pct));
+          var st = el('span', 'ra-squeeze-tag', g.label + ' →');
+          st.style.left = g.left_pct + '%';
+          row.appendChild(st);
+        }
+      });
+      addBlocks(row, lane.blocks);
+      if (lane.tag) {
+        place(row.appendChild(el('span', 'ra-moved-tag', '⤵ ' + lane.tag.text)),
+              lane.tag.left_pct);
+      }
+      if (lane.note) row.appendChild(el('span', 'ra-lane-note', lane.note));
+      grid.appendChild(row);
+      inner.appendChild(grid);
+    });
+    wrap.appendChild(inner);
+    return wrap;
+  }
+
+  window.RATimeline = {
+    el: el, place: place, axis: buildAxis, gridlines: addGridlines,
+    blocks: addBlocks, laneName: laneName,
+    buildConflictTimeline: buildConflictTimeline,
+    buildAfterTimeline: buildAfterTimeline,
+  };
+})();
+</script>

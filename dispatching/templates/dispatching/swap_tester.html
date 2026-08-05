@@ -2,6 +2,9 @@
 {% load static %}
 
 {% block head_extra %}
+{# Swap solutions are drawn with the Recovery Advisor's timeline —
+   same stylesheet, same renderer, so the two pages cannot drift. #}
+{% include "dispatching/includes/_recovery_advisor_styles.html" %}
 <style>
     :root {
         --gold: #C9A227;
@@ -357,15 +360,6 @@
                 <!-- Rendered by JS -->
             </div>
 
-            <div id="swapResultsPanel" class="mt-3 d-none">
-                <h6 style="font-size:0.9rem;font-weight:700;">
-                    <i class="bi bi-arrow-repeat me-1" style="color:var(--gold);"></i>
-                    Swap Solutions <span id="swapResultsLegLabel"></span>
-                </h6>
-                <div id="swapResultsContent"></div>
-                <div id="swapSearchStats" class="search-stats"></div>
-            </div>
-
             <!-- Affiliate Takeback -->
             <div class="mt-4">
                 <h5 style="font-size:1rem;font-weight:700;">
@@ -380,6 +374,20 @@
             </div>
         </div>
     </div>
+
+    <!-- Swap solutions: full width, because the after-the-move lanes need it -->
+    <div id="swapResultsPanel" class="d-none" style="margin-top:1.25rem;">
+        <div id="raTaskAdvisor">
+            <div class="ra-body">
+                <div class="ra-sec" style="margin-top:0;">
+                    <div class="ra-sec-label" id="swapResultsLegLabel">Swap solutions</div>
+                    <div class="ra-sec-sub">Each timeline shows the schedule <b>after</b> that swap.</div>
+                    <div id="swapResultsContent"></div>
+                    <div id="swapSearchStats" class="search-stats"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% endblock %}
@@ -388,6 +396,7 @@
 {% block newsletter %}{% endblock %}
 
 {% block extra_js %}
+{% include "dispatching/includes/_timeline_renderer.html" %}
 <script>
 (function() {
     const csrfToken = '{{ csrf_token }}';
@@ -526,6 +535,30 @@
         return 'buffer-green';
     }
 
+    // ── Plain wording for a swap, matching the Recovery Advisor's voice ──
+    function firstName(n) { return (n || '').trim().split(' ')[0] || (n || ''); }
+
+    function swapHeadline(sol) {
+        const last = sol.moves[sol.moves.length - 1] || {};
+        const who = firstName(sol.target_driver);
+        if (sol.depth === 1) {
+            return 'Give the ' + (last.pickup_time || 'run') + ' run to ' + who;
+        }
+        return 'Shuffle ' + sol.depth + ' runs so the ' +
+               (last.pickup_time || 'job') + ' one lands on ' + who;
+    }
+
+    function swapOutcome(sol) {
+        const bits = sol.moves.filter(function (m) { return m.from_driver; })
+            .map(function (m) {
+                return firstName(m.from_driver) + ' hands the ' + m.pickup_time +
+                       ' run to ' + firstName(m.to_driver);
+            });
+        bits.push(firstName(sol.target_driver) + ' ends up with ' +
+                  sol.target_buffer + ' min to spare');
+        return bits.join('. ') + '.';
+    }
+
     function renderSwapResults(legId, data) {
         const panel = document.getElementById('swapResultsPanel');
         const content = document.getElementById('swapResultsContent');
@@ -584,48 +617,56 @@
             return;
         }
 
-        let html = '';
+        // ── Solutions, drawn as the board AFTER each swap ──────────────
+        // Same lanes, colours and spare-time bands as the Recovery Advisor:
+        // `sol.timeline` is built server-side by advisor_display.swap_timeline,
+        // so this renders it and never computes geometry of its own.
+        content.innerHTML = '';
+        const E = RATimeline.el;
         data.solutions.forEach(function(sol, idx) {
-            const isBest = idx === 0;
-            html += '<div class="swap-solution'+(isBest?' is-best':'')+'" onmouseenter="highlightSolution('+idx+')" onmouseleave="clearHighlights()">';
-            html += '<div class="swap-solution-head">';
-            html += '<div class="d-flex align-items-center" style="min-width:0;">';
-            html += '<span class="swap-rank" title="Rank">'+(idx+1)+'</span>';
-            html += '<div style="min-width:0;">';
-            html += '<div class="swap-target-driver"><i class="bi bi-person-check"></i> '+sol.target_driver+'</div>';
-            html += '<div class="d-flex align-items-center gap-2 mt-1" style="font-size:0.7rem;color:#777;">';
-            html += '<span class="swap-depth-pill"><i class="bi bi-arrow-left-right me-1"></i>'+sol.depth+' move'+(sol.depth>1?'s':'')+'</span>';
-            html += '<span class="swap-score"><i class="bi bi-star-fill me-1" style="color:var(--gold);"></i>'+sol.score+'</span>';
-            html += '</div>';
-            html += '</div>';
-            html += '</div>';
-            html += '<button class="swap-apply-btn" onclick="event.stopPropagation();applySwap('+legId+','+idx+')">';
-            html += '<i class="bi bi-check2 me-1"></i>Apply</button>';
-            html += '</div>';
+            const card = E('div', 'ra-fix');
+            card.addEventListener('mouseenter', function () { highlightSolution(idx); });
+            card.addEventListener('mouseleave', clearHighlights);
 
-            html += '<div class="swap-moves">';
-            sol.moves.forEach(function(move, mi) {
-                const bc = bufferClass(move.buffer_minutes);
-                html += '<div class="swap-move">';
-                html += '<span class="swap-move-num" style="flex:0 0 18px;font-size:0.65rem;color:#aaa;font-weight:700;text-align:center;line-height:18px;">'+(mi+1)+'</span>';
-                if (move.from_driver) {
-                    html += '<span class="swap-move-icon move-from" title="Reassign existing job"><i class="bi bi-arrow-left-right"></i></span>';
-                    html += '<div class="swap-move-body">';
-                    html += '<div class="swap-move-title"><strong>'+move.pickup_time+'</strong> job</div>';
-                    html += '<div class="swap-move-driver-arrow"><span class="from-name">'+move.from_driver+'</span> <i class="bi bi-arrow-right mx-1" style="color:#888;"></i> <span class="to-name">'+move.to_driver+'</span></div>';
-                    html += '</div>';
-                } else {
-                    html += '<span class="swap-move-icon move-assign" title="New assignment"><i class="bi bi-plus"></i></span>';
-                    html += '<div class="swap-move-body">';
-                    html += '<div class="swap-move-title">Assign <strong>'+move.pickup_time+'</strong></div>';
-                    html += '<div class="swap-move-driver-arrow"><i class="bi bi-arrow-right mx-1" style="color:#888;"></i> <span class="to-name">'+move.to_driver+'</span></div>';
-                    html += '</div>';
-                }
-                html += '<span class="buffer-pill '+bc+'" title="Time gap to neighboring job"><i class="bi bi-stopwatch"></i>'+move.buffer_minutes+'m</span>';
-                html += '</div>';
+            const head = E('div', 'ra-fix-head');
+            head.appendChild(E('span', 'ra-rank', '#' + (idx + 1)));
+            head.appendChild(E('span', 'ra-fix-title', swapHeadline(sol)));
+            const apply = E('button', 'ra-apply-btn', 'Apply this swap');
+            apply.type = 'button';
+            apply.addEventListener('click', function (ev) {
+                ev.stopPropagation(); applySwap(legId, idx);
             });
-            html += '</div>';
-            html += '</div>';
+            head.appendChild(apply);
+            card.appendChild(head);
+
+            if (sol.timeline) {
+                card.appendChild(RATimeline.buildAfterTimeline(sol.timeline));
+            }
+            card.appendChild(E('p', 'ra-outcome', swapOutcome(sol)));
+
+            // The engine's own move list stays available, verbatim.
+            const det = E('details', 'ra-math');
+            det.appendChild(E('summary', null, 'Show the moves'));
+            const body = E('div', 'ra-math-body');
+            const ul = E('ul');
+            sol.moves.forEach(function (m) {
+                ul.appendChild(E('li', null,
+                    (m.from_driver ? 'move ' : 'assign ') + m.pickup_time + ' ' +
+                    (m.route || 'leg ' + m.leg_id) +
+                    (m.from_driver ? ' from ' + m.from_driver : '') +
+                    ' \u2192 ' + m.to_driver +
+                    ' (' + m.buffer_minutes + ' min spare)'));
+            });
+            body.appendChild(ul);
+            body.appendChild(E('span', 'ra-math-h', 'numbers'));
+            const ul2 = E('ul');
+            ul2.appendChild(E('li', null, 'score ' + sol.score + ' \u00b7 depth ' +
+                sol.depth + ' \u00b7 target buffer ' + sol.target_buffer + ' min'));
+            body.appendChild(ul2);
+            det.appendChild(body);
+            card.appendChild(det);
+
+            content.appendChild(card);
         });
 
         content.innerHTML = html;

@@ -1,0 +1,692 @@
+{% comment %}
+Recovery Advisor rail — live disruption cards + one-click apply for the main
+dispatch board. Include once, right after the draft banner (needs
+_recovery_advisor_styles.html in extra_css first).
+
+Context: selected_date (date), is_held (bool) — both already provided by the
+dashboard index view (the draft banner uses the same keys).
+
+All cards render client-side from the state endpoint's JSON (single rendering
+path — the server never renders a card here). What gets drawn comes from each
+card's/plan's ``display`` block (dispatching/advisor_display.py): plain-language
+headline and story, the conflict as one timeline, and per-plan the board AFTER
+the move. GEOMETRY ARRIVES AS PERCENTAGES — this file places, it never
+calculates, because _advisor_plans.html renders the same dict server-side and a
+second copy of the arithmetic would drift. A card with no ``display`` (the
+builder returns null rather than throwing) falls back to the pre-redesign
+rendering, so a presentation bug can never cost a dispatcher their options.
+The JS below:
+  * polls GET recovery_advisor_state every 60s (+ visibilitychange), fingerprint
+    short-circuit honored; paused while ANY .modal.show is open;
+  * anti-flap (hazard guard 10): stable card keys, DOM order preserved for
+    unchanged keys, full re-order only when the id set or a severity band
+    changes — a parked fleet produces zero churn;
+  * on fingerprint drift shows a dismissible "Board changed" pill — NEVER
+    force-reloads (the dispatcher may be mid-edit); toasts only when a NEW
+    critical disruption id appears;
+  * apply flow: confirm modal (move table, farm price, amber risks, held-day
+    live-override checkbox), POST apply -> "Applied — Undo" (~5s, Undo only
+    when a snapshot was taken) then reload; 409 -> toast + immediate re-tick
+    with fp=null; snooze -> board-global 30-min hide.
+Countdown-to-impact is recomputed client-side every 30s from impact_at.
+{% endcomment %}
+{% include "dispatching/includes/_timeline_renderer.html" %}
+
+<div id="recoveryAdvisor" class="ra-rail"
+     data-date="{{ selected_date|date:'Y-m-d' }}"
+     data-held="{{ is_held|yesno:'1,0' }}"
+     data-state-url="{% url 'recovery_advisor_state' %}"
+     data-apply-url="{% url 'recovery_advisor_apply' %}"
+     data-snooze-url="{% url 'recovery_advisor_snooze' %}"
+     data-file-task-url="{% url 'recovery_advisor_file_task' %}"
+     data-restore-url="{% url 'restore_schedule_snapshot' %}"
+     data-task-url="{% url 'task_detail' 0 %}">
+  <div class="ra-head" id="raHead" title="Collapse / expand">
+    <span class="ra-caret"><i class="bi bi-chevron-down"></i></span>
+    <span class="ra-live-dot"></span>
+    <span class="ra-head-title">Recovery Advisor</span>
+    <span class="ra-count" id="raCount" hidden></span>
+    <span class="ra-drift" id="raDrift" hidden>
+      <i class="bi bi-arrow-repeat"></i> Board changed —
+      <a href="javascript:location.reload()">refresh</a>
+      <button type="button" id="raDriftDismiss" title="Dismiss">&times;</button>
+    </span>
+    <span class="ra-head-meta">
+      <span id="raSnoozedNote" hidden></span>
+      <span id="raCheckedAt"></span>
+    </span>
+  </div>
+  <div class="ra-body" id="raBody">
+    <div class="ra-empty"><i class="bi bi-hourglass-split"></i>Checking the board…</div>
+  </div>
+</div>
+
+<!-- Apply confirm modal -->
+<div class="modal fade ra-modal" id="raApplyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-check2-square me-2"></i>Apply this move</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="ra-modal-plan" id="raModalTitle"></div>
+        <div id="raModalMoves"></div>
+        <div class="ra-modal-price" id="raModalPrice" hidden></div>
+        <div class="ra-modal-risks" id="raModalRisks" hidden></div>
+        <div class="ra-held-warn" id="raHeldWarn" hidden>
+          <div><i class="bi bi-exclamation-octagon-fill me-1"></i>This day is <strong>held</strong> by a draft — advisor applies go <strong>LIVE</strong> to drivers.</div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="raHeldConfirm">
+            <label class="form-check-label" for="raHeldConfirm">This day is held — apply to the LIVE board anyway?</label>
+          </div>
+          <!-- Secondary choice (owner decision): sandbox-granted users may stage
+               into the draft instead of writing live. -->
+          <div class="form-check mt-1" id="raStageChoice" hidden>
+            <input class="form-check-input" type="checkbox" id="raStageInstead">
+            <label class="form-check-label" for="raStageInstead">…or stage into the draft instead (live board unchanged until publish)</label>
+          </div>
+        </div>
+        <div class="ra-modal-err" id="raModalErr" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-success" id="raModalApply">
+          <i class="bi bi-check2-circle me-1"></i>Apply this move
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var rail = document.getElementById('recoveryAdvisor');
+  if (!rail || window._raWired) return;   // idempotent if included twice
+  window._raWired = true;
+
+  var CFG = {
+    date: rail.dataset.date,
+    stateUrl: rail.dataset.stateUrl,
+    applyUrl: rail.dataset.applyUrl,
+    snoozeUrl: rail.dataset.snoozeUrl,
+    fileTaskUrl: rail.dataset.fileTaskUrl,
+    restoreUrl: rail.dataset.restoreUrl,
+    taskUrlTpl: rail.dataset.taskUrl,      // {% url 'task_detail' 0 %} — swap the 0
+  };
+  var POLL_MS = 60000, COUNTDOWN_MS = 30000;
+  var LS_KEY = 'raCollapsed';
+
+  var body = document.getElementById('raBody');
+  var countEl = document.getElementById('raCount');
+  var checkedEl = document.getElementById('raCheckedAt');
+  var snoozedEl = document.getElementById('raSnoozedNote');
+  var driftEl = document.getElementById('raDrift');
+
+  var fp = null;              // last rendered fingerprint
+  var held = rail.dataset.held === '1';
+  var canStage = false;       // sandbox-granted staging offer (server-decided)
+  var cardJson = {};          // id -> serialized card JSON (change detection)
+  var cardSev = {};           // id -> severity (band-change detection)
+  var domById = {};           // id -> card element
+  var knownCritical = null;   // set of critical ids (null until baseline)
+  var driftDismissed = false;
+  var pendingApply = null;    // {card, plan} while the modal is open
+
+  function csrf() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (el) return el.value;
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+  function post(url, payload) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify(payload || {}),
+    }).then(function (r) {
+      return r.json().then(function (j) { return { status: r.status, data: j }; });
+    });
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  // ── Toast (self-contained; the page's showToast is closure-local) ──
+  function raToast(msg, opts) {
+    opts = opts || {};
+    var t = el('div', 'ra-toast' + (opts.critical ? ' is-crit' : ''));
+    t.appendChild(el('span', null, msg));
+    if (opts.actionLabel) {
+      var b = el('button', null, opts.actionLabel);
+      b.addEventListener('click', function () { t.remove(); opts.onAction(); });
+      t.appendChild(b);
+    }
+    document.body.appendChild(t);
+    var ttl = opts.ttl || 4000;
+    setTimeout(function () { t.remove(); if (opts.onExpire) opts.onExpire(); }, ttl);
+    return t;
+  }
+
+  // ── Collapse (persisted; count chip stays visible in the header) ──
+  function setCollapsed(c) {
+    rail.classList.toggle('is-collapsed', c);
+    try { c ? localStorage.setItem(LS_KEY, '1') : localStorage.removeItem(LS_KEY); } catch (e) {}
+  }
+  try { if (localStorage.getItem(LS_KEY) === '1') rail.classList.add('is-collapsed'); } catch (e) {}
+  document.getElementById('raHead').addEventListener('click', function (ev) {
+    if (ev.target.closest('#raDrift')) return;   // pill clicks never toggle
+    setCollapsed(!rail.classList.contains('is-collapsed'));
+  });
+  document.getElementById('raDriftDismiss').addEventListener('click', function () {
+    driftDismissed = true;
+    driftEl.hidden = true;
+  });
+  // Deep-links from the ops resolution ladders land on #recoveryAdvisor.
+  if (location.hash === '#recoveryAdvisor') {
+    setCollapsed(false);
+    setTimeout(function () { rail.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 150);
+  }
+
+  // ── Countdown (client-side, every 30s; impact_at is naive-local ISO) ──
+  function fmtCountdown(iso) {
+    var ms = new Date(iso).getTime() - Date.now();
+    if (isNaN(ms)) return '';
+    var mins = Math.round(ms / 60000);
+    if (mins <= 0) return 'pickup now';
+    if (mins < 60) return 'pickup in ' + mins + ' min';
+    return 'pickup in ' + Math.floor(mins / 60) + ' h ' + (mins % 60) + ' m';
+  }
+  function refreshCountdowns() {
+    Array.prototype.forEach.call(rail.querySelectorAll('[data-ra-impact]'), function (n) {
+      var txt = fmtCountdown(n.dataset.raImpact);
+      n.textContent = txt;
+      var mins = (new Date(n.dataset.raImpact).getTime() - Date.now()) / 60000;
+      n.classList.toggle('is-soon', mins < 30);
+    });
+  }
+  setInterval(refreshCountdowns, COUNTDOWN_MS);
+
+  // ── Card rendering (single path: everything from the JSON card dict) ──
+  function buildMovesTable(plan) {
+    var det = el('details', 'ra-moves');
+    det.appendChild(el('summary', null, plan.moves.length + ' move' + (plan.moves.length === 1 ? '' : 's') + ' — show'));
+    var tbl = el('table', 'ra-moves-table');
+    var thead = el('thead'); var hr = el('tr');
+    ['Leg', 'Action', 'From', 'To', 'Slack after'].forEach(function (h) { hr.appendChild(el('th', null, h)); });
+    thead.appendChild(hr); tbl.appendChild(thead);
+    var tb = el('tbody');
+    plan.moves.forEach(function (m) {
+      var tr = el('tr');
+      tr.appendChild(el('td', null, m.summary || ('Leg ' + m.leg_id)));
+      tr.appendChild(el('td', 'mono', m.action));
+      tr.appendChild(el('td', null, m.from || '—'));
+      tr.appendChild(el('td', null, m.to || '—'));
+      // ±999 is check_feasibility's "nothing on that side" marker, not minutes.
+      var slack = m.resulting_slack_min;
+      var slackTxt = slack == null ? '—'
+        : (Math.abs(slack) >= 999 ? 'no job either side' : slack + ' min');
+      tr.appendChild(el('td', 'mono', slackTxt));
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb); det.appendChild(tbl);
+    return det;
+  }
+
+  // ── Timeline rendering ──────────────────────────────────────────────────
+  // Delegated to RATimeline (includes/_timeline_renderer.html) — the Swap
+  // Tester draws the same lanes from the same builder, and the conflict-task
+  // page renders the same structures server-side. Three surfaces, one drawing.
+  var buildConflictTimeline = RATimeline.buildConflictTimeline;
+  var buildAfterTimeline = RATimeline.buildAfterTimeline;
+
+  // The engine's own output, verbatim — chain math, spare minutes, issue class,
+  // availability source. Nothing here is rewritten; this is the audit trail.
+  function buildMath(math) {
+    var det = el('details', 'ra-math');
+    det.appendChild(el('summary', null, 'Show the math'));
+    var body = el('div', 'ra-math-body');
+    function section(title, lines) {
+      if (!lines || !lines.length) return;
+      body.appendChild(el('span', 'ra-math-h', title));
+      var ul = el('ul');
+      lines.forEach(function (l) { ul.appendChild(el('li', null, l)); });
+      body.appendChild(ul);
+    }
+    section('engine reasoning', math.why);
+    section('engine risks', math.risks);
+    section('numbers', math.facts);
+    if (math.narrative) section('detection', [math.narrative]);
+    det.appendChild(body);
+    return det;
+  }
+
+  function buildPlan(card, plan) {
+    var d = plan.display;
+    if (!d) return buildPlanLegacy(card, plan);   // display degraded — never lose the plan
+    var p = el('div', 'ra-fix');
+
+    var head = el('div', 'ra-fix-head');
+    head.appendChild(el('span', 'ra-rank', '#' + plan.rank));
+    head.appendChild(el('span', 'ra-fix-title', d.headline));
+    if (d.price_label) head.appendChild(el('span', 'ra-price', d.price_label));
+    if (plan.apply) {
+      var btn = el('button', 'ra-apply-btn', d.action_label || 'Apply this move');
+      btn.type = 'button';
+      btn.addEventListener('click', function () { openApplyModal(card, plan); });
+      head.appendChild(btn);
+    }
+    p.appendChild(head);
+
+    if (d.after) p.appendChild(buildAfterTimeline(d.after));
+    if (d.outcome) p.appendChild(el('p', 'ra-outcome', d.outcome));
+    if (d.warnings && d.warnings.length) {
+      var chips = el('div', 'ra-chips');
+      d.warnings.forEach(function (w) {
+        var chip = el('span', 'ra-chip is-' + w.tone);
+        chip.appendChild(el('span', 'ra-ic', w.tone === 'red' ? '✖' : '⚠'));
+        chip.appendChild(el('span', null, w.text));
+        chips.appendChild(chip);
+      });
+      p.appendChild(chips);
+    }
+    if (d.math) p.appendChild(buildMath(d.math));
+    return p;
+  }
+
+  // Pre-redesign rendering, kept as the fallback path for any card the display
+  // layer could not build (it returns null rather than throwing).
+  function buildPlanLegacy(card, plan) {
+    var p = el('div', 'ra-fix');
+    var head = el('div', 'ra-fix-head');
+    head.appendChild(el('span', 'ra-rank', '#' + plan.rank));
+    head.appendChild(el('span', 'ra-fix-title', plan.title));
+    if (plan.price_impact != null) head.appendChild(el('span', 'ra-price', '$' + plan.price_impact));
+    if (plan.apply) {
+      var btn = el('button', 'ra-apply-btn', 'Apply this move');
+      btn.type = 'button';
+      btn.addEventListener('click', function () { openApplyModal(card, plan); });
+      head.appendChild(btn);
+    }
+    p.appendChild(head);
+    if (plan.why && plan.why.length) {
+      var why = el('ul', 'ra-why');
+      plan.why.forEach(function (w) { why.appendChild(el('li', null, w)); });
+      p.appendChild(why);
+    }
+    if (plan.risks && plan.risks.length) {
+      var risks = el('ul', 'ra-risks');
+      plan.risks.forEach(function (r) { risks.appendChild(el('li', null, r)); });
+      p.appendChild(risks);
+    }
+    if (plan.moves && plan.moves.length) p.appendChild(buildMovesTable(plan));
+    return p;
+  }
+
+  function buildCard(card) {
+    var disp = card.display || {};
+    var c = el('div', 'ra-card sev-' + card.severity);
+    c.dataset.raId = card.id;
+
+    var top = el('div', 'ra-card-top');
+    top.appendChild(el('span', 'ra-sev sev-' + card.severity, card.severity));
+    top.appendChild(el('span', 'ra-headline', disp.headline || card.headline));
+    if (card.impact_at) {
+      var cd = el('span', 'ra-countdown');
+      cd.dataset.raImpact = card.impact_at;
+      top.appendChild(cd);
+    }
+    c.appendChild(top);
+
+    var story = disp.story || card.narrative;
+    if (story) c.appendChild(el('p', 'ra-story', story));
+
+    var meta = el('div', 'ra-meta');
+    if (disp.scope) {
+      var sc = el('span', 'ra-scope');
+      sc.appendChild(el('span', null, '⏱ ' + disp.scope.text));
+      sc.appendChild(el('span', 'ra-tick', '✓'));
+      sc.appendChild(el('span', null, disp.scope.detail));
+      meta.appendChild(sc);
+    }
+    var acts = el('div', 'ra-acts');
+    if (card.task_id) {
+      var a = el('a', 'ra-link', 'Task #' + card.task_id);
+      a.href = CFG.taskUrlTpl.replace('/0/', '/' + card.task_id + '/');
+      acts.appendChild(a);
+    } else if (card.file_task) {
+      // Guard 9: no open task on this leg — offer filing one. Creation goes
+      // through ops create_task (dedup + cooldown); a dedup hit still hands
+      // back the open twin's id, so the button always resolves to a link.
+      var ft = el('button', 'ra-ghost', 'File task');
+      ft.type = 'button';
+      ft.addEventListener('click', function () {
+        ft.disabled = true;
+        post(CFG.fileTaskUrl, {
+          date: CFG.date,
+          leg_id: card.file_task.leg_id,
+          task_type: card.file_task.task_type,
+          title: card.file_task.title,
+        }).then(function (res) {
+          if (res.status === 200 && res.data.task_id) {
+            var link = el('a', 'ra-link', 'Task #' + res.data.task_id);
+            link.href = CFG.taskUrlTpl.replace('/0/', '/' + res.data.task_id + '/');
+            ft.replaceWith(link);
+          } else {
+            ft.disabled = false;
+            raToast(res.data && res.data.error ? res.data.error : 'Could not file the task');
+          }
+        }).catch(function () { ft.disabled = false; });
+      });
+      acts.appendChild(ft);
+    }
+    var sn = el('button', 'ra-ghost', 'Snooze 30 m');
+    sn.type = 'button';
+    sn.addEventListener('click', function () { snooze(card, c, sn); });
+    acts.appendChild(sn);
+    meta.appendChild(acts);
+    c.appendChild(meta);
+
+    // The conflict, drawn once.
+    if (disp.conflict) {
+      var sec = el('div', 'ra-sec');
+      sec.appendChild(el('div', 'ra-sec-label', disp.conflict.title));
+      if (disp.conflict.subtitle) sec.appendChild(el('div', 'ra-sec-sub', disp.conflict.subtitle));
+      sec.appendChild(buildConflictTimeline(disp.conflict));
+      c.appendChild(sec);
+    }
+
+    if (card.detected_only) {
+      c.appendChild(el('div', 'ra-note', 'Still working this one out — options on the next refresh.'));
+    }
+    if (card.no_internal_solution) {
+      c.appendChild(el('div', 'ra-note', 'No clean in-house fix exists for this one.'));
+      // Plain rewrite when we have one; the engine's raw diagnostic otherwise.
+      var why = disp.why_nobody || card.diagnostic;
+      if (why) c.appendChild(el('div', 'ra-diag', why));
+    }
+    if (card.plans && card.plans.length) {
+      var psec = el('div', 'ra-sec');
+      var n = card.plans.length;
+      psec.appendChild(el('div', 'ra-sec-label',
+        n === 1 ? 'One way to fix it' : (n === 2 ? 'Two ways to fix it' : n + ' ways to fix it')));
+      psec.appendChild(el('div', 'ra-sec-sub',
+        'The timelines show the schedule after the move.'));
+      var plans = el('div', 'ra-plans');
+      card.plans.forEach(function (p) { plans.appendChild(buildPlan(card, p)); });
+      psec.appendChild(plans);
+      c.appendChild(psec);
+    }
+    return c;
+  }
+
+  // Guard 10, replacement hysteresis: the displayed #1 plan is swapped only
+  // when the incoming #1 scores ~15% better OR the displayed one went
+  // infeasible (its content key vanished from the new plan list). Plans are
+  // matched on `key` (the content-stable move signature — `id` is positional).
+  function keepDisplayedCard(oldCard, newCard) {
+    var op = (oldCard.plans || [])[0], np = (newCard.plans || [])[0];
+    if (!op || !np || op.key === undefined || np.key === undefined) return false;
+    if (op.key === np.key) return false;   // same plan on top — refresh freely
+    var oldStillFeasible = (newCard.plans || []).some(function (p) { return p.key === op.key; });
+    if (!oldStillFeasible) return false;   // displayed plan died — swap
+    var threshold = op.score + Math.max(Math.abs(op.score) * 0.15, 1);
+    return np.score < threshold;           // marginal churn — keep what's shown
+  }
+
+  function renderCards(cards) {
+    var newIds = cards.map(function (c) { return c.id; });
+    var oldIds = Object.keys(domById);
+    var sameSet = newIds.length === oldIds.length &&
+      newIds.every(function (id) { return domById[id]; });
+    var bandsStable = sameSet && cards.every(function (c) { return cardSev[c.id] === c.severity; });
+
+    if (!cards.length) {
+      body.innerHTML = '';
+      var empt = el('div', 'ra-empty');
+      var ic = el('i', 'bi bi-check-circle-fill');
+      empt.appendChild(ic);
+      empt.appendChild(el('span', null, 'Board healthy — no developing conflicts.'));
+      body.appendChild(empt);
+      domById = {}; cardJson = {}; cardSev = {};
+      return;
+    }
+
+    var nextDom = {}, nextJson = {}, nextSev = {};
+    if (bandsStable) {
+      // Anti-flap: same ids, same bands — keep current DOM order; only swap
+      // nodes whose content actually changed, in place. A card whose top plan
+      // would change for a <15% score gain keeps its DISPLAYED version (and
+      // its JSON, so the next tick diffs against what is on screen).
+      cards.forEach(function (c) {
+        var j = JSON.stringify(c);
+        var node = domById[c.id];
+        if (cardJson[c.id] !== j) {
+          var shown = null;
+          try { shown = JSON.parse(cardJson[c.id]); } catch (e) {}
+          if (shown && keepDisplayedCard(shown, c)) {
+            nextDom[c.id] = node; nextJson[c.id] = cardJson[c.id]; nextSev[c.id] = cardSev[c.id];
+            return;
+          }
+          var fresh = buildCard(c);
+          node.replaceWith(fresh);
+          node = fresh;
+        }
+        nextDom[c.id] = node; nextJson[c.id] = j; nextSev[c.id] = c.severity;
+      });
+    } else {
+      // Membership or a severity band changed — adopt server order, reusing
+      // unchanged nodes so untouched cards don't flicker.
+      var frag = document.createDocumentFragment();
+      cards.forEach(function (c) {
+        var j = JSON.stringify(c);
+        var node = (domById[c.id] && cardJson[c.id] === j) ? domById[c.id] : buildCard(c);
+        frag.appendChild(node);
+        nextDom[c.id] = node; nextJson[c.id] = j; nextSev[c.id] = c.severity;
+      });
+      body.innerHTML = '';
+      body.appendChild(frag);
+    }
+    domById = nextDom; cardJson = nextJson; cardSev = nextSev;
+    refreshCountdowns();
+  }
+
+  function updateHeader(cards, data) {
+    var crit = cards.filter(function (c) { return c.severity === 'critical'; }).length;
+    var warn = cards.filter(function (c) { return c.severity === 'warning'; }).length;
+    if (cards.length) {
+      countEl.hidden = false;
+      countEl.textContent = cards.length + (crit ? ' · ' + crit + ' critical' : '');
+      countEl.className = 'ra-count' + (crit ? ' is-crit' : (warn ? ' is-warn' : ''));
+    } else {
+      countEl.hidden = true;
+    }
+    if (data.snoozed) {
+      snoozedEl.hidden = false;
+      snoozedEl.textContent = data.snoozed + ' snoozed';
+    } else {
+      snoozedEl.hidden = true;
+    }
+    var d = new Date();
+    checkedEl.textContent = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  function toastNewCriticals(cards) {
+    var crit = cards.filter(function (c) { return c.severity === 'critical'; })
+                    .map(function (c) { return c.id; });
+    if (knownCritical === null) {           // baseline pass — never toast
+      knownCritical = {};
+      crit.forEach(function (id) { knownCritical[id] = 1; });
+      return;
+    }
+    var fresh = crit.filter(function (id) { return !knownCritical[id]; });
+    knownCritical = {};
+    crit.forEach(function (id) { knownCritical[id] = 1; });
+    if (fresh.length) {
+      raToast(fresh.length + ' new critical disruption' + (fresh.length > 1 ? 's' : '') + ' on the board', { critical: true, ttl: 6000 });
+    }
+  }
+
+  // ── Poll ──
+  var ticking = false;
+  function tick(forceFp) {
+    var forced = (forceFp !== undefined);
+    if (ticking) return;
+    if (!forced) {
+      if (document.hidden) return;
+      if (document.querySelector('.modal.show')) return;   // never yank mid-modal
+    }
+    ticking = true;
+    var useFp = forced ? forceFp : fp;
+    var qs = '?date=' + encodeURIComponent(CFG.date) + (useFp ? '&fp=' + encodeURIComponent(useFp) : '');
+    fetch(CFG.stateUrl + qs, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.changed === false) {                     // fp short-circuit
+          refreshCountdowns();
+          return;
+        }
+        var firstRender = (fp === null);
+        var drifted = !firstRender && data.fingerprint !== fp;
+        fp = data.fingerprint;
+        held = !!data.held;
+        canStage = !!data.can_stage;
+        renderCards(data.disruptions || []);
+        updateHeader(data.disruptions || [], data);
+        toastNewCriticals(data.disruptions || []);
+        if (drifted && !driftDismissed) driftEl.hidden = false;
+      })
+      .catch(function () { /* transient — next tick retries */ })
+      .then(function () { ticking = false; });            // acts as finally
+  }
+  setInterval(tick, POLL_MS);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+  tick();
+
+  // ── Snooze ──
+  function snooze(card, node, btn) {
+    btn.disabled = true;
+    post(CFG.snoozeUrl, { date: CFG.date, disruption_id: card.id })
+      .then(function (r) {
+        if (!r.data.success) { btn.disabled = false; raToast(r.data.error || 'Snooze failed'); return; }
+        node.remove();
+        delete domById[card.id]; delete cardJson[card.id]; delete cardSev[card.id];
+        if (!Object.keys(domById).length) renderCards([]);
+        raToast('Snoozed for ' + r.data.snoozed_minutes + ' min (board-wide)');
+      })
+      .catch(function () { btn.disabled = false; raToast('Network error'); });
+  }
+
+  // ── Apply flow ──
+  var modalEl = document.getElementById('raApplyModal');
+  var modalTitle = document.getElementById('raModalTitle');
+  var modalMoves = document.getElementById('raModalMoves');
+  var modalPrice = document.getElementById('raModalPrice');
+  var modalRisks = document.getElementById('raModalRisks');
+  var heldWarn = document.getElementById('raHeldWarn');
+  var heldConfirm = document.getElementById('raHeldConfirm');
+  var stageChoice = document.getElementById('raStageChoice');
+  var stageInstead = document.getElementById('raStageInstead');
+  var modalErr = document.getElementById('raModalErr');
+  var modalApplyBtn = document.getElementById('raModalApply');
+
+  function openApplyModal(card, plan) {
+    pendingApply = { card: card, plan: plan };
+    var pd = plan.display || {};
+    modalTitle.textContent = '#' + plan.rank + ' — ' + (pd.headline || plan.title);
+    modalMoves.innerHTML = '';
+    var det = buildMovesTable(plan);
+    det.open = true;
+    modalMoves.appendChild(det);
+    if (plan.price_impact != null) {
+      modalPrice.hidden = false;
+      modalPrice.innerHTML = '';
+      modalPrice.appendChild(el('span', null, 'Farm-out cost: '));
+      modalPrice.appendChild(el('span', 'mono', pd.price_label || ('$' + plan.price_impact)));
+    } else {
+      modalPrice.hidden = true;
+    }
+    var warn = (pd.warnings || []).map(function (w) { return w.text; });
+    if (!warn.length) warn = plan.risks || [];
+    if (warn.length) {
+      modalRisks.hidden = false;
+      modalRisks.innerHTML = '';
+      var ul = el('ul');
+      warn.forEach(function (r) { ul.appendChild(el('li', null, r)); });
+      modalRisks.appendChild(ul);
+    } else {
+      modalRisks.hidden = true;
+    }
+    heldWarn.hidden = !held;
+    heldConfirm.checked = false;
+    stageChoice.hidden = !(held && canStage);   // secondary choice, sandbox-granted only
+    stageInstead.checked = false;
+    modalErr.hidden = true;
+    modalApplyBtn.disabled = held;   // held day: explicit extra confirmation first
+    new bootstrap.Modal(modalEl).show();
+  }
+  function syncHeldControls() {
+    modalApplyBtn.disabled = !heldWarn.hidden && !heldConfirm.checked && !stageInstead.checked;
+  }
+  heldConfirm.addEventListener('change', function () {
+    if (heldConfirm.checked) stageInstead.checked = false;   // live XOR staged
+    syncHeldControls();
+  });
+  stageInstead.addEventListener('change', function () {
+    if (stageInstead.checked) heldConfirm.checked = false;
+    syncHeldControls();
+  });
+
+  function closeModal() {
+    var inst = bootstrap.Modal.getInstance(modalEl);
+    if (inst) inst.hide();
+  }
+
+  modalApplyBtn.addEventListener('click', function () {
+    if (!pendingApply) return;
+    var payload = JSON.parse(JSON.stringify(pendingApply.plan.apply));
+    if (!heldWarn.hidden && stageInstead.checked) payload.stage = true;
+    else if (!heldWarn.hidden && heldConfirm.checked) payload.live_override_confirmed = true;
+    modalApplyBtn.disabled = true;
+    modalErr.hidden = true;
+    post(CFG.applyUrl, payload).then(function (r) {
+      if (r.status === 409) {
+        closeModal();
+        raToast('Board changed — refreshing plans…');
+        fp = null;
+        setTimeout(function () { tick(null); }, 300);  // immediate re-tick, fp reset
+        return;
+      }
+      if (!r.data.success) {
+        modalApplyBtn.disabled = false;
+        modalErr.hidden = false;
+        modalErr.textContent = r.data.error || 'Apply failed';
+        return;
+      }
+      closeModal();
+      var snapId = r.data.snapshot_id;
+      var msg = 'Applied ✓' + (r.data.message ? ' — ' + r.data.message : '');
+      var undone = false;
+      raToast(msg, {
+        actionLabel: snapId ? 'Undo' : null,
+        ttl: 5000,
+        onAction: function () {
+          undone = true;
+          post(CFG.restoreUrl, { snapshot_id: snapId })
+            .then(function () { location.reload(); })
+            .catch(function () { location.reload(); });
+        },
+        onExpire: function () { if (!undone) location.reload(); },
+      });
+    }).catch(function () {
+      modalApplyBtn.disabled = false;
+      modalErr.hidden = false;
+      modalErr.textContent = 'Network error — nothing was applied.';
+    });
+  });
+})();
+</script>

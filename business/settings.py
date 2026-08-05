@@ -140,6 +140,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "ops.context_processors.pending_task_count",
                 "ops.context_processors.timeclock_status",
+                "ops.context_processors.critical_disruption_count",
                 "drivers.context_processors.pending_timeoff_count",
                 "drivers.context_processors.webpush_public_key",
             ],

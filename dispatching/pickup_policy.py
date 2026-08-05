@@ -14,11 +14,12 @@ writes, no clock reads except the `now` a caller passes in. Same contract as
 feasibility_guards.py, so it is cheap to call inside render loops and trivial to
 unit-test.
 
-The three questions this module answers
----------------------------------------
+The four questions this module answers
+--------------------------------------
 1. WHEN is the driver actually due?          -> pickup_deadline()
 2. Given his slack, how bad is it?           -> classify_slack() / turn_band()
-3. Is this signal still worth showing?       -> is_overdue_stale() /
+3. GPS or clock — which one do I believe?    -> pickup_risk()
+4. Is this signal still worth showing?       -> is_overdue_stale() /
                                                 should_flag_not_moving()
 
 Slack is always ``time_until_deadline - travel_time_still_needed``. Every band
@@ -281,6 +282,69 @@ def turn_band(slack_min):
     if slack_min < TURN_TIGHT_SLACK_MIN:
         return "tight"
     return ""
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# ONE CUE PER BAR — GPS vs clock precedence
+# ════════════════════════════════════════════════════════════════════════════
+
+def pickup_risk(*, pickup_overdue, pickup_stalled, overdue_mins,
+                gps_status, gps_eta_mins, gps_reason):
+    """Fold the live-GPS "will he make the pickup?" band together with the clock-based
+    pickup flags into ONE escalating cue, so a dispatcher sees a single signal per bar.
+
+    The GPS band (from the Samsara sweep — ``dispatch_risk_status``) is the PROACTIVE
+    signal: it fires *before* the pickup time, which is the whole point — time to line
+    up a backup before the guest is affected.
+        * ``at_risk`` — the vehicle's live ETA exceeds the time left to the pickup
+                        (he's simply too far to make it);
+        * ``watch``   — thin slack, or sitting still with the pickup coming up
+                        (not on the way soon enough);
+        * ``late``    — GPS-confirmed past the pickup, still not there.
+    The clock flags (``pickup_stalled`` / ``pickup_overdue``) are the FALLBACK for when
+    there's no fresh telematics at all — affiliates, un-onboarded vehicles, stale GPS.
+    They are exactly that — a fallback — so a fresh GPS ``on_time`` SUPPRESSES them:
+    the clock only knows nobody pressed a button, while the telemetry knows the car is
+    positioned to make the pickup. Any other GPS state (missing, ``unknown``, stale)
+    leaves the clock in charge, because no signal is not a clean bill of health.
+
+    Returns ``{tier, source, label, reason}``; tier is '', 'watch' or 'critical'.
+    Pure function so the precedence can be unit-tested. (Promoted from
+    ``views._pickup_risk`` so the Recovery Advisor reads the exact precedence
+    ladder the board renders — never a re-derivation.)
+    """
+    _eta = f'{gps_eta_mins}m' if gps_eta_mins is not None else None
+
+    # ── critical: won't make it, or already blown the pickup ──
+    if gps_status == 'at_risk':
+        return {'tier': 'critical', 'source': 'gps',
+                'label': _eta if _eta else 'at risk',   # pin icon already implies "ETA"
+                'reason': gps_reason or 'GPS ETA exceeds time to pickup'}
+    if gps_status == 'late':
+        return {'tier': 'critical', 'source': 'gps',
+                'label': 'late', 'reason': gps_reason or 'Past pickup — still en route'}
+    # A fresh GPS 'on_time' OUTRANKS the clock's stalled flag. The clock only knows
+    # that no button was pressed; the vehicle telemetry knows the car is positioned to
+    # make it. Believing the clock over live GPS is what put a critical red on drivers
+    # who were demonstrably fine — usually just a driver who hadn't tapped "on the way".
+    # Absent / stale / 'unknown' GPS still yields to the clock: no signal is not a
+    # clean bill of health.
+    if pickup_stalled and gps_status != 'on_time':
+        return {'tier': 'critical', 'source': 'clock',
+                'label': f'{overdue_mins}m late',
+                'reason': f'Pickup {overdue_mins} min overdue — no driver status yet'}
+
+    # ── watch: cutting it close / not moving / past pickup but en route ──
+    if gps_status == 'watch':
+        return {'tier': 'watch', 'source': 'gps',
+                'label': _eta if _eta else 'watch',   # pin icon already implies "ETA"
+                'reason': gps_reason or 'Little slack to pickup'}
+    if pickup_overdue and gps_status != 'on_time':
+        return {'tier': 'watch', 'source': 'clock',
+                'label': f'{overdue_mins}m late',
+                'reason': f'Pickup {overdue_mins} min overdue — driver en route'}
+
+    return {'tier': '', 'source': '', 'label': '', 'reason': ''}
 
 
 # ════════════════════════════════════════════════════════════════════════════

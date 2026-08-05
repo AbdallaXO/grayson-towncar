@@ -2011,6 +2011,43 @@ def _build_tight_turn_context(task):
     return ctx
 
 
+def _advisor_card_for_task(task):
+    """Recovery Advisor card for this task's leg, or None.
+
+    Read-only: ``conflict_advisor.compute_advisor_state`` narrowed to the leg
+    (``for_leg_id``), picking the disruption that contains it. Serves the same
+    whole-board-validated plans as the dispatch-board rail — unlike the page's
+    legacy .cf-assign candidates, and with ZERO external calls (the advisor
+    path never touches live Google / AeroAPI / Samsara HTTP).
+
+    Cached per (date, board fingerprint, leg) so a page reload on an unchanged
+    board is a fingerprint check + cache read, never a fresh compute (the
+    full compute can run a swap search up to the advisor budget — too slow to
+    sit inline in every render). ``False`` is the cached no-card marker."""
+    leg = task.leg
+    if not leg or not leg.pickup_date:
+        return None
+    from django.core.cache import cache
+    from dispatching.advisor_views import RA_CARDS_TTL_S, RA_CARD_SHAPE_V
+    from dispatching.conflict_advisor import (compute_advisor_state,
+                                              compute_board_fingerprint)
+
+    # Shape version in the key: the fingerprint tracks the board, not the card
+    # contract, so a deploy that changes the card shape must not be served the
+    # old one out of cache.
+    fp = compute_board_fingerprint(leg.pickup_date)
+    cache_key = (f"ra_taskcard_v{RA_CARD_SHAPE_V}_"
+                 f"{leg.pickup_date.isoformat()}_{fp}_{leg.id}")
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached or None
+    state = compute_advisor_state(leg.pickup_date, for_leg_id=leg.id)
+    card = next((c for c in state["disruptions"]
+                 if leg.id in c.get("leg_ids", [])), None)
+    cache.set(cache_key, card if card is not None else False, RA_CARDS_TTL_S)
+    return card
+
+
 @login_required(login_url="login")
 @user_passes_test(_is_staff, login_url="login")
 def task_detail_view(request, task_id):
@@ -2084,6 +2121,25 @@ def task_detail_view(request, task_id):
         and context.get("driver_schedule")
         and context.get("redesign")
     ):
+        # Recovery Advisor plans (validated, cached per board fingerprint) —
+        # advisory only: any failure leaves the page exactly as before.
+        # SUPERUSER-ONLY while the owner trials it; the gate lives in one place
+        # (advisor_views.advisor_visible_to) so every surface opens together.
+        from dispatching.advisor_views import advisor_visible_to
+        try:
+            context["advisor_card"] = (_advisor_card_for_task(task)
+                                       if advisor_visible_to(request.user)
+                                       else None)
+        except Exception:
+            logger.exception("Recovery Advisor card failed for task %s", task.id)
+            context["advisor_card"] = None
+        # Held-day secondary choice (owner decision): the apply JS may offer
+        # staging into the draft only to sandbox-granted users.
+        try:
+            from dispatching.assignment import can_use_sandbox
+            context["advisor_can_stage"] = bool(can_use_sandbox(request.user))
+        except Exception:
+            context["advisor_can_stage"] = False
         return render(request, "dispatching/conflict_task_detail.html", context)
 
     # Payment-chase tasks get the redesigned playbook-driven collection ladder.

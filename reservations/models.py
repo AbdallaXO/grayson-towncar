@@ -3345,6 +3345,7 @@ class ScheduleSnapshot(models.Model):
         ('manual', 'Manual Save'),
         ('before_reset', 'Auto-save Before Reset'),
         ('before_auto_assign', 'Auto-save Before Auto-Assign'),
+        ('conflict_advisor', 'Auto-save Before Advisor Apply'),
     ]
 
     schedule_date = models.DateField(help_text="The date whose schedule was saved")

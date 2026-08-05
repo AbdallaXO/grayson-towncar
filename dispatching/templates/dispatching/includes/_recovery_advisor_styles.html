@@ -1,0 +1,393 @@
+{% comment %}One-time styles + fonts for the Recovery Advisor. Include once per
+page (inside {% block extra_css %}), before _recovery_advisor.html (the board
+rail) or _advisor_plans.html (the conflict-task page). ra-* prefix throughout
+and every token scoped to the advisor's own roots, so nothing leaks into the
+host page — the two surfaces render the SAME markup from the same server-built
+`display` dict, so they must share one stylesheet or they drift.
+
+The surface reads as a dispatcher's incident card, not a scheduler dump: a
+plain-language headline, the conflict drawn once as a timeline, and each fix
+showing the board AFTER the move. Colour carries meaning and nothing else —
+red is the run nobody is free for and the turns too tight to make, green is
+room a driver actually has, blue is work being driven, hatched grey is the
+drive back. Engine vocabulary lives in the monospace "Show the math" block and
+nowhere else.{% endcomment %}
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  #recoveryAdvisor, #raTaskAdvisor, .ra-modal, .ra-toast {
+    --ra-bg:         #f3f5f8;
+    --ra-surface:    #ffffff;
+    --ra-surface-2:  #fbfcfe;
+    --ra-surface-3:  #f0f1f3;
+    --ra-border:     #e4e8ee;
+    --ra-border-lt:  #d1d5db;
+    --ra-text:       #212936;
+    --ra-text-dim:   #67707e;
+    --ra-text-muted: #98a1ae;
+    --ra-red:        #d2494b;
+    --ra-red-deep:   #b23739;
+    --ra-red-dim:    #fdeeee;
+    --ra-red-line:   #f3cccc;
+    --ra-amber:      #96690f;
+    --ra-amber-dim:  #fcf4e1;
+    --ra-amber-line: #ecd9a8;
+    --ra-cyan:       #0891b2;
+    --ra-green:      #2c9760;
+    --ra-green-deep: #1f7c4d;
+    --ra-green-dim:  #e9f6ef;
+    --ra-blue:       #3f6cae;
+    --ra-blue-deep:  #33578c;
+    --ra-blue-dim:   #e9f0f9;
+    --ra-mono:       'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --ra-sans:       'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --ra-header-bg:  #1b2534;
+    --ra-header-2:   #243044;
+    --ra-header-text:#f1f5f9;
+    font-family: var(--ra-sans);
+    color: var(--ra-text);
+  }
+
+  /* ── Rail shell ── */
+  .ra-rail { border-radius: 12px; overflow: hidden; background: var(--ra-surface);
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 2px rgba(20,28,40,.06), 0 8px 28px rgba(20,28,40,.07); }
+  .ra-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+    background: var(--ra-header-bg); color: var(--ra-header-text);
+    padding: .7rem 1.05rem; cursor: pointer; user-select: none; }
+  .ra-head-title { font-weight: 700; font-size: .82rem; letter-spacing: .09em;
+    text-transform: uppercase; display: flex; align-items: center; gap: .5rem; }
+  .ra-head-title i { color: #fbbf24; }
+  .ra-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #e05a5c;
+    box-shadow: 0 0 0 4px rgba(224,90,92,.22); flex: none; }
+  .ra-count { font-family: var(--ra-mono); font-size: .68rem; font-weight: 600;
+    border-radius: 999px; padding: .18rem .62rem; background: rgba(255,255,255,.12);
+    color: var(--ra-header-text); border: 1px solid rgba(255,255,255,.18); }
+  .ra-count.is-crit { background: #c8393b; border-color: #c8393b; color: #fff; }
+  .ra-count.is-warn { background: var(--ra-amber); border-color: var(--ra-amber); color: #fff; }
+  .ra-head-meta { margin-left: auto; display: flex; align-items: center; gap: .6rem;
+    font-family: var(--ra-mono); font-size: .68rem; color: rgba(241,245,249,.6); }
+  .ra-caret { transition: transform .15s ease; font-size: .8rem; color: rgba(241,245,249,.65); }
+  .ra-rail.is-collapsed .ra-caret { transform: rotate(-90deg); }
+  .ra-body { padding: 1.15rem 1.3rem 1.4rem; background: var(--ra-surface); }
+  .ra-rail.is-collapsed .ra-body { display: none; }
+  .ra-empty { display: flex; align-items: center; gap: .55rem; color: var(--ra-text-dim);
+    font-size: .85rem; padding: .35rem .15rem; }
+  .ra-empty i { color: var(--ra-green); }
+
+  /* ── Drift pill (board changed under this page — never force-reload) ── */
+  .ra-drift { display: inline-flex; align-items: center; gap: .45rem;
+    font-size: .68rem; font-weight: 600;
+    background: var(--ra-amber-dim); color: var(--ra-amber);
+    border: 1px solid var(--ra-amber-line); border-radius: 999px; padding: .12rem .6rem; }
+  .ra-drift a { color: var(--ra-amber); font-weight: 700; text-decoration: underline; }
+  .ra-drift button { border: 0; background: none; color: var(--ra-amber); font-size: .75rem;
+    line-height: 1; padding: 0; cursor: pointer; }
+
+  /* ══ THE ISSUE ══════════════════════════════════════════════════════════ */
+  .ra-card { border-left: 4px solid var(--ra-red); padding-left: 1.1rem;
+    margin-bottom: 1.9rem; }
+  .ra-card:last-child { margin-bottom: 0; }
+  .ra-card.sev-warning { border-left-color: var(--ra-amber); }
+  .ra-card.sev-watch   { border-left-color: var(--ra-cyan); }
+
+  .ra-card-top { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+  .ra-sev { font-size: .655rem; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; border-radius: 5px; padding: .19rem .5rem;
+    position: relative; top: -2px; flex: none; }
+  .ra-sev.sev-critical { color: var(--ra-red-deep); background: var(--ra-red-dim);
+    border: 1px solid var(--ra-red-line); }
+  .ra-sev.sev-warning  { color: var(--ra-amber); background: var(--ra-amber-dim);
+    border: 1px solid var(--ra-amber-line); }
+  .ra-sev.sev-watch    { color: var(--ra-cyan); background: #ecfeff;
+    border: 1px solid rgba(8,145,178,.3); }
+  .ra-headline { font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em;
+    color: var(--ra-text); line-height: 1.25; }
+  .ra-countdown { margin-left: auto; font-family: var(--ra-mono); font-size: .78rem;
+    color: var(--ra-text-dim); white-space: nowrap; }
+  .ra-countdown b { color: var(--ra-text); font-weight: 600; }
+  .ra-countdown.is-soon, .ra-countdown.is-soon b { color: var(--ra-red-deep); }
+  .ra-story { margin-top: .5rem; font-size: .905rem; line-height: 1.55;
+    color: #3a4350; max-width: 62rem; }
+  .ra-story b { font-weight: 600; }
+  .ra-story .ra-late { color: var(--ra-red-deep); font-weight: 700; }
+
+  .ra-meta { display: flex; align-items: center; gap: .6rem; margin-top: .75rem;
+    flex-wrap: wrap; }
+  .ra-scope { display: inline-flex; align-items: center; gap: .45rem;
+    background: var(--ra-blue-dim); border: 1px solid #d4e0f0; color: var(--ra-blue-deep);
+    font-size: .75rem; font-weight: 500; border-radius: 999px; padding: .32rem .78rem; }
+  .ra-scope .ra-tick { color: var(--ra-green); font-weight: 700; }
+  .ra-acts { margin-left: auto; display: flex; gap: .5rem; }
+  .ra-ghost { background: #fff; border: 1px solid var(--ra-border); border-radius: 7px;
+    font-size: .78rem; color: #4a5361; padding: .38rem .75rem; cursor: pointer;
+    font-family: var(--ra-sans); }
+  .ra-ghost:hover { border-color: #c9d1dc; background: var(--ra-surface-2); }
+  .ra-ghost:disabled { opacity: .5; cursor: default; }
+  .ra-link { color: var(--ra-blue-deep); text-decoration: none; font-weight: 600;
+    font-size: .78rem; }
+  .ra-link:hover { text-decoration: underline; }
+
+  /* ── Section labels ── */
+  .ra-sec { margin-top: 1.6rem; }
+  .ra-sec-label { font-size: .69rem; font-weight: 700; letter-spacing: .11em;
+    color: var(--ra-text-muted); text-transform: uppercase; margin-bottom: .25rem; }
+  .ra-sec-sub { font-size: .81rem; color: var(--ra-text-dim); margin-bottom: .85rem; }
+  .ra-sec-sub b { font-weight: 600; }
+
+  /* ══ TIMELINES (shared geometry: server sends percentages) ═════════════ */
+  .ra-tl { border: 1px solid var(--ra-border); border-radius: 10px;
+    background: var(--ra-surface-2); padding: 1rem 1.1rem .9rem; overflow-x: auto; }
+  .ra-tl-inner { min-width: 47rem; }
+  .ra-tl-grid { display: grid; grid-template-columns: 6rem 1fr; column-gap: .9rem; }
+  .ra-axis { position: relative; height: 1.15rem; font-family: var(--ra-mono);
+    font-size: .655rem; color: var(--ra-text-muted); }
+  .ra-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .ra-axis span.is-start { transform: none; }
+  .ra-axis span.is-end { transform: translateX(-100%); }
+  .ra-plot { position: relative; }
+  .ra-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: #eceff4; }
+  .ra-gridline.is-hour { background: #e2e6ed; }
+
+  .ra-marker { position: absolute; top: 0; bottom: 0; width: 0;
+    border-left: 1.5px dashed; z-index: 1; }
+  .ra-marker.m-pickup { border-color: var(--ra-red); }
+  .ra-marker.m-free { border-color: #8a94a3; }
+  .ra-marker-tag { position: absolute; top: -1px; transform: translateX(-50%);
+    font-family: var(--ra-mono); font-size: .625rem; font-weight: 600;
+    padding: .06rem .44rem; border-radius: 999px; white-space: nowrap; z-index: 4; }
+  .ra-marker-tag.m-pickup { background: var(--ra-red); color: #fff; }
+  .ra-marker-tag.m-free { background: #f0f2f6; color: #5b6474; border: 1px solid #dfe3ea; }
+
+  .ra-lane-name { display: flex; align-items: center; gap: .5rem; min-height: 2.9rem; }
+  .ra-avatar { width: 1.65rem; height: 1.65rem; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .7rem; font-weight: 700; color: #fff; background: var(--ra-header-2); }
+  .ra-avatar.is-to { background: var(--ra-blue-deep); }
+  .ra-avatar.is-affiliate { background: #7a4a9e; }
+  .ra-lane-name .ra-nm { font-size: .785rem; font-weight: 600; line-height: 1.2; }
+  .ra-lane-name .ra-rl { font-size: .66rem; color: var(--ra-text-muted); }
+  /* "conflict cleared" is a statement about the whole lane, so it lives in the
+     name column — anchored to a time it sat underneath whatever job was there. */
+  .ra-lane-name .ra-cleared { font-size: .66rem; font-weight: 700;
+    color: var(--ra-green-deep); line-height: 1.2; white-space: nowrap; }
+
+  .ra-row { position: relative; height: 2.9rem; }
+  .ra-block { position: absolute; top: .44rem; height: 2rem; border-radius: 6px;
+    display: flex; align-items: center; padding: 0 .62rem; font-size: .72rem;
+    font-weight: 600; white-space: nowrap; overflow: hidden; z-index: 2;
+    color: #fff; box-shadow: inset 0 -2px 0 rgba(0,0,0,.12); }
+  .ra-block .ra-t { font-family: var(--ra-mono); font-weight: 600; font-size: .655rem;
+    margin-right: .44rem; opacity: .85; flex: none; }
+  /* A short run is a NARROW block — the time survives, the route ellipsises,
+     and the full label is on the title attribute. Truncation that looks
+     deliberate beats a label sliced mid-word. */
+  .ra-block > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+
+  /* Job colour = TRIP TYPE, the same mapping the dispatch board's timeline uses
+     (legs_filter.html `tripColors`): a run is the colour here that it is on the
+     board a dispatcher stares at all day. Block ROLE is carried by outline and
+     opacity instead, so the two codings never fight. */
+  .ra-block.trip-arrival { background: #1565c0; }
+  .ra-block.trip-return  { background: #2e7d32; }
+  .ra-block.trip-cruise  { background: #e65100; }
+  .ra-block.trip-other   { background: #6a1b9a; }
+  .ra-block.b-other { opacity: .62; }            /* the receiver's own day */
+  .ra-block.b-moved { outline: 2px solid #fff;   /* the run being moved */
+    box-shadow: 0 0 0 2px currentColor, 0 3px 8px rgba(20,28,40,.3); }
+  .ra-block.b-reset { background: repeating-linear-gradient(-55deg,#eef1f5 0 6px,#e2e6ec 6px 12px);
+    border: 1px solid #d9dee6; color: #5c6675; font-weight: 500; box-shadow: none; }
+  /* The uncovered run keeps the alarm colour — it is not a job on anyone's day,
+     it is the hole in the board. */
+  .ra-block.b-conflict { background: var(--ra-red-dim); border: 1.5px solid var(--ra-red);
+    color: var(--ra-red-deep); box-shadow: 0 1px 4px rgba(210,73,75,.18); }
+  .ra-block.b-conflict .ra-t { opacity: 1; }
+  /* A turn the engine calls LEGAL but thin. Amber, never red — flagging a turn
+     the assignment engine blessed is the one thing this panel must not do. */
+  .ra-block.b-tight { background: var(--ra-amber-dim); border: 1.5px solid var(--ra-amber-line);
+    color: var(--ra-amber); box-shadow: none; }
+  .ra-block.b-tight .ra-t { opacity: 1; }
+
+  /* the shortfall bracket */
+  .ra-gap-row { position: relative; height: 2.5rem; }
+  .ra-bracket { position: absolute; top: .38rem; height: .75rem;
+    border-left: 2px solid var(--ra-red); border-right: 2px solid var(--ra-red);
+    border-bottom: 2px solid var(--ra-red); border-radius: 0 0 4px 4px; }
+  .ra-bracket-tag { position: absolute; top: 1rem; transform: translateX(-50%);
+    background: var(--ra-red); color: #fff; font-size: .72rem; font-weight: 700;
+    border-radius: 999px; padding: .18rem .75rem; white-space: nowrap; z-index: 3; }
+  /* Amber variant: the turn still works, the bracket is the room that is left. */
+  .ra-bracket.is-amber { border-color: var(--ra-amber); }
+  .ra-bracket-tag.is-amber { background: var(--ra-amber); }
+  .ra-bracket-tag small { font-weight: 500; opacity: .85; }
+
+  .ra-legend { display: flex; gap: 1.1rem; margin-top: .85rem; flex-wrap: wrap;
+    margin-left: 6.9rem; }
+  .ra-lg { display: flex; align-items: center; gap: .45rem; font-size: .72rem;
+    color: var(--ra-text-dim); }
+  .ra-sw { width: .88rem; height: .7rem; border-radius: 3px; flex: none; }
+  .ra-sw.b-run { background: linear-gradient(90deg,#1565c0 0 33%,#2e7d32 33% 66%,#e65100 66%); }
+  .ra-sw.b-reset { background: repeating-linear-gradient(-55deg,#eef1f5 0 4px,#dfe3ea 4px 8px);
+    border: 1px solid #d5dae2; }
+  .ra-sw.b-conflict { background: var(--ra-red-dim); border: 1.5px solid var(--ra-red); }
+  .ra-sw.b-tight { background: var(--ra-amber-dim); border: 1.5px solid var(--ra-amber-line); }
+  .ra-sw.trip-arrival { background: #1565c0; }
+  .ra-sw.trip-return  { background: #2e7d32; }
+  .ra-sw.trip-cruise  { background: #e65100; }
+  .ra-sw.trip-other   { background: #6a1b9a; }
+
+  /* ══ FIX CARDS ═════════════════════════════════════════════════════════ */
+  .ra-plans { display: flex; flex-direction: column; gap: .85rem; }
+  /* Fallback path only: a card whose `display` block failed to build still
+     renders the engine's own reasoning rather than showing nothing. */
+  .ra-why { margin: .45rem 0 0; padding-left: 1.1rem; font-size: .78rem;
+    color: var(--ra-text-dim); }
+  .ra-risks { margin: .35rem 0 0; padding-left: 1.1rem; font-size: .78rem;
+    color: var(--ra-amber); }
+  .ra-why li, .ra-risks li { margin-bottom: .1rem; }
+  .ra-moves { margin-top: .5rem; font-size: .78rem; }
+
+  .ra-fix { border: 1px solid var(--ra-border); border-radius: 10px; background: #fff;
+    padding: 1rem 1.1rem; margin-bottom: .85rem;
+    transition: border-color .15s, box-shadow .15s; }
+  .ra-fix:last-child { margin-bottom: 0; }
+  .ra-fix:hover { border-color: #cfd7e1; box-shadow: 0 4px 16px rgba(20,28,40,.06); }
+  .ra-fix-head { display: flex; align-items: center; gap: .72rem; flex-wrap: wrap; }
+  .ra-rank { background: var(--ra-header-bg); color: #fff; font-family: var(--ra-mono);
+    font-size: .68rem; font-weight: 700; border-radius: 6px; padding: .24rem .5rem;
+    flex: none; }
+  .ra-fix-title { font-size: .955rem; font-weight: 650; letter-spacing: -.005em;
+    color: var(--ra-text); }
+  .ra-price { font-family: var(--ra-mono); font-size: .78rem; font-weight: 600;
+    color: var(--ra-amber); }
+  .ra-apply-btn { margin-left: auto; background: var(--ra-green); color: #fff;
+    border: none; border-radius: 8px; font-size: .8rem; font-weight: 600;
+    padding: .55rem 1rem; cursor: pointer; flex: none; font-family: var(--ra-sans);
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.14); white-space: nowrap; }
+  .ra-apply-btn:hover { background: var(--ra-green-deep); }
+  .ra-apply-btn:disabled { opacity: .6; cursor: default; }
+
+  /* after-the-move mini timeline */
+  .ra-mini { margin-top: .85rem; border: 1px solid #eceff4; border-radius: 8px;
+    background: var(--ra-surface-2); padding: .75rem .85rem .6rem; overflow-x: auto; }
+  .ra-mini-inner { min-width: 45rem; }
+  .ra-mini .ra-axis { height: 1rem; font-size: .6rem; }
+  .ra-mini .ra-lane-name { min-height: 3.25rem; }
+  .ra-mini-row { position: relative; height: 3.25rem; }
+  .ra-mini-row + .ra-mini-row { border-top: 1px dashed #eef1f5; }
+  .ra-mini .ra-block { top: 1rem; height: 1.75rem; font-size: .66rem;
+    padding: 0 .56rem; }
+  .ra-mini .ra-block .ra-t { font-size: .6rem; margin-right: .38rem; }
+  /* "moved from X", with a stem drawn UP to the dashed ghost on the donor's
+     lane — the run did not appear from nowhere, and the connector says so. */
+  .ra-moved-tag { position: absolute; top: 0; font-size: .625rem; font-weight: 700;
+    color: var(--ra-blue-deep); white-space: nowrap; z-index: 4;
+    background: var(--ra-surface-2); padding: 0 .2rem; }
+  .ra-moved-tag::before { content: ""; position: absolute; left: .12rem;
+    bottom: 100%; height: .75rem; border-left: 1.5px dashed var(--ra-blue-deep); }
+  .ra-moved-tag::after { content: ""; position: absolute; left: -.04rem;
+    top: -.14rem; border: .22rem solid transparent;
+    border-top-color: var(--ra-blue-deep); }
+
+  /* The hole the move leaves on the donor's lane. */
+  .ra-block.b-ghost { background: transparent !important; color: var(--ra-blue-deep);
+    border: 1.5px dashed rgba(51,87,140,.55); box-shadow: none; opacity: 1;
+    font-weight: 700; font-size: .62rem; justify-content: center; z-index: 1; }
+  .ra-block.b-ghost .ra-t { display: none; }
+  .ra-room { position: absolute; top: 1rem; height: 1.75rem; border-radius: 5px;
+    background: rgba(44,151,96,.07); border: 1.5px dashed rgba(44,151,96,.55);
+    display: flex; align-items: center; justify-content: center; font-size: .69rem;
+    font-weight: 650; color: var(--ra-green-deep); white-space: nowrap; z-index: 1;
+    overflow: hidden; padding: 0 .3rem; }
+  .ra-squeeze { position: absolute; top: 1rem; height: 1.75rem; background: var(--ra-red);
+    min-width: 4px; border-radius: 2px; z-index: 2; }
+  .ra-squeeze-tag { position: absolute; top: 0; transform: translateX(-50%);
+    font-size: .625rem; font-weight: 800; color: var(--ra-red-deep);
+    white-space: nowrap; z-index: 3; }
+  .ra-lane-note { position: absolute; top: 50%; transform: translateY(-50%);
+    right: .3rem; font-size: .66rem; color: var(--ra-text-muted); font-style: italic; }
+
+  .ra-outcome { margin-top: .75rem; font-size: .845rem; line-height: 1.5; color: #3a4350; }
+  .ra-outcome b { font-weight: 600; }
+  .ra-chips { display: flex; gap: .5rem; margin-top: .6rem; flex-wrap: wrap; }
+  .ra-chip { display: inline-flex; align-items: flex-start; gap: .45rem;
+    font-size: .75rem; font-weight: 500; border-radius: 8px; padding: .38rem .68rem;
+    line-height: 1.35; }
+  .ra-chip.is-amber { background: var(--ra-amber-dim); border: 1px solid var(--ra-amber-line);
+    color: var(--ra-amber); }
+  .ra-chip.is-red { background: var(--ra-red-dim); border: 1px solid var(--ra-red-line);
+    color: var(--ra-red-deep); font-weight: 600; }
+  .ra-chip .ra-ic { flex: none; }
+
+  /* ── "Show the math" — the engine's own words, verbatim ── */
+  .ra-math { margin-top: .6rem; }
+  .ra-math summary { font-size: .75rem; color: var(--ra-text-muted); cursor: pointer;
+    user-select: none; display: inline-flex; align-items: center; gap: .35rem;
+    list-style: none; }
+  .ra-math summary::-webkit-details-marker { display: none; }
+  .ra-math summary::before { content: "▸"; font-size: .62rem; transition: transform .12s; }
+  .ra-math[open] summary::before { transform: rotate(90deg); }
+  .ra-math summary:hover { color: var(--ra-text-dim); }
+  .ra-math-body { margin-top: .5rem; font-family: var(--ra-mono); font-size: .715rem;
+    line-height: 1.7; color: #5b6474; background: #f6f8fb; border: 1px solid #e8ecf2;
+    border-radius: 7px; padding: .6rem .8rem; }
+  .ra-math-body ul { margin: 0; padding-left: 1.05rem; }
+  .ra-math-body li { margin-bottom: .12rem; }
+  .ra-math-body .ra-math-h { font-weight: 700; color: #47505e; display: block;
+    margin-top: .5rem; }
+  .ra-math-body .ra-math-h:first-child { margin-top: 0; }
+
+  .ra-note { font-size: .78rem; color: var(--ra-text-muted); font-style: italic;
+    margin-top: .5rem; }
+  .ra-diag { font-size: .78rem; color: var(--ra-text-dim); background: var(--ra-surface-2);
+    border: 1px dashed var(--ra-border-lt); border-radius: 6px; padding: .5rem .65rem;
+    margin-top: .5rem; }
+
+  /* ── Apply confirm modal (unchanged flow; matched to the new palette) ── */
+  .ra-modal .modal-header { background: var(--ra-header-bg); color: var(--ra-header-text); }
+  .ra-modal .modal-header .btn-close { filter: brightness(0) invert(1); }
+  .ra-modal .modal-title { font-family: var(--ra-sans); font-weight: 800; font-size: .95rem; }
+  .ra-modal-plan { font-weight: 700; font-size: .95rem; margin-bottom: .5rem; }
+  .ra-moves-table { width: 100%; border-collapse: collapse; margin-top: .3rem; }
+  .ra-moves-table th { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--ra-text-muted); text-align: left; padding: .18rem .4rem;
+    border-bottom: 1px solid var(--ra-border); font-weight: 700; }
+  .ra-moves-table td { padding: .28rem .4rem; border-bottom: 1px solid var(--ra-surface-3);
+    color: var(--ra-text); font-size: .78rem; }
+  .ra-moves-table .mono { font-family: var(--ra-mono); }
+  .ra-moves summary { cursor: pointer; color: var(--ra-text-dim); font-weight: 600;
+    font-size: .74rem; }
+  .ra-modal-risks { margin: .6rem 0 0; padding: .5rem .7rem; background: var(--ra-amber-dim);
+    border: 1px solid var(--ra-amber-line); border-radius: 7px; font-size: .78rem;
+    color: var(--ra-amber); }
+  .ra-modal-risks ul { margin: 0; padding-left: 1.05rem; }
+  .ra-modal-price { margin-top: .55rem; font-size: .8rem; }
+  .ra-modal-price .mono { font-family: var(--ra-mono); font-weight: 700; color: var(--ra-amber); }
+  .ra-held-warn { margin-top: .65rem; padding: .55rem .7rem; background: var(--ra-red-dim);
+    border: 1px solid var(--ra-red-line); border-radius: 7px; font-size: .8rem;
+    color: var(--ra-red-deep); }
+  .ra-held-warn label { font-weight: 700; cursor: pointer; }
+  .ra-modal-err { margin-top: .55rem; font-size: .8rem; color: var(--ra-red-deep); }
+
+  /* ── Toast (rail-owned; the page's showToast is closure-local) ── */
+  .ra-toast { position: fixed; bottom: 20px; right: 20px; z-index: 1090;
+    background: var(--ra-header-bg); color: var(--ra-header-text);
+    padding: .6rem 1rem; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    font-size: .82rem; display: flex; align-items: center; gap: .7rem;
+    border: 1px solid rgba(255,255,255,.14); font-family: var(--ra-sans); }
+  .ra-toast.is-crit { border-color: rgba(210,73,75,.6); }
+  .ra-toast button { border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.1);
+    color: #fff; font-size: .74rem; font-weight: 700; border-radius: 6px;
+    padding: .15rem .6rem; cursor: pointer; }
+
+  /* ── Conflict-task page: the same card, inside that page's card chrome ── */
+  #raTaskAdvisor .ra-body { padding: 0; background: transparent; }
+  #raTaskAdvisor .ra-card { margin-bottom: 0; }
+
+  @media (max-width: 700px) {
+    .ra-body { padding: .85rem .8rem 1rem; }
+    .ra-headline { font-size: 1.08rem; }
+    .ra-countdown { margin-left: 0; }
+    .ra-acts { margin-left: 0; }
+    .ra-apply-btn { margin-left: 0; width: 100%; }
+  }
+</style>

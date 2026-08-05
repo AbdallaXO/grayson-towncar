@@ -679,7 +679,10 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
 # REAL-TIME DISPATCH FLAGS
 # ============================================================================
 
-# Minutes before pickup to expect "on-the-way" status
+# Minutes before the driver is DUE to expect "on-the-way" status. Computed
+# against pickup_policy.pickup_deadline (the board-wide definition of "late"),
+# never the raw booked time — a delayed flight moves the deadline out, and the
+# driver stops being chased for a plane that hasn't landed.
 OTW_LEAD_MINUTES = 20
 # Cruise pickups need more lead time (Port Canaveral is far from Orlando)
 OTW_LEAD_MINUTES_CRUISE = 50
@@ -700,11 +703,25 @@ def detect_leg_flags(leg, now: datetime) -> list:
 
     Flag rules:
         1. Not Confirmed – leg is still 'in-progress' on the day of pickup
-        2. Should Be On The Way – within lead time of pickup, not on-the-way+
-           (20 min default, 50 min for cruises — Port Canaveral is far)
-        3. Not Picked Up – for returns/cruise/other, pickup time passed, not picked-up+
-           (arrivals excluded — drivers can wait 1+ hours at the airport)
+           (status hygiene — deliberately stays on the booked clock).
+        2. Should Be On The Way – within lead time of the POLICY deadline
+           (pickup_policy.pickup_deadline: flight-tracked arrivals are due at
+           gate + meet grace, everything else at the booked time), not
+           on-the-way+ (20 min lead default, 50 min for cruises — Port
+           Canaveral is far).
+        3. Not Picked Up – for returns/cruise/other, the POLICY expected-
+           completion moment (pickup_policy.pickup_expected_dt) passed, not
+           picked-up+ (arrivals excluded — drivers can wait 1+ hours at the
+           airport).
+
+    Overdue flags 2 and 3 expire once the pickup ages past
+    pickup_policy.OVERDUE_STALE_MIN (45 min): past that nobody acted, so it's
+    an unpressed button — data hygiene, not a live risk the board should keep
+    shouting about. Same judgement as the GPS sweep and the Recovery Advisor
+    (guard 2), so the row pills can never contradict the advisor's cards.
     """
+    from .pickup_policy import is_overdue_stale, pickup_deadline, pickup_expected_dt
+
     flags = []
 
     # Only flag assigned, non-completed, non-cancelled legs
@@ -718,7 +735,7 @@ def detect_leg_flags(leg, now: datetime) -> list:
     minutes_until_pickup = (pickup_dt - now).total_seconds() / 60
     trip_type = leg.get_trip_type()
 
-    # ── Flag 1: Not Confirmed ──
+    # ── Flag 1: Not Confirmed (unchanged — status hygiene on the booked clock) ──
     if leg.status == 'in-progress':
         flags.append({
             'level': 'warning' if minutes_until_pickup > 60 else 'danger',
@@ -726,33 +743,43 @@ def detect_leg_flags(leg, now: datetime) -> list:
             'text': 'Not confirmed yet',
         })
 
-    # ── Flag 2: Should Be On The Way ──
-    lead_minutes = OTW_LEAD_MINUTES_CRUISE if trip_type == 'cruise' else OTW_LEAD_MINUTES
-    if minutes_until_pickup <= lead_minutes and leg.status not in STATUSES_OTW_OR_LATER:
-        if minutes_until_pickup < 0:
-            mins_late = int(abs(minutes_until_pickup))
-            flags.append({
-                'level': 'danger',
-                'icon': 'bi-exclamation-triangle-fill',
-                'text': f'Not on the way — {mins_late} min past pickup',
-            })
-        else:
-            mins_left = int(minutes_until_pickup)
-            flags.append({
-                'level': 'warning',
-                'icon': 'bi-clock',
-                'text': f'Not on the way yet — pickup in {mins_left} min',
-            })
+    # ── Flag 2: Should Be On The Way (policy deadline, not raw booked time) ──
+    deadline, _basis = pickup_deadline(leg, aware=False)
+    if deadline is not None and leg.status not in STATUSES_OTW_OR_LATER:
+        lead_minutes = OTW_LEAD_MINUTES_CRUISE if trip_type == 'cruise' else OTW_LEAD_MINUTES
+        minutes_until_due = (deadline - now).total_seconds() / 60
+        if minutes_until_due <= lead_minutes:
+            if minutes_until_due < 0:
+                mins_late = int(abs(minutes_until_due))
+                if not is_overdue_stale(mins_late):
+                    flags.append({
+                        'level': 'danger',
+                        'icon': 'bi-exclamation-triangle-fill',
+                        'text': f'Not on the way — {mins_late} min past pickup',
+                    })
+            else:
+                mins_left = int(minutes_until_due)
+                flags.append({
+                    'level': 'warning',
+                    'icon': 'bi-clock',
+                    'text': f'Not on the way yet — pickup in {mins_left} min',
+                })
 
     # ── Flag 3: Not Picked Up (returns / cruise / other) ──
-    # Arrivals excluded — gate-to-pickup can take 1+ hours legitimately.
-    if trip_type != 'arrival' and minutes_until_pickup < 0:
-        if leg.status not in STATUSES_PICKED_OR_LATER:
-            mins_late = int(abs(minutes_until_pickup))
-            flags.append({
-                'level': 'danger' if mins_late > 10 else 'warning',
-                'icon': 'bi-person-x',
-                'text': f'Not picked up — {mins_late} min past pickup time',
-            })
+    # Arrivals excluded — gate-to-pickup can take 1+ hours legitimately. The
+    # clock is pickup_expected_dt ("should this job have STARTED by now"), so
+    # an airport→cruise-port transfer waiting on a delayed inbound flight is
+    # judged against gate + dwell, never the stale booked time.
+    if trip_type != 'arrival' and leg.status not in STATUSES_PICKED_OR_LATER:
+        expected, _basis = pickup_expected_dt(leg, aware=False)
+        if expected is not None:
+            minutes_past = (now - expected).total_seconds() / 60
+            if minutes_past > 0 and not is_overdue_stale(minutes_past):
+                mins_late = int(minutes_past)
+                flags.append({
+                    'level': 'danger' if mins_late > 10 else 'warning',
+                    'icon': 'bi-person-x',
+                    'text': f'Not picked up — {mins_late} min past pickup time',
+                })
 
     return flags
