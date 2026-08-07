@@ -136,6 +136,11 @@ urlpatterns = [
         views.copy_vehicle_assignments,
         name="copy_vehicle_assignments",
     ),
+    path(
+        "reset-vehicle-assignments/",
+        views.reset_vehicle_assignments,
+        name="reset_vehicle_assignments",
+    ),
     path("suggest-day-setup/", views.suggest_day_setup_view, name="suggest_day_setup"),
     path("apply-day-setup/", views.apply_day_setup, name="apply_day_setup"),
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),

@@ -3508,6 +3508,86 @@ def copy_vehicle_assignments(request):
 
 @login_required
 @require_POST
+def reset_vehicle_assignments(request):
+    """Clear EVERY vehicle assignment for a date — the "start the day over" button.
+
+    Two modes, same as the copy path:
+    - preview=true: what WOULD be cleared, so the confirm modal can name it. Each
+      driver carries his job count for the day, because that is the one thing a
+      reset does NOT touch: clearing the car does not cancel the work. A driver
+      with 4 jobs and no vehicle is a real problem on the board, so the modal has
+      to say his name before you press the button, not after.
+    - preview=false: deletes the rows. Vehicle assignments are a plan for the day,
+      not a record of it — the trip history lives on the legs — so a full delete
+      is the honest reset. Planned AM/PM share windows go with them, which is
+      correct: they describe an assignment that no longer exists.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    if not date_str:
+        return JsonResponse({"success": False, "error": "Date required"}, status=400)
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    rows = (
+        DriverVehicleAssignment.objects.filter(date=target_date)
+        .select_related("driver", "driver__profile", "vehicle")
+        .order_by("driver__profile__first_name")
+    )
+
+    if data.get("preview", False):
+        # Jobs still on each driver's plate for the day. Cancelled legs don't
+        # count — they aren't work anyone has to cover.
+        leg_counts = dict(
+            Leg.objects.filter(pickup_date=target_date, driver__isnull=False)
+            .exclude(reservation__status="cancelled")
+            .exclude(status="cancelled")
+            .values_list("driver_id")
+            .annotate(n=Count("id"))
+        )
+        drivers_list = [
+            {
+                "driver_id": a.driver_id,
+                "driver_name": (
+                    (a.driver.profile.first_name or str(a.driver))
+                    if a.driver.profile else str(a.driver)
+                ),
+                "vehicle_number": a.vehicle.vehicle_number if a.vehicle else "",
+                "vehicle_type": (
+                    str(a.vehicle.vehicle_type)
+                    if a.vehicle and a.vehicle.vehicle_type else ""
+                ),
+                "leg_count": leg_counts.get(a.driver_id, 0),
+            }
+            for a in rows
+        ]
+        return JsonResponse({
+            "success": True,
+            "date": target_date.strftime("%Y-%m-%d"),
+            "drivers": drivers_list,
+            "total": len(drivers_list),
+            "with_jobs": sum(1 for d in drivers_list if d["leg_count"]),
+        })
+
+    cleared = rows.count()
+    if not cleared:
+        return JsonResponse({"success": True, "cleared": 0})
+    rows.delete()
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
+    return JsonResponse({"success": True, "cleared": cleared})
+
+
+@login_required
+@require_POST
 def suggest_day_setup_view(request):
     """Day Setup preview: propose today's roster + vehicle plan. STRICTLY read-only —
     nothing persists until apply_day_setup. See dispatching/day_setup.py."""

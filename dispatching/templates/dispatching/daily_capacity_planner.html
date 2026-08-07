@@ -1236,6 +1236,16 @@
                         title="Copy from most recent previous day">
                     <i class="bi bi-arrow-repeat me-1"></i>Use Previous Day
                 </button>
+                {% comment %}
+                  Start the day over. Deliberately the quietest button of the three —
+                  it only ever destroys the plan, so it must not read as a CTA sitting
+                  next to the two that build one.
+                {% endcomment %}
+                <button class="btn btn-sm px-3 py-1" id="vaResetAll"
+                        style="background: transparent; color: #b02a37; font-weight: 600; font-size: 0.78rem; border: 1px solid rgba(176,42,55,0.45); border-radius: 6px;"
+                        title="Clear every vehicle assignment for this date">
+                    <i class="bi bi-x-circle me-1"></i>Reset All
+                </button>
             </div>
         </div>
 
@@ -4964,6 +4974,96 @@
                 alert('Error: ' + err);
                 vaCopyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
                 vaCopyBtn.disabled = false;
+            });
+        });
+    }
+
+    // ============ Reset All vehicle assignments (preview → modal → confirm) ============
+    // Destructive and irreversible, so it never fires on the first click: the preview
+    // names every driver who loses his car, and shouts about the ones already carrying
+    // jobs — a reset clears the vehicle, not the work.
+    const vaResetBtn = document.getElementById('vaResetAll');
+    if (vaResetBtn) {
+        const RESET_LABEL = '<i class="bi bi-x-circle me-1"></i>Reset All';
+        vaResetBtn.addEventListener('click', function() {
+            vaResetBtn.disabled = true;
+            vaResetBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Checking...';
+
+            fetch('{% url "reset_vehicle_assignments" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', preview: true}),
+            }).then(r => r.json()).then(data => {
+                vaResetBtn.innerHTML = RESET_LABEL;
+                vaResetBtn.disabled = false;
+                if (!data.success) { alert(data.error || 'Failed'); return; }
+                if (!data.total) { alert('Nothing to reset — no vehicles are assigned on this date.'); return; }
+
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                var modal = document.createElement('div');
+                modal.style.cssText = 'background:#fff;border-radius:12px;padding:0;max-width:480px;width:90%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);';
+
+                var header = '<div style="padding:14px 20px;border-bottom:1px solid #e9ecef;background:#fdf2f3;border-radius:12px 12px 0 0;">'
+                    + '<div style="font-weight:700;font-size:0.95rem;color:#b02a37;"><i class="bi bi-x-circle me-2"></i>Reset all vehicle assignments</div>'
+                    + '<div style="font-size:0.75rem;color:#6c757d;">' + data.total + ' driver' + (data.total !== 1 ? 's' : '') + ' will lose their vehicle for this date. This can\'t be undone.</div>'
+                    + '</div>';
+
+                var body = '<div style="padding:12px 20px;overflow-y:auto;flex:1;">';
+                if (data.with_jobs) {
+                    body += '<div style="background:#f8d7da;border:1px solid #f1aeb5;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:#58151c;">'
+                        + '<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>' + data.with_jobs + ' of them already ' + (data.with_jobs === 1 ? 'has' : 'have') + ' jobs today.</strong> '
+                        + 'Resetting clears the car, not the work — they keep the trips and show as "No vehicle" on the board.</div>';
+                }
+                data.drivers.forEach(function(d) {
+                    body += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:0.82rem;">'
+                        + '<span style="flex:1;font-weight:600;">' + d.driver_name + '</span>'
+                        + (d.leg_count
+                            ? '<span style="background:#dc3545;color:#fff;font-size:0.62rem;padding:1px 6px;border-radius:3px;font-weight:700;">'
+                              + d.leg_count + ' JOB' + (d.leg_count !== 1 ? 'S' : '') + '</span>'
+                            : '')
+                        + '<span style="color:#0d6efd;font-weight:600;font-size:0.75rem;">#' + d.vehicle_number + ' <span style="color:#aaa;font-weight:400;">' + d.vehicle_type + '</span></span>'
+                        + '</div>';
+                });
+                body += '</div>';
+
+                var footer = '<div style="padding:12px 20px;border-top:1px solid #e9ecef;display:flex;gap:8px;justify-content:flex-end;">'
+                    + '<button class="btn btn-sm btn-outline-secondary reset-cancel-btn" style="font-size:0.8rem;">Cancel</button>'
+                    + '<button class="btn btn-sm btn-danger reset-confirm-btn" style="font-size:0.8rem;"><i class="bi bi-x-circle me-1"></i>Reset All ' + data.total + '</button>'
+                    + '</div>';
+
+                modal.innerHTML = header + body + footer;
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+
+                overlay.querySelector('.reset-cancel-btn').addEventListener('click', function() { overlay.remove(); });
+                overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+                overlay.querySelector('.reset-confirm-btn').addEventListener('click', function() {
+                    var confirmBtn = overlay.querySelector('.reset-confirm-btn');
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Resetting...';
+
+                    fetch('{% url "reset_vehicle_assignments" %}', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}'}),
+                    }).then(r => r.json()).then(result => {
+                        if (result.success) {
+                            confirmBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Cleared ' + result.cleared + ' — reloading...';
+                            confirmBtn.classList.replace('btn-danger', 'btn-success');
+                            setTimeout(() => location.reload(), 800);
+                        } else {
+                            alert(result.error || 'Failed');
+                            confirmBtn.disabled = false;
+                            confirmBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Reset All ' + data.total;
+                        }
+                    });
+                });
+            }).catch(err => {
+                alert('Error: ' + err);
+                vaResetBtn.innerHTML = RESET_LABEL;
+                vaResetBtn.disabled = false;
             });
         });
     }
