@@ -109,7 +109,7 @@
           <div class="card border-0 shadow-sm" style="background-color: rgba(255, 255, 255, 0.7)">
             <div class="card-body p-5">
               <h3 class="h4 mb-4">Request a Personalized Quote</h3>
-              <form method="POST">
+              <form method="POST" id="cf-contact-form">
                 {% csrf_token %}
                 {{ form.website }}
                 <input type="hidden" name="form_loaded_at" id="formLoadedAt" value="">
@@ -152,6 +152,17 @@
                   {{ form.about }}
                 </div>
 
+                {# Bot challenge. Renders only once the Turnstile secret is configured,
+                   so the form is unaffected until then. #}
+                {% if turnstile_site_key %}
+                  <div class="d-flex justify-content-center mb-3">
+                    <div class="cf-turnstile"
+                         data-sitekey="{{ turnstile_site_key }}"
+                         data-action="turnstile-spin-v2"
+                         data-theme="light"></div>
+                  </div>
+                {% endif %}
+
                 <button type="submit" class="btn btn-lg d-block mx-auto rounded-pill fw-bold px-5" style="background:#C9A227; color:#16120A;">Request Quote</button>
               </form>
             </div>
@@ -163,6 +174,18 @@
 
   {# bootstrap-icons + Montserrat are already loaded globally in main.html — no duplicate here. #}
   <script src="{% static 'js/i-button-hover.js' %}"></script>
+  {% if turnstile_site_key %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script>
+      // Turnstile tokens are single-use. This page re-renders inline on a
+      // validation error instead of navigating away, so without a reset the
+      // customer's second attempt would send the already-redeemed token and be
+      // rejected as timeout-or-duplicate — a real person locked out by a typo.
+      document.getElementById('cf-contact-form').addEventListener('submit', () => {
+        setTimeout(() => window.turnstile?.reset(), 0);
+      });
+    </script>
+  {% endif %}
   <script>document.getElementById('formLoadedAt').value = (Date.now() / 1000).toFixed(0);</script>
   <style>
     .contact-gradient {

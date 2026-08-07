@@ -26,6 +26,7 @@ import json
 import logging
 
 from reservations.models import Reservation, Leg
+from . import turnstile
 from .forms import (
     CustomUserCreationForm,
     PartnerFormSubmission,
@@ -64,18 +65,98 @@ def partner(request):
     """Handle partner form submission."""
     if request.method == "POST":
         form = PartnerFormSubmission(request.POST)
-        if form.is_valid():
+
+        # Turnstile gates the existing handler; it does not replace it. The
+        # template renders non_field_errors, so a failed challenge surfaces in
+        # the form the applicant is already looking at. No-op until the secret
+        # is configured. See users/turnstile.py.
+        passed, reason = turnstile.verify_request(request, _client_ip(request))
+        if not passed:
+            logger.warning(
+                "Partner form challenge failed (%s) from %s",
+                reason, _client_ip(request),
+            )
+            form.add_error(
+                None,
+                "We couldn't verify that submission. Please reload the page and "
+                "try again, or call us at (407) 212-7190.",
+            )
+        elif form.is_valid():
             form.save()
             return redirect("thankyou")
     else:
         form = PartnerFormSubmission()
 
-    return render(request, "users/become_partner.html", {"form": form})
+    return render(
+        request,
+        "users/become_partner.html",
+        {"form": form, "turnstile_site_key": turnstile.site_key()},
+    )
+
+
+def _client_ip(request):
+    """Client IP, honouring the proxy header Railway sits behind."""
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
+
+
+# Counted per attempt, not per saved message, so a bot whose content is being
+# rejected still runs out of tries instead of hammering the endpoint forever.
+# Set high enough that a real person retyping a bad email address never hits it.
+CONTACT_ATTEMPTS_PER_HOUR = 8
+
+
+def _contact_context(form):
+    """Shared context — the widget needs its site key on every render path."""
+    return {"form": form, "turnstile_site_key": turnstile.site_key()}
 
 
 def contact(request):
     """Handle contact form submission."""
     if request.method == "POST":
+        ip = _client_ip(request)
+        cache_key = f"contact_form_attempts_{ip}"
+        attempts = cache.get(cache_key, 0)
+
+        if attempts >= CONTACT_ATTEMPTS_PER_HOUR:
+            # Content scoring catches the campaign we know about; this catches
+            # the next one by volume alone, before it reaches the dispatch queue.
+            logger.warning(
+                "Contact form rate limit hit by %s (%s attempts this hour)",
+                ip, attempts,
+            )
+            messages.error(
+                request,
+                "We couldn't accept that message right now. "
+                "Please call us at (407) 212-7190 and we'll help you directly.",
+            )
+            return render(
+                request,
+                "reservations/contact.html",
+                _contact_context(ContactUsFormSubmission()),
+            )
+
+        cache.set(cache_key, attempts + 1, 3600)
+
+        # Turnstile first: a bot that never loaded the page has no token, so it
+        # is turned away before we spend anything on parsing what it wrote.
+        # No-op until the Cloudflare secret is set. See users/turnstile.py.
+        passed, reason = turnstile.verify_request(request, ip)
+        if not passed:
+            logger.warning("Contact form challenge failed (%s) from %s", reason, ip)
+            messages.error(
+                request,
+                "We couldn't verify that submission. Please reload the page and "
+                "try again, or call us at (407) 212-7190.",
+            )
+            return render(
+                request,
+                "reservations/contact.html",
+                _contact_context(ContactUsFormSubmission()),
+            )
+
         form = ContactUsFormSubmission(request.POST)
         if form.is_valid():
             form.save()
@@ -83,7 +164,7 @@ def contact(request):
     else:
         form = ContactUsFormSubmission()
 
-    return render(request, "reservations/contact.html", {"form": form})
+    return render(request, "reservations/contact.html", _contact_context(form))
 
 
 def newsletter_subscribe(request):

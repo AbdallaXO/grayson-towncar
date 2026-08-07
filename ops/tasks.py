@@ -655,13 +655,22 @@ def _scan_uncontacted_forms():
     Create contact_form tasks for Contact Us submissions still in 'pending' status.
     """
     from users.models import ContactUsForm
+    from users.spam import instance_is_spam
 
     now = timezone.now()
 
     pending_forms = ContactUsForm.objects.filter(status="pending")
 
     created = 0
+    skipped_spam = 0
     for form in pending_forms:
+        # Spam is rejected at submission now, but rows that predate that check
+        # are still sitting in 'pending' — and a dispatcher should never get a
+        # HIGH-priority, 4-hour-escalation task for a bot.
+        if instance_is_spam(form):
+            skipped_spam += 1
+            continue
+
         name = f"{form.first_name} {form.last_name}".strip()
         task = create_task(
             task_type=OperationalTask.TaskType.CONTACT_FORM,
@@ -680,8 +689,11 @@ def _scan_uncontacted_forms():
         if task:
             created += 1
 
-    if created:
-        logger.info(f"Contact form scan: created {created} contact_form tasks")
+    if created or skipped_spam:
+        logger.info(
+            f"Contact form scan: created {created} contact_form tasks, "
+            f"skipped {skipped_spam} scored as spam"
+        )
     return created
 
 

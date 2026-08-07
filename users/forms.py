@@ -1,4 +1,4 @@
-import re
+import logging
 import time
 
 from django.contrib.auth.forms import UserCreationForm
@@ -6,6 +6,9 @@ from django.contrib.auth.models import User
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import PartnerForm, ContactUsForm
+from .spam import BLOCK_THRESHOLD, score_submission
+
+logger = logging.getLogger(__name__)
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -149,14 +152,6 @@ class ContactUsFormSubmission(forms.ModelForm):
         required=False,
     )
 
-    # Cyrillic / spam patterns
-    CYRILLIC_RE = re.compile(r'[\u0400-\u04FF]')
-    URL_RE = re.compile(r'https?://', re.IGNORECASE)
-    SPAM_KEYWORDS = [
-        'tinyurl.com', 'bit.ly', 'руб', 'перевод', 'сюрприз',
-        'подарок', 'новости', 'ссылк',
-    ]
-
     class Meta:
         model = ContactUsForm
         fields = [
@@ -240,24 +235,29 @@ class ContactUsFormSubmission(forms.ModelForm):
             except (ValueError, TypeError):
                 pass
 
-        # 3. Cyrillic / spam content check
-        text_fields = [
-            cleaned.get("first_name", ""),
-            cleaned.get("last_name", ""),
-            cleaned.get("about", ""),
-        ]
-        combined = " ".join(text_fields).lower()
-
-        if self.CYRILLIC_RE.search(combined):
-            raise ValidationError("Your submission could not be processed.")
-
-        # URLs in name fields = spam
-        for field in ["first_name", "last_name"]:
-            if self.URL_RE.search(cleaned.get(field, "")):
-                raise ValidationError("Your submission could not be processed.")
-
-        # Known spam keywords
-        if any(kw in combined for kw in self.SPAM_KEYWORDS):
+        # 3. Content scoring — see users/spam.py for the rules and how each
+        #    one was weighted against real submissions. Blocked here means the
+        #    row is never written, so no thank-you email and no dispatcher task.
+        self.spam_score, self.spam_reasons = score_submission(
+            first_name=cleaned.get("first_name", ""),
+            last_name=cleaned.get("last_name", ""),
+            email=cleaned.get("email", ""),
+            phone_number=cleaned.get("phone_number", ""),
+            about=cleaned.get("about", ""),
+        )
+        if self.spam_score >= BLOCK_THRESHOLD:
+            # Logged rather than silently dropped: if a rule ever misfires on a
+            # real customer, the inquiry is recoverable from the log.
+            logger.warning(
+                "Blocked contact submission (score %s: %s) from %r %r <%s> %s: %r",
+                self.spam_score,
+                ", ".join(self.spam_reasons),
+                cleaned.get("first_name", ""),
+                cleaned.get("last_name", ""),
+                cleaned.get("email", ""),
+                cleaned.get("phone_number", ""),
+                (cleaned.get("about", "") or "")[:300],
+            )
             raise ValidationError("Your submission could not be processed.")
 
         return cleaned
