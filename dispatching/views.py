@@ -946,6 +946,12 @@ def schedule_board(request):
         board_view = "inhouse"
     is_affiliate_board = board_view == "affiliate"
 
+    # ── Driver focus filter ─────────────────────────────────────────────────
+    # Narrow the board to ONE driver's lane. Read here, validated further down
+    # against the rows that actually got built — a driver who is off, or who
+    # belongs to the other board, has no lane to focus on.
+    driver_filter = (request.GET.get("driver") or "").strip()
+
     # Fetch all legs for the date (single query)
     all_legs = list(
         Leg.objects.filter(pickup_date=selected_date)
@@ -1587,6 +1593,47 @@ def schedule_board(request):
         sum(1 for r in inhouse_timeline if r['total_legs']) if is_affiliate_board else 0
     )
 
+    # ── Driver focus filter, applied ────────────────────────────────────────
+    # Applied LAST, on the finished rows, so nothing upstream changes shape: the
+    # axis, the day's counts and the Unassigned lane all stay whole-day. That is
+    # deliberate — you focus on a driver mostly to hand him something off the
+    # backlog, and a filtered board that also hid the backlog (or quietly reported
+    # "3 legs" for a 27-leg day) would be lying about the day.
+    #
+    # Options come from the rows we actually built, so the dropdown can never
+    # offer a driver the board wouldn't draw. Anything else — a stale link, a
+    # driver who is off today, a hand-typed id — falls back to the whole board
+    # and says so, rather than rendering an empty one.
+    board_driver_options = sorted(
+        (
+            {
+                "id": _r["driver"].id,
+                "label": str(_r["driver"]),
+                "total_legs": _r["total_legs"],
+                "vehicle_number": _r["vehicle_number"],
+            }
+            for _r in inhouse_timeline
+        ),
+        key=lambda o: o["label"].lower(),
+    )
+    driver_filter_dropped = ""
+    filtered_driver_name = ""
+    filtered_driver_legs = 0
+    if driver_filter:
+        if driver_filter in {str(o["id"]) for o in board_driver_options}:
+            inhouse_timeline = [
+                r for r in inhouse_timeline if str(r["driver"].id) == driver_filter
+            ]
+            # A single row has no group above it, so the "Available — no vehicle
+            # assigned" divider would be a header over nothing.
+            inhouse_timeline[0].pop("starts_no_vehicle_group", None)
+            filtered_driver_name = str(inhouse_timeline[0]["driver"])
+            filtered_driver_legs = inhouse_timeline[0]["total_legs"]
+        else:
+            _req = next((d for d in board_drivers if str(d.id) == driver_filter), None)
+            driver_filter_dropped = str(_req) if _req else "That driver"
+            driver_filter = ""
+
     # Overnight tail (same night-crew rule as the dashboard): tomorrow's
     # 12-2 AM jobs shown as a read-only strip at the end of TONIGHT's board.
     # Deliberately NOT merged into the drag/assign timeline — drivers watch
@@ -1612,6 +1659,12 @@ def schedule_board(request):
         "next_date": next_date,
         "board_view": board_view,
         "is_affiliate_board": is_affiliate_board,
+        # ── Driver focus filter ──
+        "driver_filter": driver_filter,
+        "board_driver_options": board_driver_options,
+        "filtered_driver_name": filtered_driver_name,
+        "filtered_driver_legs": filtered_driver_legs,
+        "driver_filter_dropped": driver_filter_dropped,
         # ── Live clock + "now" marker ──
         # Seeded from the SERVER's local time, not the browser's: dispatchers
         # reviewing the board from another timezone must still see Orlando time,
