@@ -662,6 +662,26 @@
           border: 1px dashed rgba(100,116,139,0.4);
       }
 
+      /* ── Filter by driver ────────────────────────────────────────────── */
+      .board-driver-filter { display: flex; align-items: center; gap: 6px; }
+      .board-driver-filter > .bi { color: #94a3b8; font-size: 0.85rem; }
+      .board-driver-filter .bi-funnel-fill { color: #C9A227; }
+      .board-driver-filter select { width: 210px; }
+      /* A filtered board looks like a quiet day, so say out loud that it isn't. */
+      .board-focus-note {
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+          margin-bottom: 0.75rem; padding: 0.45rem 0.8rem; border-radius: 8px;
+          font-size: 0.82rem; color: #1a2332;
+          background: rgba(201,162,39,0.12); border: 1px solid rgba(201,162,39,0.45);
+      }
+      .board-focus-note > .bi { color: #C9A227; }
+      .board-focus-note a { margin-left: auto; font-weight: 600; color: #8a6d10; }
+      .board-focus-dropped {
+          background: rgba(100,116,139,0.1); border-color: rgba(100,116,139,0.35);
+          color: #475569;
+      }
+      .board-focus-dropped > .bi { color: #64748b; }
+
       /* ── Affiliate board ─────────────────────────────────────────────── */
       .board-switch .btn-gold {
           background: #C9A227; border-color: #C9A227; color: #1a2332; font-weight: 600;
@@ -710,10 +730,10 @@
           <i class="bi bi-kanban me-2"></i>{% if is_affiliate_board %}Affiliate Board{% else %}Schedule Board{% endif %}
         </h5>
         <div class="d-flex align-items-center gap-2">
-          <a href="?date={{ prev_date|date:'Y-m-d' }}&view={{ board_view }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
+          <a href="?date={{ prev_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-left"></i></a>
           <input type="date" class="form-control form-control-sm" id="boardDatePicker"
                  value="{{ selected_date|date:'Y-m-d' }}" style="width:150px;">
-          <a href="?date={{ next_date|date:'Y-m-d' }}&view={{ board_view }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
+          <a href="?date={{ next_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
         </div>
         <!-- Board switch: two separate boards over the same day, never mixed -->
         <div class="btn-group btn-group-sm board-switch" role="group" aria-label="Board">
@@ -726,6 +746,28 @@
             <i class="bi bi-people me-1"></i>Affiliates
           </a>
         </div>
+        {% comment %}
+          Filter by driver. The two boards hold different rosters, so the switch
+          links above deliberately drop the filter — the date arrows keep it, since
+          following one driver across days is the point.
+        {% endcomment %}
+        {% if board_driver_options %}
+        <div class="board-driver-filter">
+          <i class="bi bi-funnel{% if driver_filter %}-fill{% endif %}"></i>
+          <select class="form-select form-select-sm" id="boardDriverFilter"
+                  aria-label="Filter the board by driver"
+                  title="Show one driver's lane only">
+            <option value="">All drivers ({{ board_driver_options|length }})</option>
+            {% for opt in board_driver_options %}
+              <option value="{{ opt.id }}"{% if driver_filter == opt.id|stringformat:"s" %} selected{% endif %}>{% if opt.vehicle_number %}#{{ opt.vehicle_number }} · {% endif %}{{ opt.label }} ({{ opt.total_legs }})</option>
+            {% endfor %}
+          </select>
+          {% if driver_filter %}
+            <a href="?date={{ selected_date|date:'Y-m-d' }}&view={{ board_view }}"
+               class="btn btn-sm btn-outline-secondary" title="Show every driver again"><i class="bi bi-x-lg"></i></a>
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
       <div class="d-flex align-items-center gap-3">
         <span class="board-clock" id="boardClock" title="Current local time">
@@ -748,6 +790,20 @@
         </a>
       </div>
     </div>
+
+    {% if driver_filter %}
+      <div class="board-focus-note">
+        <i class="bi bi-funnel-fill"></i>
+        Showing <strong>{{ filtered_driver_name }}</strong> only — {{ filtered_driver_legs }} job{{ filtered_driver_legs|pluralize }}.
+        Every other driver's lane is hidden; Unassigned still shows the whole day.
+        <a href="?date={{ selected_date|date:'Y-m-d' }}&view={{ board_view }}">Show all drivers</a>
+      </div>
+    {% elif driver_filter_dropped %}
+      <div class="board-focus-note board-focus-dropped">
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>{{ driver_filter_dropped }}</strong> has no lane on {{ selected_date|date:"M j" }} — showing every driver.
+      </div>
+    {% endif %}
 
     {% include 'dispatching/includes/_draft_banner.html' %}
 
@@ -1441,10 +1497,22 @@
       setInterval(tick, 1000);
     })();
 
-    // Date picker navigation
+    // Date picker navigation — carries the driver focus across days, same as the
+    // prev/next arrows.
+    var _boardDriverQS = '{% if driver_filter %}&driver={{ driver_filter }}{% endif %}';
     document.getElementById('boardDatePicker').addEventListener('change', function(){
-      window.location.href = '?date=' + this.value + '&view={{ board_view }}';
+      window.location.href = '?date=' + this.value + '&view={{ board_view }}' + _boardDriverQS;
     });
+
+    // Filter by driver
+    var _boardDriverFilter = document.getElementById('boardDriverFilter');
+    if (_boardDriverFilter) {
+      _boardDriverFilter.addEventListener('change', function(){
+        var url = '?date={{ selected_date|date:"Y-m-d" }}&view={{ board_view }}';
+        if (this.value) { url += '&driver=' + encodeURIComponent(this.value); }
+        window.location.href = url;
+      });
+    }
 
     // Click to navigate to Legs Dashboard with highlight
     // Track drag state to avoid navigating after a drag operation
