@@ -395,6 +395,7 @@
             {% for leg in legs %}
               {% with flag=leg.flight_timing_flag %}
                 <tr class="align-middle {% if flag.level == 'alert' %}leg-flag-alert{% elif flag.level == 'watch' %}leg-flag-watch{% endif %} {% if leg.is_vip %}leg-vip{% endif %} {% if leg.active_keoi %}leg-keoi{% endif %}"
+                    data-leg-id="{{ leg.id }}"
                     {% if flag %}title="{{ flag.label }}{% if flag.arrival_label %} — now lands {{ flag.arrival_label }}{% endif %}"{% endif %}>
                   <!-- Customer dark -->
                   <td>
@@ -641,14 +642,14 @@
                   <!-- Locations -->
                   <td>
                     <div class="small">
-                      <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
+                      <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.pickup_map_url text=leg.pickup_location compact=1 %}
                     </div>
                     <div class="small">
-                      <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
+                      <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.dropoff_map_url text=leg.dropoff_location compact=1 %}
                     </div>
                     {% for stop in leg.additional_dropoffs %}
                       <div class="small" style="border-left: 3px solid #1b5e20; padding-left: 6px; margin-top: 2px;">
-                        <span class="fw-bold text-success">+ Drop-off:</span> {{ stop.display_location }}
+                        <span class="fw-bold text-success">+ Drop-off:</span> {{ stop.display_location }}{% include "dispatching/includes/_map_link_btn.html" with url=stop.map_url text=stop.display_location compact=1 %}
                       </div>
                     {% endfor %}
                     {% if leg.has_intermediate_stops %}
@@ -854,7 +855,7 @@
       <div class="d-lg-none">
         <div class="row g-2">
           {% for leg in legs %}
-            <div class="col-12">
+            <div class="col-12" data-leg-id="{{ leg.id }}">
               {% with flag=leg.flight_timing_flag %}
                 <div class="card shadow-sm {% if flag.level == 'alert' %}border-danger{% elif flag.level == 'watch' %}border-warning{% endif %}">
                   <div class="card-header {% if flag.level == 'alert' %}bg-danger bg-opacity-10 border-danger p-2{% elif flag.level == 'watch' %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
@@ -958,10 +959,10 @@
                           <i class="bi bi-geo-alt text-success me-2"></i>
                           <div class="small">
                             <div>
-                              <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
+                              <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.pickup_map_url text=leg.pickup_location compact=1 %}
                             </div>
                             <div>
-                              <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
+                              <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.dropoff_map_url text=leg.dropoff_location compact=1 %}
                             </div>
                             {% if leg.cruise_information %}
                               <div class="mt-2">
@@ -1687,3 +1688,8 @@
 {% endblock footer %}
 {% block newsletter %}
 {% endblock newsletter %}
+
+{% block extra_js %}
+  {# Right-click any trip row for Mapping / Flight Tracker #}
+  {% include "dispatching/includes/_trip_context_menu.html" %}
+{% endblock %}

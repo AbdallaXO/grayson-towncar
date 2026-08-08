@@ -39,6 +39,7 @@ from django.views.decorators.http import require_POST
 
 from dispatching import fleet_health
 from dispatching.fleet_sync import FEED_NIGHTLY, FEED_VEHICLE_STATS
+from dispatching.mileage import days_to_cover, meters_to_miles, usage_rate
 from dispatching.samsara_service import EXTENDED_STAT_TYPES
 from drivers.models import (
     DriverVehicleAssignment, FleetSyncState, FleetVehicle, VehicleDayReading,
@@ -133,6 +134,10 @@ def fleet_list(request):
             total_days=Count("id"),
         )
     }
+    # Sum/count already exclude NULL days on both sides, which is exactly the
+    # unknown-vs-parked rule usage_rate() enforces — so the per-day figure here
+    # matches the detail page's rather than being a second, subtly different
+    # average. Kept as one aggregate query: this page is 9 queries flat.
 
     rows = []
     for vehicle in vehicles:
@@ -147,9 +152,24 @@ def fleet_list(request):
             chips += fleet_health.service_findings(schedule, odometer, today)
 
         miles = recent_miles.get(vehicle.id) or {}
+        _known_days = miles.get("known_days") or 0
+        _miles = miles.get("miles")
+        _per_day = (
+            (Decimal(_miles) / _known_days).quantize(Decimal("0.1"))
+            if _miles is not None and _known_days else None
+        )
         rows.append({
             "vehicle": vehicle,
             "chips": chips,
+            # Per WEEK on the list: comparing "which car works hardest" reads
+            # better at week scale than a daily figure that swings with one
+            # airport run. None stays None — an unknown rate is not a low one.
+            "per_week": (_per_day * 7).quantize(Decimal("0.1")) if _per_day is not None else None,
+            "per_day": _per_day,
+            # Resolved here, not in the template, so "expired counts as missing"
+            # is decided in exactly one place (FleetVehicle.permits).
+            "permits": vehicle.permits(day=today),
+            "oos_label": vehicle.out_of_service_label(today),
             "attention": sum(1 for c in chips if c["level"] == fleet_health.CRITICAL),
             "warnings": sum(1 for c in chips if c["level"] == fleet_health.WARN),
             "odometer": odometer,
@@ -221,13 +241,6 @@ def fleet_detail(request, pk):
     chips += fleet_health.compliance_findings(vehicle, today)
 
     odometer = vehicle.odometer_miles
-    schedules = []
-    for schedule in VehicleServiceSchedule.objects.filter(
-        vehicle=vehicle, is_active=True
-    ):
-        findings = fleet_health.service_findings(schedule, odometer, today)
-        chips += findings
-        schedules.append({"schedule": schedule, "findings": findings})
 
     window_start = today - timedelta(days=DETAIL_DAY_WINDOW)
     days = list(
@@ -239,6 +252,42 @@ def fleet_detail(request, pk):
     # renders it as an em-dash so "no data" never reads as "did not move".
     known = [d for d in days if d.miles_driven is not None]
     total_miles = sum(d.miles_driven for d in known) if known else None
+
+    # How hard this car actually works. The arithmetic (and the unknown-vs-parked
+    # rule it turns on) lives in mileage.py — see the module docstring for why
+    # nothing else may compute a mileage figure.
+    rate = usage_rate([d.miles_driven for d in days], total_days=DETAIL_DAY_WINDOW)
+
+    # The odometer at both ends of each day. Already stored on every row and
+    # never surfaced until now: "335.5 mi" is a number you have to trust, while
+    # "104,210 → 104,545" is one you can check against the dash.
+    for day in days:
+        day.start_miles = meters_to_miles(day.start_odometer_meters, places=0)
+        day.end_miles = meters_to_miles(day.end_odometer_meters, places=0)
+
+    schedules = []
+    for schedule in VehicleServiceSchedule.objects.filter(
+        vehicle=vehicle, is_active=True
+    ):
+        findings = fleet_health.service_findings(schedule, odometer, today)
+        chips += findings
+        # Turn "due in 2,400 mi" into a date someone can book a shop slot for.
+        # Advisory and explicitly rate-based: it says "at this rate", and it
+        # declines entirely when the rate is unknown or the car isn't moving,
+        # rather than emitting a date nobody should plan around.
+        due_miles = schedule.due_at_odometer_miles
+        miles_remaining = (
+            due_miles - Decimal(odometer)
+            if due_miles is not None and odometer is not None else None
+        )
+        days_out = days_to_cover(miles_remaining, rate.per_day)
+        schedules.append({
+            "schedule": schedule,
+            "findings": findings,
+            "miles_remaining": miles_remaining,
+            "projected_days": days_out,
+            "projected_date": today + timedelta(days=days_out) if days_out else None,
+        })
 
     # Who has been in this car lately — the only job<->physical-car link that
     # exists, since Leg.vehicle points at the TYPE (rates.Vehicle), never here.
@@ -261,6 +310,7 @@ def fleet_detail(request, pk):
         "recent_faults": recent_faults,
         "days": days,
         "total_miles": total_miles,
+        "rate": rate,
         "coverage": fleet_health.summarise_coverage(len(known), len(days)),
         "assignments": assignments,
         "window_days": DETAIL_DAY_WINDOW,
@@ -270,6 +320,10 @@ def fleet_detail(request, pk):
         "service_types": VehicleServiceRecord.SERVICE_TYPE_CHOICES,
         "schedule_types": VehicleServiceSchedule.SERVICE_TYPE_CHOICES,
         "transponder_types": FleetVehicle.TRANSPONDER_TYPE_CHOICES,
+        # Permits + out-of-service, resolved server-side against TODAY so the page
+        # and every scheduling surface answer the same question the same way.
+        "vehicle_permits": vehicle.permits(),
+        "oos_label": vehicle.out_of_service_label(),
         # Derived from what we actually ASK Samsara for, so these labels stay
         # true on their own. fuelPercents and engineStates returned HTTP 200
         # with the field absent for 11/11 vehicles (measured twice, including
@@ -377,6 +431,54 @@ def fleet_update_details(request, pk):
             return JsonResponse(
                 {"success": False, "error": "Unknown transponder type."}, status=400)
         fields["transponder_type"] = transponder_type
+
+    # ── Out of service ───────────────────────────────────────────────────
+    # The one field on this page that removes a unit from the scheduling pool,
+    # so it's the one field that gets validated hard. A backwards window would
+    # silently never match any date — the unit would look blocked on the form
+    # and stay bookable everywhere else.
+    for key, label in (("out_of_service_from", "Out-of-service start"),
+                       ("out_of_service_until", "Out-of-service end")):
+        if key not in data:
+            continue
+        value, message = _opt_date(data.get(key), label)
+        if message:
+            return JsonResponse({"success": False, "error": message}, status=400)
+        fields[key] = value
+    if "out_of_service_reason" in data:
+        fields["out_of_service_reason"] = (
+            data.get("out_of_service_reason") or "").strip()[:200]
+
+    _oos_from = fields.get("out_of_service_from", vehicle.out_of_service_from)
+    _oos_until = fields.get("out_of_service_until", vehicle.out_of_service_until)
+    if _oos_from and _oos_until and _oos_until < _oos_from:
+        return JsonResponse(
+            {"success": False,
+             "error": "The out-of-service end date is before the start date."},
+            status=400)
+    # An end date with no start is not a window — it gates nothing and would sit
+    # on the record looking meaningful. Refuse it rather than store a no-op.
+    if _oos_until and not _oos_from:
+        return JsonResponse(
+            {"success": False,
+             "error": "Give an out-of-service start date, or clear the end date."},
+            status=400)
+
+    # ── Permits ──────────────────────────────────────────────────────────
+    for key, _label, _category in FleetVehicle.PERMITS:
+        held_field = f"permit_{key}"
+        expiry_field = f"permit_{key}_expires_on"
+        if held_field in data:
+            fields[held_field] = bool(data.get(held_field))
+        if expiry_field in data:
+            value, message = _opt_date(data.get(expiry_field), f"{_label} permit expiry")
+            if message:
+                return JsonResponse({"success": False, "error": message}, status=400)
+            fields[expiry_field] = value
+        # An expiry with no permit is a contradiction. Clearing the tick clears
+        # the date with it, so a permit that comes back doesn't inherit a stale one.
+        if fields.get(held_field) is False:
+            fields[expiry_field] = None
 
     if not fields:
         return JsonResponse({"success": False, "error": "Nothing to update."}, status=400)

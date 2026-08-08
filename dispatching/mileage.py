@@ -208,3 +208,82 @@ def resolve_day_mileage(previous: OdometerReading | None,
 def _join(*notes):
     """Join the non-empty notes so a fallback keeps the reason it fell back."""
     return "; ".join(n for n in notes if n)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# USAGE RATE — "how hard does this car actually work?"
+# ════════════════════════════════════════════════════════════════════════════
+
+@dataclass(frozen=True)
+class UsageRate:
+    """How much a vehicle is driven, averaged over the days we actually know.
+
+    `per_day`/`per_week` are None when nothing is known — never 0. A car with a
+    dead gateway has an UNKNOWN rate, and rendering that as "0 mi/day" would put
+    a working car at the bottom of a utilisation comparison and push its next
+    service projection out to never.
+    """
+
+    total_miles: Decimal | None
+    known_days: int
+    total_days: int
+    per_day: Decimal | None
+    per_week: Decimal | None
+
+    @property
+    def is_known(self) -> bool:
+        return self.per_day is not None
+
+
+def usage_rate(daily_miles, total_days=None) -> UsageRate:
+    """Average miles per day and per week from a series of per-day figures.
+
+    ``daily_miles`` is an iterable where each item is one day's mileage.
+
+    The two kinds of blank day are treated differently, and the distinction is
+    the whole point of the function:
+
+      * ``None`` = UNKNOWN. Excluded from the sum AND from the denominator. A
+        gateway that was offline for a week says nothing about how hard the car
+        works, so averaging those days in as zero would understate a busy car.
+      * ``0`` = the car provably did not move. Counted in the denominator. A car
+        that sits every Sunday genuinely averages less over a week, and dropping
+        those days would inflate the rate into a number no one can plan against.
+
+    ``total_days`` is the size of the window asked about (default: the number of
+    items given), carried through only so a caller can state coverage — it never
+    changes the arithmetic.
+    """
+    values = list(daily_miles)
+    known = [Decimal(v) for v in values if v is not None]
+    span = len(values) if total_days is None else total_days
+
+    if not known:
+        return UsageRate(None, 0, span, None, None)
+
+    total = sum(known)
+    per_day = (total / len(known)).quantize(Decimal("0.1"))
+    per_week = (per_day * 7).quantize(Decimal("0.1"))
+    return UsageRate(total, len(known), span, per_day, per_week)
+
+
+def days_to_cover(miles, per_day) -> int | None:
+    """Days needed to drive ``miles`` at ``per_day``, or None when unanswerable.
+
+    None — not a huge number — when the rate is unknown or zero. A parked car
+    never reaches its next oil change, and "due in 41,000 days" is a worse
+    answer than declining to give one: someone will plan a shop day around a
+    projection, so it has to refuse when it cannot know.
+
+    Negative or zero ``miles`` (already past due) returns 0 — the caller decides
+    how to say "now".
+    """
+    if per_day is None or miles is None:
+        return None
+    rate = Decimal(per_day)
+    if rate <= 0:
+        return None
+    remaining = Decimal(miles)
+    if remaining <= 0:
+        return 0
+    return int((remaining / rate).to_integral_value(rounding="ROUND_CEILING"))

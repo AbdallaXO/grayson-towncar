@@ -124,6 +124,11 @@ that never existed on main.
   poller-written telemetry block. Plus a **partial unique constraint** on
   `samsara_vehicle_id` excluding blank: a duplicate ID silently maps two cars to
   one feed and the poller's `{id: vehicle}` dict drops one.
+  Migration 0047 adds the out-of-service window
+  (`out_of_service_from`/`_until`/`_reason`) and the three pickup permits with
+  their expiries — see "Readiness is advisory" below for why one gates and the
+  other doesn't. Permits are flat fields rather than a related model (three
+  fixed permits, no prefetch on a pool render); a fourth is a migration.
 - **`VehicleDayReading`** — one row per vehicle per **local** day. Unique on
   `(vehicle, date)`.
 - **`VehicleServiceSchedule`** — recurring interval, miles and/or days.
@@ -172,6 +177,22 @@ and **refuses to diff across two different `samsara_vehicle_id` values** — one
 gateway moved between cars would otherwise produce a fictional six-figure day.
 32 tests, written before it was wired to anything.
 
+**Averages divide by KNOWN days, not calendar days.** `usage_rate()` is where
+per-day / per-week utilisation is computed, and the two kinds of blank day are
+not the same number: `None` (unknown — dead gateway) is excluded from the sum
+*and* the denominator, while `0` (provably parked) counts in the denominator. Get
+this backwards and a week of feed outage halves a busy car's apparent rate, which
+then pushes its next-service projection out to never. `per_day` is `None`, never
+`0`, when nothing is known — an unknown rate must not sort as the least-used car.
+The fleet list computes the same figure from a `Sum`/`Count` aggregate (both
+already NULL-excluding), so list and detail cannot disagree.
+
+**A projection that can't be trusted isn't offered.** `days_to_cover()` returns
+`None` — not a large number — when the rate is unknown or zero, because someone
+books a shop day around it. Service projections render as "≈ Sep 14 at this
+rate", never as a bare date, and an overdue interval shows its status chip rather
+than a fabricated future date.
+
 **Days are contiguous.** A day's mileage is measured against the *previous*
 day's closing odometer, not its own first sample — otherwise every mile driven
 between the last poll of one day and the first of the next vanishes, and an
@@ -185,14 +206,46 @@ no `miles += delta` anywhere; an accumulator can't be repaired once it drifts.
 keys present in the payload, so a GPS-only gateway leaves other columns alone.
 Stale-but-real beats fresh-and-null; the `*_at` timestamps let the UI age it.
 
-**Readiness is advisory, always.** No chip, fault, or out-of-service window ever
-blocks an assignment, removes a unit from a pool, or subtracts capacity. Guard A
-— an assignment-time per-vehicle check — was built and deliberately removed for
-firing false positives off stale data (`feasibility_guards.py:140-144`), and
+**Readiness is advisory, always — with exactly one exception, added later.**
+No chip, fault, service-record window, or permit ever blocks an assignment,
+removes a unit from a pool, or subtracts capacity. Guard A — an assignment-time
+per-vehicle check — was built and deliberately removed for firing false
+positives off stale data (`feasibility_guards.py:140-144`), and
 `day_setup.py:33-36` records the founder ruling that "there is no such thing as
-a car not working today". **There is deliberately no vehicle status enum**: a
-field containing `out_of_service` would eventually get imported by something
-that subtracts capacity.
+a car not working today".
+
+The exception is `FleetVehicle.out_of_service_from/until/reason`, added on the
+founder's explicit request so a car on a lift stops being scheduled. It is
+allowed to gate **because it is not machine inference**: a human who knows the
+car is down sets it by hand, with a reason and a date window. That is a
+different class of fact from a fault code, and the Guard A reasoning — stale
+telemetry producing false positives — does not reach it.
+
+Three properties keep it from becoming Guard A again, and they are load-bearing:
+
+1. **Date-windowed, not a status flag.** Every surface asks
+   `is_out_of_service_on(date)`. A car in the shop this week is untouched on
+   next week's board. There is still no vehicle status enum.
+2. **Overridable at assignment time.** `update_inhouse_vehicle_assignment`
+   answers `409` with `can_override: true`; the planner offers to force it. A
+   forgotten flag can never strand a car that came back early.
+3. **Visible, not hidden.** The unit stays in the planner pool, greyed with its
+   reason, and Day Setup names it in `warnings` rather than quietly coming up a
+   unit short.
+
+The bulk paths differ deliberately: `apply_day_setup` refuses the whole batch
+(409, no override — an override there would silently apply to every pair in the
+payload), and `copy_vehicle_assignments` skips the broken unit and reports it in
+`skipped_out_of_service` so one bad car doesn't cost you the day's plan.
+
+**Permits stay advisory.** `permit_mco` / `permit_sanford` /
+`permit_port_canaveral` (+ `*_expires_on`) record the per-vehicle pickup decals
+Central Florida requires. A missing or expired one produces a named warning in
+`check_driver_feasibility` (`permit_warning`) and never blocks: pickup locations
+are free text matched by `categorize_location()`, and MCO is most of the
+business, so a hard gate would misfire on the busiest lane. An expired permit is
+reported as *not held* — a lapsed decal is worth what no decal is worth. Only
+the pickup end is checked; any unit may drop at these places.
 
 **The pages are DB-only.** No view calls Samsara. `reservations/middleware.py`
 sets a 30s Postgres `statement_timeout` on web requests and gunicorn runs

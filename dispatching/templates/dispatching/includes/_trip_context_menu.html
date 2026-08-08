@@ -1,0 +1,446 @@
+{% comment %}
+Right-click trip menu — Mapping and Flight Tracker for any leg on the page.
+
+Include ONCE per page, inside {% block extra_js %}. It needs no context: it
+binds at the document level and activates on any element carrying a numeric
+`data-leg-id`, which every board row, timeline bar and unassigned chip already
+has. Links are fetched from `leg_trip_links` on first open and cached per leg.
+
+Escape hatches: Shift+right-click gives the browser's own menu, and right-click
+inside a text field is always left alone so copy/paste still works.
+{% endcomment %}
+
+<style>
+  .trip-menu {
+    position: fixed;
+    z-index: 2000;
+    min-width: 232px;
+    max-width: 340px;
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.22);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1e293b;
+    display: none;
+  }
+  .trip-menu.open { display: block; }
+  .trip-menu-head {
+    padding: 7px 14px 8px;
+    border-bottom: 1px solid #e7eaee;
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .trip-menu-head strong { display: block; font-size: 0.84rem; color: #0f172a; }
+  .trip-menu-head span { font-size: 0.75rem; color: #64748b; font-weight: 400; }
+  .trip-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    color: inherit;
+    text-decoration: none;
+    position: relative;
+  }
+  .trip-menu-item:hover,
+  .trip-menu-item.active { background: #eef2f7; color: #0f172a; }
+  .trip-menu-item.disabled {
+    color: #94a3b8;
+    cursor: default;
+    font-weight: 400;
+    font-style: italic;
+  }
+  .trip-menu-item.disabled:hover { background: transparent; }
+  .trip-menu-item > i:first-child { width: 15px; text-align: center; color: #475569; }
+  .trip-menu-item .trip-menu-caret { margin-left: auto; padding-left: 14px; font-size: 0.7rem; color: #64748b; }
+  .trip-menu-sep { height: 1px; background: #e7eaee; margin: 4px 0; }
+  .trip-menu-sub {
+    position: fixed;
+    z-index: 2001;
+    min-width: 226px;
+    max-width: 380px;
+    padding: 4px 0;
+    background: #fff;
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    box-shadow: 0 10px 32px rgba(15, 23, 42, 0.22);
+    display: none;
+  }
+  .trip-menu-sub.open { display: block; }
+  .trip-menu-sub .trip-menu-item { white-space: normal; }
+  .trip-menu-label {
+    padding: 6px 14px 2px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .trip-menu-addr {
+    display: block;
+    font-weight: 400;
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.25;
+    max-width: 300px;
+  }
+  .trip-menu-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: #dcfce7;
+    color: #166534;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 6px;
+  }
+  /* The row the menu belongs to, so a dispatcher with three boards open still
+     knows which trip they right-clicked. */
+  .trip-menu-source { outline: 2px solid #0d6efd; outline-offset: -2px; }
+</style>
+
+<div class="trip-menu" id="tripMenu" role="menu" aria-label="Trip actions"></div>
+<div class="trip-menu-sub" id="tripMenuSub" role="menu"></div>
+
+<script>
+(function () {
+  'use strict';
+  if (window.tripMenuReady) return;   // include is idempotent
+  window.tripMenuReady = true;
+
+  var menu = document.getElementById('tripMenu');
+  var sub = document.getElementById('tripMenuSub');
+  // Reversible placeholder so the route stays defined by urls.py, not by a
+  // path string duplicated here.
+  var URL_TEMPLATE = "{% url 'leg_trip_links' leg_id=0 %}";
+  var cache = {};
+  var sourceEl = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function openTab(url) {
+    if (!url) return;
+    // Anchor-click rather than window.open: iOS Safari blanks popups opened
+    // from a handler that already ran async work (same trick the driver app uses).
+    var a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function closeSub() {
+    sub.classList.remove('open');
+    sub.innerHTML = '';
+    var open = menu.querySelector('.trip-menu-item.active');
+    if (open) open.classList.remove('active');
+  }
+
+  function closeMenu() {
+    closeSub();
+    menu.classList.remove('open');
+    if (sourceEl) {
+      sourceEl.classList.remove('trip-menu-source');
+      sourceEl = null;
+    }
+  }
+
+  /** Keep a just-shown panel inside the viewport, flipping it when it won't fit. */
+  function place(el, x, y, flipFrom) {
+    el.style.left = '0px';
+    el.style.top = '0px';
+    var w = el.offsetWidth;
+    var h = el.offsetHeight;
+    var maxX = window.innerWidth - 6;
+    var maxY = window.innerHeight - 6;
+    var left = x;
+    var top = y;
+    if (left + w > maxX) left = flipFrom != null ? Math.max(6, flipFrom - w) : Math.max(6, maxX - w);
+    if (top + h > maxY) top = Math.max(6, maxY - h);
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+
+  function mapItem(entry, icon) {
+    if (!entry || !entry.url) return '';
+    return '<a class="trip-menu-item" href="' + esc(entry.url) + '" target="_blank" rel="noopener noreferrer">'
+      + '<i class="bi ' + icon + '"></i>'
+      + '<span>' + esc(entry.label)
+      + '<span class="trip-menu-addr">' + esc(entry.text) + '</span></span></a>';
+  }
+
+  function buildMappingSub(data) {
+    var html = '';
+    if (data.route_url) {
+      html += '<div class="trip-menu-label">Whole trip</div>'
+        + '<a class="trip-menu-item" href="' + esc(data.route_url) + '" target="_blank" rel="noopener noreferrer">'
+        + '<i class="bi bi-signpost-split"></i><span>Full route &mdash; directions'
+        + '<span class="trip-menu-addr">' + esc(data.pickup.text || '?') + ' &rarr; ' + esc(data.dropoff.text || '?') + '</span>'
+        + '</span></a><div class="trip-menu-sep"></div>';
+    }
+    html += '<div class="trip-menu-label">Single stop</div>';
+    var parts = mapItem(data.pickup, 'bi-geo-alt-fill')
+      + (data.stops || []).map(function (s) { return mapItem(s, 'bi-sign-turn-right'); }).join('')
+      + mapItem(data.dropoff, 'bi-flag-fill');
+    if (!parts) return '<div class="trip-menu-item disabled">No address on this trip</div>';
+    return html + parts;
+  }
+
+  function buildFlightSub(data) {
+    var flights = data.flights || [];
+    if (!flights.length) {
+      return '<div class="trip-menu-item disabled">No trackable flight on this trip</div>';
+    }
+    return flights.map(function (f) {
+      var html = '<div class="trip-menu-label">' + esc(f.label)
+        + (f.is_controlling ? '<span class="trip-menu-badge">controls pickup</span>' : '')
+        + '</div>';
+      // Airline first when we have it — it knows about gate changes and
+      // equipment swaps before the aggregators do.
+      if (f.airline_url) {
+        html += '<a class="trip-menu-item" href="' + esc(f.airline_url) + '" target="_blank" rel="noopener noreferrer">'
+          + '<i class="bi bi-building-fill-check"></i><span>' + esc(f.airline_site)
+          + '<span class="trip-menu-addr">the airline\'s own status page</span></span></a>';
+      }
+      return html
+        + '<a class="trip-menu-item" href="' + esc(f.flightaware) + '" target="_blank" rel="noopener noreferrer">'
+        + '<i class="bi bi-airplane-engines-fill"></i><span>FlightAware'
+        + '<span class="trip-menu-addr">' + esc(f.ident) + '</span></span></a>'
+        + '<a class="trip-menu-item" href="' + esc(f.flightview) + '" target="_blank" rel="noopener noreferrer">'
+        + '<i class="bi bi-radar"></i><span>FlightView'
+        + '<span class="trip-menu-addr">gate &amp; baggage detail</span></span></a>';
+    }).join('<div class="trip-menu-sep"></div>');
+  }
+
+  function openSub(anchor, html) {
+    closeSub();
+    anchor.classList.add('active');
+    sub.innerHTML = html;
+    sub.classList.add('open');
+    var r = anchor.getBoundingClientRect();
+    place(sub, r.right - 2, r.top - 4, r.left + 2);
+  }
+
+  function copyText(item, text) {
+    var done = function () {
+      var span = item.querySelector('span');
+      if (!span) return;
+      var was = span.innerHTML;
+      span.innerHTML = 'Copied';
+      setTimeout(function () { span.innerHTML = was; }, 900);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+      return;
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    ta.remove();
+  }
+
+  function render(data) {
+    var html = '';
+    if (data.label) {
+      html += '<div class="trip-menu-head"><strong>' + esc(data.customer || 'Trip') + '</strong>'
+        + '<span>' + esc(data.label) + '</span></div>';
+    }
+    html += '<div class="trip-menu-item" data-sub="mapping"><i class="bi bi-map-fill"></i>'
+      + '<span>Mapping</span><i class="bi bi-caret-right-fill trip-menu-caret"></i></div>';
+    html += '<div class="trip-menu-item" data-sub="flights"><i class="bi bi-airplane-fill"></i>'
+      + '<span>Flight Tracker</span><i class="bi bi-caret-right-fill trip-menu-caret"></i></div>';
+
+    var copyable = [];
+    if (data.pickup && data.pickup.text) copyable.push(['Copy pickup address', data.pickup.text]);
+    if (data.dropoff && data.dropoff.text) copyable.push(['Copy drop-off address', data.dropoff.text]);
+    if (copyable.length) {
+      html += '<div class="trip-menu-sep"></div>';
+      html += copyable.map(function (c) {
+        return '<div class="trip-menu-item" data-copy="' + esc(c[1]) + '">'
+          + '<i class="bi bi-clipboard"></i><span>' + esc(c[0]) + '</span></div>';
+      }).join('');
+    }
+
+    var links = [];
+    if (data.reservation_url) links.push([data.reservation_url, 'bi-receipt', 'Open reservation']);
+    if (data.leg_history_url) links.push([data.leg_history_url, 'bi-clock-history', 'Leg history']);
+    if (links.length) {
+      html += '<div class="trip-menu-sep"></div>';
+      html += links.map(function (l) {
+        return '<a class="trip-menu-item" href="' + esc(l[0]) + '">'
+          + '<i class="bi ' + l[1] + '"></i><span>' + esc(l[2]) + '</span></a>';
+      }).join('');
+    }
+
+    menu.innerHTML = html;
+    menu.dataset.legId = data.leg_id;
+    cache[data.leg_id] = data;
+  }
+
+  function show(legId, x, y, el) {
+    closeMenu();
+    sourceEl = el;
+    el.classList.add('trip-menu-source');
+    menu.classList.add('open');
+
+    if (cache[legId]) {
+      render(cache[legId]);
+      place(menu, x, y);
+      return;
+    }
+
+    menu.innerHTML = '<div class="trip-menu-item disabled">Loading trip links&hellip;</div>';
+    menu.dataset.legId = legId;
+    place(menu, x, y);
+
+    fetch(URL_TEMPLATE.replace('/0/trip-links/', '/' + legId + '/trip-links/'), {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        // The dispatcher may have moved on to another trip while this was in flight.
+        if (!menu.classList.contains('open') || menu.dataset.legId != String(legId)) return;
+        render(data);
+        place(menu, x, y);
+      })
+      .catch(function () {
+        if (!menu.classList.contains('open') || menu.dataset.legId != String(legId)) return;
+        menu.innerHTML = '<div class="trip-menu-item disabled">Couldn\'t load links for this trip</div>';
+      });
+  }
+
+  function legTargetFor(target) {
+    if (!target || !target.closest) return null;
+    // Leave text fields alone — the browser's own menu is the useful one there.
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return null;
+    var el = target.closest('[data-leg-id]');
+    if (!el) return null;
+    var id = (el.dataset.legId || '').trim();
+    if (!/^\d+$/.test(id)) return null;
+    return { el: el, id: id };
+  }
+
+  document.addEventListener('contextmenu', function (e) {
+    if (e.shiftKey) return;                       // escape hatch to the native menu
+    var hit = legTargetFor(e.target);
+    if (!hit) return;
+    e.preventDefault();
+    show(hit.id, e.clientX, e.clientY, hit.el);
+  });
+
+  // Long-press opens the same menu on tablets, which is how the board is
+  // actually used at the desk.
+  var pressTimer = null;
+  var pressStart = null;
+  var swallowClick = false;
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    var hit = legTargetFor(e.target);
+    if (!hit) return;
+    var t = e.touches[0];
+    pressStart = { x: t.clientX, y: t.clientY };
+    pressTimer = setTimeout(function () {
+      pressTimer = null;
+      // The row underneath usually has its own click handler (pin, open, drag
+      // select). A long-press that opened this menu must not also fire it.
+      swallowClick = true;
+      show(hit.id, pressStart.x, pressStart.y, hit.el);
+    }, 550);
+  }, { passive: true });
+
+  document.addEventListener('click', function (e) {
+    if (!swallowClick) return;
+    swallowClick = false;
+    if (menu.contains(e.target) || sub.contains(e.target)) return;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+
+  function cancelPress(e) {
+    if (pressTimer && e && e.touches && e.touches.length === 1 && pressStart) {
+      var t = e.touches[0];
+      if (Math.abs(t.clientX - pressStart.x) < 10 && Math.abs(t.clientY - pressStart.y) < 10) return;
+    }
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+  document.addEventListener('touchmove', cancelPress, { passive: true });
+  document.addEventListener('touchend', cancelPress, { passive: true });
+  document.addEventListener('touchcancel', cancelPress, { passive: true });
+
+  menu.addEventListener('mouseover', function (e) {
+    var item = e.target.closest('.trip-menu-item');
+    if (!item || !menu.contains(item)) return;
+    var which = item.dataset.sub;
+    // Hovering a plain item deliberately leaves an open submenu alone: the
+    // submenu sits to the right, so reaching it means crossing whatever rows
+    // are between, and closing on the way there makes it unclickable.
+    if (!which || item.classList.contains('active')) return;
+    var data = cache[menu.dataset.legId];
+    if (!data) return;
+    openSub(item, which === 'mapping' ? buildMappingSub(data) : buildFlightSub(data));
+  });
+
+  menu.addEventListener('click', function (e) {
+    var item = e.target.closest('.trip-menu-item');
+    if (!item) return;
+    if (item.dataset.sub) {
+      // Tap-to-open for touch, where there is no hover.
+      var data = cache[menu.dataset.legId];
+      if (data && !item.classList.contains('active')) {
+        openSub(item, item.dataset.sub === 'mapping' ? buildMappingSub(data) : buildFlightSub(data));
+      }
+      e.preventDefault();
+      return;
+    }
+    if (item.dataset.copy != null) {
+      copyText(item, item.dataset.copy);
+      e.preventDefault();
+      return;
+    }
+    if (item.tagName === 'A' && item.target === '_blank') {
+      e.preventDefault();
+      openTab(item.href);
+      closeMenu();
+    }
+  });
+
+  sub.addEventListener('click', function (e) {
+    var item = e.target.closest('.trip-menu-item');
+    if (!item || item.tagName !== 'A') return;
+    e.preventDefault();
+    openTab(item.href);
+    closeMenu();
+  });
+
+  document.addEventListener('mousedown', function (e) {
+    if (!menu.classList.contains('open')) return;
+    if (menu.contains(e.target) || sub.contains(e.target)) return;
+    closeMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeMenu();
+  });
+  window.addEventListener('resize', closeMenu);
+  window.addEventListener('scroll', closeMenu, true);
+})();
+</script>

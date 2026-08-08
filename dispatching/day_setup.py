@@ -244,15 +244,29 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
             demand[str(vt)] = demand.get(str(vt), 0) + 1
 
     # ── Units ──
+    # "There is no such thing as a car not working today" (the DAY_SETUP_MIN_UNIT_DAYS
+    # note above) is about RARELY-USED units: those are still fleet capacity and only
+    # get a label. An out-of-service unit is the one genuine exception — a human put
+    # it on a lift and said so, with a date window. Excluded from the proposal
+    # entirely rather than ranked last, because proposing a car that is physically in
+    # a shop isn't a weaker suggestion, it's a wrong one. Named in `warnings` so the
+    # dispatcher sees WHY the fleet looks a unit short today.
     all_units = sorted(
         FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"), key=_unit_sort_key)
+    oos_units = [u for u in all_units if u.is_out_of_service_on(target_date)]
+    all_units = [u for u in all_units if u not in oos_units]
+    oos_warnings = [
+        f"{_unit_label(u)} is out of service — {u.out_of_service_label(target_date)}; "
+        f"not proposed today."
+        for u in oos_units
+    ]
     rarely_used = {u.id for u in all_units
                    if len(unit_used_days.get(u.id, ())) < DAY_SETUP_MIN_UNIT_DAYS}
     locked_unit_ids = {a.vehicle_id for a in existing.values() if a.vehicle_id}
     free_units = [u for u in all_units if u.id not in locked_unit_ids]
 
     # ── Classify drivers ──
-    rows, warnings, swaps = [], list(stale_rows), []
+    rows, warnings, swaps = [], list(stale_rows) + oos_warnings, []
     assignable = []   # (order_score, driver) for the matching phases, pre-checked only
     avail_start = {}  # checked drivers' availability start hour (share pass: who's early crew)
     rank_of = {}      # driver_id -> priority tuple (peak cap + P3d displacement order)

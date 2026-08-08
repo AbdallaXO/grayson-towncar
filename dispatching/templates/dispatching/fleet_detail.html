@@ -33,6 +33,37 @@
     color: #7a7a7a; margin: 0 0 14px; font-weight: 700;
   }
   .fleet-kv { display: grid; grid-template-columns: 150px 1fr; gap: 7px 14px; font-size: .9rem; }
+
+  /* Usage rate — two figures side by side. Deliberately smaller than the
+     headline odometer: these are averages, not readings. */
+  .rate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 6px; }
+  .rate-cell { background: #f8f9fa; border: 1px solid #eceef0; border-radius: 8px; padding: 8px 10px; }
+  .rate-num { font-size: 1.25rem; font-weight: 700; color: #1a2332; line-height: 1.2;
+              font-variant-numeric: tabular-nums; }
+  .rate-lab { font-size: .66rem; text-transform: uppercase; letter-spacing: .06em;
+              color: #8a8a8a; font-weight: 700; margin-top: 1px; }
+
+  /* Odometer endpoints: supporting evidence for the miles figure, not a headline. */
+  .odo-cell { font-variant-numeric: tabular-nums; }
+
+  /* A projection, styled so it never reads as a committed date. */
+  .proj-date { font-size: .72rem; color: #6b7f9e; font-style: italic; margin-top: 2px; }
+
+  /* Permit chips — three states, because "expired" must not look like "held". */
+  .permit-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 7px; margin: 0 4px 4px 0; border-radius: 5px;
+    font-size: .72rem; font-weight: 600; white-space: nowrap;
+  }
+  .permit-ok      { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+  .permit-expired { background: #fdecea; color: #8a1c13; border: 1px solid #f1aeb5; }
+  .permit-none    { background: #f3f4f6; color: #6b7280; border: 1px dashed #d1d5db; }
+
+  /* Out of service — the one panel that changes what dispatch can do. */
+  .oos-panel { border-color: #f1aeb5; background: #fdf6f6; }
+  .oos-panel .oos-title { color: #b02a37; }
+  .oos-body { font-size: .95rem; font-weight: 700; color: #8a1c13; }
+  .oos-note { font-size: .76rem; color: #7a5c5c; margin-top: 6px; }
   .fleet-kv dt { color: #7a7a7a; font-weight: 500; }
   .fleet-kv dd { margin: 0; }
 
@@ -162,8 +193,41 @@
           <dt>Registration</dt><dd>{{ vehicle.registration_expires_on|default:"—" }}</dd>
           <dt>Insurance</dt><dd>{{ vehicle.insurance_expires_on|default:"—" }}</dd>
           <dt>Next inspection</dt><dd>{{ vehicle.next_inspection_on|default:"—" }}</dd>
+          <dt>Pickup permits</dt>
+          <dd>
+            {% for p in vehicle_permits %}
+              {% if p.valid %}
+                <span class="permit-chip permit-ok" title="Valid{% if p.expires_on %} through {{ p.expires_on }}{% endif %}"><i class="bi bi-check-lg"></i>{{ p.label }}</span>
+              {% elif p.expired %}
+                <span class="permit-chip permit-expired" title="Expired {{ p.expires_on }} — counts as no permit"><i class="bi bi-exclamation-triangle-fill"></i>{{ p.label }} expired</span>
+              {% else %}
+                <span class="permit-chip permit-none" title="No {{ p.label }} pickup permit on file">{{ p.label }}</span>
+              {% endif %}
+            {% endfor %}
+          </dd>
         </dl>
       </div>
+
+      {% comment %}
+        Out of service gets its own panel, not a row in Compliance. It is the one
+        piece of vehicle state that changes what dispatch can do, so it has to be
+        impossible to miss on the unit's own page.
+      {% endcomment %}
+      {% if oos_label %}
+      <div class="fleet-panel oos-panel">
+        <div class="fleet-panel-head">
+          <h2 class="oos-title"><i class="bi bi-cone-striped me-1"></i>Out of service</h2>
+          <button class="fleet-mini-btn" data-bs-toggle="modal" data-bs-target="#detailsModal">
+            <i class="bi bi-pencil"></i> Edit
+          </button>
+        </div>
+        <div class="oos-body">{{ oos_label }}</div>
+        <div class="oos-note">
+          Pulled from the planner's vehicle pool and skipped by Day Setup.
+          A dispatcher can still force the assignment if this is wrong.
+        </div>
+      </div>
+      {% endif %}
 
       <div class="fleet-panel">
         <h2>Notes</h2>
@@ -236,6 +300,38 @@
           {% endif %}
         </div>
         {% if coverage %}<div class="tap-sub">{{ coverage }}</div>{% endif %}
+
+        {% comment %}
+          Averaged over the days we actually have data for, never over the
+          calendar window — a week of dead gateway would otherwise halve a busy
+          car's apparent rate. Days the car provably sat DO count: it really
+          does average less. See dispatching/mileage.py:usage_rate.
+        {% endcomment %}
+        <div class="rate-grid">
+          <div class="rate-cell">
+            <div class="rate-num">
+              {% if rate.per_day is None %}<span class="fleet-unknown">—</span>
+              {% else %}{{ rate.per_day|floatformat:0|intcomma }}{% endif %}
+            </div>
+            <div class="rate-lab">mi / day</div>
+          </div>
+          <div class="rate-cell">
+            <div class="rate-num">
+              {% if rate.per_week is None %}<span class="fleet-unknown">—</span>
+              {% else %}{{ rate.per_week|floatformat:0|intcomma }}{% endif %}
+            </div>
+            <div class="rate-lab">mi / week</div>
+          </div>
+        </div>
+        {% if rate.is_known %}
+          <div class="tap-sub">
+            Average across the {{ rate.known_days }} day{{ rate.known_days|pluralize }}
+            with a reading{% if rate.known_days != rate.total_days %}, of {{ rate.total_days }}{% endif %}.
+          </div>
+        {% else %}
+          <div class="tap-sub">No day in this window has a usable reading.</div>
+        {% endif %}
+
         <div class="tap-sub mt-2">
           Mileage accrues forward from the day this page shipped. Earlier days
           can be back-filled from Samsara's history endpoint if it's ever worth it.
@@ -296,6 +392,18 @@
                 {% endif %}
                 {% if not item.schedule.due_at_odometer_miles and not item.schedule.due_on_date %}
                   <span class="fleet-unknown">— needs a baseline</span>
+                {% endif %}
+                {% comment %}
+                  "Due in 2,400 mi" isn't something you can book a shop slot
+                  against; a date is. Explicitly labelled "at this rate" and
+                  omitted entirely when the rate is unknown or the car isn't
+                  moving — a projection nobody should plan around is worse than
+                  none. See mileage.days_to_cover.
+                {% endcomment %}
+                {% if item.projected_date %}
+                  <div class="proj-date" title="Projected from this vehicle's average of {{ rate.per_day|floatformat:0 }} mi/day over the last {{ window_days }} days — not a booking">
+                    ≈ {{ item.projected_date|date:"M j" }} at this rate
+                  </div>
                 {% endif %}
               </td>
               <td>
@@ -410,7 +518,10 @@
       <table class="tap-table">
         <thead>
           <tr>
-            <th>Date</th><th class="text-end">Miles</th><th>Source</th>
+            <th>Date</th>
+            <th class="text-end">Start odo</th>
+            <th class="text-end">End odo</th>
+            <th class="text-end">Miles</th><th>Source</th>
             <th class="text-end">Samples</th><th>Notes</th>
           </tr>
         </thead>
@@ -418,6 +529,18 @@
           {% for day in days %}
           <tr>
             <td>{{ day.date }}</td>
+            {% comment %}
+              Both ends of the day, so the miles figure can be checked rather
+              than trusted — "104,210 → 104,545" is verifiable against the dash.
+            {% endcomment %}
+            <td class="text-end tap-sub odo-cell">
+              {% if day.start_miles is None %}<span class="fleet-unknown">—</span>
+              {% else %}{{ day.start_miles|intcomma }}{% endif %}
+            </td>
+            <td class="text-end tap-sub odo-cell">
+              {% if day.end_miles is None %}<span class="fleet-unknown">—</span>
+              {% else %}{{ day.end_miles|intcomma }}{% endif %}
+            </td>
             <td class="text-end">
               {% if day.miles_driven is None %}
                 <span class="fleet-unknown">—</span>
@@ -439,7 +562,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5">
+            <td colspan="7">
               <div class="tap-empty">
                 <i class="bi bi-speedometer2"></i>
                 No mileage recorded yet for this vehicle.
@@ -505,6 +628,74 @@
               list, so a toll charge can be traced back to a unit.
             </div>
           </div>
+          <div class="col-12"><hr class="my-1"></div>
+
+          {% comment %}
+            Out of service — the only field on this page that takes a unit out of
+            the scheduling pool, so it's labelled as such rather than sitting
+            quietly among the compliance dates.
+          {% endcomment %}
+          <div class="col-12">
+            <label class="fw-bold" style="color:#b02a37;">
+              <i class="bi bi-cone-striped me-1"></i>Out of service
+            </label>
+          </div>
+          <div class="col-6">
+            <label>Down from</label>
+            <input type="date" id="f_out_of_service_from" class="form-control"
+                   value="{{ vehicle.out_of_service_from|date:'Y-m-d' }}">
+          </div>
+          <div class="col-6">
+            <label>Back on the road after</label>
+            <input type="date" id="f_out_of_service_until" class="form-control"
+                   value="{{ vehicle.out_of_service_until|date:'Y-m-d' }}">
+          </div>
+          <div class="col-12">
+            <label>Reason</label>
+            <input type="text" id="f_out_of_service_reason" class="form-control"
+                   maxlength="200" value="{{ vehicle.out_of_service_reason }}"
+                   placeholder="Transmission, at Bob's · Rear-ended 8/3 · Waiting on a part">
+          </div>
+          <div class="col-12">
+            <div class="fleet-form-hint">
+              A unit with a start date is pulled from the planner's vehicle pool and
+              Day Setup will not propose it. Leave the end date blank if you don't
+              know when it's back. Clear the start date to put it back in service.
+            </div>
+          </div>
+
+          <div class="col-12"><hr class="my-1"></div>
+
+          {% comment %}
+            Permits are per-vehicle in Central Florida — the decal is on the car,
+            not the company. Advisory: a missing permit warns at assignment time,
+            it never blocks.
+          {% endcomment %}
+          <div class="col-12">
+            <label class="fw-bold"><i class="bi bi-patch-check me-1"></i>Pickup permits</label>
+          </div>
+          {% for p in vehicle_permits %}
+          <div class="col-6 d-flex align-items-center gap-2">
+            <input type="checkbox" class="form-check-input mt-0" id="f_permit_{{ p.key }}"
+                   {% if p.on_file %}checked{% endif %}>
+            <label for="f_permit_{{ p.key }}" class="mb-0">{{ p.label }}</label>
+          </div>
+          <div class="col-6">
+            <input type="date" class="form-control form-control-sm"
+                   id="f_permit_{{ p.key }}_expires_on"
+                   title="{{ p.label }} permit expiry"
+                   value="{{ p.expires_on|date:'Y-m-d' }}">
+          </div>
+          {% endfor %}
+          <div class="col-12">
+            <div class="fleet-form-hint">
+              Needed to <strong>pick up</strong> at each place; any unit may drop
+              there. An expired date counts as no permit. Leave the date blank if
+              the permit doesn't expire.
+            </div>
+          </div>
+
+          <div class="col-12"><hr class="my-1"></div>
           <div class="col-12">
             <label>Notes</label>
             <textarea id="f_notes" class="form-control" rows="3">{{ vehicle.notes }}</textarea>
@@ -681,15 +872,26 @@
   function done(msg) { toast(msg, true); setTimeout(() => location.reload(), 650); }
 
   window.saveDetails = function () {
-    post(URLS.details, {
+    var payload = {
       in_service_since: val('f_in_service_since'),
       registration_expires_on: val('f_registration_expires_on'),
       insurance_expires_on: val('f_insurance_expires_on'),
       next_inspection_on: val('f_next_inspection_on'),
       transponder_number: val('f_transponder_number'),
       transponder_type: document.getElementById('f_transponder_type').value,
+      out_of_service_from: val('f_out_of_service_from'),
+      out_of_service_until: val('f_out_of_service_until'),
+      out_of_service_reason: val('f_out_of_service_reason'),
       notes: document.getElementById('f_notes').value,
-    }).then(d => d.success ? done('Saved') : toast(d.error || 'Could not save', false));
+    };
+    // Permit keys come from the server's own list, so adding a permit is a
+    // model + migration change and this stays untouched.
+    {% for p in vehicle_permits %}
+    payload['permit_{{ p.key }}'] = document.getElementById('f_permit_{{ p.key }}').checked;
+    payload['permit_{{ p.key }}_expires_on'] = val('f_permit_{{ p.key }}_expires_on');
+    {% endfor %}
+    post(URLS.details, payload)
+      .then(d => d.success ? done('Saved') : toast(d.error || 'Could not save', false));
   };
 
   window.openSchedule = function (id, type, miles, days, lastOn, lastOdo) {

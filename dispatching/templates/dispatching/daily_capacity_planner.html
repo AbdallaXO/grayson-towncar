@@ -740,6 +740,12 @@
         text-transform: uppercase; color: var(--va-ink-2);
     }
     .va-pool-note { font-size: 0.74rem; font-weight: 500; color: var(--va-ink-3); }
+    .va-pool-oos {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 0.66rem; font-weight: 700; color: #8a1c13;
+        background: #fdf6f6; border: 1px solid #f1aeb5;
+        padding: 1px 7px; border-radius: 999px;
+    }
     .va-pool-note b { color: #8a6c1f; font-weight: 600; }
     .va-pool-cards { display: flex; flex-wrap: wrap; gap: 0.32rem; }
 
@@ -771,6 +777,34 @@
         border-color: #f59e0b;
         background: #fffbeb;
     }
+    /* Out of service: present but plainly unusable. Kept in the pool so nobody
+       hunts for a missing car; struck through and not-allowed so nobody tries. */
+    .va-veh-card.va-oos, .va-assigned-chip.va-oos {
+        background: #fdecee;
+        border-color: #d9727f;
+        border-style: dashed;
+    }
+    .va-veh-card.va-oos:hover, .va-assigned-chip.va-oos:hover {
+        border-color: #b02a37; box-shadow: 0 2px 6px -1px rgba(176,42,55,.3);
+    }
+    .va-veh-card.va-oos .va-veh-num,
+    .va-assigned-chip.va-oos .va-veh-num { color: #b02a37; text-decoration: line-through; }
+    .va-veh-card.va-oos .va-veh-type,
+    .va-assigned-chip.va-oos .va-veh-type { color: #b98a8e; }
+    .va-oos-tag {
+        display: inline-flex; align-items: center; gap: 3px;
+        font-size: .58rem; font-weight: 800; color: #fff; background: #b02a37;
+        padding: 0 5px; border-radius: 3px; letter-spacing: .02em;
+        text-transform: uppercase; white-space: nowrap;
+    }
+    /* Permit pips on a pool card — small, only shown when held. */
+    .va-permit {
+        font-size: .55rem; font-weight: 700; letter-spacing: .02em;
+        padding: 0 4px; border-radius: 3px; line-height: 1.5;
+    }
+    .va-permit.ok      { background: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+    .va-permit.expired { background: #fdeaea; color: #a12020; border: 1px solid #f3c9c9;
+                         text-decoration: line-through; }
     .va-veh-num {
         font-family: var(--va-sans);
         font-weight: 700; font-size: 0.78rem;
@@ -1255,10 +1289,23 @@
                 <span class="va-lab-tick"></span>
                 <span class="va-pool-k">Fleet</span>
                 <span class="va-pool-note" id="vaPoolNote"></span>
+                {% if out_of_service_count %}
+                  <span class="va-pool-oos" title="These units can't be assigned on this date">
+                    <i class="bi bi-cone-striped"></i>{{ out_of_service_count }} out of service
+                  </span>
+                {% endif %}
             </div>
             <div class="va-pool-cards" id="pVehiclePool">
                 {% for vehicle in inhouse_vehicles %}
-                <div class="va-veh-card {% if vehicle.notes %}va-has-notes{% endif %}"
+                {% comment %}
+                  An out-of-service unit stays in the pool, red, and DRAGGABLE.
+                  Removing it would send the dispatcher hunting for a car that
+                  isn't there; refusing the drag would leave someone who knows
+                  the car is back with no way through. The hover popup says why,
+                  and the drop asks for an explicit override.
+                {% endcomment %}
+                <div class="va-veh-card {% if vehicle.notes %}va-has-notes{% endif %}{% if vehicle.oos_label %} va-oos{% endif %}"
+                     {% if vehicle.oos_label %}data-oos="1" data-oos-label="{{ vehicle.oos_label }}"{% endif %}
                      draggable="true"
                      data-vehicle-id="{{ vehicle.id }}"
                      data-vehicle-num="{{ vehicle.vehicle_number }}"
@@ -1275,7 +1322,21 @@
                   {% if vehicle.vehicle_type %}
                   <span class="va-veh-type va-vtype-{{ vehicle.vehicle_type|lower }}">{{ vehicle.vehicle_type }}</span>
                   {% endif %}
-                  <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
+                  {% if vehicle.oos_label %}
+                    <span class="va-oos-tag"><i class="bi bi-cone-striped"></i>{{ vehicle.oos_label }}</span>
+                  {% else %}
+                    <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
+                    {% comment %}
+                      Only permits the unit actually holds are shown — three empty
+                      slots on every card would be noise on the busiest panel on
+                      the page. An expired one shows struck through, because that
+                      is the case worth interrupting a scan for.
+                    {% endcomment %}
+                    {% for p in vehicle.permit_rows %}
+                      {% if p.valid %}<span class="va-permit ok" title="{{ p.label }} pickup permit{% if p.expires_on %} — valid through {{ p.expires_on }}{% endif %}">{{ p.label }}</span>
+                      {% elif p.expired %}<span class="va-permit expired" title="{{ p.label }} permit EXPIRED {{ p.expires_on }} — counts as no permit">{{ p.label }}</span>{% endif %}
+                    {% endfor %}
+                  {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -1326,8 +1387,9 @@
                 </span>
                 <div class="va-drv-vehicle" id="p-va-slot-{{ row.driver.id }}">
                   {% if row.assignment and row.assignment.vehicle %}
-                  <div class="va-assigned-chip"
+                  <div class="va-assigned-chip{% if row.vehicle_oos_label %} va-oos{% endif %}"
                        draggable="true"
+                       {% if row.vehicle_oos_label %}data-oos="1" data-oos-label="{{ row.vehicle_oos_label }}" title="OUT OF SERVICE — {{ row.vehicle_oos_label }}"{% endif %}
                        data-vehicle-id="{{ row.assignment.vehicle_id }}"
                        data-vehicle-num="{{ row.assignment.vehicle.vehicle_number }}"
                        data-vehicle-type="{{ row.assignment.vehicle.vehicle_type|default_if_none:'' }}"
@@ -1668,7 +1730,8 @@
 
                 {% if unassigned_legs %}
                 {% for leg in unassigned_legs %}
-                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}{% if leg.is_vip %} vip-card{% endif %}">
+                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}{% if leg.is_vip %} vip-card{% endif %}"
+                     data-leg-id="{{ leg.id }}">
                     <div class="row align-items-start">
                         <div class="col-sm-7">
                             <div class="d-flex align-items-center gap-2 mb-1">
@@ -1707,8 +1770,8 @@
                                 {% endif %}
                             </div>
                             <div class="text-muted" style="font-size: 0.8rem;">
-                                {{ leg.pickup_location|truncatechars:40 }}<br>
-                                <i class="bi bi-arrow-right" style="font-size:0.65rem;"></i> {{ leg.dropoff_location|truncatechars:40 }}
+                                {{ leg.pickup_location|truncatechars:40 }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.pickup_map_url text=leg.pickup_location compact=1 %}<br>
+                                <i class="bi bi-arrow-right" style="font-size:0.65rem;"></i> {{ leg.dropoff_location|truncatechars:40 }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.dropoff_map_url text=leg.dropoff_location compact=1 %}
                             </div>
                             <div class="mt-1 d-flex flex-wrap align-items-center gap-2" style="font-size: 0.8rem;">
                                 {% if leg.reservation and leg.reservation.customer %}
@@ -1869,7 +1932,7 @@
                     </thead>
                     <tbody>
                         {% for leg in hour_legs %}
-                        <tr>
+                        <tr data-leg-id="{{ leg.id }}">
                             <td>
                                 <strong>{{ leg.pickup_time|time:"g:i A" }}</strong>
                                 {% if leg.cleared_time %}
@@ -1901,7 +1964,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <small>{{ leg.pickup_location|truncatechars:30 }} <i class="bi bi-arrow-right" style="font-size:0.6rem;"></i> {{ leg.dropoff_location|truncatechars:30 }}</small>
+                                <small>{{ leg.pickup_location|truncatechars:30 }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.pickup_map_url text=leg.pickup_location compact=1 %} <i class="bi bi-arrow-right" style="font-size:0.6rem;"></i> {{ leg.dropoff_location|truncatechars:30 }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.dropoff_map_url text=leg.dropoff_location compact=1 %}</small>
                             </td>
                             <td>
                                 {% if leg.reservation and leg.reservation.customer %}
@@ -4808,18 +4871,33 @@
                 pVaDrag = null;
                 return;
             }
+            // Out-of-service units are undraggable, so a drop here means the flag
+            // landed after this page was rendered. The server is authoritative and
+            // will answer 409 — pVaSave turns that into the override prompt.
             if (pVaDrag.fromDriverId) pVaSave(pVaDrag.fromDriverId, null);
             pVaSave(driverId, pVaDrag.vehicleId);
             pVaDrag = null;
         });
     });
 
-    function pVaSave(driverId, vehicleId) {
+    function pVaSave(driverId, vehicleId, overrideOos) {
         fetch("{% url 'update_inhouse_vehicle_assignment' %}", {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-            body: JSON.stringify({driver_id: parseInt(driverId), date: '{{ selected_date|date:"Y-m-d" }}', vehicle_id: vehicleId ? parseInt(vehicleId) : null}),
+            body: JSON.stringify({driver_id: parseInt(driverId), date: '{{ selected_date|date:"Y-m-d" }}', vehicle_id: vehicleId ? parseInt(vehicleId) : null, override_oos: !!overrideOos}),
         }).then(r => r.json()).then(data => {
+            // Out of service — the one refusal a dispatcher is allowed to overrule,
+            // because a stale flag must never strand a car that came back early.
+            // Say what's on record, then let them decide.
+            if (!data.success && data.out_of_service && data.can_override && !overrideOos) {
+                if (confirm('#' + data.vehicle_number + ' is marked out of service.\n\n'
+                            + data.reason + '\n\n'
+                            + 'Assign it anyway? Do this only if the car is genuinely back — '
+                            + 'then clear the out-of-service dates on its fleet page.')) {
+                    pVaSave(driverId, vehicleId, true);
+                }
+                return;
+            }
             if (!data.success) { if (data.error) alert(data.error); return; }
             const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
             if (!slot) return;
@@ -4829,8 +4907,12 @@
                 const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
                 const vType = poolCard ? poolCard.dataset.vehicleType : '';
                 const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
-                area.innerHTML = `<div class="va-assigned-chip" draggable="true"
+                // Carry the out-of-service state onto the new chip, or an overridden
+                // assignment renders as a normal car until the next page load.
+                const vOos = poolCard ? (poolCard.dataset.oosLabel || '') : '';
+                area.innerHTML = `<div class="va-assigned-chip${vOos ? ' va-oos' : ''}" draggable="true"
                     data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
+                    ${vOos ? `data-oos="1" data-oos-label="${vOos}" title="OUT OF SERVICE — ${vOos}"` : ''}
                     data-vehicle-type="${vType}" data-from-driver="${driverId}">
                     <span class="va-veh-num">#${vNum}</span>
                     ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
@@ -5403,13 +5485,25 @@
         }
 
         function buildVehiclePopup(el) {
-            const num = el.dataset.vehNum || '';
-            const type = el.dataset.vehType || '';
+            const num = el.dataset.vehNum || el.dataset.vehicleNum || '';
+            const type = el.dataset.vehType || el.dataset.vehicleType || '';
             const year = el.dataset.vehYear || '';
             const make = el.dataset.vehMake || '';
             const model = el.dataset.vehModel || '';
-            let html = '<div class="tl-popup-header" style="background:#374151;">#' + num + (type ? ' — ' + type : '') + '</div>';
+            const oos = el.dataset.oosLabel || '';
+            // Out of service leads the popup and recolours the header — this is
+            // the one fact that changes whether you should drop this car on anyone.
+            let html = '<div class="tl-popup-header" style="background:' + (oos ? '#b02a37' : '#374151') + ';">#'
+                       + num + (type ? ' — ' + type : '') + (oos ? ' · OUT OF SERVICE' : '') + '</div>';
             html += '<div class="tl-popup-body">';
+            if (oos) {
+                html += '<div style="background:#fdecee;border:1px solid #f1aeb5;border-radius:5px;'
+                      + 'padding:5px 7px;margin-bottom:5px;">'
+                      + '<div style="font-size:0.7rem;font-weight:800;color:#8a1c13;">OUT OF SERVICE</div>'
+                      + '<div style="font-size:0.74rem;color:#5c1a1a;">' + oos + '</div>'
+                      + '<div style="font-size:0.66rem;color:#7a5c5c;margin-top:3px;">'
+                      + 'You can still assign it — you\'ll be asked to confirm.</div></div>';
+            }
             html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + year + ' ' + make + ' ' + model + '</span></div>';
             if (type) html += '<div class="tl-popup-row"><span class="tl-label">Type</span><span class="tl-value">' + type + '</span></div>';
             if (el.dataset.vehNotes) {
@@ -5833,3 +5927,8 @@
 
 {% block footer %}{% endblock %}
 {% block newsletter %}{% endblock %}
+
+{% block extra_js %}
+  {# Right-click any trip row for Mapping / Flight Tracker #}
+  {% include "dispatching/includes/_trip_context_menu.html" %}
+{% endblock %}

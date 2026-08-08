@@ -298,11 +298,16 @@ class ConflictTimelineTests(_PureBoardTestCase):
         self.assertIn("run", kinds)
         self.assertIn("conflict", kinds)
 
-    def test_a_flight_that_merely_moved_invents_no_gap(self):
-        """A moved flight with the turn still intact has no shortfall to draw —
-        drawing one would manufacture a problem the engine did not find."""
-        board = _flight_break(next_at=(16, 0))
+    def test_a_tightened_turn_invents_no_gap(self):
+        """A turn thinned to 10 minutes has no shortfall to draw — drawing one
+        would manufacture a problem the engine did not find.
+
+        (A flight that moved and broke NOTHING no longer reaches the display
+        at all: detection drops it, because a plane moving is not a card.
+        tests_conflict_advisor.FlightChangeTests owns that rule.)"""
+        board = _flight_break(next_at=(13, 20))
         card = _first_card(board, kind="flight_change")
+        self.assertEqual(card["severity"], "warning")
         self.assertIsNone(card["display"]["conflict"])
 
     def test_timeline_title_is_english(self):
@@ -340,7 +345,7 @@ class ConflictTimelineTests(_PureBoardTestCase):
         """"Chase the button" shares the late_cascade kind but is the opposite
         claim — nobody is late, nobody tapped the app."""
         leg = _leg(101, 3, 50, driver_id=1)
-        board = _board({1: [leg]}, now=_dt(6, 0))
+        board = _board({1: [leg]}, now=_dt(5, 0))   # past stale, inside the TTL
         card = _first_card(board, kind="late_cascade")
         disp = card["display"]
         self.assertNotIn("running late", disp["headline"])
@@ -818,7 +823,7 @@ class ClaimsWeCannotMakeTests(_PureBoardTestCase):
         closed."""
         orphan = _leg(301, 13, 0, pickup="Universal Orlando", dropoff="MCO",
                       driver_id=None)
-        board = _board({1: []}, now=_dt(14, 30), extra_legs=[orphan])
+        board = _board({1: []}, now=_dt(14, 10), extra_legs=[orphan])
         card = _first_card(board, kind="unassigned")
         d = card["display"]
         self.assertNotIn("marked", d["headline"])

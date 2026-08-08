@@ -1,0 +1,11 @@
+{% load history_formatters %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <p class="text-muted small mb-0">
+    Created {{ reservation.created_at|date:"n/j/Y g:i A" }}
+    {% if creator_name %}
+      by <strong>{{ creator_name }}</strong>{% if creator_capacity %} ({{ creator_capacity }}){% endif %}
+    {% endif %}
+    · reservation and every leg, newest first.
+  </p>
+</div>
+{% include "dispatching/includes/history_timeline.html" %}

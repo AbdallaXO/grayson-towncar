@@ -945,28 +945,30 @@ def _headline(board, d):
         return (f"{name}'s current job is running long" if name
                 else "A job is running long")
     if d.kind == "flight_change":
-        # A broken turn out is the thing that will actually go wrong, so it
-        # leads — and it leads as a person: "George will be 13 minutes late",
-        # not "the turn out goes 13 min short".
+        # The consequence leads, always — and it leads as a person: "George
+        # will be 13 minutes late", not "the turn out goes 13 min short".
+        # There is no longer a fallback branch that names the plane on its own
+        # ("a flight is landing 17 minutes later"): a card without a
+        # consequence no longer exists, so a headline for one would be a
+        # headline for a card that cannot be drawn. What moved is the CAUSE,
+        # and the cause belongs in the story, not the headline.
         out = d.details.get("slack_out")
-        if out is not None and out < 0 and name:
+        if out is not None and out < 0:
             late = clock(d.impact_dt)
-            return (f"{name} will be {duration_words(out)} late for the "
-                    f"{late} pickup" if late else
-                    f"{name} will be {duration_words(out)} late")
-        div = d.details.get("divergence_min")
-        booked = clock(_booked_dt(board, d))
-        if div:
-            way = "later" if div > 0 else "earlier"
-            return (f"The flight for the {booked} pickup is landing "
-                    f"{duration_words(div)} {way}" if booked else
-                    f"A flight is landing {duration_words(div)} {way}")
-        if d.details.get("unacked"):
-            return (f"The {booked} pickup time changed and nobody has "
-                    f"acknowledged it" if booked else
-                    "A pickup time changed and nobody has acknowledged it")
-        return f"The flight for the {booked} pickup moved" if booked else \
-               "A flight moved"
+            if name:
+                return (f"{name} will be {duration_words(out)} late for the "
+                        f"{late} pickup" if late else
+                        f"{name} will be {duration_words(out)} late")
+            return (f"The {late} pickup is {duration_words(out)} out of reach"
+                    if late else "The next pickup is out of reach")
+        if out is not None:
+            why = ("the plane moved" if d.details.get("flight_shift_min")
+                   else "the pickup time moved")
+            return (f"{name}'s next turn is down to {duration_words(out)} "
+                    f"because {why}" if name else
+                    f"The next turn is down to {duration_words(out)} "
+                    f"because {why}")
+        return d.headline
     return d.headline
 
 

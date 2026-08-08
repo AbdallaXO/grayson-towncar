@@ -24,6 +24,28 @@ the apply stage re-checks every one at click time):
     ZERO cards here — the advisor cards what BREAKS or what reality DEGRADED,
     never what was deliberately planned tight.
 
+    Read the whole of it, because two thirds were missing in practice:
+      1. NEVER A SIGNAL ON ITS OWN. A plane that moved, a pickup time nobody
+         acknowledged, a flight time that doesn't match its booking — these are
+         facts, and the board already shows them (the flight row, the purple
+         "time changed" pill with its own ✓ button). A fact earns a card only
+         when it BREAKS something: a turn goes negative, a pickup can no longer
+         be made, coverage is lost. If nothing breaks, there is no card, no
+         matter how large the number is.
+      2. NEVER A MOMENT THAT HAS PASSED. Every card carries an ``expires_at``
+         and detection drops it once that minute is behind the board clock.
+         A dispatcher cannot act on an 11:46 pickup at 5:40pm, and a rail full
+         of things they cannot act on hides the things they can. Note this is
+         NOT "impact_dt is in the past" — the best cards on the rail (a driver
+         overdue right now, a job running long right now) are born that way.
+      3. NEVER A DISPATCH INTO THE PAST. The same rule downstream: generation
+         will not hand a job to another driver once its moment has gone by, and
+         will not offer a receiver who cannot physically reach the pickup from
+         where the board says he is right now (guard 6b, ``_movable`` /
+         ``_reach_dt``). The validation stack underneath — check_feasibility,
+         validate_post_move_board — is a static-day planner with no clock, so
+         this boundary is the only place that check can live.
+
 THE TWO-CLOCK POLICY (the core correctness decision, hazard guard 1):
   * Detection clock — what is true now. Reality wins in BOTH directions: a
     recorded pickup re-anchors the chain (``chain_clear_dt_from_actual``), a
@@ -48,10 +70,14 @@ SIGNAL DISCIPLINE (hazard guards 2, 4, 5):
     flight, recorded_pickup} so a dispatcher can verify the flag, not trust it.
 
 SCOPE NOTES:
-  * Affiliate-assigned legs are DETECTION-SCOPE ONLY for flight/unacked-time
-    facts (guard 7): no chain math, no "affiliate driver is late" clock cards —
-    no signal exists to judge them. In-house schedules only for overlap /
-    late-cascade / overrun.
+  * Affiliate-assigned legs raise NOTHING here (guard 7, narrowed 2026-08-05).
+    No chain math, no "affiliate driver is late" clock cards, and — the change
+    — no flight/unacked-time facts either. The original guard promised the fact
+    while forbidding the arithmetic that would make it actionable, which is the
+    definition of a signal on its own; and we do not monitor affiliate timing
+    in the first place, they run their own chain. In-house schedules only, for
+    every kind. An affiliate leg's only advisor surface is the takeback plan
+    offered on a card raised by something else.
   * Overnight (guard 3): the sweep is per calendar date. Tail legs (00:00–02:00)
     are chain-linked to the PREVIOUS evening via absolute datetimes, so a
     23:30 → 00:15 pair is never a false overlap and a genuine tonight→tail
@@ -80,7 +106,26 @@ from django.utils import timezone
 ADVISOR_ENABLED = True
 ADVISOR_HORIZON_UNASSIGNED_MIN = 120   # unassigned legs card inside this horizon
 ADVISOR_OVERRUN_GRACE_MIN = 20         # past estimate by this much => overrunning
-ADVISOR_FLIGHT_MISMATCH_MIN = 15       # controlling-flight vs booked divergence
+ADVISOR_FLIGHT_MISMATCH_MIN = 15       # controlling flight moved off its OWN
+                                       # schedule by this much => a real change
+ADVISOR_HYGIENE_TTL_MIN = 90           # how long a "fix the record" card stays
+                                       # on the live rail. The ONLY expiry the
+                                       # board's physics cannot derive: a wrong
+                                       # record stays wrong until someone fixes
+                                       # it, so the deadline is a product call.
+                                       # 2 x OVERDUE_STALE_MIN — one shift's
+                                       # worth of chances to press the button.
+ADVISOR_UNKNOWN_POSITION_MIN = 45      # a receiver with no job before the
+                                       # pickup has no knowable position; say
+                                       # so on the plan when the pickup is
+                                       # inside this window (roughly a
+                                       # cross-service-area reposition, so it
+                                       # is the range where "where is he?"
+                                       # actually decides the outcome)
+ADVISOR_FINGERPRINT_CLOCK_MIN = 5      # clock granularity folded into the board
+                                       # fingerprint so an EXPIRED card actually
+                                       # leaves the screen on a board where
+                                       # nothing else changed (0 disables)
 ADVISOR_MAX_DISRUPTIONS = 6            # full plan analysis cap (rest detected_only)
 ADVISOR_MAX_PLANS_PER_CARD = 3
 ADVISOR_SWAP_DEPTH = 3                 # explicit find_swaps budgets — the
@@ -129,6 +174,15 @@ class Disruption:
     cards, overnight-ambiguous "confirm the date" cards); ``hygiene`` marks the
     guard-2 chase-the-button subset. ``details`` carries engine artifacts
     (slacks, shifts) for the Stage-B2 candidate generator — never rendered raw.
+
+    ``expires_at`` is the LAST MINUTE A DISPATCHER CAN STILL CHANGE THE OUTCOME
+    — the deadline that makes a card worth screen space, distinct from
+    ``impact_dt``, the moment the card talks ABOUT. The two are not the same
+    and cannot be collapsed: a driver 20 minutes overdue for a 13:00 pickup has
+    an impact moment in the past and is the most actionable card on the rail.
+    Each detector sets its own (it is the one that knows what anchors its
+    card); ``_add`` fills a conservative default for any that doesn't, so a
+    card can never outlive the day by omission.
     """
     id: str
     kind: str                      # overlap|late_cascade|flight_change|unassigned|overrun
@@ -139,7 +193,8 @@ class Disruption:
     leg_ids: list = field(default_factory=list)
     anchor_leg_id: int = 0
     driver_id: int | None = None
-    impact_dt: datetime | None = None   # naive local
+    impact_dt: datetime | None = None   # naive local — the moment it is ABOUT
+    expires_at: datetime | None = None  # naive local — when it stops mattering
     task_id: int | None = None
     abstain: bool = False
     hygiene: bool = False
@@ -209,11 +264,21 @@ _FP_LEG_FIELDS = (
 )
 
 
-def compute_board_fingerprint(day):
+def compute_board_fingerprint(day, now=None):
     """sha1 fingerprint of everything the advisor's cards can depend on for
     ``day``. Same idea as the driver-portal poll (Leg has no ``updated_at``):
     the GET endpoint short-circuits on an unchanged hash, so this must be cheap
     — exactly 3 indexed queries, values-only, no model instantiation.
+
+    PLUS THE CLOCK, coarsened to ADVISOR_FINGERPRINT_CLOCK_MIN. Cards now
+    expire (see ``detect_disruptions``), and expiry is a function of time
+    alone: on a quiet board — no status taps, no roster edits — nothing in the
+    three queries below would ever change, the endpoint would answer
+    "unchanged" every 60 seconds, and the dead 11:46 card would still be on
+    screen at 5:40 because the rail never re-rendered. A fix that only the
+    server can see is not a fix. The bucket is deliberately coarse: it costs a
+    full recompute every few minutes on an idle board, which is exactly the
+    board that can afford one.
 
       1. The day's legs: driver-portal tuple + driver, pickup-change stamps,
          persisted dispatch_* sweep fields, flight best-arrival chains, and a
@@ -244,7 +309,13 @@ def compute_board_fingerprint(day):
             schedule_date=day, state__in=ScheduleDraft.ACTIVE_STATES)
         .order_by("id").values_list("id", "state")
     )
-    payload = repr((str(day), leg_rows, dva_rows, draft_rows))
+    clock_bucket = ""
+    if ADVISOR_FINGERPRINT_CLOCK_MIN > 0:
+        n = _naive_local(now or timezone.now())
+        clock_bucket = (n.replace(second=0, microsecond=0)
+                        - timedelta(minutes=n.minute
+                                    % ADVISOR_FINGERPRINT_CLOCK_MIN)).isoformat()
+    payload = repr((str(day), leg_rows, dva_rows, draft_rows, clock_bucket))
     return hashlib.sha1(payload.encode()).hexdigest()
 
 
@@ -651,7 +722,11 @@ def _flight_divergence_min(leg):
     """Signed minutes the controlling flight's best arrival is off the booked
     pickup (positive = landing later), or None when unjudgeable. Uses
     pickup_policy.controlling_arrival_dt, which already guards against a
-    wrong-dated flight record hijacking the deadline."""
+    wrong-dated flight record hijacking the deadline.
+
+    This is a DISPLAY fact — "booked 2:00, lands 3:00" — never a trigger. What
+    triggers is ``_flight_shift_min``; see there for why the difference
+    matters."""
     from dispatching import pickup_policy
 
     try:
@@ -664,6 +739,118 @@ def _flight_divergence_min(leg):
         return None
     booked = datetime.combine(leg.pickup_date, leg.pickup_time)
     return _minutes(arr - booked)
+
+
+# The arrival chain, split by what it tells you. ``best_arrival_local`` walks
+# all six in priority order; the advisor has to know WHICH kind answered,
+# because only the first group is the plane telling you something.
+_FLIGHT_LIVE_FIELDS = ("actual_gate_arrival_local", "estimated_gate_arrival_local",
+                       "actual_arrival_local", "estimated_arrival_local")
+_FLIGHT_SCHEDULED_FIELDS = ("scheduled_gate_arrival_local", "scheduled_arrival_local")
+
+
+def _first_dt(obj, names):
+    for n in names:
+        v = _naive_local(getattr(obj, n, None))
+        if v is not None:
+            return v
+    return None
+
+
+def _flight_shift_min(leg):
+    """Signed minutes the controlling flight has MOVED (positive = later), or
+    None when nothing has actually reported.
+
+    This is the change test, and it is deliberately NOT "how far is the booked
+    pickup from the flight". ``best_arrival_local`` falls back through
+    estimated all the way to the published SCHEDULE, so booked-vs-arrival is a
+    static offset for a flight that has never moved: a leg booked 17 minutes
+    off its flight's schedule reads as a 17-minute delay the day it is booked
+    and every day after, with nothing in reality having changed. Carding that
+    is the prime directive inverted — a signal on its own, forever.
+
+    So: the plane must have SAID something (an estimate or a touchdown), and
+    the movement is measured against its own published schedule. A flight
+    running exactly on schedule returns 0 however the booking was written.
+    When there is no published schedule to compare against, the booked pickup
+    is the only baseline anyone had, so it stands in — but a flight with
+    nothing but a schedule has not moved, and returns None."""
+    from dispatching import pickup_policy
+
+    try:
+        if not leg.is_flight_tracked_arrival():
+            return None
+    except Exception:
+        return None
+    arr = pickup_policy.controlling_arrival_dt(leg, aware=False)  # date-guarded
+    if arr is None or leg.pickup_time is None:
+        return None
+    flight = pickup_policy.controlling_flight(leg)
+    if flight is None or _first_dt(flight, _FLIGHT_LIVE_FIELDS) is None:
+        return None      # only a timetable — the plane has reported nothing
+    baseline = (_first_dt(flight, _FLIGHT_SCHEDULED_FIELDS)
+                or datetime.combine(leg.pickup_date, leg.pickup_time))
+    return _minutes(arr - baseline)
+
+
+def _turn_relief(board, next_leg, slack, slack_before):
+    """Reality's corrections to a raw turn slack, shared by every detector that
+    judges a turn so none of them can shout over a fact another one respects.
+
+    Returns ``(slack, slack_before, due)`` — or ``(None, None, None)`` when the
+    pickup is no longer a thing that can be missed:
+      * the pickup was already made (the turn resolved itself);
+      * fresh on_time GPS on it — the vehicle is demonstrably positioned to
+        make it, and a chip that shouts over live telemetry is how boards lose
+        trust.
+    Otherwise a delayed flight on the NEXT pickup moves its deadline out and
+    the turn INTO it gains exactly that much."""
+    if next_leg is None:
+        return slack, slack_before, None
+    if not _is_active(next_leg):
+        return None, None, None
+    if (getattr(next_leg, "status", "") == "picked-up"
+            or next_leg.id in board.picked_up_by_leg):
+        return None, None, None
+    if _gps_for_pickup_fold(_gps_state(next_leg)) == "on_time":
+        return None, None, None
+    due = _effective_pickup_dt(next_leg, board.target_date)
+    booked = datetime.combine(board.target_date, next_leg.pickup_time)
+    relax = max(0, _minutes(due - booked))
+    if relax:
+        if slack is not None:
+            slack += relax
+        if slack_before is not None:
+            slack_before += relax
+    return slack, slack_before, due
+
+
+def _turn_severity(slack, slack_before):
+    """Is this turn a PROBLEM, and how bad — the one definition, shared by the
+    overlap detector and the flight detector so they can never disagree about
+    the same pair.
+
+      * slack < 0                                  -> critical (cannot be done)
+      * tight now, clean before                    -> warning (reality DEGRADED
+                                                      a turn that worked)
+      * tight now and tight before                 -> None. The prime directive:
+                                                      a founder-built +0/+3 turn
+                                                      is a plan, not a problem.
+
+    ``slack_before`` is whatever "before reality touched this" means to the
+    caller — the planning clock for an overlap, the flight's own schedule or
+    the pre-change pickup time for a flight card."""
+    from dispatching import pickup_policy
+
+    if slack is None:
+        return None
+    if slack < 0:
+        return "critical"
+    if (slack < pickup_policy.TURN_TIGHT_SLACK_MIN
+            and slack_before is not None
+            and slack_before >= pickup_policy.TURN_TIGHT_SLACK_MIN):
+        return "warning"
+    return None
 
 
 def _leg_route(leg):
@@ -742,9 +929,81 @@ def _downstream_breaks(board, driver_id, anchor_slot, projected_clear):
     return breaks
 
 
-def _add(out, d):
+def _slot_due(board, slot):
+    """The detection-clock moment a slot's pickup is truly due — the same
+    fallback ``_downstream_breaks`` uses, so an expiry deadline and the break
+    that justified it are measured against the identical moment."""
+    leg = board.legs_by_id.get(slot.leg_id)
+    if leg is not None and getattr(leg, "pickup_time", None) is not None:
+        return _effective_pickup_dt(leg, board.target_date)
+    return datetime.combine(board.target_date, slot.pickup_time)
+
+
+def _stale_after(*moments):
+    """The last minute a card about ``moments`` can still be acted on: the
+    latest of them plus the overdue-stale window. Past that, the board pill and
+    the hygiene ladder own it — the rail is for work you can still change."""
+    from dispatching import pickup_policy
+
+    real = [m for m in moments if m is not None]
+    if not real:
+        return None
+    return max(real) + timedelta(minutes=pickup_policy.OVERDUE_STALE_MIN)
+
+
+def _overdue_handover_dt(leg):
+    """The moment ``_clock_flags`` flips this leg to stale and the HYGIENE rung
+    takes the late-driver card over.
+
+    The live rung must never expire before this, or there is a window in which
+    NEITHER rung exists and a genuinely late driver is invisible. Two traps
+    make that easy to get wrong, and both were live here:
+
+      * the anchor. The overdue clock counts from ``pickup_expected_dt``, not
+        from ``_effective_pickup_dt``. For a flight-tracked arrival they are 35
+        minutes apart (gate + ARRIVAL_DWELL_MIN to clear the airport, versus
+        gate + ARRIVAL_MEET_GRACE_MIN to be standing there), so a live card
+        expiring on the second anchor died 35 minutes before its replacement
+        was born;
+      * the floor. ``is_overdue_stale`` is a strict ``>`` and ``_minutes``
+        truncates, so the flip actually lands a minute later than the constant
+        reads. Hence the +1.
+    """
+    from dispatching import pickup_policy
+
+    expected, _ = pickup_policy.pickup_expected_dt(leg, aware=False)
+    if expected is None:
+        return None
+    return expected + timedelta(minutes=pickup_policy.OVERDUE_STALE_MIN + 1)
+
+
+def _latest(*moments):
+    real = [m for m in moments if m is not None]
+    return max(real) if real else None
+
+
+def _expiry_default(board, d):
+    """The deadline for a card whose detector didn't name one.
+
+    Deliberately generous — the anchor's own due moment plus the stale window —
+    because a card outliving its usefulness by 45 minutes is noise, while
+    expiring a live one is a missed recovery. Detectors that know better say so
+    themselves; this exists so a future detector cannot leak a card that lives
+    until midnight by forgetting to."""
+    leg = board.legs_by_id.get(d.anchor_leg_id)
+    anchor_due = (_effective_pickup_dt(leg, board.target_date)
+                  if leg is not None
+                  and getattr(leg, "pickup_time", None) is not None else None)
+    return _stale_after(d.impact_dt, anchor_due)
+
+
+def _add(board, out, d):
     """Dedup on the stable id; on a collision the more severe verdict wins
-    (deterministic — detectors run in a fixed order)."""
+    (deterministic — detectors run in a fixed order). Every card leaves here
+    carrying an ``expires_at``: this is the one place that guarantee can be
+    made, so it is made here rather than trusted to five detectors."""
+    if d.expires_at is None:
+        d.expires_at = _expiry_default(board, d)
     old = out.get(d.id)
     if old is None or _SEV_RANK.get(d.severity, 9) < _SEV_RANK.get(old.severity, 9):
         out[d.id] = d
@@ -755,11 +1014,20 @@ def _add(out, d):
 # ════════════════════════════════════════════════════════════════════════════
 
 def detect_disruptions(board):
-    """Scan the assembled board and return ranked Disruptions (pure, in-memory,
-    no queries). Ranking: severity band first, then time-to-impact, then id —
-    fully deterministic. Truncation to ADVISOR_MAX_DISRUPTIONS analyzed cards
-    is the caller's (compute_advisor_state, Stage B2): detection itself always
-    returns everything it found."""
+    """Scan the assembled board and return ranked, STILL-ACTIONABLE Disruptions
+    (pure, in-memory, no queries). Ranking: severity band first, then
+    time-to-impact, then id — fully deterministic. Truncation to
+    ADVISOR_MAX_DISRUPTIONS analyzed cards is the caller's
+    (compute_advisor_state, Stage B2): detection itself always returns
+    everything it found that a dispatcher can still act on.
+
+    THE EXPIRY GATE lives here, once, for every kind. A card whose deadline has
+    passed is not a quieter card, it is a wrong one: nobody can act on it and
+    it pushes the cards they CAN act on down the rail. Note what the gate is
+    NOT keyed on — ``impact_dt``. Five of the eight card shapes are born with
+    an impact moment already in the past (a driver is overdue, a job is running
+    long), so an ``impact_dt <= now`` gate would delete the advisor's best
+    cards while leaving the dead ones standing. Liveness is its own fact."""
     if not ADVISOR_ENABLED:
         return []
     out = {}
@@ -768,23 +1036,47 @@ def detect_disruptions(board):
     _detect_late_cascades(board, out)
     _detect_overruns(board, out)
     _detect_unassigned(board, out)
+    live = [d for d in out.values()
+            if d.expires_at is None or d.expires_at > board.now_local]
     return sorted(
-        out.values(),
+        live,
         key=lambda d: (_SEV_RANK.get(d.severity, 9),
                        d.impact_dt or datetime.max, d.id))
 
 
 def _detect_flight_changes(board, out):
-    """Flight facts: unacked pickup-time changes and controlling-flight vs
-    booked divergence >= ADVISOR_FLIGHT_MISMATCH_MIN. Severity = chain
-    consequence: the turn OUT of a delayed arrival breaking is what escalates
-    (the turn INTO it only relaxes — never carded). Affiliate-held legs are
-    detection-scope only (guard 7): the fact is reported, no chain math, and
-    the phrasing says to call the affiliate. Overnight-ambiguous arrivals
-    ABSTAIN (guard 1): the card is "confirm the takeoff date".
+    """What a moved plane or a moved pickup time BREAKS — never that it moved.
 
-    Returns the set of leg ids whose DELAYED flight claims their turn-out pair,
-    so the overlap detector reports the cause, not the symptom."""
+    A plane is not a problem. A plane is a fact, and facts belong on the board,
+    where the flight time and the purple "time changed" pill already live. This
+    detector fires only when the movement has a consequence a dispatcher has to
+    resolve: the turn OUT of the leg goes negative (the next pickup cannot be
+    made) or reality thinned a clean turn into a tight one. Two consequences it
+    deliberately never reports:
+
+      * the turn INTO a delayed arrival — that only ever RELAXES (nobody is
+        late for a plane still in the air);
+      * an EARLY plane — ``_effective_pickup_dt`` never pulls a deadline
+        earlier, because the booked time is the guest's commitment, so an early
+        arrival cannot tighten anything downstream. It has no consequence by
+        construction, and therefore no card.
+
+    The trigger is ``_flight_shift_min`` — the plane moving off its OWN
+    schedule — not the booked pickup's offset from it; see that function.
+
+    Affiliate-held legs are skipped entirely: we do not monitor an affiliate's
+    timing, they run their own chain, and with no chain math available there is
+    nothing here we could tell a dispatcher to do. (This retires the flight
+    half of scope-note guard 7, which promised the fact and forbade the
+    arithmetic that would make it actionable — owner's call, 2026-08-05.)
+
+    Overnight-ambiguous arrivals still ABSTAIN (guard 1): the card is "confirm
+    the takeoff date", which is actionable precisely because the date is not.
+
+    Returns the set of leg ids whose broken turn-out this card OWNS, so the
+    overlap detector reports the cause, not the symptom. A leg only lands in
+    that set when a card is actually filed for it — a suppressed card must
+    never silence the overlap detector."""
     from dispatching.overnight_arrival import leg_needs_overnight_confirmation
     from dispatching import pickup_policy
     from dispatching.board_validation import turn_slack_minutes
@@ -813,7 +1105,7 @@ def _detect_flight_changes(board, out):
             ambiguous = False
         if ambiguous:
             booked = datetime.combine(board.target_date, leg.pickup_time)
-            _add(out, Disruption(
+            _add(board, out, Disruption(
                 id=f"flight_change:{leg.id}", kind="flight_change",
                 severity="warning", basis=BASIS_FLIGHT,
                 headline=(f"Confirm which night the {_fmt_t(booked)} "
@@ -826,6 +1118,7 @@ def _detect_flight_changes(board, out):
                     "via the overnight-confirmation flow."),
                 leg_ids=[leg.id], anchor_leg_id=leg.id,
                 driver_id=leg.driver_id, impact_dt=booked,
+                expires_at=_stale_after(booked),
                 task_id=_task_for(board, [leg.id],
                                   ("driver_conflict", "tight_turn")),
                 abstain=True,
@@ -833,64 +1126,86 @@ def _detect_flight_changes(board, out):
             ))
             continue
 
+        # ── We don't monitor affiliate timing; they run their own chain. ──
+        holder = board.drivers_by_id.get(leg.driver_id) if leg.driver_id else None
+        if getattr(holder, "driver_type", "") == "affiliate":
+            continue
+
         unacked = bool(getattr(leg, "has_unacked_time_change", False))
-        div = _flight_divergence_min(leg)
-        flagged_div = div is not None and abs(div) >= ADVISOR_FLIGHT_MISMATCH_MIN
-        if not (unacked or flagged_div):
+        moved = _flight_shift_min(leg)
+        # LATER only. An early plane cannot move a deadline (_effective_pickup_dt
+        # refuses to pull one in) and cannot move a clear time
+        # (scheduler.chain_clear_dt only re-anchors LATER), so it cannot break
+        # anything — which means a broken turn on a leg whose plane came in
+        # early was broken on paper, is the overlap detector's to report, and
+        # must not be blamed on the flight here.
+        flight_moved = moved is not None and moved >= ADVISOR_FLIGHT_MISMATCH_MIN
+        if not (unacked or flight_moved):
             continue
 
         booked = datetime.combine(board.target_date, leg.pickup_time)
         eff = _effective_pickup_dt(leg, board.target_date)
         in_house = leg.driver_id in board.schedules if leg.driver_id else False
-        holder = board.drivers_by_id.get(leg.driver_id) if leg.driver_id else None
-        is_affiliate = (getattr(holder, "driver_type", "") == "affiliate")
+        if not (in_house and leg.id in slot_index):
+            continue          # no chain to judge — no consequence to report
+        did, slot, following = slot_index[leg.id]
+        if following is None:
+            continue          # last job of the day: a moved plane breaks nothing
 
-        # ── Chain consequence: the turn OUT of this leg, on the detection
-        # clock (chain_clear_dt is already flight-anchored on both clocks). ──
-        slack_out, broken_next_id, impact_dt = None, None, eff
-        if in_house and leg.id in slot_index:
-            did, slot, following = slot_index[leg.id]
-            if following is not None:
-                slack_out = turn_slack_minutes(slot, following,
-                                               board.target_date)
-                # Unacked change: evaluate BOTH times — the worst consequence
-                # of old vs current pickup time drives the severity.
-                old_t = getattr(leg, "pickup_time_was", None)
-                if unacked and old_t and old_t != leg.pickup_time:
-                    old_leg = copy.copy(leg)
-                    old_leg.pickup_time = old_t
-                    old_slot = _make_sim_slot(old_leg, board.target_date)
-                    old_slack = turn_slack_minutes(old_slot, following,
-                                                   board.target_date)
-                    if old_slack is not None:
-                        slack_out = (old_slack if slack_out is None
-                                     else min(slack_out, old_slack))
-                if slack_out is not None and slack_out < 0:
-                    broken_next_id = following.leg_id
-                    impact_dt = datetime.combine(board.target_date,
-                                                 following.pickup_time)
-                    # CAUSE OVER SYMPTOM. This card is already reporting that
-                    # the turn out of this leg is broken, so the overlap
-                    # detector must not file a second card for the same pair.
-                    # That holds however the leg moved — a delayed plane OR an
-                    # unacknowledged pickup-time change. Claiming only on a late
-                    # flight left the retime case producing two cards with the
-                    # same headline, the same legs and the same single fix.
-                    claimed.add(leg.id)
-
-        severity = "watch"
+        # ── The consequence, on the detection clock (chain_clear_dt is already
+        # flight-anchored on both clocks): the turn OUT of this leg, and what
+        # that turn was worth BEFORE reality touched it. ──
+        slack_out = turn_slack_minutes(slot, following, board.target_date)
+        slack_before = slack_out
         if slack_out is not None:
-            if slack_out < 0:
-                severity = "critical"
-            elif slack_out < pickup_policy.TURN_TIGHT_SLACK_MIN:
-                severity = "warning"
+            if flight_moved:
+                # Undo the plane's delay: the arrival anchors the clear time,
+                # so a flight running N minutes late costs the turn out N
+                # minutes. Comparing against that is what separates "the plane
+                # ate this turn" from "the founder built it tight".
+                slack_before = slack_out + moved
+            old_t = getattr(leg, "pickup_time_was", None)
+            if unacked and old_t and old_t != leg.pickup_time:
+                # An unacked move gives an EXACT before: re-run the turn on the
+                # pickup time the board was built with.
+                old_leg = copy.copy(leg)
+                old_leg.pickup_time = old_t
+                old_slot = _make_sim_slot(old_leg, board.target_date)
+                old_slack = turn_slack_minutes(old_slot, following,
+                                               board.target_date)
+                if old_slack is not None:
+                    slack_before = max(slack_before, old_slack)
 
+        # Reality's corrections to that raw number, the SAME ones the overlap
+        # detector applies to the same pair — a pickup already made, or a
+        # vehicle whose live ETA says it makes it, is not a broken turn.
+        next_leg = board.legs_by_id.get(following.leg_id)
+        slack_out, slack_before, _due = _turn_relief(board, next_leg,
+                                                     slack_out, slack_before)
+
+        severity = _turn_severity(slack_out, slack_before)
+        if severity is None:
+            continue          # NOTHING BREAKS — the plane moving is not a card
+
+        broken_next_id, impact_dt = None, eff
+        if slack_out < 0:
+            broken_next_id = following.leg_id
+            impact_dt = _slot_due(board, following)
+            # CAUSE OVER SYMPTOM. This card already reports that the turn out of
+            # this leg is broken, so the overlap detector must not file a second
+            # card for the same pair. Claimed only now, after the card is
+            # certain: a suppressed card that still claimed would silence a real
+            # overlap and leave the pair reported by nobody.
+            claimed.add(leg.id)
+
+        div = _flight_divergence_min(leg)
         bits = []
-        if flagged_div:
-            direction = "later" if div > 0 else "early"
-            bits.append(f"Booked {_fmt_t(booked)}; the controlling flight now "
-                        f"lands {abs(div)} min {direction} "
-                        f"({_fmt_t(booked + timedelta(minutes=div))}).")
+        if flight_moved:
+            landing = (booked + timedelta(minutes=div)) if div is not None else None
+            bits.append(f"The controlling flight is running {moved} min behind "
+                        f"its schedule"
+                        + (f", now landing {_fmt_t(landing)} against a "
+                           f"{_fmt_t(booked)} pickup." if landing else "."))
         if unacked:
             bits.append("The pickup time moved and no dispatcher has "
                         "acknowledged the change yet.")
@@ -898,35 +1213,33 @@ def _detect_flight_changes(board, out):
             bits.append(f"That shift breaks the turn out: the "
                         f"{_fmt_t(impact_dt)} pickup goes {abs(slack_out)} min "
                         f"short.")
-        elif slack_out is not None and severity == "warning":
-            bits.append(f"The turn out to the next job tightens to "
-                        f"{slack_out} min.")
-        if is_affiliate:
-            bits.append(f"Assigned to affiliate "
-                        f"{_driver_name(board, leg.driver_id)} — call them "
-                        f"first; you can't reliably pull back same-day, and "
-                        f"board assignment is not acceptance.")
-
-        if flagged_div and div > 0:
-            head = (f"Match the {_fmt_t(booked)} pickup to its flight — now "
-                    f"landing {_fmt_t(booked + timedelta(minutes=div))}")
-        elif flagged_div:
-            head = (f"Flight for the {_fmt_t(booked)} pickup is landing "
-                    f"{abs(div)} min early")
         else:
-            head = f"Acknowledge the time change on the {_fmt_t(booked)} pickup"
+            bits.append(f"The turn out to the next job was clean and is now "
+                        f"down to {slack_out} min.")
+
+        who = _driver_name(board, leg.driver_id)
+        if broken_next_id is not None:
+            head = (f"{who} can't make the {_fmt_t(impact_dt)} pickup — "
+                    f"{abs(slack_out)} min short after the "
+                    + ("flight moved" if flight_moved else "time change"))
+        else:
+            head = (f"Watch {who}'s {_fmt_t(_slot_due(board, following))} turn "
+                    f"— down to {slack_out} min after the "
+                    + ("flight moved" if flight_moved else "time change"))
 
         leg_ids = [leg.id] + ([broken_next_id] if broken_next_id else [])
-        _add(out, Disruption(
+        _add(board, out, Disruption(
             id=f"flight_change:{leg.id}", kind="flight_change",
             severity=severity, basis=BASIS_FLIGHT, headline=head,
             narrative=" ".join(bits) or f"{_leg_route(leg)}.",
             leg_ids=leg_ids, anchor_leg_id=leg.id, driver_id=leg.driver_id,
             impact_dt=impact_dt,
+            expires_at=_stale_after(eff, _slot_due(board, following)),
             task_id=_task_for(board, leg_ids,
                               ("driver_conflict", "tight_turn")),
             details={"divergence_min": div, "unacked": unacked,
-                     "slack_out": slack_out, "affiliate": is_affiliate},
+                     "flight_shift_min": moved, "slack_out": slack_out,
+                     "slack_before": slack_before, "affiliate": False},
         ))
     return claimed
 
@@ -962,40 +1275,16 @@ def _detect_overlaps(board, out, claimed_prev_ids):
         if slack is None:
             return
         next_leg = board.legs_by_id.get(next_leg_id)
-        if next_leg is not None:
-            if not _is_active(next_leg):
-                return
-            if (getattr(next_leg, "status", "") == "picked-up"
-                    or next_leg_id in board.picked_up_by_leg):
-                return  # the pickup was made — the turn resolved itself
-            # Fresh on_time GPS on the next pickup: reality says he makes it.
-            gps = _gps_state(next_leg)
-            if _gps_for_pickup_fold(gps) == "on_time":
-                return
-            due = _effective_pickup_dt(next_leg, board.target_date)
-            # Detection relax: a delayed flight moves the arrival's deadline
-            # out; the turn INTO it gains that slack.
-            booked = datetime.combine(board.target_date, next_leg.pickup_time)
-            relax = max(0, _minutes(due - booked))
-            if relax:
-                slack = slack + relax
-                planning_slack = (planning_slack + relax
-                                  if planning_slack is not None else None)
-        else:
-            due = None
+        slack, planning_slack, due = _turn_relief(board, next_leg, slack,
+                                                  planning_slack)
+        if slack is None:
+            return
         impact = due
-        if impact is not None and impact <= board.now_local:
-            return  # impact already passed — live lateness is late_cascade's job
         if prev_slot_leg_id in claimed_prev_ids:
             return  # the delayed flight is the cause; its card carries this pair
 
-        if slack < 0:
-            severity = "critical"
-        elif (slack < pickup_policy.TURN_TIGHT_SLACK_MIN
-              and planning_slack is not None
-              and planning_slack >= pickup_policy.TURN_TIGHT_SLACK_MIN):
-            severity = "warning"
-        else:
+        severity = _turn_severity(slack, planning_slack)
+        if severity is None:
             return  # legal turn — planned-tight days are the founder's call
 
         basis = (BASIS_RECORDED_PICKUP if prev_picked else BASIS_CLOCK_ONLY)
@@ -1018,11 +1307,16 @@ def _detect_overlaps(board, out, claimed_prev_ids):
             + (" Chain-linked across midnight to last night's final job."
                if cross_midnight else ""))
         leg_ids = [prev_slot_leg_id, next_leg_id]
-        _add(out, Disruption(
+        _add(board, out, Disruption(
             id=f"overlap:{prev_slot_leg_id}:{next_leg_id}", kind="overlap",
             severity=severity, basis=basis, headline=head, narrative=narrative,
             leg_ids=leg_ids, anchor_leg_id=next_leg_id, driver_id=driver_id,
             impact_dt=impact,
+            # The turn INTO a pickup stops being a question the moment that
+            # pickup is due; from there live lateness is late_cascade's job.
+            # (This replaces the detector's own past-moment gate — same rule,
+            # now expressed once, in the vocabulary every kind shares.)
+            expires_at=impact,
             task_id=_task_for(board, leg_ids,
                               ("driver_conflict", "tight_turn")),
             details={"slack": slack, "planning_slack": planning_slack,
@@ -1098,7 +1392,7 @@ def _detect_late_cascades(board, out):
                          if (gps["status"] and not gps["fresh"]
                              and gps["moving"] is False)
                          else BASIS_CLOCK_ONLY)
-                _add(out, Disruption(
+                _add(board, out, Disruption(
                     id=f"late_cascade:{leg.id}", kind="late_cascade",
                     severity="watch", basis=basis,
                     headline=(f"Stale status — chase the button on the "
@@ -1111,6 +1405,16 @@ def _detect_late_cascades(board, out):
                         f"and get the status history fixed."),
                     leg_ids=[leg.id], anchor_leg_id=leg.id, driver_id=did,
                     impact_dt=eff,
+                    # A wrong record stays wrong until a human fixes it, so
+                    # nothing physical bounds this one — it gets the product
+                    # TTL. Past that it is still worth fixing, but not at the
+                    # cost of a rail slot in front of live work. Measured from
+                    # the moment this rung is BORN (the overdue clock's own
+                    # anchor), not from eff: on a flight-tracked arrival those
+                    # are 35 minutes apart, which would have left this card a
+                    # 9-minute life instead of its intended 90.
+                    expires_at=(_overdue_handover_dt(leg) or eff)
+                    + timedelta(minutes=ADVISOR_HYGIENE_TTL_MIN),
                     task_id=_task_for(board, [leg.id],
                                       ("driver_conflict", "tight_turn")),
                     abstain=True, hygiene=True,
@@ -1183,12 +1487,24 @@ def _detect_late_cascades(board, out):
                             f"{broken_times} {abs(breaks[0][1])} min short "
                             f"(engine turnaround math).")
             leg_ids = [leg.id] + [s.leg_id for s, _ in breaks]
-            _add(out, Disruption(
+            _add(board, out, Disruption(
                 id=f"late_cascade:{leg.id}", kind="late_cascade",
                 severity=severity, basis=basis, headline=head,
                 narrative=" ".join(bits),
                 leg_ids=leg_ids, anchor_leg_id=leg.id, driver_id=did,
                 impact_dt=impact,
+                # A late driver stays actionable until the LAST pickup his
+                # lateness threatens has come and gone — which is a different
+                # leg from the one he is late for, and always later than
+                # impact_dt. Note this card is BORN with impact_dt in the past
+                # (he is overdue right now); that is what makes it urgent, not
+                # what makes it stale.
+                # Floored at the hygiene handover so the ladder has no gap:
+                # live -> hygiene -> gone, with no rung in between where a late
+                # driver is simply invisible.
+                expires_at=_latest(
+                    _stale_after(eff, *[_slot_due(board, s) for s, _ in breaks]),
+                    _overdue_handover_dt(leg)),
                 task_id=_task_for(board, leg_ids,
                                   ("driver_conflict", "tight_turn")),
                 details={"shift_min": shift,
@@ -1267,11 +1583,19 @@ def _detect_overruns(board, out):
                             f"{_fmt_t(impact)} pickup "
                             f"{abs(breaks[0][1])} min short.")
             leg_ids = [leg.id] + [s.leg_id for s, _ in breaks]
-            _add(out, Disruption(
+            _add(board, out, Disruption(
                 id=f"overrun:{leg.id}", kind="overrun", severity=severity,
                 basis=basis, headline=head, narrative=" ".join(bits),
                 leg_ids=leg_ids, anchor_leg_id=leg.id, driver_id=did,
                 impact_dt=impact,
+                # "Still on the job" is a status nobody has to clear, so a leg
+                # picked up at 11:46 and never closed out would otherwise card
+                # "running 309 min past its estimate" at 5:40pm — and, being
+                # non-abstain, would eat a plan-generation slot while doing it.
+                # It stays live only as long as it threatens real work.
+                expires_at=_stale_after(est_end or board.now_local,
+                                        *[_slot_due(board, s)
+                                          for s, _ in breaks]),
                 task_id=_task_for(board, leg_ids,
                                   ("driver_conflict", "tight_turn")),
                 details={"overrun_min": overrun_min, "midtrip_gps": midtrip_gps,
@@ -1303,7 +1627,7 @@ def _detect_unassigned(board, out):
         vip = leg.id in board.vip_leg_ids
         route = _leg_route(leg)
         if mins_to < 0 and pickup_policy.is_overdue_stale(-mins_to):
-            _add(out, Disruption(
+            _add(board, out, Disruption(
                 id=f"unassigned:{leg.id}", kind="unassigned",
                 severity="watch", basis=BASIS_CLOCK_ONLY,
                 headline=(f"Confirm coverage — {_fmt_t(eff)} {route} pickup "
@@ -1312,6 +1636,9 @@ def _detect_unassigned(board, out):
                            f"board. At this age it's usually a ride covered "
                            f"off-book — confirm and fix the record."),
                 leg_ids=[leg.id], anchor_leg_id=leg.id, impact_dt=eff,
+                # Same as the late_cascade hygiene card: a record nobody fixed
+                # is not bounded by the board's physics, only by patience.
+                expires_at=eff + timedelta(minutes=ADVISOR_HYGIENE_TTL_MIN),
                 task_id=_task_for(board, [leg.id], ("driver_assign",)),
                 abstain=True, hygiene=True,
                 details={"mins_to_pickup": mins_to},
@@ -1322,7 +1649,7 @@ def _detect_unassigned(board, out):
                     else "warning")
         when = (f"{mins_to} min out" if mins_to >= 0
                 else f"{-mins_to} min PAST pickup")
-        _add(out, Disruption(
+        _add(board, out, Disruption(
             id=f"unassigned:{leg.id}", kind="unassigned", severity=severity,
             basis=BASIS_CLOCK_ONLY,
             headline=(f"Cover the {_fmt_t(eff)} {route} pickup — "
@@ -1331,6 +1658,11 @@ def _detect_unassigned(board, out):
                        + (" (VIP reservation)" if vip else "")
                        + f". Pickup {when}."),
             leg_ids=[leg.id], anchor_leg_id=leg.id, impact_dt=eff,
+            # An uncovered pickup stays the most urgent thing on the rail for
+            # a while AFTER its moment — a guest may be standing on a curb.
+            # This is the boundary the hygiene branch above already draws;
+            # naming it here makes the ladder explicit rather than implied.
+            expires_at=_stale_after(eff),
             task_id=_task_for(board, [leg.id], ("driver_assign",)),
             details={"mins_to_pickup": mins_to, "vip": vip},
         ))
@@ -1461,14 +1793,49 @@ def _fmt_money(v):
     return f"${f:,.0f}" if abs(f - round(f)) < 0.005 else f"${f:,.2f}"
 
 
-def _movable(board, leg):
-    """Guard 6: may this leg change driver at all? Picked-up / on-location
-    legs (by status OR by a recorded tap) never move."""
+def _movable(board, leg, proven_missed=False):
+    """Guard 6: may this leg change driver at all? Picked-up / on-location legs
+    (by status OR by a recorded tap) never move — and neither does a job whose
+    moment has already gone by on somebody's board.
+
+    THE CLOCK HALF (guard 6b). Status is not a proxy for time. A driver who
+    never taps "picked up" leaves his 4:00 pickup sitting in ``confirmed`` all
+    evening, and every tier here would cheerfully hand that job to another
+    driver at 5:57 — a dispatch into the past, and one the swap search actively
+    PREFERS, because a long-gone slot has the widest buffer and sorts to the
+    front of the displacement list. Nothing downstream catches it:
+    ``check_feasibility`` and ``validate_post_move_board`` are static-day
+    planners with no notion of now, so this is the boundary where the clock has
+    to be applied.
+
+    Three deliberate carve-outs, all of them the same idea — the freeze exists
+    to protect a driver who might already be AT the curb, so it lifts wherever
+    the board knows he is not:
+      * the deadline is the EFFECTIVE pickup moment, so a 4:00 arrival whose
+        plane now lands at 6:15 is still perfectly re-homeable at 5:57 —
+        reality moved the job, it did not expire;
+      * an UNASSIGNED past-due leg stays placeable. Nobody is standing there
+        yet, and covering a guest late is the one late move that is exactly
+        right;
+      * ``proven_missed`` — the engine has already computed that this leg's own
+        driver cannot make it (it is in a cascade's or an overrun's ``breaks``:
+        he is demonstrably still on an earlier job this minute). Freezing THAT
+        is backwards. It would hand a dispatcher a card saying "his 4:00 pickup
+        is breaking" alongside an empty plan list, at exactly the moment the
+        pickup goes past due — which is when they most need the option.
+    """
     if leg is None or not _is_active(leg):
         return False
     if (getattr(leg, "status", "") or "") in _STATUS_NEVER_MOVE:
         return False
-    return leg.id not in board.picked_up_by_leg
+    if leg.id in board.picked_up_by_leg:
+        return False
+    if (not proven_missed
+            and getattr(leg, "driver_id", None)
+            and getattr(leg, "pickup_time", None) is not None
+            and _effective_pickup_dt(leg, board.target_date) <= board.now_local):
+        return False
+    return True
 
 
 def _is_affiliate_held(board, leg):
@@ -1748,6 +2115,20 @@ def _finish_plan(board, d, plan, diag):
             seen_stub.add(m.to_driver_id)
             _flag(plan, "stub_window", _STUB_WINDOW_NOTE.format(
                 name=_driver_name(board, m.to_driver_id)))
+        # Guard 6b, the honest half: with no earlier job today, the board has
+        # no idea where this driver is standing. It is not a reason to refuse
+        # the plan — it IS a reason not to let the plan imply he is nearby.
+        if (m.op == "reassign" and m.to_driver_id is not None
+                and leg is not None
+                and getattr(leg, "pickup_time", None) is not None
+                and _reach_dt(board, m.to_driver_id, leg) is None):
+            mins_out = _minutes(_effective_pickup_dt(leg, board.target_date)
+                                - board.now_local)
+            if 0 <= mins_out <= ADVISOR_UNKNOWN_POSITION_MIN:
+                _flag(plan, "position_unknown",
+                      f"{_driver_name(board, m.to_driver_id)} has no earlier "
+                      f"job today, so the board can't tell where he is — "
+                      f"confirm he can reach the pickup in {mins_out} min.")
     if plan.farm_out:
         aff = next((m.to_label for m in plan.moves if m.op == "farm_out"),
                    "") or "the affiliate"
@@ -1779,16 +2160,101 @@ def _recovery_targets(board, d):
                else [])
     else:
         ids = []
+    # Pickups the engine has PROVEN this driver cannot make — he is on an
+    # earlier job right now. The clock freeze must not apply to those: they are
+    # the whole point of the card.
+    proven = {lid for lid, _s in d.details.get("breaks", [])}
+    if (d.kind == "flight_change" and len(d.leg_ids) >= 2
+            and (d.details.get("slack_out") or 0) < 0):
+        proven.add(d.leg_ids[1])          # the broken turn-out, same argument
     out, seen = [], set()
     for lid in ids:
         if lid in seen:
             continue
         seen.add(lid)
         leg = board.legs_by_id.get(lid)
-        if (leg is not None and _movable(board, leg)
+        if (leg is not None
+                and _movable(board, leg, proven_missed=(lid in proven))
                 and not _is_affiliate_held(board, leg)):
             out.append(leg)
     return out[:2]
+
+
+def _reach_dt(board, driver_id, leg, schedules=None, ignore_leg_ids=()):
+    """The earliest this driver could realistically BE at ``leg``'s pickup,
+    starting from where the board says he is RIGHT NOW — or None when the
+    board cannot say where he is.
+
+    ``check_feasibility`` answers a different question: does this job fit
+    between his other jobs on an abstract day. It has no clock, so at 5:57 it
+    will hand back "available, 999 min buffer" for a driver with an empty
+    afternoon and a pickup across the county at 6:05. That is how a plan comes
+    to assume a driver can appear at a curb he is nowhere near.
+
+    Anchored on his last job that starts before the pickup: when that job
+    clears, plus the engine's own reposition + turnaround arithmetic (the same
+    formula ``_downstream_breaks`` uses — never a raw clock gap), then floored
+    at NOW because nobody arrives before the present minute.
+
+    Two ways this returns None, and they are the same fact: the board does not
+    know where he is. No earlier job at all, or an earlier job that cleared
+    more than ADVISOR_UNKNOWN_POSITION_MIN ago — a driver who finished at 2pm
+    is not still standing at that dropoff at 6pm, and pretending the stale
+    position is knowledge would be the teleport assumption wearing arithmetic.
+    Unknown is not the same as reachable; the caller has to say so.
+
+    ``ignore_leg_ids`` are jobs LEAVING this driver in the same plan — a swap
+    chain executes in order, so the work that makes room must not also be the
+    work that blocks the room it made."""
+    from dispatching import feasibility_guards as fg
+    from dispatching.scheduler import (chain_repo_minutes, _make_sim_slot,
+                                       _slot_chain_end)
+
+    scheds = schedules if schedules is not None else _planning(board)[0]
+    sched = scheds.get(driver_id)
+    if sched is None:
+        return None
+    target = _make_sim_slot(leg, board.target_date)
+    skip = set(ignore_leg_ids) | {leg.id}
+    prev = None
+    for s in sorted(sched.slots, key=lambda s: (s.pickup_time, s.leg_id)):
+        if s.leg_id in skip or s.pickup_time >= target.pickup_time:
+            continue
+        prev = s
+    if prev is None:
+        return None                      # idle before this pickup — unknowable
+    clear = _slot_chain_end(prev, board.target_date)
+    if (ADVISOR_UNKNOWN_POSITION_MIN > 0
+            and _minutes(board.now_local - clear) > ADVISOR_UNKNOWN_POSITION_MIN):
+        return None                      # cleared long ago — could be anywhere
+    repo = chain_repo_minutes(prev.dropoff_location, target.pickup_location,
+                              prev.dropoff_category, target.pickup_category)
+    req = fg.required_turnaround(
+        repo, fg.is_airport_arrival(target.trip_type, target.pickup_category),
+        same_terminal=(prev.dropoff_category == target.pickup_category))
+    return max(board.now_local, clear + timedelta(minutes=req))
+
+
+def _unreachable(board, driver_id, leg, due, schedules=None, ignore_leg_ids=()):
+    """Can this driver be ruled OUT for ``leg`` on the clock alone?
+
+    ONLY ASKED OF A PICKUP STILL IN THE FUTURE, and that restriction is the
+    whole subtlety. ``_reach_dt`` is floored at NOW, so for a pickup whose
+    moment has already gone by every reachable-in-the-real-world driver still
+    scores ``reach >= now > due`` and the test would reject ALL of them —
+    silently deleting the recovery from the most urgent card the advisor
+    raises, the uncovered pickup with a guest possibly standing at the curb.
+    ``_movable`` deliberately keeps that leg placeable; a receiver filter that
+    then refuses everyone would take the carve-out straight back.
+
+    Once the moment has passed, "late" is not a discriminator — everyone is
+    late — so the clock stops being grounds for refusal and the buffer sort
+    (soonest-free first) picks the best of a bad set instead."""
+    if due is None or due <= board.now_local:
+        return False
+    reach = _reach_dt(board, driver_id, leg, schedules,
+                      ignore_leg_ids=ignore_leg_ids)
+    return reach is not None and reach > due
 
 
 def _receiver_candidates(board, leg, exclude=()):
@@ -1796,13 +2262,16 @@ def _receiver_candidates(board, leg, exclude=()):
     PLANNING-clock schedules (guard 1: recorded pickups re-anchored via
     max(static, actual) — a demonstrably-late receiver never looks free):
     vehicle compat, car-share gate, check_feasibility with the generation
-    windows (enforce_cap=True — the advisor is an automatic path). Sorted
+    windows (enforce_cap=True — the advisor is an automatic path), and — guard
+    6b — that he can actually GET there from where he is now. Sorted
     best-buffer-first, deterministic."""
     from dispatching.scheduler import check_feasibility, sharers_conflict
 
     p_scheds, _ = _planning(board)
     lvt = _leg_vtype_of(leg)
     cur = getattr(leg, "driver_id", None)
+    due = (_effective_pickup_dt(leg, board.target_date)
+           if getattr(leg, "pickup_time", None) is not None else None)
     out = []
     for did in sorted(p_scheds):
         if did == cur or did in exclude:
@@ -1818,8 +2287,11 @@ def _receiver_candidates(board, leg, exclude=()):
             continue
         feas = check_feasibility(sched, leg, board.target_date,
                                  driver_window=board.windows.get(did))
-        if feas.feasible:
-            out.append((did, feas))
+        if not feas.feasible:
+            continue
+        if _unreachable(board, did, leg, due, schedules=p_scheds):
+            continue          # he cannot physically be there; not a candidate
+        out.append((did, feas))
     out.sort(key=lambda t: (-t[1].buffer_minutes, t[0]))
     return out
 
@@ -1892,7 +2364,10 @@ def _match_flight_plans(board, d, diag):
         return [p] if p else []
 
     nxt = board.legs_by_id.get(broken_id)
-    if nxt is None or not _movable(board, nxt) \
+    # proven_missed: this leg IS the break the card is about — the engine has
+    # already computed that its driver cannot get to it. The clock freeze would
+    # otherwise remove the cover plan the moment the pickup goes past due.
+    if nxt is None or not _movable(board, nxt, proven_missed=True) \
             or _is_affiliate_held(board, nxt):
         return []
     plans = []
@@ -1962,13 +2437,26 @@ def _swap_plans(board, d, leg, swap_ms, diag):
         # sol.moves is the FULL execution-ordered chain, target placement
         # included (SwapSolution.target_* are derived from its last hop).
         moves, bad = [], ""
+        chain_leg_ids = {m.leg_id for m in sol.moves}
         for m in sol.moves:
             mleg = board.legs_by_id.get(m.leg_id)
             if m.leg_id in board.vip_leg_ids:
                 bad = f"displaces VIP leg {m.leg_id} — rejected"
                 break
             if mleg is None or not _movable(board, mleg):
-                bad = f"leg {m.leg_id} is under way — cannot be displaced"
+                bad = (f"leg {m.leg_id} is under way or already past its "
+                       f"pickup — cannot be displaced")
+                break
+            # Guard 6b for every hop in the chain: find_swaps ranks a
+            # displacement by how wide the freed slot is, which quietly
+            # PREFERS jobs early in the day, and it has no clock at all. A
+            # receiver who cannot reach his new pickup breaks the chain.
+            m_due = (_effective_pickup_dt(mleg, board.target_date)
+                     if getattr(mleg, "pickup_time", None) is not None else None)
+            if _unreachable(board, m.to_driver_id, mleg, m_due,
+                            ignore_leg_ids=chain_leg_ids):
+                bad = (f"{m.to_driver_name or 'the receiver'} cannot reach the "
+                       f"{_fmt_clock(mleg.pickup_time)} pickup in time")
                 break
             moves.append(_mk_move(board, mleg, "reassign",
                                   to_driver_id=m.to_driver_id,
@@ -2450,6 +2938,6 @@ def compute_advisor_state(day, now=None, for_leg_id=None):
     ranked, validated, explained plans — everything JSON-serializable.
     ``for_leg_id`` narrows the cards to those touching one leg (task detail).
     Read-only; ZERO external calls anywhere below."""
-    fp = compute_board_fingerprint(day)
+    fp = compute_board_fingerprint(day, now=now)
     board = build_board_state(day, now=now)
     return _advisor_state(board, fp, for_leg_id=for_leg_id)
