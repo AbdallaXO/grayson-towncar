@@ -1,0 +1,61 @@
+{% load history_formatters %}
+{% if timeline_entries %}
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped table-sm mb-0 history-timeline">
+      <thead>
+        <tr>
+          <th scope="col">Date/time</th>
+          <th scope="col">What</th>
+          <th scope="col">Action</th>
+          <th scope="col">Changed by</th>
+          <th scope="col">Changes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in timeline_entries %}
+          <tr>
+            <td class="text-nowrap">{{ entry.when|date:"n/j/Y g:i A" }}</td>
+            <td>
+              <span class="fw-semibold">{{ entry.scope }}</span>
+              {% if entry.scope_detail %}<div class="text-muted small">{{ entry.scope_detail }}</div>{% endif %}
+            </td>
+            <td class="text-nowrap">{{ entry.action }}</td>
+            <td>
+              {% if entry.actor %}
+                {{ entry.actor }}
+                {% if entry.actor_note %}<div class="text-muted small">{{ entry.actor_note }}</div>{% endif %}
+              {% else %}
+                <span class="text-muted"
+                      title="No signed-in user recorded — online booking or an automated task">System</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.changes %}
+                <ul class="list-unstyled mb-0 small">
+                  {% for change in entry.changes %}
+                    <li>
+                      <strong>{{ change.field }}:</strong>
+                      {{ change.old|format_history_value }}
+                      &nbsp;&rarr;&nbsp;
+                      {{ change.new|format_history_value }}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if timeline_truncated %}
+    <p class="text-muted small mt-2 mb-0">
+      Showing the {{ timeline_entries|length }} most recent changes.
+      {{ timeline_truncated }} older {{ timeline_truncated|pluralize:"change,changes" }} not shown.
+    </p>
+  {% endif %}
+{% else %}
+  <p class="text-muted small mb-0">No history recorded for this reservation.</p>
+{% endif %}

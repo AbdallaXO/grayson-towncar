@@ -1,0 +1,16 @@
+{% comment %}
+"Map" button for one address — opens Google Maps in a new tab.
+
+Renders NOTHING when `url` is empty, so a leg with a blank drop-off never shows
+a button that lands the dispatcher on the wrong side of town.
+
+Styles are inline on purpose: this partial drops into a dozen unrelated
+templates (board cells, reservation rows, stop lists) and carrying its own look
+means none of them has to remember to load a stylesheet for it.
+
+Required context: url
+Optional context:  text (the address, for the tooltip), compact (icon only)
+{% endcomment %}
+{% if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="gt-map-btn"
+   title="Open in Google Maps{% if text %} — {{ text }}{% endif %}"
+   style="display:inline-flex;align-items:center;gap:3px;vertical-align:middle;margin-left:6px;padding:0 6px;border:1px solid #c7d2e0;border-radius:999px;background:#f1f5f9;color:#1d4ed8;font-size:0.7rem;font-weight:600;text-decoration:none;line-height:1.6;white-space:nowrap;"><i class="bi bi-geo-alt-fill"></i>{% if not compact %}Map{% endif %}</a>{% endif %}

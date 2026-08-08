@@ -662,6 +662,16 @@
           border: 1px dashed rgba(100,116,139,0.4);
       }
 
+      /* A driver still holding a car that's been marked down — same red as every
+         other surface, so the state reads identically wherever it appears. */
+      .vehicle-num.veh-oos { color: #ff6b6b !important; text-decoration: line-through; }
+      .veh-oos-tag {
+          display: inline-flex; align-items: center; gap: 3px; margin-left: 5px;
+          font-size: 0.55rem; font-weight: 800; text-transform: uppercase;
+          letter-spacing: 0.03em; color: #fff; background: #b02a37;
+          padding: 0 5px; border-radius: 3px; white-space: nowrap;
+      }
+
       /* ── Filter by driver ────────────────────────────────────────────── */
       .board-driver-filter { display: flex; align-items: center; gap: 6px; }
       .board-driver-filter > .bi { color: #94a3b8; font-size: 0.85rem; }
@@ -914,8 +924,9 @@
               <div class="driver-timeline-row {% if is_affiliate_board %}affiliate-row{% if not data.total_legs %} affiliate-idle{% endif %}{% else %}driver-status-{{ data.avail_status }}{% if not data.has_vehicle %} no-vehicle{% endif %}{% endif %}" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
                 <div class="driver-name-col">
                   <div class="d-flex align-items-center">
-                    {% if data.vehicle_number %}<span class="vehicle-num">#{{ data.vehicle_number }}</span>{% endif %}
+                    {% if data.vehicle_number %}<span class="vehicle-num{% if data.vehicle_oos_label %} veh-oos{% endif %}"{% if data.vehicle_oos_label %} title="OUT OF SERVICE — {{ data.vehicle_oos_label }}"{% endif %}>#{{ data.vehicle_number }}</span>{% endif %}
                     <strong>{{ data.driver }}</strong>
+                    {% if data.vehicle_oos_label %}<span class="veh-oos-tag" title="{{ data.vehicle_oos_label }}"><i class="bi bi-cone-striped"></i>Car out of service</span>{% endif %}
                   </div>
                   {% if is_affiliate_board %}
                   <small class="text-muted">
@@ -1535,3 +1546,8 @@
 {% endblock %}
 {% block footer %}{% endblock %}
 {% block newsletter %}{% endblock %}
+
+{% block extra_js %}
+  {# Right-click any trip row for Mapping / Flight Tracker #}
+  {% include "dispatching/includes/_trip_context_menu.html" %}
+{% endblock %}

@@ -279,12 +279,19 @@ def _check_stale(plan: _AdvisorPlan, shim: fa._Plan, legs: dict, draft=None) -> 
 
 
 def _check_status_safety(plan: _AdvisorPlan, legs: dict) -> List[str]:
-    """Guard 6 at the apply layer: picked-up / on-location legs never move
-    (409 — generation already hard-excludes them; this catches drift). Moving
-    an on-the-way / confirmed leg is legal but warned: Leg.save() resets
-    progressed statuses on a driver change, the new driver must re-accept."""
-    from dispatching.conflict_advisor import _STATUS_MOVE_WARN, _STATUS_NEVER_MOVE
+    """Guard 6 at the apply layer: picked-up / on-location legs never move, and
+    neither does an assigned leg whose pickup moment has gone by (409 —
+    generation already hard-excludes both; this catches drift). Moving an
+    on-the-way / confirmed leg is legal but warned: Leg.save() resets
+    progressed statuses on a driver change, the new driver must re-accept.
 
+    The clock half re-derives NOW rather than trusting the card's age: a rail
+    left open through a long phone call can still be showing a plan that was
+    valid when it was drawn and is nonsense by the time it is clicked."""
+    from dispatching.conflict_advisor import (
+        _STATUS_MOVE_WARN, _STATUS_NEVER_MOVE, _effective_pickup_dt)
+
+    now_local = timezone.localtime(timezone.now()).replace(tzinfo=None)
     warnings = []
     for a in plan.actions:
         leg = legs[a.leg_id]
@@ -293,6 +300,13 @@ def _check_status_safety(plan: _AdvisorPlan, legs: dict) -> List[str]:
             raise PlanRejected(
                 409, f"Leg {a.leg_id} is already {status} — it can no longer be "
                      f"moved. Refresh the advisor.")
+        if (a.op in _ASSIGN_OPS and leg.driver_id
+                and leg.pickup_time is not None
+                and _effective_pickup_dt(leg, leg.pickup_date) <= now_local):
+            raise PlanRejected(
+                409, f"Leg {a.leg_id}'s {leg.pickup_time.strftime('%-I:%M %p')} "
+                     f"pickup has already come and gone — it can't be handed to "
+                     f"another driver now. Refresh the advisor.")
         if a.op in _ASSIGN_OPS and status in _STATUS_MOVE_WARN:
             warnings.append(
                 f"Leg {a.leg_id} driver is already "

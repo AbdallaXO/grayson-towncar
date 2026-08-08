@@ -587,7 +587,7 @@
 
     <div class="row">
       {% for leg in reservation.legs.all %}
-        <div class="col-lg-6 mb-3">
+        <div class="col-lg-6 mb-3" data-leg-id="{{ leg.id }}">
           <div class="panel panel-primary{% if leg.status == 'cancelled' %} opacity-50{% endif %}">
             <div class="panel-heading {% if leg.status == 'cancelled' %}bg-secondary{% else %}bg-dark{% endif %} text-white p-2 d-flex justify-content-between align-items-center">
               <div class="h6">
@@ -2321,6 +2321,35 @@
               });
           }
 
+          // Reservation History Modal: fetch the timeline when opened. The
+          // reservation page is already query-heavy, so history is only paid for
+          // when a dispatcher actually asks for it.
+          var reservationHistoryModal = document.getElementById('reservationHistoryModal');
+          var reservationHistoryModalBody = document.getElementById('reservationHistoryModalBody');
+          if (reservationHistoryModal && reservationHistoryModalBody) {
+              reservationHistoryModal.addEventListener('show.bs.modal', function() {
+                  reservationHistoryModalBody.innerHTML =
+                      '<div class="text-center py-4 text-muted">Loading…</div>';
+                  fetch("{% url 'reservation_history_partial' reservation.uuid %}", {
+                          credentials: 'same-origin',
+                          headers: {
+                              'X-Requested-With': 'XMLHttpRequest'
+                          }
+                      })
+                      .then(function(r) {
+                          if (!r.ok) throw new Error('Request failed: ' + r.status);
+                          return r.text();
+                      })
+                      .then(function(html) {
+                          reservationHistoryModalBody.innerHTML = html;
+                      })
+                      .catch(function() {
+                          reservationHistoryModalBody.innerHTML =
+                              '<p class="text-danger">Failed to load history.</p>';
+                      });
+              });
+          }
+
           // Leg History Modal: store leg id on button click, then fetch partial when modal opens
           document.querySelectorAll('.leg-history-btn').forEach(function(btn) {
               btn.addEventListener('click', function() {
@@ -2780,10 +2809,8 @@
                     aria-label="Close"></button>
           </div>
         </div>
-        <div class="modal-body bg-light">
-          {% with history_records=reservation_history_records %}
-            {% include "dispatching/includes/history_table.html" %}
-          {% endwith %}
+        <div class="modal-body bg-light" id="reservationHistoryModalBody">
+          <div class="text-center py-4 text-muted">Loading…</div>
         </div>
       </div>
     </div>
@@ -3087,3 +3114,8 @@
 {% endblock footer %}
 {% block newsletter %}
 {% endblock newsletter %}
+
+{% block extra_js %}
+  {# Right-click any trip row for Mapping / Flight Tracker #}
+  {% include "dispatching/includes/_trip_context_menu.html" %}
+{% endblock %}

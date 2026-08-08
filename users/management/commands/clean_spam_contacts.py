@@ -1,31 +1,23 @@
-"""Delete spam contact form submissions (Cyrillic text, URLs in names, known spam patterns)."""
+"""
+Delete spam contact form submissions and the dispatcher tasks they spawned.
 
-import re
+Scoring lives in users/spam.py — the same rules that now reject spam at
+submission time, so this command and the live form can never disagree about
+what counts as spam.
+
+Usage:
+    python manage.py clean_spam_contacts --dry-run   # always look first
+    python manage.py clean_spam_contacts
+"""
+
 from django.core.management.base import BaseCommand
+
 from users.models import ContactUsForm
-
-
-CYRILLIC_RE = re.compile(r'[\u0400-\u04FF]')
-URL_RE = re.compile(r'https?://', re.IGNORECASE)
-SPAM_KEYWORDS = [
-    'tinyurl.com', 'bit.ly', 'руб', 'перевод', 'сюрприз',
-    'подарок', 'новости', 'ссылк', 'joriuckror',
-]
-
-
-def is_spam(entry):
-    combined = f"{entry.first_name} {entry.last_name} {entry.about}".lower()
-    if CYRILLIC_RE.search(combined):
-        return True
-    if URL_RE.search(f"{entry.first_name} {entry.last_name}"):
-        return True
-    if any(kw in combined for kw in SPAM_KEYWORDS):
-        return True
-    return False
+from users.spam import BLOCK_THRESHOLD, score_instance
 
 
 class Command(BaseCommand):
-    help = "Delete spam contact form submissions"
+    help = "Delete spam contact form submissions (and their open ops tasks)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,20 +27,46 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
-        entries = ContactUsForm.objects.all()
-        spam = [e for e in entries if is_spam(e)]
 
-        if not spam:
+        scored = []
+        for entry in ContactUsForm.objects.all():
+            score, reasons = score_instance(entry)
+            if score >= BLOCK_THRESHOLD:
+                scored.append((entry, score, reasons))
+
+        if not scored:
             self.stdout.write(self.style.SUCCESS("No spam found."))
             return
 
-        for e in spam:
-            name = f"{e.first_name} {e.last_name}"[:50]
-            self.stdout.write(f"  #{e.id} - {name} - {e.email} - {e.created_at}")
+        scored.sort(key=lambda row: -row[1])
+        for entry, score, reasons in scored:
+            name = f"{entry.first_name} {entry.last_name}"[:50]
+            self.stdout.write(
+                f"  #{entry.id} [score {score}] {name} - {entry.email} - {entry.created_at}"
+            )
+            self.stdout.write(f"      {', '.join(reasons)}")
+
+        ids = [entry.id for entry, _score, _reasons in scored]
+
+        # Tasks FK to the form with on_delete=CASCADE, so deleting the spam
+        # clears the dispatcher's queue in the same step. Count them up front
+        # so the dry run reports the real blast radius.
+        task_count = 0
+        try:
+            from ops.models import OperationalTask
+
+            task_count = OperationalTask.objects.filter(contact_form_id__in=ids).count()
+        except Exception as exc:  # ops app unavailable — deletion still valid
+            self.stdout.write(self.style.WARNING(f"Could not count ops tasks: {exc}"))
 
         if dry_run:
-            self.stdout.write(self.style.WARNING(f"\nDry run: {len(spam)} spam entries found (not deleted)."))
-        else:
-            ids = [e.id for e in spam]
-            ContactUsForm.objects.filter(id__in=ids).delete()
-            self.stdout.write(self.style.SUCCESS(f"\nDeleted {len(spam)} spam entries."))
+            self.stdout.write(self.style.WARNING(
+                f"\nDry run: {len(scored)} spam entries found (not deleted), "
+                f"{task_count} linked ops tasks would go with them."
+            ))
+            return
+
+        ContactUsForm.objects.filter(id__in=ids).delete()
+        self.stdout.write(self.style.SUCCESS(
+            f"\nDeleted {len(scored)} spam entries and {task_count} linked ops tasks."
+        ))

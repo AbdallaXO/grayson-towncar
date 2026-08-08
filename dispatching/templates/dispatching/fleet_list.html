@@ -19,6 +19,30 @@
   .fleet-chip.warn     { background: #fef6e7; color: #8a5b00; border: 1px solid #f3e0b8; }
   .fleet-chip.info     { background: #eef2f7; color: #44546a; border: 1px solid #dbe3ec; }
 
+  .rate-week { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* Permit pips — same three every row, in the same order, so the column can be
+     scanned vertically ("who can pick up at the Port?") without reading labels. */
+  .permit-cell { white-space: nowrap; }
+  .permit-pip {
+    display: inline-block; padding: 1px 6px; margin: 1px 3px 1px 0;
+    border-radius: 4px; font-size: .66rem; font-weight: 700;
+    letter-spacing: .02em; line-height: 1.6;
+  }
+  .permit-pip.ok      { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+  .permit-pip.expired { background: #fdeaea; color: #a12020; border: 1px solid #f3c9c9;
+                        text-decoration: line-through; }
+  .permit-pip.none    { background: #f6f7f9; color: #9aa3ae; border: 1px dashed #dde1e6; }
+
+  /* Out of service: the unit can't be scheduled — outrank every other row cue. */
+  .oos-badge {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+    padding: 1px 7px; border-radius: 5px; font-size: .68rem; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .04em;
+    background: #b02a37; color: #fff;
+  }
+  .oos-reason { color: #8a1c13; max-width: 220px; white-space: normal; }
+
   /* Provenance marker. gps is deliberately softer than obd — an estimate should
      not look as confident as a reading off the vehicle's own odometer. */
   .fleet-src {
@@ -134,9 +158,11 @@
           <th>Unit</th>
           <th>Vehicle</th>
           <th>Plate / VIN</th>
+          <th title="Pickup permits — MCO, Sanford, Port Canaveral">Permits</th>
           <th>Transponder</th>
           <th class="text-end">Odometer</th>
           <th class="text-end">Last {{ window_days }}d</th>
+          <th class="text-end" title="Average over the days with a reading — unknown days are excluded, parked days are not">Avg / week</th>
           <th>Needs attention</th>
           <th></th>
         </tr>
@@ -151,6 +177,13 @@
                 <div class="tap-sub">{{ row.vehicle.samsara_name }}</div>
               {% endif %}
             </a>
+            {% if row.oos_label %}
+              {# Loudest thing in the row: this unit can't be scheduled today. #}
+              <div class="oos-badge" title="{{ row.oos_label }}">
+                <i class="bi bi-cone-striped"></i>Out of service
+              </div>
+              <div class="tap-sub oos-reason">{{ row.oos_label }}</div>
+            {% endif %}
           </td>
           <td>
             <div>{{ row.vehicle.year }} {{ row.vehicle.make }} {{ row.vehicle.model }}</div>
@@ -161,6 +194,21 @@
           <td class="tap-sub">
             {{ row.vehicle.license_plate|default:"—" }}
             {% if row.vehicle.vin %}<div>{{ row.vehicle.vin }}</div>{% endif %}
+          </td>
+          <td class="permit-cell">
+            {% comment %}
+              Fixed order — position tells you which permit, colour tells you the
+              state. Scanning "who can pick up at the Port" is one column read.
+            {% endcomment %}
+            {% for p in row.permits %}
+              {% if p.valid %}
+                <span class="permit-pip ok" title="{{ p.label }} pickup permit{% if p.expires_on %} — valid through {{ p.expires_on }}{% endif %}">{{ p.label }}</span>
+              {% elif p.expired %}
+                <span class="permit-pip expired" title="{{ p.label }} permit EXPIRED {{ p.expires_on }} — counts as no permit">{{ p.label }}</span>
+              {% else %}
+                <span class="permit-pip none" title="No {{ p.label }} pickup permit on file">{{ p.label }}</span>
+              {% endif %}
+            {% endfor %}
           </td>
           <td class="tap-sub">
             {% if row.vehicle.transponder_number %}
@@ -190,6 +238,14 @@
               {% if row.coverage %}<div class="tap-sub">{{ row.coverage }}</div>{% endif %}
             {% endif %}
           </td>
+          <td class="text-end">
+            {% if row.per_week is None %}
+              <span class="fleet-unknown">—</span>
+            {% else %}
+              <span class="rate-week">{{ row.per_week|floatformat:0|intcomma }} mi</span>
+              <div class="tap-sub">{{ row.per_day|floatformat:0|intcomma }} / day</div>
+            {% endif %}
+          </td>
           <td>
             {% for chip in row.chips %}
               <span class="fleet-chip {{ chip.level }}" title="{{ chip.detail }}">{{ chip.label }}</span>
@@ -209,7 +265,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="8">
+          <td colspan="10">
             <div class="tap-empty">
               <i class="bi bi-truck"></i>
               No vehicles match your filters.

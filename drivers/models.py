@@ -662,6 +662,65 @@ class FleetVehicle(models.Model):
     insurance_expires_on = models.DateField(null=True, blank=True)
     next_inspection_on = models.DateField(null=True, blank=True)
 
+    # --- Out of service (manual, human-set, DOES gate scheduling) ---------
+    # Read the rule above before touching this. "Readiness is advisory, always"
+    # (docs/fleet-management.md) is about MACHINE inference — a readiness chip or
+    # fault code deciding a car can't work. Guard A died because stale per-vehicle
+    # telemetry produced false positives, and that reasoning still stands.
+    #
+    # This is a different class of fact: a human who knows the car is on a lift
+    # says so, by hand, with a reason. It cannot be stale in the way a sensor is,
+    # and the person setting it is the person who knows. So this one — and ONLY
+    # this one — is allowed to remove a unit from the pool. The block is
+    # overridable at assignment time precisely so a wrong flag can never strand a
+    # car that came back early.
+    #
+    # Date-windowed rather than a boolean, because the planner schedules FUTURE
+    # dates: a car in the shop this week must still be assignable next week.
+    # NULL `from`      = in service.
+    # `from`, no `until` = down indefinitely (no ETA).
+    # `from` + `until`   = a closed window; the car is back on `until` + 1 day.
+    # (VehicleServiceRecord.out_of_service_from/to is the HISTORICAL log of a
+    # service that happened. This is the live scheduling state. Different jobs.)
+    out_of_service_from = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="First date the unit is unavailable. Blank = in service.",
+    )
+    out_of_service_until = models.DateField(
+        null=True, blank=True,
+        help_text="Last date unavailable (inclusive). Blank with a start date "
+                  "means down indefinitely — no return date known.",
+    )
+    out_of_service_reason = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Why it's down, in the dispatcher's words — 'transmission, at "
+                  "Bob's', 'rear-ended 8/3'. Shown wherever the unit is blocked.",
+    )
+
+    # --- Operating permits ------------------------------------------------
+    # Central Florida ground transport is permitted per VEHICLE, not per company:
+    # GOAA decals for MCO, Sanford's own permit for SFB, and Port Canaveral's for
+    # cruise pickups. A unit without the decal can be sent to DROP there, but
+    # picking up is what needs the permit.
+    #
+    # ADVISORY by explicit decision: a missing permit warns, it never blocks.
+    # Pickup locations are free text matched by categorize_location(), and MCO is
+    # most of the business — a hard block would misfire on the busiest lane. The
+    # dispatcher gets a named warning and makes the call.
+    #
+    # Flat fields rather than a related model: three fixed permits, matching the
+    # compliance-date style directly above, and no prefetch on any pool render.
+    # A fourth permit is a migration — that's the accepted trade.
+    permit_mco = models.BooleanField(
+        default=False, help_text="Holds a GOAA / MCO pickup permit.")
+    permit_mco_expires_on = models.DateField(null=True, blank=True)
+    permit_sanford = models.BooleanField(
+        default=False, help_text="Holds a Sanford (SFB) pickup permit.")
+    permit_sanford_expires_on = models.DateField(null=True, blank=True)
+    permit_port_canaveral = models.BooleanField(
+        default=False, help_text="Holds a Port Canaveral pickup permit.")
+    permit_port_canaveral_expires_on = models.DateField(null=True, blank=True)
+
     # --- Latest telematics (Fleet Management) ----------------------------
     # Same contract as the samsara_* block above: written ONLY by the background
     # poller, never from a request path, all nullable so an un-onboarded car or a
@@ -759,6 +818,88 @@ class FleetVehicle(models.Model):
     def odometer_is_estimate(self) -> bool:
         """True when the stored odometer came from GPS distance, not the OBD bus."""
         return self.samsara_odometer_source == "gps"
+
+    # ── Out of service ───────────────────────────────────────────────────
+    def is_out_of_service_on(self, day) -> bool:
+        """Is this unit unavailable on ``day``?
+
+        Asked per-date, never "right now", because every scheduling surface works
+        on a chosen date — a unit in the shop this week is fine next week.
+        """
+        if not self.out_of_service_from or day is None:
+            return False
+        if day < self.out_of_service_from:
+            return False
+        if self.out_of_service_until and day > self.out_of_service_until:
+            return False
+        return True
+
+    @property
+    def is_out_of_service_now(self) -> bool:
+        return self.is_out_of_service_on(timezone.localdate())
+
+    def out_of_service_label(self, day=None) -> str:
+        """One line naming the reason and the return date, for the pool and the
+        blocked-assignment message. Empty when the unit is available."""
+        day = timezone.localdate() if day is None else day
+        if not self.is_out_of_service_on(day):
+            return ""
+        reason = self.out_of_service_reason.strip() or "Out of service"
+        if self.out_of_service_until:
+            back = self.out_of_service_until + timedelta(days=1)
+            return f"{reason} — back {back.strftime('%a %b %-d')}"
+        return f"{reason} — no return date"
+
+    # ── Permits ──────────────────────────────────────────────────────────
+    # categorize_location() values -> the permit that covers picking up there.
+    PERMITS = (
+        ("mco", "MCO", "MCO Terminal"),
+        ("sanford", "Sanford", "SFB Terminal"),
+        ("port_canaveral", "Port Canaveral", "Port Canaveral Area"),
+    )
+
+    def permits(self, day=None):
+        """Every permit as a row for display: held, expiry, and whether it lapsed.
+
+        An EXPIRED permit is reported as not held — a lapsed decal is worth
+        exactly as much as no decal, and showing it as a tick with a red date
+        invites someone to skim past it.
+        """
+        day = timezone.localdate() if day is None else day
+        rows = []
+        for key, label, location_category in self.PERMITS:
+            expires_on = getattr(self, f"permit_{key}_expires_on")
+            expired = bool(expires_on and expires_on < day)
+            on_file = getattr(self, f"permit_{key}")
+            rows.append({
+                "key": key,
+                "label": label,
+                "location_category": location_category,
+                "on_file": on_file,
+                "expires_on": expires_on,
+                "expired": expired,
+                "valid": bool(on_file and not expired),
+            })
+        return rows
+
+    def permit_for_location(self, location_category, day=None):
+        """The permit row covering pickups at ``location_category``, or None when
+        that location needs no permit (a resort, a residence)."""
+        for row in self.permits(day=day):
+            if row["location_category"] == location_category:
+                return row
+        return None
+
+    def missing_permit_for_pickup(self, pickup_location, day=None):
+        """The permit row this unit LACKS for picking up at ``pickup_location``,
+        or None when it's covered (or the location needs no permit).
+
+        Pickup only — a car with no decal may legally drop at any of these.
+        """
+        from dispatching.analytics import categorize_location
+
+        row = self.permit_for_location(categorize_location(pickup_location), day=day)
+        return None if row is None or row["valid"] else row
 
 
 class DriverVehicleAssignment(models.Model):

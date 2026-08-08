@@ -251,6 +251,18 @@ STATICFILES_DIRS = [CONTENT_DIR / "static"]
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 
+# Cloudflare Turnstile — bot challenge on the public forms.
+#
+# The site key is public (it ships in the page source), so it defaults to the
+# widget already created in the Cloudflare dashboard and needs no deploy config.
+# The secret must come from the environment as TURNSTILE_SECRET and is never
+# committed. Until the secret is set, no widget renders and no verification
+# runs, so local dev and CI are untouched. See users/turnstile.py.
+TURNSTILE_SITE_KEY = os.environ.get(
+    "TURNSTILE_SITE_KEY", "0x4AAAAAAEJZq0L0oCv3EMUW"
+)
+TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "")
+
 # NTFY Settings
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "grayson-leads")
 NTFY_DRIVER_TOPIC = os.environ.get("NTFY_DRIVER_TOPIC", "grayson-driver-noti")

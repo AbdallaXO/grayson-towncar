@@ -20,18 +20,15 @@
       </a>
     </div>
     <p class="text-muted small mb-3">
-      Full audit log for <strong>{{ reservation }}</strong>. Created {{ reservation.created_at|date:"n/j/Y g:i A" }}
-      {% if reservation.created_by %}
-        by {{ reservation.created_by.get_full_name|default:reservation.created_by.username }}
+      Full audit log for <strong>{{ reservation }}</strong> — the reservation and every leg,
+      newest first. Created {{ reservation.created_at|date:"n/j/Y g:i A" }}
+      {% if creator_name %}
+        by <strong>{{ creator_name }}</strong>{% if creator_capacity %} ({{ creator_capacity }}){% endif %}
       {% endif %}
       .
     </p>
 
-    {% if history_records %}
-      {% include "dispatching/includes/history_table.html" %}
-    {% else %}
-      <p class="text-muted">No history recorded for this reservation.</p>
-    {% endif %}
+    {% include "dispatching/includes/history_timeline.html" %}
   </div>
   <style>
       .history-page-content {

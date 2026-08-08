@@ -6,6 +6,7 @@ from . import overnight_views
 from . import keoi_views
 from . import db_health
 from . import fleet_views
+from . import trip_link_views
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 from ops import leads_board as ops_leads
@@ -35,6 +36,8 @@ urlpatterns = [
     ),
     path("reservation/<id>/", views.reservation_details, name="reservation_details"),
     path("reservation/<id>/history/", views.reservation_history, name="reservation_history"),
+    path("reservation/<id>/history/partial/", views.reservation_history_partial,
+         name="reservation_history_partial"),
     path("edit-reservation/<id>/", views.modify_reservation, name="modify_reservation"),
     path("legs-list/", views.legs_list, name="legs_list"),
     path("inhouse-schedule/", views.inhouse_schedule, name="inhouse_schedule"),
@@ -49,6 +52,10 @@ urlpatterns = [
          name="chauffeur_exception_dismiss"),
     path("chauffeur-kpis/handled/undo/", views.chauffeur_exception_undo,
          name="chauffeur_exception_undo"),
+
+    # Right-click trip menu: Google Maps + flight-tracker links for one leg
+    path("leg/<int:leg_id>/trip-links/", trip_link_views.leg_trip_links_json,
+         name="leg_trip_links"),
 
     path("leg/<int:id>/history/", views.leg_history, name="leg_history"),
     path("leg/<int:id>/history/partial/", views.leg_history_partial, name="leg_history_partial"),
@@ -135,6 +142,11 @@ urlpatterns = [
         "copy-vehicle-assignments/",
         views.copy_vehicle_assignments,
         name="copy_vehicle_assignments",
+    ),
+    path(
+        "reset-vehicle-assignments/",
+        views.reset_vehicle_assignments,
+        name="reset_vehicle_assignments",
     ),
     path("suggest-day-setup/", views.suggest_day_setup_view, name="suggest_day_setup"),
     path("apply-day-setup/", views.apply_day_setup, name="apply_day_setup"),

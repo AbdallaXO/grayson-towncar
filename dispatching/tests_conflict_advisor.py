@@ -61,14 +61,19 @@ class _FakeFlight(SimpleNamespace):
         return self.ident
 
 
-def _flight(arrival_dt, ident="DL123"):
+def _flight(arrival_dt, ident="DL123", scheduled=None):
+    """``arrival_dt`` is the LIVE estimate (what the plane is now doing);
+    ``scheduled`` is its published timetable — the baseline the advisor
+    measures movement against. Passing scheduled == arrival_dt models a flight
+    running exactly on time, which must never raise a card however far the
+    booking was written from it."""
     return _FakeFlight(
         ident=ident,
         actual_gate_arrival_local=None,
         estimated_gate_arrival_local=arrival_dt,
         actual_arrival_local=None,
         estimated_arrival_local=None,
-        scheduled_gate_arrival_local=None,
+        scheduled_gate_arrival_local=scheduled,
         scheduled_arrival_local=None,
     )
 
@@ -417,34 +422,146 @@ class FlightChangeTests(_PureBoardTestCase):
         self.assertNotIn("overlap:501:502",
                          [x.id for x in cards])
 
-    def test_turn_into_a_delayed_arrival_relaxes(self):
+    def test_turn_into_a_delayed_arrival_relaxes_and_nothing_is_carded(self):
         # On paper the 1:45 Disney job can't reposition to a 2:00 MCO arrival
         # (-27). But the flight lands 3:00, so the driver is truly due 3:10 —
-        # the turn IN gained 70 minutes. No overlap card; the flight card
-        # (watch — nothing behind it breaks) is the only signal.
+        # the turn IN gained 70 minutes. Nothing is broken in either direction
+        # and the arrival is the last job of the day, so the board stays
+        # silent: a plane that moved is not, by itself, a card.
         p = _leg(511, 13, 45, pickup="Disney Contemporary",
                  dropoff="Disney Polynesian")
         c = _leg(512, 14, 0, trip="arrival", pickup="MCO Terminal B",
                  dropoff="Disney Contemporary", flight=_flight(_dt(15, 0)))
-        cards = ca.detect_disruptions(_board({1: [p, c]}, now=_dt(8, 0)))
-        self.assertEqual([(d.kind, d.severity) for d in cards],
-                         [("flight_change", "watch")])
+        self.assertEqual(
+            ca.detect_disruptions(_board({1: [p, c]}, now=_dt(8, 0))), [])
 
-    def test_early_flight_is_a_watch(self):
+    def test_early_flight_is_never_a_card(self):
+        """An early plane cannot tighten anything, so it can never break
+        anything. _effective_pickup_dt refuses to pull a deadline earlier —
+        the booked time is the guest's commitment — so the chain is byte
+        identical to the plan and there is nothing to report."""
         c = _leg(521, 14, 0, trip="arrival", pickup="MCO Terminal B",
-                 dropoff="Disney Contemporary", flight=_flight(_dt(13, 30)))
-        cards = ca.detect_disruptions(_board({1: [c]}, now=_dt(8, 0)))
-        self.assertEqual([(d.kind, d.severity) for d in cards],
-                         [("flight_change", "watch")])
-        self.assertIn("30 min early", cards[0].headline)
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(13, 30), scheduled=_dt(14, 0)))
+        f = _leg(522, 16, 0, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        self.assertEqual(
+            ca.detect_disruptions(_board({1: [c, f]}, now=_dt(8, 0))), [])
 
-    def test_unacked_time_change_needs_an_ack(self):
+    def test_an_early_plane_is_never_blamed_for_a_turn_it_cannot_have_broken(self):
+        """The board is impossible on paper — the 2:00 arrival cannot clear in
+        time for the 3:00 job — and the plane happens to be 30 min EARLY. An
+        early plane moves neither the deadline nor the clear time, so this
+        break predates it: the overlap detector owns it, and no flight card
+        may claim the pair and re-label a planning fault as a flight problem."""
+        c = _leg(581, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(13, 30), scheduled=_dt(14, 0)))
+        f = _leg(582, 15, 0, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        kinds = [d.kind for d in
+                 ca.detect_disruptions(_board({1: [c, f]}, now=_dt(8, 0)))]
+        self.assertEqual(kinds.count("flight_change"), 0, kinds)
+        self.assertEqual(kinds.count("overlap"), 1, kinds)
+
+    def test_flight_running_on_schedule_is_silent_however_the_booking_reads(self):
+        """PRODUCTION NOISE, 2026-08-05: "a flight is landing 17 minutes
+        later", carded forever, with nothing having moved.
+
+        best_arrival_local falls back to the published SCHEDULE, so a leg
+        booked 17 min off its flight's timetable used to read as a permanent
+        17-minute delay from the day it was booked. The plane here is running
+        exactly on time; the offset is how the booking was written, and a
+        booking is not a degradation."""
+        c = _leg(541, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(14, 17), scheduled=_dt(14, 17)))
+        f = _leg(542, 18, 0, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        board = _board({1: [c, f]}, now=_dt(8, 0))
+        self.assertEqual(ca._flight_shift_min(c), 0)   # it has not moved at all
+        self.assertEqual(ca.detect_disruptions(board), [])
+
+    def test_a_flight_with_only_a_timetable_has_not_moved(self):
+        """No estimate and no touchdown means the plane has reported nothing.
+        Whatever best_arrival_local returns there is the timetable talking, and
+        a timetable cannot have degraded."""
+        c = _leg(543, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_FakeFlight(
+                     ident="DL9", actual_gate_arrival_local=None,
+                     estimated_gate_arrival_local=None,
+                     actual_arrival_local=None, estimated_arrival_local=None,
+                     scheduled_gate_arrival_local=_dt(15, 0),
+                     scheduled_arrival_local=None))
+        self.assertIsNone(ca._flight_shift_min(c))
+
+    def test_moved_flight_that_breaks_nothing_is_silent(self):
+        """The plane genuinely slipped 73 minutes — a big, true, useless fact.
+        The next job is hours away, so nothing breaks and nothing is carded."""
+        c = _leg(551, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(15, 30), scheduled=_dt(14, 17)))
+        f = _leg(552, 18, 0, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        board = _board({1: [c, f]}, now=_dt(8, 0))
+        self.assertEqual(ca._flight_shift_min(c), 73)   # it really did move
+        self.assertEqual(ca.detect_disruptions(board), [])
+
+    def test_moved_flight_that_thins_a_clean_turn_is_a_warning(self):
+        """Reality DEGRADED — the other half of the prime directive. A clean
+        63-minute turn is down to 3 because the plane slipped an hour. That is
+        a consequence, so it cards; the founder never planned this one tight."""
+        c = _leg(561, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(15, 0), scheduled=_dt(14, 0)))
+        f = _leg(562, 16, 30, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        d = _one_card(_board({1: [c, f]}, now=_dt(8, 0)), "flight_change")
+        self.assertEqual(d.severity, "warning")
+        self.assertEqual((d.details["slack_out"], d.details["slack_before"]),
+                         (3, 63))
+
+    def test_unacked_time_change_without_a_consequence_is_silent(self):
+        """PRODUCTION NOISE, 2026-08-05: "a pickup time changed and nobody
+        acknowledged it", with nothing behind it.
+
+        The board already carries this fact on the leg row — a purple tint, a
+        "⏰ was 12:30 PM" pill and the ✓ button that clears it. An advisor card
+        repeating it with no consequence is a weaker duplicate of a control
+        already on screen."""
         u = _leg(531, 13, 0, has_unacked_time_change=True,
                  pickup_time_was=dt_time(12, 30))
-        cards = ca.detect_disruptions(_board({1: [u]}, now=_dt(8, 0)))
-        self.assertEqual([(d.kind, d.severity) for d in cards],
-                         [("flight_change", "watch")])
-        self.assertIn("Acknowledge", cards[0].headline)
+        self.assertEqual(
+            ca.detect_disruptions(_board({1: [u]}, now=_dt(8, 0))), [])
+
+    def test_unacked_time_change_that_wrecks_a_turn_still_cards(self):
+        """The same flag WITH a consequence is exactly what the rail is for.
+        Moved 12:00 -> 14:30, which eats a clean 156-minute turn down to 6."""
+        u = _leg(531, 14, 30, has_unacked_time_change=True,
+                 pickup_time_was=dt_time(12, 0),
+                 pickup="Disney Contemporary", dropoff="Disney Polynesian")
+        nxt = _leg(532, 15, 0, pickup="Disney Grand Floridian",
+                   dropoff="Disney Boardwalk")
+        d = _one_card(_board({1: [u, nxt]}, now=_dt(8, 0)), "flight_change")
+        self.assertEqual(d.severity, "warning")
+        self.assertTrue(d.details["unacked"])
+        self.assertEqual((d.details["slack_out"], d.details["slack_before"]),
+                         (6, 156))
+
+    def test_affiliate_leg_raises_nothing(self):
+        """Guard 7, narrowed 2026-08-05 on the owner's call: we do not monitor
+        affiliate timing — they run their own chain — and with no chain math
+        available there is nothing here a dispatcher could be told to do."""
+        aff = _FakeDriver(name="Cheapo Limo", driver_type="affiliate")
+        leg = _leg(571, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                   dropoff="Disney Contemporary",
+                   flight=_flight(_dt(15, 30), scheduled=_dt(14, 0)),
+                   driver_id=9, has_unacked_time_change=True,
+                   pickup_time_was=dt_time(12, 0))
+        board = _board({2: []}, now=_dt(8, 0), extra_legs=[leg],
+                       drivers={9: aff})
+        self.assertEqual(ca.detect_disruptions(board), [])
 
     def test_overnight_ambiguous_abstains_with_a_confirm_card(self):
         o = _leg(541, 0, 30, trip="arrival", pickup="MCO Terminal B",
@@ -517,11 +634,17 @@ class UnassignedTests(_PureBoardTestCase):
         self.assertIn("PAST pickup", cards[0].headline)
 
     def test_long_past_due_is_hygiene(self):
-        cards = self._solo(10, 30)   # 90 min past > OVERDUE_STALE_MIN
+        cards = self._solo(11, 0)    # 60 min past > OVERDUE_STALE_MIN (45)
         d = cards[0]
         self.assertTrue(d.hygiene)
         self.assertEqual(d.severity, "watch")
         self.assertIn("Confirm coverage", d.headline)
+
+    def test_hygiene_itself_ages_out(self):
+        """The ladder has a last rung. Left at "permanent", these were half of
+        the 11:46-at-5:40pm complaint — abstain cards cost no plan budget but
+        they cost rail space in front of live work."""
+        self.assertEqual(self._solo(10, 20), [])   # past ADVISOR_HYGIENE_TTL_MIN
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -638,8 +761,31 @@ class FingerprintTests(TestCase):
             driver_type="inhouse")
 
     def test_stable_on_identical_state(self):
-        self.assertEqual(ca.compute_board_fingerprint(self.day),
-                         ca.compute_board_fingerprint(self.day))
+        # Pinned clock: the hash now carries a coarse time bucket, so identical
+        # STATE is only identical when read at the same moment.
+        now = timezone.make_aware(_dt(14, 2))
+        self.assertEqual(ca.compute_board_fingerprint(self.day, now=now),
+                         ca.compute_board_fingerprint(self.day, now=now))
+
+    def test_the_clock_bucket_moves_the_hash_on_an_otherwise_dead_board(self):
+        """Without this the whole expiry fix is invisible. On a quiet board —
+        no taps, no roster edits — the three queries below never change, the
+        endpoint answers "unchanged" every 60s, and the dead 11:46 card sits on
+        screen at 5:40 because the rail never re-renders."""
+        early = ca.compute_board_fingerprint(
+            self.day, now=timezone.make_aware(_dt(14, 2)))
+        later = ca.compute_board_fingerprint(
+            self.day, now=timezone.make_aware(_dt(14, 44)))
+        self.assertNotEqual(early, later)
+
+    def test_the_bucket_is_coarse_enough_to_keep_the_short_circuit_useful(self):
+        """It is a staleness sweep, not a per-second cache-buster: two reads
+        inside the same bucket still short-circuit."""
+        a = ca.compute_board_fingerprint(
+            self.day, now=timezone.make_aware(_dt(14, 1)))
+        b = ca.compute_board_fingerprint(
+            self.day, now=timezone.make_aware(_dt(14, 3)))
+        self.assertEqual(a, b)
 
     def test_budget_is_three_queries(self):
         with self.assertNumQueries(3):
@@ -870,30 +1016,296 @@ class MatchFlightPlanTests(_PureBoardTestCase):
 
 
 class TakebackTests(_PureBoardTestCase):
-    def test_affiliate_flight_fact_offers_takeback_only(self):
+    def test_takeback_pulls_an_affiliate_leg_back_in_house(self):
+        """The takeback tier itself, exercised directly.
+
+        No detector raises an affiliate card any more (see
+        FlightChangeTests.test_affiliate_leg_raises_nothing), so this capability
+        is currently unreachable through generate_plans. It is kept and kept
+        covered deliberately: it is the correct recovery the moment any card
+        touches affiliate-held work again, and an untested tier rots."""
         aff = _FakeDriver(name="Cheapo Limo", driver_type="affiliate")
         leg = _leg(501, 14, 0, trip="arrival", pickup="MCO Terminal B",
-                   dropoff="Disney Contemporary", flight=_flight(_dt(15, 0)),
+                   dropoff="Disney Contemporary",
+                   flight=_flight(_dt(15, 0), scheduled=_dt(14, 0)),
                    driver_id=9)
         board = _board({2: []}, now=_dt(8, 0), extra_legs=[leg],
                        drivers={9: aff})
-        d = _one_card(board, "flight_change")
-        self.assertTrue(d.details.get("affiliate"))
-        plans = ca.generate_plans(board, d)
-        tb = [p for p in plans if p.kind == "takeback"]
+        d = ca.Disruption(
+            id="flight_change:501", kind="flight_change", severity="critical",
+            headline="x", narrative="x", basis=ca.BASIS_FLIGHT,
+            leg_ids=[501], anchor_leg_id=501, driver_id=9,
+            impact_dt=_dt(14, 0), details={"affiliate": True})
+        tb = ca._takeback_plans(board, d, [])
         self.assertEqual(len(tb), 1)
         self.assertEqual([(m.leg_id, m.to_driver_id) for m in tb[0].moves],
                          [(501, 2)])
         self.assertTrue(any("Call Cheapo Limo first" in r
                             for r in tb[0].risks))
-        # Takeback is the ONLY recovery kind offered (guard 7).
-        self.assertFalse([p for p in plans
-                          if p.moves and p.kind != "takeback"])
         # The serialized apply payload carries the confirm_pullback opt-in the
         # reused farmout hard rule demands — without it every Apply click
         # would 400 with no UI affordance to supply the flag.
         payload = ca._serialize_plan(board, d, tb[0], 1)
         self.assertIs(payload["apply"]["confirm_pullback"], True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Card expiry — a card a dispatcher cannot act on is not a quieter card, it is
+# a wrong one. PRODUCTION, 2026-08-05: an 11:46 AM pickup still on the rail at
+# 5:40 PM, burying the cards that could still be acted on.
+# ════════════════════════════════════════════════════════════════════════════
+class CardExpiryTests(_PureBoardTestCase):
+    """Every shape gets the same two pins: ALIVE while it can still be changed,
+    GONE once it cannot. The expiry key is deliberately NOT impact_dt — the
+    late-driver and overrun shapes are BORN with their impact moment in the
+    past, and gating on it would delete the best cards on the rail."""
+
+    def _flight_board(self, now):
+        a = _leg(501, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(15, 0), scheduled=_dt(14, 0)))
+        b = _leg(502, 15, 30, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        return _board({1: [a, b]}, now=now)
+
+    def test_flight_card_dies_with_the_pickup_it_was_protecting(self):
+        live = ca.detect_disruptions(self._flight_board(_dt(14, 30)))
+        self.assertEqual([d.kind for d in live], ["flight_change"])
+        self.assertEqual(live[0].expires_at, _dt(16, 15))   # 15:30 + 45
+        self.assertEqual(
+            [d for d in ca.detect_disruptions(self._flight_board(_dt(17, 40)))
+             if d.kind == "flight_change"], [])
+
+    def test_overdue_driver_is_urgent_precisely_because_impact_has_passed(self):
+        # 13:00 pickup, nobody moving, seen at 13:20. impact_dt is 20 minutes
+        # in the PAST and this is the most actionable card on the board.
+        lc = _leg(701, 13, 0, pickup="Disney Contemporary",
+                  dropoff="Disney Polynesian")
+        d = _one_card(_board({1: [lc]}, now=_dt(13, 20)), "late_cascade")
+        self.assertEqual(d.severity, "critical")
+        self.assertLess(d.impact_dt, _dt(13, 20))       # born in the past
+        self.assertGreater(d.expires_at, _dt(13, 20))   # and still live
+
+    def test_the_late_driver_ladder_runs_live_then_hygiene_then_gone(self):
+        def at(now):
+            lc = _leg(701, 13, 0, pickup="Disney Contemporary",
+                      dropoff="Disney Polynesian")
+            return ca.detect_disruptions(_board({1: [lc]}, now=now))
+        self.assertEqual([(d.severity, d.hygiene) for d in at(_dt(13, 20))],
+                         [("critical", False)])
+        self.assertEqual([(d.severity, d.hygiene) for d in at(_dt(13, 50))],
+                         [("watch", True)])       # past OVERDUE_STALE_MIN
+        self.assertEqual(at(_dt(15, 30)), [])     # past the hygiene TTL
+
+    def test_the_ladder_has_no_gap_between_its_rungs(self):
+        """A window where NEITHER rung exists is not a quieter rail, it is a
+        blind spot. The live rung's deadline and the hygiene rung's birth are
+        measured from DIFFERENT anchors — _effective_pickup_dt vs
+        pickup_expected_dt — so the handover has to be pinned minute by minute
+        rather than sampled either side of it."""
+        for minute in range(40, 56):
+            lc = _leg(701, 13, 0, pickup="Disney Contemporary",
+                      dropoff="Disney Polynesian")
+            cards = ca.detect_disruptions(
+                _board({1: [lc]}, now=_dt(13, minute)))
+            self.assertEqual(len(cards), 1, f"13:{minute:02d} -> {cards}")
+
+    def test_an_airport_pickup_hands_over_on_the_airport_clock(self):
+        """The 35-minute version of the same trap. On a flight-tracked arrival
+        the driver is DUE at gate + 10 but the overdue clock only starts at
+        gate + 45 (time to clear the airport), so a live card expiring on the
+        first anchor died 35 minutes before its replacement was born — a
+        36-minute hole on the trip type this company runs most."""
+        for minute in (48, 55, 59):
+            arr = _leg(711, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                       dropoff="Disney Contemporary",
+                       flight=_flight(_dt(14, 0), scheduled=_dt(14, 0)))
+            cards = ca.detect_disruptions(
+                _board({1: [arr]}, now=_dt(14, minute)))
+            self.assertEqual([d.kind for d in cards], ["late_cascade"],
+                             f"14:{minute} -> {cards}")
+        for hh, mm in ((15, 10), (15, 30), (16, 0)):
+            arr = _leg(711, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                       dropoff="Disney Contemporary",
+                       flight=_flight(_dt(14, 0), scheduled=_dt(14, 0)))
+            cards = ca.detect_disruptions(
+                _board({1: [arr]}, now=_dt(hh, mm)))
+            self.assertEqual([d.kind for d in cards], ["late_cascade"],
+                             f"{hh}:{mm} -> {cards}")
+
+    def test_a_job_nobody_closed_out_stops_carding(self):
+        """The worst of the stale shapes: "still running 309 min past its
+        estimate" at 5:40 PM for an 11:46 AM job whose driver never tapped
+        done. It was NOT abstain, so it also ate one of the six plan slots."""
+        def at(now):
+            o = _leg(801, 11, 46, status="picked-up",
+                     pickup="Disney Contemporary", dropoff="Disney Polynesian")
+            return ca.detect_disruptions(
+                _board({1: [o]}, now=now, picked={801: _dt(11, 46)}))
+        self.assertEqual([d.kind for d in at(_dt(12, 40))], ["overrun"])
+        self.assertEqual(at(_dt(17, 40)), [])
+
+    def test_uncovered_pickup_survives_its_moment_then_ages_out(self):
+        """A guest may be standing on a curb, so this one deliberately outlives
+        its pickup time — then becomes a record to fix, then goes quiet."""
+        def at(now):
+            u = _leg(901, 11, 46, driver_id=None, pickup="Disney Contemporary",
+                     dropoff="Disney Polynesian")
+            return ca.detect_disruptions(
+                _board({1: []}, now=now, extra_legs=[u]))
+        self.assertEqual([(d.severity, d.hygiene) for d in at(_dt(12, 0))],
+                         [("critical", False)])   # 14 min past, still urgent
+        self.assertEqual([(d.severity, d.hygiene) for d in at(_dt(12, 40))],
+                         [("watch", True)])
+        self.assertEqual(at(_dt(13, 30)), [])
+
+    def test_every_card_leaves_the_detector_with_a_deadline(self):
+        """The guarantee _add exists to make: no future detector can leak a
+        card that lives until midnight by forgetting to set one."""
+        a = _leg(101, 14, 0, trip="arrival", pickup="MCO Terminal B",
+                 dropoff="Disney Contemporary",
+                 flight=_flight(_dt(15, 0), scheduled=_dt(14, 0)))
+        b = _leg(102, 15, 30, pickup="Disney Grand Floridian",
+                 dropoff="Disney Boardwalk")
+        u = _leg(103, 9, 30, driver_id=None)
+        o = _leg(104, 8, 0, status="picked-up", driver_id=2)
+        board = _board({1: [a, b], 2: [o]}, now=_dt(8, 45), extra_legs=[u],
+                       picked={104: _dt(8, 0)})
+        cards = ca.detect_disruptions(board)
+        self.assertTrue(cards)
+        for d in cards:
+            self.assertIsNotNone(d.expires_at, d.id)
+            self.assertGreater(d.expires_at, board.now_local, d.id)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Guard 6b — no dispatching into the past, and no receiver who cannot get
+# there. PRODUCTION, 2026-08-05: at 5:57 PM a "Shuffle 2 jobs" plan proposed
+# handing a 4:00 PM pickup to another driver.
+# ════════════════════════════════════════════════════════════════════════════
+class PastPickupPlanTests(_PureBoardTestCase):
+    def test_an_assigned_leg_whose_moment_passed_can_no_longer_be_moved(self):
+        # Status is not a proxy for time: nobody tapped "picked up", so the
+        # 4:00 leg is still 'confirmed' at 5:57 and every tier used to treat
+        # it as freely movable.
+        stale = _leg(401, 16, 0, driver_id=1, status="confirmed")
+        board = _board({1: [stale]}, now=_dt(17, 57))
+        self.assertFalse(ca._movable(board, stale))
+
+    def test_the_same_leg_was_movable_before_its_moment(self):
+        stale = _leg(401, 16, 0, driver_id=1, status="confirmed")
+        self.assertTrue(ca._movable(_board({1: [stale]}, now=_dt(15, 30)),
+                                    stale))
+
+    def test_a_delayed_plane_keeps_the_job_movable_past_its_booked_time(self):
+        """Reality moved this job, it did not expire: booked 4:00, plane now
+        landing 6:15, so at 5:57 it is still very much re-homeable."""
+        late = _leg(402, 16, 0, trip="arrival", pickup="MCO Terminal B",
+                    dropoff="Disney Contemporary", driver_id=1,
+                    flight=_flight(_dt(18, 15), scheduled=_dt(16, 0)))
+        self.assertTrue(ca._movable(_board({1: [late]}, now=_dt(17, 57)), late))
+
+    def test_an_unassigned_past_due_leg_can_still_be_covered(self):
+        """The one late move that is exactly right — nobody is at that curb
+        yet, and a guest may be waiting. Freezing this would break the most
+        urgent card the advisor raises."""
+        orphan = _leg(403, 16, 0, driver_id=None)
+        board = _board({1: []}, now=_dt(16, 20), extra_legs=[orphan])
+        self.assertTrue(ca._movable(board, orphan))
+
+    def test_a_receiver_who_cannot_get_there_is_not_a_candidate(self):
+        """check_feasibility has no clock — it answers "does this fit between
+        his other jobs", and would hand back a healthy buffer for a driver who
+        is mid-job across the county."""
+        busy = _leg(411, 17, 30, driver_id=2, pickup="MCO Terminal B",
+                    dropoff="Disney Contemporary", status="picked-up")
+        target = _leg(412, 18, 0, driver_id=None,
+                      pickup="Disney Grand Floridian",
+                      dropoff="Disney Boardwalk")
+        board = _board({2: [busy]}, now=_dt(17, 55), extra_legs=[target],
+                       picked={411: _dt(17, 30)})
+        self.assertEqual(ca._reach_dt(board, 2, target), _dt(18, 12))
+        self.assertEqual(ca._receiver_candidates(board, target), [])
+
+    def test_a_receiver_who_can_get_there_is_still_offered(self):
+        """The guard must not turn into "never move anything late". The same
+        driver with a shorter job in front of him clears in time and stays a
+        candidate, tight buffer and all."""
+        busy = _leg(413, 17, 30, driver_id=2, pickup="Disney Contemporary",
+                    dropoff="Disney Polynesian", status="picked-up")
+        target = _leg(414, 18, 0, driver_id=None,
+                      pickup="Disney Grand Floridian",
+                      dropoff="Disney Boardwalk")
+        board = _board({2: [busy]}, now=_dt(17, 55), extra_legs=[target],
+                       picked={413: _dt(17, 30)})
+        self.assertEqual([did for did, _ in
+                          ca._receiver_candidates(board, target)], [2])
+
+    def test_a_past_due_pickup_still_gets_every_receiver_offered(self):
+        """THE CARVE-OUT, ALL THE WAY DOWN. _reach_dt is floored at NOW, so for
+        a pickup whose moment has gone by EVERY real driver scores
+        reach >= now > due. Testing that would reject all of them and quietly
+        delete the recovery from the most urgent card the advisor raises — a
+        guest possibly standing at a curb, a card that says "cover this" and a
+        plan list that says nothing. _movable keeps the leg placeable; the
+        receiver filter must not take that back one layer down."""
+        done = _leg(431, 15, 30, driver_id=2, pickup="Disney Contemporary",
+                    dropoff="Disney Polynesian")
+        orphan = _leg(432, 16, 0, driver_id=None,
+                      pickup="Disney Grand Floridian",
+                      dropoff="Disney Boardwalk")
+        board = _board({2: [done]}, now=_dt(16, 20), extra_legs=[orphan])
+        self.assertTrue(ca._movable(board, orphan))
+        self.assertEqual([did for did, _ in
+                          ca._receiver_candidates(board, orphan)], [2])
+
+    def test_an_uncovered_past_due_pickup_still_comes_with_a_plan(self):
+        """The same guarantee end to end: the card AND something to do about
+        it. A card that names an uncovered guest and offers nothing is the
+        failure this guard was supposed to prevent, not cause."""
+        done = _leg(441, 15, 30, driver_id=2, pickup="Disney Contemporary",
+                    dropoff="Disney Polynesian")
+        orphan = _leg(442, 16, 0, driver_id=None,
+                      pickup="Disney Grand Floridian",
+                      dropoff="Disney Boardwalk")
+        board = _board({2: [done]}, now=_dt(16, 20), extra_legs=[orphan])
+        d = _one_card(board, "unassigned")
+        self.assertEqual(d.severity, "critical")
+        plans = ca.generate_plans(board, d)
+        self.assertTrue([p for p in plans if p.moves], d.details)
+
+    def test_a_break_the_engine_proved_stays_recoverable_past_its_moment(self):
+        """The freeze protects a driver who might be AT the curb. When the
+        engine has just finished proving he is somewhere else — his current job
+        is running long, which is the entire card — freezing the pickup he is
+        about to miss hands the dispatcher a problem and no options at the one
+        moment they most need one."""
+        long_job = _leg(451, 15, 0, status="picked-up", driver_id=1,
+                        pickup="MCO Terminal B", dropoff="Disney Contemporary")
+        breaking = _leg(452, 16, 0, driver_id=1,
+                        pickup="Disney Grand Floridian",
+                        dropoff="Disney Boardwalk")
+        free = _leg(453, 15, 0, driver_id=2, pickup="Disney Polynesian",
+                    dropoff="Disney Grand Floridian")
+        board = _board({1: [long_job, breaking], 2: [free]}, now=_dt(16, 10),
+                       picked={451: _dt(15, 0)})
+        d = _one_card(board, "overrun")
+        self.assertTrue(d.details["breaks"])
+        # Frozen on its own, recoverable as the break the card is about.
+        self.assertFalse(ca._movable(board, breaking))
+        self.assertEqual([l.id for l in ca._recovery_targets(board, d)], [452])
+
+    def test_a_driver_who_cleared_long_ago_has_no_knowable_position(self):
+        """Not the same as reachable. He finished at 2pm; at 5:57 he could be
+        anywhere, and arithmetic off a four-hour-old dropoff is the teleport
+        assumption wearing a lab coat."""
+        done = _leg(421, 13, 0, driver_id=2, pickup="Disney Contemporary",
+                    dropoff="Disney Polynesian")
+        target = _leg(422, 18, 0, driver_id=None,
+                      pickup="Disney Grand Floridian",
+                      dropoff="Disney Boardwalk")
+        board = _board({2: [done]}, now=_dt(17, 57), extra_legs=[target])
+        self.assertIsNone(ca._reach_dt(board, 2, target))
 
 
 class FarmTierTests(_PureBoardTestCase):

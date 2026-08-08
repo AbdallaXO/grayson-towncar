@@ -3,12 +3,12 @@
 {# Required context: leg #}
 
 <dt class="col-sm-4">Pickup</dt>
-<dd class="col-sm-8 fw-semibold">{{ leg.pickup_location|default:"—" }}</dd>
+<dd class="col-sm-8 fw-semibold">{{ leg.pickup_location|default:"—" }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.pickup_map_url text=leg.pickup_location %}</dd>
 
 {% for stop in leg.intermediate_stops %}
   <dt class="col-sm-4">{{ stop.get_stop_type_display }}</dt>
   <dd class="col-sm-8 fw-semibold">
-    {{ stop.display_location }}
+    {{ stop.display_location }}{% include "dispatching/includes/_map_link_btn.html" with url=stop.map_url text=stop.display_location compact=1 %}
     {% if stop.stop_type == 'charter' %}
       {% if stop.start_time %}
         <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">starts {{ stop.start_time|time:"g:i A" }}</span>
@@ -27,14 +27,14 @@
 {% endfor %}
 
 <dt class="col-sm-4">Drop-off</dt>
-<dd class="col-sm-8 fw-semibold">{{ leg.dropoff_location|default:"—" }}</dd>
+<dd class="col-sm-8 fw-semibold">{{ leg.dropoff_location|default:"—" }}{% include "dispatching/includes/_map_link_btn.html" with url=leg.dropoff_map_url text=leg.dropoff_location %}</dd>
 
 {% for stop in leg.additional_dropoffs %}
   <dt class="col-sm-4">
     Additional drop-off{% if leg.additional_dropoffs|length > 1 %} {{ forloop.counter|add:"1" }}{% endif %}
   </dt>
   <dd class="col-sm-8 fw-semibold">
-    {{ stop.display_location }}
+    {{ stop.display_location }}{% include "dispatching/includes/_map_link_btn.html" with url=stop.map_url text=stop.display_location compact=1 %}
     {% if stop.extra_fee %}
       <span class="badge bg-success-subtle text-success border border-success-subtle ms-1">+${{ stop.extra_fee|floatformat:2 }}</span>
     {% endif %}
@@ -44,3 +44,29 @@
     {% if stop.notes %}<div class="small text-muted fst-italic mt-1">{{ stop.notes }}</div>{% endif %}
   </dd>
 {% endfor %}
+
+{% if leg.route_map_url %}
+  <dt class="col-sm-4">Directions</dt>
+  <dd class="col-sm-8">
+    <a href="{{ leg.route_map_url }}" target="_blank" rel="noopener noreferrer"
+       class="btn btn-sm btn-outline-primary"
+       title="Google Maps directions for the whole leg, every stop in order">
+      <i class="bi bi-signpost-split me-1"></i>Open full route in Google Maps
+    </a>
+  </dd>
+{% endif %}
+
+{% if leg.flight_tracker_links %}
+  <dt class="col-sm-4">Flight tracker</dt>
+  <dd class="col-sm-8">
+    {% for f in leg.flight_tracker_links %}
+      <div class="mb-1">
+        <span class="fw-semibold me-1">{{ f.label }}</span>
+        {% if f.is_controlling %}<span class="badge bg-success-subtle text-success border border-success-subtle me-1" title="This flight drives the pickup time">controls pickup</span>{% endif %}
+        {% if f.airline_url %}<a href="{{ f.airline_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0" style="font-size:.72rem;" title="The airline's own status page — first to show gate changes">{{ f.airline_site }}</a>{% endif %}
+        <a href="{{ f.flightaware }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary py-0" style="font-size:.72rem;">FlightAware</a>
+        <a href="{{ f.flightview }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary py-0" style="font-size:.72rem;">FlightView</a>
+      </div>
+    {% endfor %}
+  </dd>
+{% endif %}

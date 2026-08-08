@@ -462,6 +462,48 @@ class StatusSafetyTests(_AdvisorApplyFixture):
         self.assertEqual(leg.status, "in-progress")
         self.assertTrue(any("re-accept" in w for w in body["warnings"]))
 
+    def test_a_pickup_that_already_happened_cannot_be_handed_over(self):
+        """Guard 6b at the apply layer. The clock is re-derived at click time,
+        not inherited from the card: a rail left open through a long phone call
+        can still be showing a plan that was valid when it was drawn.
+
+        Status is not a proxy for time — this leg is 'confirmed' because nobody
+        ever tapped the app, and that is exactly the leg the swap search liked
+        best (a long-gone slot has the widest free buffer)."""
+        from dispatching.conflict_advisor_actions import _check_status_safety
+        from dispatching.farmout_actions import PlanRejected
+
+        leg = self._leg(driver=self.sam, pickup_time=time(16, 0),
+                        pickup_date=FUTURE)
+        plan = type("P", (), {"actions": [type("A", (), {
+            "leg_id": leg.id, "op": "reassign"})()]})()
+        legs = {leg.id: leg}
+
+        # Same board, two clocks. Before the moment: allowed (the only thing
+        # said about it is the pre-existing re-accept warning).
+        leg.pickup_date = timezone.localdate() + timedelta(days=7)
+        self.assertNotIn("come and gone",
+                         " ".join(_check_status_safety(plan, legs)))
+
+        # After it: 409, and the message names the pickup a dispatcher can find.
+        leg.pickup_date = timezone.localdate() - timedelta(days=1)
+        with self.assertRaises(PlanRejected) as cm:
+            _check_status_safety(plan, legs)
+        self.assertEqual(cm.exception.status, 409)
+        self.assertIn("already come and gone", cm.exception.error)
+
+    def test_an_unassigned_past_pickup_can_still_be_covered(self):
+        """The carve-out, mirrored: nobody is at that curb yet, so covering a
+        guest late is still exactly the right move."""
+        from dispatching.conflict_advisor_actions import _check_status_safety
+
+        leg = self._leg(driver=None, pickup_time=time(16, 0),
+                        pickup_date=timezone.localdate() - timedelta(days=1))
+        plan = type("P", (), {"actions": [type("A", (), {
+            "leg_id": leg.id, "op": "reassign"})()]})()
+        self.assertNotIn("come and gone",
+                         " ".join(_check_status_safety(plan, {leg.id: leg})))
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # STAGE G — pinned-scenario completions (plan Verification section)

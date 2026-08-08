@@ -51,7 +51,10 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             "cruise_information",
         ).prefetch_related(
             "reservation__legs",
-            "legstop_set",  # leg.additional_dropoffs / has_intermediate_stops in list templates
+            # leg.additional_dropoffs / has_intermediate_stops in list templates.
+            # __location comes along because both display_location and the stop's
+            # Map button read the structured Location name when one matched.
+            "legstop_set__location",
             # leg.legflight_set count in list templates, AND the controlling flight the
             # pickup-risk deadline reads (pickup_policy.controlling_flight) — pulling
             # __flight in keeps that a cache hit instead of a per-row query.

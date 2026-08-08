@@ -608,7 +608,7 @@
         </div>
 
         <div class="ed-up" style="animation-delay: 120ms;">
-          <form method="post" action="{% url 'partner' %}" class="ed-apply-card" novalidate>
+          <form method="post" action="{% url 'partner' %}" class="ed-apply-card" id="cf-partner-form" novalidate>
             {% csrf_token %}
 
             <div class="corner-mark" aria-hidden="true">
@@ -804,6 +804,14 @@
                   up with onboarding details — we&rsquo;ll never sell or share what I send.
                 </span>
               </label>
+
+              {# Bot challenge. Renders only once the Turnstile secret is configured. #}
+              {% if turnstile_site_key %}
+                <div class="cf-turnstile"
+                     data-sitekey="{{ turnstile_site_key }}"
+                     data-action="turnstile-spin-v2"
+                     data-theme="light"></div>
+              {% endif %}
 
               <button type="submit" class="ed-btn ed-btn-ink ed-submit">
                 Send my application <i class="bi bi-arrow-right" aria-hidden="true"></i>
@@ -1120,4 +1128,16 @@
       }
     })();
   </script>
+
+  {% if turnstile_site_key %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script>
+      // Turnstile tokens are single-use, and this form re-renders inline on a
+      // validation error rather than navigating away. Reset on submit so a
+      // retry gets a fresh token instead of a timeout-or-duplicate rejection.
+      document.getElementById('cf-partner-form').addEventListener('submit', () => {
+        setTimeout(() => window.turnstile?.reset(), 0);
+      });
+    </script>
+  {% endif %}
 {% endblock %}

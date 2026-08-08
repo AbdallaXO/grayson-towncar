@@ -2282,6 +2282,41 @@ class Leg(models.Model):
                 return lf.flight
         return self.flight_information
 
+    # ── External deep links (Google Maps / flight trackers) ──
+    # Thin wrappers over reservations.trip_links so templates can render a
+    # "open this in Maps" button without knowing the URL contract. Imported
+    # inside the properties to keep models.py import-time clean.
+
+    @property
+    def pickup_map_url(self):
+        """Google Maps link for this leg's pickup address, or None if blank."""
+        from .trip_links import maps_place_url
+
+        return maps_place_url(self.pickup_location)
+
+    @property
+    def dropoff_map_url(self):
+        """Google Maps link for this leg's drop-off address, or None if blank."""
+        from .trip_links import maps_place_url
+
+        return maps_place_url(self.dropoff_location)
+
+    @cached_property
+    def route_map_url(self):
+        """Driving directions for the WHOLE leg — pickup, every on-the-way stop,
+        then the drop-offs in order. None when either end is missing."""
+        from .trip_links import leg_trip_links
+
+        return leg_trip_links(self)["route_url"]
+
+    @cached_property
+    def flight_tracker_links(self):
+        """FlightAware / FlightView links for every flight on this leg,
+        controlling flight first. Empty list when there's nothing trackable."""
+        from .trip_links import leg_trip_links
+
+        return leg_trip_links(self)["flights"]
+
     class Meta:
         ordering = ["pickup_date", "pickup_time"]
         indexes = [
@@ -2384,6 +2419,18 @@ class LegStop(models.Model):
         if self.stop_type == "charter":
             return "Open destination — guest directs the driver"
         return ""
+
+    @property
+    def map_url(self):
+        """Google Maps link for this stop, or None when it has no address.
+
+        Deliberately reads the raw location rather than `display_location`: a
+        charter stop's friendly "guest directs the driver" sentence is not
+        somewhere Google can take anyone.
+        """
+        from .trip_links import maps_place_url, stop_address
+
+        return maps_place_url(stop_address(self))
 
     @property
     def charter_hours(self):

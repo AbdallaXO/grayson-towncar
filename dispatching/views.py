@@ -313,6 +313,12 @@ def index(request):
         inhouse_driver_rows.append({
             "driver": _driver,
             "assignment": _assignment,
+            # A unit can be marked down AFTER it was assigned, so the chip on the
+            # driver's card has to carry the state too — not just the pool.
+            "vehicle_oos_label": (
+                _assignment.vehicle.out_of_service_label(selected_date)
+                if _assignment and _assignment.vehicle else ""
+            ),
             "is_off_today": _is_off,
             "was_scheduled_off": _was_scheduled_off,
             "shift_display": _ld_shift_disp,
@@ -432,8 +438,12 @@ def index(request):
                 return (1, vehicle_number)
         return (2, "")
 
-    inhouse_vehicles = sorted(
-        FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"), key=_vehicle_sort_key
+    inhouse_vehicles = _annotate_vehicle_status(
+        sorted(
+            FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"),
+            key=_vehicle_sort_key,
+        ),
+        selected_date,
     )
 
     # Compute real-time dispatch flags for today's legs
@@ -1243,9 +1253,14 @@ def schedule_board(request):
         vehicle_number = ''
         vehicle_type_label = ''
         vehicle_notes = ''
+        vehicle_oos_label = ''
         if assignment and assignment.vehicle:
             vehicle_number = assignment.vehicle.vehicle_number or ''
             vehicle_notes = assignment.vehicle.notes or ''
+            # The board is where a dispatcher watches the day run. A driver still
+            # holding a unit that's been marked down has to read as a problem here
+            # too, not only on the pages where cars get assigned.
+            vehicle_oos_label = assignment.vehicle.out_of_service_label(selected_date)
             if assignment.vehicle.vehicle_type:
                 vehicle_type_label = str(assignment.vehicle.vehicle_type)
         _is_avail, _sh, _eh, _pref, _flex = (
@@ -1431,6 +1446,7 @@ def schedule_board(request):
             'aff_no_port': _aff_no_port,
             'affiliate_vehicle': driver.vehicle or '' if is_affiliate_board else '',
             'vehicle_number': vehicle_number,
+            'vehicle_oos_label': vehicle_oos_label,
             'vehicle_type_label': vehicle_type_label,
             'prev_night_cleared': _prev_day_last.get(driver.id, ''),
             'prev_night_vehicle': _sb_prev_day_vehicle.get(driver.id, ''),
@@ -1981,7 +1997,12 @@ def reservation_details(request, id):
                     Prefetch(
                         "status_history",
                         queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
-                    )
+                    ),
+                    # The journey block renders every stop (with its Map button) and
+                    # every flight's tracker links — pull both in rather than firing
+                    # a pair of queries per leg at template time.
+                    "legstop_set__location",
+                    "legflight_set__flight",
                 )
             ),
             Prefetch("payments", queryset=Payment.objects.order_by('-created_at')),
@@ -2093,6 +2114,187 @@ def _build_history_with_deltas(model_class, historical_records, foreign_keys_are
     return list(historical_records)
 
 
+def _history_actor(record):
+    """
+    Who made this change, in dispatcher language.
+
+    simple_history only records a user when the save happened inside a request
+    from a signed-in user. Customer bookings and background tasks (reminders,
+    Stripe webhooks, GHL sync) legitimately have no user; returns None so the
+    template can label those "System" rather than showing a bare dash that
+    reads like missing data.
+    """
+    user = record.history_user
+    if user:
+        return user.get_full_name() or user.username
+    return None
+
+
+def _reservation_creator(reservation):
+    """
+    Who placed this booking, and in what capacity.
+
+    ``created_by`` is only filled in when a dispatcher books through the back
+    office, so on its own it leaves every online booking attributed to nobody.
+    A reservation always knows who it belongs to though — fall through to the
+    travel agent, then to the customer who booked it themselves.
+
+    Returns (name, capacity); either may be None if the reservation is too
+    sparse to name anyone.
+    """
+    if reservation.created_by:
+        user = reservation.created_by
+        return (user.get_full_name() or user.username), "Dispatcher"
+
+    agent = getattr(reservation, "travel_agent", None)
+    if agent:
+        name = agent.agency_name
+        if not name and agent.user:
+            name = agent.user.get_full_name() or agent.user.username
+        if name:
+            return name, "Travel agent"
+
+    customer = getattr(reservation, "customer", None)
+    if customer:
+        from reservations.attribution import channel_label
+
+        capacity = "Customer — booked online"
+        label = channel_label(reservation.booking_source)
+        if label and label != "—":
+            capacity = f"Customer — booked online via {label}"
+        return customer.get_full_name(), capacity
+
+    return None, None
+
+
+RESERVATION_TIMELINE_LIMIT = 300
+
+
+def _reservation_timeline(reservation, limit=RESERVATION_TIMELINE_LIMIT):
+    """
+    One chronological story for a reservation: its own field changes plus every
+    leg's, newest first.
+
+    The reservation row itself barely ever changes — nearly all dispatcher work
+    lands on the legs (driver, times, status, pay). A reservation-only audit log
+    therefore looks empty even on a booking that has been touched twenty times,
+    which is exactly what "View reservation history" used to show. Merging the
+    legs in is what makes the panel worth opening.
+
+    Returns (entries, truncated) where each entry is a plain dict so the same
+    template renders reservation and leg rows side by side.
+    """
+    legs = list(reservation.legs.all().order_by("pickup_date", "pickup_time", "id"))
+    leg_labels = {
+        leg.id: (
+            f"Leg {index}",
+            f"{leg.pickup_location} → {leg.dropoff_location}",
+        )
+        for index, leg in enumerate(legs, start=1)
+    }
+
+    entries = []
+
+    res_history = list(
+        get_history_manager_for_model(Reservation)
+        .filter(uuid=reservation.uuid)
+        .select_related("history_user")
+        .order_by("-history_date")
+    )
+    _build_history_with_deltas(Reservation, res_history)
+    for record in res_history:
+        entries.append(
+            {
+                "when": record.history_date,
+                "scope": "Reservation",
+                "scope_detail": "",
+                "action": record.get_history_type_display(),
+                "actor": _history_actor(record),
+                "actor_note": None,
+                "changes": getattr(record, "history_delta_changes", None) or [],
+            }
+        )
+
+    if legs:
+        leg_history = list(
+            get_history_manager_for_model(Leg)
+            .filter(id__in=[leg.id for leg in legs])
+            .select_related("history_user")
+            .order_by("id", "-history_date")
+        )
+        # diff_against() only makes sense between two snapshots of the same leg,
+        # so build the deltas per leg before merging everything together.
+        from collections import defaultdict
+
+        by_leg = defaultdict(list)
+        for record in leg_history:
+            by_leg[record.id].append(record)
+        for leg_id, records in by_leg.items():
+            _build_history_with_deltas(Leg, records)
+            scope, scope_detail = leg_labels.get(leg_id, (f"Leg #{leg_id}", ""))
+            for record in records:
+                entries.append(
+                    {
+                        "when": record.history_date,
+                        "scope": scope,
+                        "scope_detail": scope_detail,
+                        "action": record.get_history_type_display(),
+                        "actor": _history_actor(record),
+                        "actor_note": None,
+                        "changes": getattr(record, "history_delta_changes", None) or [],
+                    }
+                )
+
+    # "Created, when, by who" is the one thing the panel must always answer, and
+    # history alone can't: tracking only started in March 2026, and the insert
+    # fires from a signal that has no request user on an online booking or a
+    # back-office script. The reservation itself knows — so seed the entry when
+    # it's missing, and name the creator when the history row left it blank.
+    creator_name, creator_capacity = _reservation_creator(reservation)
+    created_entry = next(
+        (e for e in entries if e["scope"] == "Reservation" and e["action"] == "Created"),
+        None,
+    )
+    if created_entry is None:
+        created_entry = {
+            "when": reservation.created_at,
+            "scope": "Reservation",
+            "scope_detail": "",
+            "action": "Created",
+            "actor": None,
+            "actor_note": None,
+            "changes": [],
+        }
+        entries.append(created_entry)
+    if not created_entry["actor"]:
+        created_entry["actor"] = creator_name
+        created_entry["actor_note"] = creator_capacity
+    elif creator_capacity == "Dispatcher":
+        # History caught the signed-in dispatcher; still say what they were.
+        created_entry["actor_note"] = creator_capacity
+
+    entries.sort(key=lambda e: (e["when"] is not None, e["when"]), reverse=True)
+    truncated = len(entries) - limit if len(entries) > limit else 0
+    return entries[:limit], truncated
+
+
+def _reservation_history_context(reservation):
+    entries, truncated = _reservation_timeline(reservation)
+    creator_name, creator_capacity = _reservation_creator(reservation)
+    return {
+        "reservation": reservation,
+        "timeline_entries": entries,
+        "timeline_truncated": truncated,
+        # Repeated in the header so the answer survives the 300-entry cap.
+        "creator_name": creator_name,
+        "creator_capacity": creator_capacity,
+    }
+
+
+def _reservation_for_history(id):
+    return get_object_or_404(Reservation.objects.select_related("created_by"), uuid=id)
+
+
 @login_required(login_url="login")
 def reservation_history(request, id):
     """
@@ -2101,22 +2303,28 @@ def reservation_history(request, id):
     if not request.user.is_staff:
         return redirect("home")
 
-    reservation = get_object_or_404(Reservation, uuid=id)
-    history_manager = get_history_manager_for_model(Reservation)
-
-    historical = list(
-        history_manager.filter(uuid=reservation.uuid)
-        .select_related("history_user")
-        .order_by("-history_date")
-    )
-    _build_history_with_deltas(Reservation, historical)
-
-    context = {
-        "reservation": reservation,
-        "history_records": historical,
-        "page_title": f"Reservation history — {reservation}",
-    }
+    reservation = _reservation_for_history(id)
+    context = _reservation_history_context(reservation)
+    context["page_title"] = f"Reservation history — {reservation}"
     return render(request, "dispatching/reservation_history.html", context)
+
+
+@login_required(login_url="login")
+def reservation_history_partial(request, id):
+    """
+    Same timeline as reservation_history, as a fragment for the modal on the
+    reservation page. Loaded on open so the (already query-heavy) reservation
+    page doesn't pay for history nobody asked to see.
+    """
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+
+    reservation = _reservation_for_history(id)
+    return render(
+        request,
+        "dispatching/reservation_history_partial.html",
+        _reservation_history_context(reservation),
+    )
 
 
 @login_required(login_url="login")
@@ -2768,6 +2976,24 @@ def _gap_turn_slack(prev_slot, next_slot, target_date, prev_leg=None,
                               prev_picked_up_dt=prev_picked_up_dt)
 
 
+def _annotate_vehicle_status(vehicles, on_date):
+    """Stamp each unit with its out-of-service label and permit rows for a date.
+
+    Every surface that renders a vehicle pool goes through here — the legs
+    dashboard, the planner, and anything added later. A car marked down has to
+    look the same wherever it appears; the bug this exists to prevent is exactly
+    the one that shipped first, where the planner greyed #001 out and the legs
+    dashboard drew it as a perfectly normal card.
+
+    Resolved per DATE, not "now": these pages are date-scoped, and a unit in the
+    shop this week is a normal unit on next week's board.
+    """
+    for vehicle in vehicles:
+        vehicle.oos_label = vehicle.out_of_service_label(on_date)
+        vehicle.permit_rows = vehicle.permits(day=on_date)
+    return vehicles
+
+
 def _pack_lanes(slots, *, lane_height, gap, top_pad=2):
     """Greedy interval packing: give every slot a `lane` + `lane_top` so overlapping
     jobs stack vertically instead of painting over each other. Returns the lane count.
@@ -3215,28 +3441,57 @@ def check_driver_feasibility(request):
             elif eff.get("exception_notes"):
                 availability_warnings.append(f"Driver note: {eff['exception_notes']}")
 
+        # The driver's unit for the date. Fetched once: both the vehicle-type
+        # check and the pickup-permit check below need it.
+        day_vehicle = None
+        if driver.driver_type == "inhouse":
+            _dva = (
+                DriverVehicleAssignment.objects
+                .select_related("vehicle", "vehicle__vehicle_type")
+                .filter(driver=driver, date=target_date)
+                .first()
+            )
+            day_vehicle = _dva.vehicle if _dva else None
+
         # Check vehicle type match
         vehicle_match = True
         vehicle_mismatch_detail = ""
         required_type = leg.effective_vehicle_type
         if required_type and driver.driver_type == "inhouse":
             from dispatching.scheduler import get_compatible_vehicle_types
-            try:
-                assignment = DriverVehicleAssignment.objects.select_related(
-                    "vehicle", "vehicle__vehicle_type"
-                ).get(driver=driver, date=target_date)
-                if assignment.vehicle and assignment.vehicle.vehicle_type:
-                    assigned_type = assignment.vehicle.vehicle_type.vehicle_type
-                    compatible_types = get_compatible_vehicle_types(assigned_type)
-                    if str(required_type) not in compatible_types:
-                        vehicle_match = False
-                        vehicle_mismatch_detail = f"Driver's vehicle is {assigned_type}, reservation requires {required_type}"
-                else:
+            if day_vehicle is not None and day_vehicle.vehicle_type:
+                assigned_type = day_vehicle.vehicle_type.vehicle_type
+                compatible_types = get_compatible_vehicle_types(assigned_type)
+                if str(required_type) not in compatible_types:
                     vehicle_match = False
-                    vehicle_mismatch_detail = "Driver has no vehicle assigned today"
-            except DriverVehicleAssignment.DoesNotExist:
+                    vehicle_mismatch_detail = f"Driver's vehicle is {assigned_type}, reservation requires {required_type}"
+            else:
                 vehicle_match = False
                 vehicle_mismatch_detail = "Driver has no vehicle assigned today"
+
+        # Pickup permit — ADVISORY, never a block.
+        # Central Florida permits the VEHICLE, not the company: MCO, Sanford and
+        # Port Canaveral each need their own decal to PICK UP there. Dropping is
+        # unrestricted, so only the pickup end is checked. This warns rather than
+        # gates by explicit decision — pickup locations are free text matched by
+        # categorize_location(), and MCO is most of the business, so a hard block
+        # would misfire on the busiest lane. The dispatcher gets the unit number,
+        # the permit and the reason, and makes the call.
+        permit_warning = ""
+        if day_vehicle is not None:
+            _missing = day_vehicle.missing_permit_for_pickup(
+                leg.pickup_location, day=target_date)
+            if _missing:
+                _unit = f"#{day_vehicle.vehicle_number}"
+                if _missing["expired"]:
+                    permit_warning = (
+                        f"{_unit}'s {_missing['label']} permit expired "
+                        f"{_missing['expires_on']} — this trip collects at "
+                        f"{_missing['label']}.")
+                else:
+                    permit_warning = (
+                        f"{_unit} has no {_missing['label']} pickup permit — "
+                        f"this trip collects at {_missing['label']}.")
 
         preload_timing_cache()
 
@@ -3260,6 +3515,8 @@ def check_driver_feasibility(request):
             warnings = list(availability_warnings)
             if not vehicle_match and vehicle_mismatch_detail:
                 warnings.append(vehicle_mismatch_detail)
+            if permit_warning:
+                warnings.append(permit_warning)
             feasible = not availability_blocks
             reason = "Driver is off this date" if availability_blocks else "No other trips — fully available"
             return JsonResponse({
@@ -3271,6 +3528,7 @@ def check_driver_feasibility(request):
                 "existing_trips": 0,
                 "vehicle_match": vehicle_match,
                 "vehicle_mismatch_detail": vehicle_mismatch_detail,
+                "permit_warning": permit_warning,
                 "avail_status": eff["status"],
             })
 
@@ -3305,6 +3563,8 @@ def check_driver_feasibility(request):
         warnings = availability_warnings + warnings
         if not vehicle_match and vehicle_mismatch_detail:
             warnings.append(vehicle_mismatch_detail)
+        if permit_warning:
+            warnings.append(permit_warning)
 
         feasible = result.feasible and not availability_blocks
         reason = "Driver is off this date" if availability_blocks else result.reason
@@ -3318,6 +3578,7 @@ def check_driver_feasibility(request):
             "existing_trips": len(driver_schedule.slots),
             "vehicle_match": vehicle_match,
             "vehicle_mismatch_detail": vehicle_mismatch_detail,
+            "permit_warning": permit_warning,
             "avail_status": eff["status"],
         })
 
@@ -3386,6 +3647,28 @@ def update_inhouse_vehicle_assignment(request):
     except FleetVehicle.DoesNotExist:
         return JsonResponse(
             {"success": False, "error": "Vehicle not found"}, status=404
+        )
+
+    # Out of service: refuse, but let a human overrule.
+    #
+    # This is the ONE per-vehicle state allowed to block an assignment, and it is
+    # allowed precisely because a person set it by hand — unlike Guard A, which
+    # was pulled for inferring blocks from stale telematics
+    # (docs/fleet-management.md, feasibility_guards.py:140-144).
+    # The override exists so a wrong or forgotten flag can never strand a car
+    # that came back early: the dispatcher is told what's on record, and decides.
+    if vehicle.is_out_of_service_on(assignment_date) and not data.get("override_oos"):
+        return JsonResponse(
+            {
+                "success": False,
+                "error": (f"#{vehicle.vehicle_number} is out of service — "
+                          f"{vehicle.out_of_service_label(assignment_date)}."),
+                "out_of_service": True,
+                "can_override": True,
+                "vehicle_number": vehicle.vehicle_number,
+                "reason": vehicle.out_of_service_label(assignment_date),
+            },
+            status=409,
         )
 
     # Hard block: a vehicle type requiring certification (e.g. the Sprinter / 14-pax)
@@ -3484,9 +3767,17 @@ def copy_vehicle_assignments(request):
     # Perform the copy — respect exclude list
     exclude_ids = set(data.get("exclude_driver_ids", []))
     copied = 0
+    skipped_oos = []
     result_map = {}
     for a in prev_assignments:
         if a.driver_id in exclude_ids:
+            continue
+        # A unit that has gone into the shop since the source date must not be
+        # copied forward. Skipped, not refused: the rest of the day's plan is
+        # still worth having, and the driver simply lands with no vehicle —
+        # which the planner already renders as "needs a vehicle".
+        if a.vehicle and a.vehicle.is_out_of_service_on(target_date):
+            skipped_oos.append(f"#{a.vehicle.vehicle_number}")
             continue
         obj, created = DriverVehicleAssignment.objects.get_or_create(
             driver=a.driver, date=target_date,
@@ -3503,7 +3794,88 @@ def copy_vehicle_assignments(request):
         "copied": copied,
         "source_date": prev.strftime("%Y-%m-%d"),
         "assignments": result_map,
+        "skipped_out_of_service": skipped_oos,
     })
+
+
+@login_required
+@require_POST
+def reset_vehicle_assignments(request):
+    """Clear EVERY vehicle assignment for a date — the "start the day over" button.
+
+    Two modes, same as the copy path:
+    - preview=true: what WOULD be cleared, so the confirm modal can name it. Each
+      driver carries his job count for the day, because that is the one thing a
+      reset does NOT touch: clearing the car does not cancel the work. A driver
+      with 4 jobs and no vehicle is a real problem on the board, so the modal has
+      to say his name before you press the button, not after.
+    - preview=false: deletes the rows. Vehicle assignments are a plan for the day,
+      not a record of it — the trip history lives on the legs — so a full delete
+      is the honest reset. Planned AM/PM share windows go with them, which is
+      correct: they describe an assignment that no longer exists.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    if not date_str:
+        return JsonResponse({"success": False, "error": "Date required"}, status=400)
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    rows = (
+        DriverVehicleAssignment.objects.filter(date=target_date)
+        .select_related("driver", "driver__profile", "vehicle")
+        .order_by("driver__profile__first_name")
+    )
+
+    if data.get("preview", False):
+        # Jobs still on each driver's plate for the day. Cancelled legs don't
+        # count — they aren't work anyone has to cover.
+        leg_counts = dict(
+            Leg.objects.filter(pickup_date=target_date, driver__isnull=False)
+            .exclude(reservation__status="cancelled")
+            .exclude(status="cancelled")
+            .values_list("driver_id")
+            .annotate(n=Count("id"))
+        )
+        drivers_list = [
+            {
+                "driver_id": a.driver_id,
+                "driver_name": (
+                    (a.driver.profile.first_name or str(a.driver))
+                    if a.driver.profile else str(a.driver)
+                ),
+                "vehicle_number": a.vehicle.vehicle_number if a.vehicle else "",
+                "vehicle_type": (
+                    str(a.vehicle.vehicle_type)
+                    if a.vehicle and a.vehicle.vehicle_type else ""
+                ),
+                "leg_count": leg_counts.get(a.driver_id, 0),
+            }
+            for a in rows
+        ]
+        return JsonResponse({
+            "success": True,
+            "date": target_date.strftime("%Y-%m-%d"),
+            "drivers": drivers_list,
+            "total": len(drivers_list),
+            "with_jobs": sum(1 for d in drivers_list if d["leg_count"]),
+        })
+
+    cleared = rows.count()
+    if not cleared:
+        return JsonResponse({"success": True, "cleared": 0})
+    rows.delete()
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
+    return JsonResponse({"success": True, "cleared": cleared})
 
 
 @login_required
@@ -3631,6 +4003,18 @@ def apply_day_setup(request):
             return JsonResponse({"success": False,
                                  "error": f"{d} isn't cleared to drive #{v.vehicle_number}."},
                                 status=400)
+        # The suggester never proposes an out-of-service unit, so reaching here
+        # means the flag was set between preview and Apply, or the payload was
+        # hand-edited. Either way this is a bulk write — refuse the whole batch
+        # and send them back to a fresh preview rather than offer an override
+        # that would silently apply to every pair in it.
+        if v.is_out_of_service_on(target_date):
+            return JsonResponse(
+                {"success": False,
+                 "error": (f"#{v.vehicle_number} is out of service — "
+                           f"{v.out_of_service_label(target_date)}. "
+                           f"Re-open Suggest Day Setup.")},
+                status=409)
 
     payload_driver_ids = {did for did, _, _, _, _ in clean}
     with transaction.atomic():
@@ -10466,8 +10850,19 @@ def capacity_planner(request):
         return (1, str(d))
     eligible_drivers.sort(key=_cp_vehicle_sort_key)
 
-    # Fleet vehicles for quick-assign panel
-    inhouse_vehicles = FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type").order_by("vehicle_number")
+    # Fleet vehicles for quick-assign panel.
+    # Units marked out of service FOR THE SELECTED DATE are split off rather than
+    # dropped: a dispatcher who can't find #7 will go looking for it, so the pool
+    # shows it greyed with the reason and refuses the drop. Per-date, so a car in
+    # the shop this week still appears normally on next week's board.
+    inhouse_vehicles = _annotate_vehicle_status(
+        list(FleetVehicle.objects.filter(is_active=True)
+             .select_related("vehicle_type").order_by("vehicle_number")),
+        selected_date,
+    )
+    # Down units sort last but stay in the pool — see the card markup for why.
+    inhouse_vehicles.sort(key=lambda v: bool(v.oos_label))
+    out_of_service_count = sum(1 for v in inhouse_vehicles if v.oos_label)
 
     # Build vehicle_assign_rows with off-today and leg count info
     _planner_leg_counts = {}
@@ -10515,6 +10910,12 @@ def capacity_planner(request):
         vehicle_assign_rows.append({
             "driver": d,
             "assignment": _assignment,
+            # Same reason as the legs dashboard: a car marked down after it was
+            # assigned must go red on the driver's card, not only in the pool.
+            "vehicle_oos_label": (
+                _assignment.vehicle.out_of_service_label(selected_date)
+                if _assignment and _assignment.vehicle else ""
+            ),
             "is_off_today": _is_off,
             "was_scheduled_off": _was_scheduled_off,
             "leg_count": _planner_leg_counts.get(d.id, 0),
@@ -10883,6 +11284,7 @@ def capacity_planner(request):
         'inhouse_drivers': list(inhouse_drivers),
         'eligible_drivers': eligible_drivers,
         'inhouse_vehicles': inhouse_vehicles,
+        'out_of_service_count': out_of_service_count,
         'vehicle_assign_rows': vehicle_assign_rows,
         'va_off_count': va_off_count,
         'driver_availability_json': json.dumps(driver_availability),
