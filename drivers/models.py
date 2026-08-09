@@ -50,6 +50,15 @@ class Driver(models.Model):
         max_digits=4, decimal_places=1, null=True, blank=True,
         help_text="Default max hours per day. NULL = no limit."
     )
+    default_min_turn_buffer = models.IntegerField(
+        null=True, blank=True,
+        help_text="Spare minutes THIS driver needs between two jobs, on top of the drive "
+                  "between them. Leave blank to use whatever buffer the build is run with. "
+                  "Type 0 for a driver who genuinely needs no cushion (gets his guests up "
+                  "and out early) — he will keep building as tight as the drive time "
+                  "allows even on a buffered run. A typed number always wins over the "
+                  "run's setting, in both directions."
+    )
     default_preferred_shift = models.CharField(
         max_length=20, blank=True, default="",
         help_text="Default preferred time of day (morning, evening, etc.)."

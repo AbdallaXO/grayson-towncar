@@ -2152,6 +2152,33 @@
                         </div>
                     </div>
 
+                    <!-- Turn buffer (Guard B') -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-5">
+                            <div class="sb-label">Turn Buffer</div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <select id="sbBufferMode" class="form-select form-select-sm" style="flex:1 1 auto;">
+                                    <option value="" selected>Use default ({{ default_min_turn_buffer }} min)</option>
+                                    <option value="0">Aggressive — no buffer</option>
+                                    <option value="5">Standard — 5 min</option>
+                                    <option value="10">Relaxed — 10 min</option>
+                                    <option value="custom">Custom…</option>
+                                </select>
+                                <input type="number" id="sbBufferCustom" class="form-control form-control-sm"
+                                       min="0" max="120" step="1" value="5"
+                                       style="display:none;max-width:5.5rem;" aria-label="Custom buffer minutes">
+                            </div>
+                        </div>
+                        <div class="col-md-7 d-flex align-items-end">
+                            <div class="text-muted" style="font-size:0.75rem;line-height:1.35;">
+                                Spare minutes required between two jobs, <em>on top of</em> the drive between
+                                them. Aggressive lets a driver be due at his next pickup the moment he clears
+                                the last one. A driver with his own buffer set on his profile keeps it either way,
+                                and pinned jobs are never buffer-blocked.
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row g-3 mb-3">
                         <!-- Start Hour -->
                         <div class="col-6">
@@ -2709,6 +2736,22 @@
                             <span class="text-muted" style="font-size:0.75rem;">(treat them as if they aren't there for auto-assign)</span>
                         </label>
                     </div>
+                    <div class="mb-3 d-flex align-items-center flex-wrap gap-2" style="font-size:0.85rem;">
+                        <label for="aaBufferMode" style="user-select:none;white-space:nowrap;">Turn buffer</label>
+                        <select id="aaBufferMode" class="form-select form-select-sm" style="width:auto;min-width:14rem;">
+                            <option value="" selected>Use default ({{ default_min_turn_buffer }} min)</option>
+                            <option value="0">Aggressive — no buffer</option>
+                            <option value="5">Standard — 5 min</option>
+                            <option value="10">Relaxed — 10 min</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        <input type="number" id="aaBufferCustom" class="form-control form-control-sm"
+                               min="0" max="120" step="1" value="5"
+                               style="display:none;width:5.5rem;" aria-label="Custom buffer minutes">
+                        <span class="text-muted" style="font-size:0.75rem;">
+                            Spare minutes between two jobs, on top of the drive. Per-driver buffers still win.
+                        </span>
+                    </div>
                     <div style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;overflow:hidden;">
                         <table class="table table-sm mb-0" style="font-size:0.85rem;">
                             <thead style="background:var(--dark);color:#fff;">
@@ -3048,6 +3091,7 @@
                     excluded_leg_ids: aaExcluded,
                     manual_assignments: aaManual,
                     exclude_unpaid: !!(document.getElementById('aaExcludeUnpaid') || {}).checked,
+                    min_buffer: readBufferControl('aaBufferMode', 'aaBufferCustom'),
                 }),
             })
             .then(r => r.json())
@@ -3737,6 +3781,7 @@
                 excluded_leg_ids: aaExcluded,
                 manual_assignments: aaManual,
                 exclude_unpaid: !!(document.getElementById('aaExcludeUnpaid') || {}).checked,
+                min_buffer: readBufferControl('aaBufferMode', 'aaBufferCustom'),
             };
             if (applyDriverIds !== null) payload.apply_driver_ids = applyDriverIds;
 
@@ -3974,11 +4019,44 @@
         sync();
     })();
 
+    // Turn buffer control: a preset picks the minutes directly; "custom" reveals a number
+    // box. Returns null for "use default", which the backend reads as "fall back to
+    // SchedulerSettings.min_turn_buffer". Shared by the builder and auto-assign controls —
+    // note null vs 0 matters: null inherits, 0 explicitly means no buffer.
+    function readBufferControl(modeId, customId) {
+        const modeEl = document.getElementById(modeId);
+        if (!modeEl) return null;
+        if (modeEl.value === '') return null;
+        if (modeEl.value === 'custom') {
+            const customEl = document.getElementById(customId);
+            const n = customEl ? parseInt(customEl.value, 10) : NaN;
+            return Number.isFinite(n) && n >= 0 ? n : null;
+        }
+        const n = parseInt(modeEl.value, 10);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function wireBufferControl(modeId, customId) {
+        const modeEl = document.getElementById(modeId);
+        const customEl = document.getElementById(customId);
+        if (!modeEl || !customEl) return;
+        function sync() {
+            const isCustom = modeEl.value === 'custom';
+            customEl.style.display = isCustom ? '' : 'none';
+            if (isCustom) customEl.focus();
+        }
+        modeEl.addEventListener('change', sync);
+        sync();
+    }
+    wireBufferControl('sbBufferMode', 'sbBufferCustom');
+    wireBufferControl('aaBufferMode', 'aaBufferCustom');
+
     function buildPayload(apply) {
         const manualPins = getPinnedLegIds();
         const allPins = [...new Set([...manualPins, ...sbSwapPins])];
         const skipUnpaidEl = document.getElementById('sbExcludeUnpaid');
         return {
+            min_buffer: readBufferControl('sbBufferMode', 'sbBufferCustom'),
             driver_id: parseInt(document.getElementById('sbDriver').value),
             date: document.getElementById('datePicker').value,
             start_hour: parseInt(document.getElementById('sbStartHour').value),

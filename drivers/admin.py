@@ -133,13 +133,18 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "default_end_hour",
                     "default_flexible",
                     "default_max_hours",
+                    "default_min_turn_buffer",
                     "default_preferred_shift",
                     "default_preference",
                 ),
                 "description": "Default working hours and preferences for auto-assign. "
                                "Flexible = no hard time limits, planner builds a reasonable shift. "
                                "Uncheck Flexible only if driver has strict start/end constraints. "
-                               "Per-day overrides can be set in the Weekly Schedule section below.",
+                               "Per-day overrides can be set in the Weekly Schedule section below. "
+                               "Min turn buffer is this driver's own cushion between jobs: leave "
+                               "blank to follow the build's setting, or type 0 for a driver who "
+                               "reliably needs none (he'll keep building tight even on a buffered "
+                               "run).",
             },
         ),
         (

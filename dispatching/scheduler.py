@@ -206,6 +206,29 @@ STATIC_FLOOR_DWELL_MIN = 45
 # exactly this model. Flip off to chain on the metric estimates again.
 CHAIN_STATIC_TIMING = True
 
+# Chain repositioning may use the PRECOMPUTED REAL ROAD DISTANCE for an exact address pair
+# where the category table demonstrably can't be trusted (2026-08-09 audit, B3): it bills
+# every intra-cluster hop at one flat average — ('Disney Resort','Disney Resort') = 12 —
+# whether it is the same resort (already 0 via the identical-address rule) or a cross-property
+# run like Port Orleans French Quarter -> Animal Kingdom Lodge (~24 real, ~7 miles). That
+# 12-minute underprice is what let the founder's 2:03 arrival chain into a 3:30 departure at
+# exactly 0 spare.
+#
+# COST: this path NEVER calls Google. route_distance.cached_drive_minutes is a 30-min
+# process-cached, indexed DB read that returns None on a miss. The paid Distance Matrix call
+# happens only in route_distance.resolve_pending — the `resolve_route_distances` management
+# command, or the throttled inline resolver (one thread per process, once per 45s, 8 pairs).
+# Spend is bounded by UNIQUE ADDRESS PAIRS, not by scoring-loop iterations, and
+# route_distance.enqueue_upcoming_legs already precomputes this exact predicate for the next
+# 21 days. Until a pair is resolved we fall back to the table, so this degrades to today's
+# behaviour rather than blocking.
+#
+# NOT resolve_drive_minutes(): that falls through to the RouteTimingMetric p75, which is
+# measured on IN-JOB drives (passenger aboard, resort porte-cochère) and over-prices an EMPTY
+# reposition — exactly the pessimism CHAIN_STATIC_TIMING exists to keep out of chain math.
+# Real road distance in; static table as the fallback; p75 never.
+CHAIN_REAL_DISTANCE = True
+
 # build_smart_schedule optional-fill strategy. False = legacy first-fit (seat the first
 # feasible leg in tier order). True = best-fit (each round seat the highest-SCORING feasible
 # candidate).
@@ -995,17 +1018,54 @@ def chain_clear_dt_from_actual(leg, actual_pickup_dt) -> datetime:
     return actual_pickup_dt + timedelta(minutes=drive + store_stop)
 
 
+def chain_repo_needs_real_distance(from_category, to_category) -> bool:
+    """Is this a pair the coarse category table demonstrably cannot price?
+
+    Deliberately the SAME predicate route_distance.enqueue_upcoming_legs uses to decide what
+    to precompute, so the chain path only ever ASKS for pairs the resolver is already
+    filling — it never widens the paid Distance Matrix surface.
+    """
+    return bool(
+        from_category in LIVE_DISTANCE_UNKNOWN_CATS
+        or to_category in LIVE_DISTANCE_UNKNOWN_CATS
+        or (from_category == to_category and from_category in INTRA_CLUSTER_LIVE_CATS)
+    )
+
+
 def chain_repo_minutes(from_text, to_text, from_category, to_category) -> int:
-    """Repositioning drive for CHAIN feasibility (CHAIN_STATIC_TIMING): same exact
-    address → 0, else the category table — the founder's planning numbers, NOT the p75
-    metric (p75 of observed in-job drives over-prices an empty reposition and was
-    silently rejecting chains the founder builds by hand). Far/unknown endpoints keep
-    the live-distance path when enabled (the table can't place them at all)."""
+    """Repositioning drive for CHAIN feasibility (CHAIN_STATIC_TIMING).
+
+    Order: same exact address → 0; else the PRECOMPUTED real road distance for this address
+    pair when the table can't price it (CHAIN_REAL_DISTANCE — see the flag for the full cost
+    note: no network here, ever); else the category table — the founder's planning numbers,
+    NOT the RouteTimingMetric p75 (p75 of observed in-job drives over-prices an empty
+    reposition and was silently rejecting chains the founder builds by hand).
+
+    Before 2026-08-09 the real-distance escape was gated on USE_LIVE_DISTANCE, which is
+    default-OFF in prod — so chain math never saw a real distance even for a Tampa or odd
+    residential address it openly cannot place, and never at all for intra-cluster hops. The
+    persistent cache is the supported mechanism and needs no such gate: it is a DB read.
+    """
     if from_text and to_text and from_text.strip().lower() == to_text.strip().lower():
+        # Same address string => the driver is already standing there. EXCEPT at an airport
+        # terminal, which is one "address" covering a whole facility: dropping a departure at
+        # check-in and collecting an arrival at baggage claim is a real few minutes of
+        # kerb-crawling, and the table's self-pair (MCO->MCO = 2) is precisely that number.
+        # A resort address is a single porte-cochère, so 0 stays right there — its self-pair
+        # (Disney->Disney = 12) is the CROSS-property average and must not apply here.
+        from dispatching.feasibility_guards import AIRPORT_TERMINALS
+        if from_category == to_category and from_category in AIRPORT_TERMINALS:
+            return DRIVE_TIME_ESTIMATES.get((from_category, to_category), 0)
         return 0
-    if USE_LIVE_DISTANCE and (from_category in LIVE_DISTANCE_UNKNOWN_CATS
-                              or to_category in LIVE_DISTANCE_UNKNOWN_CATS):
-        return resolve_drive_minutes(from_text, to_text, from_category, to_category)
+    if (CHAIN_REAL_DISTANCE and from_text and to_text
+            and chain_repo_needs_real_distance(from_category, to_category)):
+        try:
+            from .route_distance import cached_drive_minutes
+            precomputed = cached_drive_minutes(from_text, to_text)
+            if precomputed is not None:
+                return precomputed
+        except Exception:
+            pass  # a cache hiccup must never change a feasibility verdict
     return DRIVE_TIME_ESTIMATES.get((from_category, to_category), DEFAULT_DRIVE_TIME)
 
 
@@ -1032,6 +1092,7 @@ def check_feasibility(
     driver_window: dict = None,     # Guard C: per-driver window {start,end,max_hours,flexible} (None => skip)
     deplaning_grace: int = None,    # Guard B override (default feasibility_guards.DEPLANING_GRACE_MIN)
     safety_pad: int = None,         # Guard B override (default feasibility_guards.SAFETY_PAD_MIN)
+    min_buffer: int = None,         # Guard B' — planning floor on SPARE minutes (see below)
 ) -> FeasibilityResult:
     """
     Check whether a driver can fit a new leg into their schedule.
@@ -1039,7 +1100,25 @@ def check_feasibility(
     Checks:
     1. No overlaps with existing jobs.
     2/3. Context-dependent turnaround (Guard B) to the preceding and following jobs.
+    3b. Guard B' — minimum turn buffer, when the caller passes `min_buffer`.
     4. Guard C — per-driver window (start / clear-by end / max-hours span).
+
+    Guard B' (`min_buffer`, minutes) is the PLANNING floor: how much spare time the engine
+    must leave when it seats a job on its own initiative. It answers the founder's
+    2026-08-09 report that the builder was "too aggressive" — the reported chain computed
+    buffer_minutes == 0 and the gate was `< 0`, so a driver arriving at his next pickup the
+    exact instant he cleared the last one counted as feasible.
+
+    DEFAULT None => 0 => byte-identical to the pre-2026-08-09 behaviour. Only the callers
+    that BUILD a schedule (build_smart_schedule, suggest_assignments) pass a value; the
+    manual-sovereign and advisory callers (swap revalidation, farm-out, fold/rebalance,
+    analytics) deliberately do not, so a dispatcher's own tight turn is never blocked by a
+    number the ENGINE was told to respect. Callers should resolve the value through
+    feasibility_guards.resolve_min_buffer so the per-driver override wins.
+
+    A same-terminal airport turn is exempt from the buffer (see
+    feasibility_guards.effective_min_buffer) — that turn is governed by the deplaning grace
+    and has no reposition to protect.
 
     Guard C only runs when the caller supplies `driver_window` (so other callers keep
     their behavior). Guard B turnaround applies always.
@@ -1114,13 +1193,21 @@ def check_feasibility(
     warnings = []
     sorted_slots = sorted(driver_schedule.slots, key=lambda s: s.pickup_time)
 
-    # Find preceding and following slots
+    # Find preceding and following slots.
+    # PRECEDING is the job that constrains the new pickup, so it must be the one that
+    # CLEARS LAST — not the one that STARTS last. Those differ whenever a long job starts
+    # before a short one (e.g. a 1:00 PM cruise run clearing 4:00 vs a 2:00 PM hop clearing
+    # 2:40): picking by pickup time alone hands the 2:40 clear to the turnaround math and
+    # silently ignores the 4:00 one. On an already-valid chain the two choices agree, so
+    # this only ever fires where there is a real conflict to catch (audit 2026-08-09, B5).
     preceding = None
     following = None
     for slot in sorted_slots:
         slot_pickup_dt = datetime.combine(target_date, slot.pickup_time)
         if slot_pickup_dt <= new_pickup_dt:
-            preceding = slot
+            if (preceding is None
+                    or _slot_chain_end(slot, target_date) > _slot_chain_end(preceding, target_date)):
+                preceding = slot
         elif following is None:
             following = slot
 
@@ -1142,13 +1229,27 @@ def check_feasibility(
         earliest_available = preceding_end + timedelta(minutes=req)
         buffer_minutes = int((new_pickup_dt - earliest_available).total_seconds() / 60)
 
-        if buffer_minutes < 0:
+        # Guard B' — the planning floor. 0 (the default) reproduces the old `< 0` gate
+        # exactly; a positive value also declines turns that are merely possible-on-paper.
+        prev_min_buf = fg.effective_min_buffer(
+            min_buffer, new_is_arrival,
+            same_terminal=(preceding.dropoff_category == new_pickup_cat))
+
+        if buffer_minutes < prev_min_buf:
             end_str = preceding_end.strftime('%I:%M %p').lstrip('0')
+            if buffer_minutes < 0:
+                reason = (f"Needs {abs(buffer_minutes)} more min. Previous job ends "
+                          f"~{end_str}, +{req}min turnaround required.")
+            else:
+                # Physically possible, but thinner than the buffer this build asked for.
+                # Name the buffer so the dispatcher knows it was a POLICY decline and can
+                # loosen it, rather than reading it as "impossible".
+                reason = (f"Only {buffer_minutes}min spare (needs {prev_min_buf}min buffer). "
+                          f"Previous job ends ~{end_str}, +{req}min turnaround required.")
             return FeasibilityResult(
                 feasible=False,
                 buffer_minutes=buffer_minutes,
-                reason=f"Needs {abs(buffer_minutes)} more min. Previous job ends ~{end_str}, "
-                       f"+{req}min turnaround required.",
+                reason=reason,
             )
         if buffer_minutes < 15:
             warnings.append(f"Tight: {buffer_minutes}min after previous job")
@@ -1170,12 +1271,22 @@ def check_feasibility(
         earliest_for_next = new_chain_end_dt + timedelta(minutes=req)
         following_buffer = int((following_pickup_dt - earliest_for_next).total_seconds() / 60)
 
-        if following_buffer < 0:
+        # Guard B' on the other side of the insert — same floor, same exemption.
+        next_min_buf = fg.effective_min_buffer(
+            min_buffer, following_is_arrival,
+            same_terminal=(new_dropoff_cat == following.pickup_category))
+
+        if following_buffer < next_min_buf:
             next_str = following.pickup_time.strftime('%I:%M %p').lstrip('0')
+            if following_buffer < 0:
+                reason = f"Conflicts with next job at {next_str}."
+            else:
+                reason = (f"Only {following_buffer}min spare before the next job at "
+                          f"{next_str} (needs {next_min_buf}min buffer).")
             return FeasibilityResult(
                 feasible=False,
                 buffer_minutes=following_buffer,
-                reason=f"Conflicts with next job at {next_str}.",
+                reason=reason,
             )
         if following_buffer < 15:
             warnings.append(f"Tight: {following_buffer}min before next job")
@@ -1187,6 +1298,48 @@ def check_feasibility(
         warnings=warnings,
         reason=f"{buffer_minutes}min buffer",
     )
+
+
+def resolve_run_min_buffer(run_buffer=None, cfg=None) -> int:
+    """The turn buffer for a whole build RUN, as an int.
+
+    `run_buffer` is what the dispatcher picked in the builder / auto-assign control
+    (a feasibility_guards.BUFFER_MODES preset or a typed custom number). None means they
+    did not choose, so the saved SchedulerSettings default applies. Resolve this ONCE per
+    run and hand the int down — it keeps settings lookups out of the scoring loops.
+    """
+    from dispatching import feasibility_guards as fg
+    if cfg is None:
+        from dispatching.models import SchedulerSettings
+        cfg = SchedulerSettings.get_settings()
+    return fg.resolve_min_buffer(run_buffer=run_buffer,
+                                 settings_buffer=getattr(cfg, 'min_turn_buffer', None))
+
+
+def load_driver_min_buffers(driver_ids=None) -> Dict[int, int]:
+    """{driver_id: typed per-driver turn buffer}, for drivers who have one typed.
+
+    Drivers who left it blank are ABSENT from the map (not 0) — blank means "inherit the
+    run's buffer", 0 means "I need no cushion". One query; call it once per run.
+    """
+    from drivers.models import Driver
+    qs = Driver.objects.filter(default_min_turn_buffer__isnull=False)
+    if driver_ids is not None:
+        qs = qs.filter(id__in=list(driver_ids))
+    return {d.id: int(d.default_min_turn_buffer)
+            for d in qs.only('id', 'default_min_turn_buffer')}
+
+
+def driver_min_buffer(driver_id, run_min_buffer, driver_min_buffers=None) -> int:
+    """Effective buffer for ONE driver on this run — his typed number beats the run's.
+
+    Works in both directions on purpose: a fast driver typed 0 keeps building tight on a
+    Relaxed run, and a driver typed 15 stays protected on an Aggressive one.
+    """
+    override = (driver_min_buffers or {}).get(driver_id)
+    if override is not None:
+        return max(0, int(override))
+    return int(run_min_buffer or 0)
 
 
 def build_vehicle_caps(driver_ids, target_date: date, rows=None) -> Dict[int, dict]:
@@ -1455,6 +1608,8 @@ def suggest_assignments_clustered(
     driver_max_hours: Dict[int, float] = None,
     sharer_partners: Dict[int, set] = None,
     prev_end_by_driver: Dict[int, datetime] = None,
+    min_buffer: int = None,
+    driver_min_buffers: Dict[int, int] = None,
 ) -> List[AssignmentSuggestion]:
     """Cluster-aware assignment wrapper.
 
@@ -1479,6 +1634,7 @@ def suggest_assignments_clustered(
             driver_vtypes=driver_vtypes, flexible_drivers=flexible_drivers,
             driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
             prev_end_by_driver=prev_end_by_driver,
+            min_buffer=min_buffer, driver_min_buffers=driver_min_buffers,
         )
 
     if driver_vtypes is None:
@@ -1502,6 +1658,7 @@ def suggest_assignments_clustered(
         clusters=clusters, flexible_drivers=flexible_drivers,
         driver_max_hours=driver_max_hours, sharer_partners=sharer_partners,
         prev_end_by_driver=prev_end_by_driver,
+        min_buffer=min_buffer, driver_min_buffers=driver_min_buffers,
     )
 
 
@@ -1518,6 +1675,8 @@ def suggest_assignments(
     driver_max_hours: Dict[int, float] = None,
     sharer_partners: Dict[int, set] = None,
     prev_end_by_driver: Dict[int, datetime] = None,
+    min_buffer: int = None,
+    driver_min_buffers: Dict[int, int] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -1772,8 +1931,12 @@ def suggest_assignments(
                 continue
             if not _within_modal_hours(did, X.pickup_time):
                 continue
+            # Same buffer as the seating loop below — the guard must reason about the board
+            # the engine would actually BUILD, not a tighter hypothetical one.
+            _xbuf = driver_min_buffer(did, min_buffer, driver_min_buffers)
             feas_now = check_feasibility(sched, X, target_date, inter_job_buffer=_ijb,
-                                         arrival_grace=_grace, driver_window=_driver_windows.get(did))
+                                         arrival_grace=_grace, driver_window=_driver_windows.get(did),
+                                         min_buffer=_xbuf)
             if not feas_now.feasible:
                 continue   # X doesn't fit this driver anyway — `leg` isn't what blocks it
             # Would X still fit once `leg` is on this driver's board?
@@ -1784,7 +1947,8 @@ def suggest_assignments(
                              key=lambda s: s.pickup_time),
                 vehicle_cap=sched.vehicle_cap)
             feas_with = check_feasibility(sim, X, target_date, inter_job_buffer=_ijb,
-                                          arrival_grace=_grace, driver_window=_driver_windows.get(did))
+                                          arrival_grace=_grace, driver_window=_driver_windows.get(did),
+                                          min_buffer=_xbuf)
             if not feas_with.feasible:
                 return True   # `leg` would push the class-C job off this driver
         return False
@@ -1842,7 +2006,8 @@ def suggest_assignments(
                     continue
 
             feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
-                                     driver_window=_driver_windows.get(did))
+                                     driver_window=_driver_windows.get(did),
+                                     min_buffer=driver_min_buffer(did, min_buffer, driver_min_buffers))
             if not feas.feasible:
                 continue
 
@@ -2348,7 +2513,8 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
                             drivers, drivers_by_id, target_date, dvtypes,
                             locked_leg_ids=None, driver_windows=None,
                             driver_hours=None, flexible_drivers=None,
-                            sharer_partners=None, free_insert_only=False):
+                            sharer_partners=None, free_insert_only=False,
+                            min_buffer=None, driver_min_buffers=None):
     """Evict-to-farm value pass (founder brain, rules R1+R2 —
     docs/scheduler-automation/founder-brain-implementation.md).
 
@@ -2487,7 +2653,8 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
                 continue
             # 1) Free insertion — U fits as-is (the board changed since the greedy ran).
             feas0 = check_feasibility(sched, U, target_date, inter_job_buffer=ijb,
-                                      arrival_grace=grace, driver_window=windows.get(did))
+                                      arrival_grace=grace, driver_window=windows.get(did),
+                                      min_buffer=driver_min_buffer(did, min_buffer, driver_min_buffers))
             if feas0.feasible:
                 key = (1, 0.0, feas0.buffer_minutes, -did, 0)  # band 1: free always wins
                 if best is None or key > best[0]:
@@ -2516,7 +2683,8 @@ def evict_to_farm_for_value(final_assignments, candidate_leg_ids, legs_by_id,
                     slots=[s for s in sched.slots if s.leg_id != a_id],
                     vehicle_cap=sched.vehicle_cap)
                 feas = check_feasibility(sim, U, target_date, inter_job_buffer=ijb,
-                                         arrival_grace=grace, driver_window=windows.get(did))
+                                         arrival_grace=grace, driver_window=windows.get(did),
+                                         min_buffer=driver_min_buffer(did, min_buffer, driver_min_buffers))
                 if not feas.feasible:
                     continue
                 # End-to-end revalidation of the modified day (turnarounds + window/cap).
@@ -2559,7 +2727,8 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
                                   drivers, drivers_by_id, target_date, dvtypes,
                                   capped_windows, driver_hours=None, flexible_drivers=None,
                                   strict_cap_driver_ids=None, locked_leg_ids=None,
-                                  sharer_partners=None):
+                                  sharer_partners=None,
+                                  min_buffer=None, driver_min_buffers=None):
     """Span-cap coverage rescue (Span Governor escalation step). For each residual leg the
     build + swap passes left unassigned, test every working driver twice:
 
@@ -2641,7 +2810,11 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
             if sharers_conflict(leg, did, sharer_partners, schedules, target_date):
                 continue
             window = (capped_windows or {}).get(did)
-            feas = check_feasibility(sched, leg, target_date, driver_window=window)
+            # This pass lifts a SPAN cap to keep a leg in-house; it must not also quietly
+            # lift the turn buffer, so every probe below carries the same one.
+            _rbuf = driver_min_buffer(did, min_buffer, driver_min_buffers)
+            feas = check_feasibility(sched, leg, target_date, driver_window=window,
+                                     min_buffer=_rbuf)
             new_end = estimate_job_end_time(leg, target_date)
             new_pickup_dt = datetime.combine(target_date, leg.pickup_time)
             if sched.slots:
@@ -2660,7 +2833,8 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
             if window is None or window.get("max_hours") is None:
                 continue
             probe_w = dict(window); probe_w["max_hours"] = None
-            probe = check_feasibility(sched, leg, target_date, driver_window=probe_w)
+            probe = check_feasibility(sched, leg, target_date, driver_window=probe_w,
+                                      min_buffer=_rbuf)
             if not probe.feasible:
                 continue  # blocked by turnaround/window too — not a span rescue
             # Span IS the sole blocker. The lift is NOT unbounded: it stops at the
@@ -2683,7 +2857,8 @@ def rescue_span_blocked_residuals(final_assignments, candidate_leg_ids, legs_by_
                 continue
             probe_c = dict(window); probe_c["max_hours"] = ceiling
             within_ceiling = check_feasibility(
-                sched, leg, target_date, driver_window=probe_c).feasible
+                sched, leg, target_date, driver_window=probe_c,
+                min_buffer=_rbuf).feasible
             if not within_ceiling:
                 if ceiling_block is None or did < ceiling_block[0]:
                     ceiling_block = (did, span_after, ceiling)
@@ -2801,7 +2976,8 @@ def effective_span_hours(slots, target_date: date):
 def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
                               target_date, dvtypes, locked_leg_ids=None,
                               driver_hours=None, flexible_drivers=None, capped_windows=None,
-                              sharer_partners=None):
+                              sharer_partners=None,
+                              min_buffer=None, driver_min_buffers=None):
     """Span-trim pass (Span Governor Phase 3). For each driver whose built day runs over the
     soft target (effective span > SPAN_SOFT_EFFECTIVE_HOURS) or is simply too long raw
     (> SPAN_TRIM_RAW_MAX_HOURS), try to relocate his FIRST or LAST leg — the only legs whose
@@ -2923,7 +3099,8 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
                     if sharers_conflict(leg, rid, sharer_partners, schedules, target_date):
                         continue
                     feas = check_feasibility(rsched, leg, target_date,
-                                             driver_window=(windows or {}).get(rid))
+                                             driver_window=(windows or {}).get(rid),
+                                             min_buffer=driver_min_buffer(rid, min_buffer, driver_min_buffers))
                     if not feas.feasible:
                         continue
                     if rsched.slots:
@@ -3019,7 +3196,8 @@ def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
 def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,
                                 target_date, dvtypes, locked_leg_ids=None,
                                 driver_hours=None, flexible_drivers=None,
-                                sharer_partners=None):
+                                sharer_partners=None,
+                                min_buffer=None, driver_min_buffers=None):
     """Gap-compaction pass. Relocate an ALREADY-COVERED leg from a donor driver to a driver
     with a large internal gap, when doing so heals more gap than it opens — the founder's
     manual "give David the job sitting in his hole; the other driver just starts later" move.
@@ -3151,7 +3329,8 @@ def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_
                     continue
                 # Receiver can feasibly insert L? (turnaround + window; never late)
                 feas = check_feasibility(rsched, leg, target_date, inter_job_buffer=ijb,
-                                         arrival_grace=grace, driver_window=windows.get(rid))
+                                         arrival_grace=grace, driver_window=windows.get(rid),
+                                         min_buffer=driver_min_buffer(rid, min_buffer, driver_min_buffers))
                 if not feas.feasible:
                     continue
                 # Receiver gap healed = original hole minus its worse remaining half.
@@ -3272,6 +3451,7 @@ def build_smart_schedule(
     vehicle_pref_mode: str = None,
     preferred_vehicle_types: List[str] = None,
     max_hours: float = None,
+    min_buffer: int = None,
 ) -> dict:
     """
     Build an optimal schedule for a single driver within a time window.
@@ -3319,6 +3499,16 @@ def build_smart_schedule(
     # max_hours: per-driver hard duty-span cap (Span Governor). None was a hole — Build-1st
     # seeding had NO span bound at all, so a wide dispatcher window built 15-18h days.
     _dwindow = {"start": start_hour, "end": end_hour, "max_hours": max_hours, "flexible": _is_flexible}
+
+    # Turn buffer for THIS build (Guard B'). The dispatcher's choice in the builder control
+    # is the run value; this driver's own typed number beats it in both directions, so a
+    # fast driver set to 0 keeps building tight even when the run asks for 10. A PIN is
+    # never buffer-gated — see Step 1 below.
+    _run_min_buffer = resolve_run_min_buffer(min_buffer, cfg=cfg)
+    _min_buffer = driver_min_buffer(
+        driver_id, _run_min_buffer,
+        {driver_id: _drv.default_min_turn_buffer} if _drv is not None
+        and _drv.default_min_turn_buffer is not None else None)
 
     pinned_leg_ids = pinned_leg_ids or []
     excluded_leg_ids = excluded_leg_ids or []
@@ -3394,6 +3584,9 @@ def build_smart_schedule(
     # overlap/turnaround) may drop it — the per-driver window (Guard C) is ADVISORY here,
     # so we pass driver_window=None and instead surface any window issue as a warning
     # (founder: "if it extends a driver's time, flag it but still do it").
+    # The turn buffer (Guard B') is likewise NOT applied to a pin: the buffer governs what
+    # the ENGINE chooses on its own, and a pin is the dispatcher choosing. A pinned leg that
+    # is merely tight still goes on the board; only a physically impossible one is dropped.
     pinned_sorted = sorted(pinned_legs, key=lambda l: l.pickup_time)
     for leg in pinned_sorted:
         t = leg.pickup_time.strftime('%I:%M %p').lstrip('0')
@@ -3549,7 +3742,7 @@ def build_smart_schedule(
         if est_end.hour > end_hour + 1:  # allow 1 hour grace for last job
             return None
         feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes,
-                                 driver_window=_dwindow)
+                                 driver_window=_dwindow, min_buffer=_min_buffer)
         if not feas.feasible:
             return None
         # Score this leg (with vehicle tier + scarcity + chain awareness)

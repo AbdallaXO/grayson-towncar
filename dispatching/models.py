@@ -102,7 +102,19 @@ class SchedulerSettings(models.Model):
     time_scarcity_bonus = models.IntegerField(default=30, help_text="Bonus for legs in time-scarce hours (demand > supply)")
 
     # ── Global ────────────────────────────────────────────────────
-    inter_job_buffer = models.IntegerField(default=5, help_text="Minutes between jobs (break + buffer)")
+    min_turn_buffer = models.IntegerField(
+        default=5,
+        help_text="Default spare minutes the ENGINE must leave between two jobs, on top of "
+                  "the drive between them. 0 = aggressive (a driver may be due at his next "
+                  "pickup the same instant he clears the last one). The builder and "
+                  "auto-assign can override this per run, and a per-driver number "
+                  "(Driver.default_min_turn_buffer) beats both. Does not affect a "
+                  "dispatcher's own manual assignments.")
+    # DEPRECATED 2026-08-09: never read by check_feasibility (it was accepted and ignored as
+    # 'superseded by context turnaround'), so this knob has done nothing for a long time.
+    # min_turn_buffer above is the live one. Kept only so existing rows/migrations don't
+    # break; safe to drop once nothing references it.
+    inter_job_buffer = models.IntegerField(default=5, help_text="DEPRECATED — has no effect. Use 'Min turn buffer'.")
     arrival_grace_minutes = models.IntegerField(default=15, help_text="Airport arrival grace: flight lands but pax still deplaning/bags, so driver can arrive this many min after flight time")
 
     # ── Builder Extras ────────────────────────────────────────────

@@ -10971,9 +10971,17 @@ def capacity_planner(request):
         # Shared-car gate: a driver who splits one physical unit with a partner can't be
         # offered a job that overlaps the partner's jobs, even if his own calendar is free.
         _sharer_partners = build_sharer_partners(set(_inhouse_for_suggestions), selected_date)
+        # Same turn buffer Auto-Assign will apply (Guard B'). There is no per-run choice on
+        # a page load, so this is the saved default plus any per-driver overrides. Without
+        # it the page suggested a driver at zero slack that Auto-Assign would then decline —
+        # the inline hint and the button disagreeing about the same leg.
+        from dispatching.scheduler import resolve_run_min_buffer, load_driver_min_buffers
+        _sugg_buffer = resolve_run_min_buffer(None)
         suggestions = suggest_assignments_clustered(
             _unassigned_legs, _inhouse_for_suggestions, selected_date,
-            sharer_partners=_sharer_partners)
+            sharer_partners=_sharer_partners,
+            min_buffer=_sugg_buffer,
+            driver_min_buffers=load_driver_min_buffers(list(_inhouse_for_suggestions)))
         coverage = get_coverage_stats(legs_list)
         if not _is_held:
             cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
@@ -11264,6 +11272,9 @@ def capacity_planner(request):
             })
         driver_availability[d.id] = _entry
 
+    from dispatching.models import SchedulerSettings as _SchedSettings
+    _sched_settings = _SchedSettings.get_settings()
+
     context = {
         'selected_date': selected_date,
         'prev_date': prev_date,
@@ -11288,6 +11299,9 @@ def capacity_planner(request):
         'vehicle_assign_rows': vehicle_assign_rows,
         'va_off_count': va_off_count,
         'driver_availability_json': json.dumps(driver_availability),
+        # Shown as the "Use default (N min)" label on the builder / auto-assign buffer
+        # controls, so the dispatcher can see what "default" means without opening settings.
+        'default_min_turn_buffer': _sched_settings.min_turn_buffer,
         # ── Sandbox draft context (banner, review modal, controls) ──
         **_draft_ctx,
     }
@@ -12010,11 +12024,20 @@ def auto_assign_drivers(request):
     # Treat unpaid reservations as if they don't exist for auto-assign — manual overrides
     # still apply. Mirrors the schedule builder's "Skip unpaid" toggle.
     exclude_unpaid = bool(data.get("exclude_unpaid", False))
+    # Turn buffer for THIS run (Guard B'): spare minutes the engine must leave between two
+    # jobs on top of the drive. None/absent => the saved SchedulerSettings default. A
+    # per-driver typed number still beats it (see load_driver_min_buffers below).
+    _raw_min_buffer = data.get("min_buffer", None)
+    try:
+        run_min_buffer = None if _raw_min_buffer in (None, "") else max(0, int(_raw_min_buffer))
+    except (TypeError, ValueError):
+        run_min_buffer = None
 
     from datetime import datetime as dt
     from dispatching.scheduler import (
         build_driver_schedules, suggest_assignments_clustered,
         ScheduleSlot, estimate_job_end_time, preload_timing_cache as _preload_cache,
+        resolve_run_min_buffer, load_driver_min_buffers,
     )
     from dispatching.analytics import categorize_location
     from copy import deepcopy
@@ -12058,6 +12081,11 @@ def auto_assign_drivers(request):
         .select_related("profile")
         .prefetch_related("weekly_schedule", "date_overrides")
     )
+
+    # Resolve the turn buffer ONCE for the whole run (settings lookup + one query for the
+    # per-driver overrides), then hand the pair to every seating pass below.
+    run_min_buffer = resolve_run_min_buffer(run_min_buffer)
+    driver_min_buffers = load_driver_min_buffers([d.id for d in inhouse_drivers])
 
     # ── Driver availability ──
     # When the dispatcher uses the Auto-Assign modal it sends `driver_hours` ONLY for the drivers
@@ -12215,6 +12243,10 @@ def auto_assign_drivers(request):
                 # (max_hours used to be hardcoded None) — pass the same clamped cap the
                 # rest of the pipeline enforces.
                 max_hours=(capped_windows.get(did) or {}).get("max_hours"),
+                # Build-1st seeding is still the ENGINE choosing legs, so it pays the same
+                # turn buffer as the general pass (build_smart_schedule applies this
+                # driver's own typed override on top).
+                min_buffer=run_min_buffer,
             )
             for s in res.get('schedule', []):
                 if s.leg_id not in existing_ids and s.leg_id not in seeded_assignments:
@@ -12266,7 +12298,9 @@ def auto_assign_drivers(request):
                                                 flexible_drivers=flexible_drivers or None,
                                                 driver_max_hours=driver_max_hours or None,
                                                 sharer_partners=sharer_partners or None,
-                                                prev_end_by_driver=prev_end_by_driver or None) if auto_unassigned else []
+                                                prev_end_by_driver=prev_end_by_driver or None,
+                                                min_buffer=run_min_buffer,
+                                                driver_min_buffers=driver_min_buffers) if auto_unassigned else []
 
     # Merge: auto suggestions + manual overrides
     valid_suggestions = [
@@ -12326,6 +12360,7 @@ def auto_assign_drivers(request):
             driver_hours=driver_hours or None,
             flexible_drivers=flexible_drivers or None,
             sharer_partners=sharer_partners or None,
+            min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
         )
         if _evict_moves:
             import logging as _logging
@@ -12346,6 +12381,7 @@ def auto_assign_drivers(request):
             strict_cap_driver_ids=set(strict_span_caps.keys()),
             locked_leg_ids=locked_ids,
             sharer_partners=sharer_partners or None,
+            min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
         )
 
     # ── Span-trim relocation pass ──
@@ -12361,6 +12397,7 @@ def auto_assign_drivers(request):
         flexible_drivers=flexible_drivers or None,
         capped_windows=capped_windows or None,
         sharer_partners=sharer_partners or None,
+        min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
     )
     locked_ids = locked_ids | {m["leg_id"] for m in _trim_moves}
 
@@ -12376,6 +12413,7 @@ def auto_assign_drivers(request):
         driver_hours=driver_hours or None,
         flexible_drivers=flexible_drivers or None,
         sharer_partners=sharer_partners or None,
+        min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
     )
 
     # ── Final free-insertion sweep (founder brain) ──
@@ -13068,6 +13106,14 @@ def smart_schedule_builder(request):
     # purposes (not auto-fitted, not surfaced as alternatives). Pinning them by hand
     # still works.
     exclude_unpaid = bool(data.get("exclude_unpaid", False))
+    # Turn buffer (Guard B'): spare minutes the engine must leave between two jobs on top of
+    # the drive between them. Absent => the saved SchedulerSettings default. This driver's
+    # own typed Driver.default_min_turn_buffer still beats whatever is chosen here.
+    _raw_min_buffer = data.get("min_buffer", None)
+    try:
+        min_buffer = None if _raw_min_buffer in (None, "") else max(0, int(_raw_min_buffer))
+    except (TypeError, ValueError):
+        min_buffer = None
 
     if not driver_id or not date_str:
         return JsonResponse({"success": False, "error": "driver_id and date are required"}, status=400)
@@ -13123,6 +13169,7 @@ def smart_schedule_builder(request):
         excluded_leg_ids=excluded_leg_ids,
         vehicle_pref_mode=vehicle_pref_mode or None,
         preferred_vehicle_types=preferred_vehicle_types or None,
+        min_buffer=min_buffer,
     )
 
     # Format response

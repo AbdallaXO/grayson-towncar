@@ -43,6 +43,40 @@ DEPLANING_GRACE_MIN = 10
 # (<15 min) turns and still hard-rejects true overlaps. Raise this to re-introduce slack.
 SAFETY_PAD_MIN = 0
 
+# ── Minimum turn buffer (founder 2026-08-09) ────────────────────────────────
+# SAFETY_PAD_MIN above is a PHYSICS pad: it inflates the drive time itself, so it changes
+# what "possible" means for every caller (advisors, farm-out, swap validation, analytics).
+# The min turn buffer is a different thing — a PLANNING floor that says how much spare time
+# the ENGINE is allowed to leave when it seats a job on its own initiative. It never makes a
+# turn impossible; it makes the builder decline to build one that thin.
+#
+# Why this exists: on 2026-08-09 the builder seated a 3:30 PM Animal Kingdom departure on a
+# driver whose 2:03 PM MCO arrival cleared at 3:18 with a 12-min reposition — buffer_minutes
+# came to EXACTLY 0, and the gate was `< 0`, so zero was legal. Zero slack means the driver
+# arrives at the next pickup the same instant he finishes the last one, having driven a
+# coarse table estimate. That is a coin flip, not a plan.
+#
+# Resolution order is MOST SPECIFIC WINS (see resolve_min_buffer): a per-driver typed number
+# beats the run's mode, which beats the saved default. This mirrors the Max-hrs rule — "a
+# typed number means it" — and is what lets a founder-known fast driver (gets his guests up
+# early, never needs a cushion) keep building as tight as the drive time allows while the
+# rest of the fleet gets a real margin.
+MIN_TURN_BUFFER_DEFAULT = 5
+
+# Named presets the builder / auto-assign UI offers. "custom" is any typed integer.
+BUFFER_MODES = {
+    "aggressive": 0,    # no cushion — exactly today's pre-2026-08-09 behaviour
+    "standard": 5,      # founder pick 2026-08-09
+    "relaxed": 10,      # real slack on every repositioning turn
+}
+
+# Founder call 2026-08-09: the buffer must NOT bind on a same-terminal airport turn.
+# Those turns are governed by DEPLANING_GRACE_MIN below (drop a return at MCO 1:35, grab the
+# 1:34 MCO arrival) — the driver is standing at the terminal watching them deplane, so there
+# is no repositioning risk for a cushion to protect against. Set False to make the buffer
+# uniform across every turn type.
+BUFFER_EXEMPT_SAME_TERMINAL_ARRIVAL = True
+
 # Guard C — use the observed-history STUB windows below until real windows are configured.
 USE_STUB_WINDOWS = True
 
@@ -175,6 +209,49 @@ def required_turnaround(reposition_drive_min, next_is_airport_arrival, same_term
     else:
         base = reposition_drive_min         # must DRIVE in (or non-arrival): full drive, no grace.
     return base + pad
+
+
+def resolve_min_buffer(run_buffer=None, driver_buffer=None, settings_buffer=None):
+    """Minutes of spare time the ENGINE must leave when it seats a job by itself.
+
+    MOST SPECIFIC WINS:
+      1. driver_buffer — the per-driver typed number (Driver.default_min_turn_buffer).
+         A typed number MEANS it, in both directions: 0 keeps a fast driver building as
+         tight as the drive allows even when the run asks for 10; 15 protects a slow one
+         even when the run is set to Aggressive.
+      2. run_buffer — what the dispatcher picked in the builder / auto-assign control for
+         THIS build (a BUFFER_MODES preset or a typed custom number).
+      3. settings_buffer — SchedulerSettings.min_turn_buffer, the saved default.
+      4. MIN_TURN_BUFFER_DEFAULT.
+
+    Note the distinction between None and 0 at every level: None means "I have no opinion,
+    ask the next level down", 0 means "I want no buffer". A driver row left blank inherits;
+    a driver row typed 0 opts out. Negative values clamp to 0 — the buffer only ever adds
+    margin, it can never buy back time from the drive estimate.
+    """
+    for candidate in (driver_buffer, run_buffer, settings_buffer):
+        if candidate is not None:
+            try:
+                return max(0, int(candidate))
+            except (TypeError, ValueError):
+                continue
+    return MIN_TURN_BUFFER_DEFAULT
+
+
+def effective_min_buffer(min_buffer, next_is_airport_arrival, same_terminal):
+    """The buffer that actually binds for ONE specific turn.
+
+    Same-terminal airport arrivals are exempt (BUFFER_EXEMPT_SAME_TERMINAL_ARRIVAL): the
+    driver is already standing at the terminal, so required_turnaround has already credited
+    the deplaning grace and there is no reposition for a cushion to protect. Every other
+    turn — resort to resort, resort to airport, anything that needs a real drive — pays it.
+    """
+    if not min_buffer or int(min_buffer) <= 0:
+        return 0
+    if (BUFFER_EXEMPT_SAME_TERMINAL_ARRIVAL
+            and next_is_airport_arrival and same_terminal):
+        return 0
+    return int(min_buffer)
 
 
 def is_airport_arrival(trip_type, pickup_category):

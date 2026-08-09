@@ -35,6 +35,19 @@ MINOR_THRESHOLD = 30
 MODERATE_THRESHOLD = 60
 MAJOR_THRESHOLD = 120
 
+# How far a flight must move before we RE-CHECK THE DRIVER'S CHAIN — a much smaller drift
+# than it takes to bother the guest, because they are different questions:
+#   * "does the customer need telling?"  -> MINOR_THRESHOLD (30 min). Nobody wants a phone
+#     call about a 10-minute slide.
+#   * "does the driver's day still work?" -> this. A chain the engine built at 0 minutes of
+#     slack breaks on a 5-minute slide.
+# Founder report 2026-08-09: the flight behind the broken chain moved roughly 13 minutes —
+# under the 30-minute bar, so the leg was never examined at all, on any date. Raising the
+# guest threshold to catch it would have meant calling customers over trivia; the fix is to
+# stop using one number for both jobs. This costs nothing extra in API spend: the chain check
+# runs entirely on the precomputed/category drive tables (see _reposition_minutes).
+CHAIN_RECHECK_THRESHOLD = 5
+
 # ── Early-flight "tight turn" safety net ────────────────────────────────────
 # When an arrival flight lands early, a driver coming off a prior job may reach
 # the airport AFTER the plane is already down. Founder's rule (no deplaning
@@ -188,24 +201,31 @@ def _get_raw_arrival_dt(leg, target_date):
 
 
 def _reposition_minutes(from_location, to_location):
-    """Travel minutes between two raw addresses: live traffic → category table → 0.
-    Module-level twin of the inner helper in detect_driver_conflicts so the
-    tight-turn code and the overlap scan share one implementation."""
+    """Travel minutes between two raw addresses, using the SAME numbers the scheduler
+    plans chains with (dispatching.scheduler.chain_repo_minutes): identical address → 0,
+    the precomputed real road distance where the category table demonstrably can't price the
+    pair, else the category table.
+
+    NO NETWORK, EVER. This used to call drivers.utils.get_drive_time — the PAID, synchronous
+    Distance Matrix API — unconditionally, once per leg pair, on every 30-minute scan. Two
+    reasons that had to go (2026-08-09):
+
+      * COST. It was survivable only because the scans were pinned to today. Widening
+        conflict detection to the 7-day flight horizon over a live paid call would have
+        multiplied the spend by roughly the horizon. Routing through chain_repo_minutes
+        makes the wider scan CHEAPER than the narrow one was.
+      * AGREEMENT. The scanner and the scheduler were pricing the same turn from different
+        sources, so a chain could be feasible to the engine and red to the scanner at the
+        same moment, with no way to tell which was right.
+    """
     if not from_location or not to_location:
         return 0
     try:
-        from drivers.utils import get_drive_time as google_drive_time
-        live = google_drive_time(from_location, to_location)
-        if live:
-            return round(live["duration_seconds"] / 60)
-    except Exception:
-        pass
-    try:
         from dispatching.analytics import categorize_location
-        from dispatching.scheduler import get_drive_time as sched_drive
-        fc = categorize_location(from_location)
-        tc = categorize_location(to_location)
-        return sched_drive(fc, tc, None, None)
+        from dispatching.scheduler import chain_repo_minutes
+        return chain_repo_minutes(from_location, to_location,
+                                  categorize_location(from_location),
+                                  categorize_location(to_location))
     except Exception:
         return 0
 
@@ -368,25 +388,10 @@ def detect_driver_conflicts(leg, target_date):
 
     conflicts = []
 
-    def _travel_minutes(from_location, to_location):
-        """Get travel time between two locations (live traffic → historical → 0)."""
-        if not from_location or not to_location:
-            return 0
-        try:
-            from drivers.utils import get_drive_time as google_drive_time
-            live = google_drive_time(from_location, to_location)
-            if live:
-                return round(live["duration_seconds"] / 60)
-        except Exception:
-            pass
-        try:
-            from dispatching.analytics import categorize_location
-            from dispatching.scheduler import get_drive_time as sched_drive
-            fc = categorize_location(from_location)
-            tc = categorize_location(to_location)
-            return sched_drive(fc, tc, None, None)
-        except Exception:
-            return 0
+    # One implementation, shared with the tight-turn code and the overlap scan. It was
+    # already documented as a "twin" of _reposition_minutes and had drifted into a literal
+    # copy — including the paid Distance Matrix call this function runs once per leg pair.
+    _travel_minutes = _reposition_minutes
 
     for other in other_legs:
         other_ready_time = _get_effective_ready_time(other, target_date)
@@ -511,10 +516,15 @@ def _scan_flight_mismatches():
         if leg.pickup_date == today and leg.pickup_time < local_now_time:
             continue
 
-        if not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
+        # Two questions, two sensitivities — see CHAIN_RECHECK_THRESHOLD. `notify_guest`
+        # preserves the historical bar exactly, so no customer gets contacted who would not
+        # have been before; the chain re-check is what runs on the smaller drift.
+        notify_guest = leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD)
+        if not leg.has_flight_time_mismatch(threshold_minutes=CHAIN_RECHECK_THRESHOLD):
             continue
 
-        mismatch = leg.get_flight_time_mismatch_display()
+        mismatch = leg.get_flight_time_mismatch_display(
+            threshold_minutes=CHAIN_RECHECK_THRESHOLD)
         if not mismatch:
             continue
 
@@ -535,7 +545,7 @@ def _scan_flight_mismatches():
             )
             if conflict_created:
                 created += conflict_created
-            else:
+            elif notify_guest:
                 # No driver conflict, but flight still shifted — create
                 # a flight_verify task so dispatch knows about the change.
                 created += _handle_future_mismatch(
@@ -543,8 +553,21 @@ def _scan_flight_mismatches():
                 )
         else:
             # Future: tiered priority guest-verification task
-            created += _handle_future_mismatch(
-                leg, mismatch, customer_name, flight_label, days_until, now
+            if notify_guest:
+                created += _handle_future_mismatch(
+                    leg, mismatch, customer_name, flight_label, days_until, now
+                )
+            # ...AND re-check the driver's chain. A flight re-timed days out is exactly the
+            # case that used to skip conflict detection altogether: the guest got a
+            # verification task, the board redrew the leg's clear time from the NEW flight,
+            # and the feasibility verdict stayed frozen at whatever it was when the leg was
+            # assigned. That is how a 2:03 PM arrival kept a 3:30 PM departure on the same
+            # driver after its flight slid — with a full day of warning nobody surfaced
+            # (founder report 2026-08-09). Two different questions for two different people:
+            # _handle_future_mismatch asks "does the guest know?", this asks "does it still
+            # fit?". They dedup independently (create_task keys on leg + task_type).
+            created += _handle_future_driver_conflict(
+                leg, mismatch, flight_label, days_until, now
             )
 
     if created:
@@ -607,6 +630,80 @@ def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
             "driver_clears_at": clears_str,
             "pickup_date": str(leg.pickup_date),
             "pickup_time": str(leg.pickup_time),
+        },
+    )
+    return 1 if task else 0
+
+
+def _handle_future_driver_conflict(leg, mismatch, flight_label, days_until, now):
+    """A flight on a FUTURE board moved — does the assigned driver's chain still work?
+
+    Same detector the same-day path uses (detect_driver_conflicts is already
+    date-parameterised and reads the CURRENT flight time), just pointed at the leg's own
+    date instead of today. Returns 1 if a task was created, 0 otherwise.
+
+    FLAGS, NEVER ACTS. No reassignment, no unassignment, no message to the driver — the
+    founder's standing rule is that nothing automated touches drivers. This opens a
+    dispatcher task and stops.
+
+    Priority is one step below the same-day equivalent: a broken chain three days out is
+    real work but not a fire, and it is deliberately NOT escalated immediately the way a
+    same-day conflict is. Inside 48 hours it is treated as CRITICAL — that is close enough
+    that a rebuild has to start now.
+    """
+    if not leg.driver_id:
+        return 0
+    driver = leg.driver
+    if getattr(driver, "driver_type", "affiliate") != "inhouse":
+        return 0
+
+    conflicts = detect_driver_conflicts(leg, leg.pickup_date)
+    if not conflicts:
+        return 0
+
+    worst = max(conflicts, key=lambda c: c["conflict_minutes"])
+    conflicting = worst["conflicting_leg"]
+    driver_name = str(driver)
+    clears_str = worst["driver_clears_at"].strftime("%I:%M %p").lstrip("0")
+    other_str = conflicting.pickup_time.strftime("%I:%M %p").lstrip("0")
+    day_str = leg.pickup_date.strftime("%a %b %d")
+
+    priority = (OperationalTask.Priority.CRITICAL if days_until <= 2
+                else OperationalTask.Priority.HIGH)
+    due_delay = _DUE_DELAYS.get(priority, timedelta(hours=4))
+    escalate_delay = _ESCALATION_DELAYS.get(priority, timedelta(hours=4))
+
+    description = (
+        f"{day_str}: flight {mismatch['label']}, so {driver_name} now clears "
+        f"~{clears_str} and is {worst['conflict_minutes']} min late for the {other_str} "
+        f"job. The board was built before the flight moved — re-check this driver's day "
+        f"and either move a job or farm one out. Nothing has been changed automatically."
+    )
+
+    task = create_task(
+        task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+        title=f"Driver Conflict — {driver_name} ({day_str})",
+        due_at=now + due_delay,
+        priority=priority,
+        description=description,
+        leg=leg,
+        reservation=leg.reservation,
+        escalate_at=now + escalate_delay,
+        metadata={
+            "driver_id": driver.id,
+            "driver_name": driver_name,
+            "flight_ident": flight_label,
+            "mismatch_direction": mismatch["direction"],
+            "mismatch_minutes": mismatch["minutes"],
+            "mismatch_label": mismatch["label"],
+            "conflict_minutes": worst["conflict_minutes"],
+            "conflicting_leg_id": conflicting.id,
+            "conflicting_pickup_time": str(conflicting.pickup_time),
+            "driver_clears_at": clears_str,
+            "pickup_date": str(leg.pickup_date),
+            "pickup_time": str(leg.pickup_time),
+            "days_until": days_until,
+            "future_board": True,
         },
     )
     return 1 if task else 0
