@@ -1436,6 +1436,16 @@
           positionPopup(e.clientX, e.clientY);
         } else if(!target){popup.classList.remove('visible');_activeSlot=null;}
       });
+
+      // The right-click trip menu opens on the SAME element this popup is
+      // anchored to, and the cursor never leaves that element — so nothing here
+      // dismissed the popup and the two rendered on top of each other. Capture
+      // phase, because the menu's own handler calls preventDefault and this has
+      // to run regardless of what it does with the event.
+      document.addEventListener('contextmenu', function(){
+        popup.classList.remove('visible');
+        _activeSlot = null;
+      }, true);
     })();
 
     // ── Unassigned backlog overflow hint ─────────────────────────────────
