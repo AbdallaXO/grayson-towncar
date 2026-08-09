@@ -495,7 +495,13 @@ class DaySetupPeakSizingTests(TestCase):
         self.assertEqual(len(checked), 3)
         self.assertEqual(len(capped), 3)
         self.assertTrue(all(not r["checked"] and r["group"] == "available" for r in capped))
-        self.assertTrue(any(s.startswith("PEAK DEMAND:") for s in out["swaps"]))
+        # The old "PEAK DEMAND: ..." banner quoted a driver count taken before the
+        # solo-first pass unchecked the car-less, so it could contradict the list it sat
+        # above. It is replaced by structured `capacity` + a settled headcount line.
+        self.assertFalse(any(s.startswith("PEAK DEMAND:") for s in out["swaps"]))
+        left = [s for s in out["swaps"] if s.startswith("Left available:")]
+        self.assertEqual(len(left), 1)
+        self.assertIn(f"{len(checked)} drivers covers the busiest moment", left[0])
         self.assertIsNotNone(out["peak"])
         self.assertEqual(out["peak"]["overall"]["n"], 2)
 
@@ -540,6 +546,173 @@ class DaySetupPeakSizingTests(TestCase):
         proposed_units = {r["vehicle_id"] for r in out["rows"] if r["vehicle_id"]}
         self.assertGreaterEqual(len(proposed_units), 2)
         self.assertIn(self.u_van14.id, proposed_units)
+
+    def test_tier_need_capped_at_fleet_and_no_impossible_warning(self):
+        from unittest.mock import patch
+        # 9 overlapping suv legs against a 7-car fleet. Uncapped, P2 would "need" 9
+        # suv-capable units and warn about a shortfall no dispatcher can act on
+        # (the real 07-11 case: 19 towncar-capable wanted, 13 cars owned).
+        for m in range(0, 45, 5):
+            self._leg(self.res_suv, 9, m)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        self.assertFalse([w for w in out["warnings"] if "unit(s) of that size" in w],
+                         "impossible per-size shortfall must not be reported as a finding")
+        # ...and the day is correctly read as one where every car is needed.
+        self.assertEqual(out["capacity"]["can_park"], [])
+
+    def test_parkable_units_parks_least_capable_first(self):
+        from dispatching.day_setup import parkable_units
+        from datetime import datetime
+        at = datetime.combine(TARGET, datetime.min.time())
+        # Fleet: 6 suv + 1 van14. One van14 trip and two suv trips at the peak.
+        # Nested compatibility means the van14 can serve suv work, so 3 cars must run
+        # and the 4 smallest (suv) can stay in.
+        cum = {"Van(14 Pax)": (1, at), "suv": (3, at)}
+        parked, staffed = parkable_units(self.units + [self.u_van14], cum)
+        self.assertEqual(len(staffed), 3)
+        self.assertEqual(len(parked), 4)
+        self.assertTrue(all(u.vehicle_type == self.vt_suv for u in parked),
+                        "never park the Sprinter while smaller cars are still out")
+        self.assertIn(self.u_van14, staffed)
+
+    def test_untyped_legs_still_need_a_body(self):
+        from unittest.mock import patch
+        # A reservation with no vehicle set appears in the OVERALL peak but in no tier.
+        # Without the overall floor every per-size test passes vacuously and the whole
+        # fleet reads as parkable — "quiet day, park all 7 cars" on a day with work.
+        self._leg(self.res_untyped, 9, 0)
+        self._leg(self.res_untyped, 9, 30)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        self.assertEqual(out["capacity"]["must_run"], 2)
+        self.assertEqual(len(out["capacity"]["can_park"]), 5)
+
+    def test_parkable_units_busy_day_parks_nothing(self):
+        from dispatching.day_setup import parkable_units
+        from datetime import datetime
+        at = datetime.combine(TARGET, datetime.min.time())
+        cum = {"suv": (7, at)}
+        parked, staffed = parkable_units(self.units + [self.u_van14], cum)
+        self.assertEqual(parked, [])
+        self.assertEqual(len(staffed), 7)
+
+    def test_quiet_day_names_the_cars_that_can_stay_in(self):
+        from unittest.mock import patch
+        self._leg(self.res_suv, 9, 0)          # one trip, seven cars
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        self.assertEqual(len(out["capacity"]["can_park"]), 6)
+        self.assertEqual(out["capacity"]["must_run"], 1)
+        self.assertTrue(any(s.startswith("Quiet day —") for s in out["swaps"]))
+
+    def test_concurrency_series_matches_the_peak(self):
+        from unittest.mock import patch
+        from dispatching.day_setup import concurrency_series, peak_concurrency
+        from reservations.models import Leg
+        self._leg(self.res_suv, 9, 0)
+        self._leg(self.res_suv, 9, 30)
+        self._leg(self.res_v14, 9, 30)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            legs = list(Leg.objects.filter(pickup_date=TARGET))
+            series = concurrency_series(TARGET, legs)
+            pk = peak_concurrency(TARGET, legs=legs)
+        # the chart and the headline number can never disagree
+        self.assertEqual(max(s["n"] for s in series), pk["overall"][0])
+        top = next(s for s in series if s["n"] == pk["overall"][0])
+        self.assertEqual(top["t"], pk["overall"][1].strftime("%H:%M"))
+        self.assertEqual(top["tiers"], {"suv": 2, "Van(14 Pax)": 1})
+
+    def test_rows_sort_by_unit_number_not_driver_name(self):
+        from unittest.mock import patch
+        # Founder reads the fleet in unit order, so the modal must too — and "#10" is
+        # unit TEN, which belongs after #009, never between #002 and #03.
+        u10 = FleetVehicle.objects.create(vehicle_number="10", vehicle_type=self.vt_suv,
+                                          year=2023, make="Chevy", model="Suburban")
+        for m in range(0, 30, 5):
+            self._leg(self.res_suv, 9, m)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        seated = [r["vehicle_label"] for r in out["rows"]
+                  if r["group"] == "suggested" and r["vehicle_id"]]
+        nums = [lbl.split()[0] for lbl in seated]
+        self.assertEqual(nums, sorted(nums, key=lambda s: int(s.lstrip("#"))),
+                         "crew must run #001, #002 ... #009, #10 — numeric, not string")
+        self.assertGreater(len(nums), 1)
+        u10.delete()
+
+    def test_logic_is_fleet_size_agnostic(self):
+        from unittest.mock import patch
+        from dispatching.day_setup import parkable_units
+        from datetime import datetime
+        # Nothing in the suggester may assume a fleet size. Grow 7 cars to 20 —
+        # spanning one-, two- and three-digit unit numbers — and the same rules must
+        # hold: numeric ordering (#009 < #10 < #20, never string order), size targets
+        # capped at whatever the fleet actually is, and park-the-least-capable-first
+        # scaling with the extra cars rather than saturating.
+        extra = [FleetVehicle.objects.create(vehicle_number=n, vehicle_type=self.vt_suv,
+                                             year=2023, make="Chevy", model="Suburban")
+                 for n in ("10", "11", "12", "13", "14", "15", "16", "17", "18", "020", "7")]
+        try:
+            fleet = list(self.units) + [self.u_van14] + extra
+            self.assertEqual(len(fleet), 18)
+            at = datetime.combine(TARGET, datetime.min.time())
+
+            # Park scales with the fleet: 3 concurrent suv trips out of 19 cars.
+            parked, staffed = parkable_units(fleet, {"suv": (3, at)}, overall=3)
+            self.assertEqual(len(staffed), 3)
+            self.assertEqual(len(parked), 15)
+            # ...and the Sprinter is the LAST thing parked, whatever the fleet size.
+            self.assertIn(self.u_van14, staffed + parked[-1:])
+
+            # A busy day on a big fleet still parks nothing.
+            parked2, staffed2 = parkable_units(fleet, {"suv": (18, at)}, overall=18)
+            self.assertEqual(parked2, [])
+            self.assertEqual(len(staffed2), 18)
+
+            for m in range(0, 30, 5):
+                self._leg(self.res_suv, 9, m)
+            with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+                out = suggest_day_setup(TARGET)
+            self.assertEqual(out["capacity"]["fleet"], 18)
+            # No impossible per-size target survives on an 18-car fleet either.
+            self.assertFalse([w for w in out["warnings"] if "unit(s) of that size" in w])
+            # Unit ordering is numeric across all three digit-widths.
+            labels = [o["label"] for o in
+                      next(r for r in out["rows"] if r["group"] in ("suggested", "available")
+                           and r.get("unit_options"))["unit_options"]]
+            nums = [int(l.split()[0].lstrip("#")) for l in labels]
+            self.assertEqual(sorted(nums), sorted(set(nums)), "no duplicate units offered")
+            self.assertIn(20, nums, "#020 must be offered and read as unit twenty")
+        finally:
+            for u in extra:
+                u.delete()
+
+    def test_a_parked_car_is_offered_to_only_one_driver(self):
+        from unittest.mock import patch
+        # Two drivers can both score best on the same idle car; telling both that it
+        # "suits him better" advertises two fixes and delivers one.
+        for m in range(0, 25, 5):
+            self._leg(self.res_suv, 9, m)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        offers = [r["reason"] for r in out["rows"] if "suits him better" in str(r["reason"])]
+        self.assertEqual(len(offers), len(set(offers)),
+                         "the same idle car must not be offered to two rows")
+
+    def test_no_covers_demand_chip_survives(self):
+        from unittest.mock import patch
+        self._leg(self.res_suv, 9, 0)
+        self._leg(self.res_suv, 9, 30)
+        with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+            out = suggest_day_setup(TARGET)
+        # "covers <tier> demand (N legs)" was the engine's least reliable signal (56%)
+        # dressed as its strongest, and quoted the day's total leg count on every row.
+        self.assertFalse([r for r in out["rows"]
+                          if str(r["reason"]).startswith("covers ")])
+        seated = [r for r in out["rows"] if r["checked"] and r["vehicle_id"]]
+        self.assertTrue(seated)
+        self.assertTrue(all(r["reason"] for r in seated))
 
 
 class DaySetupForceIncludeTests(TestCase):
