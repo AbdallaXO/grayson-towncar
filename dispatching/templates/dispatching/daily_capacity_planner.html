@@ -1141,6 +1141,91 @@
         margin-top: 4px;
     }
     .dnd-unassigned-row .driver-name-col strong { color: #c62828; }
+
+    /* ── Day Setup modal ───────────────────────────────────────────────────────
+       Scannable, not readable: the coverage chart answers "does this crew cover
+       the day", the ledger carries the four numbers that used to be paragraphs,
+       and each row states its evidence as a chip or a run of tick marks. Vehicle
+       dots reuse the board's --vtype-dot hues so the modal reads like the board. */
+    .ds-modal {
+        background: #fff; border-radius: 12px; width: 94%; max-width: 660px;
+        max-height: 88vh; display: flex; flex-direction: column;
+        box-shadow: 0 10px 34px rgba(20,16,8,0.22), 0 2px 6px rgba(20,16,8,0.10);
+        font-variant-numeric: tabular-nums;
+    }
+    .ds-head { padding: 0.8rem 1.05rem; border-bottom: 1px solid #e9ecef;
+        display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+    .ds-head-t { font-weight: 700; font-size: 0.95rem; }
+    .ds-head-s { font-size: 0.72rem; color: #6c757d; }
+
+    .ds-cov { padding: 0.8rem 1.05rem 0.85rem; border-bottom: 1px solid #e9ecef;
+        background: #fbfaf7; }
+    .ds-cov-top { display: flex; align-items: baseline; justify-content: space-between;
+        gap: 0.8rem; margin-bottom: 0.45rem; flex-wrap: wrap; }
+    .ds-cov-k { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: #9a948b; }
+    .ds-cov-v { font-size: 0.78rem; font-weight: 650; }
+    .ds-cov-v .ok { color: #2C7A4C; } .ds-cov-v .short { color: #B4530A; }
+    .ds-chart { width: 100%; height: 104px; display: block; }
+    .ds-leg { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.4rem;
+        font-size: 0.64rem; color: #6c757d; }
+    .ds-leg span { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .ds-leg i { width: 8px; height: 8px; border-radius: 2px; }
+
+    .ds-ledger { display: flex; border-bottom: 1px solid #e9ecef; }
+    .ds-led { flex: 1; padding: 0.55rem 0.8rem; border-right: 1px solid #f2f0ec; }
+    .ds-led:last-child { border-right: 0; }
+    .ds-led-k { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: #9a948b; display: block; }
+    .ds-led-v { font-size: 0.88rem; font-weight: 700; margin-top: 0.1rem; }
+    .ds-led-v small { font-weight: 400; color: #6c757d; font-size: 0.7rem; }
+
+    .ds-body { overflow-y: auto; flex: 1; padding-bottom: 0.4rem; }
+    .ds-grp { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: #9a948b; padding: 0.6rem 1.05rem 0.25rem; }
+    .ds-grp b { color: #212529; }
+    .ds-note { padding: 0 1.05rem 0.35rem; font-size: 0.7rem; color: #6c757d; }
+    .ds-row { display: grid; grid-template-columns: 16px 1fr auto; gap: 0.55rem;
+        align-items: center; padding: 0.3rem 1.05rem; position: relative; }
+    .ds-row + .ds-row { box-shadow: inset 0 1px 0 #f4f2ee; }
+    .ds-row:hover { background: #fbfaf7; }
+    .ds-rail { position: absolute; left: 0; top: 2px; bottom: 2px; width: 3px;
+        border-radius: 0 2px 2px 0; }
+    .ds-rail.lock { background: #B98F26; }
+    .ds-rail.usual { background: #2C7A4C; }
+    .ds-rail.fill { background: #dcd8d0; }
+    .ds-check { width: 15px; height: 15px; accent-color: #198754; cursor: pointer; }
+    .ds-who { display: flex; align-items: baseline; gap: 0.35rem;
+        min-width: 0; flex-wrap: wrap; }
+    .ds-name { font-weight: 650; font-size: 0.82rem; }
+    .ds-row.is-off .ds-name { color: #adb5bd; font-weight: 500; }
+    .ds-tag { font-size: 0.6rem; font-weight: 700; padding: 0.05rem 0.32rem;
+        border-radius: 3px; white-space: nowrap; }
+    .ds-tag.his   { background: rgba(185,143,38,0.18); color: #8A6A12; }
+    .ds-tag.usual { background: rgba(44,122,76,0.14);  color: #2C7A4C; }
+    .ds-tag.swap  { background: rgba(180,83,10,0.13);  color: #B4530A; }
+    .ds-tag.flat  { background: #f0eeea; color: #6c757d; }
+    .ds-tag.pick  { background: #0d6efd; color: #fff; }
+    .ds-streak { display: inline-flex; gap: 1.5px; align-items: center; }
+    .ds-streak i { width: 3px; height: 9px; border-radius: 1px; background: #dcd8d0; }
+    .ds-streak i.on { background: #2C7A4C; }
+    .ds-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+        flex: none; margin-right: 0.3rem; vertical-align: 0; }
+    .ds-veh { width: 168px; font-size: 0.73rem; padding: 0.13rem 0.35rem;
+        border: 1px solid #dee2e6; border-radius: 5px; background: #fbfaf7;
+        font-variant-numeric: tabular-nums; font-weight: 600; color: #212529; }
+    .ds-veh:disabled { opacity: 0.5; }
+    .ds-veh:focus { outline: 2px solid #B98F26; outline-offset: 1px; }
+    .ds-carwrap { display: flex; align-items: center; gap: 0.35rem; }
+    .ds-bench { background: #fbfaf7; border-top: 1px solid #e9ecef; }
+    .ds-bench .ds-row:hover { background: #fff; }
+    .ds-quiet { padding: 0.3rem 1.05rem 0.5rem; font-size: 0.7rem; color: #6c757d; }
+    .ds-warn { margin: 0.4rem 1.05rem 0; padding: 0.4rem 0.6rem; border-radius: 6px;
+        background: rgba(180,83,10,0.10); color: #8a4008; font-size: 0.73rem; }
+    .ds-foot { padding: 0.65rem 1.05rem; border-top: 1px solid #e9ecef;
+        display: flex; align-items: center; gap: 0.5rem; }
+    .ds-count { margin-right: auto; font-size: 0.73rem; color: #6c757d; }
+    .ds-count.bad { color: #b02a37; font-weight: 600; }
 </style>
 {% endblock %}
 
@@ -5177,77 +5262,263 @@
         var overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
         var modal = document.createElement('div');
-        modal.style.cssText = 'background:#fff;border-radius:12px;padding:0;max-width:620px;width:94%;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);';
+        modal.className = 'ds-modal';
 
-        var demandBits = Object.keys(data.demand || {}).map(function(t) { return data.demand[t] + ' ' + t; });
-        var header = '<div style="padding:14px 20px;border-bottom:1px solid #e9ecef;background:#f8f9fa;border-radius:12px 12px 0 0;">'
-            + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-magic me-2"></i>Day Setup — {{ selected_date|date:"D M j" }}</div>'
-            + '<div style="font-size:0.75rem;color:#6c757d;">' + (demandBits.length ? 'Demand: ' + demandBits.join(' · ') : 'No jobs yet for this date') + '</div>'
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+            });
+        }
+        // The board's own vehicle-type hues, so a unit reads the same colour here as
+        // it does on the timeline behind the modal.
+        var VDOT = {towncar:'#d97706', suv:'#2563eb', mini_van:'#7c3aed',
+                    van:'#0d9488', 'Van(14 Pax)':'#0d9488'};
+        function tierOf(label) {
+            var m = /#\S+\s+(.*)$/.exec(label || '');
+            var t = m ? m[1] : '';
+            if (/van\s*\(14/i.test(t)) return 'Van(14 Pax)';
+            return t.toLowerCase().replace(/\s+/g, '_');
+        }
+        function dot(label) {
+            return '<span class="ds-dot" style="background:' +
+                (VDOT[tierOf(label)] || '#94a3b8') + '"></span>';
+        }
+
+        var cap = data.capacity || {};
+        var totalLegs = Object.keys(data.demand || {}).reduce(
+            function(a, t) { return a + data.demand[t]; }, 0);
+        var crewN = (data.rows || []).filter(function(r) { return r.checked; }).length;
+
+        var header = '<div class="ds-head">'
+            + '<span class="ds-head-t"><i class="bi bi-magic me-2"></i>Day Setup — {{ selected_date|date:"D M j" }}</span>'
+            + '<span class="ds-head-s">' + (totalLegs
+                ? totalLegs + ' trips · ' + (cap.fleet || 0) + ' cars · ' + crewN + ' drivers proposed'
+                : 'No jobs booked for this date') + '</span>'
             + '</div>';
 
-        var groupTitles = {locked: 'Already set (untouched)', suggested: 'Suggested crew', available: 'Also available', off: 'Off today (per schedule)'};
-        var body = '<div style="padding:12px 20px;overflow-y:auto;flex:1;">';
+        // ── Coverage strip. The engine already builds this histogram to size the
+        // roster; it used to be collapsed into one sentence and thrown away.
+        var cov = '';
+        var series = cap.series || [];
+        if (series.length) {
+            var peakN = 0, peakAt = '';
+            series.forEach(function(s) { if (s.n > peakN) { peakN = s.n; peakAt = s.t; } });
+            var staffed = cap.staffed || 0;
+            var covers = staffed >= peakN;
+            var maxY = Math.max(peakN, staffed) + 1;
+            var W = 640, H = 104, PADT = 6, PADB = 15, plotH = H - PADT - PADB;
+            var bw = W / series.length;
+            var bars = '', axis = '';
+            var ORDER = ['towncar', 'suv', 'mini_van', 'van', 'Van(14 Pax)'];
+            series.forEach(function(s, i) {
+                var y = PADT + plotH, x = i * bw + 0.75, w = Math.max(bw - 1.5, 0.5);
+                var keys = Object.keys(s.tiers || {}).sort(function(a, b) {
+                    return ORDER.indexOf(a) - ORDER.indexOf(b);
+                });
+                keys.forEach(function(t) {
+                    var h = (s.tiers[t] / maxY) * plotH;
+                    y -= h;
+                    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="'
+                        + w.toFixed(1) + '" height="' + Math.max(h - 0.5, 0).toFixed(1)
+                        + '" rx="1" fill="' + (VDOT[t] || '#94a3b8') + '"></rect>';
+                });
+                if (/:00$/.test(s.t) && parseInt(s.t, 10) % 3 === 0) {
+                    axis += '<text x="' + (i * bw + bw / 2).toFixed(1) + '" y="' + (H - 4)
+                        + '" fill="#adb5bd" font-size="8.5" text-anchor="middle">'
+                        + s.t.slice(0, 2) + '</text>';
+                }
+            });
+            var capY = PADT + plotH - (staffed / maxY) * plotH;
+            cov = '<div class="ds-cov">'
+                + '<div class="ds-cov-top"><span class="ds-cov-k">Can ' + crewN
+                + ' drivers cover the day?</span>'
+                + '<span class="ds-cov-v">' + (covers
+                    ? '<span class="ok">Yes</span> — busiest moment is ' + peakN
+                      + ' trips at ' + peakAt
+                    : '<span class="short">' + (peakN - staffed) + ' short</span> at '
+                      + peakAt + ' — the rest farms out') + '</span></div>'
+                + '<svg class="ds-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Concurrent trips by hour against staffed cars">'
+                + bars
+                + '<line x1="0" x2="' + W + '" y1="' + capY.toFixed(1) + '" y2="' + capY.toFixed(1)
+                + '" stroke="#1E1C17" stroke-width="1.25" stroke-dasharray="5 4" opacity="0.55"></line>'
+                + '<text x="4" y="' + (capY - 4).toFixed(1) + '" fill="#6c757d" font-size="9" font-weight="700">'
+                + staffed + ' CARS OUT</text>'
+                + axis + '</svg>'
+                + '<div class="ds-leg">'
+                + ['towncar', 'suv', 'mini_van', 'van'].map(function(t) {
+                    return '<span><i style="background:' + VDOT[t] + '"></i>'
+                        + t.replace('_', ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); })
+                        + '</span>';
+                }).join('')
+                + '<span style="margin-left:auto;color:#adb5bd;">dashed line = cars you staffed</span>'
+                + '</div></div>';
+        }
+
+        // ── Ledger: the four numbers that used to be five paragraphs.
+        var canPark = cap.can_park || [], idle = cap.idle || [];
+        var ledger = '';
+        if (series.length) {
+            ledger = '<div class="ds-ledger">'
+                + '<div class="ds-led"><span class="ds-led-k">Trips</span><div class="ds-led-v">'
+                + totalLegs + ' <small>booked</small></div></div>'
+                + '<div class="ds-led"><span class="ds-led-k">Cars out</span><div class="ds-led-v">'
+                + (cap.staffed || 0) + ' <small>of ' + (cap.fleet || 0) + '</small></div></div>'
+                + '<div class="ds-led"><span class="ds-led-k">Idle</span><div class="ds-led-v">'
+                + idle.length + ' <small>' + (idle.length
+                    ? esc(idle.map(function(u) { return u.label.split(' ')[0]; }).join(', '))
+                    : 'none') + '</small></div></div>'
+                + '<div class="ds-led"><span class="ds-led-k">'
+                + (canPark.length ? 'Can stay in' : 'Every car') + '</span><div class="ds-led-v">'
+                + (canPark.length
+                    ? canPark.length + ' <small>' + esc(canPark.map(function(u) { return u.label.split(' ')[0]; }).join(', ')) + '</small>'
+                    : 'needed <small>today</small>')
+                + '</div></div></div>';
+        }
+
+        // Handback / swap callouts move ONTO the rows they concern; anything left is a
+        // day-level note and stays as a short line.
+        var rowNote = {};
+        var dayNotes = [];
         (data.swaps || []).forEach(function(s) {
-            body += '<div style="background:#fff3cd;border:1px solid #ffecb5;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:0.76rem;color:#664d03;"><i class="bi bi-arrow-left-right me-1"></i>' + s + '</div>';
+            var m = /^(#\S+) goes back to (.+?) \(his car\) — (.+?) drove it last/.exec(s);
+            if (m) { rowNote[m[3]] = '→ hands ' + m[1] + ' back'; rowNote[m[2]] = '← ' + m[1] + ' returns'; return; }
+            var m2 = /^(.+?) usually drives (#\S+) — (.+?) holds it today/.exec(s);
+            if (m2) { rowNote[m2[1]] = m2[2] + ' taken by ' + m2[3]; return; }
+            var m3 = /^(.+?) in, (.+?) out:/.exec(s);
+            if (m3) { rowNote[m3[2]] = 'stepped aside for ' + m3[1]; return; }
+            // The park verdict and the more-drivers-than-cars line both belong on the
+            // bench heading, where the affected people are — not stacked at the top.
+            if (/^Quiet day —|^MORE DRIVERS THAN CARS/.test(s)) return;
+            dayNotes.push(s);
         });
+
+        function streak(hint) {
+            // "works 8/12 recent Mondays" -> twelve ticks, eight lit. Same fact as the
+            // sentence, no reading.
+            var m = /(\d+)\/(\d+)/.exec(hint || '');
+            if (!m) return '';
+            var on = parseInt(m[1], 10), of = parseInt(m[2], 10);
+            if (!of || of > 14) return '';
+            var out = '<span class="ds-streak" title="' + esc(hint) + '">';
+            for (var i = 0; i < of; i++) out += '<i class="' + (i < on ? 'on' : '') + '"></i>';
+            return out + '</span>';
+        }
+        function chip(r) {
+            var rs = r.reason || '';
+            if (r.share) {
+                return '<span class="ds-tag swap" title="Two drivers share this car in shifts — the windows are split so it can never be double-booked">'
+                    + (r.share.role === 'AM' ? 'hands off at ' + r.share.until + ':00'
+                                             : 'takes over at ' + r.share.from + ':00') + '</span>';
+            }
+            if (/set in admin/.test(rs)) return '<span class="ds-tag his">his car</span>';
+            if (/^usual unit/.test(rs)) return '<span class="ds-tag usual">' + esc(rs.replace('usual unit · ', 'usual · ')) + '</span>';
+            if (/same car as last shift/.test(rs)) return '<span class="ds-tag usual">same as last shift</span>';
+            if (/suits him better/.test(rs)) return '<span class="ds-tag swap">' + esc(rs) + '</span>';
+            if (/usual cars are taken/.test(rs)) return '<span class="ds-tag flat">his cars are taken</span>';
+            if (/no unit free/.test(rs)) return '<span class="ds-tag swap">no car free</span>';
+            // "if working — best fit" is the prefill marker on bench rows; the heading
+            // already says these people aren't rostered, so the chip is pure noise.
+            if (/^if working/.test(rs)) return '';
+            if (rs) return '<span class="ds-tag flat">' + esc(rs) + '</span>';
+            return '';
+        }
+        function vehSelect(r) {
+            var opts = r.unit_options || [];
+            var html = '<select class="ds-veh" ' + (r.checked ? '' : 'disabled') + '>';
+            html += '<option value="">— no car —</option>';
+            if (!opts.length) {
+                if (r.vehicle_id) html += '<option value="' + r.vehicle_id + '" selected>' + esc(r.vehicle_label) + '</option>';
+                (data.free_units || []).forEach(function(u) {
+                    if (u.id === r.vehicle_id) return;
+                    html += '<option value="' + u.id + '">' + esc(u.label) + '</option>';
+                });
+                return html + '</select>';
+            }
+            var free = opts.filter(function(o) { return !o.held_by; });
+            var taken = opts.filter(function(o) { return o.held_by; });
+            function group(label, list) {
+                if (!list.length) return '';
+                var g = '<optgroup label="' + esc(label) + '">';
+                list.forEach(function(o) {
+                    g += '<option value="' + o.id + '"' + (o.id === r.vehicle_id ? ' selected' : '') + '>'
+                        + esc(o.label) + ' — ' + esc(o.note)
+                        + (o.rarely_used ? ' (rarely used)' : '') + '</option>';
+                });
+                return g + '</optgroup>';
+            }
+            html += group('Free now', free);
+            html += group('Would take it from someone', taken.map(function(o) {
+                return {id: o.id, label: o.label, rarely_used: o.rarely_used,
+                        note: o.held_by + ' loses it · ' + o.note};
+            }));
+            return html + '</select>';
+        }
+
+        var groupTitles = {locked: 'Already set', suggested: 'Crew',
+                           available: 'On the bench', off: 'Off today'};
+        var body = '<div class="ds-body">';
+        dayNotes.forEach(function(s) { body += '<div class="ds-quiet" style="padding-top:.5rem;"><i class="bi bi-info-circle me-1"></i>' + esc(s) + '</div>'; });
+
         ['locked', 'suggested', 'available', 'off'].forEach(function(group) {
             var rows = (data.rows || []).filter(function(r) { return r.group === group; });
             if (!rows.length) return;
-            var collapsed = group === 'off';
-            body += '<div style="font-size:0.7rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px;">' + groupTitles[group] + ' (' + rows.length + ')</div>';
-            if (collapsed) {
-                body += '<div style="font-size:0.78rem;color:#999;">' + rows.map(function(r) { return r.driver_name; }).join(', ') + '</div>';
+            var isBench = group === 'available';
+            body += (isBench ? '<div class="ds-bench">' : '')
+                + '<div class="ds-grp">' + groupTitles[group] + ' <b>' + rows.length + '</b></div>';
+            if (group === 'off') {
+                body += '<div class="ds-quiet">' + esc(rows.map(function(r) { return r.driver_name; }).join(', ')) + '</div>';
                 return;
+            }
+            if (isBench && canPark.length) {
+                body += '<div class="ds-note">Quiet day — '
+                    + esc(canPark.map(function(u) { return u.label; }).join(', '))
+                    + ' can stay in and every trip is still covered. Tick anyone to put a car out anyway.</div>';
+            } else if (isBench && idle.length) {
+                body += '<div class="ds-note">' + idle.length + ' car'
+                    + (idle.length !== 1 ? 's are' : ' is') + ' parked with no driver — tick anyone to put '
+                    + (idle.length !== 1 ? 'them' : 'it') + ' out.</div>';
             }
             rows.forEach(function(r) {
                 var locked = group === 'locked';
-                var shareAttrs = '';
-                if (r.share) {
-                    shareAttrs = ' data-allow-share="1" data-planned-start="' + r.planned_start_hour + '" data-planned-end="' + r.planned_end_hour + '"';
-                }
-                body += '<div class="ds-row" data-driver-id="' + r.driver_id + '" data-orig-checked="' + (r.checked ? 1 : 0) + '" data-forced="' + (r.forced ? 1 : 0) + '"' + shareAttrs + ' style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:0.82rem;">';
+                var shareAttrs = r.share
+                    ? ' data-allow-share="1" data-planned-start="' + r.planned_start_hour
+                      + '" data-planned-end="' + r.planned_end_hour + '"' : '';
+                var rail = /set in admin/.test(r.reason || '') ? 'lock'
+                    : (/^usual unit|same car as last/.test(r.reason || '') ? 'usual' : 'fill');
+                body += '<div class="ds-row" data-driver-id="' + r.driver_id
+                    + '" data-orig-checked="' + (r.checked ? 1 : 0) + '" data-forced="'
+                    + (r.forced ? 1 : 0) + '"' + shareAttrs + '>';
+                // The rail is absolutely positioned, so it costs no grid cell — but an
+                // empty placeholder WOULD, shunting every bench row one column right.
+                if (locked || r.checked) body += '<span class="ds-rail ' + rail + '"></span>';
                 body += locked
-                    ? '<i class="bi bi-lock-fill" style="color:#bbb;width:16px;"></i>'
-                    : '<input type="checkbox" class="ds-check" ' + (r.checked ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#198754;">';
-                body += '<span style="flex:1;font-weight:600;' + (locked ? 'color:#999;' : '') + '">' + r.driver_name
-                    + (r.forced ? ' <span class="badge" style="background:#0d6efd;color:#fff;font-size:0.58rem;">YOUR PICK</span>' : '')
-                    + (r.hint ? ' <span style="font-weight:400;color:#aaa;font-size:0.72rem;">— ' + r.hint + '</span>' : '') + '</span>';
-                if (locked) {
-                    body += '<span style="color:#0d6efd;font-weight:600;font-size:0.78rem;">' + r.vehicle_label + '</span>';
-                } else {
-                    body += '<select class="ds-veh form-select form-select-sm" style="width:170px;font-size:0.75rem;padding:0.15rem 0.4rem;" ' + (r.checked ? '' : 'disabled') + '>';
-                    body += '<option value="">— no unit —</option>';
-                    if (r.vehicle_id) body += '<option value="' + r.vehicle_id + '" selected>' + r.vehicle_label + '</option>';
-                    (data.free_units || []).forEach(function(u) {
-                        if (u.id === r.vehicle_id) return;
-                        body += '<option value="' + u.id + '">' + u.label + (u.rarely_used ? ' (rarely used)' : '') + '</option>';
-                    });
-                    body += '</select>';
-                    if (r.share) {
-                        var sTxt = r.share.role === 'AM'
-                            ? 'until ' + r.share.until + ':00 → hands to ' + r.share.partner
-                            : 'from ' + r.share.from + ':00 ← takes over from ' + r.share.partner;
-                        body += '<span class="badge" style="background:#664d03;color:#ffecb5;font-size:0.62rem;white-space:nowrap;" title="Two drivers share this car in shifts — their working windows are split so it can never be double-booked"><i class="bi bi-arrow-left-right me-1"></i>SHARED · ' + sTxt + '</span>';
-                    } else if (r.reason) {
-                        body += '<span style="font-size:0.68rem;color:' + (r.reason.indexOf('covers') === 0 ? '#0d6efd' : '#888') + ';white-space:nowrap;">' + r.reason + '</span>';
-                    }
-                }
+                    ? '<i class="bi bi-lock-fill" style="color:#ccc;font-size:0.8rem;"></i>'
+                    : '<input type="checkbox" class="ds-check" ' + (r.checked ? 'checked' : '') + ' aria-label="' + esc(r.driver_name) + '">';
+                body += '<span class="ds-who"><span class="ds-name">' + esc(r.driver_name) + '</span>'
+                    + (r.forced ? '<span class="ds-tag pick">your pick</span>' : '')
+                    + (locked ? '' : chip(r))
+                    + (rowNote[r.driver_name] ? '<span class="ds-tag swap">' + esc(rowNote[r.driver_name]) + '</span>' : '')
+                    + streak(r.hint) + '</span>';
+                body += locked
+                    ? '<span style="font-size:0.76rem;font-weight:600;color:#6c757d;">' + dot(r.vehicle_label) + esc(r.vehicle_label) + '</span>'
+                    : '<span class="ds-carwrap">' + vehSelect(r) + '</span>';
                 body += '</div>';
             });
+            if (isBench) body += '</div>';
         });
         (data.warnings || []).forEach(function(w) {
-            body += '<div style="font-size:0.74rem;color:#b35900;margin-top:8px;"><i class="bi bi-exclamation-triangle me-1"></i>' + w + '</div>';
+            body += '<div class="ds-warn"><i class="bi bi-exclamation-triangle me-1"></i>' + esc(w) + '</div>';
         });
         body += '</div>';
 
-        var footer = '<div style="padding:12px 20px;border-top:1px solid #e9ecef;display:flex;gap:8px;justify-content:flex-end;align-items:center;">'
-            + '<span class="ds-count" style="font-size:0.75rem;color:#888;margin-right:auto;"></span>'
+        var footer = '<div class="ds-foot">'
+            + '<span class="ds-count"></span>'
             + '<button class="btn btn-sm btn-outline-secondary ds-cancel" style="font-size:0.8rem;">Cancel</button>'
-            + '<button class="btn btn-sm btn-outline-primary ds-resuggest" style="font-size:0.8rem;" title="Re-plan vehicles around the drivers you ticked/unticked — a ticked extra displaces the lowest-priority pick (Yovanny in, someone out)"><i class="bi bi-arrow-repeat me-1"></i>Re-suggest with my picks</button>'
+            + '<button class="btn btn-sm btn-outline-primary ds-resuggest" style="font-size:0.8rem;" title="Re-plan vehicles around the drivers you ticked/unticked — a ticked extra displaces the lowest-priority pick (Yovanny in, someone out)"><i class="bi bi-arrow-repeat me-1"></i>Re-plan with my picks</button>'
             + '<button class="btn btn-sm ds-apply" style="font-size:0.8rem;background:var(--dark);color:var(--gold);font-weight:600;"><i class="bi bi-check2 me-1"></i>Apply</button>'
             + '</div>';
 
-        modal.innerHTML = header + body + footer;
+        modal.innerHTML = header + cov + ledger + body + footer;
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
         overlay.querySelector('.ds-cancel').addEventListener('click', function() { overlay.remove(); });
@@ -5278,7 +5549,7 @@
                 if (!newData.success) {
                     alert(newData.error || 'Failed');
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-suggest with my picks';
+                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-plan with my picks';
                     return;
                 }
                 overlay.remove();
@@ -5286,7 +5557,7 @@
             }).catch(function(err) {
                 alert('Error: ' + err);
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-suggest with my picks';
+                btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-plan with my picks';
             });
         });
 
@@ -5309,13 +5580,26 @@
         }
         function dsRefresh() {
             var pairs = dsCollect();
-            var seen = {}, dup = false;
+            var seen = {}, dup = false, dupLabel = 'A car';
             pairs.forEach(function(p) {
                 if (p.allow_share) return;  // deliberate shared car — two rows, one unit
-                if (seen[p.vehicle_id]) dup = true;
+                if (seen[p.vehicle_id]) {
+                    dup = true;
+                    var opt = modal.querySelector('.ds-veh option[value="' + p.vehicle_id + '"]');
+                    if (opt) dupLabel = opt.textContent.split(' — ')[0].trim();
+                }
                 seen[p.vehicle_id] = true;
             });
-            modal.querySelector('.ds-count').textContent = pairs.length + ' assignment' + (pairs.length !== 1 ? 's' : '') + (dup ? ' — same unit picked twice!' : '');
+            // The dropdown now offers cars another driver already holds ("David loses
+            // it"), so picking one is a deliberate swap, not a slip — name the car and
+            // both drivers instead of the old bare "same unit picked twice!".
+            var el = modal.querySelector('.ds-count');
+            var idle = ((data.capacity || {}).idle || []).length;
+            el.classList.toggle('bad', !!dup);
+            el.textContent = dup
+                ? dupLabel + ' is picked twice — change one of them'
+                : pairs.length + ' car' + (pairs.length !== 1 ? 's' : '') + ' out'
+                  + (idle ? ' · ' + idle + ' parked' : '');
             modal.querySelector('.ds-apply').disabled = dup || pairs.length === 0;
         }
         modal.querySelectorAll('.ds-check').forEach(function(cb) {

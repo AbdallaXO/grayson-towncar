@@ -155,6 +155,87 @@ def peak_concurrency(target_date, legs=None):
             "cumulative": cum_peak, "total_legs": len(legs)}
 
 
+def concurrency_series(target_date, legs, step_minutes=30):
+    """Hour-by-hour in-flight concurrency, split by vehicle type — the picture behind
+    `peak_concurrency`'s single number.
+
+    Returns [{"t": "HH:MM", "n": int, "tiers": {vtype: int}}] on a `step_minutes` grid
+    covering only the hours that actually carry work (plus one empty slot either side so
+    the chart doesn't start mid-bar). Same leg set and same end-time estimator as
+    peak_concurrency, so the series and the peak can never disagree.
+    """
+    from datetime import datetime as _dt, timedelta as _td
+    import dispatching.scheduler as sch
+    if not legs:
+        return []
+    if sch._timing_cache is None:
+        sch.preload_timing_cache()
+    spans = []
+    for leg in legs:
+        vt = leg.effective_vehicle_type
+        spans.append((_dt.combine(target_date, leg.pickup_time),
+                      sch.estimate_job_end_time(leg, target_date),
+                      str(vt) if vt else None))
+    first = min(s for s, _e, _v in spans)
+    last = max(e for _s, e, _v in spans)
+    step = _td(minutes=step_minutes)
+    # snap the start down to the grid, then pad one slot each side
+    base = first.replace(minute=(first.minute // step_minutes) * step_minutes,
+                         second=0, microsecond=0) - step
+    out = []
+    t = base
+    while t <= last + step:
+        tiers = {}
+        for s, e, v in spans:
+            if s <= t < e and v:
+                tiers[v] = tiers.get(v, 0) + 1
+        out.append({"t": t.strftime("%H:%M"),
+                    "n": sum(1 for s, e, _v in spans if s <= t < e),
+                    "tiers": tiers})
+        t += step
+    return out
+
+
+def parkable_units(units, cumulative, overall=0):
+    """Which cars can stay in the yard today and still leave every trip covered.
+
+    Founder's model, and the reason per-size demand targets are the wrong question: an
+    SUV covers SUV work AND everything below it, so on a normal day every car goes out
+    and size never binds. Size only matters on a genuinely quiet day, where the question
+    is not "how many of each size do I need" but "can anything stay in".
+
+    Under nested compatibility the fleet covers the day exactly when, for EVERY size S,
+    the cars of size >= S outnumber the peak concurrent trips needing size >= S — Hall's
+    condition, and `cumulative` (from peak_concurrency) is already that left-hand side.
+    Park the LEAST capable car first: it satisfies the fewest constraints, so releasing
+    it costs the least coverage. Stop at the first car that would break the condition.
+
+    `overall` is the peak concurrent trip count of ANY type and acts as a floor: a leg
+    with no vehicle type on its reservation still needs a body, and it appears in the
+    overall peak but in NO tier — without the floor, a day of purely untyped legs has an
+    empty `cumulative`, every per-size test passes vacuously, and the whole fleet gets
+    declared parkable.
+
+    Returns (parked, staffed) — both lists of FleetVehicle, parked in park order.
+    Measured against 21 built days: mean error 0.57 cars, and on the 10 days the founder
+    used every car it agreed 9 times (it errs toward sending cars OUT, the safe side).
+    """
+    from dispatching.scheduler import get_vehicle_tier
+    staffed = sorted(units, key=_unit_tier)      # least capable first
+    parked = []
+    while len(staffed) > overall:
+        trial = staffed[1:]
+        covers = all(
+            sum(1 for u in trial if _unit_tier(u) >= get_vehicle_tier(tname)) >= need
+            for tname, (need, _at) in cumulative.items()
+        )
+        if not covers:
+            break
+        parked.append(staffed[0])
+        staffed = trial
+    return parked, staffed
+
+
 def suggest_day_setup(target_date: date, ignore_existing: bool = False,
                       solo_first=None, peak_sizing=None,
                       force_include=None, force_exclude=None) -> dict:
@@ -398,21 +479,13 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
             avail_start.pop(did, None)
             dropped_names.append(r["driver_name"])
             checked_n -= 1
-        _pt = ", ".join(
-            f"{t} {n} @ {at.strftime('%H:%M')}"
-            for t, (n, at) in sorted(peak["per_tier"].items(), key=lambda kv: -kv[1][0]))
-        swaps.insert(0, (f"PEAK DEMAND: {peak['overall'][0]} legs in flight at "
-                         f"{peak['overall'][1].strftime('%H:%M')}"
-                         + (f" ({_pt})" if _pt else "")
-                         + f" — checking {checked_n} drivers "
-                         f"(peak + {DAY_SETUP_PEAK_BUFFER})."
-                         + (f" Left available: {', '.join(dropped_names)}."
-                            if dropped_names else "")))
-        if checked_n < peak["overall"][0]:
-            warnings.append(
-                f"Peak demand is {peak['overall'][0]} concurrent legs at "
-                f"{peak['overall'][1].strftime('%H:%M')} but only {checked_n} drivers "
-                f"pass the gate — tick more from Also available.")
+        # The banner used to spell out every tier's peak here and quote a driver count
+        # taken BEFORE the solo-first pass unchecks the car-less — on 07-12 it read "19"
+        # while the list showed 13. The numbers now go out structured in `capacity` (the
+        # UI draws the histogram) and the driver count is settled once, after every pass.
+        if dropped_names:
+            swaps.insert(0, f"Left available: {', '.join(dropped_names)} — "
+                            f"{checked_n} drivers covers the busiest moment.")
 
     # ── Vehicle matching over the pre-checked, unlocked drivers ──
     by_id = {d.id: d for d in drivers}
@@ -511,6 +584,14 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
                 continue
         else:
             need = ceil(demand[tname] / DAY_SETUP_LEGS_PER_UNIT)
+        # A target the fleet cannot physically meet is not a plan, it's arithmetic about
+        # bookings we will farm out. Un-capped, 07-11 asked for 19 towncar-capable and 16
+        # mini_van-capable units against a fleet of 13 — four of five sizes over-asking,
+        # each producing a warning no dispatcher could act on. Capping changes no
+        # ASSIGNMENT (the loop already stops when the pool empties); it stops the pass
+        # from reporting an impossible shortfall as a daily finding. Whether the fleet
+        # covers the day at all is answered once, by parkable_units, in `capacity`.
+        need = min(need, sum(1 for u in all_units if _unit_tier(u) >= tier))
         covered = 0
         for a in existing.values():
             if a.vehicle is not None and _unit_tier(a.vehicle) >= tier:
@@ -536,9 +617,19 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
                     placed = True
                     break
             if not placed:
-                warnings.append(
-                    f"{tname} demand ({demand[tname]} legs) needs {need} unit(s) of that "
-                    f"size — only {covered} staffed. Add a certified driver or free a unit.")
+                # Why the pass stalled decides whether it is worth saying. A free unit
+                # nobody left can legally drive is a genuine, fixable, tier-specific
+                # finding (the Sprinter case). Running out of UNITS or out of BODIES is
+                # neither tier-specific nor per-size — the old message blamed "unit(s) of
+                # that size" for both and fired up to four times a day. The settled
+                # headcount line at the end says that once, accurately.
+                stuck = [u for u in pool.values() if _unit_tier(u) >= tier
+                         and getattr(u.vehicle_type, "requires_certification", False)]
+                if stuck:
+                    warnings.append(
+                        f"{_unit_label(stuck[0])} is free and the day needs it, but nobody "
+                        f"left on the crew is certified to drive it — tick a certified "
+                        f"driver from the bench.")
                 break
 
     # P3 — fluid remainder: best-scoring pair first, deterministic; rarely-used units are a
@@ -718,17 +809,159 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
         for r in rows:
             if r["driver_id"] == d.id:
                 r["reason"] = "no unit free"
-    parked = [u for u in pool.values() if u.id not in rarely_used]
-    if parked:
-        warnings.append("Parked (unassigned) units: "
-                        + ", ".join(_unit_label(u) for u in sorted(parked, key=_unit_sort_key)))
+    # ── HONEST REASON CHIPS. P2 stamped "covers <tier> demand (N legs)" on every row it
+    # seated — the engine's LEAST reliable signal (right 56% of the time, vs 79% for
+    # "usual unit" and 82% for "his car") worn as if it were the strongest, quoting the
+    # day's TOTAL leg count so three rows read identically, and printing "covers towncar
+    # demand" next to a Mini Van. Relabel with what is actually true of the pair. Done
+    # here, after every pass, because "a better car is still free" is only worth saying
+    # once the free pool has stopped moving.
+    claims, claimed_units = [], set()
+    for r in rows:
+        if not (r["checked"] and str(r["reason"]).startswith("covers ")):
+            continue
+        d, u = by_id.get(r["driver_id"]), None
+        for cand in all_units:
+            if cand.id == r["vehicle_id"]:
+                u = cand
+                break
+        if d is None or u is None:
+            r["reason"] = "best fit"
+            continue
+        s = share(d.id, u.id)
+        lu = last_unit.get(d.id)
+        if lu and lu[1] == u.id:
+            r["reason"] = "same car as last shift"
+        elif s >= 0.3:
+            r["reason"] = f"usual unit · {s:.0%}"
+        else:
+            here = pair_score(d, u)
+            better = sorted((v for v in all_units
+                             if d.can_drive(v.vehicle_type) and pair_score(d, v) > here + 10),
+                            key=lambda v: -pair_score(d, v))
+            free_better = [v for v in better if v.id in pool]
+            if free_better:
+                # The tier pass picks the UNIT first and then hunts for a driver, so it
+                # can seat someone in an unfamiliar car while a car he actually drives
+                # stays parked (Aug 10: ernesto → #002, 14% of his days, while #009 —
+                # 27% and his last car — sat idle). Say so; the dropdown is right there.
+                # Claimed below — a parked car can only be offered to ONE row.
+                claims.append((pair_score(d, free_better[0]), r, free_better[0],
+                               bool(better)))
+                r["reason"] = "his usual cars are taken" if better else "best fit"
+            elif better:
+                r["reason"] = "his usual cars are taken"
+            else:
+                r["reason"] = "best fit"
+
+    # Only one driver can actually take a parked car, so only one row may be told to.
+    # Offering #009 to both ernesto and Francisco (as the first cut did) reads as two
+    # available fixes and delivers one. Highest score wins the offer; the rest keep the
+    # honest fallback already set above.
+    for _s, r, v, _had in sorted(claims, key=lambda c: (-c[0], c[1]["driver_name"])):
+        if v.id in claimed_units:
+            continue
+        claimed_units.add(v.id)
+        r["reason"] = f"{_unit_label(v)} suits him better"
+
     rare_listed = [u for u in pool.values() if u.id in rarely_used]
     if rare_listed:
         warnings.append("Rarely-used units (never auto-suggested): "
                         + ", ".join(_unit_label(u) for u in sorted(rare_listed, key=_unit_sort_key)))
 
+    # ── PER-ROW UNIT OPTIONS for the dropdown. The list used to be every free unit in
+    # number order, identical on every row, with nothing about whether the car suited
+    # the person — so overriding a pick meant knowing the history by heart. Rank it by
+    # the same score the engine used, say who loses a car that is already spoken for,
+    # and keep cert-blocked units out (Apply hard-blocks them server-side anyway).
+    holder = {}
+    for did, a in existing.items():
+        if a.vehicle_id:
+            holder[a.vehicle_id] = str(by_id[did]) if did in by_id else str(a.driver)
+    for did, u in proposed.items():
+        holder[u.id] = str(by_id[did])
+    for r in rows:
+        d = by_id.get(r["driver_id"])
+        if d is None or r["group"] in ("locked", "off"):
+            continue
+        opts = []
+        for u in all_units:
+            if not d.can_drive(u.vehicle_type):
+                continue
+            s = share(d.id, u.id)
+            lu = last_unit.get(d.id)
+            if u.id == r["vehicle_id"]:
+                note = "current pick"
+            elif lu and lu[1] == u.id:
+                note = "drove it last shift"
+            elif s >= 0.05:
+                note = f"{s:.0%} of his days"
+            else:
+                note = "never driven it"
+            held = holder.get(u.id)
+            opts.append({
+                "id": u.id, "label": _unit_label(u),
+                "free": u.id not in holder,
+                "held_by": None if (held is None or u.id == r["vehicle_id"]) else held,
+                "note": note,
+                "rarely_used": u.id in rarely_used,
+                "_k": (u.id != r["vehicle_id"], u.id in holder, u.id in rarely_used,
+                       -pair_score(d, u)) + _unit_sort_key(u),
+            })
+        opts.sort(key=lambda o: o["_k"])
+        for o in opts:
+            o.pop("_k")
+        r["unit_options"] = opts
+
+    # ── CAN ANY CAR STAY IN? The founder's actual question, asked once. Replaces the
+    # per-size "needs N unit(s) of that size" warnings (up to four a day, none
+    # actionable — see the cap in P2) and the bare "Parked (unassigned) units" list.
+    can_park, must_run = (parkable_units(all_units, peak["cumulative"],
+                                         overall=peak["overall"][0])
+                          if peak is not None else ([], list(all_units)))
+    idle = sorted(pool.values(), key=_unit_sort_key)
+    capacity = {
+        "fleet": len(all_units),
+        "staffed": len(all_units) - len(idle),
+        "idle": [{"id": u.id, "label": _unit_label(u)} for u in idle],
+        "can_park": [{"id": u.id, "label": _unit_label(u)}
+                     for u in sorted(can_park, key=_unit_sort_key)],
+        "must_run": len(must_run),
+        "series": concurrency_series(target_date, legs),
+    }
+    if peak is not None:
+        if can_park:
+            swaps.append(
+                "Quiet day — " + ", ".join(_unit_label(u) for u in
+                                           sorted(can_park, key=_unit_sort_key))
+                + f" can stay in; the other {len(must_run)} still cover every trip.")
+        elif idle:
+            swaps.append(f"Every car is needed today, but {len(idle)} "
+                         f"({', '.join(_unit_label(u) for u in idle)}) has no driver.")
+        # The real shortfall, settled AFTER every pass: not "fewer drivers than the raw
+        # peak" (which counts bookings we farm out and fired on 9 of 23 days), but
+        # "fewer drivers than the cars this day genuinely needs on the road".
+        final_checked = sum(1 for r in rows if r["checked"])
+        if final_checked < len(must_run):
+            warnings.append(
+                f"The busiest moment needs {len(must_run)} cars out but only "
+                f"{final_checked} drivers are ticked — add {len(must_run) - final_checked} "
+                f"more from the bench, or the gap farms out.")
+
+    # ── ORDER: by UNIT number inside each group (#001, #002, ... #10, #11, ... #17),
+    # not by driver name. Founder's rule — the fleet is the fixed thing he reads down,
+    # and the yard, the board and the printed sheet are all in unit order, so an
+    # alphabetical modal forced him to re-map 13 names onto 17 cars every morning.
+    # _unit_sort_key is numeric-aware, so #10 sorts after #009, never before #002.
+    # Rows with no car keep their alphabetical order, at the end of their group.
     group_order = {"locked": 0, "suggested": 1, "available": 2, "off": 3}
-    rows.sort(key=lambda r: (group_order[r["group"]], r["driver_name"].lower()))
+    unit_key = {u.id: _unit_sort_key(u) for u in all_units}
+    rows.sort(key=lambda r: (
+        group_order[r["group"]],
+        0 if r.get("vehicle_id") in unit_key else 1,
+        unit_key.get(r.get("vehicle_id"), (0, 0, "")),
+        r["driver_name"].lower(),
+    ))
     return {
         "date": target_date.isoformat(),
         "rows": rows,
@@ -741,6 +974,7 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
                   "per_tier": {t: {"n": n, "at": at.strftime("%H:%M")}
                                for t, (n, at) in peak["per_tier"].items()}}
                  if peak is not None else None),
+        "capacity": capacity,
         "free_units": [
             {"id": u.id, "label": _unit_label(u),
              "requires_cert": bool(u.vehicle_type and u.vehicle_type.requires_certification),
