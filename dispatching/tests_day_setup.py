@@ -641,6 +641,53 @@ class DaySetupPeakSizingTests(TestCase):
         self.assertGreater(len(nums), 1)
         u10.delete()
 
+    def test_logic_is_fleet_size_agnostic(self):
+        from unittest.mock import patch
+        from dispatching.day_setup import parkable_units
+        from datetime import datetime
+        # Nothing in the suggester may assume a fleet size. Grow 7 cars to 20 —
+        # spanning one-, two- and three-digit unit numbers — and the same rules must
+        # hold: numeric ordering (#009 < #10 < #20, never string order), size targets
+        # capped at whatever the fleet actually is, and park-the-least-capable-first
+        # scaling with the extra cars rather than saturating.
+        extra = [FleetVehicle.objects.create(vehicle_number=n, vehicle_type=self.vt_suv,
+                                             year=2023, make="Chevy", model="Suburban")
+                 for n in ("10", "11", "12", "13", "14", "15", "16", "17", "18", "020", "7")]
+        try:
+            fleet = list(self.units) + [self.u_van14] + extra
+            self.assertEqual(len(fleet), 18)
+            at = datetime.combine(TARGET, datetime.min.time())
+
+            # Park scales with the fleet: 3 concurrent suv trips out of 19 cars.
+            parked, staffed = parkable_units(fleet, {"suv": (3, at)}, overall=3)
+            self.assertEqual(len(staffed), 3)
+            self.assertEqual(len(parked), 15)
+            # ...and the Sprinter is the LAST thing parked, whatever the fleet size.
+            self.assertIn(self.u_van14, staffed + parked[-1:])
+
+            # A busy day on a big fleet still parks nothing.
+            parked2, staffed2 = parkable_units(fleet, {"suv": (18, at)}, overall=18)
+            self.assertEqual(parked2, [])
+            self.assertEqual(len(staffed2), 18)
+
+            for m in range(0, 30, 5):
+                self._leg(self.res_suv, 9, m)
+            with patch("dispatching.scheduler.estimate_job_end_time", _fake_end):
+                out = suggest_day_setup(TARGET)
+            self.assertEqual(out["capacity"]["fleet"], 18)
+            # No impossible per-size target survives on an 18-car fleet either.
+            self.assertFalse([w for w in out["warnings"] if "unit(s) of that size" in w])
+            # Unit ordering is numeric across all three digit-widths.
+            labels = [o["label"] for o in
+                      next(r for r in out["rows"] if r["group"] in ("suggested", "available")
+                           and r.get("unit_options"))["unit_options"]]
+            nums = [int(l.split()[0].lstrip("#")) for l in labels]
+            self.assertEqual(sorted(nums), sorted(set(nums)), "no duplicate units offered")
+            self.assertIn(20, nums, "#020 must be offered and read as unit twenty")
+        finally:
+            for u in extra:
+                u.delete()
+
     def test_a_parked_car_is_offered_to_only_one_driver(self):
         from unittest.mock import patch
         # Two drivers can both score best on the same idle car; telling both that it
