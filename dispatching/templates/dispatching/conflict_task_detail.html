@@ -193,8 +193,8 @@
   .cf-act-item .mono{ color:var(--ink-mute); flex:0 0 auto; font-size:11px; }
   .cf-act-empty{ font-size:12px; color:var(--ink-faint); font-style:italic; padding:6px 0; }
 </style>
-{# Recovery Advisor block below renders the SAME card the board rail draws, so
-   it shares the rail's stylesheet rather than carrying a second copy. #}
+{% comment %}Recovery Advisor block below renders the SAME card the board rail
+draws, so it shares the rail's stylesheet rather than carrying a second copy.{% endcomment %}
 {% include "dispatching/includes/_recovery_advisor_styles.html" %}
 {% endblock extra_css %}
 

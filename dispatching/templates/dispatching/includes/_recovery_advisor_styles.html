@@ -14,7 +14,10 @@ drive back. Engine vocabulary lives in the monospace "Show the math" block and
 nowhere else.{% endcomment %}
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  #recoveryAdvisor, #raTaskAdvisor, .ra-modal, .ra-toast {
+  /* Every root that draws ra-* markup must be listed here — the tokens are
+     scoped so nothing leaks into the host page, which also means a surface
+     left off this list renders with every var() undefined. */
+  #recoveryAdvisor, #raTaskAdvisor, #swapAdvisor, .ra-modal, .ra-toast {
     --ra-bg:         #f3f5f8;
     --ra-surface:    #ffffff;
     --ra-surface-2:  #fbfcfe;

@@ -125,15 +125,15 @@ The including page owns the action JS (it reads the data-* attributes below).
         </div>
 
       {% elif step.resolve_actions %}
-        {# Non-comm steps (coverage / verify) — generic resolve buttons.
-           Coverage actions (assign / farm_out) deep-link to the Recovery
-           Advisor rail on the dispatch board for the task's leg, where ranked,
-           whole-board-validated plans live — no dead buttons. #}
+        {% comment %}Non-comm steps (coverage / verify) — generic resolve buttons.
+        Coverage actions (assign / farm_out) deep-link to the Recovery Advisor rail
+        on the dispatch board for the task's leg, where ranked, whole-board-validated
+        plans live — no dead buttons.{% endcomment %}
         <div class="cf-step-actions">
           {% for a in step.resolve_actions %}
-          {# The advisor rail is superuser-only during the trial, so anyone else
-             gets the generic resolve button — deep-linking them to an anchor
-             that isn't on the page is exactly the dead button this avoids. #}
+          {% comment %}The advisor rail is superuser-only during the trial, so anyone
+          else gets the generic resolve button — deep-linking them to an anchor that
+          isn't on the page is exactly the dead button this avoids.{% endcomment %}
           {% if user.is_superuser and task.leg_id and a.kind == 'assign' or user.is_superuser and task.leg_id and a.kind == 'farm_out' %}
           <a class="cf-act{% if step.recommended %} cf-act-gold{% endif %}"
              href="{% url 'dashboard' %}?date={{ task.leg.pickup_date|date:'Y-m-d' }}&highlight={{ task.leg_id }}#recoveryAdvisor"

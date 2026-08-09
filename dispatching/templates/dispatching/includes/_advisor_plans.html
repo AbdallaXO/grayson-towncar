@@ -130,8 +130,8 @@ retry with live_override_confirmed once. UNCHANGED by the redesign.
             <div class="ra-fix-head">
               <span class="ra-rank">#{{ plan.rank }}</span>
               <span class="ra-fix-title">{{ plan.display.headline|default:plan.title }}</span>
-              {# One money format everywhere — the engine's own _fmt_money, so a
-                 $120 farm is "$120" on this page and on the board rail alike. #}
+              {% comment %}One money format everywhere — the engine's own _fmt_money,
+              so a $120 farm is "$120" on this page and on the board rail alike.{% endcomment %}
               {% if plan.display.price_label %}<span class="ra-price">{{ plan.display.price_label }}</span>
               {% elif plan.price_impact is not None %}<span class="ra-price">${{ plan.price_impact }}</span>{% endif %}
               {% if plan.apply %}
@@ -202,10 +202,10 @@ retry with live_override_confirmed once. UNCHANGED by the redesign.
               {% endfor %}
             </div>
             {% elif plan.risks %}
-            {# Degraded path: display failed to build. The engine's risks must
-               still be VISIBLE next to a live Apply button — burying them in
-               the collapsed "Show the math" would hide a safety line behind a
-               click the dispatcher has no reason to make. #}
+            {% comment %}Degraded path: display failed to build. The engine's risks
+            must still be VISIBLE next to a live Apply button — burying them in the
+            collapsed "Show the math" would hide a safety line behind a click the
+            dispatcher has no reason to make.{% endcomment %}
             <div class="ra-chips">
               {% for r in plan.risks %}
               <span class="ra-chip is-amber"><span class="ra-ic">⚠</span><span>{{ r }}</span></span>

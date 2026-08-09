@@ -152,8 +152,8 @@
                   {{ form.about }}
                 </div>
 
-                {# Bot challenge. Renders only once the Turnstile secret is configured,
-                   so the form is unaffected until then. #}
+                {% comment %}Bot challenge. Renders only once the Turnstile secret is
+                configured, so the form is unaffected until then.{% endcomment %}
                 {% if turnstile_site_key %}
                   <div class="d-flex justify-content-center mb-3">
                     <div class="cf-turnstile"

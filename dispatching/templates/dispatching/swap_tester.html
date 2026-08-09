@@ -2,8 +2,12 @@
 {% load static %}
 
 {% block head_extra %}
-{# Swap solutions are drawn with the Recovery Advisor's timeline —
-   same stylesheet, same renderer, so the two pages cannot drift. #}
+{% comment %}Swap solutions are drawn with the Recovery Advisor's timeline —
+same stylesheet, same renderer, so the two pages cannot drift.
+
+Comment tag, not the brace-hash form: that one is SINGLE-LINE (Django's tag_re
+carries no DOTALL), so a comment written across two lines is never tokenised
+and every character of it prints onto the page.{% endcomment %}
 {% include "dispatching/includes/_recovery_advisor_styles.html" %}
 <style>
     :root {
@@ -99,131 +103,14 @@
     }
     .nofit-card:hover { border-color: var(--gold); }
 
-    /* Swap results */
-    .swap-solution {
-        background: #fff;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 0;
-        margin-bottom: 0.6rem;
-        overflow: hidden;
-        transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-    }
-    .swap-solution:hover {
-        border-color: var(--gold);
-        box-shadow: 0 3px 10px rgba(201,162,39,0.15);
-    }
-    .swap-solution.is-best {
-        border-color: var(--gold);
-        box-shadow: 0 0 0 2px rgba(201,162,39,0.18);
-    }
-    .swap-solution-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.55rem 0.85rem;
-        background: linear-gradient(90deg, #fafafa, #fff);
-        border-bottom: 1px solid #f0f0f0;
-    }
-    .swap-rank {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        border-radius: 50%;
-        background: #eee;
-        color: #555;
-        font-size: 0.7rem;
-        font-weight: 700;
-        margin-right: 0.4rem;
-    }
-    .swap-solution.is-best .swap-rank {
-        background: var(--gold);
-        color: var(--dark);
-    }
-    .swap-score {
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: #333;
-    }
-    .swap-target-driver {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        font-size: 0.78rem;
-        font-weight: 600;
-        color: #2e7d32;
-    }
-    .swap-depth-pill {
-        display: inline-block;
-        padding: 0.1rem 0.5rem;
-        border-radius: 10px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        background: #eef2f7;
-        color: #455a64;
-    }
-    .swap-moves {
-        padding: 0.4rem 0.85rem 0.55rem;
-    }
-    .swap-move {
-        display: flex;
-        align-items: flex-start;
-        gap: 0.5rem;
-        padding: 0.35rem 0;
-        border-bottom: 1px dashed #f1f1f1;
-        font-size: 0.8rem;
-    }
-    .swap-move:last-child { border-bottom: none; }
-    .swap-move-icon {
-        flex: 0 0 auto;
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-size: 0.7rem;
-        margin-top: 1px;
-    }
-    .swap-move-icon.move-from { background: var(--gold); color: var(--dark); }
-    .swap-move-icon.move-assign { background: #2e7d32; }
-    .swap-move-body { flex: 1; line-height: 1.3; }
-    .swap-move-title { color: #222; }
-    .swap-move-driver-arrow {
-        font-size: 0.73rem;
-        color: #555;
-        margin-top: 1px;
-    }
-    .swap-move-driver-arrow .from-name { color: #c62828; font-weight: 600; }
-    .swap-move-driver-arrow .to-name   { color: #2e7d32; font-weight: 600; }
-    .buffer-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.2rem;
-        padding: 0.08rem 0.4rem;
-        border-radius: 10px;
-        font-size: 0.68rem;
-        font-weight: 600;
-        white-space: nowrap;
-    }
+    /* Swap solutions carry NO page-local styling: they are ra-* markup drawn by
+       the Recovery Advisor's stylesheet and renderer. The gold-on-white card CSS
+       that used to live here is gone — a second copy is how two surfaces drift. */
+
+    /* Buffer bands on the affiliate takeback rows */
     .buffer-green  { background: #e8f5e9; color: #2e7d32; }
     .buffer-orange { background: #fff3e0; color: #e65100; }
     .buffer-red    { background: #ffebee; color: #c62828; }
-    .swap-apply-btn {
-        font-size: 0.72rem;
-        padding: 0.25rem 0.6rem;
-        background: var(--gold);
-        color: var(--dark);
-        font-weight: 700;
-        border: none;
-        border-radius: 4px;
-        white-space: nowrap;
-        transition: filter 0.15s;
-    }
-    .swap-apply-btn:hover { filter: brightness(1.05); }
 
     .nofit-card.is-active {
         border-color: var(--gold);
@@ -269,18 +156,12 @@
         color: #888;
         margin: 0.75rem 0 0.35rem;
     }
-
-    /* Stats */
-    .search-stats {
-        font-size: 0.75rem;
-        color: #888;
-        padding: 0.5rem 0;
-    }
 </style>
 {% endblock %}
 
 {% block content %}
 {% block navbar %}{% endblock %}
+{% include 'dispatching/dispatcher_navbar.html' %}
 
 <div class="swap-header">
     <div class="container-fluid px-4">
@@ -375,15 +256,24 @@
         </div>
     </div>
 
-    <!-- Swap solutions: full width, because the after-the-move lanes need it -->
+    <!-- Swap solutions: full width, because the after-the-move lanes need it.
+         Same rail chrome as the Recovery Advisor — dark head, collapsible body,
+         ra-fix cards inside — so a dispatcher reads one surface, not two. -->
     <div id="swapResultsPanel" class="d-none" style="margin-top:1.25rem;">
-        <div id="raTaskAdvisor">
+        <div id="swapAdvisor" class="ra-rail">
+            <div class="ra-head" id="swapResultsHead" title="Collapse / expand">
+                <span class="ra-head-title"><i class="bi bi-arrow-repeat"></i>Swap solutions</span>
+                <span class="ra-count" id="swapResultsCount"></span>
+                <span class="ra-head-meta">
+                    <span id="swapSearchStats"></span>
+                    <i class="bi bi-chevron-down ra-caret"></i>
+                </span>
+            </div>
             <div class="ra-body">
                 <div class="ra-sec" style="margin-top:0;">
                     <div class="ra-sec-label" id="swapResultsLegLabel">Swap solutions</div>
-                    <div class="ra-sec-sub">Each timeline shows the schedule <b>after</b> that swap.</div>
+                    <div class="ra-sec-sub">Each timeline shows the board <b>after</b> that swap.</div>
                     <div id="swapResultsContent"></div>
-                    <div id="swapSearchStats" class="search-stats"></div>
                 </div>
             </div>
         </div>
@@ -538,14 +428,22 @@
     // ── Plain wording for a swap, matching the Recovery Advisor's voice ──
     function firstName(n) { return (n || '').trim().split(' ')[0] || (n || ''); }
 
+    // Every solution for one leg ends the same way — that leg lands on someone —
+    // so the headline has to carry what DIFFERS between them: who absorbs the
+    // run that had to move. Without it two cards read as the same sentence.
     function swapHeadline(sol) {
-        const last = sol.moves[sol.moves.length - 1] || {};
-        const who = firstName(sol.target_driver);
-        if (sol.depth === 1) {
-            return 'Give the ' + (last.pickup_time || 'run') + ' run to ' + who;
+        const moves = sol.moves || [];
+        const last = moves[moves.length - 1] || {};
+        const head = 'Give the ' + (last.pickup_time || 'run') + ' run to ' +
+                     firstName(sol.target_driver);
+        const shifted = moves.filter(function (m) { return m.from_driver; });
+        if (!shifted.length) return head;
+        if (shifted.length === 1) {
+            return head + ' — ' + firstName(shifted[0].to_driver) + ' takes ' +
+                   firstName(shifted[0].from_driver) + '’s ' +
+                   shifted[0].pickup_time + ' run';
         }
-        return 'Shuffle ' + sol.depth + ' runs so the ' +
-               (last.pickup_time || 'job') + ' one lands on ' + who;
+        return head + ' — ' + shifted.length + ' other runs shift to make room';
     }
 
     function swapOutcome(sol) {
@@ -564,56 +462,73 @@
         const content = document.getElementById('swapResultsContent');
         const stats = document.getElementById('swapSearchStats');
         const label = document.getElementById('swapResultsLegLabel');
+        const count = document.getElementById('swapResultsCount');
 
         panel.classList.remove('d-none');
-        const legInfo = nofitLegs.find(l => l.id === legId);
-        label.innerHTML = legInfo ? ' — Leg #'+legId+' ('+legInfo.pickup_time+')' : ' — Leg #'+legId;
+        document.getElementById('swapAdvisor').classList.remove('is-collapsed');
+        // Stored BEFORE anything is drawn: Apply and the hover-highlight read
+        // this, and they must not depend on the whole render finishing.
+        window._swapSolutions = data.solutions || [];
+
+        // The leg is named in the section label, not the panel head, because
+        // the head is the surface and the label is which job it is answering.
+        const legInfo = (nofitLegs.find(l => l.id === legId) ||
+                         affiliateLegs.find(l => l.id === legId));
+        label.textContent = 'Swap solutions — Leg #' + legId +
+                            (legInfo ? ' (' + legInfo.pickup_time + ')' : '');
+
+        const n = window._swapSolutions.length;
+        count.textContent = n ? n + (n === 1 ? ' option' : ' options') : 'no options';
+        count.className = 'ra-count' + (n ? '' : ' is-crit');
 
         // Stats
         let statsHtml = data.states_explored + ' states explored · ' + data.time_ms + 'ms';
-        if (data.hit_time_limit) statsHtml += ' · <span style="color:#e65100;">Search timed out, partial results shown</span>';
-        if (data.hit_depth_limit) statsHtml += ' · <span style="color:#888;">Max depth reached</span>';
+        if (data.hit_time_limit) statsHtml += ' · <span style="color:#fbbf24;">Search timed out, partial results shown</span>';
+        if (data.hit_depth_limit) statsHtml += ' · <span style="opacity:.8;">Max depth reached</span>';
         stats.innerHTML = statsHtml;
 
         if (!data.solutions || data.solutions.length === 0) {
-            let failHtml = '<div class="py-2" style="color:#c62828;font-size:0.85rem;"><i class="bi bi-x-circle" style="font-size:1rem;"></i> No swaps possible</div>';
+            // Colours come from the advisor's tokens, not page-local hexes — this
+            // block sits inside #swapAdvisor, so red means here what it means there.
+            let failHtml = '<div class="py-2" style="color:var(--ra-red-deep);font-size:0.9rem;font-weight:600;"><i class="bi bi-x-circle"></i> No swaps possible</div>';
             if (data.diagnostic && data.diagnostic.length > 0) {
-                failHtml += '<div style="font-size:0.75rem;max-height:320px;overflow-y:auto;">';
-                failHtml += '<div style="font-weight:600;margin-bottom:0.3rem;color:#555;">Why each driver can\'t take this job:</div>';
+                failHtml += '<div style="font-size:0.78rem;max-height:320px;overflow-y:auto;">';
+                failHtml += '<div style="font-weight:600;margin-bottom:0.3rem;color:var(--ra-text-dim);">Why each driver can\'t take this job:</div>';
                 data.diagnostic.forEach(function(d) {
                     var icon, detail;
                     if (d.skipped_reason === 'vehicle_incompatible') {
-                        icon = '<i class="bi bi-truck" style="color:#e65100;"></i>';
-                        detail = '<span style="color:#e65100;">Wrong vehicle</span> — has ' + (d.vehicle_type || 'none') + ', job needs bigger';
+                        icon = '<i class="bi bi-truck" style="color:var(--ra-amber);"></i>';
+                        detail = '<span style="color:var(--ra-amber);">Wrong vehicle</span> — has ' + (d.vehicle_type || 'none') + ', job needs bigger';
                     } else if (d.skipped_reason === 'same_driver') {
-                        icon = '<i class="bi bi-dash-circle" style="color:#888;"></i>';
-                        detail = '<span style="color:#888;">Already on this driver</span>';
+                        icon = '<i class="bi bi-dash-circle" style="color:var(--ra-text-muted);"></i>';
+                        detail = '<span style="color:var(--ra-text-muted);">Already on this driver</span>';
                     } else if (d.direct_feasible) {
-                        icon = '<i class="bi bi-check-circle" style="color:#2e7d32;"></i>';
-                        detail = '<span style="color:#2e7d32;">Has room (' + d.direct_buffer + 'min buffer)</span>';
+                        icon = '<i class="bi bi-check-circle" style="color:var(--ra-green-deep);"></i>';
+                        detail = '<span style="color:var(--ra-green-deep);">Has room (' + d.direct_buffer + 'min buffer)</span>';
                     } else {
-                        icon = '<i class="bi bi-x-circle" style="color:#c62828;"></i>';
-                        detail = '<span style="color:#c62828;">' + (d.direct_fail_reason || 'No room') + '</span>';
+                        icon = '<i class="bi bi-x-circle" style="color:var(--ra-red-deep);"></i>';
+                        detail = '<span style="color:var(--ra-red-deep);">' + (d.direct_fail_reason || 'No room') + '</span>';
                         if (d.displacements_detail && d.displacements_detail.length > 0) {
                             var cantDisplace = d.displacements_detail.filter(function(dd) { return !dd.rehomed; });
                             if (cantDisplace.length > 0) {
-                                detail += '<div style="margin-left:1rem;margin-top:2px;color:#888;">';
+                                detail += '<div style="margin-left:1rem;margin-top:2px;color:var(--ra-text-muted);">';
                                 cantDisplace.forEach(function(dd) {
                                     detail += 'Could make room by moving their ' + dd.pickup_time + ' job, but nowhere to put it<br>';
                                 });
                                 detail += '</div>';
                             }
                         } else if (d.displacements_tried === 0 && !d.skipped_reason) {
-                            detail += '<div style="margin-left:1rem;color:#888;">Even removing a job wouldn\'t create enough time</div>';
+                            detail += '<div style="margin-left:1rem;color:var(--ra-text-muted);">Even removing a job wouldn\'t create enough time</div>';
                         }
                     }
-                    failHtml += '<div style="padding:3px 0;border-bottom:1px solid #f0f0f0;">';
-                    failHtml += icon + ' <strong>' + d.driver_name + '</strong> <span style="color:#888;">(' + (d.vehicle_type || '?') + ', ' + d.num_jobs + ' jobs)</span> — ' + detail;
+                    failHtml += '<div style="padding:4px 0;border-bottom:1px solid var(--ra-border);">';
+                    failHtml += icon + ' <strong>' + d.driver_name + '</strong> <span style="color:var(--ra-text-muted);">(' + (d.vehicle_type || '?') + ', ' + d.num_jobs + ' jobs)</span> — ' + detail;
                     failHtml += '</div>';
                 });
                 failHtml += '</div>';
             }
             content.innerHTML = failHtml;
+            revealPanel(panel);
             return;
         }
 
@@ -669,9 +584,13 @@
             content.appendChild(card);
         });
 
-        content.innerHTML = html;
-        // Store solutions for highlighting and applying
-        window._swapSolutions = data.solutions;
+        revealPanel(panel);
+    }
+
+    // The results sit below both columns — full width, because the after-the-move
+    // lanes need it — so a click in the right-hand rail has to bring them to you.
+    function revealPanel(panel) {
+        panel.scrollIntoView({behavior: 'smooth', block: 'start'});
     }
 
     // ── Timeline highlighting ──────────────────────────────────
@@ -873,6 +792,16 @@
         if (card) card.classList.add('is-active');
         origFindSwaps(legId);
     };
+
+    // The rail head collapses, same as the Recovery Advisor's — the after-move
+    // lanes are tall, and a dispatcher comparing them to the board above
+    // shouldn't have to scroll past them.
+    const swapHead = document.getElementById('swapResultsHead');
+    if (swapHead) {
+        swapHead.addEventListener('click', function () {
+            document.getElementById('swapAdvisor').classList.toggle('is-collapsed');
+        });
+    }
 
     // ── Init ───────────────────────────────────────────────────
     renderTimeline();
