@@ -48,6 +48,48 @@ def _chip(level, label, detail=""):
     return {"level": level, "label": label, "detail": detail}
 
 
+def fuel_reading(vehicle, now):
+    """
+    One vehicle's fuel level, ready to render. None when the car has never
+    reported one — an un-onboarded unit shows an em-dash, not an empty gauge.
+
+    Bands come from the same two constants the readiness chip uses, so the
+    column and the chip can never tell a dispatcher different stories about the
+    same tank.
+
+    ``stale`` matters more here than anywhere else on the page: fuel is the one
+    reading that changes while nobody is looking. A gateway that went quiet
+    yesterday afternoon reports the level it saw then, and a car that has since
+    done two MCO runs is nowhere near it. The number is still worth showing —
+    it's a floor, not a fiction — but it has to be labelled.
+    """
+    percent = vehicle.samsara_fuel_percent
+    if percent is None:
+        return None
+
+    if percent <= FUEL_CRITICAL_PCT:
+        level = CRITICAL
+    elif percent <= FUEL_LOW_PCT:
+        level = WARN
+    else:
+        level = INFO
+
+    # Same age the "GPS stale" chip is computed from, so one reading can't be
+    # called stale in the chip column and fresh in the fuel column.
+    stale_hours = _telemetry_age_hours(vehicle, now)
+    stale = stale_hours is not None and stale_hours >= TELEMETRY_STALE_HOURS
+    return {
+        "percent": percent,
+        "level": level,
+        "stale": stale,
+        "detail": (
+            f"{percent}% as of {_compact_hours(stale_hours)} ago — the gateway has "
+            f"gone quiet, so the tank may be lower now"
+            if stale else f"{percent}% at the last reading"
+        ),
+    }
+
+
 def vehicle_readiness(vehicle, now, *, open_fault_count=None, in_shop=False):
     """
     Readiness chips for one vehicle, worst first.

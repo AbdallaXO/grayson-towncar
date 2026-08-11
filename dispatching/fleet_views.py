@@ -30,6 +30,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -70,7 +71,7 @@ def fleet_list(request):
     search = (request.GET.get("q") or "").strip()
     status = request.GET.get("status", "active")   # active | inactive | all
     coverage = request.GET.get("coverage", "all")  # all | mapped | unmapped
-    sort = request.GET.get("sort", "number")       # number | odometer | attention
+    sort = request.GET.get("sort", "number")       # number | odometer | fuel | attention
 
     now = timezone.now()
     today = timezone.localdate(now)
@@ -170,6 +171,9 @@ def fleet_list(request):
             # is decided in exactly one place (FleetVehicle.permits).
             "permits": vehicle.permits(day=today),
             "oos_label": vehicle.out_of_service_label(today),
+            # None when the car has never reported a level — the template shows
+            # an em-dash, never an empty gauge that reads as "empty tank".
+            "fuel": fleet_health.fuel_reading(vehicle, now),
             "attention": sum(1 for c in chips if c["level"] == fleet_health.CRITICAL),
             "warnings": sum(1 for c in chips if c["level"] == fleet_health.WARN),
             "odometer": odometer,
@@ -184,6 +188,12 @@ def fleet_list(request):
     if sort == "odometer":
         # Unknown odometers sort last rather than as 0.
         rows.sort(key=lambda r: (r["odometer"] is None, -(r["odometer"] or 0)))
+    elif sort == "fuel":
+        # Emptiest first — this sort exists to answer "who am I sending out for
+        # gas tonight". An unknown level sorts LAST, not as an empty tank.
+        rows.sort(key=lambda r: (r["fuel"] is None,
+                                 r["fuel"]["percent"] if r["fuel"] else 0,
+                                 _natural_key(r["vehicle"].vehicle_number)))
     elif sort == "attention":
         rows.sort(key=lambda r: (-r["attention"], -r["warnings"],
                                  _natural_key(r["vehicle"].vehicle_number)))
@@ -207,6 +217,11 @@ def fleet_list(request):
         "feed": fleet_health.feed_health(stats_state, now),
         "nightly": nightly_state,
         "window_days": DETAIL_DAY_WINDOW,
+        # Bulk editor. Permit keys come from the model's own tuple so a fourth
+        # permit is a migration and nothing else — the form, the payload and the
+        # confirmation sentence all pick it up.
+        "permit_types": FleetVehicle.PERMITS,
+        "transponder_types": FleetVehicle.TRANSPONDER_TYPE_CHOICES,
     }
     return render(request, "dispatching/fleet_list.html", context)
 
@@ -325,10 +340,11 @@ def fleet_detail(request, pk):
         "vehicle_permits": vehicle.permits(),
         "oos_label": vehicle.out_of_service_label(),
         # Derived from what we actually ASK Samsara for, so these labels stay
-        # true on their own. fuelPercents and engineStates returned HTTP 200
-        # with the field absent for 11/11 vehicles (measured twice, including
-        # mid-drive), so they aren't requested — a bare em-dash there would read
-        # as "pending" forever instead of "this fleet's gateways don't send it".
+        # true on their own — drop a type from EXTENDED_STAT_TYPES and the page
+        # starts saying "not reported" instead of showing an em-dash that would
+        # read as "pending" forever. fuelPercents and engineStates first probed
+        # as absent because the response key is SINGULAR (fuelPercent /
+        # engineState); once aliased they came back 11/11 and are collected.
         "fuel_collected": "fuelPercents" in EXTENDED_STAT_TYPES,
         "engine_state_collected": "engineStates" in EXTENDED_STAT_TYPES,
         "engine_hours_collected": "obdEngineSeconds" in EXTENDED_STAT_TYPES,
@@ -389,6 +405,102 @@ def _opt_int(raw, label, *, minimum=None):
     return value, None
 
 
+def _collect_vehicle_fields(data):
+    """
+    Coerce a details payload into ``{model_field: value}``, or return a sentence
+    explaining what's wrong with it.
+
+    Shared by the single-vehicle form and the bulk editor, deliberately: every
+    rule below (an expiry can't outlive its tick, a date must parse, a reason
+    truncates at 200) has to hold identically whether it's typed on one car or
+    stamped onto twelve. A second copy of these rules would drift.
+
+    Key absent  = leave the field alone.
+    Key present but empty = clear it. Clearing a date is legitimate.
+
+    The out-of-service WINDOW check is not here — it compares against what's
+    already stored on each vehicle, so it runs per-vehicle in _oos_window_error.
+    """
+    fields = {}
+
+    for key, label in (
+        ("in_service_since", "In-service date"),
+        ("registration_expires_on", "Registration expiry"),
+        ("insurance_expires_on", "Insurance expiry"),
+        ("next_inspection_on", "Next inspection"),
+    ):
+        if key not in data:
+            continue
+        value, message = _opt_date(data.get(key), label)
+        if message:
+            return None, message
+        fields[key] = value
+
+    if "notes" in data:
+        fields["notes"] = (data.get("notes") or "").strip()
+
+    if "transponder_number" in data:
+        fields["transponder_number"] = (data.get("transponder_number") or "").strip()[:32]
+    if "transponder_type" in data:
+        transponder_type = (data.get("transponder_type") or "").strip()
+        valid = {c[0] for c in FleetVehicle.TRANSPONDER_TYPE_CHOICES}
+        if transponder_type and transponder_type not in valid:
+            return None, "Unknown transponder type."
+        fields["transponder_type"] = transponder_type
+
+    # ── Out of service ───────────────────────────────────────────────────
+    # The one field here that removes a unit from the scheduling pool, so it's
+    # the one field that gets validated hard.
+    for key, label in (("out_of_service_from", "Out-of-service start"),
+                       ("out_of_service_until", "Out-of-service end")):
+        if key not in data:
+            continue
+        value, message = _opt_date(data.get(key), label)
+        if message:
+            return None, message
+        fields[key] = value
+    if "out_of_service_reason" in data:
+        fields["out_of_service_reason"] = (
+            data.get("out_of_service_reason") or "").strip()[:200]
+
+    # ── Permits ──────────────────────────────────────────────────────────
+    for key, label, _category in FleetVehicle.PERMITS:
+        held_field = f"permit_{key}"
+        expiry_field = f"permit_{key}_expires_on"
+        if held_field in data:
+            fields[held_field] = bool(data.get(held_field))
+        if expiry_field in data:
+            value, message = _opt_date(data.get(expiry_field), f"{label} permit expiry")
+            if message:
+                return None, message
+            fields[expiry_field] = value
+        # An expiry with no permit is a contradiction. Clearing the tick clears
+        # the date with it, so a permit that comes back doesn't inherit a stale one.
+        if fields.get(held_field) is False:
+            fields[expiry_field] = None
+
+    return fields, None
+
+
+def _oos_window_error(vehicle, fields):
+    """
+    The out-of-service window this edit would leave on ``vehicle``, checked
+    against what's already stored. Returns a sentence, or None when it's sound.
+
+    A backwards window would silently never match any date — the unit would look
+    blocked on the form and stay bookable everywhere else.
+    """
+    start = fields.get("out_of_service_from", vehicle.out_of_service_from)
+    end = fields.get("out_of_service_until", vehicle.out_of_service_until)
+    if start and end and end < start:
+        return "the out-of-service end date is before the start date."
+    # An end date with no start is not a window — it gates nothing and would sit
+    # on the record looking meaningful. Refuse it rather than store a no-op.
+    if end and not start:
+        return "it needs an out-of-service start date, or a cleared end date."
+    return None
+
+
 @login_required
 @staff_member_required
 @require_POST
@@ -405,88 +517,135 @@ def fleet_update_details(request, pk):
     if error:
         return error
 
-    fields = {}
-    for key, label in (
-        ("in_service_since", "In-service date"),
-        ("registration_expires_on", "Registration expiry"),
-        ("insurance_expires_on", "Insurance expiry"),
-        ("next_inspection_on", "Next inspection"),
-    ):
-        if key not in data:
-            continue
-        value, message = _opt_date(data.get(key), label)
-        if message:
-            return JsonResponse({"success": False, "error": message}, status=400)
-        fields[key] = value
-
-    if "notes" in data:
-        fields["notes"] = (data.get("notes") or "").strip()
-
-    if "transponder_number" in data:
-        fields["transponder_number"] = (data.get("transponder_number") or "").strip()[:32]
-    if "transponder_type" in data:
-        transponder_type = (data.get("transponder_type") or "").strip()
-        valid = {c[0] for c in FleetVehicle.TRANSPONDER_TYPE_CHOICES}
-        if transponder_type and transponder_type not in valid:
-            return JsonResponse(
-                {"success": False, "error": "Unknown transponder type."}, status=400)
-        fields["transponder_type"] = transponder_type
-
-    # ── Out of service ───────────────────────────────────────────────────
-    # The one field on this page that removes a unit from the scheduling pool,
-    # so it's the one field that gets validated hard. A backwards window would
-    # silently never match any date — the unit would look blocked on the form
-    # and stay bookable everywhere else.
-    for key, label in (("out_of_service_from", "Out-of-service start"),
-                       ("out_of_service_until", "Out-of-service end")):
-        if key not in data:
-            continue
-        value, message = _opt_date(data.get(key), label)
-        if message:
-            return JsonResponse({"success": False, "error": message}, status=400)
-        fields[key] = value
-    if "out_of_service_reason" in data:
-        fields["out_of_service_reason"] = (
-            data.get("out_of_service_reason") or "").strip()[:200]
-
-    _oos_from = fields.get("out_of_service_from", vehicle.out_of_service_from)
-    _oos_until = fields.get("out_of_service_until", vehicle.out_of_service_until)
-    if _oos_from and _oos_until and _oos_until < _oos_from:
-        return JsonResponse(
-            {"success": False,
-             "error": "The out-of-service end date is before the start date."},
-            status=400)
-    # An end date with no start is not a window — it gates nothing and would sit
-    # on the record looking meaningful. Refuse it rather than store a no-op.
-    if _oos_until and not _oos_from:
-        return JsonResponse(
-            {"success": False,
-             "error": "Give an out-of-service start date, or clear the end date."},
-            status=400)
-
-    # ── Permits ──────────────────────────────────────────────────────────
-    for key, _label, _category in FleetVehicle.PERMITS:
-        held_field = f"permit_{key}"
-        expiry_field = f"permit_{key}_expires_on"
-        if held_field in data:
-            fields[held_field] = bool(data.get(held_field))
-        if expiry_field in data:
-            value, message = _opt_date(data.get(expiry_field), f"{_label} permit expiry")
-            if message:
-                return JsonResponse({"success": False, "error": message}, status=400)
-            fields[expiry_field] = value
-        # An expiry with no permit is a contradiction. Clearing the tick clears
-        # the date with it, so a permit that comes back doesn't inherit a stale one.
-        if fields.get(held_field) is False:
-            fields[expiry_field] = None
-
+    fields, message = _collect_vehicle_fields(data)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
     if not fields:
         return JsonResponse({"success": False, "error": "Nothing to update."}, status=400)
+
+    message = _oos_window_error(vehicle, fields)
+    if message:
+        # Single-vehicle: the dispatcher is looking at the car, so don't name it.
+        return JsonResponse(
+            {"success": False, "error": message[0].upper() + message[1:]}, status=400)
 
     for key, value in fields.items():
         setattr(vehicle, key, value)
     vehicle.save(update_fields=list(fields))
     return JsonResponse({"success": True})
+
+
+# What a BULK edit is allowed to touch. Deliberately narrower than the
+# single-vehicle form, and the difference is the point:
+#   * transponder_number is a per-car identity. Stamping one number onto twelve
+#     cars doesn't save keystrokes, it produces twelve wrong toll attributions.
+#   * notes is free text somebody already wrote. A bulk overwrite destroys it
+#     with no undo and no way to tell which cars had something worth keeping.
+# Everything left is a fact that genuinely IS the same across a batch: a decal
+# run bought together, a policy renewed on one date, a shop closure.
+BULK_EDITABLE = frozenset(
+    ["in_service_since", "registration_expires_on", "insurance_expires_on",
+     "next_inspection_on", "transponder_type",
+     "out_of_service_from", "out_of_service_until", "out_of_service_reason"]
+    + [f"permit_{key}" for key, _l, _c in FleetVehicle.PERMITS]
+    + [f"permit_{key}_expires_on" for key, _l, _c in FleetVehicle.PERMITS]
+)
+
+# A selection larger than the whole fleet is a bug in the caller, not a request.
+BULK_LIMIT = 500
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_bulk_update(request):
+    """
+    JSON: apply ONE set of values to MANY vehicles.
+
+    Body: {"vehicle_ids": [1, 2, 3], "fields": {"permit_mco": true, ...}}
+
+    Built for data entry, which is why it behaves the way it does:
+
+      * ONLY the keys present in ``fields`` are written. A blank input on the
+        form is not sent at all, so bulk-setting an insurance date can never
+        quietly wipe three permits the operator wasn't looking at.
+      * ALL OR NOTHING. Every selected unit is validated before anything is
+        written, and the write is one atomic statement. Half a batch applied,
+        with an error message naming a car in the middle, is the worst possible
+        outcome for someone typing from a stack of paperwork — they can't tell
+        what landed.
+      * The error names the UNIT, not the row number. "#12: the out-of-service
+        end date is before the start date" is actionable; "row 7 invalid" isn't.
+    """
+    data, error = _body(request)
+    if error:
+        return error
+
+    raw_ids = data.get("vehicle_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return JsonResponse(
+            {"success": False, "error": "Pick at least one vehicle."}, status=400)
+    if len(raw_ids) > BULK_LIMIT:
+        return JsonResponse(
+            {"success": False,
+             "error": f"That's more than {BULK_LIMIT} vehicles at once."}, status=400)
+    try:
+        ids = {int(value) for value in raw_ids}
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"success": False, "error": "That vehicle selection isn't valid."},
+            status=400)
+
+    payload = data.get("fields")
+    if not isinstance(payload, dict) or not payload:
+        return JsonResponse(
+            {"success": False,
+             "error": "Nothing to change — tick a field before applying."}, status=400)
+
+    refused = sorted(set(payload) - BULK_EDITABLE)
+    if refused:
+        # Named explicitly rather than silently dropped: a caller that thought it
+        # was setting notes on 12 cars should hear that it wasn't.
+        return JsonResponse({
+            "success": False,
+            "error": "These can only be edited one car at a time: "
+                     + ", ".join(refused) + ".",
+        }, status=400)
+
+    fields, message = _collect_vehicle_fields(payload)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    if not fields:
+        return JsonResponse(
+            {"success": False,
+             "error": "Nothing to change — tick a field before applying."}, status=400)
+
+    vehicles = list(FleetVehicle.objects.filter(id__in=ids))
+    if not vehicles:
+        return JsonResponse(
+            {"success": False, "error": "Those vehicles no longer exist. Reload the page."},
+            status=400)
+
+    for vehicle in vehicles:
+        message = _oos_window_error(vehicle, fields)
+        if message:
+            return JsonResponse({
+                "success": False,
+                "error": f"#{vehicle.vehicle_number}: {message} "
+                         f"Nothing was changed.",
+            }, status=400)
+
+    with transaction.atomic():
+        updated = FleetVehicle.objects.filter(
+            id__in=[v.id for v in vehicles]).update(**fields)
+
+    return JsonResponse({
+        "success": True,
+        "updated": updated,
+        # A selection that outlived the row it pointed at — someone deleted a
+        # vehicle in another tab. Reported, never silently absorbed.
+        "missing": len(ids) - len(vehicles),
+    })
 
 
 @login_required
