@@ -7857,7 +7857,7 @@ def dispatcher_booking_pricing(request):
         if form.is_valid():
             # Validate pricing values
             base_price = form.cleaned_data['manual_base_price']
-            additional_charges = form.cleaned_data.get('additional_charges', Decimal('0.00'))
+            additional_charges = form.cleaned_data.get('additional_charges') or Decimal('0.00')
             gratuity_amount = form.cleaned_data.get('gratuity_amount') or Decimal('0.00')
             total_price = form.cleaned_data['total_price']
 
