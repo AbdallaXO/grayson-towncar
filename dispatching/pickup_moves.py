@@ -1,12 +1,30 @@
 """
-Shared write path for flight-driven pickup-time moves.
+Shared write path for flight-driven pickup moves.
 
 Both the dispatcher-facing match endpoints (dispatching.views) and the
 guest-facing flight-verification auto-adjust (dispatching.flight_verify_views)
 funnel through apply_pickup_time_move() so every flight-driven move gets the
-same board "time changed" stamping + durable AuditLog row. Lives in its own
-small module so flight_verify_views never imports dispatching.views
+same treatment: the board's "time changed" stamping, a durable AuditLog row,
+and a real simple_history row attributed to whoever actually caused it. Lives
+in its own small module so flight_verify_views never imports dispatching.views
 (circular-import risk).
+
+WHY THIS USES save() AND NOT queryset.update()
+----------------------------------------------
+It used to write with ``Leg.objects.filter(id=...).update(...)`` to skip
+simple_history and the expensive save() work. That had a nasty consequence:
+the move left NO history row at all, so it stayed invisible until the next
+ordinary save() on that leg — and then django-simple-history's consecutive-
+snapshot diff folded it into THAT row, under THAT person's name. A driver
+tapping "Accept" in the portal could appear to have retimed their own trip
+hours after the fact.
+
+save(update_fields=[...]) is the fix and costs nothing here: Leg.save() has a
+fast path that skips the expensive recalculation whenever update_fields misses
+_EXPENSIVE_FIELDS, and pickup_time/pickup_date are not in that set. Going
+through save() also lets the model do its own move stamping (one copy of that
+logic, not two) and lets the driver-push/NTFY signals see a retime, which the
+queryset update silently bypassed.
 """
 
 import logging
@@ -18,63 +36,138 @@ from reservations.models import AuditLog, Leg
 logger = logging.getLogger(__name__)
 
 
-def apply_pickup_time_move(leg, new_time, user=None, note="Flight match"):
+def _fmt_time(t):
+    return t.strftime("%I:%M %p").lstrip("0") if t else ""
+
+
+def _fmt_date(d):
+    return d.strftime("%b %-d, %Y") if d else ""
+
+
+def apply_pickup_time_move(leg, new_time, user=None, note="Flight match", new_date=None):
     """
-    Single write path for a flight-driven pickup-time move. Uses a queryset
-    .update() like the original code (skips simple_history + the expensive
-    save() work), so the board's "time changed" stamp fields are set here
-    explicitly, preserving the earliest pre-change time across successive
-    moves until a dispatcher acknowledges. A move that lands back on the
-    pending "was" time (A→B→A before anyone acked) CLEARS the pending change
-    instead of leaving a nonsense "was 10:00 → now 10:00" badge. Also writes
-    a durable AuditLog row so the change survives even without an open ops
-    task (user may be None for guest-triggered moves). No-op when the time
-    is unchanged. Returns True if the pickup actually moved.
+    Single write path for a flight-driven pickup move.
+
+    Moves pickup_time, and pickup_date too when ``new_date`` is passed and
+    differs. Callers must pass ``new_date`` deliberately — a match that only
+    ever writes the time is what puts an 11:25 PM arrival onto the wrong
+    calendar day, so crossing a day is always an explicit decision made
+    upstream, never a side effect here.
+
+    The model's save() hook owns the "time changed" badge stamping (preserving
+    the earliest pre-change values across successive moves, and clearing the
+    badge on a net-zero A→B→A revert). This function owns the durable AuditLog
+    rows and the history attribution.
+
+    ``user`` may be None for guest-triggered moves; the history row then reads
+    as System rather than borrowing whoever happens to be in the thread-local
+    request. Returns True if the pickup actually moved.
     """
     old_time = leg.pickup_time
-    if old_time == new_time:
+    old_date = leg.pickup_date
+
+    date_moves = new_date is not None and new_date != old_date
+    time_moves = new_time is not None and new_time != old_time
+    if not date_moves and not time_moves:
         return False
 
-    now = timezone.now()
-    if leg.has_unacked_time_change and new_time == leg.pickup_time_was:
-        # Net-zero revert: the still-unacked change just moved back to its
-        # original time — clear the badge instead of stamping it.
-        pickup_time_changed_at = None
-        pickup_time_was = None
-    else:
-        # Keep the earliest "was" while a change is still unacknowledged so
-        # back-to-back moves don't hide the originally booked time from the badge.
-        pickup_time_changed_at = now
-        pickup_time_was = leg.pickup_time_was if leg.has_unacked_time_change else old_time
-    Leg.objects.filter(id=leg.id).update(
-        pickup_time=new_time,
-        pickup_time_changed_at=pickup_time_changed_at,
-        pickup_time_was=pickup_time_was,
-        pickup_change_ack_at=None,
-    )
-    # Mirror onto the in-memory instance so callers see the applied state.
-    leg.pickup_time = new_time
-    leg.pickup_time_changed_at = pickup_time_changed_at
-    leg.pickup_time_was = pickup_time_was
-    leg.pickup_change_ack_at = None
-    leg._original_pickup_time = new_time
+    # Re-anchor the model's change detection to the values we just read, so the
+    # stamping is driven by this move rather than by whatever state the caller's
+    # in-memory instance happened to be carrying.
+    leg._original_pickup_time = old_time
+    leg._original_pickup_date = old_date
 
-    def _fmt(t):
-        return t.strftime("%I:%M %p").lstrip("0") if t else ""
+    update_fields = []
+    if time_moves:
+        leg.pickup_time = new_time
+        update_fields.append("pickup_time")
+    if date_moves:
+        leg.pickup_date = new_date
+        update_fields.append("pickup_date")
 
-    try:
-        AuditLog.objects.create(
-            model_name="Leg",
-            object_id=leg.id,
-            action="updated",
-            field_name="pickup_time",
-            old_value=_fmt(old_time),
-            new_value=_fmt(new_time),
-            user=user,
-            username=user.username if user else "guest",
-            notes=note,
-        )
-    except Exception as e:
-        logger.warning(f"Pickup-move audit log failed for leg {leg.id}: {e}")
+    # Attribution for the history row. simple_history reads _history_user
+    # first, falling back to the request thread-local — being explicit keeps a
+    # guest-triggered move from being stamped with an unrelated signed-in staff
+    # member who merely had a tab open.
+    leg._history_user = user
+    leg._change_reason = note[:100] if note else None
+
+    leg.save(update_fields=update_fields)
+
+    # Durable audit rows: one per field, so "what moved this leg's date?" is a
+    # direct query and not a scan through snapshot diffs.
+    rows = []
+    if time_moves:
+        rows.append(("pickup_time", _fmt_time(old_time), _fmt_time(new_time)))
+    if date_moves:
+        rows.append(("pickup_date", _fmt_date(old_date), _fmt_date(new_date)))
+
+    for field_name, old_value, new_value in rows:
+        try:
+            AuditLog.objects.create(
+                model_name="Leg",
+                object_id=leg.id,
+                action="updated",
+                field_name=field_name,
+                old_value=old_value,
+                new_value=new_value,
+                user=user,
+                username=user.username if user else "guest",
+                notes=note,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Pickup-move audit log failed for leg {leg.id} ({field_name}): {e}"
+            )
 
     return True
+
+
+def describe_pickup_move(old_date, old_time, new_date, new_time):
+    """
+    Plain-language summary of a pickup move, for dispatcher-facing confirms and
+    timeline rows. Leads with the day when the day changes, because that is the
+    part people miss.
+    """
+    if new_date is not None and old_date is not None and new_date != old_date:
+        delta_days = (new_date - old_date).days
+        direction = "later" if delta_days > 0 else "earlier"
+        day_word = "day" if abs(delta_days) == 1 else "days"
+        return (
+            f"{_fmt_date(old_date)} {_fmt_time(old_time)} → "
+            f"{_fmt_date(new_date)} {_fmt_time(new_time)} "
+            f"({abs(delta_days)} {day_word} {direction})"
+        )
+    return f"{_fmt_time(old_time)} → {_fmt_time(new_time)}"
+
+
+def humanize_shift_minutes(minutes):
+    """'23h 10m later' / '50 min earlier' / 'no change'."""
+    if minutes is None:
+        return ""
+    if minutes == 0:
+        return "no change"
+    direction = "later" if minutes > 0 else "earlier"
+    m = abs(minutes)
+    if m < 60:
+        return f"{m} min {direction}"
+    hours, rem = divmod(m, 60)
+    if rem:
+        return f"{hours}h {rem}m {direction}"
+    return f"{hours}h {direction}"
+
+
+def pickup_shift_minutes(old_date, old_time, new_date, new_time):
+    """
+    Signed minutes between the old and new pickup moments, counting the date.
+    A time-only match that leaves the date behind reads as +1390 here, which is
+    the number that should have stopped it.
+    """
+    from datetime import datetime
+
+    if not (old_time and new_time):
+        return None
+    base_date = old_date or timezone.localdate()
+    old_dt = datetime.combine(base_date, old_time)
+    new_dt = datetime.combine(new_date or base_date, new_time)
+    return int((new_dt - old_dt).total_seconds() // 60)

@@ -1392,20 +1392,13 @@
                   const originalHtml = el.innerHTML;
                   el.disabled = true;
                   el.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
-                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                      document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-                  fetch("{% url 'match_leg_time_to_flight' %}", {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken
-                          },
-                          body: JSON.stringify({
-                              leg_id: legId
-                          })
-                      })
-                      .then(r => r.json())
+                  matchFlightTime(legId)
                       .then(data => {
+                          if (data.cancelled) {
+                              el.disabled = false;
+                              el.innerHTML = originalHtml;
+                              return;
+                          }
                           if (data.success) {
                               el.innerHTML = '<i class="bi bi-check-circle text-success"></i> Updated';
                               window.location.reload();
@@ -1692,4 +1685,6 @@
 {% block extra_js %}
   {# Right-click any trip row for Mapping / Flight Tracker #}
   {% include "dispatching/includes/_trip_context_menu.html" %}
+  {# Defines matchFlightTime() + the wrong-day confirm used by the match buttons #}
+  {% include "dispatching/_flight_match_confirm.html" %}
 {% endblock %}

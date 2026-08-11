@@ -531,6 +531,12 @@
           font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 10px;
           white-space: nowrap;
       }
+      /* A day move is a different animal from a retime — the trip has left the
+         board it was scheduled on. Red, not purple, so it never reads as a
+         routine flight slip. */
+      .time-changed-badge.day-moved-badge {
+          background: #fdeaea; color: #b3261e; border-color: #b3261e;
+      }
       .time-change-ack-btn {
           font-size: 0.62rem; line-height: 1.1; padding: 1px 5px;
           border-radius: 10px; color: #7b1fa2; border-color: #7b1fa2;
@@ -1487,7 +1493,11 @@
                       <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
                       {% if leg.has_unacked_time_change %}
                         <div class="mt-1 d-flex align-items-center gap-1 time-changed-wrap">
+                          {% if leg.pickup_day_moved %}
+                          <span class="time-changed-badge day-moved-badge" title="This pickup moved to a DIFFERENT DAY on {{ leg.pickup_time_changed_at|date:'D, M j g:i A' }}. Confirm the driver and the guest are both expecting the new day before you clear this.">📅 was {{ leg.pickup_date_was|date:"D M j" }}, {{ leg.pickup_time_was|time:"g:i A" }}</span>
+                          {% else %}
                           <span class="time-changed-badge" title="Pickup moved to follow the flight {{ leg.pickup_time_changed_at|date:'D, M j g:i A' }} — click ✓ once you've checked the driver still lines up.">⏰ was {{ leg.pickup_time_was|time:"g:i A" }}</span>
+                          {% endif %}
                           <button type="button" class="btn btn-sm btn-outline-secondary time-change-ack-btn"
                                   data-leg-id="{{ leg.id }}"
                                   title="Acknowledge the new pickup time">
@@ -1926,7 +1936,11 @@
                               <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
                               {% if leg.has_unacked_time_change %}
                                 <div class="mt-1 d-flex align-items-center gap-1 time-changed-wrap">
+                                  {% if leg.pickup_day_moved %}
+                                  <span class="time-changed-badge day-moved-badge" title="This pickup moved to a DIFFERENT DAY. Confirm the driver and the guest are both expecting the new day before you clear this.">📅 was {{ leg.pickup_date_was|date:"D M j" }}, {{ leg.pickup_time_was|time:"g:i A" }}</span>
+                                  {% else %}
                                   <span class="time-changed-badge" title="Pickup moved to follow the flight — click ✓ once you've checked the driver still lines up.">⏰ was {{ leg.pickup_time_was|time:"g:i A" }}</span>
+                                  {% endif %}
                                   <button type="button" class="btn btn-sm btn-outline-secondary time-change-ack-btn"
                                           data-leg-id="{{ leg.id }}"
                                           title="Acknowledge the new pickup time">
@@ -3108,18 +3122,14 @@
                   const originalHTML = el.innerHTML;
                   el.disabled = true;
                   el.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
-                  fetch("{% url 'match_leg_time_to_flight' %}", {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': '{{ csrf_token }}'
-                          },
-                          body: JSON.stringify({
-                              leg_id: legId
-                          })
-                      })
-                      .then(r => r.json())
+                  // Shared client — handles the wrong-day confirm before any write.
+                  matchFlightTime(legId)
                       .then(data => {
+                          if (data.cancelled) {
+                              el.disabled = false;
+                              el.innerHTML = originalHTML;
+                              return;
+                          }
                           if (data.success) {
                               el.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
                               // If the move created driver conflicts, make the
@@ -3606,11 +3616,11 @@
                           b.disabled = true;
                           var orig = b.innerHTML;
                           b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating…';
-                          fetch("{% url 'match_leg_time_to_flight' %}", {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                              body: JSON.stringify({ leg_id: parseInt(legId, 10) })
-                          }).then(r => r.json()).then(function(data) {
+                          matchFlightTime(parseInt(legId, 10)).then(function(data) {
+                              if (data.cancelled) {
+                                  b.disabled = false; b.innerHTML = orig;
+                                  return;
+                              }
                               if (data.success) {
                                   var row = rowsContainer.querySelector('.frr-row[data-leg-id="' + legId + '"]');
                                   if (row) {
@@ -5678,4 +5688,6 @@
 {% block extra_js %}
   {# Right-click any trip row for Mapping / Flight Tracker #}
   {% include "dispatching/includes/_trip_context_menu.html" %}
+  {# Defines matchFlightTime() + the wrong-day confirm used by the match buttons #}
+  {% include "dispatching/_flight_match_confirm.html" %}
 {% endblock %}

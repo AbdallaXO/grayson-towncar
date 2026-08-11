@@ -3172,13 +3172,14 @@ document.querySelectorAll('.act-match-flight').forEach(btn => {
     this.style.opacity = '.6';
     if (label) label.textContent = 'Updating...';
 
-    fetch('{% url "match_leg_time_to_flight" %}', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({leg_id: legId}),
-    })
-    .then(r => r.json())
+    matchFlightTime(legId)
     .then(data => {
+      if (data.cancelled) {
+        this.style.pointerEvents = '';
+        this.style.opacity = '';
+        if (label) label.textContent = origLabel;
+        return;
+      }
       if (data.success) {
         if (label) label.textContent = 'Updated!';
         const icon = this.querySelector('i');
@@ -3363,4 +3364,6 @@ document.getElementById('btnSendPaymentReminder')?.addEventListener('click', fun
   });
 })();
 </script>
+{# Defines matchFlightTime() + the wrong-day confirm used by the match action #}
+{% include "dispatching/_flight_match_confirm.html" %}
 {% endblock %}

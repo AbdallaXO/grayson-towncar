@@ -26,11 +26,7 @@
       ({{ leg.pickup_date|date:"M j, Y" }} {{ leg.pickup_time|time:"g:i A" }}). Reservation: {{ reservation }}.
     </p>
 
-    {% if history_records %}
-      {% include "dispatching/includes/history_table.html" %}
-    {% else %}
-      <p class="text-muted">No history recorded for this leg.</p>
-    {% endif %}
+    {% include "dispatching/includes/leg_timeline.html" %}
   </div>
   <style>
       .history-page-content {
