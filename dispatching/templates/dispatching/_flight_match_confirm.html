@@ -1,0 +1,160 @@
+{% comment %}
+Shared flight-match client for every "match pickup to flight" button.
+
+Include this once per page that has such a button, then call:
+
+    matchFlightTime(legId).then(function (data) {
+        if (data.cancelled) { ...restore the button...; return; }
+        if (data.success)   { ...refresh... }
+        else                { alert(data.error); }
+    });
+
+Why it exists: the server now refuses a bare match when the flight lands on a
+different calendar day than the pickup, and answers 409 with
+needs_confirmation="wrong_day". Five separate call sites would otherwise each
+have to grow their own dialog, and any one that didn't would just surface
+"could not update leg time" — hiding the single most important thing the
+dispatcher needs to decide.
+{% endcomment %}
+<script>
+(function () {
+    if (window.matchFlightTime) return;   // include guard — safe to add twice
+
+    var MATCH_URL = "{% url 'match_leg_time_to_flight' %}";
+    var CSRF = "{{ csrf_token }}";
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    // Deliberately self-contained: these buttons live on pages with and
+    // without Bootstrap's modal JS, and a dialog that silently fails to open
+    // would let a wrong-day match through unnoticed.
+    function askWrongDay(d) {
+        return new Promise(function (resolve) {
+            var wrap = document.createElement('div');
+            wrap.className = 'fm-wrongday-backdrop';
+            wrap.innerHTML =
+                '<div class="fm-wrongday" role="dialog" aria-modal="true" aria-labelledby="fm-wd-title">' +
+                  '<div class="fm-wd-head">' +
+                    '<span class="fm-wd-icon">&#9888;</span>' +
+                    '<h3 id="fm-wd-title">This flight lands on a different day</h3>' +
+                  '</div>' +
+                  '<dl class="fm-wd-facts">' +
+                    '<dt>' + esc(d.flight_label || 'Flight') + ' arrives</dt>' +
+                    '<dd>' + esc(d.flight_arrives) + '</dd>' +
+                    '<dt>Pickup is set for</dt>' +
+                    '<dd>' + esc(d.pickup_currently) + '</dd>' +
+                  '</dl>' +
+                  '<p class="fm-wd-warn">Matching the time on its own would move this pickup ' +
+                      '<strong>' + esc(d.keep_date_shift) + '</strong> and leave it on the wrong day &mdash; ' +
+                      'the car would turn up after the guest has already landed and gone.</p>' +
+                  '<div class="fm-wd-actions">' +
+                    '<button type="button" class="fm-wd-btn fm-wd-primary" data-choice="move_date">' +
+                      '<span class="fm-wd-btn-main">Move pickup to ' + esc(d.flight_arrives) + '</span>' +
+                      '<span class="fm-wd-btn-sub">Changes the date and the time &middot; ' + esc(d.move_date_shift) + '</span>' +
+                    '</button>' +
+                    '<button type="button" class="fm-wd-btn fm-wd-risky" data-choice="keep_date">' +
+                      '<span class="fm-wd-btn-main">Keep the current date, change time only</span>' +
+                      '<span class="fm-wd-btn-sub">' + esc(d.keep_date_summary) + ' &middot; ' + esc(d.keep_date_shift) + '</span>' +
+                    '</button>' +
+                    '<button type="button" class="fm-wd-btn fm-wd-cancel" data-choice="">Cancel, leave it alone</button>' +
+                  '</div>' +
+                '</div>';
+
+            function close(choice) {
+                document.removeEventListener('keydown', onKey);
+                if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+                resolve(choice || null);
+            }
+            function onKey(e) { if (e.key === 'Escape') close(null); }
+
+            wrap.addEventListener('click', function (e) {
+                if (e.target === wrap) return close(null);          // backdrop
+                var btn = e.target.closest('[data-choice]');
+                if (btn) close(btn.dataset.choice);
+            });
+            document.addEventListener('keydown', onKey);
+            document.body.appendChild(wrap);
+            var first = wrap.querySelector('.fm-wd-primary');
+            if (first) first.focus();
+        });
+    }
+
+    function post(legId, choice) {
+        var body = { leg_id: legId };
+        if (choice) body.confirm = choice;
+        return fetch(MATCH_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); });
+    }
+
+    window.matchFlightTime = function (legId) {
+        return post(legId, null).then(function (data) {
+            if (data && data.needs_confirmation === 'wrong_day') {
+                return askWrongDay(data).then(function (choice) {
+                    if (!choice) return { cancelled: true };
+                    return post(legId, choice);
+                });
+            }
+            return data;
+        });
+    };
+})();
+</script>
+<style>
+.fm-wrongday-backdrop {
+    position: fixed; inset: 0; z-index: 20000;
+    background: rgba(15, 18, 24, .62);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+}
+.fm-wrongday {
+    background: #fff; color: #17202a;
+    border-radius: 12px; max-width: 32rem; width: 100%;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .34);
+    padding: 1.35rem 1.5rem 1.25rem;
+    font-size: .94rem; line-height: 1.5;
+}
+.fm-wd-head { display: flex; align-items: flex-start; gap: .6rem; margin-bottom: .9rem; }
+.fm-wd-icon { font-size: 1.4rem; color: #c9760a; line-height: 1.1; }
+.fm-wrongday h3 { font-size: 1.08rem; font-weight: 700; margin: 0; }
+.fm-wd-facts {
+    display: grid; grid-template-columns: auto 1fr; gap: .3rem .9rem;
+    margin: 0 0 .9rem; padding: .7rem .85rem;
+    background: #f4f6f9; border-radius: 8px;
+}
+.fm-wd-facts dt { color: #56606d; font-weight: 500; }
+.fm-wd-facts dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fm-wd-warn {
+    margin: 0 0 1.05rem; padding: .6rem .8rem;
+    background: #fdf3e3; border-left: 3px solid #d9861a; border-radius: 0 6px 6px 0;
+    color: #6d4a10;
+}
+.fm-wd-actions { display: flex; flex-direction: column; gap: .5rem; }
+.fm-wd-btn {
+    width: 100%; text-align: left; cursor: pointer;
+    border-radius: 8px; padding: .6rem .8rem;
+    border: 1px solid transparent; font: inherit;
+    display: flex; flex-direction: column; gap: .12rem;
+}
+.fm-wd-btn-main { font-weight: 650; }
+.fm-wd-btn-sub { font-size: .8rem; opacity: .82; }
+.fm-wd-primary { background: #14683c; border-color: #14683c; color: #fff; }
+.fm-wd-primary:hover { background: #10552f; }
+.fm-wd-risky { background: #fff; border-color: #d6a2a2; color: #7d2323; }
+.fm-wd-risky:hover { background: #fdf1f1; }
+.fm-wd-cancel {
+    background: transparent; border-color: transparent; color: #56606d;
+    text-align: center; padding: .4rem;
+}
+.fm-wd-cancel:hover { color: #17202a; text-decoration: underline; }
+.fm-wd-btn:focus-visible { outline: 2px solid #1d6fd6; outline-offset: 2px; }
+/* Light-only on purpose: the surrounding app has no dark theme, so a
+   prefers-color-scheme block here would paint a dark dialog onto a white page
+   for anyone whose OS is set to dark. */
+</style>

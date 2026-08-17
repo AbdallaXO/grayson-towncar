@@ -933,10 +933,12 @@ class Leg(models.Model):
         super().__init__(*args, **kwargs)
         # Track original driver_id so save() can detect reassignment without a DB query
         self._original_driver_id = self.driver_id
-        # Track original pickup_time so save() can stamp time changes for the
-        # board's "time changed" badge. __dict__.get so a deferred pickup_time
-        # (.only()/.defer() querysets) never fires a per-row query here.
+        # Track original pickup_time/pickup_date so save() can stamp pickup
+        # moves for the board's "time changed" badge. __dict__.get so a
+        # deferred field (.only()/.defer() querysets) never fires a per-row
+        # query here.
         self._original_pickup_time = self.__dict__.get("pickup_time")
+        self._original_pickup_date = self.__dict__.get("pickup_date")
 
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
@@ -1316,6 +1318,16 @@ class Leg(models.Model):
         blank=True,
         help_text="Pickup time before the earliest still-unacknowledged change.",
     )
+    pickup_date_was = models.DateField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Pickup DATE before the earliest still-unacknowledged change. Set "
+            "only when a move crossed the calendar day — a day move is the "
+            "dangerous one (the trip silently leaves the board it was on), so "
+            "the badge has to say so, not just show a new time."
+        ),
+    )
     pickup_change_ack_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -1369,6 +1381,14 @@ class Leg(models.Model):
         """True while a pickup-time change is awaiting a dispatcher ack on the
         board (drives the purple "time changed" badge)."""
         return bool(self.pickup_time_changed_at and (self.pickup_change_ack_at is None or self.pickup_change_ack_at < self.pickup_time_changed_at))
+
+    @property
+    def pickup_day_moved(self):
+        """True when the still-unacknowledged pickup move crossed the calendar
+        day. Drives the loud variant of the board badge: a day move is not a
+        retime, it is the trip leaving the day it was scheduled on, and it
+        needs to read differently from "pickup slipped 20 minutes"."""
+        return bool(self.has_unacked_time_change and self.pickup_date_was)
 
     @property
     def active_keoi(self):
@@ -1629,43 +1649,77 @@ class Leg(models.Model):
         'driver_pay_amount', 'profit_estimate',
     })
 
+    def refresh_from_db(self, *args, **kwargs):
+        """
+        Re-sync the change-tracking attributes alongside the field values.
+
+        Without this they keep describing the row as it looked when the
+        instance was first built, so an instance held across an external
+        queryset .update() would re-stamp the pickup badge (or re-fire the
+        driver reset) on its next unrelated save, backdating someone else's
+        change onto that save.
+        """
+        super().refresh_from_db(*args, **kwargs)
+        self._original_pickup_time = self.pickup_time
+        self._original_pickup_date = self.pickup_date
+        self._original_driver_id = self.driver_id
+
     def save(self, *args, **kwargs):
         # PERF TEMP START
         import time as _time; _t0 = _time.monotonic()
         # PERF TEMP END
 
-        # Stamp pickup-time changes on EXISTING legs so the board can flag
-        # "time changed" until a dispatcher acknowledges. Runs BEFORE the fast
-        # path below so save(update_fields=['pickup_time']) also stamps.
+        # Stamp pickup moves on EXISTING legs so the board can flag "time
+        # changed" until a dispatcher acknowledges. Runs BEFORE the fast path
+        # below so save(update_fields=['pickup_time']) also stamps.
+        #
+        # DATE moves stamp too. A flight match that lands 11:25 PM onto a leg
+        # dated the following day shifts the pickup ~23h without changing the
+        # time-of-day badge at all — that is exactly how a trip goes unrun. The
+        # day move has to raise the same unacked flag the time move does.
         _uf = kwargs.get('update_fields')
-        if (
-            self.pk
-            and getattr(self, '_original_pickup_time', None) is not None
-            and self._original_pickup_time != self.pickup_time
-        ):
-            if self.has_unacked_time_change and self.pickup_time == self.pickup_time_was:
+        _orig_time = getattr(self, '_original_pickup_time', None)
+        _orig_date = getattr(self, '_original_pickup_date', None)
+        _time_moved = _orig_time is not None and _orig_time != self.pickup_time
+        _date_moved = _orig_date is not None and _orig_date != self.pickup_date
+        if self.pk and (_time_moved or _date_moved):
+            _back_to_start = (
+                self.has_unacked_time_change
+                and self.pickup_time == self.pickup_time_was
+                and self.pickup_date == (self.pickup_date_was or self.pickup_date)
+            )
+            if _back_to_start:
                 # Net-zero revert (A→B→A before anyone acked): the pending
-                # change just moved back to its original time — clear the
-                # badge instead of stamping "was 10:00 → now 10:00".
+                # change just moved back to where it started — clear the badge
+                # instead of stamping "was 10:00 → now 10:00".
                 self.pickup_time_changed_at = None
                 self.pickup_time_was = None
+                self.pickup_date_was = None
                 self.pickup_change_ack_at = None
             else:
                 # Preserve the earliest "was" across successive moves: only capture
-                # the pre-change time when no change is already awaiting an ack.
+                # the pre-change values when no change is already awaiting an ack.
                 if not self.has_unacked_time_change:
-                    self.pickup_time_was = self._original_pickup_time
+                    self.pickup_time_was = _orig_time
+                    self.pickup_date_was = _orig_date if _date_moved else None
+                elif _date_moved and self.pickup_date_was is None:
+                    # An already-pending time move has now also crossed the day.
+                    # Capture the original date the first time that happens so
+                    # the badge stops understating what moved.
+                    self.pickup_date_was = _orig_date
                 self.pickup_time_changed_at = timezone.now()
                 self.pickup_change_ack_at = None
             # Widen update_fields (same idiom as the driver-change reset below)
             # or the stamp is silently dropped.
             if _uf is not None:
                 kwargs['update_fields'] = set(_uf) | {
-                    'pickup_time_changed_at', 'pickup_time_was', 'pickup_change_ack_at'
+                    'pickup_time_changed_at', 'pickup_time_was',
+                    'pickup_date_was', 'pickup_change_ack_at',
                 }
                 _uf = kwargs['update_fields']
         # Re-sync so subsequent saves on the same instance don't re-stamp.
         self._original_pickup_time = self.pickup_time
+        self._original_pickup_date = self.pickup_date
 
         # Fast path: if update_fields is specified and contains only simple
         # fields (e.g. driver assignment, status), skip expensive calculations.

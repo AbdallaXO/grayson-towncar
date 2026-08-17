@@ -2340,21 +2340,14 @@ def leg_history(request, id):
         Leg.objects.select_related("reservation"),
         id=id,
     )
-    history_manager = get_history_manager_for_model(Leg)
-    pk_attr = leg._meta.pk.attname
-    pk_value = getattr(leg, pk_attr)
+    from .leg_timeline import build_leg_timeline, timeline_summary
 
-    historical = list(
-        history_manager.filter(**{pk_attr: pk_value})
-        .select_related("history_user")
-        .order_by("-history_date")
-    )
-    _build_history_with_deltas(Leg, historical)
-
+    events = build_leg_timeline(leg)
     context = {
         "leg": leg,
         "reservation": leg.reservation,
-        "history_records": historical,
+        "events": events,
+        "summary": timeline_summary(events),
         "page_title": f"Leg history — {leg.pickup_location} → {leg.dropoff_location}",
     }
     return render(request, "dispatching/leg_history.html", context)
@@ -2373,21 +2366,14 @@ def leg_history_partial(request, id):
         Leg.objects.select_related("reservation"),
         id=id,
     )
-    history_manager = get_history_manager_for_model(Leg)
-    pk_attr = leg._meta.pk.attname
-    pk_value = getattr(leg, pk_attr)
+    from .leg_timeline import build_leg_timeline, timeline_summary
 
-    historical = list(
-        history_manager.filter(**{pk_attr: pk_value})
-        .select_related("history_user")
-        .order_by("-history_date")
-    )
-    _build_history_with_deltas(Leg, historical)
-
+    events = build_leg_timeline(leg)
     context = {
         "leg": leg,
         "reservation": leg.reservation,
-        "history_records": historical,
+        "events": events,
+        "summary": timeline_summary(events),
     }
     return render(request, "dispatching/leg_history_partial.html", context)
 
@@ -5378,20 +5364,26 @@ def _flight_match_skip_reason(leg):
     return None
 
 
-def _apply_matched_pickup(leg, new_time, user):
+def _apply_matched_pickup(leg, new_time, user, new_date=None):
     """
-    Dispatcher-facing wrapper for a flight-matched pickup time (used by both
-    match endpoints). The stamped update + AuditLog row live in the shared
+    Dispatcher-facing wrapper for a flight-matched pickup (used by both match
+    endpoints). The stamped write + AuditLog + history rows live in the shared
     apply_pickup_time_move() helper (also used by the guest flight-verify
     auto-adjust); this adds the StaffActivity FLIGHT_MATCHED row, which is
-    dispatcher-context only. No-op when the time is unchanged. Returns True
-    if the pickup actually moved.
+    dispatcher-context only. No-op when nothing moves. Returns True if the
+    pickup actually moved.
+
+    ``new_date`` is only ever passed when a dispatcher explicitly confirmed a
+    day move — see match_leg_time_to_flight.
     """
     from ops.models import StaffActivity
     from .pickup_moves import apply_pickup_time_move
 
     old_time = leg.pickup_time
-    if not apply_pickup_time_move(leg, new_time, user=user, note="Flight match"):
+    old_date = leg.pickup_date
+    if not apply_pickup_time_move(
+        leg, new_time, user=user, note="Flight match", new_date=new_date
+    ):
         return False
 
     # Unconditional activity row — the task-scoped FLIGHT_MATCHED rows created
@@ -5406,6 +5398,12 @@ def _apply_matched_pickup(leg, new_time, user):
                     "reservation_id": leg.reservation_id,
                     "old_time": old_time.strftime("%H:%M") if old_time else "",
                     "new_time": new_time.strftime("%H:%M"),
+                    # Dates recorded too: a match that crossed the calendar day
+                    # is a different (and far more serious) event than a retime,
+                    # and the old metadata could not tell them apart.
+                    "old_date": old_date.isoformat() if old_date else "",
+                    "new_date": (new_date or old_date).isoformat() if (new_date or old_date) else "",
+                    "day_moved": bool(new_date and old_date and new_date != old_date),
                 },
             )
         except Exception as e:
@@ -5490,8 +5488,78 @@ def match_leg_time_to_flight(request):
                 flight_dt, timezone.get_current_timezone()
             )
         new_time = flight_dt.time()
+        flight_date = flight_dt.date()
         old_time = leg.pickup_time
-        _apply_matched_pickup(leg, new_time, request.user)
+        old_date = leg.pickup_date
+
+        # ── Wrong-day guard ────────────────────────────────────────────────
+        # _flight_match_skip_reason already encodes exactly this rule, and the
+        # BULK endpoint has honoured it since it was written. The single-leg
+        # button never called it. That gap is how an 11:25 PM arrival gets
+        # stamped onto the NEXT day's pickup: the time matches the flight, the
+        # date silently doesn't, and the trip sits ~23h out of position until a
+        # guest is standing at the curb with no car.
+        from .pickup_moves import (
+            describe_pickup_move,
+            humanize_shift_minutes,
+            pickup_shift_minutes,
+        )
+
+        skip_reason = _flight_match_skip_reason(leg)
+        confirmed = (data.get("confirm") or "").strip()  # "" | "move_date" | "keep_date"
+
+        if skip_reason in ("cancelled", "diverted"):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": (
+                        f"This flight is {skip_reason}. Its arrival time is stale, so "
+                        f"there is nothing safe to match — call the guest and set the "
+                        f"pickup by hand."
+                    ),
+                },
+                status=409,
+            )
+
+        if skip_reason == "wrong_day" and not confirmed:
+            # Stop and make the dispatcher choose. Both options are spelled out
+            # in wall-clock terms because "matching the time" sounds harmless
+            # and is the option that breaks the trip.
+            time_only_shift = pickup_shift_minutes(old_date, old_time, old_date, new_time)
+            full_move_shift = pickup_shift_minutes(old_date, old_time, flight_date, new_time)
+            flight_label = (
+                f"{flight.airline or ''}{flight.flight_number or ''}".strip() or "This flight"
+            )
+            return JsonResponse(
+                {
+                    "success": False,
+                    "needs_confirmation": "wrong_day",
+                    "leg_id": leg.id,
+                    "flight_label": flight_label,
+                    "flight_arrives": f"{flight_date.strftime('%a %b %-d')}, {new_time.strftime('%I:%M %p').lstrip('0')}",
+                    "pickup_currently": f"{old_date.strftime('%a %b %-d')}, {old_time.strftime('%I:%M %p').lstrip('0')}" if old_date and old_time else "",
+                    "move_date_summary": describe_pickup_move(old_date, old_time, flight_date, new_time),
+                    "move_date_shift": humanize_shift_minutes(full_move_shift),
+                    "keep_date_summary": describe_pickup_move(old_date, old_time, old_date, new_time),
+                    "keep_date_shift": humanize_shift_minutes(time_only_shift),
+                    "message": (
+                        f"{flight_label} lands on {flight_date.strftime('%a %b %-d')}, but this "
+                        f"pickup is set for {old_date.strftime('%a %b %-d')}. Matching the time "
+                        f"alone would move the pickup {humanize_shift_minutes(time_only_shift)} "
+                        f"and leave it on the wrong day."
+                    ),
+                },
+                status=409,
+            )
+
+        # Only a deliberate "move_date" confirmation is allowed to change the
+        # calendar day — never a bare match.
+        _apply_matched_pickup(
+            leg,
+            new_time,
+            request.user,
+            new_date=flight_date if confirmed == "move_date" else None,
+        )
 
         # After-hours fee: the matched pickup time may now fall in the 10 PM-6 AM
         # window (flight delayed). Flag it for the dispatcher to review + charge.
@@ -5599,20 +5667,32 @@ def match_leg_time_to_flight(request):
         except Exception as e:
             logger.warning(f"Post-match conflict summary failed for leg {leg.id}: {e}")
             conflict_rows = []
-        delta_minutes = int(
-            (
-                datetime.combine(leg.pickup_date, new_time)
-                - datetime.combine(leg.pickup_date, old_time)
-            ).total_seconds() // 60
-        ) if old_time else 0
+        # Count the date on both sides. The old version combined new_time and
+        # old_time against the SAME pickup_date, so a move that crossed a day
+        # reported a small delta and looked harmless in the summary modal.
+        day_moved = bool(old_date and leg.pickup_date and leg.pickup_date != old_date)
+        delta_minutes = pickup_shift_minutes(
+            old_date, old_time, leg.pickup_date, new_time
+        ) or 0
 
         return JsonResponse({
             "success": True,
-            "message": "Leg pickup time updated to match flight arrival",
+            "message": (
+                f"Pickup moved to {leg.pickup_date.strftime('%a %b %-d')}, "
+                f"{new_time.strftime('%I:%M %p').lstrip('0')} to match flight arrival"
+                if day_moved
+                else "Leg pickup time updated to match flight arrival"
+            ),
             "pickup_time": new_time.strftime("%H:%M"),
+            "pickup_date": leg.pickup_date.isoformat() if leg.pickup_date else "",
+            "day_moved": day_moved,
             "summary": {
                 "old_time": old_time.strftime("%I:%M %p").lstrip("0") if old_time else "",
                 "new_time": new_time.strftime("%I:%M %p").lstrip("0"),
+                "old_date": old_date.isoformat() if old_date else "",
+                "new_date": leg.pickup_date.isoformat() if leg.pickup_date else "",
+                "day_moved": day_moved,
+                "moved": describe_pickup_move(old_date, old_time, leg.pickup_date, new_time),
                 "delta_minutes": delta_minutes,
                 "conflicts": conflict_rows,
             },
@@ -7857,7 +7937,7 @@ def dispatcher_booking_pricing(request):
         if form.is_valid():
             # Validate pricing values
             base_price = form.cleaned_data['manual_base_price']
-            additional_charges = form.cleaned_data.get('additional_charges', Decimal('0.00'))
+            additional_charges = form.cleaned_data.get('additional_charges') or Decimal('0.00')
             gratuity_amount = form.cleaned_data.get('gratuity_amount') or Decimal('0.00')
             total_price = form.cleaned_data['total_price']
 

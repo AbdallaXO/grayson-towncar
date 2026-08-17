@@ -766,6 +766,87 @@ class CoverageWordingTests(TestCase):
         self.assertEqual(fleet_health.summarise_coverage(0, 0), "")
 
 
+class FuelColumnTests(FleetFixtureMixin, TestCase):
+    """
+    Fuel on the list page.
+
+    The column answers one question at 6am — "who am I sending for gas tonight"
+    — so what matters is that it never lies about it: an unknown level is not an
+    empty tank, a stale reading is not a current one, and the bands it colours
+    by are the same bands the readiness chip warns on.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.staff = User.objects.create_user(
+            "fuel_dispatcher", "f@example.com", "pw", is_staff=True)
+        self.client.force_login(self.staff)
+        self.now = timezone.now()
+
+    def test_a_car_that_never_reported_fuel_has_no_reading(self):
+        # Not 0%. A GPS-only gateway legitimately never sends a level, and an
+        # empty gauge would send someone to a car that's actually full.
+        self.assertIsNone(
+            fleet_health.fuel_reading(self.vehicle(), self.now))
+
+    def test_the_bands_match_the_readiness_chip(self):
+        """One tank, one verdict — the column and the chip read the same
+        thresholds, so they can never disagree on the same car."""
+        for percent, expected in (
+            (fleet_health.FUEL_CRITICAL_PCT, fleet_health.CRITICAL),
+            (fleet_health.FUEL_CRITICAL_PCT + 1, fleet_health.WARN),
+            (fleet_health.FUEL_LOW_PCT, fleet_health.WARN),
+            (fleet_health.FUEL_LOW_PCT + 1, fleet_health.INFO),
+        ):
+            reading = fleet_health.fuel_reading(
+                self.vehicle(number=f"f{percent}", samsara_id=f"veh-f{percent}",
+                             samsara_fuel_percent=percent),
+                self.now)
+            self.assertEqual(reading["level"], expected, f"at {percent}%")
+
+    def test_a_fresh_reading_is_not_marked_stale(self):
+        v = self.vehicle(samsara_fuel_percent=64)
+        v.samsara_last_seen_at = self.now - timedelta(minutes=8)
+        reading = fleet_health.fuel_reading(v, self.now)
+        self.assertFalse(reading["stale"])
+
+    def test_a_quiet_gateway_marks_its_last_level_as_stale(self):
+        """Fuel is the one reading that changes while nobody is watching."""
+        v = self.vehicle(samsara_fuel_percent=64)
+        v.samsara_last_seen_at = self.now - timedelta(
+            hours=fleet_health.TELEMETRY_STALE_HOURS + 1)
+        reading = fleet_health.fuel_reading(v, self.now)
+        self.assertTrue(reading["stale"])
+        self.assertIn("may be lower now", reading["detail"])
+
+    def test_the_list_shows_a_percentage(self):
+        self.vehicle(samsara_fuel_percent=41)
+        resp = self.client.get(reverse("fleet_list"))
+        self.assertContains(resp, "41%")
+
+    def test_the_list_shows_a_dash_for_a_car_with_no_reading(self):
+        self.vehicle(samsara_fuel_percent=None)
+        resp = self.client.get(reverse("fleet_list"))
+        self.assertContains(resp, "never reported a fuel level")
+
+    def test_sorting_by_fuel_puts_the_emptiest_car_first(self):
+        self.vehicle(number="full", samsara_id="veh-full", samsara_fuel_percent=90)
+        self.vehicle(number="empty", samsara_id="veh-empty", samsara_fuel_percent=6)
+        self.vehicle(number="half", samsara_id="veh-half", samsara_fuel_percent=50)
+        html = self.client.get(
+            reverse("fleet_list"), {"sort": "fuel"}).content.decode()
+        self.assertLess(html.index("#empty"), html.index("#half"))
+        self.assertLess(html.index("#half"), html.index("#full"))
+
+    def test_an_unknown_level_sorts_last_not_as_an_empty_tank(self):
+        self.vehicle(number="known", samsara_id="veh-k", samsara_fuel_percent=30)
+        self.vehicle(number="silent", samsara_id="veh-s", samsara_fuel_percent=None)
+        html = self.client.get(
+            reverse("fleet_list"), {"sort": "fuel"}).content.decode()
+        self.assertLess(html.index("#known"), html.index("#silent"))
+
+
 class OdometerDisplayTests(FleetFixtureMixin, TestCase):
     def test_odometer_miles_is_none_when_never_reported(self):
         # Templates render this as an em-dash. A 0 would read as a brand-new car.

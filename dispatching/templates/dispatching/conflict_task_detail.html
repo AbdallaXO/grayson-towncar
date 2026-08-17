@@ -557,7 +557,8 @@ draws, so it shares the rail's stylesheet rather than carrying a second copy.{% 
   var mf = document.getElementById('cfMatchFlight');
   if(mf){ mf.addEventListener('click',function(){
     mf.disabled=true; mf.innerHTML='<i class="bi bi-hourglass-split"></i> Matching…';
-    post('/dispatching/match-leg-time-to-flight/',{leg_id:leg}).then(function(d){
+    matchFlightTime(leg).then(function(d){
+      if(d.cancelled){ mf.disabled=false; mf.innerHTML='<i class="bi bi-clock-history"></i> Match to flight'; return; }
       if(d.success){ location.reload(); } else { mf.disabled=false; mf.innerHTML='Failed — '+(d.error||'retry'); }
     });
   }); }
@@ -593,4 +594,6 @@ draws, so it shares the rail's stylesheet rather than carrying a second copy.{% 
   }); }
 })();
 </script>
+{# Defines matchFlightTime() + the wrong-day confirm used by #cfMatchFlight #}
+{% include "dispatching/_flight_match_confirm.html" %}
 {% endblock extra_js %}

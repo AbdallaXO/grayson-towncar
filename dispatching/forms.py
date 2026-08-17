@@ -462,8 +462,12 @@ class DispatcherPricingForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         base_price = cleaned_data.get('manual_base_price')
-        additional_charges = cleaned_data.get('additional_charges', Decimal('0.00'))
+        # An emptied optional DecimalField lands in cleaned_data as None, so the
+        # dict default never fires — coerce instead of relying on .get()'s default.
+        additional_charges = cleaned_data.get('additional_charges') or Decimal('0.00')
         gratuity = cleaned_data.get('gratuity_amount') or Decimal('0.00')
+        cleaned_data['additional_charges'] = additional_charges
+        cleaned_data['gratuity_amount'] = gratuity
         if base_price is not None:
             cleaned_data['total_price'] = (
                 base_price + additional_charges + gratuity

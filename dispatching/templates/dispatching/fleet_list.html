@@ -69,6 +69,82 @@
   .fleet-feed.critical .dot { background: #c0392b; }
   .fleet-feed .feed-label { font-weight: 700; }
   .fleet-feed .feed-fix { margin-left: auto; font-size: .78rem; opacity: .85; }
+
+  /* ── Fuel ────────────────────────────────────────────────────────────────
+     A bar, not just a number: "who do I send for gas tonight" is a question you
+     answer by scanning a column, and a row of bars answers it without reading a
+     single figure. Bands match fleet_health's chip thresholds exactly. */
+  .fuel-cell { min-width: 96px; }
+  .fuel-num { font-weight: 700; font-variant-numeric: tabular-nums; font-size: .84rem; }
+  .fuel-bar {
+    height: 5px; border-radius: 3px; background: #eceff3; margin-top: 3px;
+    overflow: hidden;
+  }
+  .fuel-bar span { display: block; height: 100%; border-radius: 3px; }
+  .fuel-critical .fuel-num { color: #a12020; }
+  .fuel-critical .fuel-bar span { background: #c0392b; }
+  .fuel-warn .fuel-num { color: #8a5b00; }
+  .fuel-warn .fuel-bar span { background: #d69a1a; }
+  .fuel-info .fuel-num { color: #2f5c40; }
+  .fuel-info .fuel-bar span { background: #3d8b5a; }
+  /* A reading from a gateway that has gone quiet is a floor, not a fact. Drawn
+     hollow so it can't be mistaken for a live level. */
+  .fuel-stale .fuel-bar span { background: repeating-linear-gradient(
+      -45deg, #b9c0c9 0 3px, #dde1e6 3px 6px); }
+  .fuel-stale .fuel-num { color: #8a8a8a; }
+  .fuel-age { font-size: .64rem; color: #9aa3ae; }
+
+  /* ── Bulk editing ────────────────────────────────────────────────────────
+     Checkboxes are always visible rather than hidden behind a mode toggle: the
+     fleet job IS data entry right now, and a mode you have to find first is a
+     mode nobody uses. */
+  .pick-col { width: 34px; text-align: center; }
+  .pick-col input { cursor: pointer; }
+  tr.picked > td { background: #fbf7ea; }
+
+  .bulk-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1040;
+    display: none; align-items: center; gap: 14px;
+    padding: 12px 22px; background: #1d2228; color: #fff;
+    box-shadow: 0 -3px 14px rgba(0,0,0,.22);
+  }
+  .bulk-bar.show { display: flex; }
+  .bulk-bar .count { font-weight: 700; font-size: .95rem; }
+  .bulk-bar .count em { font-style: normal; color: #e8c569; }
+  .bulk-bar .spacer { margin-left: auto; }
+  .bulk-bar .btn-link { color: #b9c0c9; text-decoration: none; font-size: .84rem; }
+  .bulk-bar .btn-link:hover { color: #fff; text-decoration: underline; }
+  /* Leaves room for the bar so it never covers the last row. */
+  body.bulk-open { padding-bottom: 62px; }
+
+  /* Every field in the bulk form is off until it's ticked on. A blank input that
+     silently cleared a date on twelve cars is the failure mode this prevents. */
+  .bulk-field { border-top: 1px solid #eef0f3; padding: 12px 0; }
+  .bulk-field:first-of-type { border-top: 0; }
+  .bulk-field .bulk-toggle { font-weight: 700; font-size: .84rem; color: #23282e; }
+  .bulk-field .bulk-inputs { margin-top: 8px; margin-left: 26px; }
+  .bulk-field.off .bulk-inputs { display: none; }
+  .bulk-hint { font-size: .74rem; color: #8a8a8a; margin-top: 4px; }
+  .bulk-preview {
+    background: #f6f7f9; border: 1px solid #e3e7ec; border-radius: 7px;
+    padding: 11px 13px; font-size: .84rem; line-height: 1.55;
+  }
+  .bulk-preview.empty { color: #9aa3ae; }
+  .bulk-preview strong { color: #23282e; }
+  .bulk-preview .warn { color: #a12020; font-weight: 600; }
+
+  .fleet-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 11px 20px; border-radius: 8px; font-size: .88rem; font-weight: 600;
+    color: #fff; opacity: 0; pointer-events: none; transition: opacity .2s;
+    z-index: 3000;
+  }
+  .fleet-toast.show { opacity: 1; }
+  .fleet-toast.ok { background: #2f6b45; }
+  .fleet-toast.err { background: #a12020; }
+
+  .modal-body label { font-size: .78rem; color: #666; font-weight: 600; margin-bottom: 3px; }
+  .modal-body .form-control, .modal-body .form-select { font-size: .9rem; }
 </style>
 {% endblock %}
 
@@ -142,6 +218,7 @@
         <select name="sort" class="form-select">
           <option value="number"    {% if sort == "number" %}selected{% endif %}>Sort: Unit</option>
           <option value="odometer"  {% if sort == "odometer" %}selected{% endif %}>Sort: Odometer</option>
+          <option value="fuel"      {% if sort == "fuel" %}selected{% endif %}>Sort: Fuel (lowest)</option>
           <option value="attention" {% if sort == "attention" %}selected{% endif %}>Sort: Attention</option>
         </select>
       </div>
@@ -155,11 +232,16 @@
     <table class="tap-table">
       <thead>
         <tr>
+          <th class="pick-col">
+            <input type="checkbox" class="form-check-input" id="pickAll"
+                   title="Select every vehicle shown">
+          </th>
           <th>Unit</th>
           <th>Vehicle</th>
           <th>Plate / VIN</th>
           <th title="Pickup permits — MCO, Sanford, Port Canaveral">Permits</th>
           <th>Transponder</th>
+          <th title="Level at the last reading. A hatched bar means the gateway has gone quiet — the tank may be lower now.">Fuel</th>
           <th class="text-end">Odometer</th>
           <th class="text-end">Last {{ window_days }}d</th>
           <th class="text-end" title="Average over the days with a reading — unknown days are excluded, parked days are not">Avg / week</th>
@@ -169,7 +251,13 @@
       </thead>
       <tbody>
         {% for row in rows %}
-        <tr>
+        <tr data-vehicle="{{ row.vehicle.pk }}">
+          <td class="pick-col">
+            <input type="checkbox" class="form-check-input fleet-pick"
+                   value="{{ row.vehicle.pk }}"
+                   data-unit="{{ row.vehicle.vehicle_number }}"
+                   aria-label="Select #{{ row.vehicle.vehicle_number }}">
+          </td>
           <td>
             <a href="{% url 'fleet_detail' row.vehicle.pk %}" class="row-link">
               <div class="tap-name">#{{ row.vehicle.vehicle_number }}</div>
@@ -220,6 +308,22 @@
               <span class="fleet-unknown">—</span>
             {% endif %}
           </td>
+          <td class="fuel-cell">
+            {% if row.fuel %}
+              {# The bar carries the reading; the figure confirms it. A stale
+                 gateway is hatched rather than hidden — the level it last saw
+                 is still a useful floor, it just isn't current. #}
+              <div class="fuel-{{ row.fuel.level }}{% if row.fuel.stale %} fuel-stale{% endif %}"
+                   title="{{ row.fuel.detail }}">
+                <span class="fuel-num">{{ row.fuel.percent }}%</span>
+                <div class="fuel-bar"><span style="width: {{ row.fuel.percent }}%;"></span></div>
+                {% if row.fuel.stale %}<div class="fuel-age">last known</div>{% endif %}
+              </div>
+            {% else %}
+              <span class="fleet-unknown"
+                    title="This vehicle has never reported a fuel level.">—</span>
+            {% endif %}
+          </td>
           <td class="text-end">
             {% if row.odometer is None %}
               <span class="fleet-unknown">—</span>
@@ -265,7 +369,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="10">
+          <td colspan="12">
             <div class="tap-empty">
               <i class="bi bi-truck"></i>
               No vehicles match your filters.
@@ -281,6 +385,8 @@
     An em-dash means no reading, not zero miles.
     <span class="fleet-src obd">obd</span> is the vehicle's own odometer;
     <span class="fleet-src gps">gps</span> is estimated from GPS distance.
+    A hatched fuel bar is the last level a quiet gateway reported — a floor, not
+    a current reading.
     {% if nightly and nightly.last_success_at %}
       Nightly reconcile last ran {{ nightly.last_success_at|timesince }} ago.
     {% else %}
@@ -289,6 +395,484 @@
   </div>
 
 </div>
+
+{# ── Bulk bar: appears the moment anything is ticked ────────────────────── #}
+<div class="bulk-bar" id="bulkBar">
+  <span class="count"><em id="bulkCount">0</em> vehicles selected</span>
+  <span class="tap-sub" id="bulkUnits" style="color:#9aa3ae;"></span>
+  <span class="spacer"></span>
+  <button type="button" class="btn btn-link" onclick="fleetClearPicks()">Clear selection</button>
+  <button type="button" class="btn btn-warning fw-bold" onclick="fleetOpenBulk()">
+    <i class="bi bi-pencil-square me-1"></i>Edit selected
+  </button>
+</div>
+
+{# ── Bulk edit ──────────────────────────────────────────────────────────────
+   Every field is inert until it's ticked on, and only ticked fields are sent.
+   That single rule is what makes this safe to use on a whole fleet at once: a
+   blank date input can never mean "clear this on twelve cars" by accident.     #}
+<div class="modal fade" id="bulkModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="bulkTitle">Update vehicles</h5>
+          <div class="tap-sub" id="bulkTargets"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        {# ── Permits: the reason this page exists ───────────────────────── #}
+        <div class="bulk-field">
+          <div class="bulk-toggle"><i class="bi bi-patch-check me-1"></i>Pickup permits</div>
+          <div class="bulk-inputs">
+            {% for key, label, category in permit_types %}
+            <div class="row g-2 align-items-center mb-2">
+              <div class="col-md-3"><label class="mb-0">{{ label }}</label></div>
+              <div class="col-md-5">
+                <select class="form-select form-select-sm bulk-input"
+                        id="b_permit_{{ key }}" data-permit="{{ key }}">
+                  <option value="">Leave unchanged</option>
+                  <option value="grant">Grant to all selected</option>
+                  <option value="revoke">Remove from all selected</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_permit_{{ key }}_expires_on" disabled
+                       title="{{ label }} permit expiry">
+              </div>
+            </div>
+            {% endfor %}
+            <div class="bulk-hint">
+              Needed to <strong>pick up</strong> at each place; any unit may drop
+              there. Leave the expiry blank if the permit doesn't expire — an
+              expired date counts as no permit at all.
+            </div>
+          </div>
+        </div>
+
+        {# ── Compliance dates ───────────────────────────────────────────── #}
+        <div class="bulk-field off" data-group="dates">
+          <div class="form-check">
+            <input class="form-check-input bulk-group" type="checkbox" id="b_use_dates">
+            <label class="form-check-label bulk-toggle" for="b_use_dates">
+              <i class="bi bi-calendar-check me-1"></i>Compliance dates
+            </label>
+          </div>
+          <div class="bulk-inputs">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input bulk-sub" type="checkbox" id="b_use_in_service_since">
+                  <label class="form-check-label" for="b_use_in_service_since">In service since</label>
+                </div>
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_in_service_since" disabled>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input bulk-sub" type="checkbox" id="b_use_registration_expires_on">
+                  <label class="form-check-label" for="b_use_registration_expires_on">Registration expires</label>
+                </div>
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_registration_expires_on" disabled>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input bulk-sub" type="checkbox" id="b_use_insurance_expires_on">
+                  <label class="form-check-label" for="b_use_insurance_expires_on">Insurance expires</label>
+                </div>
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_insurance_expires_on" disabled>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input bulk-sub" type="checkbox" id="b_use_next_inspection_on">
+                  <label class="form-check-label" for="b_use_next_inspection_on">Next inspection</label>
+                </div>
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_next_inspection_on" disabled>
+              </div>
+            </div>
+            <div class="bulk-hint">
+              A policy that renews on one date for the whole fleet is exactly the
+              case for this. Tick a field and leave the date empty to clear it.
+            </div>
+          </div>
+        </div>
+
+        {# ── Toll network ───────────────────────────────────────────────── #}
+        <div class="bulk-field off" data-group="toll">
+          <div class="form-check">
+            <input class="form-check-input bulk-group" type="checkbox" id="b_use_transponder_type">
+            <label class="form-check-label bulk-toggle" for="b_use_transponder_type">
+              <i class="bi bi-credit-card-2-front me-1"></i>Toll network
+            </label>
+          </div>
+          <div class="bulk-inputs">
+            <select class="form-select form-select-sm bulk-input" id="b_transponder_type"
+                    style="max-width: 260px;" disabled>
+              <option value="">— none —</option>
+              {% for value, label in transponder_types %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <div class="bulk-hint">
+              Which account the transponders in these cars bill through. The
+              transponder <strong>number</strong> is per-car and stays on the
+              vehicle's own page — one number on twelve cars would misattribute
+              every toll.
+            </div>
+          </div>
+        </div>
+
+        {# ── Out of service ─────────────────────────────────────────────── #}
+        <div class="bulk-field off" data-group="oos">
+          <div class="form-check">
+            <input class="form-check-input bulk-group" type="checkbox" id="b_use_oos">
+            <label class="form-check-label bulk-toggle" for="b_use_oos" style="color:#b02a37;">
+              <i class="bi bi-cone-striped me-1"></i>Out of service
+            </label>
+          </div>
+          <div class="bulk-inputs">
+            <select class="form-select form-select-sm bulk-input mb-2" id="b_oos_mode"
+                    style="max-width: 300px;" disabled>
+              <option value="set">Take out of service</option>
+              <option value="clear">Put back in service</option>
+            </select>
+            <div class="row g-2" id="b_oos_window">
+              <div class="col-md-4">
+                <label>Down from</label>
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_out_of_service_from" disabled>
+              </div>
+              <div class="col-md-4">
+                <label>Back on the road after</label>
+                <input type="date" class="form-control form-control-sm bulk-input"
+                       id="b_out_of_service_until" disabled>
+              </div>
+              <div class="col-md-4">
+                <label>Reason</label>
+                <input type="text" maxlength="200" class="form-control form-control-sm bulk-input"
+                       id="b_out_of_service_reason" disabled
+                       placeholder="Recall — dealer, week of the 14th">
+              </div>
+            </div>
+            <div class="bulk-hint">
+              These units drop out of the planner's vehicle pool and Day Setup
+              stops proposing them. Leave the end date blank if you don't know
+              when they're back.
+            </div>
+          </div>
+        </div>
+
+        <div class="bulk-field">
+          <div class="bulk-preview empty" id="bulkPreview">
+            Nothing selected to change yet.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" id="bulkApply" onclick="fleetApplyBulk()" disabled>Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fleet-toast" id="fleetToast"></div>
+
+<script>
+(function () {
+  const CSRF = '{{ csrf_token }}';
+  const BULK_URL = "{% url 'fleet_bulk_update' %}";
+  // Server's own permit list, so a fourth permit needs no change here.
+  const PERMITS = [
+    {% for key, label, category in permit_types %}
+    {key: "{{ key }}", label: "{{ label|escapejs }}"},
+    {% endfor %}
+  ];
+  const DATE_FIELDS = [
+    {key: 'in_service_since',        label: 'in-service date'},
+    {key: 'registration_expires_on', label: 'registration expiry'},
+    {key: 'insurance_expires_on',    label: 'insurance expiry'},
+    {key: 'next_inspection_on',      label: 'next inspection'},
+  ];
+  // Survives the post-save reload so a second pass over the SAME cars — grant
+  // the permits, then set the insurance date — doesn't mean re-ticking twelve
+  // boxes. Session-scoped: closing the tab forgets it.
+  const PICK_KEY = 'fleetBulkPicks';
+
+  const $ = id => document.getElementById(id);
+  const picks = () => Array.from(document.querySelectorAll('.fleet-pick:checked'));
+
+  function toast(msg, ok) {
+    const t = $('fleetToast');
+    t.textContent = msg;
+    t.className = 'fleet-toast ' + (ok ? 'ok' : 'err') + ' show';
+    setTimeout(() => t.classList.remove('show'), 3200);
+  }
+
+  // 'YYYY-MM-DD' -> 'Dec 31 2026'. Built from the parts, never new Date(str):
+  // that parses as UTC and renders the day before in Florida.
+  function pretty(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!m) return iso;
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+  }
+
+  // ── Selection ────────────────────────────────────────────────────────────
+  let lastPicked = null;   // anchor for shift-click ranges
+
+  function refreshSelection() {
+    const chosen = picks();
+    const n = chosen.length;
+    document.querySelectorAll('.fleet-pick').forEach(cb => {
+      cb.closest('tr').classList.toggle('picked', cb.checked);
+    });
+    $('bulkBar').classList.toggle('show', n > 0);
+    document.body.classList.toggle('bulk-open', n > 0);
+    $('bulkCount').textContent = n;
+    $('bulkUnits').textContent = n ? unitSummary(chosen) : '';
+
+    const all = document.querySelectorAll('.fleet-pick');
+    const master = $('pickAll');
+    master.checked = n > 0 && n === all.length;
+    master.indeterminate = n > 0 && n < all.length;
+
+    // Best-effort. Storage is blocked outright in some privacy modes, and
+    // losing the remembered selection must never cost you the checkbox itself.
+    try {
+      sessionStorage.setItem(PICK_KEY, JSON.stringify(chosen.map(cb => cb.value)));
+    } catch (err) { /* selection still works, it just won't survive the reload */ }
+  }
+
+  function unitSummary(chosen) {
+    const units = chosen.map(cb => '#' + cb.dataset.unit);
+    if (units.length <= 6) return units.join(', ');
+    return units.slice(0, 6).join(', ') + ' +' + (units.length - 6) + ' more';
+  }
+
+  window.fleetClearPicks = function () {
+    document.querySelectorAll('.fleet-pick').forEach(cb => { cb.checked = false; });
+    lastPicked = null;
+    refreshSelection();
+  };
+
+  document.querySelectorAll('.fleet-pick').forEach(cb => {
+    cb.addEventListener('click', function (event) {
+      // Shift-click fills the range — the difference between ticking 40 boxes
+      // and ticking two.
+      if (event.shiftKey && lastPicked !== null) {
+        const all = Array.from(document.querySelectorAll('.fleet-pick'));
+        const from = all.indexOf(lastPicked), to = all.indexOf(cb);
+        all.slice(Math.min(from, to), Math.max(from, to) + 1)
+           .forEach(box => { box.checked = cb.checked; });
+      }
+      lastPicked = cb;
+      refreshSelection();
+    });
+  });
+
+  $('pickAll').addEventListener('change', function () {
+    document.querySelectorAll('.fleet-pick').forEach(cb => { cb.checked = this.checked; });
+    lastPicked = null;
+    refreshSelection();
+  });
+
+  // Restore whatever was selected before the last save.
+  try {
+    const saved = new Set(JSON.parse(sessionStorage.getItem(PICK_KEY) || '[]'));
+    if (saved.size) {
+      document.querySelectorAll('.fleet-pick').forEach(cb => {
+        if (saved.has(cb.value)) cb.checked = true;
+      });
+    }
+  } catch (err) { /* a corrupt key just means no restore */ }
+  refreshSelection();
+
+  // ── The form: nothing is sent unless it's switched on ────────────────────
+  function wireGroup(box) {
+    const field = box.closest('.bulk-field');
+    box.addEventListener('change', function () {
+      field.classList.toggle('off', !box.checked);
+      field.querySelectorAll('.bulk-input').forEach(input => {
+        // Sub-ticked fields inside a group own their own enabled state.
+        const sub = input.parentElement.querySelector('.bulk-sub');
+        input.disabled = !box.checked || (sub ? !sub.checked : false);
+      });
+      preview();
+    });
+  }
+  document.querySelectorAll('.bulk-group').forEach(wireGroup);
+
+  document.querySelectorAll('.bulk-sub').forEach(sub => {
+    sub.addEventListener('change', function () {
+      const input = sub.parentElement.parentElement.querySelector('.bulk-input');
+      if (input) input.disabled = !sub.checked;
+      preview();
+    });
+  });
+
+  PERMITS.forEach(p => {
+    $('b_permit_' + p.key).addEventListener('change', function () {
+      // An expiry only means anything alongside a permit you're granting.
+      $('b_permit_' + p.key + '_expires_on').disabled = this.value !== 'grant';
+      if (this.value !== 'grant') $('b_permit_' + p.key + '_expires_on').value = '';
+      preview();
+    });
+  });
+
+  $('b_oos_mode').addEventListener('change', function () {
+    const setting = this.value === 'set';
+    $('b_oos_window').style.display = setting ? '' : 'none';
+    preview();
+  });
+
+  document.querySelectorAll('.bulk-input').forEach(input => {
+    input.addEventListener('change', preview);
+    input.addEventListener('input', preview);
+  });
+
+  // ── What will actually happen ────────────────────────────────────────────
+  // Built from the same reads the payload is built from, so the sentence and
+  // the request can't disagree.
+  function collect() {
+    const fields = {}, says = [];
+    let destructive = false;
+
+    PERMITS.forEach(p => {
+      const mode = $('b_permit_' + p.key).value;
+      if (!mode) return;
+      if (mode === 'grant') {
+        const expires = $('b_permit_' + p.key + '_expires_on').value;
+        fields['permit_' + p.key] = true;
+        fields['permit_' + p.key + '_expires_on'] = expires;
+        says.push('Grant the <strong>' + p.label + '</strong> permit'
+                  + (expires ? ', valid through ' + pretty(expires) : ', with no expiry date'));
+      } else {
+        fields['permit_' + p.key] = false;
+        destructive = true;
+        says.push('<span class="warn">Remove the ' + p.label + ' permit</span>');
+      }
+    });
+
+    if ($('b_use_dates').checked) {
+      DATE_FIELDS.forEach(f => {
+        if (!$('b_use_' + f.key).checked) return;
+        const value = $('b_' + f.key).value;
+        fields[f.key] = value;
+        if (value) {
+          says.push('Set the ' + f.label + ' to ' + pretty(value));
+        } else {
+          destructive = true;
+          says.push('<span class="warn">Clear the ' + f.label + '</span>');
+        }
+      });
+    }
+
+    if ($('b_use_transponder_type').checked) {
+      const value = $('b_transponder_type').value;
+      fields.transponder_type = value;
+      const label = $('b_transponder_type').selectedOptions[0].textContent.trim();
+      says.push(value ? 'Set the toll network to ' + label
+                      : '<span class="warn">Clear the toll network</span>');
+      if (!value) destructive = true;
+    }
+
+    if ($('b_use_oos').checked) {
+      if ($('b_oos_mode').value === 'clear') {
+        fields.out_of_service_from = '';
+        fields.out_of_service_until = '';
+        fields.out_of_service_reason = '';
+        says.push('Put them <strong>back in service</strong>');
+      } else {
+        const from = $('b_out_of_service_from').value;
+        const until = $('b_out_of_service_until').value;
+        fields.out_of_service_from = from;
+        fields.out_of_service_until = until;
+        fields.out_of_service_reason = $('b_out_of_service_reason').value;
+        destructive = true;
+        says.push('<span class="warn">Take them out of service'
+                  + (from ? ' from ' + pretty(from) : '')
+                  + (until ? ' until ' + pretty(until) : from ? ', with no return date' : '')
+                  + '</span> — they drop out of the planner\'s vehicle pool');
+      }
+    }
+
+    return {fields: fields, says: says, destructive: destructive};
+  }
+
+  function preview() {
+    const {says} = collect();
+    const n = picks().length;
+    const box = $('bulkPreview');
+    if (!says.length) {
+      box.className = 'bulk-preview empty';
+      box.textContent = 'Nothing selected to change yet.';
+      $('bulkApply').disabled = true;
+      return;
+    }
+    box.className = 'bulk-preview';
+    box.innerHTML = 'On <strong>' + n + ' vehicle' + (n === 1 ? '' : 's') + '</strong>:<ul class="mb-0 mt-1">'
+      + says.map(s => '<li>' + s + '</li>').join('') + '</ul>';
+    $('bulkApply').disabled = n === 0;
+    $('bulkApply').textContent = 'Apply to ' + n + ' vehicle' + (n === 1 ? '' : 's');
+  }
+
+  window.fleetOpenBulk = function () {
+    const chosen = picks();
+    if (!chosen.length) return;
+    $('bulkTitle').textContent = 'Update ' + chosen.length
+      + ' vehicle' + (chosen.length === 1 ? '' : 's');
+    $('bulkTargets').textContent = unitSummary(chosen);
+    preview();
+    new bootstrap.Modal($('bulkModal')).show();
+  };
+
+  window.fleetApplyBulk = function () {
+    const chosen = picks();
+    const {fields, destructive} = collect();
+    if (!chosen.length || !Object.keys(fields).length) return;
+
+    // One confirm, and only for the direction that takes something away.
+    // Adding a permit is undoable by looking at the row; a cleared date isn't
+    // obviously gone until someone needs it.
+    if (destructive) {
+      const plain = $('bulkPreview').innerText.replace(/\n+/g, '\n');
+      if (!confirm(plain + '\n\nApply this?')) return;
+    }
+
+    const button = $('bulkApply');
+    button.disabled = true;
+    button.textContent = 'Saving…';
+
+    fetch(BULK_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({vehicle_ids: chosen.map(cb => +cb.value), fields: fields}),
+    })
+      .then(r => r.json().catch(() => ({success: false, error: 'Server error'})))
+      .then(d => {
+        if (!d.success) {
+          toast(d.error || 'Could not save', false);
+          button.disabled = false;
+          preview();
+          return;
+        }
+        toast('Updated ' + d.updated + ' vehicle' + (d.updated === 1 ? '' : 's')
+              + (d.missing ? ' — ' + d.missing + ' no longer exist' : ''), true);
+        // Reload rather than patch: every chip, permit pip and warning on this
+        // page is computed server-side, and a hand-patched row would drift from
+        // what the next render says.
+        setTimeout(() => location.reload(), 700);
+      });
+  };
+})();
+</script>
 {% endblock %}
 
 {% block footer %}{% endblock %}

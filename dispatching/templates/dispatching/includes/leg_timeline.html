@@ -1,0 +1,217 @@
+{% comment %}
+Visual leg timeline. Expects `events` (from dispatching.leg_timeline) and
+`summary`. Used by both the modal partial and the full page.
+
+Reads as a day-grouped feed rather than a field-diff table, because the
+question people bring to this page is "what happened to this trip, and who did
+it" — not "which columns differ between snapshot 7 and snapshot 8".
+
+Light-only by design. The surrounding app has no dark theme, so a
+prefers-color-scheme block here would fire on a dark-mode OS and paint dark
+panels onto a white page.
+{% endcomment %}
+
+{% if summary.day_moves or summary.late_recorded %}
+  <div class="lt-alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+      {% if summary.day_moves %}
+        <strong>{{ summary.day_moves }} change moved this trip to a different calendar day.</strong>
+        A day move takes the trip off the board it was scheduled on.
+      {% endif %}
+      {% if summary.late_recorded %}
+        {% if summary.day_moves %}<br>{% endif %}
+        <strong>{{ summary.late_recorded }} change was recorded late.</strong>
+        It is shown at the time it actually happened, not the time the system noticed.
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% if summary.total %}
+  <div class="lt-stats">
+    <span><b>{{ summary.total }}</b> event{{ summary.total|pluralize }}</span>
+    {% if summary.pickup_moves %}<span class="lt-stat-warn"><b>{{ summary.pickup_moves }}</b> pickup move{{ summary.pickup_moves|pluralize }}</span>{% endif %}
+    {% if summary.driver_changes %}<span><b>{{ summary.driver_changes }}</b> driver change{{ summary.driver_changes|pluralize }}</span>{% endif %}
+  </div>
+{% endif %}
+
+<div class="lt-wrap">
+  {% regroup events by day_key as days %}
+  {% for day in days %}
+    <section class="lt-day">
+      <h4 class="lt-day-head">{{ day.grouper|date:"l, M j, Y" }}</h4>
+      {% for e in day.list %}
+        <div class="lt-row lt-{{ e.severity }}">
+          <div class="lt-time">{{ e.local|time:"g:i A" }}</div>
+          <div class="lt-rail"><span class="lt-dot"><i class="bi {{ e.icon }}"></i></span></div>
+          <div class="lt-body">
+            <div class="lt-title">{{ e.title }}</div>
+            <div class="lt-meta">
+              <span class="lt-actor lt-actor-{{ e.actor_kind }}">{{ e.actor_label }}</span>
+              {% if e.actor_kind_label %}<span class="lt-chip">{{ e.actor_kind_label }}</span>{% endif %}
+              {% if e.note %}<span class="lt-chip lt-chip-note">{{ e.note }}</span>{% endif %}
+              {% for f in e.flag_labels %}<span class="lt-chip lt-chip-flag">{{ f }}</span>{% endfor %}
+            </div>
+
+            {% if e.details %}
+              <ul class="lt-details">
+                {% for d in e.details %}
+                  <li>
+                    {% if d.text %}<span class="lt-plain">{{ d.text }}</span>
+                    {% else %}
+                      <span class="lt-dl">{{ d.label }}</span>
+                      <span class="lt-from">{{ d.from|default:"—" }}</span>
+                      <span class="lt-arrow">&rarr;</span>
+                      <span class="lt-to">{{ d.to|default:"—" }}</span>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+
+            {% if e.hidden_details %}
+              {# Values the system derived from the action above. Folded, not dropped. #}
+              <details class="lt-more">
+                <summary>{{ e.hidden_details|length }} field{{ e.hidden_details|length|pluralize }} the system set automatically</summary>
+                <ul class="lt-details lt-details-quiet">
+                  {% for d in e.hidden_details %}
+                    <li>
+                      <span class="lt-dl">{{ d.label }}</span>
+                      <span class="lt-from">{{ d.from|default:"—" }}</span>
+                      <span class="lt-arrow">&rarr;</span>
+                      <span class="lt-to">{{ d.to|default:"—" }}</span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </section>
+  {% empty %}
+    <p class="lt-empty">No history recorded for this leg.</p>
+  {% endfor %}
+</div>
+
+<style>
+/* Scoped to .lt-* so nothing here leaks into the page hosting the modal. */
+.lt-wrap, .lt-stats, .lt-alert { color: #111827; }
+
+.lt-alert {
+    display: flex; gap: .6rem; align-items: flex-start;
+    background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #d97706;
+    color: #78350f; border-radius: 6px;
+    padding: .7rem .85rem; margin-bottom: .9rem;
+    font-size: .86rem; line-height: 1.45;
+}
+.lt-alert i { color: #d97706; font-size: 1rem; line-height: 1.3; flex: none; }
+.lt-alert strong { color: #713f12; }
+
+.lt-stats {
+    display: flex; flex-wrap: wrap; gap: 1.1rem;
+    font-size: .8rem; color: #6b7280;
+    padding-bottom: .6rem; margin-bottom: .9rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.lt-stats b { color: #111827; font-size: .92rem; font-weight: 700; }
+.lt-stat-warn b { color: #b45309; }
+
+.lt-wrap { font-size: .875rem; }
+.lt-empty { color: #6b7280; margin: 0; }
+
+.lt-day { margin-bottom: .35rem; }
+.lt-day-head {
+    font-size: .7rem; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: #6b7280; margin: 0;
+    padding: .55rem 0 .4rem; border-bottom: 1px solid #eef1f4;
+    background: #fff; position: sticky; top: 0; z-index: 2;
+}
+
+.lt-row {
+    display: grid; grid-template-columns: 4.7rem 1.5rem minmax(0, 1fr);
+    align-items: start;
+}
+.lt-time {
+    font-size: .78rem; color: #9ca3af; font-variant-numeric: tabular-nums;
+    text-align: right; padding: .62rem .65rem 0 0; white-space: nowrap;
+}
+.lt-rail { position: relative; display: flex; justify-content: center; }
+.lt-rail::before {
+    content: ""; position: absolute; top: 1.75rem; bottom: -.35rem;
+    width: 1px; background: #e5e7eb;
+}
+.lt-row:last-child .lt-rail::before { display: none; }
+.lt-dot {
+    width: 1.3rem; height: 1.3rem; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .62rem; margin-top: .5rem; z-index: 1;
+    background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb;
+}
+.lt-body { padding: .5rem 0 .9rem .6rem; min-width: 0; }
+.lt-title {
+    font-weight: 600; font-size: .9rem; color: #111827;
+    line-height: 1.35; overflow-wrap: anywhere;
+}
+.lt-meta {
+    display: flex; flex-wrap: wrap; gap: .3rem; align-items: center;
+    margin-top: .2rem;
+}
+.lt-actor { font-size: .78rem; font-weight: 600; color: #374151; }
+.lt-actor-driver { color: #1d4ed8; }
+.lt-actor-guest  { color: #6d28d9; }
+.lt-actor-system { color: #9ca3af; font-style: italic; font-weight: 500; }
+
+.lt-chip {
+    font-size: .68rem; line-height: 1.5; padding: 0 .42rem;
+    border-radius: 999px; background: #f3f4f6; color: #6b7280;
+    border: 1px solid #e5e7eb; white-space: nowrap;
+}
+.lt-chip-note { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.lt-chip-flag {
+    background: #fef2f2; color: #b91c1c; border-color: #fecaca; font-weight: 600;
+    white-space: normal;
+}
+
+.lt-details {
+    list-style: none; margin: .4rem 0 0; padding: .4rem .6rem;
+    background: #f9fafb; border: 1px solid #eef1f4; border-radius: 6px;
+}
+.lt-details li {
+    display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline;
+    padding: .1rem 0; line-height: 1.45;
+}
+.lt-dl { font-size: .74rem; color: #9ca3af; min-width: 4.4rem; }
+.lt-from { color: #9ca3af; text-decoration: line-through; font-variant-numeric: tabular-nums; }
+.lt-arrow { color: #d1d5db; }
+.lt-to { font-weight: 600; color: #111827; font-variant-numeric: tabular-nums; }
+.lt-plain { color: #374151; overflow-wrap: anywhere; }
+
+.lt-more { margin-top: .35rem; }
+.lt-more > summary {
+    cursor: pointer; font-size: .74rem; color: #9ca3af;
+    list-style: none; display: inline-flex; align-items: center; gap: .28rem;
+    padding: .1rem 0;
+}
+.lt-more > summary::-webkit-details-marker { display: none; }
+.lt-more > summary::before { content: "▸"; font-size: .62rem; }
+.lt-more[open] > summary::before { content: "▾"; }
+.lt-more > summary:hover { color: #4b5563; text-decoration: underline; }
+.lt-details-quiet { background: #fcfcfd; }
+.lt-details-quiet .lt-to { font-weight: 500; color: #6b7280; }
+
+/* Severity lives on the dot, so the serious rows are findable at a glance
+   without colouring whole blocks. */
+.lt-critical .lt-dot { background: #fef2f2; color: #b91c1c; border-color: #fca5a5; }
+.lt-critical .lt-title { color: #991b1b; }
+.lt-warn .lt-dot { background: #fffbeb; color: #b45309; border-color: #fcd34d; }
+.lt-quiet .lt-dot { color: #b6bcc4; }
+.lt-quiet .lt-title { font-weight: 500; color: #4b5563; }
+
+@media (max-width: 575px) {
+    .lt-row { grid-template-columns: 4rem 1.3rem minmax(0, 1fr); }
+    .lt-time { font-size: .72rem; padding-right: .4rem; }
+    .lt-dl { min-width: 0; }
+}
+</style>

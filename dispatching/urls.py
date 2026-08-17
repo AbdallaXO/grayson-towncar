@@ -82,6 +82,10 @@ urlpatterns = [
     # In-page editing so the fleet job never needs the Django admin.
     path("fleet/<int:pk>/details/", fleet_views.fleet_update_details,
          name="fleet_update_details"),
+    # One set of values onto many vehicles — the data-entry path. Not <int:pk>:
+    # the selection is in the body, so it can't be mistaken for a single edit.
+    path("fleet/bulk-update/", fleet_views.fleet_bulk_update,
+         name="fleet_bulk_update"),
     path("fleet/<int:pk>/schedule/", fleet_views.fleet_save_schedule,
          name="fleet_save_schedule"),
     path("fleet/schedule/<int:pk>/delete/", fleet_views.fleet_delete_schedule,
