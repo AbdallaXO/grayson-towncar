@@ -555,7 +555,10 @@ def _resolve_duty(shifts, wanted):
     if s is None:
         s = min(shifts, key=lambda x: x["sm"]) if wanted == "opener" else max(shifts, key=lambda x: x["em"])
     return {
-        "uid": s["uid"], "name": s["name"], "short": _short_name(s["name"]),
+        # ``sid`` identifies the exact window, not just the person: on a split day
+        # the same uid holds two shifts and only the morning one opens.
+        "sid": s.get("sid"), "uid": s["uid"],
+        "name": s["name"], "short": _short_name(s["name"]),
         "time": _fmt_min(s["sm"]) if wanted == "opener" else _fmt_min(s["em"]),
         "assigned": assigned,
         "color": s.get("color"),
@@ -577,6 +580,9 @@ def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=Fals
     pattern has nobody to name.
     """
     is_weekend = dow >= 5
+    # Stamp a per-window id so opener/closer can point at one half of a split day.
+    for i, s in enumerate(shifts):
+        s["sid"] = i
     opener = _resolve_duty(shifts, "opener")
     closer = _resolve_duty(shifts, "closer")
 
@@ -608,8 +614,8 @@ def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=Fals
         for s in ln:
             width = _pct_min(min(s["em"], 1440) - s["sm"])
             role = s.get("role") or ""
-            is_op = bool(opener and opener["uid"] == s["uid"])
-            is_cl = bool(closer and closer["uid"] == s["uid"])
+            is_op = bool(opener and opener["sid"] == s["sid"])
+            is_cl = bool(closer and closer["sid"] == s["sid"])
             bars.append({
                 "uid": s["uid"],
                 "name": s["name"],
@@ -625,6 +631,9 @@ def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=Fals
                 "color": s.get("color"),
                 "overnight": s.get("overnight", False),
                 "changed": s.get("changed", False),
+                "covering": s.get("covering", False),
+                "ov_id": s.get("ov_id"),
+                "ov_range": s.get("ov_range", ""),
                 # Below ~13% of the day (≈3h) even a first name crowds the pill.
                 "tight": width < 13,
             })
@@ -648,8 +657,13 @@ def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=Fals
     }
 
 
-def _row_cell(shift, *, day, time_off=None, pending=None):
-    """One dispatcher × one day table cell, from an already-built shift dict."""
+def _row_cell(shift, *, day, time_off=None, pending=None, extras=()):
+    """One dispatcher × one day table cell, from an already-built shift dict.
+
+    ``extras`` are the later halves of a split day. The first window stays at the
+    top level (so every existing reader of ``label``/``role``/``is_opener`` keeps
+    working) and the rest ride along in ``extras`` for the template to stack.
+    """
     if shift is None:
         base = {"is_working": False, "label": "—", "kind": "none"}
     else:
@@ -661,14 +675,30 @@ def _row_cell(shift, *, day, time_off=None, pending=None):
             "role": shift.get("role") or "",
             "role_label": STAFF_ROLE_LABELS.get(shift.get("role") or "", ""),
             "changed": shift.get("changed", False),
-            "is_opener": bool(day["opener"] and day["opener"]["uid"] == shift["uid"]),
-            "is_closer": bool(day["closer"] and day["closer"]["uid"] == shift["uid"]),
+            "covering": shift.get("covering", False),
+            "ov_id": shift.get("ov_id"),
+            "ov_range": shift.get("ov_range", ""),
+            "is_opener": bool(day["opener"] and day["opener"]["sid"] == shift.get("sid")),
+            "is_closer": bool(day["closer"] and day["closer"]["sid"] == shift.get("sid")),
         }
+        base["extras"] = [{
+            "label": f'{_fmt_min(e["sm"])}–{_fmt_min(e["em"])}',
+            "role": e.get("role") or "",
+            "role_label": STAFF_ROLE_LABELS.get(e.get("role") or "", ""),
+            "overnight": e.get("overnight", False),
+            "extra_id": e.get("extra_id"),
+            "extra_when": e.get("extra_when", ""),
+            "is_opener": bool(day["opener"] and day["opener"]["sid"] == e.get("sid")),
+            "is_closer": bool(day["closer"] and day["closer"]["sid"] == e.get("sid")),
+        } for e in extras]
     if time_off:
         base.update(kind="timeoff", label=time_off.get("reason_label") or "Time off", time_off=time_off)
     elif pending:
         base["pending"] = pending
-    base.update(is_today=day["is_today"], is_past=day["is_past"], is_weekend=day["is_weekend"], key=day["key"])
+    base.update(is_today=day["is_today"], is_past=day["is_past"], is_weekend=day["is_weekend"],
+                key=day["key"], day_name=day["full_name"],
+                # A readable stamp for dialogs — the key stays ISO for the POST.
+                day_label=f'{day["name"]} {day["sub"]}'.strip())
     return base
 
 
@@ -697,6 +727,19 @@ def weekly_pattern(roster, today_dow=None, colors=None):
                 })
             else:
                 off_rows[u.id].add(r.day_of_week)
+        # Recurring split-shift halves are additive to the weekly row above.
+        for e in u.extra_shifts.all():
+            if e.day_of_week is None:
+                continue
+            sm, em = _min_of(e.start_time), _min_of(e.end_time)
+            overnight = em <= sm
+            if overnight:
+                em += 1440
+            by_dow[e.day_of_week].append({
+                "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
+                "role": e.role or "", "color": colors.get(u.id),
+                "is_extra": True, "extra_id": e.id, "extra_when": e.when_display,
+            })
 
     weekdays = [
         _build_day(
@@ -710,9 +753,10 @@ def weekly_pattern(roster, today_dow=None, colors=None):
     for u in roster:
         cells = []
         for d in range(7):
-            mine = next((s for s in by_dow[d] if s["uid"] == u.id), None)
-            cell = _row_cell(mine, day=weekdays[d])
-            if mine is None and d in off_rows[u.id]:
+            mine = [s for s in by_dow[d] if s["uid"] == u.id]
+            mine.sort(key=lambda s: (s.get("is_extra", False), s["sm"]))
+            cell = _row_cell(mine[0] if mine else None, day=weekdays[d], extras=mine[1:])
+            if not mine and d in off_rows[u.id]:
                 cell.update(label="Off", kind="off")
             cells.append(cell)
         worked = sum(1 for c in cells if c["is_working"])
@@ -816,16 +860,37 @@ def dated_range(dates, roster, *, today=None, colors=None):
                 overnight = em <= sm
                 if overnight:
                     em += 1440
+                # Two different stories wear the same "custom_hours" kind, and a
+                # dispatcher needs to tell them apart: *covering* means they're on
+                # a day their pattern has them off (someone filling in for a
+                # teammate), *changed* means a day they normally work, different
+                # hours. Only the first is a favour worth flagging.
+                one_off = sched.get("kind") == "custom_hours"
+                usual = _pattern_working(u, d.weekday())
                 shifts.append({
                     "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
                     "role": sched.get("role") or "", "color": colors.get(u.id),
-                    "changed": sched.get("kind") == "custom_hours",
+                    "changed": one_off and usual,
+                    "covering": one_off and not usual,
+                    "ov_id": sched.get("override_id"),
+                    "ov_range": sched.get("override_range", ""),
                 })
             elif sched.get("time_off"):
                 time_off.append({**sched["time_off"], "uid": u.id, "name": name,
                                  "short": _short_name(name), "color": colors.get(u.id)})
             elif sched["is_working"] is False:
                 plain_off.add(u.id)          # a normal day off, not an absence
+            # Split-shift halves, additive to whatever the primary window said.
+            for e in scheduling.extra_shifts_on(u, d, primary=sched):
+                esm, eem = _min_of(e.start_time), _min_of(e.end_time)
+                e_overnight = eem <= esm
+                if e_overnight:
+                    eem += 1440
+                shifts.append({
+                    "uid": u.id, "name": name, "sm": esm, "em": eem, "overnight": e_overnight,
+                    "role": e.role or "", "color": colors.get(u.id),
+                    "is_extra": True, "extra_id": e.id, "extra_when": e.when_display,
+                })
             req = pending_map.get((u.id, d))
             if req:
                 pending.append({**req, "uid": u.id, "color": colors.get(u.id)})
@@ -858,7 +923,13 @@ def dated_range(dates, roster, *, today=None, colors=None):
             pending=pending,
         )
         day["date"] = d
-        day_shifts[d] = {s["uid"]: s for s in shifts}
+        # A uid can hold more than one window on a split day, so keep a list.
+        per_user = defaultdict(list)
+        for s in shifts:
+            per_user[s["uid"]].append(s)
+        for group in per_user.values():
+            group.sort(key=lambda s: (s.get("is_extra", False), s["sm"]))
+        day_shifts[d] = per_user
         day_off[d] = {t["uid"]: t for t in time_off}
         day_offday[d] = plain_off
         days.append(day)
@@ -868,9 +939,9 @@ def dated_range(dates, roster, *, today=None, colors=None):
         cells, total = [], 0
         for day in days:
             d = day["date"]
-            mine = day_shifts[d].get(u.id)
+            mine = day_shifts[d].get(u.id, [])
             cell = _row_cell(
-                mine, day=day,
+                mine[0] if mine else None, day=day, extras=mine[1:],
                 time_off=day_off[d].get(u.id),
                 pending=pending_map.get((u.id, d)),
             )
@@ -879,8 +950,7 @@ def dated_range(dates, roster, *, today=None, colors=None):
             if (u.id, d) in oncall_by_user_date:
                 oc = oncall_by_user_date[(u.id, d)]
                 cell["oncall_label"] = f"{_compact_time(oc.start_time)}–{_compact_time(oc.end_time)}"
-            if mine:
-                total += mine["em"] - mine["sm"]
+            total += sum(s["em"] - s["sm"] for s in mine)
             cells.append(cell)
         worked = sum(1 for c in cells if c["is_working"])
         rows.append({
@@ -891,6 +961,7 @@ def dated_range(dates, roster, *, today=None, colors=None):
             # "unscheduled", they're absent — so time off keeps the row visible.
             "is_empty": worked == 0 and not any(c["kind"] == "timeoff" or c.get("pending") for c in cells),
             "hours": _fmt_hours(total),
+            "typical": typical_hours(u),
         })
 
     return {"weekdays": days, "rows": rows}
@@ -928,27 +999,62 @@ def _pattern_by_dow(roster):
                     "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
                     "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em),
                 })
+        # A recurring split shift is a second window the same day — a teammate
+        # needs to see both halves, or "who am I on with" is simply wrong.
+        for e in u.extra_shifts.all():
+            if e.day_of_week is None:
+                continue
+            sm, em = _min_of(e.start_time), _min_of(e.end_time)
+            overnight = em <= sm
+            if overnight:
+                em += 1440
+            by_dow[e.day_of_week].append({
+                "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
+                "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em),
+                "is_extra": True,
+            })
     return by_dow
 
 
 def _my_shifts(me):
-    """My weekday -> shift dict (or None for an explicit off), plus has_schedule."""
+    """My weekday -> shift dict (or None for an explicit off), plus has_schedule.
+
+    On a split day the label names both halves ("9:00 AM – 1:00 PM + 5:00 PM –
+    9:00 PM"); ``sm``/``em`` stay the first window so the day story still reads
+    from where the viewer actually clocks in.
+    """
     my_shifts, has_schedule = {}, False
-    if me is not None:
-        for r in me.weekly_schedule_rows.all():
-            has_schedule = True
-            if r.is_working and r.start_time and r.end_time:
-                sm, em = _min_of(r.start_time), _min_of(r.end_time)
-                overnight = em <= sm
-                if overnight:
-                    em += 1440
-                my_shifts[r.day_of_week] = {
-                    "sm": sm, "em": em, "overnight": overnight,
-                    "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em),
-                    "label": f"{_fmt_min_long(sm)} – {_fmt_min_long(em)}",
-                }
-            else:
-                my_shifts[r.day_of_week] = None
+    if me is None:
+        return my_shifts, has_schedule
+
+    extras_by_dow = defaultdict(list)
+    for e in me.extra_shifts.all():
+        if e.day_of_week is not None:
+            extras_by_dow[e.day_of_week].append(e)
+
+    for r in me.weekly_schedule_rows.all():
+        has_schedule = True
+        if r.is_working and r.start_time and r.end_time:
+            sm, em = _min_of(r.start_time), _min_of(r.end_time)
+            overnight = em <= sm
+            if overnight:
+                em += 1440
+            label = f"{_fmt_min_long(sm)} – {_fmt_min_long(em)}"
+            halves = []
+            for e in sorted(extras_by_dow.get(r.day_of_week, []), key=lambda x: x.start_time):
+                esm, eem = _min_of(e.start_time), _min_of(e.end_time)
+                if eem <= esm:
+                    eem += 1440
+                halves.append(f"{_fmt_min_long(esm)} – {_fmt_min_long(eem)}")
+            if halves:
+                label = " + ".join([label] + halves)
+            my_shifts[r.day_of_week] = {
+                "sm": sm, "em": em, "overnight": overnight,
+                "start_label": _fmt_min_long(sm), "end_label": _fmt_min_long(em),
+                "label": label, "is_split": bool(halves),
+            }
+        else:
+            my_shifts[r.day_of_week] = None
     return my_shifts, has_schedule
 
 
@@ -1084,6 +1190,23 @@ def _pattern_working(user, dow):
     return False
 
 
+def typical_hours(user):
+    """``{"start": "07:30", "end": "16:00"}`` — this person's most common shift.
+
+    Used to prefill "add a one-off shift", so covering a teammate's day is two
+    clicks rather than typing times nobody wants to look up. Falls back to a
+    plain 9–5 for someone with no pattern yet.
+    """
+    counts = defaultdict(int)
+    for r in user.weekly_schedule_rows.all():
+        if r.is_working and r.start_time and r.end_time:
+            counts[(r.start_time, r.end_time)] += 1
+    if not counts:
+        return {"start": "09:00", "end": "17:00"}
+    (start, end), _ = max(counts.items(), key=lambda kv: (kv[1], kv[0][0]))
+    return {"start": start.strftime("%H:%M"), "end": end.strftime("%H:%M")}
+
+
 def day_view_actual(user, roster, target_date, today):
     """The *actual* day for ``target_date``: each schedule resolved against one-off
     overrides (sick/off, custom hours), so the timeline, story, and 'off today'
@@ -1100,6 +1223,14 @@ def day_view_actual(user, roster, target_date, today):
         sh = _resolved_shift(u.id, name, sched)
         if sh:
             shifts.append(sh)
+        # Both halves of a split day belong on the timeline, not just the first.
+        for e in scheduling.extra_shifts_on(u, target_date, primary=sched):
+            esm, eem = _min_of(e.start_time), _min_of(e.end_time)
+            if eem <= esm:
+                eem += 1440
+            shifts.append({"uid": u.id, "name": name, "sm": esm, "em": eem,
+                           "overnight": eem > 1440, "is_extra": True,
+                           "start_label": _fmt_min_long(esm), "end_label": _fmt_min_long(eem)})
         # Surface anyone whose day differs from their usual pattern (calm, factual).
         if sched.get("has_exception") and u.id != user.id:
             if not sched.get("is_working") and _pattern_working(u, dow):

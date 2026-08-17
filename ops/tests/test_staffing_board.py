@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ops import coverage, scheduling, timeoff
-from ops.models import StaffWeeklySchedule, StaffScheduleOverride, StaffOnCall
+from ops.models import StaffWeeklySchedule, StaffScheduleOverride, StaffOnCall, StaffExtraShift
 from ops.staff import office_staff_qs
 
 
@@ -244,6 +244,344 @@ class DatedRangeTests(TestCase):
                                     today=MONDAY + timedelta(days=1))["weekdays"]
         self.assertTrue(days[0]["is_past"])
         self.assertTrue(days[1]["is_today"])
+
+
+class CoveringShiftTests(TestCase):
+    """A one-off shift on a day someone doesn't normally work — the cover case."""
+
+    def setUp(self):
+        self.jo = _staff("jo", "Joseph")
+        _weekly(self.jo, 0, time(9), time(17))            # Mondays only
+        _weekly(self.jo, 4, None, None, is_working=False)  # explicitly off Fridays
+        self.friday = MONDAY + timedelta(days=4)
+
+    def _cover(self, start=time(9), end=time(17), end_date=None):
+        return StaffScheduleOverride.objects.create(
+            user=self.jo, date=self.friday, end_date=end_date, kind="custom_hours",
+            start_time=start, end_time=end, status="approved")
+
+    def test_one_off_puts_them_on_a_day_they_are_normally_off(self):
+        self._cover()
+        day = coverage.dated_range([self.friday], _roster(), today=MONDAY)["weekdays"][0]
+        self.assertEqual(day["on_count"], 1)
+        self.assertEqual(day["lanes"][0][0]["name"], "Joseph")
+
+    def test_it_is_marked_covering_not_merely_changed(self):
+        """The board has to say 'covering' — a favour reads differently to a tweak."""
+        self._cover()
+        bar = coverage.dated_range([self.friday], _roster(), today=MONDAY)["weekdays"][0]["lanes"][0][0]
+        self.assertTrue(bar["covering"])
+        self.assertFalse(bar["changed"])
+
+    def test_changed_hours_on_a_usual_day_is_not_covering(self):
+        StaffScheduleOverride.objects.create(
+            user=self.jo, date=MONDAY, kind="custom_hours",
+            start_time=time(11), end_time=time(15), status="approved")
+        bar = coverage.dated_range([MONDAY], _roster(), today=MONDAY)["weekdays"][0]["lanes"][0][0]
+        self.assertTrue(bar["changed"])
+        self.assertFalse(bar["covering"])
+
+    def test_the_recurring_pattern_is_untouched(self):
+        """The whole point: covering one Friday must not add every Friday."""
+        self._cover()
+        pattern = coverage.weekly_pattern(_proster(), today_dow=0)
+        friday_cell = pattern["rows"][0]["cells"][4]
+        self.assertFalse(friday_cell["is_working"])
+        self.assertEqual(friday_cell["label"], "Off")
+        self.assertEqual(pattern["weekdays"][4]["on_count"], 0)
+
+    def test_a_multi_day_cover_spans_the_range(self):
+        self._cover(end_date=self.friday + timedelta(days=1))
+        days = coverage.dated_range([self.friday, self.friday + timedelta(days=1)],
+                                    _roster(), today=MONDAY)["weekdays"]
+        self.assertEqual([d["on_count"] for d in days], [1, 1])
+        self.assertTrue(all(d["lanes"][0][0]["covering"] for d in days))
+
+    def test_cell_carries_the_override_id_so_it_can_be_removed(self):
+        ov = self._cover()
+        cell = coverage.dated_range([self.friday], _roster(), today=MONDAY)["rows"][0]["cells"][0]
+        self.assertEqual(cell["ov_id"], ov.id)
+
+    def test_typical_hours_prefill(self):
+        self.assertEqual(coverage.typical_hours(self.jo), {"start": "09:00", "end": "17:00"})
+        blank = _staff("blank", "Blank")
+        self.assertEqual(coverage.typical_hours(blank), {"start": "09:00", "end": "17:00"})
+        picky = _staff("picky", "Picky")
+        _weekly(picky, 0, time(6, 30), time(15))
+        _weekly(picky, 1, time(6, 30), time(15))
+        _weekly(picky, 2, time(11), time(19))
+        self.assertEqual(coverage.typical_hours(picky), {"start": "06:30", "end": "15:00"})
+
+
+class AddShiftEndpointTests(TestCase):
+    def setUp(self):
+        self.url = reverse("staffing_action")
+        self.jo = _staff("jo", "Joseph")
+        _weekly(self.jo, 0, time(9), time(17))
+        self.boss = User.objects.create_superuser("boss", "boss@x.com", "pw")
+        self.client.force_login(self.boss)
+        today = timezone.localdate()
+        self.friday = today + timedelta(days=(4 - today.weekday()) % 7 or 7)
+
+    def _post(self, payload):
+        return self.client.post(self.url, data=json.dumps(payload), content_type="application/json")
+
+    def _add(self, **kw):
+        body = {"action": "add_shift", "user_id": self.jo.id,
+                "date": self.friday.strftime("%Y-%m-%d"), "start": "09:00", "end": "20:00"}
+        body.update(kw)
+        return self._post(body)
+
+    def test_adds_a_single_day_cover(self):
+        self.assertTrue(self._add(note="Covering for Luis").json()["success"])
+        ov = StaffScheduleOverride.objects.get(user=self.jo, date=self.friday)
+        self.assertEqual((ov.kind, ov.status, ov.end_date), ("custom_hours", "approved", None))
+        self.assertEqual(ov.note, "Covering for Luis")
+        # And the recurring pattern gained nothing.
+        self.assertFalse(StaffWeeklySchedule.objects.filter(user=self.jo, day_of_week=4).exists())
+
+    def test_adds_a_multi_day_cover(self):
+        through = self.friday + timedelta(days=1)
+        self._add(through=through.strftime("%Y-%m-%d"))
+        ov = StaffScheduleOverride.objects.get(user=self.jo, date=self.friday)
+        self.assertEqual(ov.end_date, through)
+
+    def test_role_can_be_set_at_the_same_time(self):
+        self._add(role="closer")
+        self.assertEqual(StaffScheduleOverride.objects.get(user=self.jo, date=self.friday).role, "closer")
+
+    def test_missing_times_rejected(self):
+        self.assertFalse(self._add(start="", end="").json()["success"])
+
+    def test_identical_times_rejected(self):
+        self.assertFalse(self._add(start="09:00", end="09:00").json()["success"])
+
+    def test_backwards_range_rejected(self):
+        past = self.friday - timedelta(days=2)
+        self.assertFalse(self._add(through=past.strftime("%Y-%m-%d")).json()["success"])
+
+    def test_cannot_schedule_someone_who_is_booked_off(self):
+        timeoff.submit_request(self.jo, self.friday, by=self.boss, approved=True)
+        body = self._add().json()
+        self.assertFalse(body["success"])
+        self.assertIn("booked off", body["error"])
+
+    def test_a_clash_anywhere_in_the_range_is_caught(self):
+        timeoff.submit_request(self.jo, self.friday + timedelta(days=1), by=self.boss, approved=True)
+        body = self._add(through=(self.friday + timedelta(days=2)).strftime("%Y-%m-%d")).json()
+        self.assertFalse(body["success"])
+
+    def test_re_adding_the_same_date_updates_rather_than_duplicates(self):
+        self._add(start="09:00", end="17:00")
+        self._add(start="10:00", end="18:00")
+        rows = StaffScheduleOverride.objects.filter(user=self.jo, date=self.friday)
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.first().start_time, time(10))
+
+    def test_remove_shift(self):
+        self._add()
+        ov = StaffScheduleOverride.objects.get(user=self.jo, date=self.friday)
+        self.assertTrue(self._post({"action": "remove_shift", "id": ov.id}).json()["success"])
+        self.assertFalse(StaffScheduleOverride.objects.filter(pk=ov.id).exists())
+
+    def test_remove_shift_refuses_a_time_off_row(self):
+        ov = timeoff.submit_request(self.jo, self.friday, by=self.boss, approved=True)
+        self.assertEqual(self._post({"action": "remove_shift", "id": ov.id}).status_code, 404)
+        self.assertTrue(StaffScheduleOverride.objects.filter(pk=ov.id).exists())
+
+    def test_board_offers_add_on_an_empty_day(self):
+        html = self.client.get(reverse("staffing_board"), {"scope": "week"}).content.decode()
+        self.assertIn('class="sp-addbtn"', html)
+        self.assertIn("+ shift", html)
+
+    def test_pattern_scope_offers_no_dated_add(self):
+        """The recurring week is the wrong place to add a one-off.
+
+        Asserted on the button's class, not the data attribute — the attribute
+        also appears in the page's own JS selector, so it is always present.
+        """
+        html = self.client.get(reverse("staffing_board")).content.decode()
+        self.assertNotIn('class="sp-addbtn"', html)
+
+    def test_pattern_scope_points_at_the_week_view_instead(self):
+        """An inert cell is what sends someone hunting through the admin."""
+        html = self.client.get(reverse("staffing_board")).content.decode()
+        self.assertIn("sp-addlink", html)
+        self.assertIn("+ on a date", html)
+        self.assertIn("scope=week", html)
+
+    def test_dated_scope_tells_you_empty_days_are_clickable(self):
+        html = self.client.get(reverse("staffing_board"), {"scope": "week"}).content.decode()
+        self.assertIn("empty day to add a one-off shift", html)
+
+    def test_covering_shift_renders_its_badge_and_remove_hook(self):
+        self._add()
+        html = self.client.get(reverse("staffing_board"), {"scope": "week"}).content.decode()
+        self.assertIn("covering", html)
+        self.assertIn("data-cover-id", html)
+
+
+class SplitShiftTests(TestCase):
+    """Morning shift, long gap, evening shift — two windows on one day."""
+
+    def setUp(self):
+        self.iris = _staff("iris", "Iris")
+        _weekly(self.iris, 2, time(9), time(13))          # Wednesday morning
+        self.wed = MONDAY + timedelta(days=2)
+
+    def _extra(self, start=time(17), end=time(21), recurring=True, role=""):
+        return StaffExtraShift.objects.create(
+            user=self.iris, day_of_week=2 if recurring else None,
+            date=None if recurring else self.wed,
+            start_time=start, end_time=end, role=role)
+
+    def test_recurring_split_shows_both_windows_on_the_pattern(self):
+        self._extra()
+        day = coverage.weekly_pattern(_proster(), today_dow=2)["weekdays"][2]
+        labels = sorted(b["label"] for lane in day["lanes"] for b in lane)
+        self.assertEqual(labels, ["5p–9p", "9a–1p"])
+
+    def test_one_off_split_shows_on_that_date_only(self):
+        self._extra(recurring=False)
+        wed = coverage.dated_range([self.wed], _roster(), today=MONDAY)["weekdays"][0]
+        self.assertEqual(len([b for lane in wed["lanes"] for b in lane]), 2)
+        nxt = coverage.dated_range([self.wed + timedelta(days=7)], _roster(), today=MONDAY)["weekdays"][0]
+        self.assertEqual(len([b for lane in nxt["lanes"] for b in lane]), 1)
+
+    def test_the_gap_between_halves_is_real_uncovered_time(self):
+        """1 PM–5 PM has nobody on — the board must not paper over it."""
+        self._extra()
+        day = coverage.weekly_pattern(_proster(), today_dow=2)["weekdays"][2]
+        self.assertEqual(day["cue"]["level"], "crit")
+        self.assertTrue(any(g["left"] <= _pct(13 * 60) and g["width"] > 0 for g in day["rail_gaps"]))
+
+    def test_cell_stacks_the_second_window(self):
+        self._extra()
+        cell = coverage.weekly_pattern(_proster(), today_dow=2)["rows"][0]["cells"][2]
+        self.assertEqual(cell["label"], "9a–1p")
+        self.assertEqual([x["label"] for x in cell["extras"]], ["5p–9p"])
+
+    def test_hours_count_both_halves(self):
+        self._extra()
+        row = coverage.weekly_pattern(_proster(), today_dow=2)["rows"][0]
+        self.assertEqual(row["hours"], "8h")          # 4h morning + 4h evening
+
+    def test_opener_and_closer_land_on_the_right_half(self):
+        """The same person holds both windows; only the morning one opens."""
+        self._extra()
+        day = coverage.weekly_pattern(_proster(), today_dow=2)["weekdays"][2]
+        bars = sorted((b for lane in day["lanes"] for b in lane), key=lambda b: b["left"])
+        self.assertEqual((bars[0]["is_opener"], bars[0]["is_closer"]), (True, False))
+        self.assertEqual((bars[1]["is_opener"], bars[1]["is_closer"]), (False, True))
+
+    def test_approved_time_off_clears_the_whole_day(self):
+        """A recurring evening half must not survive a day off."""
+        self._extra()
+        StaffScheduleOverride.objects.create(
+            user=self.iris, date=self.wed, kind="off", status="approved", reason="pto")
+        day = coverage.dated_range([self.wed], _roster(), today=MONDAY)["weekdays"][0]
+        self.assertEqual(day["on_count"], 0)
+        self.assertEqual([t["name"] for t in day["time_off"]], ["Iris"])
+
+    def test_pending_time_off_leaves_the_split_intact(self):
+        self._extra()
+        StaffScheduleOverride.objects.create(
+            user=self.iris, date=self.wed, kind="off", status="pending", requested_by_staff=True)
+        day = coverage.dated_range([self.wed], _roster(), today=MONDAY)["weekdays"][0]
+        self.assertEqual(day["on_count"], 2)
+
+    def test_model_refuses_both_or_neither_of_date_and_weekday(self):
+        from django.core.exceptions import ValidationError
+        both = StaffExtraShift(user=self.iris, day_of_week=2, date=self.wed,
+                               start_time=time(17), end_time=time(21))
+        with self.assertRaises(ValidationError):
+            both.clean()
+        neither = StaffExtraShift(user=self.iris, start_time=time(17), end_time=time(21))
+        with self.assertRaises(ValidationError):
+            neither.clean()
+
+    def test_scheduled_minutes_sum_both_halves(self):
+        """Otherwise an 8h split day reads 'Short' against a 4h primary window."""
+        self._extra()
+        u = User.objects.prefetch_related(
+            "weekly_schedule_rows", "schedule_overrides", "extra_shifts").get(pk=self.iris.pk)
+        vs = scheduling.schedule_vs_actual(u, self.wed, shifts=[], now=timezone.now())
+        self.assertEqual(vs["scheduled_minutes"], 480)
+        self.assertTrue(vs["is_split"])
+        # Same clock format the single-window label uses (drivers.fmt_time_long,
+        # which drops a whole-hour ":00") — just both halves, joined.
+        self.assertEqual(vs["scheduled_label"], "9 AM – 1 PM + 5 PM – 9 PM")
+
+    def test_my_schedule_label_names_both_halves(self):
+        self._extra()
+        roster = list(office_staff_qs().prefetch_related("weekly_schedule_rows", "extra_shifts"))
+        wed = coverage.my_week(self.iris, roster, today_dow=2)["days"][2]
+        self.assertEqual(wed["label"], "9:00 AM – 1:00 PM + 5:00 PM – 9:00 PM")
+        self.assertEqual(len(wed["roster_on"]), 2)   # both halves listed
+
+
+def _pct(minutes):
+    return round(minutes / 1440 * 100, 3)
+
+
+class SplitShiftEndpointTests(TestCase):
+    def setUp(self):
+        self.url = reverse("staffing_action")
+        self.iris = _staff("iris", "Iris")
+        _weekly(self.iris, 2, time(9), time(13))
+        self.boss = User.objects.create_superuser("boss", "boss@x.com", "pw")
+        self.client.force_login(self.boss)
+        today = timezone.localdate()
+        self.wed = today + timedelta(days=(2 - today.weekday()) % 7 or 7)
+
+    def _post(self, payload):
+        return self.client.post(self.url, data=json.dumps(payload), content_type="application/json")
+
+    def test_adding_to_a_day_they_already_work_makes_a_second_shift(self):
+        resp = self._post({"action": "add_shift", "user_id": self.iris.id,
+                           "date": self.wed.strftime("%Y-%m-%d"), "start": "17:00", "end": "21:00"})
+        self.assertTrue(resp.json()["as_extra"])
+        self.assertEqual(StaffExtraShift.objects.filter(user=self.iris).count(), 1)
+        # ...and the morning window is untouched.
+        self.assertEqual(StaffWeeklySchedule.objects.get(user=self.iris, day_of_week=2).start_time, time(9))
+        self.assertFalse(StaffScheduleOverride.objects.filter(user=self.iris).exists())
+
+    def test_explicit_as_extra_on_an_empty_day(self):
+        thu = self.wed + timedelta(days=1)
+        self._post({"action": "add_shift", "user_id": self.iris.id, "as_extra": True,
+                    "date": thu.strftime("%Y-%m-%d"), "start": "17:00", "end": "21:00"})
+        self.assertEqual(StaffExtraShift.objects.filter(user=self.iris, date=thu).count(), 1)
+
+    def test_multi_day_split_creates_one_row_per_day(self):
+        self._post({"action": "add_shift", "user_id": self.iris.id, "as_extra": True,
+                    "date": self.wed.strftime("%Y-%m-%d"),
+                    "through": (self.wed + timedelta(days=2)).strftime("%Y-%m-%d"),
+                    "start": "17:00", "end": "21:00"})
+        self.assertEqual(StaffExtraShift.objects.filter(user=self.iris).count(), 3)
+
+    def test_recurring_split(self):
+        resp = self._post({"action": "add_recurring_extra", "user_id": self.iris.id,
+                           "dow": 2, "start": "17:00", "end": "21:00", "role": "closer"})
+        self.assertTrue(resp.json()["success"])
+        x = StaffExtraShift.objects.get(user=self.iris)
+        self.assertEqual((x.day_of_week, x.date, x.role), (2, None, "closer"))
+
+    def test_recurring_split_rejects_a_bad_weekday(self):
+        self.assertFalse(self._post({"action": "add_recurring_extra", "user_id": self.iris.id,
+                                     "dow": 9, "start": "17:00", "end": "21:00"}).status_code == 200)
+
+    def test_remove_a_split_half(self):
+        x = StaffExtraShift.objects.create(user=self.iris, day_of_week=2,
+                                           start_time=time(17), end_time=time(21))
+        self.assertTrue(self._post({"action": "remove_shift", "extra_id": x.id}).json()["success"])
+        self.assertFalse(StaffExtraShift.objects.filter(pk=x.id).exists())
+
+    def test_board_renders_the_second_chip_and_its_controls(self):
+        StaffExtraShift.objects.create(user=self.iris, day_of_week=2,
+                                       start_time=time(17), end_time=time(21))
+        html = self.client.get(reverse("staffing_board")).content.decode()
+        self.assertIn("sp-chip sp-split", html)
+        self.assertIn("data-extra-id", html)
 
 
 class TimeOffModuleTests(TestCase):

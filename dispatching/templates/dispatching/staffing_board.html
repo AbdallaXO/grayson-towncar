@@ -163,6 +163,27 @@
   .sp-rolebtn { border:none; background:none; padding:0; margin:0; cursor:pointer; font:inherit; color:inherit; display:inline-flex; }
   .sp-rolebtn:hover .sp-chip { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-soft); }
 
+  /* A one-off cover: somebody on a day their pattern has them off. Dashed so it
+     reads as "not the usual" without competing with time off's red. */
+  .sp-chip.sp-cover { border-style:dashed; border-left-style:solid; }
+  /* The later half of a split day: same person colour, lighter ground, so the
+     pair reads as one person twice rather than two people. */
+  .sp-chip.sp-split { background:var(--surface); border-left-style:dotted; border-left-width:5px; }
+  .sp-covmark { font-size:.68rem; font-weight:750; letter-spacing:.03em; text-transform:uppercase;
+    color:var(--oncall); background:rgba(90,74,148,.12); border-radius:999px; padding:.05rem .4rem; }
+  .sp-chgmark { font-size:.68rem; font-weight:650; color:var(--faint); }
+
+  /* Empty day: a quiet "+ shift" that only shows on hover, so an unused roster
+     doesn't turn into a wall of buttons. */
+  .sp-addbtn { border:1px dashed transparent; background:none; padding:.2rem .45rem; margin:0; cursor:pointer;
+    font:inherit; color:inherit; border-radius:8px; display:inline-flex; flex-direction:column; align-items:center;
+    gap:.05rem; line-height:1.2; }
+  .sp-addbtn .sp-plus { font-size:.68rem; font-weight:700; color:var(--gold); opacity:0; transition:opacity .12s ease; }
+  .sp-addbtn:hover { border-color:var(--gold-line); background:var(--gold-soft); }
+  .sp-addbtn:hover .sp-plus, .sp-addbtn:focus-visible .sp-plus { opacity:1; }
+  .sp-addbtn:hover .sp-hrs { color:var(--gold); }
+  .sp-addlink { text-decoration:none; color:inherit; }
+
   /* ── Timeline ── */
   .sp-tlinner { min-width:960px; }
   .sp-tlaxis { position:relative; height:24px; margin:.4rem 1.1rem 0; }
@@ -195,7 +216,10 @@
   .sp-bar.sp-open { box-shadow:inset 4px 0 0 -1px var(--open); }
   .sp-bar.sp-close { box-shadow:inset -4px 0 0 -1px var(--close); }
   .sp-bar.sp-open.sp-close { box-shadow:inset 4px 0 0 -1px var(--open), inset -4px 0 0 -1px var(--close); }
-  .sp-bar.sp-changed { border-style:dashed; }
+  .sp-bar.sp-changed { border-style:dashed; border-left-style:solid; }
+  .sp-barcov { font-family:ui-sans-serif,system-ui,sans-serif; font-size:.66rem; font-weight:750;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--oncall);
+    background:rgba(90,74,148,.14); border-radius:999px; padding:.05rem .35rem; }
   .sp-bar.sp-oncall { background:transparent; border:1px dashed var(--line2); border-left:1px dashed var(--line2);
     color:var(--muted); font-family:inherit; font-weight:650; font-size:.82rem;
     background-image:repeating-linear-gradient(45deg,var(--oc-hatch) 0 5px,transparent 5px 10px); }
@@ -273,6 +297,22 @@
   .sp-pop button:hover { background:var(--surface2); }
   .sp-pop button.on { background:var(--gold-soft); color:var(--gold); font-weight:650; }
   .sp-pop .sp-ic { width:13px; height:13px; }
+  .sp-popsep { height:1px; background:var(--line); margin:.35rem .3rem; }
+  .sp-pop .sp-popdel { color:var(--crit); font-weight:650; }
+  .sp-pop .sp-popdel:hover { background:var(--crit-soft); }
+
+  /* The add-a-shift form popover. */
+  .sp-pop-form { min-width:270px; padding:.7rem .8rem .8rem; }
+  .sp-pophint { font-size:.74rem; color:var(--muted); margin:0 0 .6rem; line-height:1.4; }
+  .sp-poprow { display:flex; gap:.5rem; }
+  .sp-pop-form label { display:flex; flex-direction:column; gap:.2rem; font-size:.68rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:.06em; color:var(--faint); flex:1; margin-bottom:.5rem; }
+  .sp-pop-form label span { text-transform:none; letter-spacing:0; font-weight:500; }
+  .sp-pop-form label.sp-popfull { width:100%; }
+  .sp-pop-form input, .sp-pop-form select { font:inherit; font-size:.85rem; font-weight:500; text-transform:none;
+    letter-spacing:0; color:var(--ink); padding:.36rem .45rem; border:1px solid var(--line2); border-radius:7px;
+    background:var(--surface); width:100%; }
+  .sp-popacts { display:flex; justify-content:flex-end; gap:.4rem; margin-top:.2rem; }
 
   .sp-toast { position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%); z-index:200;
     background:var(--ink); color:#fff; font-size:.82rem; padding:.55rem 1rem; border-radius:9px;
@@ -323,8 +363,12 @@
       <div>
         <h1 class="sp-title"><svg class="sp-ic"><use href="#sp-cal"/></svg>Staffing &amp; Coverage</h1>
         <p class="sp-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} &middot;
-          {% if is_dated %}who&rsquo;s actually on for these dates &mdash; including approved time off and changed hours.{% else %}the standard week &mdash; who works each day and who opens &amp; closes.{% endif %}
-          Click a name to edit their hours; click a shift to assign the opener or closer.</p>
+          {% if is_dated %}who&rsquo;s actually on for these dates &mdash; including approved time off and changed hours.
+            Click a shift for its role, an <b>empty day to add a one-off shift</b>, or a name to edit their standard hours.
+          {% else %}the standard week &mdash; who works each day and who opens &amp; closes.
+            Click a shift to assign the opener or closer, or a name to edit their hours.
+            To put someone on a day they don&rsquo;t normally work, switch to <a href="?scope=week&amp;start={{ nav.this_week }}">Week</a> &mdash; a cover belongs on a date, not on every week.
+          {% endif %}</p>
       </div>
       <div class="sp-toggle" role="group" aria-label="View">
         <button type="button" class="sp-tgl active" data-view="table">Table</button>
@@ -440,20 +484,53 @@
               <button type="button" class="sp-rolebtn" data-role-btn
                       data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ c.role }}"
                       {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
-                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.changed %} · changed for this date{% endif %} — click to assign a role">
-                <span class="sp-chip" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
+                      {% if c.covering %}data-cover-id="{{ c.ov_id }}" data-cover-range="{{ c.ov_range }}"{% endif %}
+                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %} — click for role{% if c.covering %} or to remove the cover{% endif %}">
+                <span class="sp-chip{% if c.covering %} sp-cover{% endif %}" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
                   {% if c.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
                   {{ c.label }}
                   {% if c.is_closer %}<svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{% endif %}
                 </span>
               </button>
+              {% for x in c.extras %}
+              <button type="button" class="sp-rolebtn" data-role-btn
+                      data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ x.role }}"
+                      data-extra-id="{{ x.extra_id }}" data-extra-when="{{ x.extra_when }}"
+                      {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
+                      title="{{ row.name }} · {{ x.label }} · second shift{% if x.role_label %} · {{ x.role_label }}{% endif %} — click for role or to remove it">
+                <span class="sp-chip sp-split" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
+                  {% if x.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
+                  {{ x.label }}
+                  {% if x.is_closer %}<svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{% endif %}
+                </span>
+              </button>
+              {% endfor %}
+              {% if c.covering %}<span class="sp-covmark">covering</span>{% elif c.changed %}<span class="sp-chgmark">hours changed</span>{% endif %}
               {% if c.oncall_label %}<span class="sp-oc">on-call {{ c.oncall_label }}</span>{% endif %}
             {% elif c.kind == 'timeoff' %}
               <span class="sp-chip" title="{{ c.time_off.reason_label }}{% if c.time_off.note %} — {{ c.time_off.note }}{% endif %} · {{ c.time_off.range_display }}">
                 <svg class="sp-ic" style="color:var(--toff)"><use href="#sp-away"/></svg>{{ c.label }}</span>
-            {% else %}
-              <span class="sp-hrs">{{ c.label }}</span>
+            {% elif is_dated %}
+              <button type="button" class="sp-addbtn" data-add-shift
+                      data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-date="{{ c.key }}"
+                      data-daylabel="{{ c.day_label }}"
+                      data-start="{{ row.typical.start }}" data-end="{{ row.typical.end }}"
+                      title="{{ row.name }} isn't on this day — click to add a one-off shift (covering)">
+                <span class="sp-hrs">{{ c.label }}</span>
+                <span class="sp-plus">+ shift</span>
+              </button>
               {% if c.pending %}<span class="sp-pendmark">requested off</span>{% endif %}
+            {% else %}
+              {% comment %}
+              Pattern scope: an empty day can't take a one-off (there's no date to
+              hang it on), so point at the dated week rather than going inert —
+              a dead cell is what sends someone hunting through the admin.
+              {% endcomment %}
+              <a class="sp-addbtn sp-addlink" href="?scope=week&amp;start={{ nav.this_week }}"
+                 title="{{ row.name }} doesn't work {{ c.day_name }} normally. To have them cover one, open the Week view and add a one-off shift on that date.">
+                <span class="sp-hrs">{{ c.label }}</span>
+                <span class="sp-plus">+ on a date</span>
+              </a>
             {% endif %}
             {% if c.is_working and c.pending %}<span class="sp-pendmark">off requested</span>{% endif %}
           </div>
@@ -498,11 +575,12 @@
             {% for lane in wd.lanes %}
             <div class="sp-lane">
               {% for b in lane %}
-              <div class="sp-bar{% if b.is_opener %} sp-open{% endif %}{% if b.is_closer %} sp-close{% endif %}{% if b.tight %} sp-tight{% endif %}{% if b.changed %} sp-changed{% endif %}"
+              <div class="sp-bar{% if b.is_opener %} sp-open{% endif %}{% if b.is_closer %} sp-close{% endif %}{% if b.tight %} sp-tight{% endif %}{% if b.changed or b.covering %} sp-changed{% endif %}"
                    style="left:{{ b.left }}%;width:{{ b.width }}%;--c-fill:{{ b.color.fill }};--c-line:{{ b.color.line }};--c-ink:{{ b.color.ink }};--c-glow:{{ b.color.glow }}"
-                   title="{{ b.name }} · {{ b.label }}{% if b.role_label %} · {{ b.role_label }}{% endif %}{% if b.changed %} · changed for this date{% endif %}">
+                   title="{{ b.name }} · {{ b.label }}{% if b.role_label %} · {{ b.role_label }}{% endif %}{% if b.covering %} · covering, not their usual day{% elif b.changed %} · changed hours for this date{% endif %}">
                 {% if b.is_opener %}<svg class="sp-ic op"><use href="#sp-sun"/></svg>{% endif %}
                 <span class="sp-nm">{% if b.tight %}{{ b.short }}{% else %}{{ b.name }}{% endif %}</span>{% if not b.tight %} {{ b.label }}{% endif %}
+                {% if b.covering and not b.tight %}<span class="sp-barcov">covering</span>{% endif %}
                 {% if b.is_closer %}<svg class="sp-ic cl"><use href="#sp-moon"/></svg>{% endif %}
               </div>
               {% endfor %}
@@ -609,6 +687,37 @@
         {% elif val == 'mid' %}<svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>
         {% else %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}{{ lbl }}</button>
       {% endfor %}
+      <div class="sp-popsep" data-extras-sep hidden></div>
+      <button type="button" data-add-second hidden>
+        <svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>Add a second shift this day</button>
+      <button type="button" class="sp-popdel" data-remove-cover hidden>
+        <svg class="sp-ic" style="color:var(--crit)"><use href="#sp-dash"/></svg><span data-remove-label>Remove this one-off shift</span></button>
+    </div>
+
+    {# Add a one-off shift — someone covering a day they don't normally work. #}
+    <div class="sp-pop sp-pop-form" id="spShiftPop" hidden>
+      <h3 data-shift-title>Add a shift</h3>
+      <p class="sp-pophint" data-shift-hint>A one-off for this date only &mdash; their standard week is untouched.</p>
+      <form id="spShiftForm">
+        <div class="sp-poprow">
+          <label>From<input type="time" name="start" required></label>
+          <label>To<input type="time" name="end" required></label>
+        </div>
+        <label class="sp-popfull">Through <span>(optional &mdash; for a 2+ day cover)</span>
+          <input type="date" name="through"></label>
+        <label class="sp-popfull">Role
+          <select name="role">
+            <option value="">No role &mdash; derive from hours</option>
+            {% for val, lbl in role_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="sp-popfull">Note <span>(optional)</span>
+          <input type="text" name="note" maxlength="200" placeholder="Covering for &hellip;"></label>
+        <div class="sp-popacts">
+          <button type="button" class="sp-btn" data-shift-cancel>Cancel</button>
+          <button type="submit" class="sp-btn ok">Add shift</button>
+        </div>
+      </form>
     </div>
     </div>
   </div>
@@ -686,37 +795,118 @@
     }).then(function (r) { return r.json(); });
   }
 
-  /* ── Role picker ── */
+  /* ── Popovers: role picker, and the add-a-shift form ── */
   var pop = document.getElementById('spRolePop'), popFor = null;
-  function closePop() { if (pop) { pop.hidden = true; } popFor = null; }
+  var shiftPop = document.getElementById('spShiftPop'), shiftFor = null;
+
+  function closePop() { if (pop) pop.hidden = true; popFor = null; }
+  function closeShift() { if (shiftPop) shiftPop.hidden = true; shiftFor = null; }
+  function closeAll() { closePop(); closeShift(); }
+
+  // Anchor a popover under whatever was clicked, kept inside the viewport.
+  function place(el, anchor) {
+    el.hidden = false;
+    var r = anchor.getBoundingClientRect();
+    var left = Math.min(r.left + window.scrollX, window.innerWidth - el.offsetWidth - 12);
+    el.style.top = (r.bottom + window.scrollY + 6) + 'px';
+    el.style.left = Math.max(8, left) + 'px';
+  }
 
   document.addEventListener('click', function (e) {
-    var btn = e.target.closest('[data-role-btn]');
-    if (!btn || !pop) {
-      if (pop && !e.target.closest('#spRolePop')) closePop();
+    var roleBtn = e.target.closest('[data-role-btn]');
+    var addBtn = e.target.closest('[data-add-shift]');
+
+    if (roleBtn && pop) {
+      e.stopPropagation();
+      closeShift();
+      popFor = roleBtn;
+      pop.querySelector('[data-pop-title]').textContent =
+        roleBtn.dataset.name + (IS_DATED ? ' · this date' : ' · every week');
+      [].forEach.call(pop.querySelectorAll('button[data-role]'), function (b) {
+        b.classList.toggle('on', b.dataset.role === (roleBtn.dataset.role || ''));
+      });
+      // Removable only if this window is a one-off: a cover override, or the
+      // second half of a split day. A plain recurring shift is edited elsewhere.
+      var isCover = !!roleBtn.dataset.coverId, isExtra = !!roleBtn.dataset.extraId;
+      var del = pop.querySelector('[data-remove-cover]');
+      del.hidden = !(isCover || isExtra);
+      del.querySelector('[data-remove-label]').textContent =
+        isExtra ? 'Remove this second shift' : 'Remove this one-off shift';
+      // Offer a second shift only on a dated day, and not from an extra itself.
+      var canSplit = IS_DATED && !isExtra;
+      pop.querySelector('[data-add-second]').hidden = !canSplit;
+      pop.querySelector('[data-extras-sep]').hidden = !(canSplit || isCover || isExtra);
+      place(pop, roleBtn);
       return;
     }
-    e.stopPropagation();
-    popFor = btn;
-    pop.querySelector('[data-pop-title]').textContent =
-      btn.dataset.name + (IS_DATED ? ' · this date' : ' · every week');
-    [].forEach.call(pop.querySelectorAll('button[data-role]'), function (b) {
-      b.classList.toggle('on', b.dataset.role === (btn.dataset.role || ''));
-    });
-    var r = btn.getBoundingClientRect();
-    pop.hidden = false;
-    var top = r.bottom + window.scrollY + 6;
-    var left = Math.min(r.left + window.scrollX, window.innerWidth - pop.offsetWidth - 12);
-    pop.style.top = top + 'px';
-    pop.style.left = Math.max(8, left) + 'px';
+
+    if (addBtn && shiftPop) {
+      e.stopPropagation();
+      closePop();
+      shiftFor = addBtn;
+      shiftPop.dataset.mode = 'primary';
+      shiftPop.querySelector('[data-shift-title]').textContent =
+        addBtn.dataset.name + ' · ' + (addBtn.dataset.daylabel || addBtn.dataset.date);
+      shiftPop.querySelector('[data-shift-hint]').textContent =
+        "A one-off for this date only — their standard week is untouched.";
+      var f = shiftPop.querySelector('#spShiftForm');
+      f.reset();
+      f.start.value = addBtn.dataset.start || '09:00';
+      f.end.value = addBtn.dataset.end || '17:00';
+      f.through.min = addBtn.dataset.date;
+      place(shiftPop, addBtn);
+      f.start.focus();
+      return;
+    }
+
+    if (!e.target.closest('#spRolePop') && !e.target.closest('#spShiftPop')) closeAll();
   });
 
   if (pop) {
     pop.addEventListener('click', function (e) {
+      if (!popFor) return;
+      var target = popFor;
+
+      // "Add a second shift" hands off to the same form the empty cells use,
+      // pre-aimed at this person and date, flagged so it adds rather than replaces.
+      if (e.target.closest('[data-add-second]')) {
+        closePop();
+        if (!shiftPop) return;
+        shiftFor = target;
+        shiftPop.dataset.mode = 'extra';
+        shiftPop.querySelector('[data-shift-title]').textContent =
+          target.dataset.name + ' · second shift';
+        shiftPop.querySelector('[data-shift-hint]').textContent =
+          'Added alongside their existing shift that day — the gap in between is simply off.';
+        var sf = shiftPop.querySelector('#spShiftForm');
+        sf.reset();
+        sf.start.value = '17:00';
+        sf.end.value = '21:00';
+        sf.through.min = target.dataset.date || '';
+        place(shiftPop, target);
+        sf.start.focus();
+        return;
+      }
+
+      if (e.target.closest('[data-remove-cover]')) {
+        var isExtraRow = !!target.dataset.extraId;
+        var range = target.dataset.extraWhen || target.dataset.coverRange || 'this shift';
+        closePop();
+        if (!window.confirm('Remove the ' + (isExtraRow ? 'second shift' : 'one-off shift') +
+                            ' on ' + range + '? Their standard week is unchanged.')) return;
+        var body = isExtraRow
+          ? { action: 'remove_shift', extra_id: target.dataset.extraId }
+          : { action: 'remove_shift', id: target.dataset.coverId };
+        post(body).then(function (d) {
+          if (!d.success) { toast(d.error || 'Could not remove that.', true); return; }
+          window.location.reload();
+        }).catch(function () { toast('Network error.', true); });
+        return;
+      }
+
       var b = e.target.closest('button[data-role]');
-      if (!b || !popFor) return;
-      var target = popFor, role = b.dataset.role;
-      var payload = { action: 'set_role', user_id: target.dataset.user, role: role };
+      if (!b) return;
+      var payload = { action: 'set_role', user_id: target.dataset.user, role: b.dataset.role };
       if (target.dataset.date) payload.date = target.dataset.date; else payload.dow = target.dataset.dow;
       closePop();
       post(payload).then(function (d) {
@@ -725,7 +915,26 @@
       }).catch(function () { toast('Network error.', true); });
     });
   }
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+
+  if (shiftPop) {
+    shiftPop.querySelector('[data-shift-cancel]').addEventListener('click', closeShift);
+    shiftPop.querySelector('#spShiftForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!shiftFor) return;
+      var f = new FormData(e.target), target = shiftFor;
+      post({
+        action: 'add_shift', user_id: target.dataset.user, date: target.dataset.date,
+        start: f.get('start'), end: f.get('end'), through: f.get('through'),
+        role: f.get('role'), note: f.get('note'),
+        as_extra: shiftPop.dataset.mode === 'extra'
+      }).then(function (d) {
+        if (!d.success) { toast(d.error || 'Could not add that shift.', true); return; }
+        toast('Shift added.');
+        window.location.reload();
+      }).catch(function () { toast('Network error.', true); });
+    });
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(); });
 
   /* ── Time off: approve / decline / remove / add ── */
   document.addEventListener('click', function (e) {

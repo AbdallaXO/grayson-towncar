@@ -29,6 +29,7 @@ from .models import (
     StaffWeeklySchedule,
     StaffScheduleOverride,
     StaffOnCall,
+    StaffExtraShift,
     STAFF_ROLE_CHOICES,
 )
 from .services import close_task, cancel_task, log_communication, create_task
@@ -4476,7 +4477,7 @@ def timeclock_view(request):
     today = timezone.localdate()
     monday = today - timedelta(days=today.weekday())
     sched_user = (
-        User.objects.prefetch_related("schedule_overrides", "weekly_schedule_rows")
+        User.objects.prefetch_related("schedule_overrides", "weekly_schedule_rows", "extra_shifts")
         .get(pk=request.user.pk)
     )
     today_schedule = scheduling.resolve_staff_schedule(sched_user, today)
@@ -4709,7 +4710,7 @@ def timeclock_manage(request):
     auto_close_stale_shifts()
     now = timezone.now()
     today = timezone.localdate()
-    roster = list(_office_staff_qs().prefetch_related("schedule_overrides", "weekly_schedule_rows"))
+    roster = list(_office_staff_qs().prefetch_related("schedule_overrides", "weekly_schedule_rows", "extra_shifts"))
 
     open_by_user = {}
     for s in (
@@ -4888,7 +4889,7 @@ def timeclock_staff_detail(request, user_id):
 
     today = timezone.localdate()
     monday = today - timedelta(days=today.weekday())
-    sched_user = User.objects.prefetch_related("schedule_overrides", "weekly_schedule_rows").get(pk=staff_user.pk)
+    sched_user = User.objects.prefetch_related("schedule_overrides", "weekly_schedule_rows", "extra_shifts").get(pk=staff_user.pk)
     week_sched = scheduling.week_schedule(sched_user, monday)
     weekly_rows = {r.day_of_week: r for r in sched_user.weekly_schedule_rows.all()}
     weekly_editor = []
@@ -4945,6 +4946,7 @@ def timeclock_staff_detail(request, user_id):
         "overrides": overrides,
         "vs_rows": vs_rows,
         "role_choices": STAFF_ROLE_CHOICES,
+        "extra_shifts": list(sched_user.extra_shifts.all()),
     })
 
 
@@ -5101,6 +5103,11 @@ def staff_schedule_action(request):
     return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
 
 
+def _dates_between(start, end):
+    """Inclusive list of dates from ``start`` to ``end``."""
+    return [start + timedelta(days=i) for i in range((end - start).days + 1)]
+
+
 def _staffing_scope(request, today):
     """Resolve the board's scope from the query string.
 
@@ -5166,7 +5173,7 @@ def staffing_board(request):
     today = timezone.localdate()
     scope, dates, scope_label, scope_sub = _staffing_scope(request, today)
 
-    prefetch = ["weekly_schedule_rows"] + ([] if scope == "pattern" else ["schedule_overrides"])
+    prefetch = ["weekly_schedule_rows", "extra_shifts"] + ([] if scope == "pattern" else ["schedule_overrides"])
     roster = list(_office_staff_qs().prefetch_related(*prefetch))
     colors = coverage.assign_colors(roster)
 
@@ -5256,7 +5263,7 @@ def staffing_action(request):
             # a "note" override written over an approved day off would outrank it
             # (single-date overrides resolve newest-first) and quietly put them
             # back on the board.
-            sched_u = User.objects.prefetch_related("weekly_schedule_rows", "schedule_overrides").get(pk=u.pk)
+            sched_u = User.objects.prefetch_related("weekly_schedule_rows", "schedule_overrides", "extra_shifts").get(pk=u.pk)
             if not scheduling.resolve_staff_schedule(sched_u, date_)["is_working"]:
                 return JsonResponse({"success": False, "error": "That dispatcher isn't working that day."})
 
@@ -5289,6 +5296,103 @@ def staffing_action(request):
         row.role = role
         row.save(update_fields=["role", "updated_at"])
         return JsonResponse({"success": True, "role": role, "scope": "weekly"})
+
+    if action == "add_shift":
+        # Somebody covering a day they don't normally work — Joseph taking a Friday
+        # while Luis is away. This is deliberately a one-off dated exception and
+        # never a change to the recurring pattern: flipping "every Friday" on and
+        # hoping to remember to flip it back is how a roster silently goes wrong
+        # for months.
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        date_ = _parse_ymd(data.get("date"))
+        if not date_:
+            return JsonResponse({"success": False, "error": "A date is required."})
+        through = _parse_ymd(data.get("through"))
+        if through and through < date_:
+            return JsonResponse({"success": False, "error": "The last day must be on or after the first."})
+        if through and (through - date_).days > 30:
+            return JsonResponse({"success": False, "error": "Keep a one-off cover to 31 days or fewer."})
+        start_t, end_t = _parse_hm(data.get("start")), _parse_hm(data.get("end"))
+        if start_t is None or end_t is None:
+            return JsonResponse({"success": False, "error": "A start and end time are required."})
+        if start_t == end_t:
+            return JsonResponse({"success": False, "error": "The start and end times can't match."})
+
+        role = (data.get("role") or "").strip()
+        if role not in dict(STAFF_ROLE_CHOICES):
+            role = ""
+
+        # Scheduling somebody who is approved off is a contradiction, not an
+        # override — say so instead of silently outranking their time off.
+        sched_u = User.objects.prefetch_related("weekly_schedule_rows", "schedule_overrides", "extra_shifts").get(pk=u.pk)
+        clash_days = [d for d in _dates_between(date_, through or date_)
+                      if scheduling.resolve_staff_schedule(sched_u, d).get("time_off")]
+        if clash_days:
+            when = clash_days[0].strftime("%b %d").replace(" 0", " ")
+            return JsonResponse({"success": False, "error": (
+                f"{u.get_full_name() or u.username} is booked off on {when} — "
+                "remove that time off first.")})
+
+        # If they already have a window that day, a second one is a SPLIT shift,
+        # not a replacement — writing another override would silently overwrite
+        # the morning half. But re-submitting for a date that already has a
+        # one-off override is an *edit* of that cover, not a split, or fixing a
+        # typo would quietly leave them scheduled twice.
+        existing_cover = StaffScheduleOverride.objects.filter(
+            user=u, date=date_, end_date__isnull=True, kind="custom_hours", status="approved",
+        ).first()
+        already_on = bool(scheduling.resolve_staff_schedule(sched_u, date_)["is_working"])
+        as_extra = bool(data.get("as_extra")) or (already_on and existing_cover is None)
+        if as_extra:
+            for d in _dates_between(date_, through or date_):
+                StaffExtraShift.objects.create(
+                    user=u, date=d, start_time=start_t, end_time=end_t, role=role,
+                    note=(data.get("note") or "")[:200], created_by=request.user,
+                )
+            return JsonResponse({"success": True, "as_extra": True})
+
+        StaffScheduleOverride.objects.update_or_create(
+            user=u, date=date_, end_date=through if through and through != date_ else None,
+            defaults={"kind": "custom_hours", "start_time": start_t, "end_time": end_t,
+                      "role": role, "reason": "", "status": "approved",
+                      "requested_by_staff": False, "created_by": request.user,
+                      "note": (data.get("note") or "")[:200]},
+        )
+        return JsonResponse({"success": True})
+
+    if action == "add_recurring_extra":
+        # The same split, every week — e.g. Iris works 9–1 and 5–9 every Wednesday.
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        try:
+            dow = int(data.get("dow"))
+        except (TypeError, ValueError):
+            dow = -1
+        if not 0 <= dow <= 6:
+            return JsonResponse({"success": False, "error": "A weekday is required."}, status=400)
+        start_t, end_t = _parse_hm(data.get("start")), _parse_hm(data.get("end"))
+        if start_t is None or end_t is None or start_t == end_t:
+            return JsonResponse({"success": False, "error": "A start and end time are required."})
+        role = (data.get("role") or "").strip()
+        if role not in dict(STAFF_ROLE_CHOICES):
+            role = ""
+        StaffExtraShift.objects.create(
+            user=u, day_of_week=dow, start_time=start_t, end_time=end_t, role=role,
+            note=(data.get("note") or "")[:200], created_by=request.user,
+        )
+        return JsonResponse({"success": True})
+
+    if action == "remove_shift":
+        # Either half can be removed: an extra row, or the one-off override.
+        if data.get("extra_id"):
+            get_object_or_404(StaffExtraShift, id=data.get("extra_id")).delete()
+            return JsonResponse({"success": True})
+        ov = get_object_or_404(StaffScheduleOverride, id=data.get("id"), kind="custom_hours")
+        ov.delete()
+        return JsonResponse({"success": True})
 
     if action in ("approve_timeoff", "deny_timeoff"):
         ov = get_object_or_404(StaffScheduleOverride, id=data.get("id"))
@@ -5364,7 +5468,7 @@ def my_coverage(request):
     language — no gaps, "thin", targets, or red. Read-only; schedule edits stay
     with admins. On-call for *tonight* is looked up per date for the viewer only.
     """
-    roster = list(_office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides"))
+    roster = list(_office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides", "extra_shifts"))
     today = timezone.localdate()
     today_dow = today.weekday()
     monday = today - timedelta(days=today_dow)

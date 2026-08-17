@@ -820,3 +820,92 @@ class StaffOnCall(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.date:%b %d, %Y}: on-call {self.start_time:%H:%M}–{self.end_time:%H:%M}"
+
+
+class StaffExtraShift(models.Model):
+    """
+    A *second* (or third) shift for one dispatcher on one day — the split-shift case.
+
+    Why this is additive rather than another schedule row
+    ----------------------------------------------------
+    ``StaffWeeklySchedule`` is unique per (user, weekday) and
+    ``resolve_staff_schedule`` returns exactly one start/end, so the primary
+    schedule can only ever describe one continuous window. Rather than break that
+    contract — the time clock, the dispatcher's own page and the board all read
+    it — a split day is modelled as the primary window plus one or more extras:
+
+        Iris, Wednesday:  9 AM – 1 PM  (primary, weekly schedule)
+                          5 PM – 9 PM  (extra, this row)
+
+    Same precedent as ``StaffOnCall``: additive, never replacing. The long gap in
+    between is simply unscheduled — this is two shifts, not one shift with a
+    break, so break tracking stays where it belongs (``TimeClockBreak``).
+
+    Recurring or one-off, not both
+    ------------------------------
+    Set ``day_of_week`` for a shift that repeats every week, or ``date`` for a
+    single day. Exactly one must be set; ``clean`` enforces it.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="extra_shifts",
+    )
+    day_of_week = models.IntegerField(
+        null=True, blank=True, choices=StaffWeeklySchedule.DAY_CHOICES,
+        help_text="For a weekly split shift. Leave blank for a one-off date.",
+    )
+    date = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="For a one-off extra shift. Leave blank for a recurring weekday.",
+    )
+    start_time = models.TimeField(help_text="Eastern wall-clock.")
+    end_time = models.TimeField(help_text="Eastern wall-clock; may cross midnight.")
+    role = models.CharField(
+        max_length=12, choices=STAFF_ROLE_CHOICES, blank=True, default="",
+        help_text="Assigned duty for this shift (an evening half often closes).",
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="created_staff_extra_shifts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["user", "day_of_week", "date", "start_time"]
+        indexes = [
+            models.Index(fields=["user", "day_of_week"], name="idx_staffextra_user_dow"),
+            models.Index(fields=["user", "date"], name="idx_staffextra_user_date"),
+        ]
+        verbose_name = "Staff Extra Shift"
+        verbose_name_plural = "Staff Extra Shifts"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if (self.day_of_week is None) == (self.date is None):
+            raise ValidationError("Set either a weekday (recurring) or a date (one-off), not both.")
+        if self.start_time == self.end_time:
+            raise ValidationError("Start and end times can't match.")
+
+    @property
+    def is_recurring(self):
+        return self.day_of_week is not None
+
+    def applies_on(self, target_date):
+        if self.date is not None:
+            return self.date == target_date
+        return self.day_of_week == target_date.weekday()
+
+    @property
+    def when_display(self):
+        if self.is_recurring:
+            return f"every {dict(StaffWeeklySchedule.DAY_CHOICES).get(self.day_of_week, '?')}"
+        return self.date.strftime("%b %d, %Y")
+
+    def __str__(self):
+        return (f"{self.user} — {self.when_display}: extra "
+                f"{self.start_time:%H:%M}–{self.end_time:%H:%M}")

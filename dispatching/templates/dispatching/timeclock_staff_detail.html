@@ -147,6 +147,42 @@
 
         <div class="tcd-card">
           <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Split shifts</h6>
+            <span class="text-muted small">a second shift the same day</span>
+          </div>
+          <ul class="list-unstyled mb-2" id="extraShiftList">
+            {% for x in extra_shifts %}
+            <li class="d-flex justify-content-between align-items-center py-1 border-bottom">
+              <span>
+                <span class="fw-semibold">{{ x.when_display }}</span>
+                <span class="text-muted small">· {{ x.start_time|time:"g:i A" }}–{{ x.end_time|time:"g:i A" }}{% if x.role %} · {{ x.get_role_display }}{% endif %}</span>
+                {% if x.note %}<span class="text-muted small d-block">{{ x.note }}</span>{% endif %}
+              </span>
+              <button class="btn btn-sm btn-outline-danger del-extra" data-id="{{ x.id }}"><i class="bi bi-trash"></i></button>
+            </li>
+            {% empty %}
+            <li class="text-muted small py-2">No split shifts. Add one for someone who works a morning and an evening the same day.</li>
+            {% endfor %}
+          </ul>
+          <div class="d-flex flex-wrap gap-1 align-items-end">
+            <select class="form-select form-select-sm" id="exDow" style="width:auto">
+              <option value="0">Monday</option><option value="1">Tuesday</option>
+              <option value="2">Wednesday</option><option value="3">Thursday</option>
+              <option value="4">Friday</option><option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+            </select>
+            <input type="time" class="form-control form-control-sm" id="exStart" value="17:00" style="width:auto">
+            <input type="time" class="form-control form-control-sm" id="exEnd" value="21:00" style="width:auto">
+            <select class="form-select form-select-sm" id="exRole" style="width:auto">
+              <option value="">role —</option>
+              {% for val, lbl in role_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+            </select>
+            <button class="btn btn-sm btn-dark" id="addExtraBtn">Add weekly</button>
+          </div>
+        </div>
+
+        <div class="tcd-card">
+          <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="mb-0">Date exceptions</h6>
             <button class="btn btn-sm btn-outline-dark" id="addOverrideBtn"><i class="bi bi-plus-lg me-1"></i>Add</button>
           </div>
@@ -257,6 +293,7 @@
   const USER_ID = {{ staff_user.id }};
   const ENTRY_URL = "{% url 'timeclock_entry_action' %}";
   const SCHED_URL = "{% url 'staff_schedule_action' %}";
+  const STAFFING_URL = "{% url 'staffing_action' %}";
 
   function csrf() {
     if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
@@ -382,6 +419,23 @@
     });
     doAndReload(SCHED_URL, {action:'save_weekly', user_id: USER_ID, weekly}, e.target);
   });
+
+  // Split shifts — a second window the same day, additive to the weekly row.
+  const addExtraBtn = document.getElementById('addExtraBtn');
+  if (addExtraBtn) {
+    addExtraBtn.addEventListener('click', (e) => doAndReload(STAFFING_URL, {
+      action: 'add_recurring_extra', user_id: USER_ID,
+      dow: document.getElementById('exDow').value,
+      start: document.getElementById('exStart').value,
+      end: document.getElementById('exEnd').value,
+      role: document.getElementById('exRole').value,
+    }, e.target));
+  }
+  document.querySelectorAll('.del-extra').forEach(b => b.addEventListener('click', () => {
+    if (confirm('Remove this split shift?')) {
+      doAndReload(STAFFING_URL, {action: 'remove_shift', extra_id: b.dataset.id}, b);
+    }
+  }));
 
   // Overrides
   function ovTimesToggle() {

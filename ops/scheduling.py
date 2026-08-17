@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 
 from drivers.availability import fmt_time_long
-from .models import StaffScheduleOverride, TimeClockShift  # noqa: F401 (StaffScheduleOverride for type clarity)
+from .models import StaffScheduleOverride, StaffExtraShift, TimeClockShift  # noqa: F401 (StaffScheduleOverride for type clarity)
 
 
 # Comparison thresholds (minutes)
@@ -113,6 +113,7 @@ def resolve_staff_schedule(user, date):
         "tooltip": "No schedule set for this day.",
         "role": "",
         "time_off": None,
+        "override_id": None,
     }
 
     weekly = _weekly_row(user, date)
@@ -141,6 +142,8 @@ def resolve_staff_schedule(user, date):
     override = _pick_active_override(list(user.schedule_overrides.all()), date)
     if override is not None:
         result["has_exception"] = True
+        result["override_id"] = override.id
+        result["override_range"] = override.date_range_display
         if override.note:
             result["note"] = override.note
         # A one-off role assignment wins over the recurring one; blank keeps it.
@@ -174,6 +177,28 @@ def resolve_staff_schedule(user, date):
             result["tooltip"] = override.note
 
     return result
+
+
+def extra_shifts_on(user, date, *, only_if_working=True, primary=None):
+    """The additional shifts (split-shift halves) this staffer has on ``date``.
+
+    Read from the (often prefetched) ``extra_shifts`` manager, so a caller that
+    prefetched it stays at O(roster) queries. Returns them sorted by start.
+
+    ``only_if_working`` drops the extras when the primary schedule says they're
+    off that day — an approved day off has to clear the *whole* day, otherwise an
+    old recurring split-shift row would quietly put somebody back on while they
+    are on vacation.
+    """
+    rows = [e for e in user.extra_shifts.all() if e.applies_on(date)]
+    if only_if_working and rows:
+        # Callers that already resolved the day pass it in — this is pure Python
+        # over prefetched rows either way, but re-resolving is wasted work.
+        primary = primary if primary is not None else resolve_staff_schedule(user, date)
+        # kind == "off" with an exception is time off / a one-off day off.
+        if primary["is_working"] is False and primary["has_exception"]:
+            return []
+    return sorted(rows, key=lambda e: (e.start_time, e.end_time))
 
 
 def week_schedule(user, monday_date):
@@ -234,21 +259,33 @@ def schedule_vs_actual(user, date, shifts=None, now=None, tracking_since=None):
         closed_outs = [s.clock_out_at for s in shifts if s.clock_out_at]
         last_out = now if has_open else (max(closed_outs) if closed_outs else None)
 
-    # Scheduled window as aware ET datetimes (handle crossing midnight).
-    sched_start_dt = sched_end_dt = None
-    scheduled_seconds = 0.0
+    # Scheduled windows as aware ET datetimes (handle crossing midnight). A split
+    # day has more than one, so scheduled time is the SUM of the halves — take
+    # only the primary and an 8-hour split day reads a phantom "Short" every time.
+    def _window(start_t, end_t):
+        a = timezone.make_aware(datetime.combine(date, start_t), tz)
+        b = timezone.make_aware(datetime.combine(date, end_t), tz)
+        if b <= a:
+            b += timedelta(days=1)
+        return a, b
+
+    windows = []
     if sched["is_working"] and sched["start_time"] and sched["end_time"]:
-        sched_start_dt = timezone.make_aware(datetime.combine(date, sched["start_time"]), tz)
-        sched_end_dt = timezone.make_aware(datetime.combine(date, sched["end_time"]), tz)
-        if sched_end_dt <= sched_start_dt:
-            sched_end_dt += timedelta(days=1)
-        scheduled_seconds = (sched_end_dt - sched_start_dt).total_seconds()
+        windows.append(_window(sched["start_time"], sched["end_time"]))
+    for extra in extra_shifts_on(user, date):
+        windows.append(_window(extra.start_time, extra.end_time))
+
+    # Lateness is judged against the first window, leaving early against the last.
+    sched_start_dt = min((a for a, _ in windows), default=None)
+    sched_end_dt = max((b for _, b in windows), default=None)
+    scheduled_seconds = sum((b - a).total_seconds() for a, b in windows)
     scheduled_minutes = int(scheduled_seconds // 60)
+    split_windows = len(windows) > 1
 
     detail = {}
-    if sched["kind"] == "none":
+    if not windows and sched["kind"] == "none":
         status = "no_schedule"
-    elif sched["is_working"] is False:
+    elif not windows and sched["is_working"] is False:
         status = "extra" if shifts else "no_schedule"
     elif not shifts:
         if tracking_since is None or date < tracking_since:
@@ -282,12 +319,24 @@ def schedule_vs_actual(user, date, shifts=None, now=None, tracking_since=None):
         else:
             status = "on_time"
 
+    # A split day has to *say* it's a split day, or the numbers look wrong: the
+    # label names both halves so "9:00 AM – 1:00 PM + 5:00 PM – 9:00 PM" explains
+    # an 8h scheduled total that no single window accounts for.
+    if split_windows:
+        scheduled_label = " + ".join(
+            f"{fmt_time_long(timezone.localtime(a).time())} – {fmt_time_long(timezone.localtime(b).time())}"
+            for a, b in sorted(windows)
+        )
+    else:
+        scheduled_label = sched["display_label"]
+
     return {
         "status": status,
         "label": STATUS_LABELS.get(status, status),
-        "scheduled_label": sched["display_label"],
+        "scheduled_label": scheduled_label,
         "actual_label": _fmt_hm(actual_minutes),
         "scheduled_minutes": scheduled_minutes,
         "actual_minutes": actual_minutes,
+        "is_split": split_windows,
         "detail": detail,
     }
