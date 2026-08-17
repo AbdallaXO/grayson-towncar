@@ -1067,6 +1067,38 @@ class Leg(models.Model):
         default="in-progress",
     )
 
+    # --- Farmed-out legs: who the OPERATOR actually put on the job ---
+    # When `driver` is an operator (drivers.Driver.portal_role == 'operator'), the
+    # assigned "driver" is a company, not a person. These carry the chauffeur THEY
+    # dispatched, typed in their portal, so our dispatcher can call the man on the
+    # job instead of relaying through the operator. Always optional — an operator
+    # who never fills them in still works exactly as before.
+    # Cleared automatically in save() when the leg changes hands (below).
+    operator_driver_name = models.CharField(
+        max_length=120, blank=True, default="",
+        help_text="Name of the operator's own chauffeur on this leg. Typed by the operator; blank until they assign it.",
+    )
+    operator_driver_phone = models.CharField(
+        max_length=25, blank=True, default="",
+        help_text="Cell for the operator's chauffeur, so dispatch can reach the actual driver.",
+    )
+    operator_accepted_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the operator accepted this farm-out in their portal.",
+    )
+    # Decline survives the unassign: `driver` is cleared so the leg returns to the
+    # board needing coverage, so WHO declined has to live here or it is lost.
+    operator_declined_by = models.ForeignKey(
+        "drivers.Driver", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="declined_legs",
+        help_text="Operator who gave this leg back. Kept after the unassign so the board can say who declined.",
+    )
+    operator_declined_at = models.DateTimeField(null=True, blank=True)
+    operator_decline_reason = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Why the operator turned the job down (no car, already booked, rate).",
+    )
+
     # --- Samsara Phase 2: schedule-aware live ETA + late-risk (background-computed) ---
     # Written ONLY by the Samsara ETA sweep (dispatching/samsara_scheduler.sweep_eta);
     # read at render time. NEVER computed synchronously in a request path. Only the
@@ -1421,6 +1453,35 @@ class Leg(models.Model):
         return self.reservation.extra_boosters if self.reservation_id else 0
 
     @property
+    def display_carseats(self):
+        """Car seats for THIS leg, as one human string, or None if there are none.
+
+        The leg-level counterpart to Reservation.display_carseats, and the one
+        every driver-facing surface should use. Two things it fixes over reading
+        the reservation's version directly:
+          * it honours leg overrides (seats live on the leg whenever a dispatcher
+            edits one direction of a round trip — the reservation-level value is
+            simply the wrong number for that leg);
+          * it counts extra_carseats / extra_boosters, which the reservation
+            version omits, so an "extra booster" no longer vanishes silently.
+
+        A leg flagged as needing seats but carrying no counts returns an explicit
+        "count not confirmed" rather than None — the driver still has to bring
+        something, and a blank line reads as "no seats needed".
+        """
+        seats = [
+            (self.effective_rf_carseats, "Rear-Facing"),
+            (self.effective_ff_carseats, "Forward-Facing"),
+            (self.effective_booster_seats, "Booster"),
+            (self.effective_extra_carseats, "Extra Car Seat"),
+            (self.effective_extra_boosters, "Extra Booster"),
+        ]
+        parts = [f"{n} {label}" for n, label in seats if n]
+        if parts:
+            return ", ".join(parts)
+        return "Yes — count not confirmed" if self.effective_need_carseats else None
+
+    @property
     def has_overrides(self):
         """Return True if this leg has any trip-detail overrides."""
         return (
@@ -1656,6 +1717,26 @@ class Leg(models.Model):
             if _uf is not None:
                 kwargs['update_fields'] = set(_uf) | {
                     'status', 'status_changed_by', 'status_changed_at'
+                }
+
+        # The operator's own chauffeur belongs to the operator who was holding the
+        # leg. Once it changes hands the name/phone are stale — and leaving them
+        # would show dispatch a driver from a company that no longer has the job.
+        # The decline record (operator_declined_*) is deliberately NOT cleared: it
+        # is written by the same save that unassigns, and it is the only remaining
+        # trace of who gave the leg back.
+        if _driver_changed and (
+            self.operator_driver_name
+            or self.operator_driver_phone
+            or self.operator_accepted_at
+        ):
+            self.operator_driver_name = ""
+            self.operator_driver_phone = ""
+            self.operator_accepted_at = None
+            _uf_now = kwargs.get('update_fields')
+            if _uf_now is not None:
+                kwargs['update_fields'] = set(_uf_now) | {
+                    'operator_driver_name', 'operator_driver_phone', 'operator_accepted_at'
                 }
 
         # Auto-fill driver pay when not set (inhouse and affiliate)

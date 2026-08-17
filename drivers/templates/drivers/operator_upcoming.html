@@ -1,0 +1,62 @@
+{% extends "drivers/operator_base.html" %}
+{% block title %}Upcoming{% endblock %}
+{% block content %}
+
+      <div class="gt-card mb-3">
+        <div style="padding:14px 16px;" class="op-daybar">
+          <div>
+            <div style="font-size:1.0625rem;font-weight:700;line-height:1.2;">Upcoming jobs</div>
+            <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">
+              Everything we've sent you, from today forward.
+            </div>
+          </div>
+          <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
+            <span class="gt-chip" style="background:var(--gt-bg);border:1px solid var(--gt-border);">
+              {{ total }} job{{ total|pluralize }}
+            </span>
+            {% if pending_count %}
+              <span class="gt-chip" style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.5);color:#c2410c;font-weight:700;">
+                {{ pending_count }} unanswered
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if not days %}
+        <div class="gt-card" style="padding:40px 20px;text-align:center;">
+          <i class="bi bi-calendar-week" style="font-size:2rem;color:var(--gt-text-secondary);"></i>
+          <div style="margin-top:10px;font-weight:600;">Nothing booked ahead</div>
+          <div style="font-size:0.875rem;color:var(--gt-text-secondary);">
+            New farm-outs land here as soon as we send them.
+          </div>
+        </div>
+      {% endif %}
+
+      {% for day in days %}
+        <div class="op-day-head">
+          <div>
+            <span style="font-weight:700;font-size:1rem;">
+              {% if day.is_today %}Today{% else %}{{ day.date|date:"l" }}{% endif %}
+            </span>
+            <span style="color:var(--gt-text-secondary);font-size:0.875rem;"> · {{ day.date|date:"M j" }}</span>
+            <span class="gt-chip ms-2" style="background:var(--gt-bg);border:1px solid var(--gt-border);">
+              {{ day.legs|length }} job{{ day.legs|length|pluralize }}
+            </span>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="gt-btn gt-btn-outline gt-btn-sm" href="{% url 'operator_board' %}?date={{ day.date|date:'Y-m-d' }}">
+              <i class="bi bi-calendar-day"></i> Open day
+            </a>
+            <button class="gt-btn gt-btn-dark gt-btn-sm op-copy" data-copy="{{ day.text }}">
+              <i class="bi bi-clipboard-check"></i> Copy day
+            </button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:22px;">
+          {% for leg in day.legs %}
+            {% include "drivers/_operator_job_card.html" %}
+          {% endfor %}
+        </div>
+      {% endfor %}
+{% endblock %}

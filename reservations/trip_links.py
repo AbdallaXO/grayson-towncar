@@ -14,6 +14,8 @@ a menu item is never rendered pointing at a blank address.
 import re
 from urllib.parse import quote
 
+from business.datefmt import strf
+
 # Google's documented Maps URL API (api=1). Preferred over the older
 # ?saddr=&daddr= form because it is the supported contract AND it takes
 # waypoints, which matters here: a leg with a Publix stop and a second drop-off
@@ -353,7 +355,8 @@ def leg_trip_links(leg):
     if leg.pickup_time:
         when = leg.pickup_time.strftime("%I:%M %p").lstrip("0")
     if leg.pickup_date:
-        when = f"{when} · {leg.pickup_date.strftime('%a, %b %-d')}".strip(" ·")
+        # strf, not strftime: %-d is glibc-only and 500s the whole board on Windows.
+        when = f"{when} · {strf(leg.pickup_date, '%a, %b %-d')}".strip(" ·")
 
     return {
         "leg_id": leg.id,

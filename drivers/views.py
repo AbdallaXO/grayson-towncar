@@ -274,6 +274,8 @@ def index(request):
     """
     # Get the driver object only once
     driver = get_object_or_404(Driver, profile=request.user)
+    if driver.is_operator:
+        return redirect("operator_board")
 
     # Parse selected date
     selected_date = request.GET.get("date")
@@ -378,6 +380,8 @@ def index(request):
 @login_required(login_url="login")
 def completed_trips(request):
     driver = get_object_or_404(Driver, profile=request.user)
+    if driver.is_operator:
+        return redirect("operator_board")
 
     # Paginate: this used to load the driver's ENTIRE completed history unbounded
     # (120s+ requests that held a DB connection the whole time — incident
@@ -411,6 +415,10 @@ def completed_trips(request):
 @login_required(login_url="login")
 def schedule(request):
     driver = get_object_or_404(Driver, profile=request.user)
+    # Login lands every non-superuser here (users/views.py), so this is the
+    # redirect that actually puts an operator in their own portal.
+    if driver.is_operator:
+        return redirect("operator_board")
     today = timezone.localdate()
     next_week = today + timezone.timedelta(days=60)
 

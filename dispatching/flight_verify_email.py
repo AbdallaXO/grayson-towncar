@@ -19,6 +19,7 @@ from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def send_flight_verification_email(leg, sent_by=None, request=None) -> dict:
     }
 
     if leg.pickup_date:
-        subject = f"Please confirm your flight for our pickup on {leg.pickup_date.strftime('%a, %b %-d')}"
+        subject = f"Please confirm your flight for our pickup on {strf(leg.pickup_date, '%a, %b %-d')}"
     else:
         subject = "Please confirm your flight for our pickup"
 
@@ -402,7 +403,7 @@ def send_flight_updated_notifications(
             )
 
     # ── Office heads-up ─────────────────────────────────────────────────
-    pickup_date_str = leg.pickup_date.strftime("%a, %b %-d") if leg.pickup_date else "TBD"
+    pickup_date_str = strf(leg.pickup_date, "%a, %b %-d") if leg.pickup_date else "TBD"
     office_subject = (
         f"Flight updated by guest: {full_name} — {new_flight_label} ({pickup_date_str})"
     )

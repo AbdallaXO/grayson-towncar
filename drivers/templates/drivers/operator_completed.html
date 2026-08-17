@@ -1,0 +1,45 @@
+{% extends "drivers/operator_base.html" %}
+{% block title %}Completed{% endblock %}
+{# Read-only: the base drops the accept/decline and driver modals entirely. #}
+{% block content %}
+
+      <div class="gt-card mb-3">
+        <div style="padding:14px 16px;">
+          <div style="font-size:1.0625rem;font-weight:700;line-height:1.2;">Completed jobs</div>
+          <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">
+            Jobs you've run for us, newest first — for checking against your own records.
+          </div>
+        </div>
+      </div>
+
+      {% if not legs %}
+        <div class="gt-card" style="padding:40px 20px;text-align:center;">
+          <i class="bi bi-check2-circle" style="font-size:2rem;color:var(--gt-text-secondary);"></i>
+          <div style="margin-top:10px;font-weight:600;">Nothing completed yet</div>
+        </div>
+      {% endif %}
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        {% for leg in legs %}
+          {% include "drivers/_operator_job_card.html" with read_only=True %}
+        {% endfor %}
+      </div>
+
+      {% if legs.has_other_pages %}
+        <div class="d-flex justify-content-center align-items-center gap-2 mt-4">
+          {% if legs.has_previous %}
+            <a class="gt-btn gt-btn-outline" href="?page={{ legs.previous_page_number }}">
+              <i class="bi bi-chevron-left"></i> Newer
+            </a>
+          {% endif %}
+          <span style="font-size:0.875rem;color:var(--gt-text-secondary);">
+            Page {{ legs.number }} of {{ legs.paginator.num_pages }}
+          </span>
+          {% if legs.has_next %}
+            <a class="gt-btn gt-btn-outline" href="?page={{ legs.next_page_number }}">
+              Older <i class="bi bi-chevron-right"></i>
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+{% endblock %}

@@ -51,6 +51,7 @@ from django.utils import timezone
 
 from dispatching import farmout_actions as fa
 from dispatching.farmout_actions import PlanRejected, bump_farmout_page_cache
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +305,7 @@ def _check_status_safety(plan: _AdvisorPlan, legs: dict) -> List[str]:
                 and leg.pickup_time is not None
                 and _effective_pickup_dt(leg, leg.pickup_date) <= now_local):
             raise PlanRejected(
-                409, f"Leg {a.leg_id}'s {leg.pickup_time.strftime('%-I:%M %p')} "
+                409, f"Leg {a.leg_id}'s {strf(leg.pickup_time, '%-I:%M %p')} "
                      f"pickup has already come and gone — it can't be handed to "
                      f"another driver now. Refresh the advisor.")
         if a.op in _ASSIGN_OPS and status in _STATUS_MOVE_WARN:

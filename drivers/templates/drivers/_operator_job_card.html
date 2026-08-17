@@ -1,0 +1,118 @@
+{% comment %}One operator job card — the ONLY rendering of a job in this portal.
+
+The chauffeur pages used to ship a desktop table and a mobile card that drifted
+until the desktop one silently lost car seats. This partial exists so that can
+never happen here: board, upcoming and completed all include this file.
+
+Context it needs:  leg (decorated by operator_views._decorate), status_labels.
+Set `read_only` to drop the accept/decline and status controls — the completed
+page shows the same job as a record, not something still being worked.
+{% endcomment %}
+          <div class="gt-card gt-status-{{ leg.status }}" data-leg-id="{{ leg.id }}">
+
+            {# Header strip: when, where, status #}
+            <div class="gt-card-header">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <div class="gt-time" style="font-size:1.375rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
+                  <div style="font-size:0.8125rem;color:rgba(255,255,255,0.55);"
+                       title="{{ leg.pickup_location }} → {{ leg.dropoff_location }}">
+                    {{ leg.pickup_short }} <span style="opacity:0.6;">→</span> {{ leg.dropoff_short }}
+                  </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  {% if leg.needs_response %}
+                    <span class="gt-chip" style="background:var(--gt-orange,#f97316);color:#fff;font-weight:700;">
+                      Not answered
+                    </span>
+                  {% endif %}
+                  <span class="gt-chip gt-chip-{{ leg.status }}" style="background:rgba(255,255,255,0.12);color:#fff;">
+                    <span class="gt-chip-dot"></span>{{ leg.get_status_display }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="op-job-body">
+
+              {# ── Left: every fact, each one click to copy ── #}
+              <div style="padding:12px 14px;">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                  <div class="gt-label" style="margin:0;">Job details — click any line to copy</div>
+                  <button class="gt-btn gt-btn-dark gt-btn-sm op-copy" data-copy="{{ leg.job_text }}">
+                    <i class="bi bi-clipboard-check"></i> Copy whole job
+                  </button>
+                </div>
+
+                {% for label, value in leg.job_fields %}
+                  <div class="op-field{% if label == 'Car seats' %} op-field-seats{% endif %}"
+                       tabindex="0" role="button" data-copy="{{ value }}"
+                       title="Click to copy {{ label|lower }}">
+                    <span class="op-field-label">{{ label }}</span>
+                    <span class="op-field-value">{{ value }}</span>
+                    <span class="op-field-copy"><i class="bi bi-clipboard"></i></span>
+                  </div>
+                {% endfor %}
+              </div>
+
+              {# ── Right: what the operator DOES ── #}
+              <div class="op-actions" style="padding:12px 14px;border-top:1px solid var(--gt-border);">
+
+                {% if leg.needs_response and not read_only %}
+                  <div class="d-grid gap-2 mb-3">
+                    <button class="gt-btn gt-btn-success op-accept" data-leg-id="{{ leg.id }}">
+                      <i class="bi bi-check-circle-fill"></i> Accept job
+                    </button>
+                    <button class="gt-btn gt-btn-outline op-decline" data-leg-id="{{ leg.id }}"
+                            style="color:var(--gt-red);border-color:rgba(239,68,68,0.45);">
+                      <i class="bi bi-x-circle"></i> Decline
+                    </button>
+                  </div>
+                {% endif %}
+
+                {# Their chauffeur — optional, but the thing our dispatcher wants #}
+                <div class="op-driver-box mb-3">
+                  <div class="gt-label" style="margin-bottom:6px;">Your driver on this job</div>
+                  <div class="op-driver-current" data-leg-id="{{ leg.id }}">
+                    {% if leg.operator_driver_name %}
+                      <div class="op-driver-set">
+                        <i class="bi bi-person-fill"></i> {{ leg.operator_driver_name }}
+                      </div>
+                      {% if leg.operator_driver_phone %}
+                        <div style="font-size:0.875rem;color:var(--gt-text-secondary);">{{ leg.operator_driver_phone }}</div>
+                      {% endif %}
+                    {% else %}
+                      <div style="font-size:0.875rem;color:var(--gt-text-secondary);">Not assigned yet</div>
+                    {% endif %}
+                  </div>
+                  {% if not read_only %}
+                  <button class="gt-btn gt-btn-outline gt-btn-sm op-set-driver mt-2"
+                          data-leg-id="{{ leg.id }}"
+                          data-name="{{ leg.operator_driver_name }}"
+                          data-phone="{{ leg.operator_driver_phone }}">
+                    <i class="bi bi-pencil"></i>
+                    {% if leg.operator_driver_name %}Change driver{% else %}Add driver{% endif %}
+                  </button>
+                  {% endif %}
+                </div>
+
+                {% if not read_only %}
+                  {# Status, phrased for someone reporting on a third party #}
+                  <div class="gt-label" style="margin-bottom:6px;">Update status</div>
+                  <select class="gt-input status-select op-status" data-leg-id="{{ leg.id }}"
+                          aria-label="Job status"
+                          {% if leg.status == "completed" %}disabled{% endif %}>
+                    {% for value, label, icon in status_labels %}
+                      <option value="{{ value }}" {% if leg.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
+
+                {% if leg.operator_accepted_at %}
+                  <div style="font-size:0.75rem;color:var(--gt-text-secondary);margin-top:8px;">
+                    <i class="bi bi-check2"></i> Accepted {{ leg.operator_accepted_at|date:"M j, g:i A" }}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>

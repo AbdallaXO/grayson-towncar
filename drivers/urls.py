@@ -1,8 +1,35 @@
 from django.urls import path
-from . import views
+from . import operator_views, views
 
 
 urlpatterns = [
+    # ── Operator portal (affiliates who re-dispatch to their own drivers) ──
+    path("operator/", operator_views.operator_board, name="operator_board"),
+    path(
+        "operator/upcoming/",
+        operator_views.operator_upcoming,
+        name="operator_upcoming",
+    ),
+    path(
+        "operator/completed/",
+        operator_views.operator_completed,
+        name="operator_completed",
+    ),
+    path(
+        "operator/<int:leg_id>/accept/",
+        operator_views.operator_accept,
+        name="operator_accept",
+    ),
+    path(
+        "operator/<int:leg_id>/decline/",
+        operator_views.operator_decline,
+        name="operator_decline",
+    ),
+    path(
+        "operator/<int:leg_id>/assign-driver/",
+        operator_views.operator_assign_driver,
+        name="operator_assign_driver",
+    ),
     path("sw.js", views.service_worker, name="driver_service_worker"),
     path("", views.index, name="drivers_dashboard"),
     path("extend/", views.extend, name="drivers_extend"),

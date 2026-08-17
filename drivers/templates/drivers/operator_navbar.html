@@ -1,0 +1,91 @@
+{% comment %}Operator nav.
+
+Three destinations, in the order an operator works: the day in front of them,
+what's coming, and what's finished. Chauffeur-only pages (time off, wake-ups)
+are absent because a company account has no use for them — but "Completed" very
+much belongs here: it's how an operator reconciles what they actually ran.
+{% endcomment %}
+{% with active=request.resolver_match.url_name %}
+<nav style="background:var(--gt-dark);position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+  <div class="container-fluid px-3">
+    <div class="d-flex align-items-center justify-content-between" style="height:56px;">
+
+      <a href="{% url 'operator_board' %}" class="text-decoration-none d-flex align-items-center gap-2">
+        <span class="fw-bold text-white" style="font-size:1.0625rem;letter-spacing:-0.01em;">Grayson Towncar</span>
+        <span style="font-size:0.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;
+                     color:var(--gt-dark);background:var(--gt-yellow);padding:2px 7px;border-radius:4px;">
+          Operator
+        </span>
+      </a>
+
+      <div class="d-none d-md-flex align-items-center gap-1">
+        <a href="{% url 'operator_board' %}" class="gt-nav-link {% if active == 'operator_board' %}gt-nav-active{% endif %}">
+          <i class="bi bi-calendar-day me-1"></i>Today's Jobs
+        </a>
+        <a href="{% url 'operator_upcoming' %}" class="gt-nav-link {% if active == 'operator_upcoming' %}gt-nav-active{% endif %}">
+          <i class="bi bi-calendar-week me-1"></i>Upcoming
+          {% if pending_count %}<span class="gt-nav-badge">{{ pending_count }}</span>{% endif %}
+        </a>
+        <a href="{% url 'operator_completed' %}" class="gt-nav-link {% if active == 'operator_completed' %}gt-nav-active{% endif %}">
+          <i class="bi bi-check2-circle me-1"></i>Completed
+        </a>
+        <button id="gt-theme-toggle" class="gt-nav-link" style="border:none;cursor:pointer;padding:6px 10px;background:none;"
+                title="Toggle dark mode" aria-label="Toggle dark mode">
+          <i class="bi bi-moon-fill" id="gt-theme-icon"></i>
+        </button>
+        <span style="color:rgba(255,255,255,0.45);font-size:0.8125rem;margin-left:6px;">{{ operator }}</span>
+      </div>
+
+      <div class="d-flex d-md-none align-items-center gap-1">
+        <button id="gt-theme-toggle-mobile" style="background:none;border:none;color:rgba(255,255,255,0.65);font-size:1.1rem;padding:4px 8px;cursor:pointer;"
+                title="Toggle dark mode" aria-label="Toggle dark mode">
+          <i class="bi bi-moon-fill" id="gt-theme-icon-mobile"></i>
+        </button>
+        <button style="background:none;border:none;color:#fff;font-size:1.5rem;padding:4px;"
+                onclick="document.getElementById('op-mobile-nav').classList.toggle('d-none')"
+                aria-label="Menu">
+          <i class="bi bi-list"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="op-mobile-nav" class="d-none d-md-none pb-3">
+      <div class="d-flex flex-column gap-1">
+        <a href="{% url 'operator_board' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-calendar-day me-2"></i>Today's Jobs
+        </a>
+        <a href="{% url 'operator_upcoming' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-calendar-week me-2"></i>Upcoming
+          {% if pending_count %}<span class="gt-nav-badge">{{ pending_count }}</span>{% endif %}
+        </a>
+        <a href="{% url 'operator_completed' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-check2-circle me-2"></i>Completed
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .gt-nav-link {
+      color: rgba(255,255,255,0.65); text-decoration: none;
+      font-size: 0.8125rem; font-weight: 500; padding: 6px 12px;
+      border-radius: 6px; transition: all 0.15s;
+      display: inline-flex; align-items: center;
+    }
+    .gt-nav-link:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .gt-nav-active { color: #fff; background: rgba(255,255,255,0.14); }
+    .gt-nav-link-mobile {
+      color: rgba(255,255,255,0.75); text-decoration: none;
+      font-size: 0.9375rem; font-weight: 500; padding: 10px 12px;
+      border-radius: 8px; display: flex; align-items: center;
+    }
+    .gt-nav-link-mobile:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    /* Unanswered farm-outs follow the operator around the portal — the count is
+       the whole reason they should look at Upcoming. */
+    .gt-nav-badge {
+      background: var(--gt-orange); color: #fff; font-weight: 700;
+      font-size: 0.6875rem; border-radius: 999px; padding: 1px 7px; margin-left: 6px;
+    }
+  </style>
+</nav>
+{% endwith %}

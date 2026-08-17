@@ -1,0 +1,37 @@
+{% comment %}One compact row in the "needs your answer" queue.
+
+Deliberately NOT the full job card: this strip exists to be answered, so it
+carries only what an operator decides on (when, where, what car, car seats)
+plus Copy / Accept / Decline. The full detail is one click away in the day view.
+{% endcomment %}
+<div class="gt-card" data-leg-id="{{ leg.id }}" style="border:1px solid var(--gt-border);">
+  <div style="padding:12px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+    <div style="min-width:150px;">
+      <div class="gt-time" style="font-size:1.125rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
+      <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">{{ leg.pickup_date|date:"D, M j" }}</div>
+    </div>
+    <div style="flex:1;min-width:240px;">
+      <div style="font-weight:600;" title="{{ leg.pickup_location }} → {{ leg.dropoff_location }}">
+        {{ leg.pickup_short }} <span style="color:var(--gt-text-secondary);">→</span> {{ leg.dropoff_short }}
+      </div>
+      <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">
+        {{ leg.effective_vehicle }} · {{ leg.effective_passenger_count }} pax
+        {% if leg.display_carseats %}
+          · <span style="color:#b23c00;font-weight:700;">{{ leg.display_carseats }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="gt-btn gt-btn-outline op-copy" data-copy="{{ leg.job_text }}">
+        <i class="bi bi-clipboard"></i> Copy
+      </button>
+      <button class="gt-btn gt-btn-success op-accept" data-leg-id="{{ leg.id }}">
+        <i class="bi bi-check-circle-fill"></i> Accept
+      </button>
+      <button class="gt-btn gt-btn-outline op-decline" data-leg-id="{{ leg.id }}"
+              style="color:var(--gt-red);border-color:rgba(239,68,68,0.45);">
+        <i class="bi bi-x-circle"></i> Decline
+      </button>
+    </div>
+  </div>
+</div>

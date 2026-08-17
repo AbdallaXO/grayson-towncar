@@ -28,6 +28,7 @@ from .models import (
     AgencyCommissionPayout,
 )
 from dispatching.admin_mixins import DispatcherAdminMixin
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class PartnerFormAdmin(admin.ModelAdmin):
         if not obj.created_at:
             return "—"
         local = timezone.localtime(obj.created_at)
-        abs_str = local.strftime("%b %-d, %Y · %-I:%M %p")
+        abs_str = strf(local, "%b %-d, %Y · %-I:%M %p")
         delta = timezone.now() - obj.created_at
         rel = _humanize_delta(delta)
         is_new = delta.total_seconds() < 24 * 3600
@@ -178,7 +179,7 @@ class PartnerFormAdmin(admin.ModelAdmin):
             )
         delta = timezone.now() - obj.contacted_at
         rel = _humanize_delta(delta)
-        local = timezone.localtime(obj.contacted_at).strftime("%b %-d, %Y")
+        local = strf(timezone.localtime(obj.contacted_at), "%b %-d, %Y")
         return format_html(
             '<div style="white-space:nowrap;">'
             '<div style="font-size:12px;color:#111;font-weight:600;">{} ago</div>'

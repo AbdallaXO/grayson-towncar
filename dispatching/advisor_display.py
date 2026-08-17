@@ -51,6 +51,7 @@ no in-house schedule), the corresponding element is OMITTED rather than guessed.
 from __future__ import annotations
 
 from datetime import date as _date, datetime, time as dt_time, timedelta
+from business.datefmt import strf
 
 # Rounding for a timeline's outer edges: pad the content, then snap outward to
 # a clean half-hour so the axis reads 3:30 / 4 AM / 5 AM rather than 3:47.
@@ -262,7 +263,7 @@ def day_word(target_date, today):
         return "tomorrow"
     if delta == -1:
         return "yesterday"
-    return f"on {target_date.strftime('%a %b %-d')}"
+    return f"on {strf(target_date, '%a %b %-d')}"
 
 
 # ════════════════════════════════════════════════════════════════════════════

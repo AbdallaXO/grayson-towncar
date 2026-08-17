@@ -5,6 +5,7 @@ from django.utils import timezone
 from reservations.models import Leg
 from decimal import Decimal
 from datetime import timedelta
+from business.datefmt import strf
 
 
 class Driver(models.Model):
@@ -25,6 +26,17 @@ class Driver(models.Model):
         ("part_time", "Part time — available days are offers, not commitments"),
     ]
 
+    # What this login SEES in the driver portal. Orthogonal to driver_type: an
+    # affiliate can be a one-man operation who drives his own jobs (chauffeur)
+    # or a company that re-dispatches them to its own drivers in its own system
+    # (operator, e.g. LimoAnywhere). The operator never drives, so the chauffeur
+    # portal's framing ("your trips", "I'm on the way") is wrong for him — he
+    # gets a job board built around copying job details out and reporting back
+    # what HIS driver is doing.
+    PORTAL_ROLE_CHOICES = [
+        ("driver", "Chauffeur — drives the jobs themselves"),
+        ("operator", "Operator — re-dispatches jobs to their own drivers"),
+    ]
 
     profile = models.OneToOneField(User, on_delete=models.CASCADE)
     phone_number = models.CharField(max_length=25, null=True, blank=True, help_text="Driver's phone number")
@@ -76,6 +88,16 @@ class Driver(models.Model):
         choices=DRIVER_TYPE_CHOICES,
         default="affiliate",
         help_text="Inhouse drivers work for the company and can drive any vehicle. Affiliates are contractors with specific vehicles."
+    )
+    portal_role = models.CharField(
+        max_length=20,
+        choices=PORTAL_ROLE_CHOICES,
+        default="driver",
+        help_text="Operator = this login runs a company that takes our jobs and hands them to "
+                  "its OWN drivers (in LimoAnywhere or similar). They get the operator job "
+                  "board instead of the chauffeur portal: accept/decline, copy the job details "
+                  "out to their system, name the driver they put on it, and report status back. "
+                  "Leave as Chauffeur for anyone who actually drives the trip themselves.",
     )
     employment_type = models.CharField(
         max_length=20,
@@ -225,6 +247,11 @@ class Driver(models.Model):
             status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
         ).exists()
     
+    @property
+    def is_operator(self):
+        """True when this login re-dispatches our jobs instead of driving them."""
+        return self.portal_role == "operator"
+
     def get_vehicle_display(self):
         """Get vehicle display - 'Any' for inhouse, specific vehicle for affiliates"""
         if self.driver_type == "inhouse":
@@ -856,7 +883,7 @@ class FleetVehicle(models.Model):
         reason = self.out_of_service_reason.strip() or "Out of service"
         if self.out_of_service_until:
             back = self.out_of_service_until + timedelta(days=1)
-            return f"{reason} — back {back.strftime('%a %b %-d')}"
+            return f"{reason} — back {strf(back, '%a %b %-d')}"
         return f"{reason} — no return date"
 
     # ── Permits ──────────────────────────────────────────────────────────

@@ -1,0 +1,75 @@
+{% extends "drivers/operator_base.html" %}
+{% block title %}Today's Jobs{% endblock %}
+{% block content %}
+
+      {# ═══ Day picker + copy-the-whole-day ═══ #}
+      <div class="gt-card mb-3">
+        <div style="padding:14px 16px;" class="op-daybar">
+          <a class="gt-btn gt-btn-outline" href="?date={{ prev_date|date:'Y-m-d' }}" aria-label="Previous day">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+          <div style="min-width:200px;">
+            <div style="font-size:1.0625rem;font-weight:700;line-height:1.2;">
+              {% if is_today %}Today{% else %}{{ selected_date|date:"l" }}{% endif %}
+            </div>
+            <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">{{ selected_date|date:"M j, Y" }}</div>
+          </div>
+          <a class="gt-btn gt-btn-outline" href="?date={{ next_date|date:'Y-m-d' }}" aria-label="Next day">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+          <input type="date" id="opDate" class="gt-input" style="max-width:180px;"
+                 value="{{ selected_date|date:'Y-m-d' }}" aria-label="Jump to date">
+
+          <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
+            <span class="gt-chip" style="background:var(--gt-bg);border:1px solid var(--gt-border);">
+              {{ legs|length }} job{{ legs|length|pluralize }}
+            </span>
+            {% if unstaffed_count %}
+              <span class="gt-chip" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.45);color:#b45309;font-weight:700;">
+                {{ unstaffed_count }} without a driver
+              </span>
+            {% endif %}
+            {% if legs %}
+              <button class="gt-btn gt-btn-dark op-copy" data-copy="{{ day_text }}">
+                <i class="bi bi-clipboard-check"></i> Copy all {{ legs|length }} jobs
+              </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {# ═══ Response queue — unanswered farm-outs across ALL dates ═══ #}
+      {% if pending %}
+        <div class="gt-card op-queue mb-4">
+          <div class="op-queue-head">
+            <i class="bi bi-hourglass-split"></i>
+            Needs your answer — {{ pending|length }} job{{ pending|length|pluralize }}
+            <span style="font-weight:500;opacity:0.9;font-size:0.8125rem;">
+              accept it and it's yours; decline and it goes straight back to our dispatchers
+            </span>
+          </div>
+          <div style="padding:12px;display:flex;flex-direction:column;gap:10px;">
+            {% for leg in pending %}
+              {% include "drivers/_operator_queue_row.html" %}
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      {# ═══ The selected day ═══ #}
+      {% if not legs %}
+        <div class="gt-card" style="padding:40px 20px;text-align:center;">
+          <i class="bi bi-calendar-check" style="font-size:2rem;color:var(--gt-text-secondary);"></i>
+          <div style="margin-top:10px;font-weight:600;">No jobs on this day</div>
+          <div style="font-size:0.875rem;color:var(--gt-text-secondary);">
+            Anything we send you shows up here and under Upcoming.
+          </div>
+        </div>
+      {% endif %}
+
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        {% for leg in legs %}
+          {% include "drivers/_operator_job_card.html" %}
+        {% endfor %}
+      </div>
+{% endblock %}

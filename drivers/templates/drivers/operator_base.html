@@ -1,0 +1,331 @@
+{% comment %}Shared shell for every operator page.
+
+Built desktop-first on purpose: an operator works this screen from an office
+computer next to their dispatch system, not from the driver's seat. So a job is
+a wide two-column row (details | actions), every value is one click to copy, and
+the whole job — or the whole day — copies as a block. It still collapses to a
+single readable column on a phone.
+
+Board, Upcoming and Completed all extend this and all render jobs through
+_operator_job_card.html, so there is exactly one job rendering to keep correct.
+Pass read_only_page=True to drop the accept/decline and driver modals.
+
+Money appears nowhere in this portal by design (see operator_jobs).
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "drivers/_driver_head.html" %}
+    <title>{% block title %}Jobs{% endblock %} — Grayson Towncar Operator</title>
+    <style>
+      .op-shell { max-width: 1500px; padding: 16px 12px; }
+
+      /* One job = header strip + body. Body is details | actions on a wide
+         screen, stacked below 992px. */
+      .op-job-body { display: grid; grid-template-columns: 1fr; gap: 0; }
+      @media (min-width: 992px) {
+        .op-job-body { grid-template-columns: minmax(0, 1fr) 320px; }
+        .op-actions { border-left: 1px solid var(--gt-border); border-top: none !important; }
+      }
+
+      /* Copyable field. The whole row is the hit target — an operator copying
+         eight fields in a row should not be aiming at little icons. */
+      .op-field {
+        display: flex; align-items: baseline; gap: 10px;
+        padding: 5px 8px; border-radius: 6px;
+        cursor: pointer; border: 1px solid transparent;
+        transition: background 0.12s, border-color 0.12s;
+      }
+      .op-field:hover { background: var(--gt-bg); border-color: var(--gt-border); }
+      .op-field:focus-visible { outline: 2px solid var(--gt-blue); outline-offset: 1px; }
+      .op-field-label {
+        flex: 0 0 108px; font-size: 0.6875rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.05em;
+        color: var(--gt-text-secondary);
+      }
+      .op-field-value { flex: 1; font-size: 0.9375rem; font-weight: 600; word-break: break-word; }
+      .op-field-copy { opacity: 0; font-size: 0.75rem; color: var(--gt-blue); flex: 0 0 auto; }
+      .op-field:hover .op-field-copy { opacity: 1; }
+      .op-field.op-copied { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.4); }
+
+      /* Car seats are the detail that gets missed on a farm-out. It does not
+         get to look like every other row. */
+      .op-field-seats { background: rgba(230,81,0,0.09); border-color: rgba(230,81,0,0.35); }
+      .op-field-seats .op-field-label { color: #b23c00; }
+      .op-field-seats .op-field-value { color: #b23c00; }
+
+      .op-queue { border: 2px solid var(--gt-orange, #f97316); }
+      .op-queue-head {
+        background: var(--gt-orange, #f97316); color: #fff;
+        padding: 10px 16px; font-weight: 700; font-size: 0.9375rem;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      }
+
+      .op-driver-box { background: var(--gt-bg); border-radius: 8px; padding: 10px; }
+      .op-driver-set { font-weight: 700; font-size: 0.9375rem; }
+
+      .op-daybar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+      /* Day heading on Upcoming — sticky so an operator scrolling a long week
+         always knows which day the cards under their cursor belong to. */
+      .op-day-head {
+        position: sticky; top: 56px; z-index: 5;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 8px;
+        background: var(--gt-bg); border-bottom: 2px solid var(--gt-border);
+        padding: 10px 4px; margin-bottom: 12px;
+      }
+    </style>
+  </head>
+
+  <body>
+    {% include "drivers/operator_navbar.html" %}
+
+    <div class="container-fluid op-shell">
+{% block content %}{% endblock %}
+    </div>
+
+    {% if not read_only_page %}
+    {# ═══ Decline modal ═══ #}
+    <div class="modal fade" id="declineModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Decline this job</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size:0.875rem;color:var(--gt-text-secondary);">
+              This hands the job back to our dispatchers right away and tells them why,
+              so they can re-cover it. Please don't decline day-of without calling us too.
+            </p>
+            <label class="gt-label" for="declineReason">Reason</label>
+            <select id="declineReason" class="gt-input mb-2">
+              {% for reason in decline_reasons %}<option>{{ reason }}</option>{% endfor %}
+            </select>
+            <input type="text" id="declineNote" class="gt-input" maxlength="200"
+                   placeholder="Anything else we should know (optional)">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="gt-btn gt-btn-outline" data-bs-dismiss="modal">Keep it</button>
+            <button type="button" class="gt-btn" id="declineConfirm"
+                    style="background:var(--gt-red);color:#fff;">Decline job</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ═══ Driver modal ═══ #}
+    <div class="modal fade" id="driverModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Who's driving this job?</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size:0.875rem;color:var(--gt-text-secondary);">
+              Optional — but if you fill it in, our dispatcher calls your driver directly
+              instead of calling you to relay. Leave the name blank to clear it.
+            </p>
+            <label class="gt-label" for="driverName">Driver name</label>
+            <input type="text" id="driverName" class="gt-input mb-2" maxlength="120"
+                   list="knownDrivers" autocomplete="off" placeholder="Start typing — past drivers autofill">
+            <datalist id="knownDrivers">
+              {% for d in known_drivers %}<option value="{{ d.name }}"></option>{% endfor %}
+            </datalist>
+            <label class="gt-label" for="driverPhone">Driver cell</label>
+            <input type="tel" id="driverPhone" class="gt-input" maxlength="25" placeholder="(407) 555-0134">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="gt-btn gt-btn-outline" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="gt-btn gt-btn-dark" id="driverSave">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% endif %}
+    {# Same bundle version _driver_scripts.html loads, so a cached copy is reused. #}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% comment %} json_script, not |safe: a driver named O'Brien would break a raw repr, and
+       operator-typed names must never reach the page as executable markup. {% endcomment %}
+    {{ known_drivers|json_script:"known-drivers-data" }}
+    <script>
+      const KNOWN_DRIVERS = JSON.parse(document.getElementById('known-drivers-data').textContent);
+      const CSRF = "{{ csrf_token }}";
+
+      function toast(msg, ok = true) {
+        let box = document.getElementById('op-toast');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'op-toast';
+          box.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);' +
+            'z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center;';
+          document.body.appendChild(box);
+        }
+        const el = document.createElement('div');
+        el.textContent = msg;
+        el.style.cssText = 'padding:10px 18px;border-radius:8px;font-weight:600;font-size:0.875rem;' +
+          'color:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.2);background:' + (ok ? '#16a34a' : '#dc2626');
+        box.appendChild(el);
+        setTimeout(() => el.remove(), 2600);
+      }
+
+      async function post(url, body) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+          body: JSON.stringify(body || {}),
+        });
+        let data = {};
+        try { data = await res.json(); } catch (e) { /* non-JSON error page */ }
+        if (!res.ok || !data.success) throw new Error(data.error || 'Something went wrong');
+        return data;
+      }
+
+      /* ── Copy ──────────────────────────────────────────────────────────────
+         navigator.clipboard needs a secure context; the textarea fallback keeps
+         copy working on a plain-HTTP office machine, which is exactly where an
+         operator sits. */
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch (e) {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.cssText = 'position:fixed;top:-1000px;opacity:0;';
+          document.body.appendChild(ta);
+          ta.select();
+          let ok = false;
+          try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+          ta.remove();
+          return ok;
+        }
+      }
+
+      document.addEventListener('click', async (e) => {
+        const target = e.target.closest('[data-copy]');
+        if (!target) return;
+        const ok = await copyText(target.getAttribute('data-copy'));
+        if (!ok) { toast('Could not copy — select the text manually', false); return; }
+        target.classList.add('op-copied');
+        setTimeout(() => target.classList.remove('op-copied'), 700);
+        const label = target.querySelector('.op-field-label');
+        toast(label ? label.textContent.trim() + ' copied' : 'Copied');
+      });
+
+      // Keyboard: the fields are focusable, so Enter/Space must copy too.
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const field = e.target.closest('.op-field');
+        if (!field) return;
+        e.preventDefault();
+        field.click();
+      });
+
+      /* Every page shares this script, but not every page has every control:
+         the day picker is board-only, and the modals are dropped entirely on
+         the read-only Completed page. Binding blind would throw on the first
+         missing element and kill every handler defined after it — including
+         copy, which IS on all three pages. */
+      function on(id, event, handler) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(event, handler);
+      }
+
+      // ── Date jump (board only) ──
+      on('opDate', 'change', (e) => {
+        window.location.search = '?date=' + e.target.value;
+      });
+
+      // ── Accept ──
+      document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.op-accept');
+        if (!btn) return;
+        btn.disabled = true;
+        try {
+          await post(`/drivers/operator/${btn.dataset.legId}/accept/`);
+          toast('Job accepted');
+          setTimeout(() => window.location.reload(), 500);
+        } catch (err) {
+          toast(err.message, false);
+          btn.disabled = false;
+        }
+      });
+
+      // ── Decline ──
+      let declineLegId = null;
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.op-decline');
+        if (!btn) return;
+        declineLegId = btn.dataset.legId;
+        const modal = document.getElementById('declineModal');
+        if (modal) new bootstrap.Modal(modal).show();
+      });
+      on('declineConfirm', 'click', async (e) => {
+        const note = document.getElementById('declineNote').value.trim();
+        const reason = document.getElementById('declineReason').value + (note ? ` — ${note}` : '');
+        e.target.disabled = true;
+        try {
+          await post(`/drivers/operator/${declineLegId}/decline/`, { reason });
+          toast('Sent back to dispatch');
+          setTimeout(() => window.location.reload(), 600);
+        } catch (err) {
+          toast(err.message, false);
+          e.target.disabled = false;
+        }
+      });
+
+      // ── Assign their driver ──
+      let driverLegId = null;
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.op-set-driver');
+        if (!btn) return;
+        driverLegId = btn.dataset.legId;
+        const modal = document.getElementById('driverModal');
+        if (!modal) return;
+        document.getElementById('driverName').value = btn.dataset.name || '';
+        document.getElementById('driverPhone').value = btn.dataset.phone || '';
+        new bootstrap.Modal(modal).show();
+      });
+      // Picking a remembered driver fills their cell — the point of the roster.
+      on('driverName', 'input', (e) => {
+        const match = KNOWN_DRIVERS.find(d => d.name.toLowerCase() === e.target.value.trim().toLowerCase());
+        const phone = document.getElementById('driverPhone');
+        if (match && match.phone && !phone.value.trim()) phone.value = match.phone;
+      });
+      on('driverSave', 'click', async (e) => {
+        e.target.disabled = true;
+        try {
+          await post(`/drivers/operator/${driverLegId}/assign-driver/`, {
+            name: document.getElementById('driverName').value,
+            phone: document.getElementById('driverPhone').value,
+          });
+          toast('Driver saved');
+          setTimeout(() => window.location.reload(), 500);
+        } catch (err) {
+          toast(err.message, false);
+          e.target.disabled = false;
+        }
+      });
+
+      // ── Status ──
+      document.addEventListener('change', async (e) => {
+        const sel = e.target.closest('.op-status');
+        if (!sel) return;
+        const previous = sel.dataset.previous || '';
+        try {
+          await post(`/drivers/update_leg_status/${sel.dataset.legId}/`, { status: sel.value });
+          toast('Status updated');
+          sel.dataset.previous = sel.value;
+        } catch (err) {
+          toast(err.message, false);
+          if (previous) sel.value = previous;
+        }
+      });
+      document.querySelectorAll('.op-status').forEach(s => { s.dataset.previous = s.value; });
+    </script>
+  </body>
+</html>

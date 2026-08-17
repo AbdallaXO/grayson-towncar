@@ -9,6 +9,7 @@ request flow never blocks on notification failure.
 import logging
 
 from django.conf import settings
+from business.datefmt import day_month, time12
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +59,8 @@ def _send(to_number, body):
 
 def _range_display(override):
     if override.end_date and override.end_date != override.date:
-        return f"{override.date:%b %-d} - {override.end_date:%b %-d}"
-    return f"{override.date:%b %-d}"
+        return f"{day_month(override.date)} - {day_month(override.end_date)}"
+    return day_month(override.date)
 
 
 def _window_display(override):
@@ -68,13 +69,13 @@ def _window_display(override):
     if et == "off":
         return "(all day)"
     if et == "available_until" and override.end_time:
-        return f"(unavailable after {override.end_time:%-I:%M %p})"
+        return f"(unavailable after {time12(override.end_time)})"
     if et == "available_after" and override.start_time:
-        return f"(unavailable before {override.start_time:%-I:%M %p})"
+        return f"(unavailable before {time12(override.start_time)})"
     if et == "unavailable_window" and override.start_time and override.end_time:
-        return f"({override.start_time:%-I:%M %p} - {override.end_time:%-I:%M %p})"
+        return f"({time12(override.start_time)} - {time12(override.end_time)})"
     if et == "available_window" and override.start_time and override.end_time:
-        return f"(only available {override.start_time:%-I:%M %p} - {override.end_time:%-I:%M %p})"
+        return f"(only available {time12(override.start_time)} - {time12(override.end_time)})"
     return ""
 
 

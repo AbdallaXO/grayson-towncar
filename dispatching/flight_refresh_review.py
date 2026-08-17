@@ -11,6 +11,7 @@ import logging
 
 from django.urls import reverse
 from django.utils import timezone
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -246,8 +247,8 @@ def classify_refresh_row(leg, old_snapshot, refresh_result, threshold_minutes=30
             if issue_code == "ok":
                 issue_code = "date_shifted"
                 issue_label = (
-                    f"Flight now arrives {new_arr_date.strftime('%a %b %-d')}"
-                    f" (booked pickup {leg.pickup_date.strftime('%a %b %-d')})"
+                    f"Flight now arrives {strf(new_arr_date, '%a %b %-d')}"
+                    f" (booked pickup {strf(leg.pickup_date, '%a %b %-d')})"
                 )
                 recommended_action = "Confirm new arrival date with guest before sending confirmation"
 

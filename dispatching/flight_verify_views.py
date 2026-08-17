@@ -31,6 +31,7 @@ from .flight_verify_email import (
     send_flight_verification_email,
 )
 from .pickup_moves import apply_pickup_time_move
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -463,7 +464,7 @@ def flight_verification_check(request, token):
     aero_trip_type = trip_type if trip_type in ("arrival", "return") else None
 
     pickup_date_human = (
-        leg.pickup_date.strftime("%a, %b %-d") if leg.pickup_date else "the booked date"
+        strf(leg.pickup_date, "%a, %b %-d") if leg.pickup_date else "the booked date"
     )
 
     aeroapi = AeroAPIService()
@@ -547,7 +548,7 @@ def flight_verification_check(request, token):
     )
     if sched_dt is not None:
         try:
-            scheduled_str = sched_dt.strftime("%a, %b %-d at %-I:%M %p")
+            scheduled_str = strf(sched_dt, "%a, %b %-d at %-I:%M %p")
         except Exception:
             scheduled_str = str(sched_dt)
     else:

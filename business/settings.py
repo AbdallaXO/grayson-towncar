@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import logging
 import os
+import sys
 import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -38,6 +39,11 @@ SECRET_KEY = os.environ.get(
 # SECURITY: must stay env-driven. Hardcoding True (56bfbef1) exposed source files +
 # debug tracebacks on prod for 2 days (found in 2026-06-10 SEO/security audit).
 DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
+
+# True while the test runner is driving. Anything that reaches the outside world
+# — SMS, email, paid APIs — must check this. Without it, running the suite texts
+# real phones: the farm-out decline tests alone fire several sends per run.
+TESTING = "test" in sys.argv or "pytest" in sys.modules
 
 
 ALLOWED_HOSTS = [
@@ -311,6 +317,13 @@ TIMEOFF_NOTIFY_PHONES = [
         "TIMEOFF_NOTIFY_PHONES",
         "+14078200072,+14076339901",
     ).split(",") if p.strip()
+]
+
+# Who gets a text when an operator declines a farmed-out job. Empty by default:
+# the decline still unassigns the leg and raises a KEOI flag on the board, so
+# nothing is lost without it. Set FARMOUT_NOTIFY_PHONES to switch texting on.
+FARMOUT_NOTIFY_PHONES = [
+    p.strip() for p in os.environ.get("FARMOUT_NOTIFY_PHONES", "").split(",") if p.strip()
 ]
 
 # ── Early-morning driver wake-up checks ──────────────────────────────────

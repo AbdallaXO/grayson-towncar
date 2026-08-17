@@ -765,6 +765,44 @@
         .gt-card-header { padding: 12px 14px; }
     }
 
+    /* ─── Job grid ───────────────────────────────────────────────────────────
+       These pages used to ship two renderings of every job: a thin desktop
+       table and a full mobile card. They drifted — the desktop table lost car
+       seats entirely — and they collided on duplicate element ids. Now there is
+       ONE card, and this grid decides how many sit side by side. A driver on a
+       phone sees exactly what they saw before; on a laptop or an office monitor
+       the same complete cards fill the width instead of a single narrow column.
+       Cards are content-height (align-items:start) so a job with a flight
+       tracker doesn't stretch its neighbours. */
+    .gt-job-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+        align-items: start;
+    }
+    @media (min-width: 768px)  { .gt-job-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 1500px) { .gt-job-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+    /* The portal was built phone-first at 1200px. That leaves most of a desktop
+       screen empty now that jobs tile; let the grid pages breathe on big
+       monitors while staying centred and readable. */
+    .gt-wide { max-width: 1700px !important; }
+
+    /* Desktop comfort: a driver at a computer has a pointer and a keyboard, so
+       reinstate hover feedback and visible focus rings that a touch-first UI
+       drops. Touch targets stay 48px on small screens (below). */
+    @media (min-width: 768px) {
+        .gt-card { transition: box-shadow 0.15s ease, transform 0.15s ease; }
+        .gt-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
+        .gt-btn:focus-visible,
+        .gt-contact:focus-visible,
+        .status-select:focus-visible,
+        .gt-input:focus-visible {
+            outline: 2px solid var(--gt-blue);
+            outline-offset: 2px;
+        }
+    }
+
     /* Bootstrap overrides for legacy class compat */
     .bg-purple { background-color: var(--gt-purple) !important; }
     .bg-orange { background-color: var(--gt-orange) !important; }

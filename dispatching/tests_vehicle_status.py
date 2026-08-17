@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from drivers.models import FleetVehicle
 from rates.models import Vehicle
+from business.datefmt import strf
 
 TODAY = timezone.localdate()
 
@@ -98,7 +99,7 @@ class OutOfServiceLabelTests(_VehicleFixture):
         label = v.out_of_service_label(TODAY)
         self.assertIn("Transmission, at Bob's", label)
         self.assertIn("back", label)
-        back = (TODAY + timedelta(days=3)).strftime("%a %b %-d")
+        back = strf(TODAY + timedelta(days=3), "%a %b %-d")
         self.assertIn(back, label, "the car is back the day AFTER the window ends")
 
     def test_open_ended_label_says_there_is_no_return_date(self):

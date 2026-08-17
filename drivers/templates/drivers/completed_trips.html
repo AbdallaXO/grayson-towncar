@@ -8,7 +8,7 @@
   <body>
     {% include "drivers/navbar.html" %}
 
-    <div class="container-fluid" style="max-width:1200px; padding:16px 12px;">
+    <div class="container-fluid gt-wide" style="max-width:1200px; padding:16px 12px;">
 
       <!-- ═══ Page Header ═══ -->
       <div class="d-flex justify-content-between align-items-center mb-3">
@@ -24,106 +24,8 @@
 
       {% if legs %}
 
-        <!-- ═══ Desktop Table ═══ -->
-        <div class="gt-card d-none d-md-block mb-3">
-          <div class="table-responsive">
-            <table class="gt-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Route</th>
-                  <th>Details</th>
-                  <th>Notes</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for leg in legs %}
-                  <tr>
-                    <td>
-                      <div class="gt-time" style="font-size:1rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
-                      <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">{{ leg.pickup_date|date:"l, M j" }}</div>
-                    </td>
-                    <td>
-                      <div class="gt-route">
-                        <div class="gt-route-point gt-route-pickup">
-                          <div class="gt-route-label">Pickup</div>
-                          <span class="gt-route-address">{{ leg.pickup_location }}</span>
-                        </div>
-                        <div class="gt-route-point gt-route-dropoff">
-                          <div class="gt-route-label">Dropoff</div>
-                          <span class="gt-route-address">{{ leg.dropoff_location }}</span>
-                        </div>
-                      </div>
-                      {% if leg.flight_information %}
-                        <div class="mt-2" style="font-size:0.8125rem;">
-                          <i class="bi bi-airplane me-1" style="opacity:0.5;"></i>{{ leg.flight_information }}
-                        </div>
-                      {% endif %}
-                      {% if leg.cruise_information %}
-                        <div class="mt-1" style="font-size:0.8125rem;">
-                          <i class="bi bi-water me-1" style="color:var(--gt-cyan);"></i>
-                          {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                            {{ leg.cruise_information.cruise_line }} — {{ leg.cruise_information.ship_name }}
-                          {% elif leg.cruise_information.cruise_line %}
-                            {{ leg.cruise_information.cruise_line }}
-                          {% elif leg.cruise_information.ship_name %}
-                            {{ leg.cruise_information.ship_name }}
-                          {% endif %}
-                        </div>
-                      {% endif %}
-                    </td>
-                    <td>
-                      {% if leg.reservation.special_requests %}
-                        <div class="gt-note gt-note-guest mb-2">
-                          <div class="gt-label mb-1">Guest Notes</div>
-                          {{ leg.reservation.special_requests }}
-                        </div>
-                      {% endif %}
-                      {% if leg.reservation.private_notes %}
-                        <div class="gt-note gt-note-private mb-2">
-                          <div class="gt-label mb-1">Private Notes</div>
-                          {{ leg.reservation.private_notes }}
-                        </div>
-                      {% endif %}
-                      {% if leg.private_notes %}
-                        <div class="gt-note gt-note-leg mb-2">
-                          <div class="gt-label mb-1">Leg Notes</div>
-                          {{ leg.private_notes }}
-                        </div>
-                      {% endif %}
-                    </td>
-                    <td style="min-width:160px;">
-                      <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="gt-label">My Notes</span>
-                        <button class="gt-btn gt-btn-ghost edit-driver-notes" style="padding:2px 6px;font-size:0.75rem;"
-                                data-leg-id="{{ leg.id }}" data-current-notes="{{ leg.driver_notes|default:'' }}">
-                          <i class="bi bi-pencil"></i>
-                        </button>
-                      </div>
-                      <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                        {% if leg.driver_notes %}
-                          <div class="gt-note gt-note-driver">{{ leg.driver_notes }}</div>
-                        {% else %}
-                          <span style="font-size:0.8125rem;color:var(--gt-text-secondary);">—</span>
-                        {% endif %}
-                      </div>
-                    </td>
-                    <td>
-                      <div class="gt-chip gt-chip-completed">
-                        <span class="gt-chip-dot"></span>
-                        Completed
-                      </div>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- ═══ Mobile Cards ═══ -->
-        <div class="d-md-none d-flex flex-column gap-3">
+        <!-- ═══ Job Cards (one rendering, 1-3 columns by screen width) ═══ -->
+        <div class="gt-job-grid">
           {% for leg in legs %}
             <div class="gt-card gt-status-completed">
               <div class="gt-card-header">
@@ -181,7 +83,7 @@
                     <div class="gt-info-label">PAX</div>
                   </div>
                   <div class="gt-info-cell">
-                    <div class="gt-info-value">{{ leg.reservation.display_carseats|default:"0" }}</div>
+                    <div class="gt-info-value">{{ leg.display_carseats|default:"None" }}</div>
                     <div class="gt-info-label">Car Seats</div>
                   </div>
                 </div>
