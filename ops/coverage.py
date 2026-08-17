@@ -33,11 +33,12 @@ weekly_schedule_rows + schedule_overrides to stay O(roster) in queries.
 from collections import defaultdict
 from datetime import datetime, time, timedelta
 
+from django.db.models import Q
 from django.utils import timezone
 
 from drivers.availability import fmt_time_long
 from . import scheduling
-from .models import StaffOnCall
+from .models import StaffOnCall, StaffScheduleOverride, STAFF_ROLE_LABELS
 
 
 # ── Coverage targets (EDIT THESE to match how you staff) ──────────────
@@ -375,11 +376,77 @@ def week_coverage(monday, roster, *, today=None):
 # ══════════════════════════════════════════════════════════════════════
 
 DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+DAY_NAMES_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 ONCALL_WINDOW = (0, 360)      # 12 AM–6 AM
 OPERATING = (360, 1440)       # 6 AM–midnight (what we judge for gaps)
 CORE = (540, 1200)            # 9 AM–8 PM
 CORE_WEEKDAY_TARGET = 2       # Mon–Fri core wants 2 on
 MIN_GAP_MIN = 60              # ignore shortfalls under an hour
+
+
+# ── Per-person colour ─────────────────────────────────────────────────
+# One stable colour per dispatcher so a shift can be traced across days and
+# views at a glance. Ten hues spread around the wheel, muted enough to sit on
+# the board's parchment ground and to keep white/ink text legible on the fill.
+PALETTE = [
+    ("teal",   "#0E7C86"),
+    ("indigo", "#3A4BA0"),
+    ("clay",   "#B4530A"),
+    ("forest", "#2C7A4C"),
+    ("plum",   "#7B3A86"),
+    ("ocean",  "#1F6FB2"),
+    ("rose",   "#A83458"),
+    ("olive",  "#6B7A12"),
+    ("bronze", "#8A6A12"),
+    ("slate",  "#4F5A6B"),
+]
+
+
+def _rgba(hex_color, alpha):
+    h = hex_color.lstrip("#")
+    return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{alpha})"
+
+
+def _swatch(index):
+    name, hexc = PALETTE[index % len(PALETTE)]
+    return {
+        "i": index % len(PALETTE),
+        "name": name,
+        "ink": hexc,
+        # Tinted rather than solid so ink-dark hours stay readable on top, but
+        # saturated enough that a bar reads as *that person's* colour at a glance.
+        "fill": _rgba(hexc, 0.34),
+        "fill2": _rgba(hexc, 0.48),
+        "line": _rgba(hexc, 0.7),
+        "glow": _rgba(hexc, 0.32),
+    }
+
+
+def assign_colors(roster):
+    """``{user_id: swatch}`` — a stable colour per dispatcher.
+
+    Seeded from the user id (so a colour doesn't shuffle when a teammate is
+    added ahead of them alphabetically), then walked forward to the next free
+    slot on collision, which keeps every visible dispatcher distinct as long as
+    the roster fits the palette.
+    """
+    used, out = set(), {}
+    for u in roster:
+        base = u.id % len(PALETTE)
+        idx = base
+        for step in range(len(PALETTE)):
+            cand = (base + step) % len(PALETTE)
+            if cand not in used:
+                idx = cand
+                break
+        used.add(idx)
+        out[u.id] = _swatch(idx)
+    return out
+
+
+def _short_name(name):
+    """'Joseph Adams' -> 'Joseph'; used where a bar is too narrow for the full name."""
+    return name.split()[0] if name.split() else name
 
 
 def _min_of(t):
@@ -439,18 +506,185 @@ def _lane_pack(shifts):
     return lanes
 
 
-def weekly_pattern(roster, today_dow=None):
+def _pick_role(shifts, wanted):
+    """The shift explicitly *assigned* ``wanted`` ('opener'/'closer'), or None.
+
+    'both' counts for either. If two people are somehow assigned the same duty,
+    the earliest in (opener) / latest out (closer) wins so the board still names
+    exactly one — the conflict is reported separately by ``_role_notes``.
+    """
+    hits = [s for s in shifts if s.get("role") in (wanted, "both")]
+    if not hits:
+        return None
+    return min(hits, key=lambda s: s["sm"]) if wanted == "opener" else max(hits, key=lambda s: s["em"])
+
+
+def _role_notes(shifts, opener, closer):
+    """Quiet, factual flags where the assigned duty doesn't match the hours.
+
+    Assigning an opener who isn't first in is legitimate (someone may come in
+    early to catch flights and still not own opening), so this never colours the
+    day red — it just says so, once, in plain words.
+    """
+    notes = []
+    if not shifts:
+        return notes
+    first_in = min(shifts, key=lambda s: s["sm"])
+    last_out = max(shifts, key=lambda s: s["em"])
+    if opener and opener["assigned"] and opener["uid"] != first_in["uid"]:
+        notes.append(f'{_short_name(first_in["name"])} is in first ({_fmt_min(first_in["sm"])})')
+    if closer and closer["assigned"] and closer["uid"] != last_out["uid"]:
+        notes.append(f'{_short_name(last_out["name"])} is out last ({_fmt_min(last_out["em"])})')
+    for wanted, label in (("opener", "Opener"), ("closer", "Closer")):
+        if len([s for s in shifts if s.get("role") in (wanted, "both")]) > 1:
+            notes.append(f"two people assigned {label}")
+    return notes
+
+
+def _resolve_duty(shifts, wanted):
+    """The day's opener/closer as ``{uid, name, time, assigned}``, or None.
+
+    An explicit assignment always wins; with none set the board falls back to
+    deriving it from the hours (earliest in / latest out), which is how it read
+    before roles existed — so an unconfigured roster looks exactly as it did.
+    """
+    if not shifts:
+        return None
+    s = _pick_role(shifts, wanted)
+    assigned = s is not None
+    if s is None:
+        s = min(shifts, key=lambda x: x["sm"]) if wanted == "opener" else max(shifts, key=lambda x: x["em"])
+    return {
+        "uid": s["uid"], "name": s["name"], "short": _short_name(s["name"]),
+        "time": _fmt_min(s["sm"]) if wanted == "opener" else _fmt_min(s["em"]),
+        "assigned": assigned,
+        "color": s.get("color"),
+    }
+
+
+def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=False,
+               oncall_windows=(), oncall=(), time_off=(), pending=()):
+    """One rendered day, shared by the pattern view and every dated view.
+
+    ``shifts`` are plain minute-of-day dicts (``uid/name/sm/em/role/color/...``)
+    so this stays free of both timezone and ORM concerns — the callers resolve
+    those. ``oncall_windows`` are (start_min, end_min) pairs that count as a
+    covering body overnight; the pattern view passes the standing 12–6 AM window,
+    a dated view passes whoever is actually marked on-call that night.
+
+    ``oncall`` is who those windows belong to (name/short/window/color), which
+    only a dated view can know — on-call is assigned per night, so the recurring
+    pattern has nobody to name.
+    """
+    is_weekend = dow >= 5
+    opener = _resolve_duty(shifts, "opener")
+    closer = _resolve_duty(shifts, "closer")
+
+    cover = [0] * 1440
+    for lo, hi in oncall_windows:
+        for a in range(max(0, lo), min(hi, 1440)):
+            cover[a] += 1
+    for s in shifts:
+        for a in range(s["sm"], min(s["em"], 1440)):
+            cover[a] += 1
+
+    peak = max(cover[OPERATING[0]:], default=0) if shifts else 0
+    gaps = _runs_min(cover, OPERATING[0], OPERATING[1], lambda c: c == 0, MIN_GAP_MIN)
+    core_target = CORE_WEEKDAY_TARGET if dow < 5 else 1
+    thin = _runs_min(cover, CORE[0], CORE[1], lambda c: 0 < c < core_target, MIN_GAP_MIN)
+
+    if gaps:
+        cue = {"level": "crit", "text": f"gap {_fmt_min(gaps[0][0])}–{_fmt_min(gaps[0][1])}"}
+    elif thin:
+        cue = {"level": "warn", "text": f"thin {_fmt_min(thin[0][0])}–{_fmt_min(thin[0][1])}"}
+    elif not shifts:
+        cue = {"level": "crit" if oncall_windows else "warn", "text": "no one on"}
+    else:
+        cue = {"level": "ok", "text": "covered"}
+
+    lanes = []
+    for ln in _lane_pack(shifts):
+        bars = []
+        for s in ln:
+            width = _pct_min(min(s["em"], 1440) - s["sm"])
+            role = s.get("role") or ""
+            is_op = bool(opener and opener["uid"] == s["uid"])
+            is_cl = bool(closer and closer["uid"] == s["uid"])
+            bars.append({
+                "uid": s["uid"],
+                "name": s["name"],
+                "short": _short_name(s["name"]),
+                "left": _pct_min(s["sm"]),
+                "width": width,
+                "label": f'{_fmt_min(s["sm"])}–{_fmt_min(s["em"])}',
+                "role": role,
+                "role_label": STAFF_ROLE_LABELS.get(role, ""),
+                "is_opener": is_op,
+                "is_closer": is_cl,
+                "assigned_role": bool(role),
+                "color": s.get("color"),
+                "overnight": s.get("overnight", False),
+                "changed": s.get("changed", False),
+                # Below ~13% of the day (≈3h) even a first name crowds the pill.
+                "tight": width < 13,
+            })
+        lanes.append(bars)
+
+    return {
+        "key": key, "dow": dow, "name": name, "full_name": full_name, "sub": sub,
+        "is_today": is_today, "is_past": is_past, "is_weekend": is_weekend,
+        "on_count": len(shifts), "peak": peak, "cue": cue,
+        "opener": opener, "closer": closer,
+        "role_notes": _role_notes(shifts, opener, closer),
+        "oncall": list(oncall),
+        "oncall_names": [o["name"] for o in oncall],
+        "oncall_band": {"left": _pct_min(ONCALL_WINDOW[0]), "width": _pct_min(ONCALL_WINDOW[1] - ONCALL_WINDOW[0])},
+        "oncall_bands": [{"left": _pct_min(lo), "width": _pct_min(min(hi, 1440) - lo)} for lo, hi in oncall_windows],
+        "lanes": lanes,
+        "rail_gaps": [{"left": _pct_min(a), "width": _pct_min(b - a)} for a, b in gaps],
+        "rail_thin": [{"left": _pct_min(a), "width": _pct_min(b - a)} for a, b in thin],
+        "time_off": list(time_off),
+        "pending": list(pending),
+    }
+
+
+def _row_cell(shift, *, day, time_off=None, pending=None):
+    """One dispatcher × one day table cell, from an already-built shift dict."""
+    if shift is None:
+        base = {"is_working": False, "label": "—", "kind": "none"}
+    else:
+        base = {
+            "is_working": True,
+            "label": f'{_fmt_min(shift["sm"])}–{_fmt_min(shift["em"])}',
+            "kind": "work",
+            "overnight": shift.get("overnight", False),
+            "role": shift.get("role") or "",
+            "role_label": STAFF_ROLE_LABELS.get(shift.get("role") or "", ""),
+            "changed": shift.get("changed", False),
+            "is_opener": bool(day["opener"] and day["opener"]["uid"] == shift["uid"]),
+            "is_closer": bool(day["closer"] and day["closer"]["uid"] == shift["uid"]),
+        }
+    if time_off:
+        base.update(kind="timeoff", label=time_off.get("reason_label") or "Time off", time_off=time_off)
+    elif pending:
+        base["pending"] = pending
+    base.update(is_today=day["is_today"], is_past=day["is_past"], is_weekend=day["is_weekend"], key=day["key"])
+    return base
+
+
+def weekly_pattern(roster, today_dow=None, colors=None):
     """The recurring weekly staffing pattern for the board.
 
     ``roster`` must be prefetched with ``weekly_schedule_rows``. Returns
     ``{weekdays: [...7], rows: [...per dispatcher]}`` — weekdays carries the
-    coverage cue + timeline lanes; rows carries the table cells.
+    coverage cue + timeline lanes; rows carries the table cells. Dateless by
+    design: this is the standard week, not a specific one.
     """
+    colors = colors or assign_colors(roster)
     by_dow = {d: [] for d in range(7)}          # weekday -> working shifts
-    user_cells = {}                              # user.id -> {dow: cell}
+    off_rows = defaultdict(set)                  # user.id -> weekdays explicitly off
     for u in roster:
         name = u.get_full_name() or u.username
-        cells = {}
         for r in u.weekly_schedule_rows.all():
             if r.is_working and r.start_time and r.end_time:
                 sm, em = _min_of(r.start_time), _min_of(r.end_time)
@@ -458,90 +692,208 @@ def weekly_pattern(roster, today_dow=None):
                 if overnight:
                     em += 1440
                 by_dow[r.day_of_week].append({
-                    "user": u, "name": name, "sm": sm, "em": em, "overnight": overnight,
-                    "start_label": _fmt_min(sm), "end_label": _fmt_min(em),
+                    "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
+                    "role": getattr(r, "role", "") or "", "color": colors.get(u.id),
                 })
-                cells[r.day_of_week] = {"is_working": True, "overnight": overnight,
-                                        "label": f"{_fmt_min(sm)}–{_fmt_min(em)}"}
             else:
-                cells[r.day_of_week] = {"is_working": False}
-        user_cells[u.id] = (name, cells)
+                off_rows[u.id].add(r.day_of_week)
 
-    weekdays = []
-    opener_closer = {}                           # dow -> (opener_uid, closer_uid)
-    for d in range(7):
-        shifts = by_dow[d]
-        opener = min(shifts, key=lambda s: s["sm"]) if shifts else None
-        closer = max(shifts, key=lambda s: s["em"]) if shifts else None
-        opener_closer[d] = (opener["user"].id if opener else None, closer["user"].id if closer else None)
-
-        cover = [0] * 1440
-        for a in range(*ONCALL_WINDOW):          # on-call fills overnight
-            cover[a] += 1
-        for s in shifts:
-            for a in range(s["sm"], min(s["em"], 1440)):
-                cover[a] += 1
-
-        peak = max(cover[OPERATING[0]:], default=0) if shifts else 0
-        gaps = _runs_min(cover, OPERATING[0], OPERATING[1], lambda c: c == 0, MIN_GAP_MIN)
-        core_target = CORE_WEEKDAY_TARGET if d < 5 else 1
-        thin = _runs_min(cover, CORE[0], CORE[1], lambda c: 0 < c < core_target, MIN_GAP_MIN)
-
-        if gaps:
-            cue = {"level": "crit", "text": f"gap {_fmt_min(gaps[0][0])}–{_fmt_min(gaps[0][1])}"}
-        elif thin:
-            cue = {"level": "warn", "text": f"thin {_fmt_min(thin[0][0])}–{_fmt_min(thin[0][1])}"}
-        else:
-            cue = {"level": "ok", "text": "on-call o/n" if shifts else "—"}
-
-        lanes = []
-        for ln in _lane_pack(shifts):
-            bars = []
-            for s in ln:
-                bars.append({
-                    "name": s["name"],
-                    "left": _pct_min(s["sm"]),
-                    "width": _pct_min(min(s["em"], 1440) - s["sm"]),
-                    "label": f'{s["start_label"]}–{s["end_label"]}',
-                    "is_opener": bool(opener and s is opener),
-                    "is_closer": bool(closer and s is closer),
-                    "overnight": s["overnight"],
-                })
-            lanes.append(bars)
-
-        weekdays.append({
-            "dow": d, "name": DAY_NAMES[d], "is_today": d == today_dow,
-            "is_weekend": d >= 5, "on_count": len(shifts), "peak": peak,
-            "opener": {"name": opener["name"], "time": opener["start_label"]} if opener else None,
-            "closer": {"name": closer["name"], "time": closer["end_label"]} if closer else None,
-            "cue": cue,
-            "oncall_band": {"left": _pct_min(ONCALL_WINDOW[0]), "width": _pct_min(ONCALL_WINDOW[1] - ONCALL_WINDOW[0])},
-            "lanes": lanes,
-            "rail_gaps": [{"left": _pct_min(a), "width": _pct_min(b - a)} for a, b in gaps],
-        })
+    weekdays = [
+        _build_day(
+            by_dow[d], key=str(d), name=DAY_NAMES[d], full_name=DAY_NAMES_FULL[d], sub="",
+            dow=d, is_today=(d == today_dow), oncall_windows=(ONCALL_WINDOW,),
+        )
+        for d in range(7)
+    ]
 
     rows = []
     for u in roster:
-        name, cells = user_cells[u.id]
-        oc_map = opener_closer
-        out_cells = []
+        cells = []
         for d in range(7):
-            c = cells.get(d)
-            if c and c.get("is_working"):
-                out_cells.append({
-                    "is_working": True, "label": c["label"], "overnight": c["overnight"],
-                    "is_opener": oc_map[d][0] == u.id, "is_closer": oc_map[d][1] == u.id,
-                    "is_today": d == today_dow,
-                })
-            else:
-                out_cells.append({"is_working": False, "label": "Off" if c else "—",
-                                  "kind": "off" if c else "none", "is_today": d == today_dow})
+            mine = next((s for s in by_dow[d] if s["uid"] == u.id), None)
+            cell = _row_cell(mine, day=weekdays[d])
+            if mine is None and d in off_rows[u.id]:
+                cell.update(label="Off", kind="off")
+            cells.append(cell)
+        worked = sum(1 for c in cells if c["is_working"])
         rows.append({
-            "user": u, "name": name, "cells": out_cells,
-            "working_days": sum(1 for c in out_cells if c["is_working"]),
+            "user": u, "name": u.get_full_name() or u.username, "color": colors.get(u.id),
+            "cells": cells,
+            "working_days": worked,
+            "is_empty": worked == 0,
+            "hours": _fmt_hours(sum(
+                s["em"] - s["sm"] for d in range(7)
+                for s in by_dow[d] if s["uid"] == u.id
+            )),
         })
 
     return {"weekdays": weekdays, "rows": rows}
+
+
+def _fmt_hours(minutes):
+    """Total minutes -> '38h' / '37.5h' (one decimal only when it isn't whole)."""
+    h = minutes / 60
+    return f"{h:.0f}h" if abs(h - round(h)) < 0.05 else f"{h:.1f}h"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DATED views — the same board shape, but for real calendar dates.
+#
+# Identical output contract to ``weekly_pattern`` so the template renders one
+# thing; the difference is that every day here is resolved through
+# ``scheduling.resolve_staff_schedule``, so approved time off, custom hours and
+# actual on-call assignments are all reflected. Any run of dates works: one day,
+# a Mon–Sun week, or an arbitrary range.
+# ══════════════════════════════════════════════════════════════════════
+
+MAX_RANGE_DAYS = 31
+
+
+def md(d):
+    """date -> 'Aug 5'. Built without %-d, which Windows' strftime rejects."""
+    return d.strftime("%b %d").replace(" 0", " ")
+
+
+def _pending_requests(dates, roster):
+    """``{(user_id, date): request}`` for time off awaiting a decision.
+
+    Pending rows are invisible to the resolver on purpose — they must not move
+    anyone's schedule — so the board reads them separately and draws them as a
+    request laid over the day, not as an absence.
+    """
+    if not dates or not roster:
+        return {}
+    out = {}
+    qs = (
+        StaffScheduleOverride.objects
+        .filter(status="pending", user__in=[u.id for u in roster], kind="off")
+        .filter(Q(end_date__isnull=True, date__range=(dates[0], dates[-1]))
+                | Q(end_date__gte=dates[0], date__lte=dates[-1]))
+        .select_related("user")
+    )
+    for ov in qs:
+        for d in dates:
+            if ov.applies_on(d):
+                out[(ov.user_id, d)] = {
+                    "id": ov.id,
+                    "name": ov.user.get_full_name() or ov.user.username,
+                    "reason_label": ov.reason_label or "Time off",
+                    "note": ov.note,
+                    "range_display": ov.date_range_display,
+                }
+    return out
+
+
+def dated_range(dates, roster, *, today=None, colors=None):
+    """The board for an explicit list of dates (1–31), same shape as ``weekly_pattern``.
+
+    ``roster`` must be prefetched with ``weekly_schedule_rows`` AND
+    ``schedule_overrides``. One query each for on-call and pending requests.
+    """
+    if today is None:
+        today = timezone.localdate()
+    dates = list(dates)[:MAX_RANGE_DAYS]
+    colors = colors or assign_colors(roster)
+
+    oncall_by_date = defaultdict(list)
+    oncall_by_user_date = {}
+    if dates and roster:
+        for oc in (StaffOnCall.objects
+                   .filter(date__range=(dates[0], dates[-1]), user__in=[u.id for u in roster])
+                   .select_related("user")):
+            oncall_by_date[oc.date].append(oc)
+            oncall_by_user_date[(oc.user_id, oc.date)] = oc
+    pending_map = _pending_requests(dates, roster)
+
+    day_shifts, day_off, day_offday, days = {}, {}, {}, []
+    for d in dates:
+        shifts, time_off, pending, plain_off = [], [], [], set()
+        for u in roster:
+            name = u.get_full_name() or u.username
+            sched = scheduling.resolve_staff_schedule(u, d)
+            if sched["is_working"] and sched["start_time"] and sched["end_time"]:
+                sm, em = _min_of(sched["start_time"]), _min_of(sched["end_time"])
+                overnight = em <= sm
+                if overnight:
+                    em += 1440
+                shifts.append({
+                    "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
+                    "role": sched.get("role") or "", "color": colors.get(u.id),
+                    "changed": sched.get("kind") == "custom_hours",
+                })
+            elif sched.get("time_off"):
+                time_off.append({**sched["time_off"], "uid": u.id, "name": name,
+                                 "short": _short_name(name), "color": colors.get(u.id)})
+            elif sched["is_working"] is False:
+                plain_off.add(u.id)          # a normal day off, not an absence
+            req = pending_map.get((u.id, d))
+            if req:
+                pending.append({**req, "uid": u.id, "color": colors.get(u.id)})
+
+        oncall_entries = oncall_by_date.get(d, [])
+        windows, oncall = [], []
+        for oc in oncall_entries:
+            lo, hi = _min_of(oc.start_time), _min_of(oc.end_time)
+            windows.append((lo, hi if hi > lo else hi + 1440))
+            oc_name = oc.user.get_full_name() or oc.user.username
+            oncall.append({
+                "uid": oc.user_id,
+                "name": oc_name,
+                "short": _short_name(oc_name),
+                "window": f"{_compact_time(oc.start_time)}–{_compact_time(oc.end_time)}",
+                "color": colors.get(oc.user_id),
+            })
+        day = _build_day(
+            shifts,
+            key=d.strftime("%Y-%m-%d"),
+            name=DAY_NAMES[d.weekday()],
+            full_name=DAY_NAMES_FULL[d.weekday()],
+            sub=md(d),
+            dow=d.weekday(),
+            is_today=(d == today),
+            is_past=(d < today),
+            oncall_windows=windows,
+            oncall=oncall,
+            time_off=time_off,
+            pending=pending,
+        )
+        day["date"] = d
+        day_shifts[d] = {s["uid"]: s for s in shifts}
+        day_off[d] = {t["uid"]: t for t in time_off}
+        day_offday[d] = plain_off
+        days.append(day)
+
+    rows = []
+    for u in roster:
+        cells, total = [], 0
+        for day in days:
+            d = day["date"]
+            mine = day_shifts[d].get(u.id)
+            cell = _row_cell(
+                mine, day=day,
+                time_off=day_off[d].get(u.id),
+                pending=pending_map.get((u.id, d)),
+            )
+            if cell["kind"] == "none" and u.id in day_offday[d]:
+                cell.update(label="Off", kind="off")
+            if (u.id, d) in oncall_by_user_date:
+                oc = oncall_by_user_date[(u.id, d)]
+                cell["oncall_label"] = f"{_compact_time(oc.start_time)}–{_compact_time(oc.end_time)}"
+            if mine:
+                total += mine["em"] - mine["sm"]
+            cells.append(cell)
+        worked = sum(1 for c in cells if c["is_working"])
+        rows.append({
+            "user": u, "name": u.get_full_name() or u.username, "color": colors.get(u.id),
+            "cells": cells,
+            "working_days": worked,
+            # Someone off sick all week still belongs on the board — they aren't
+            # "unscheduled", they're absent — so time off keeps the row visible.
+            "is_empty": worked == 0 and not any(c["kind"] == "timeoff" or c.get("pending") for c in cells),
+            "hours": _fmt_hours(total),
+        })
+
+    return {"weekdays": days, "rows": rows}
 
 
 # ══════════════════════════════════════════════════════════════════════

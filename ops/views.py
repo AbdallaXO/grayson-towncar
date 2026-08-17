@@ -29,6 +29,7 @@ from .models import (
     StaffWeeklySchedule,
     StaffScheduleOverride,
     StaffOnCall,
+    STAFF_ROLE_CHOICES,
 )
 from .services import close_task, cancel_task, log_communication, create_task
 from .services import (
@@ -50,6 +51,7 @@ from .services import (
 )
 from . import scheduling
 from . import coverage
+from . import timeoff
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -4689,6 +4691,12 @@ def _serialize_override(o):
         "start_time": o.start_time.strftime("%H:%M") if o.start_time else "",
         "end_time": o.end_time.strftime("%H:%M") if o.end_time else "",
         "note": o.note,
+        "role": o.role,
+        "reason": o.reason,
+        "reason_label": o.reason_label,
+        "status": o.status,
+        "status_label": o.status_label,
+        "requested": o.requested_by_staff,
         "range_display": o.date_range_display,
         "kind_label": dict(StaffScheduleOverride.KIND_CHOICES).get(o.kind, o.kind),
     }
@@ -4892,6 +4900,7 @@ def timeclock_staff_detail(request, user_id):
             "is_working": r.is_working if r else False,
             "start_time": r.start_time.strftime("%H:%M") if (r and r.start_time) else "09:00",
             "end_time": r.end_time.strftime("%H:%M") if (r and r.end_time) else "17:00",
+            "role": r.role if r else "",
             "note": r.note if r else "",
         })
     overrides = list(
@@ -4935,6 +4944,7 @@ def timeclock_staff_detail(request, user_id):
         "weekly_editor": weekly_editor,
         "overrides": overrides,
         "vs_rows": vs_rows,
+        "role_choices": STAFF_ROLE_CHOICES,
     })
 
 
@@ -5004,6 +5014,7 @@ def staff_schedule_get(request):
             "is_working": r.is_working,
             "start_time": r.start_time.strftime("%H:%M") if r.start_time else "",
             "end_time": r.end_time.strftime("%H:%M") if r.end_time else "",
+            "role": r.role,
             "note": r.note,
         }
     overrides = [
@@ -5041,9 +5052,13 @@ def staff_schedule_action(request):
             if is_working and (start_t is None or end_t is None):
                 day = dict(StaffWeeklySchedule.DAY_CHOICES).get(dow, dow)
                 return JsonResponse({"success": False, "error": f"{day}: start and end times are required when working."})
+            role = (row.get("role") or "").strip()
+            if role not in dict(STAFF_ROLE_CHOICES):
+                role = ""
             StaffWeeklySchedule.objects.update_or_create(
                 user=u, day_of_week=dow,
-                defaults={"is_working": is_working, "start_time": start_t, "end_time": end_t, "note": (row.get("note") or "")[:200]},
+                defaults={"is_working": is_working, "start_time": start_t, "end_time": end_t,
+                          "role": role if is_working else "", "note": (row.get("note") or "")[:200]},
             )
         return JsonResponse({"success": True})
 
@@ -5060,7 +5075,15 @@ def staff_schedule_action(request):
             start_t, end_t = _parse_hm(data.get("start_time")), _parse_hm(data.get("end_time"))
             if start_t is None or end_t is None:
                 return JsonResponse({"success": False, "error": "Custom hours need a start and end time."})
-        fields = dict(date=date_, end_date=end_date, kind=kind, start_time=start_t, end_time=end_t, note=(data.get("note") or "")[:200])
+        role = (data.get("role") or "").strip()
+        if role not in dict(STAFF_ROLE_CHOICES):
+            role = ""
+        reason = (data.get("reason") or "").strip()
+        if reason not in dict(StaffScheduleOverride.REASON_CHOICES):
+            reason = ""
+        fields = dict(date=date_, end_date=end_date, kind=kind, start_time=start_t, end_time=end_t,
+                      role=role, reason=reason if kind == "off" else "",
+                      note=(data.get("note") or "")[:200])
         if action == "add_override":
             o = StaffScheduleOverride.objects.create(user=u, created_by=request.user, **fields)
         else:
@@ -5078,22 +5101,79 @@ def staff_schedule_action(request):
     return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
 
 
+def _staffing_scope(request, today):
+    """Resolve the board's scope from the query string.
+
+    Returns ``(scope, dates, label, sub_label)`` where ``dates`` is empty for the
+    dateless "pattern" scope. Anything unparseable falls back to this week rather
+    than erroring — a bad bookmark should still render a board.
+
+    * ``pattern``          the recurring standard week (no dates) — the default
+    * ``week&start=…``     a Mon–Sun week; ``start`` is snapped back to its Monday
+    * ``day&date=…``       one date
+    * ``range&start=&end=` any span, capped at ``coverage.MAX_RANGE_DAYS``
+    """
+    scope = (request.GET.get("scope") or "pattern").strip().lower()
+    if scope not in ("pattern", "week", "day", "range"):
+        scope = "pattern"
+
+    if scope == "pattern":
+        return "pattern", [], "Weekly Staffing Pattern", "the standard week"
+
+    start = _parse_ymd(request.GET.get("start"))
+    end = _parse_ymd(request.GET.get("end"))
+
+    if scope == "day":
+        d = _parse_ymd(request.GET.get("date")) or start or today
+        rel = (d - today).days
+        when = "Today" if rel == 0 else ("Tomorrow" if rel == 1 else ("Yesterday" if rel == -1 else ""))
+        sub = d.strftime("%A, %B %d, %Y").replace(" 0", " ")
+        return "day", [d], (f"{when} · {coverage.md(d)}" if when else d.strftime("%A")), sub
+
+    if scope == "range" and start and end:
+        if end < start:
+            start, end = end, start
+        span = min((end - start).days + 1, coverage.MAX_RANGE_DAYS)
+        dates = [start + timedelta(days=i) for i in range(span)]
+        return "range", dates, f"{coverage.md(start)} – {coverage.md(dates[-1])}", f"{span} days"
+
+    # Week (also the fallback for a malformed range).
+    anchor = start or today
+    monday = anchor - timedelta(days=anchor.weekday())
+    dates = [monday + timedelta(days=i) for i in range(7)]
+    this_monday = today - timedelta(days=today.weekday())
+    delta_weeks = (monday - this_monday).days // 7
+    label = {0: "This week", 1: "Next week", -1: "Last week"}.get(
+        delta_weeks, f"Week of {coverage.md(monday)}")
+    return "week", dates, label, f"{coverage.md(monday)} – {coverage.md(dates[-1])}"
+
+
 @login_required(login_url="login")
 @user_passes_test(_is_superuser, login_url="dashboard")
 def staffing_board(request):
     """Dispatcher staffing & coverage board (superuser).
 
-    Shows the recurring *weekly pattern* — columns are weekdays (Mon–Sun, not
-    specific dates), rows are dispatchers with their standard hours, read
-    straight from StaffWeeklySchedule. Marks the opener (earliest in) and closer
-    (latest out) each weekday, and flags a weekday only where coverage actually
-    breaks. Overnight (12–6 AM) is the on-call window, shown quietly (on-call is
-    marked per night on the Time Clock page). Editing a dispatcher's hours reuses
-    the existing per-staff schedule editor.
+    Four scopes, one rendering. The default is the recurring *weekly pattern* —
+    dateless columns straight from StaffWeeklySchedule, which is what this page
+    always showed. The dated scopes (week / day / range) run the same shape
+    through the schedule resolver instead, so approved time off, one-off custom
+    hours and actual on-call assignments all land on the board.
+
+    Opener and closer are *assigned* per shift where someone has been given the
+    duty, and derived from the hours (earliest in / latest out) where nobody has —
+    so a roster with no roles set reads exactly as it did before.
     """
-    roster = list(_office_staff_qs().prefetch_related("weekly_schedule_rows"))
-    today_dow = timezone.localdate().weekday()
-    data = coverage.weekly_pattern(roster, today_dow=today_dow)
+    today = timezone.localdate()
+    scope, dates, scope_label, scope_sub = _staffing_scope(request, today)
+
+    prefetch = ["weekly_schedule_rows"] + ([] if scope == "pattern" else ["schedule_overrides"])
+    roster = list(_office_staff_qs().prefetch_related(*prefetch))
+    colors = coverage.assign_colors(roster)
+
+    if scope == "pattern":
+        data = coverage.weekly_pattern(roster, today_dow=today.weekday(), colors=colors)
+    else:
+        data = coverage.dated_range(dates, roster, today=today, colors=colors)
 
     # Timeline "now" marker (% across a 24h day) + hour-axis ticks.
     now = timezone.localtime()
@@ -5102,15 +5182,175 @@ def staffing_board(request):
                   for h, lbl in [(0, "12a"), (6, "6a"), (12, "12p"), (18, "6p"), (24, "12a")]]
     grid_ticks = [t["pos"] for t in hour_ticks if 0 < t["pos"] < 100]
 
+    # Week/day stepping. The pattern scope has no dates to step through, so its
+    # arrows start from this week rather than pointing nowhere.
+    anchor = dates[0] if dates else today - timedelta(days=today.weekday())
+    step = timedelta(days=1 if scope == "day" else 7)
+    nav = {
+        "prev": (anchor - step).strftime("%Y-%m-%d"),
+        "next": (anchor + step).strftime("%Y-%m-%d"),
+        "this_week": (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d"),
+        "next_week": (today - timedelta(days=today.weekday()) + timedelta(days=7)).strftime("%Y-%m-%d"),
+        "today": today.strftime("%Y-%m-%d"),
+        "anchor": anchor.strftime("%Y-%m-%d"),
+        "end": (dates[-1] if dates else today).strftime("%Y-%m-%d"),
+    }
+
+    days = data["weekdays"]
+    summary = {
+        "shifts": sum(d["on_count"] for d in days),
+        "flagged": sum(1 for d in days if d["cue"]["level"] != "ok"),
+        "thinnest": min((d["peak"] for d in days), default=0),
+        "roles_set": sum(1 for d in days for who in (d["opener"], d["closer"]) if who and who["assigned"]),
+        "off_count": sum(len(d["time_off"]) for d in days),
+        "unscheduled": sum(1 for r in data["rows"] if r["is_empty"]),
+    }
+
     return render(request, "dispatching/staffing_board.html", {
-        "weekdays": data["weekdays"],
+        "weekdays": days,
         "rows": data["rows"],
         "roster_count": len(roster),
-        "today_dow": today_dow,
+        "today_dow": today.weekday(),
         "now_frac": now_frac,
         "hour_ticks": hour_ticks,
         "grid_ticks": grid_ticks,
+        "scope": scope,
+        "is_dated": scope != "pattern",
+        "scope_label": scope_label,
+        "scope_sub": scope_sub,
+        "nav": nav,
+        "summary": summary,
+        "role_choices": STAFF_ROLE_CHOICES,
+        "reason_choices": StaffScheduleOverride.REASON_CHOICES,
+        "pending_timeoff": timeoff.pending_requests(roster, today=today),
+        "upcoming_timeoff": timeoff.upcoming_approved(roster, today=today),
+        "staff_options": [{"id": u.id, "name": u.get_full_name() or u.username} for u in roster],
     })
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="dashboard")
+@require_POST
+def staffing_action(request):
+    """Board-side edits: assign a shift role, and decide/add/cancel time off."""
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = request.POST
+    action = data.get("action")
+
+    def _staff(uid):
+        return _office_staff_qs().filter(id=uid).first()
+
+    if action == "set_role":
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        role = (data.get("role") or "").strip()
+        if role and role not in dict(STAFF_ROLE_CHOICES):
+            return JsonResponse({"success": False, "error": "Unknown role."}, status=400)
+
+        date_ = _parse_ymd(data.get("date"))
+        if date_:
+            # Refuse a date the person isn't actually on. Beyond being nonsense,
+            # a "note" override written over an approved day off would outrank it
+            # (single-date overrides resolve newest-first) and quietly put them
+            # back on the board.
+            sched_u = User.objects.prefetch_related("weekly_schedule_rows", "schedule_overrides").get(pk=u.pk)
+            if not scheduling.resolve_staff_schedule(sched_u, date_)["is_working"]:
+                return JsonResponse({"success": False, "error": "That dispatcher isn't working that day."})
+
+            # A dated cell: keep it to that one day via an override, so the
+            # recurring pattern the rest of the month runs on is left alone.
+            ov = (StaffScheduleOverride.objects
+                  .filter(user=u, date=date_, end_date__isnull=True, status="approved")
+                  .exclude(kind="off").first())
+            if ov is None:
+                if not role:
+                    return JsonResponse({"success": True, "role": ""})
+                ov = StaffScheduleOverride(user=u, date=date_, kind="note", created_by=request.user)
+            ov.role = role
+            # A note-only row with no role and no note has nothing left to say.
+            if not role and ov.kind == "note" and not ov.note:
+                ov.delete()
+            else:
+                ov.save()
+            return JsonResponse({"success": True, "role": role, "scope": "date"})
+
+        try:
+            dow = int(data.get("dow"))
+        except (TypeError, ValueError):
+            return JsonResponse({"success": False, "error": "A weekday or date is required."}, status=400)
+        if not 0 <= dow <= 6:
+            return JsonResponse({"success": False, "error": "A weekday or date is required."}, status=400)
+        row = StaffWeeklySchedule.objects.filter(user=u, day_of_week=dow).first()
+        if row is None or not row.is_working:
+            return JsonResponse({"success": False, "error": "That dispatcher isn't scheduled that day."})
+        row.role = role
+        row.save(update_fields=["role", "updated_at"])
+        return JsonResponse({"success": True, "role": role, "scope": "weekly"})
+
+    if action in ("approve_timeoff", "deny_timeoff"):
+        ov = get_object_or_404(StaffScheduleOverride, id=data.get("id"))
+        try:
+            timeoff.decide(ov, request.user, approve=(action == "approve_timeoff"),
+                           denial_reason=data.get("denial_reason", ""))
+        except timeoff.TimeOffError as e:
+            return JsonResponse({"success": False, "error": str(e)})
+        return JsonResponse({"success": True, "status": ov.status})
+
+    if action == "add_timeoff":
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        try:
+            timeoff.submit_request(
+                u, _parse_ymd(data.get("start")), _parse_ymd(data.get("end")),
+                reason=data.get("reason", ""), note=data.get("note", ""),
+                by=request.user, approved=True,
+            )
+        except timeoff.TimeOffError as e:
+            return JsonResponse({"success": False, "error": str(e)})
+        return JsonResponse({"success": True})
+
+    if action == "cancel_timeoff":
+        timeoff.cancel(get_object_or_404(StaffScheduleOverride, id=data.get("id"), kind="off"))
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_staff, login_url="login")
+@require_POST
+def my_timeoff_action(request):
+    """A dispatcher's own time-off requests, from their schedule page.
+
+    Submitting creates a *pending* row that changes nothing until a manager
+    approves it; cancelling only ever touches the requester's own rows.
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        data = request.POST
+    action = data.get("action")
+
+    if action == "request":
+        try:
+            timeoff.submit_request(
+                request.user, _parse_ymd(data.get("start")), _parse_ymd(data.get("end")),
+                reason=data.get("reason", ""), note=data.get("note", ""), by=request.user,
+            )
+        except timeoff.TimeOffError as e:
+            return JsonResponse({"success": False, "error": str(e)})
+        return JsonResponse({"success": True})
+
+    if action == "cancel":
+        ov = get_object_or_404(StaffScheduleOverride, id=data.get("id"), user=request.user, kind="off")
+        timeoff.cancel(ov)
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
 
 
 @login_required(login_url="login")
@@ -5178,4 +5418,7 @@ def my_coverage(request):
         "now_frac": now_frac,
         "hour_ticks": hour_ticks,
         "grid_ticks": grid_ticks,
+        "my_timeoff": timeoff.my_requests(request.user, today=today),
+        "reason_choices": StaffScheduleOverride.REASON_CHOICES,
+        "today_str": today.strftime("%Y-%m-%d"),
     })

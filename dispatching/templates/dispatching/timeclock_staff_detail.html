@@ -135,6 +135,10 @@
               </div>
               <input type="time" class="form-control form-control-sm wk-start" value="{{ w.start_time }}" {% if not w.is_working %}disabled{% endif %}>
               <input type="time" class="form-control form-control-sm wk-end" value="{{ w.end_time }}" {% if not w.is_working %}disabled{% endif %}>
+              <select class="form-select form-select-sm wk-role" title="Assigned role" {% if not w.is_working %}disabled{% endif %}>
+                <option value="" {% if not w.role %}selected{% endif %}>role —</option>
+                {% for val, lbl in role_choices %}<option value="{{ val }}" {% if w.role == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              </select>
               <input type="text" class="form-control form-control-sm wk-note" placeholder="note" value="{{ w.note }}">
             </div>
             {% endfor %}
@@ -151,7 +155,8 @@
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom">
               <span>
                 <span class="fw-semibold">{{ o.date_range_display }}</span>
-                <span class="text-muted small">· {{ o.get_kind_display }}{% if o.kind == 'custom_hours' %} {{ o.start_time|time:"g:i A" }}–{{ o.end_time|time:"g:i A" }}{% endif %}</span>
+                <span class="text-muted small">· {{ o.get_kind_display }}{% if o.kind == 'custom_hours' %} {{ o.start_time|time:"g:i A" }}–{{ o.end_time|time:"g:i A" }}{% endif %}{% if o.reason_label %} · {{ o.reason_label }}{% endif %}{% if o.role %} · {{ o.get_role_display }}{% endif %}</span>
+                {% if o.status != 'approved' %}<span class="badge rounded-pill small {% if o.status == 'pending' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ o.status_label }}</span>{% endif %}
                 {% if o.note %}<span class="text-muted small d-block">{{ o.note }}</span>{% endif %}
               </span>
               <span class="text-nowrap">
@@ -362,6 +367,7 @@
     const row = cb.closest('.wk-row');
     row.querySelector('.wk-start').disabled = !cb.checked;
     row.querySelector('.wk-end').disabled = !cb.checked;
+    row.querySelector('.wk-role').disabled = !cb.checked;
   }));
   document.getElementById('saveWeeklyBtn').addEventListener('click', (e) => {
     const weekly = {};
@@ -370,6 +376,7 @@
         is_working: row.querySelector('.wk-working').checked,
         start_time: row.querySelector('.wk-start').value,
         end_time: row.querySelector('.wk-end').value,
+        role: row.querySelector('.wk-role').value,
         note: row.querySelector('.wk-note').value,
       };
     });

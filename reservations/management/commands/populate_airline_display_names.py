@@ -115,16 +115,22 @@ class Command(BaseCommand):
             # Get display name from airline code
             if original_airline:
                 new_display_name = get_airline_display_name(original_airline)
-                
-                # Only update if display name is different or empty
-                if new_display_name and (force or not original_display_name or original_display_name != new_display_name):
-                    # If we got a display name (not just the code), update it
-                    if new_display_name != original_airline:
+                # A known carrier resolves to a real name; an unknown one just
+                # echoes the code back.
+                known_carrier = new_display_name != original_airline
+
+                # Never rewrite a row to the value it already holds. --force is
+                # about widening the SELECT to rows that already have a display
+                # name (to correct a stale one), not about issuing 25k
+                # no-op UPDATEs against production.
+                if new_display_name and new_display_name != original_display_name:
+                    if known_carrier:
+                        # The display name always follows the code.
                         flight.airline_display_name = new_display_name
                         needs_update = True
                     elif force and not original_display_name:
-                        # If get_airline_display_name returned the code (unknown airline),
-                        # we can still set it if forcing and it's empty
+                        # Unknown airline: the code is all we have, and we only
+                        # fill a blank — never overwrite what staff typed.
                         flight.airline_display_name = new_display_name
                         needs_update = True
             

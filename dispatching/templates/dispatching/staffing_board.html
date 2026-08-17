@@ -1,7 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
 {% block footer %}{% endblock %}
-{% block title %}Weekly Staffing Pattern{% endblock %}
+{% block title %}Staffing &amp; Coverage{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -13,81 +13,272 @@
     --line:rgba(30,26,18,0.085); --line2:rgba(30,26,18,0.15);
     --ink:#23262A; --muted:#6C7076; --faint:#9DA0A6;
     --gold:#9A7317; --gold-soft:rgba(154,115,23,0.10); --gold-line:rgba(154,115,23,0.34);
-    --warn:#A5701C; --crit:#A6494A; --off:#C7CACE;
+    --warn:#A5701C; --warn-soft:rgba(165,112,28,0.13);
+    --crit:#A6494A; --crit-soft:rgba(166,73,74,0.12);
+    --ok:#2C7A4C; --ok-soft:rgba(44,122,76,0.12);
+    --off:#C7CACE;
+    --open:#2C7A4C; --close:#3A4C87; --oncall:#5A4A94;
+    /* Time off is a true red, not the clay it used to be — somebody being out is
+       the one thing on this board you must never skim past. */
+    --toff:#B0302A; --toff-soft:rgba(176,48,42,0.11); --toff-line:rgba(176,48,42,0.45);
+    --toff-hatch:rgba(176,48,42,0.10);
     --bar:#EFEBE3; --bar-line:rgba(30,26,18,0.16); --oc-hatch:rgba(120,110,90,0.16);
     --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,monospace;
     background:var(--bg); color:var(--ink); padding:1.2rem 0 3rem;
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   }
-  .sp-head { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:.8rem; margin-bottom:1.2rem; }
-  .sp-title { font-size:1.4rem; font-weight:750; letter-spacing:-.02em; margin:0; }
-  .sp-title .sp-ic { width:20px; height:20px; color:var(--gold); vertical-align:-3px; margin-right:.35rem; }
-  .sp-sub { color:var(--muted); font-size:.86rem; margin:.3rem 0 0; max-width:64ch; line-height:1.5; }
+  .sp *, .sp *::before, .sp *::after { box-sizing:border-box; }
+  /* Without a ceiling, a 7-column grid on a 2560px monitor gives every day a
+     330px column holding a 60px chip — the board reads sparse and the type
+     reads tiny. Cap it and centre it so the week stays dense. */
+  .sp-wrap { max-width:1680px; margin:0 auto; }
 
-  .sp-toggle { display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden; }
+  .sp-head { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:.8rem; margin-bottom:.9rem; }
+  .sp-title { font-size:1.5rem; font-weight:750; letter-spacing:-.02em; margin:0; }
+  .sp-title .sp-ic { width:21px; height:21px; color:var(--gold); vertical-align:-3px; margin-right:.35rem; }
+  .sp-sub { color:var(--muted); font-size:.88rem; margin:.3rem 0 0; max-width:70ch; line-height:1.5; }
+
+  .sp-toggle { display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden; background:var(--surface); }
   .sp-tgl { border:none; background:var(--surface); color:var(--muted); font:inherit; font-size:.8rem; font-weight:650; padding:.42rem .95rem; cursor:pointer; }
   .sp-tgl.active { background:var(--gold-soft); color:var(--gold); }
   .sp-tgl + .sp-tgl { border-left:1px solid var(--line2); }
-  .sp-tgl .sp-ic { width:14px; height:14px; vertical-align:-2px; margin-right:.3rem; }
+
+  /* ── Scope bar: what stretch of time the board is showing ── */
+  .sp-scope { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem .6rem; margin-bottom:1rem;
+    padding:.6rem .75rem; background:var(--surface); border:1px solid var(--line2); border-radius:12px; }
+  .sp-seg { display:inline-flex; border:1px solid var(--line2); border-radius:8px; overflow:hidden; }
+  .sp-seg a { padding:.36rem .8rem; font-size:.78rem; font-weight:650; color:var(--muted); text-decoration:none; background:var(--surface); }
+  .sp-seg a + a { border-left:1px solid var(--line2); }
+  .sp-seg a.on { background:var(--gold-soft); color:var(--gold); }
+  .sp-seg a:hover:not(.on) { background:var(--surface2); color:var(--ink); }
+  .sp-step { display:inline-flex; align-items:center; gap:.15rem; }
+  .sp-step a { width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line2); border-radius:7px; color:var(--muted); text-decoration:none; background:var(--surface); }
+  .sp-step a:hover { color:var(--gold); border-color:var(--gold-line); }
+  .sp-step .sp-ic { width:14px; height:14px; color:currentColor; }
+  .sp-when { font-size:.9rem; font-weight:700; letter-spacing:-.01em; }
+  .sp-when small { display:block; font-weight:500; font-size:.7rem; color:var(--faint); letter-spacing:0; }
+  .sp-quick { display:inline-flex; gap:.35rem; flex-wrap:wrap; }
+  .sp-quick a, .sp-mini { font-size:.72rem; font-weight:650; padding:.3rem .6rem; border-radius:999px;
+    border:1px solid var(--line2); color:var(--muted); text-decoration:none; background:var(--surface); cursor:pointer; }
+  .sp-quick a:hover, .sp-mini:hover { border-color:var(--gold-line); color:var(--gold); }
+  .sp-datef { display:inline-flex; align-items:center; gap:.35rem; margin-left:auto; }
+  .sp-datef label { font-size:.68rem; text-transform:uppercase; letter-spacing:.07em; color:var(--faint); font-weight:700; }
+  .sp-datef input[type=date] { font:inherit; font-size:.76rem; padding:.28rem .45rem; border:1px solid var(--line2);
+    border-radius:7px; background:var(--surface); color:var(--ink); }
+  .sp-datef button { font:inherit; font-size:.74rem; font-weight:650; padding:.3rem .7rem; border-radius:7px;
+    border:1px solid var(--line2); background:var(--surface); color:var(--muted); cursor:pointer; }
+  .sp-datef button:hover { border-color:var(--gold-line); color:var(--gold); }
+
+  /* ── Summary strip ── */
+  .sp-stats { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+  .sp-stat { flex:1 1 140px; background:var(--surface); border:1px solid var(--line2); border-radius:11px; padding:.6rem .85rem; }
+  .sp-stat b { display:block; font-family:var(--mono); font-size:1.4rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.15; }
+  .sp-stat span { font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; }
+  .sp-stat.bad b { color:var(--crit); } .sp-stat.warn b { color:var(--warn); } .sp-stat.good b { color:var(--ok); }
+  .sp-stat.off b { color:var(--toff); }
+  .sp-stat.off { border-left:4px solid var(--toff); }
+  .sp-filter { display:inline-flex; align-items:center; gap:.4rem; margin:-.4rem 0 .9rem .2rem;
+    font-size:.78rem; color:var(--muted); cursor:pointer; user-select:none; }
+  .sp-filter input { accent-color:var(--gold); }
+  .sp-hide-empty .sp-r-empty { display:none; }
 
   .sp-panel { background:var(--surface); border:1px solid var(--line2); border-radius:14px; overflow:hidden;
     box-shadow:0 1px 2px rgba(20,18,12,0.04), 0 6px 26px rgba(20,18,12,0.05); }
   .sp-scroll { overflow-x:auto; }
 
   /* ── Table ── */
-  .sp-grid { min-width:860px; display:grid; grid-template-columns:150px repeat(7,1fr); }
+  .sp-grid { min-width:960px; display:grid; grid-template-columns:200px repeat(var(--cols,7),1fr); }
   .sp-grid > div { border-bottom:1px solid var(--line); }
-  .sp-ghead { padding:.8rem .5rem .65rem; font-size:.74rem; font-weight:700; color:var(--muted); text-align:center; border-bottom:1px solid var(--line2)!important; }
-  .sp-corner { text-align:left; padding-left:1.1rem; font-size:.64rem; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); border-bottom:1px solid var(--line2)!important; }
+  .sp-ghead { padding:.75rem .5rem .65rem; font-size:.92rem; font-weight:750; color:var(--ink); text-align:center; border-bottom:1px solid var(--line2)!important; }
+  .sp-ghead small { display:block; font-weight:600; font-size:.74rem; color:var(--faint); font-family:var(--mono); margin-top:.1rem; }
+  .sp-corner { text-align:left; padding-left:1.1rem; font-size:.66rem; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); border-bottom:1px solid var(--line2)!important; display:flex; align-items:center; }
   .sp-ghead.sp-today { color:var(--gold); }
-  .sp-lab { padding:.5rem 1.1rem; font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); display:flex; align-items:center; }
-  .sp-covcell { padding:.5rem .4rem; text-align:center; }
-  .sp-covn { font-family:var(--mono); font-size:.95rem; font-weight:600; font-variant-numeric:tabular-nums; }
-  .sp-covtag { display:block; font-size:.64rem; margin-top:.1rem; color:var(--muted); }
-  .sp-covtag.lvl-warn { color:var(--warn); } .sp-covtag.lvl-crit { color:var(--crit); }
-  .sp-name { padding:.65rem 1.1rem; font-weight:650; font-size:.84rem; display:flex; align-items:center; }
+  .sp-ghead.sp-past { opacity:.6; }
+  .sp-lab { padding:.5rem 1.1rem; font-size:.68rem; font-weight:750; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:.35rem; }
+  .sp-labsub { text-transform:none; letter-spacing:0; font-weight:600; font-size:.68rem; color:var(--faint); font-family:var(--mono); }
+
+  .sp-covcell { padding:.5rem .4rem; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.25rem; }
+  .sp-covn { font-family:var(--mono); font-size:1.3rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1; }
+  .sp-covcell.lvl-crit .sp-covn { color:var(--crit); }
+  .sp-covcell.lvl-warn .sp-covn { color:var(--warn); }
+  /* The cue is a pill, not a whisper — but scoped to the pill, so seven flagged
+     days don't wash the whole strip into meaninglessness. */
+  .sp-covtag { font-size:.76rem; font-weight:650; padding:.16rem .5rem; border-radius:999px;
+    color:var(--muted); background:var(--surface2); border:1px solid var(--line); white-space:nowrap; }
+  .sp-covtag.lvl-ok { color:var(--ok); background:var(--ok-soft); border-color:rgba(44,122,76,.28); }
+  .sp-covtag.lvl-warn { color:var(--warn); background:var(--warn-soft); border-color:rgba(165,112,28,.32); }
+  .sp-covtag.lvl-crit { color:var(--crit); background:var(--crit-soft); border-color:rgba(166,73,74,.32); }
+
+  .sp-rolecell { padding:.45rem .3rem; text-align:center; display:flex; flex-direction:column; gap:.28rem; align-items:center; justify-content:center; }
+  .sp-rl { display:inline-flex; align-items:center; gap:.32rem; font-size:.86rem; font-weight:700; white-space:nowrap;
+    padding:.18rem .55rem; border-radius:999px; border:1px solid transparent; }
+  .sp-rl .sp-ic { width:14px; height:14px; }
+  .sp-rl.op { color:#22603A; background:rgba(44,122,76,0.16); border-color:rgba(44,122,76,.28); }
+  .sp-rl.cl { color:#2F3D6E; background:rgba(58,76,135,0.16); border-color:rgba(58,76,135,.28); }
+  /* Derived (nobody assigned) reads as an outline, not italic — italic at this
+     size was the thing that made it unreadable. */
+  .sp-rl.implied { background:transparent; border-style:dashed; border-color:var(--line2);
+    color:var(--muted); font-weight:600; }
+  .sp-rl.none { color:var(--faint); background:none; border:none; }
+
+  .sp-occell { padding:.4rem .3rem; text-align:center; display:flex; flex-wrap:wrap; gap:.3rem; align-items:center; justify-content:center; }
+  .sp-ocwho { display:inline-flex; align-items:center; gap:.3rem; font-size:.84rem; font-weight:700; white-space:nowrap;
+    padding:.18rem .55rem; border-radius:999px; color:var(--c-ink); background:var(--c-fill); border:1px solid var(--c-line); }
+  .sp-ocwho .sp-ic { width:13px; height:13px; color:var(--c-ink); }
+  .sp-ocwho small { font-family:var(--mono); font-size:.72rem; font-weight:600; opacity:.85; }
+  .sp-ocnone { font-size:.78rem; font-weight:650; color:var(--warn); padding:.16rem .5rem; border-radius:999px;
+    background:var(--warn-soft); border:1px dashed rgba(165,112,28,.4); }
+
+  .sp-name { padding:.6rem .7rem .6rem 1.1rem; font-weight:700; font-size:.94rem; display:flex; align-items:center; gap:.5rem; }
   .sp-name a { color:var(--ink); text-decoration:none; }
   .sp-name a:hover { color:var(--gold); text-decoration:underline; }
-  .sp-name .sp-days { margin-left:auto; font-size:.6rem; color:var(--faint); font-weight:600; }
-  .sp-cell { padding:.55rem .35rem; text-align:center; display:flex; align-items:center; justify-content:center; gap:.28rem; min-height:2.9rem; }
-  .sp-hrs { font-family:var(--mono); font-size:.78rem; font-variant-numeric:tabular-nums; letter-spacing:-.01em; white-space:nowrap; }
-  .sp-cell.sp-off .sp-hrs { color:var(--off); }
-  .sp-cell.sp-night .sp-hrs { color:var(--muted); }
+  .sp-name .sp-days { margin-left:auto; font-size:.7rem; color:var(--faint); font-weight:600; font-family:var(--mono); white-space:nowrap; }
+  .sp-swatch { width:11px; height:11px; border-radius:3px; flex:none; }
+
+  .sp-cell { padding:.45rem .3rem; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.2rem; min-height:3.3rem; position:relative; }
+  .sp-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.26rem .55rem; border-radius:8px;
+    border:1px solid var(--c-line,var(--bar-line)); border-left:4px solid var(--c-ink,var(--bar-line));
+    background:var(--c-fill,var(--bar)); color:var(--ink);
+    font-family:var(--mono); font-size:.88rem; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; letter-spacing:-.02em; }
+  .sp-chip .sp-ic { width:14px; height:14px; color:var(--c-ink,var(--gold)); }
+  .sp-cell.sp-off .sp-hrs, .sp-cell.sp-none .sp-hrs { color:var(--off); font-family:var(--mono); font-size:.84rem; }
+  .sp-hrs { font-family:var(--mono); font-size:.86rem; }
   .sp-today { background:var(--gold-soft); }
+  .sp-cell.sp-past { opacity:.66; }
+  /* An absence reads as a blocked-out slot: red trim down both edges of the cell
+     plus a diagonal hatch, so it's legible as "not here" even at a glance across
+     a whole month. */
+  .sp-cell.sp-timeoff {
+    background:repeating-linear-gradient(-45deg,var(--toff-hatch) 0 6px,transparent 6px 13px), var(--toff-soft);
+    box-shadow:inset 3px 0 0 var(--toff), inset -3px 0 0 var(--toff);
+  }
+  .sp-cell.sp-timeoff.sp-today { box-shadow:inset 3px 0 0 var(--toff), inset -3px 0 0 var(--toff), inset 0 0 0 99px var(--gold-soft); }
+  .sp-cell.sp-timeoff .sp-chip { background:var(--surface); border:1px solid var(--toff-line); border-left:4px solid var(--toff);
+    color:var(--toff); font-family:inherit; font-size:.82rem; font-weight:750; }
+  .sp-cell.sp-timeoff .sp-chip .sp-ic { color:var(--toff); }
+  .sp-pendmark { font-size:.72rem; font-weight:700; color:var(--warn); letter-spacing:.01em; }
+  .sp-oc { font-size:.7rem; color:var(--oncall); font-family:var(--mono); font-weight:650; }
   .sp-ic { width:14px; height:14px; color:var(--gold); flex:none; }
+  .sp-rolebtn { border:none; background:none; padding:0; margin:0; cursor:pointer; font:inherit; color:inherit; display:inline-flex; }
+  .sp-rolebtn:hover .sp-chip { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-soft); }
 
   /* ── Timeline ── */
-  .sp-tlinner { min-width:860px; }
-  .sp-tlaxis { position:relative; height:22px; margin:.4rem 1.1rem 0; }
-  .sp-tk { position:absolute; top:5px; font-size:.6rem; color:var(--faint); transform:translateX(-50%); font-family:var(--mono); }
-  .sp-tlday { border-top:1px solid var(--line); padding:.5rem 0 .65rem; }
+  .sp-tlinner { min-width:960px; }
+  .sp-tlaxis { position:relative; height:24px; margin:.4rem 1.1rem 0; }
+  .sp-tk { position:absolute; top:5px; font-size:.72rem; color:var(--muted); transform:translateX(-50%); font-family:var(--mono); }
+  .sp-tlday { border-top:1px solid var(--line); padding:.6rem 0 .75rem; }
   .sp-tlday.sp-today { background:var(--gold-soft); }
-  .sp-tlhead { display:flex; align-items:baseline; gap:.6rem; padding:0 1.1rem .4rem; flex-wrap:wrap; }
-  .sp-tldow { font-size:.82rem; font-weight:750; }
-  .sp-tloc { font-size:.68rem; color:var(--muted); font-family:var(--mono); display:inline-flex; align-items:center; gap:.25rem; flex-wrap:wrap; }
-  .sp-tloc .sp-ic { width:12px; height:12px; }
+  .sp-tlday.sp-past { opacity:.68; }
+  .sp-tlhead { display:flex; align-items:center; gap:.5rem; padding:0 1.1rem .45rem; flex-wrap:wrap; }
+  .sp-tldow { font-size:.98rem; font-weight:750; }
+  .sp-tldow small { font-weight:600; color:var(--faint); font-family:var(--mono); margin-left:.3rem; font-size:.8rem; }
+  .sp-role-pill { display:inline-flex; align-items:center; gap:.32rem; padding:.18rem .55rem; border-radius:999px;
+    font-size:.82rem; font-weight:700; letter-spacing:0; border:1px solid transparent; }
+  .sp-role-pill small { font-family:var(--mono); font-weight:600; opacity:.85; }
+  .sp-role-pill.op { color:#22603A; background:rgba(44,122,76,0.16); border-color:rgba(44,122,76,.28); }
+  .sp-role-pill.cl { color:#2F3D6E; background:rgba(58,76,135,0.16); border-color:rgba(58,76,135,.28); }
+  .sp-role-pill.implied { background:transparent; border-style:dashed; border-color:var(--line2); color:var(--muted); font-weight:600; }
+  .sp-note { font-size:.78rem; color:var(--muted); }
   .sp-tllanes { position:relative; margin:0 1.1rem; }
   .sp-gl { position:absolute; top:0; bottom:0; width:1px; background:rgba(120,110,90,0.09); }
-  .sp-lane { position:relative; height:22px; margin:3px 0; }
-  .sp-bar { position:absolute; top:0; bottom:0; z-index:1; display:flex; align-items:center; gap:.22rem; padding:0 .45rem;
-    background:var(--bar); border:1px solid var(--bar-line); border-radius:5px; font-family:var(--mono); font-size:.67rem;
-    color:var(--ink); white-space:nowrap; overflow:hidden; }
-  .sp-bar .sp-nm { font-family:inherit; font-weight:700; font-family:ui-sans-serif,system-ui,sans-serif; }
-  .sp-bar.sp-open { border-left:2.5px solid var(--gold); }
-  .sp-bar.sp-close { border-right:2.5px solid var(--gold); }
-  .sp-bar.sp-oncall { background:transparent; border-style:dashed; color:var(--muted); font-family:inherit;
+  .sp-lane { position:relative; height:28px; margin:4px 0; }
+  .sp-bar { position:absolute; top:0; bottom:0; z-index:1; display:flex; align-items:center; gap:.3rem; padding:0 .55rem;
+    background:var(--c-fill,var(--bar)); border:1px solid var(--c-line,var(--bar-line));
+    border-left:4px solid var(--c-ink,var(--bar-line)); border-radius:6px;
+    font-family:var(--mono); font-size:.8rem; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden;
+    transition:filter .14s ease, box-shadow .14s ease; }
+  .sp-bar:hover { filter:brightness(1.03); box-shadow:0 1px 8px var(--c-glow,rgba(0,0,0,.1)); z-index:3; }
+  .sp-bar .sp-nm { font-weight:750; font-family:ui-sans-serif,system-ui,sans-serif; font-size:.86rem; color:var(--c-ink,var(--ink)); }
+  .sp-bar.sp-tight { padding:0 .35rem; font-size:.74rem; }
+  .sp-bar.sp-tight .sp-nm { font-size:.78rem; }
+  .sp-bar.sp-open { box-shadow:inset 4px 0 0 -1px var(--open); }
+  .sp-bar.sp-close { box-shadow:inset -4px 0 0 -1px var(--close); }
+  .sp-bar.sp-open.sp-close { box-shadow:inset 4px 0 0 -1px var(--open), inset -4px 0 0 -1px var(--close); }
+  .sp-bar.sp-changed { border-style:dashed; }
+  .sp-bar.sp-oncall { background:transparent; border:1px dashed var(--line2); border-left:1px dashed var(--line2);
+    color:var(--muted); font-family:inherit; font-weight:650; font-size:.82rem;
     background-image:repeating-linear-gradient(45deg,var(--oc-hatch) 0 5px,transparent 5px 10px); }
-  .sp-bar .sp-ic { width:12px; height:12px; }
+  /* A night with a name on it is settled; an unassigned night stays quiet but
+     legible, so a run of them doesn't read as an emergency. */
+  .sp-bar.sp-oncall.sp-ocset { color:var(--oncall); border-style:solid; border-color:rgba(90,74,148,.45);
+    border-left:4px solid var(--oncall); background-image:none; background:rgba(90,74,148,0.12); }
+  .sp-bar.sp-oncall b { font-weight:750; }
+  .sp-bar .sp-ic { width:13px; height:13px; }
+  .sp-bar .sp-ic.op { color:var(--open); } .sp-bar .sp-ic.cl { color:var(--close); }
   .sp-dim { position:absolute; top:1px; bottom:1px; z-index:0; border-radius:3px; pointer-events:none;
     background:rgba(166,73,74,0.11); box-shadow:inset 0 0 0 1px rgba(166,73,74,0.14); }
+  /* "Thin" is a softer statement than "uncovered", so it reads as a stripe under
+     the lanes rather than a full-height wash competing with the shifts. */
+  .sp-dim.thin { top:auto; bottom:-2px; height:3px; border-radius:2px;
+    background:rgba(165,112,28,0.55); box-shadow:none; }
   .sp-now { position:absolute; top:-3px; bottom:-3px; z-index:2; width:2px; background:var(--ink); opacity:.45; }
+  /* The same red-trim language on the timeline: a strip under the lanes naming
+     whoever is out that day. */
+  .sp-tloff { margin:.4rem 1.1rem 0; padding:.35rem .6rem; font-size:.82rem; color:var(--toff);
+    display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .8rem; border-radius:7px;
+    border:1px solid var(--toff-line); border-left:4px solid var(--toff);
+    background:repeating-linear-gradient(-45deg,var(--toff-hatch) 0 6px,transparent 6px 13px), var(--toff-soft); }
+  .sp-tloff .sp-ic { width:14px; height:14px; color:var(--toff); }
+  .sp-tloff b { font-weight:750; }
 
-  .sp-legend { display:flex; flex-wrap:wrap; gap:.55rem 1.4rem; margin-top:1rem; padding:0 .2rem; font-size:.74rem; color:var(--muted); }
-  .sp-legend span { display:inline-flex; align-items:center; gap:.4rem; }
-  .sp-legend .sp-ic { width:13px; height:13px; }
-  .sp-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  /* ── Time off ── */
+  .sp-cols { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1.1rem; align-items:start; }
+  @media (max-width:900px) { .sp-cols { grid-template-columns:1fr; } }
+  .sp-card { background:var(--surface); border:1px solid var(--line2); border-radius:14px; overflow:hidden; }
+  .sp-card > h2 { font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; font-weight:750; color:var(--muted);
+    margin:0; padding:.75rem 1rem; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:.45rem; }
+  .sp-card > h2 .sp-ic { width:14px; height:14px; }
+  .sp-count { margin-left:auto; font-family:var(--mono); font-size:.72rem; font-weight:650; padding:.1rem .45rem;
+    border-radius:999px; background:var(--surface2); border:1px solid var(--line2); color:var(--muted); }
+  .sp-count.hot { background:var(--warn-soft); border-color:rgba(165,112,28,.3); color:var(--warn); }
+  .sp-req { display:flex; align-items:center; gap:.6rem; padding:.65rem 1rem; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .sp-req:last-child { border-bottom:none; }
+  .sp-req .who { font-weight:750; font-size:.92rem; display:inline-flex; align-items:center; gap:.4rem; }
+  .sp-req .when { font-family:var(--mono); font-size:.85rem; font-weight:600; color:var(--ink); }
+  .sp-req .why { font-size:.78rem; font-weight:650; color:var(--muted); padding:.14rem .5rem; border-radius:999px; background:var(--surface2); border:1px solid var(--line); }
+  .sp-req .note { font-size:.8rem; color:var(--muted); flex-basis:100%; }
+  /* Booked-off rows carry the same red trim as the grid cells. */
+  .sp-card.off-card .sp-req { box-shadow:inset 3px 0 0 var(--toff); }
+  .sp-card.off-card .sp-req .why { color:var(--toff); background:var(--toff-soft); border-color:var(--toff-line); }
+  .sp-req .acts { margin-left:auto; display:inline-flex; gap:.35rem; }
+  .sp-btn { font:inherit; font-size:.72rem; font-weight:650; padding:.3rem .7rem; border-radius:7px; cursor:pointer;
+    border:1px solid var(--line2); background:var(--surface); color:var(--muted); }
+  .sp-btn:hover { border-color:var(--gold-line); color:var(--gold); }
+  .sp-btn.ok { border-color:rgba(44,122,76,.4); color:var(--ok); background:var(--ok-soft); }
+  .sp-btn.ok:hover { background:rgba(44,122,76,.2); }
+  .sp-btn.no:hover { border-color:rgba(166,73,74,.5); color:var(--crit); }
+  .sp-btn[disabled] { opacity:.5; cursor:default; }
+  .sp-empty { padding:1.1rem 1rem; color:var(--faint); font-size:.82rem; }
+
+  .sp-legend { display:flex; flex-wrap:wrap; gap:.6rem 1.4rem; margin-top:1rem; padding:0 .2rem; font-size:.82rem; color:var(--muted); }
+  .sp-legend span { display:inline-flex; align-items:center; gap:.45rem; }
+  .sp-legend .sp-ic { width:15px; height:15px; }
+  .sp-dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
   .sp-dot.warn { background:var(--warn); } .sp-dot.crit { background:var(--crit); }
-  .sp-foot { margin-top:1.1rem; padding:0 .2rem; font-size:.76rem; color:var(--faint); line-height:1.5; max-width:70ch; }
+  .sp-legoff { width:16px; height:14px; border-radius:3px; display:inline-block; border:1px solid var(--toff-line);
+    border-left:3px solid var(--toff);
+    background:repeating-linear-gradient(-45deg,var(--toff-hatch) 0 4px,transparent 4px 9px), var(--toff-soft); }
+  .sp-people { display:flex; flex-wrap:wrap; gap:.45rem 1rem; margin-top:.85rem; padding:0 .2rem; font-size:.82rem; color:var(--muted); }
+  .sp-people span { display:inline-flex; align-items:center; gap:.4rem; }
+  .sp-foot { margin-top:1.1rem; padding:0 .2rem; font-size:.82rem; color:var(--muted); line-height:1.55; max-width:80ch; }
+
+  /* ── Role picker popover ── */
+  .sp-pop { position:absolute; z-index:60; background:var(--surface); border:1px solid var(--line2); border-radius:11px;
+    box-shadow:0 10px 30px rgba(20,18,12,.16); padding:.4rem; min-width:170px; }
+  .sp-pop h3 { font-size:.62rem; text-transform:uppercase; letter-spacing:.09em; color:var(--faint); font-weight:750;
+    margin:.15rem .5rem .35rem; }
+  .sp-pop button { display:flex; align-items:center; gap:.45rem; width:100%; text-align:left; font:inherit; font-size:.8rem;
+    padding:.36rem .5rem; border:none; background:none; border-radius:7px; cursor:pointer; color:var(--ink); }
+  .sp-pop button:hover { background:var(--surface2); }
+  .sp-pop button.on { background:var(--gold-soft); color:var(--gold); font-weight:650; }
+  .sp-pop .sp-ic { width:13px; height:13px; }
+
+  .sp-toast { position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%); z-index:200;
+    background:var(--ink); color:#fff; font-size:.82rem; padding:.55rem 1rem; border-radius:9px;
+    box-shadow:0 8px 26px rgba(0,0,0,.25); opacity:0; pointer-events:none; transition:opacity .2s ease; }
+  .sp-toast.show { opacity:1; }
+  .sp-toast.err { background:var(--crit); }
 </style>
 {% endblock %}
 
@@ -104,13 +295,36 @@
     <symbol id="sp-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
       <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
     </symbol>
+    <symbol id="sp-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4.5" width="18" height="17" rx="2.5"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="8" y1="2.5" x2="8" y2="6.5"/><line x1="16" y1="2.5" x2="16" y2="6.5"/>
+    </symbol>
+    <symbol id="sp-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 5 8 12 15 19"/></symbol>
+    <symbol id="sp-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 5 16 12 9 19"/></symbol>
+    <symbol id="sp-away" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><line x1="16.5" y1="11" x2="22" y2="11"/>
+    </symbol>
+    <symbol id="sp-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><polyline points="12 6.5 12 12 16 14"/>
+    </symbol>
+    <symbol id="sp-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></symbol>
   </svg>
 
-  <div class="container-fluid sp">
+  <div class="container-fluid sp"
+       data-action-url="{% url 'staffing_action' %}"
+       data-scope="{{ scope }}">
+    {% comment %}
+    The board's writes are all fetch()-based, so this is the only thing that
+    both sets the csrftoken cookie and hands the token straight to the JS.
+    {% endcomment %}
+    <form id="spCsrf" hidden>{% csrf_token %}</form>
+
+    <div class="sp-wrap">
     <div class="sp-head">
       <div>
-        <h1 class="sp-title">Weekly Staffing Pattern</h1>
-        <p class="sp-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} · the standard week — who works each day, who opens &amp; closes, and where a typical day runs thin. Click a name to edit their hours.</p>
+        <h1 class="sp-title"><svg class="sp-ic"><use href="#sp-cal"/></svg>Staffing &amp; Coverage</h1>
+        <p class="sp-sub">{{ roster_count }} dispatcher{{ roster_count|pluralize }} &middot;
+          {% if is_dated %}who&rsquo;s actually on for these dates &mdash; including approved time off and changed hours.{% else %}the standard week &mdash; who works each day and who opens &amp; closes.{% endif %}
+          Click a name to edit their hours; click a shift to assign the opener or closer.</p>
       </div>
       <div class="sp-toggle" role="group" aria-label="View">
         <button type="button" class="sp-tgl active" data-view="table">Table</button>
@@ -118,32 +332,130 @@
       </div>
     </div>
 
+    {# ── Scope: pattern / week / day / range ── #}
+    <div class="sp-scope">
+      <div class="sp-seg">
+        <a href="?scope=pattern" class="{% if scope == 'pattern' %}on{% endif %}">Pattern</a>
+        <a href="?scope=week&amp;start={{ nav.this_week }}" class="{% if scope == 'week' %}on{% endif %}">Week</a>
+        <a href="?scope=day&amp;date={{ nav.today }}" class="{% if scope == 'day' %}on{% endif %}">Day</a>
+      </div>
+
+      {% if is_dated %}
+      <div class="sp-step">
+        <a href="?scope={{ scope }}&amp;{% if scope == 'day' %}date{% else %}start{% endif %}={{ nav.prev }}" title="Previous"><svg class="sp-ic"><use href="#sp-left"/></svg></a>
+        <a href="?scope={{ scope }}&amp;{% if scope == 'day' %}date{% else %}start{% endif %}={{ nav.next }}" title="Next"><svg class="sp-ic"><use href="#sp-right"/></svg></a>
+      </div>
+      {% endif %}
+
+      <div class="sp-when">{{ scope_label }}<small>{{ scope_sub }}</small></div>
+
+      <div class="sp-quick">
+        {% if scope == 'day' %}
+          <a href="?scope=day&amp;date={{ nav.today }}">Today</a>
+        {% else %}
+          <a href="?scope=week&amp;start={{ nav.this_week }}">This week</a>
+          <a href="?scope=week&amp;start={{ nav.next_week }}">Next week</a>
+        {% endif %}
+      </div>
+
+      <form class="sp-datef" method="get" action="">
+        <input type="hidden" name="scope" value="range">
+        <label for="spFrom">Range</label>
+        <input type="date" id="spFrom" name="start" value="{{ nav.anchor }}">
+        <input type="date" id="spTo" name="end" value="{{ nav.end }}">
+        <button type="submit">Show</button>
+      </form>
+    </div>
+
+    <div class="sp-stats">
+      <div class="sp-stat"><b>{{ summary.shifts }}</b><span>Shifts {% if is_dated %}scheduled{% else %}a week{% endif %}</span></div>
+      <div class="sp-stat {% if summary.flagged %}bad{% else %}good{% endif %}"><b>{{ summary.flagged }}</b><span>Day{{ summary.flagged|pluralize }} flagged</span></div>
+      <div class="sp-stat {% if summary.thinnest == 0 %}bad{% elif summary.thinnest == 1 %}warn{% endif %}"><b>{{ summary.thinnest }}</b><span>Thinnest peak</span></div>
+      <div class="sp-stat"><b>{{ summary.roles_set }}</b><span>Roles assigned</span></div>
+      {% if is_dated %}<div class="sp-stat {% if summary.off_count %}off{% endif %}"><b>{{ summary.off_count }}</b><span>Days off booked</span></div>{% endif %}
+    </div>
+
+    {% if summary.unscheduled %}
+    <label class="sp-filter">
+      <input type="checkbox" id="spHideEmpty">
+      Hide the {{ summary.unscheduled }} dispatcher{{ summary.unscheduled|pluralize }} with no shift{% if is_dated %} in this period{% else %} in the standard week{% endif %}
+    </label>
+    {% endif %}
+
     <!-- Table view -->
     <div id="spTable">
       <div class="sp-panel"><div class="sp-scroll">
-        <div class="sp-grid">
+        <div class="sp-grid" style="--cols:{{ weekdays|length }}">
           <div class="sp-corner">Dispatcher</div>
-          {% for wd in weekdays %}<div class="sp-ghead {% if wd.is_today %}sp-today{% endif %}">{{ wd.name }}</div>{% endfor %}
+          {% for wd in weekdays %}<div class="sp-ghead {% if wd.is_today %}sp-today{% endif %} {% if wd.is_past %}sp-past{% endif %}">{{ wd.name }}{% if wd.sub %}<small>{{ wd.sub }}</small>{% endif %}</div>{% endfor %}
 
           <div class="sp-lab">Coverage</div>
           {% for wd in weekdays %}
-          <div class="sp-covcell {% if wd.is_today %}sp-today{% endif %}">
+          <div class="sp-covcell lvl-{{ wd.cue.level }} {% if wd.is_today %}sp-today{% endif %}">
             <span class="sp-covn">{{ wd.peak }}</span>
             <span class="sp-covtag lvl-{{ wd.cue.level }}">{{ wd.cue.text }}</span>
           </div>
           {% endfor %}
 
+          <div class="sp-lab">Open / Close</div>
+          {% for wd in weekdays %}
+          <div class="sp-rolecell {% if wd.is_today %}sp-today{% endif %}">
+            {% if wd.opener %}
+            <span class="sp-rl op {% if not wd.opener.assigned %}implied{% endif %}" title="{% if wd.opener.assigned %}Assigned opener{% else %}First in — no opener assigned{% endif %}">
+              <svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{{ wd.opener.short }}</span>
+            {% else %}<span class="sp-rl none">&mdash;</span>{% endif %}
+            {% if wd.closer %}
+            <span class="sp-rl cl {% if not wd.closer.assigned %}implied{% endif %}" title="{% if wd.closer.assigned %}Assigned closer{% else %}Last out — no closer assigned{% endif %}">
+              <svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{{ wd.closer.short }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+          {% if is_dated %}
+          <div class="sp-lab">On-call <span class="sp-labsub">12&ndash;6a</span></div>
+          {% for wd in weekdays %}
+          <div class="sp-occell {% if wd.is_today %}sp-today{% endif %} {% if wd.is_past %}sp-past{% endif %}">
+            {% for o in wd.oncall %}
+            <span class="sp-ocwho" style="--c-ink:{{ o.color.ink }};--c-fill:{{ o.color.fill }};--c-line:{{ o.color.line }}"
+                  title="{{ o.name }} is on-call {{ o.window }}">
+              <svg class="sp-ic"><use href="#sp-moon"/></svg>{{ o.short }}
+              {% if o.window != '12a–6a' %}<small>{{ o.window }}</small>{% endif %}
+            </span>
+            {% empty %}
+            <span class="sp-ocnone" title="Nobody is marked on-call this night">not set</span>
+            {% endfor %}
+          </div>
+          {% endfor %}
+          {% endif %}
+
           {% for row in rows %}
-          <div class="sp-name"><a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s hours">{{ row.name }}</a><span class="sp-days">{{ row.working_days }}d</span></div>
+          <div class="sp-name {% if row.is_empty %}sp-r-empty{% endif %}">
+            <span class="sp-swatch" style="background:{{ row.color.ink }}"></span>
+            <a href="{% url 'timeclock_staff_detail' row.user.id %}" title="Edit {{ row.name }}'s hours">{{ row.name }}</a>
+            <span class="sp-days">{{ row.working_days }}d &middot; {{ row.hours }}</span>
+          </div>
           {% for c in row.cells %}
-          <div class="sp-cell {% if not c.is_working %}sp-off{% elif c.overnight %}sp-night{% endif %} {% if c.is_today %}sp-today{% endif %}">
+          <div class="sp-cell sp-{{ c.kind }} {% if row.is_empty %}sp-r-empty{% endif %} {% if c.is_today %}sp-today{% endif %} {% if c.is_past %}sp-past{% endif %}">
             {% if c.is_working %}
-              {% if c.is_opener %}<svg class="sp-ic"><use href="#sp-sun"/></svg>{% endif %}
-              <span class="sp-hrs">{{ c.label }}</span>
-              {% if c.is_closer %}<svg class="sp-ic"><use href="#sp-moon"/></svg>{% endif %}
+              <button type="button" class="sp-rolebtn" data-role-btn
+                      data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ c.role }}"
+                      {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
+                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.changed %} · changed for this date{% endif %} — click to assign a role">
+                <span class="sp-chip" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
+                  {% if c.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
+                  {{ c.label }}
+                  {% if c.is_closer %}<svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{% endif %}
+                </span>
+              </button>
+              {% if c.oncall_label %}<span class="sp-oc">on-call {{ c.oncall_label }}</span>{% endif %}
+            {% elif c.kind == 'timeoff' %}
+              <span class="sp-chip" title="{{ c.time_off.reason_label }}{% if c.time_off.note %} — {{ c.time_off.note }}{% endif %} · {{ c.time_off.range_display }}">
+                <svg class="sp-ic" style="color:var(--toff)"><use href="#sp-away"/></svg>{{ c.label }}</span>
             {% else %}
               <span class="sp-hrs">{{ c.label }}</span>
+              {% if c.pending %}<span class="sp-pendmark">requested off</span>{% endif %}
             {% endif %}
+            {% if c.is_working and c.pending %}<span class="sp-pendmark">off requested</span>{% endif %}
           </div>
           {% endfor %}
           {% empty %}
@@ -158,23 +470,40 @@
       <div class="sp-panel"><div class="sp-scroll"><div class="sp-tlinner">
         <div class="sp-tlaxis">{% for t in hour_ticks %}<span class="sp-tk" style="left:{{ t.pos }}%">{{ t.label }}</span>{% endfor %}</div>
         {% for wd in weekdays %}
-        <div class="sp-tlday {% if wd.is_today %}sp-today{% endif %}">
+        <div class="sp-tlday {% if wd.is_today %}sp-today{% endif %} {% if wd.is_past %}sp-past{% endif %}">
           <div class="sp-tlhead">
-            <span class="sp-tldow">{{ wd.name }}{% if wd.is_today %} · today{% endif %}</span>
-            <span class="sp-tloc">
-              {% if wd.opener %}<svg class="sp-ic"><use href="#sp-sun"/></svg>{{ wd.opener.name }} {{ wd.opener.time }}{% endif %}
-              {% if wd.closer %}&nbsp;&nbsp;<svg class="sp-ic"><use href="#sp-moon"/></svg>{{ wd.closer.name }} {{ wd.closer.time }}{% endif %}
-            </span>
+            <span class="sp-tldow">{{ wd.full_name }}{% if wd.sub %}<small>{{ wd.sub }}</small>{% endif %}{% if wd.is_today %} &middot; today{% endif %}</span>
+            {% if wd.opener %}
+            <span class="sp-role-pill op {% if not wd.opener.assigned %}implied{% endif %}">
+              <svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{{ wd.opener.name }} {{ wd.opener.time }}{% if not wd.opener.assigned %} (first in){% endif %}</span>
+            {% endif %}
+            {% if wd.closer %}
+            <span class="sp-role-pill cl {% if not wd.closer.assigned %}implied{% endif %}">
+              <svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>{{ wd.closer.name }} {{ wd.closer.time }}{% if not wd.closer.assigned %} (last out){% endif %}</span>
+            {% endif %}
+            {% for n in wd.role_notes %}<span class="sp-note">{{ n }}</span>{% endfor %}
           </div>
           <div class="sp-tllanes">
             {% for p in grid_ticks %}<span class="sp-gl" style="left:{{ p }}%"></span>{% endfor %}
+            {% for g in wd.rail_thin %}<span class="sp-dim thin" style="left:{{ g.left }}%;width:{{ g.width }}%" title="Runs thin"></span>{% endfor %}
             {% for g in wd.rail_gaps %}<span class="sp-dim" style="left:{{ g.left }}%;width:{{ g.width }}%" title="No coverage"></span>{% endfor %}
-            <div class="sp-lane"><div class="sp-bar sp-oncall" style="left:{{ wd.oncall_band.left }}%;width:{{ wd.oncall_band.width }}%">on-call</div></div>
+            <div class="sp-lane">
+              <div class="sp-bar sp-oncall{% if wd.oncall %} sp-ocset{% endif %}"
+                   style="left:{{ wd.oncall_band.left }}%;width:{{ wd.oncall_band.width }}%"
+                   title="{% if wd.oncall %}On-call: {% for o in wd.oncall %}{% if not forloop.first %}, {% endif %}{{ o.name }} {{ o.window }}{% endfor %}{% elif is_dated %}Nobody is marked on-call this night{% else %}Overnight on-call — assigned per night{% endif %}">
+                <svg class="sp-ic" style="color:var(--oncall)"><use href="#sp-moon"/></svg>
+                {% if wd.oncall %}{% for o in wd.oncall %}{% if not forloop.first %}, {% endif %}<b>{{ o.name }}</b> {{ o.window }}{% endfor %}{% elif is_dated %}on-call not set{% else %}on-call{% endif %}
+              </div>
+            </div>
             {% for lane in wd.lanes %}
             <div class="sp-lane">
               {% for b in lane %}
-              <div class="sp-bar{% if b.is_opener %} sp-open{% endif %}{% if b.is_closer %} sp-close{% endif %}" style="left:{{ b.left }}%;width:{{ b.width }}%" title="{{ b.name }} · {{ b.label }}">
-                {% if b.is_opener %}<svg class="sp-ic"><use href="#sp-sun"/></svg>{% endif %}<span class="sp-nm">{{ b.name }}</span> {{ b.label }}{% if b.is_closer %}<svg class="sp-ic"><use href="#sp-moon"/></svg>{% endif %}
+              <div class="sp-bar{% if b.is_opener %} sp-open{% endif %}{% if b.is_closer %} sp-close{% endif %}{% if b.tight %} sp-tight{% endif %}{% if b.changed %} sp-changed{% endif %}"
+                   style="left:{{ b.left }}%;width:{{ b.width }}%;--c-fill:{{ b.color.fill }};--c-line:{{ b.color.line }};--c-ink:{{ b.color.ink }};--c-glow:{{ b.color.glow }}"
+                   title="{{ b.name }} · {{ b.label }}{% if b.role_label %} · {{ b.role_label }}{% endif %}{% if b.changed %} · changed for this date{% endif %}">
+                {% if b.is_opener %}<svg class="sp-ic op"><use href="#sp-sun"/></svg>{% endif %}
+                <span class="sp-nm">{% if b.tight %}{{ b.short }}{% else %}{{ b.name }}{% endif %}</span>{% if not b.tight %} {{ b.label }}{% endif %}
+                {% if b.is_closer %}<svg class="sp-ic cl"><use href="#sp-moon"/></svg>{% endif %}
               </div>
               {% endfor %}
             </div>
@@ -183,24 +512,122 @@
             {% endfor %}
             {% if wd.is_today %}<span class="sp-now" style="left:{{ now_frac }}%"></span>{% endif %}
           </div>
+          {% if wd.time_off %}
+          <div class="sp-tloff">
+            <svg class="sp-ic"><use href="#sp-away"/></svg>
+            {% for t in wd.time_off %}<span><b>{{ t.name }}</b> off{% if t.reason_label %} &mdash; {{ t.reason_label|lower }}{% endif %}</span>{% endfor %}
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
       </div></div></div>
     </div>
 
+    {# ── Time off: the approval queue and what's already booked ── #}
+    <div class="sp-cols">
+      <div class="sp-card">
+        <h2><svg class="sp-ic" style="color:var(--warn)"><use href="#sp-clock"/></svg>Time off requested
+          <span class="sp-count {% if pending_timeoff %}hot{% endif %}">{{ pending_timeoff|length }}</span></h2>
+        {% for r in pending_timeoff %}
+        <div class="sp-req" data-req="{{ r.id }}">
+          <span class="who">{{ r.name }}</span>
+          <span class="when">{{ r.range_display }}</span>
+          <span class="why">{{ r.reason_label }}{% if r.days > 1 %} &middot; {{ r.days }}d{% endif %}</span>
+          <span class="acts">
+            <button type="button" class="sp-btn ok" data-decide="approve" data-id="{{ r.id }}">Approve</button>
+            <button type="button" class="sp-btn no" data-decide="deny" data-id="{{ r.id }}">Decline</button>
+          </span>
+          {% if r.note %}<span class="note">&ldquo;{{ r.note }}&rdquo;</span>{% endif %}
+        </div>
+        {% empty %}
+        <p class="sp-empty">No requests waiting. Staff request time off from their own schedule page; approving one puts it straight on this board.</p>
+        {% endfor %}
+      </div>
+
+      <div class="sp-card off-card">
+        <h2><svg class="sp-ic" style="color:var(--toff)"><use href="#sp-away"/></svg>Booked off &middot; next 60 days
+          <span class="sp-count">{{ upcoming_timeoff|length }}</span>
+          <button type="button" class="sp-mini" style="margin-left:.5rem" data-add-off>+ Add</button></h2>
+
+        <form class="sp-req" id="spAddOff" hidden>
+          <select class="sp-btn" name="user_id" style="min-width:120px">
+            {% for s in staff_options %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+          <input class="sp-btn" type="date" name="start" required>
+          <input class="sp-btn" type="date" name="end" title="Leave blank for a single day">
+          <select class="sp-btn" name="reason">
+            {% for val, lbl in reason_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+          <input class="sp-btn" type="text" name="note" placeholder="Note (optional)" maxlength="200" style="flex:1 1 130px">
+          <span class="acts"><button type="submit" class="sp-btn ok">Book off</button></span>
+        </form>
+
+        {% for r in upcoming_timeoff %}
+        <div class="sp-req" data-req="{{ r.id }}">
+          <span class="who">{{ r.name }}</span>
+          <span class="when">{{ r.range_display }}</span>
+          <span class="why">{{ r.reason_label }}{% if r.days > 1 %} &middot; {{ r.days }}d{% endif %}</span>
+          <span class="acts"><button type="button" class="sp-btn no" data-cancel="{{ r.id }}">Remove</button></span>
+          {% if r.note %}<span class="note">&ldquo;{{ r.note }}&rdquo;</span>{% endif %}
+        </div>
+        {% empty %}
+        <p class="sp-empty">Nobody is booked off in the next 60 days.</p>
+        {% endfor %}
+      </div>
+    </div>
+
     <div class="sp-legend">
-      <span><svg class="sp-ic"><use href="#sp-sun"/></svg> Opener — earliest in</span>
-      <span><svg class="sp-ic"><use href="#sp-moon"/></svg> Closer — latest out</span>
+      <span><svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg> Opener &mdash; opens up</span>
+      <span><svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg> Closer &mdash; locks up</span>
+      <span><span class="sp-rl implied" style="font-size:.72rem;padding:.1rem .45rem">dashed</span> = derived from hours, nobody assigned</span>
+      {% if is_dated %}<span><svg class="sp-ic" style="color:var(--oncall)"><use href="#sp-moon"/></svg> On-call &mdash; overnight watch</span>{% endif %}
       <span><span class="sp-dot warn"></span> Runs thin</span>
       <span><span class="sp-dot crit"></span> Coverage gap</span>
+      <span><span class="sp-legoff"></span> Time off</span>
     </div>
-    <p class="sp-foot">The number is the most dispatchers on at once that day; a weekday is flagged only where it runs thin (below target) or leaves an uncovered hole. Overnight (12–6&nbsp;AM) is covered by the on-call person, marked per night on the <a href="{% url 'timeclock_manage' %}">Time&nbsp;Clock</a> page — so it shows as “on-call o/n,” not a gap.</p>
+
+    {% if rows %}
+    <div class="sp-people">
+      {% for row in rows %}<span><span class="sp-swatch" style="background:{{ row.color.ink }}"></span>{{ row.name }}</span>{% endfor %}
+    </div>
+    {% endif %}
+
+    <p class="sp-foot">
+      The number under each day is the most dispatchers on at once; a day is flagged only where it runs thin (below target) or leaves an uncovered hole.
+      Overnight (12&ndash;6&nbsp;AM) is the on-call window, assigned per night on the <a href="{% url 'timeclock_manage' %}">Time&nbsp;Clock</a> page &mdash;
+      {% if is_dated %}the On-call row names whoever is covering each night.{% else %}switch to Week or Day to see who&rsquo;s covering each night.{% endif %}
+      {% if is_dated %}These dates reflect approved time off and one-off hour changes; a role set here applies to that date only.{% else %}The pattern is the recurring week &mdash; a role set here applies every week.{% endif %}
+    </p>
+
+    {# Role picker — moved next to whichever shift was clicked. #}
+    <div class="sp-pop" id="spRolePop" hidden>
+      <h3 data-pop-title>Role</h3>
+      <button type="button" data-role=""><svg class="sp-ic" style="color:var(--faint)"><use href="#sp-dash"/></svg>No role &mdash; derive from hours</button>
+      {% for val, lbl in role_choices %}
+      <button type="button" data-role="{{ val }}">
+        {% if val == 'closer' %}<svg class="sp-ic" style="color:var(--close)"><use href="#sp-moon"/></svg>
+        {% elif val == 'mid' %}<svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>
+        {% else %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}{{ lbl }}</button>
+      {% endfor %}
+    </div>
+    </div>
   </div>
+
+  <div class="sp-toast" id="spToast"></div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
+  var root = document.querySelector('.sp');
+  if (!root) return;
+  var ACTION = root.dataset.actionUrl, IS_DATED = root.dataset.scope !== 'pattern';
+
+  /* ── Table / timeline toggle (remembered) ── */
+  // A single day is one narrow column in the table but a full Gantt in the
+  // timeline, so Day opens on the timeline; the choice is remembered per scope.
+  var viewKey = root.dataset.scope === 'day' ? 'spStaffViewDay' : 'spStaffView';
+  var fallback = root.dataset.scope === 'day' ? 'timeline' : 'table';
   var t = document.getElementById('spTable'), tl = document.getElementById('spTimeline');
   var btns = [].slice.call(document.querySelectorAll('.sp-tgl'));
   function apply(v) {
@@ -211,13 +638,145 @@
   }
   btns.forEach(function (b) {
     b.addEventListener('click', function () {
-      try { localStorage.setItem('spStaffView', b.dataset.view); } catch (e) {}
+      try { localStorage.setItem(viewKey, b.dataset.view); } catch (e) {}
       apply(b.dataset.view);
     });
   });
-  var saved = 'table';
-  try { saved = localStorage.getItem('spStaffView') || 'table'; } catch (e) {}
+  var saved = fallback;
+  try { saved = localStorage.getItem(viewKey) || fallback; } catch (e) {}
   apply(saved);
+
+  /* ── Hide dispatchers with nothing scheduled ── */
+  var hide = document.getElementById('spHideEmpty');
+  if (hide) {
+    function applyHide(on) {
+      root.classList.toggle('sp-hide-empty', on);
+      hide.checked = on;
+    }
+    var pref = false;
+    try { pref = localStorage.getItem('spHideEmpty') === '1'; } catch (e) {}
+    applyHide(pref);
+    hide.addEventListener('change', function () {
+      try { localStorage.setItem('spHideEmpty', hide.checked ? '1' : '0'); } catch (e) {}
+      applyHide(hide.checked);
+    });
+  }
+
+  /* ── Plumbing ── */
+  function csrf() {
+    var el = document.querySelector('#spCsrf [name=csrfmiddlewaretoken]');
+    if (el && el.value) return el.value;
+    var m = document.cookie.match(/(^|; )csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[2]) : '';
+  }
+  var toastEl = document.getElementById('spToast'), toastTimer;
+  function toast(msg, isErr) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('err', !!isErr);
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2600);
+  }
+  function post(payload) {
+    return fetch(ACTION, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+  }
+
+  /* ── Role picker ── */
+  var pop = document.getElementById('spRolePop'), popFor = null;
+  function closePop() { if (pop) { pop.hidden = true; } popFor = null; }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-role-btn]');
+    if (!btn || !pop) {
+      if (pop && !e.target.closest('#spRolePop')) closePop();
+      return;
+    }
+    e.stopPropagation();
+    popFor = btn;
+    pop.querySelector('[data-pop-title]').textContent =
+      btn.dataset.name + (IS_DATED ? ' · this date' : ' · every week');
+    [].forEach.call(pop.querySelectorAll('button[data-role]'), function (b) {
+      b.classList.toggle('on', b.dataset.role === (btn.dataset.role || ''));
+    });
+    var r = btn.getBoundingClientRect();
+    pop.hidden = false;
+    var top = r.bottom + window.scrollY + 6;
+    var left = Math.min(r.left + window.scrollX, window.innerWidth - pop.offsetWidth - 12);
+    pop.style.top = top + 'px';
+    pop.style.left = Math.max(8, left) + 'px';
+  });
+
+  if (pop) {
+    pop.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-role]');
+      if (!b || !popFor) return;
+      var target = popFor, role = b.dataset.role;
+      var payload = { action: 'set_role', user_id: target.dataset.user, role: role };
+      if (target.dataset.date) payload.date = target.dataset.date; else payload.dow = target.dataset.dow;
+      closePop();
+      post(payload).then(function (d) {
+        if (!d.success) { toast(d.error || 'Could not save that.', true); return; }
+        window.location.reload();
+      }).catch(function () { toast('Network error.', true); });
+    });
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+
+  /* ── Time off: approve / decline / remove / add ── */
+  document.addEventListener('click', function (e) {
+    var dec = e.target.closest('[data-decide]');
+    if (dec) {
+      var deny = dec.dataset.decide === 'deny', reason = '';
+      if (deny) {
+        reason = window.prompt('Reason for declining (they will see this):', '');
+        if (reason === null) return;
+      }
+      dec.disabled = true;
+      post({ action: deny ? 'deny_timeoff' : 'approve_timeoff', id: dec.dataset.id, denial_reason: reason })
+        .then(function (d) {
+          if (!d.success) { dec.disabled = false; toast(d.error || 'Could not save that.', true); return; }
+          toast(deny ? 'Request declined.' : 'Time off approved.');
+          setTimeout(function () { window.location.reload(); }, 500);
+        }).catch(function () { dec.disabled = false; toast('Network error.', true); });
+      return;
+    }
+    var can = e.target.closest('[data-cancel]');
+    if (can) {
+      if (!window.confirm('Remove this time off? Their normal schedule comes back.')) return;
+      can.disabled = true;
+      post({ action: 'cancel_timeoff', id: can.dataset.cancel }).then(function (d) {
+        if (!d.success) { can.disabled = false; toast(d.error || 'Could not remove that.', true); return; }
+        window.location.reload();
+      }).catch(function () { can.disabled = false; toast('Network error.', true); });
+      return;
+    }
+    var add = e.target.closest('[data-add-off]');
+    if (add) {
+      var form = document.getElementById('spAddOff');
+      if (form) { form.hidden = !form.hidden; if (!form.hidden) form.querySelector('[name=start]').focus(); }
+    }
+  });
+
+  var addForm = document.getElementById('spAddOff');
+  if (addForm) {
+    addForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var f = new FormData(addForm);
+      post({
+        action: 'add_timeoff',
+        user_id: f.get('user_id'), start: f.get('start'), end: f.get('end'),
+        reason: f.get('reason'), note: f.get('note')
+      }).then(function (d) {
+        if (!d.success) { toast(d.error || 'Could not save that.', true); return; }
+        window.location.reload();
+      }).catch(function () { toast('Network error.', true); });
+    });
+  }
 })();
 </script>
 {% endblock %}

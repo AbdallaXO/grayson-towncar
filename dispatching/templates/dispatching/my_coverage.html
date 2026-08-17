@@ -145,6 +145,37 @@
   .mc-person .mc-ic { width:12px; height:12px; }
   .mc-offlabel { color:var(--faint); font-size:.9rem; }
 
+  /* ── Time off ── */
+  .mc-off-wrap { padding:1.2rem 1.4rem 1.3rem; }
+  .mc-offform { display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end; }
+  .mc-fld { display:flex; flex-direction:column; gap:.25rem; }
+  .mc-fld label { font-size:.64rem; text-transform:uppercase; letter-spacing:.09em; font-weight:700; color:var(--faint); }
+  .mc-fld input, .mc-fld select { font:inherit; font-size:.85rem; padding:.42rem .55rem; border:1px solid var(--line2);
+    border-radius:9px; background:var(--surface); color:var(--ink); }
+  .mc-fld.grow { flex:1 1 200px; }
+  .mc-fld.grow input { width:100%; }
+  .mc-send { font:inherit; font-size:.85rem; font-weight:650; padding:.48rem 1.15rem; border-radius:10px; cursor:pointer;
+    border:1px solid var(--gold-line); background:var(--gold-soft); color:var(--gold); }
+  .mc-send:hover { background:rgba(185,143,38,0.28); }
+  .mc-send[disabled] { opacity:.55; cursor:default; }
+  .mc-offhint { font-size:.78rem; color:var(--faint); margin:.7rem 0 0; line-height:1.5; }
+  .mc-offerr { font-size:.82rem; color:var(--absent); margin:.6rem 0 0; }
+
+  .mc-offlist { display:flex; flex-direction:column; gap:.5rem; margin-top:1.1rem; }
+  .mc-offrow { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem .8rem; padding:.6rem .9rem;
+    border:1px solid var(--line2); border-radius:12px; background:var(--surface2); }
+  .mc-offrow .when { font-family:var(--mono); font-size:.86rem; font-weight:600; }
+  .mc-offrow .why { font-size:.76rem; color:var(--muted); }
+  .mc-offrow .note { font-size:.78rem; color:var(--faint); flex-basis:100%; }
+  .mc-state { font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; font-weight:700;
+    padding:.2rem .55rem; border-radius:999px; }
+  .mc-state.pending { color:var(--gold); background:var(--gold-soft); }
+  .mc-state.approved { color:var(--open); background:var(--open-soft); }
+  .mc-state.denied { color:var(--absent); background:var(--absent-soft); }
+  .mc-offrow .drop { margin-left:auto; font:inherit; font-size:.74rem; font-weight:600; padding:.28rem .65rem;
+    border:1px solid var(--line2); border-radius:8px; background:var(--surface); color:var(--muted); cursor:pointer; }
+  .mc-offrow .drop:hover { border-color:var(--absent-line); color:var(--absent); }
+
   .mc-empty { padding:3rem 1.5rem; text-align:center; color:var(--muted); }
   .mc-empty .mc-ic { width:30px; height:30px; color:var(--faint); margin-bottom:.6rem; }
   .mc-empty p { margin:0; font-size:.98rem; }
@@ -340,6 +371,56 @@
       </div>
       <p class="mc-foot">Your week is your standard weekly hours; the day view up top shows the actual day, including anyone out or on changed hours. Overnight (12&ndash;6&nbsp;AM) is covered by the on-call person. If something looks off, your manager can adjust it.</p>
       {% endif %}
+
+      {% comment %}
+      Time off — request it, and see where each request stands. Outside the
+      schedule check on purpose: someone whose hours haven't been entered yet
+      still needs to be able to ask for a day off.
+      {% endcomment %}
+      {% if on_roster %}
+      <div class="mc-sec">Time off <span class="mc-sec-hint">&mdash; ask for days off; your manager approves them</span></div>
+      <div class="mc-panel mc-off-wrap" id="mcTimeOff" data-url="{% url 'my_timeoff_action' %}">
+        <form class="mc-offform" id="mcOffForm">
+          {% csrf_token %}
+          <div class="mc-fld">
+            <label for="mcOffStart">First day</label>
+            <input type="date" id="mcOffStart" name="start" min="{{ today_str }}" required>
+          </div>
+          <div class="mc-fld">
+            <label for="mcOffEnd">Last day</label>
+            <input type="date" id="mcOffEnd" name="end" min="{{ today_str }}" title="Leave blank for a single day">
+          </div>
+          <div class="mc-fld">
+            <label for="mcOffReason">Reason</label>
+            <select id="mcOffReason" name="reason">
+              {% for val, lbl in reason_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mc-fld grow">
+            <label for="mcOffNote">Note (optional)</label>
+            <input type="text" id="mcOffNote" name="note" maxlength="200" placeholder="Anything your manager should know">
+          </div>
+          <button type="submit" class="mc-send">Request time off</button>
+        </form>
+        <p class="mc-offerr" id="mcOffErr" hidden></p>
+        <p class="mc-offhint">Requesting doesn&rsquo;t change your schedule &mdash; you stay on the board until a manager approves it. Leave the last day blank for a single day.</p>
+
+        {% if my_timeoff %}
+        <div class="mc-offlist">
+          {% for r in my_timeoff %}
+          <div class="mc-offrow">
+            <span class="when">{{ r.range_display }}</span>
+            <span class="why">{{ r.reason_label }}{% if r.days > 1 %} &middot; {{ r.days }} days{% endif %}</span>
+            <span class="mc-state {{ r.status }}">{{ r.status_label }}</span>
+            {% if r.status != 'denied' %}<button type="button" class="drop" data-drop="{{ r.id }}">{% if r.status == 'pending' %}Withdraw{% else %}Cancel{% endif %}</button>{% endif %}
+            {% if r.note %}<span class="note">&ldquo;{{ r.note }}&rdquo;</span>{% endif %}
+            {% if r.denial_reason %}<span class="note">Declined &mdash; {{ r.denial_reason }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}
@@ -366,6 +447,58 @@
     r.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(r.dataset.dow); }
     });
+  });
+})();
+
+/* Time off — request and withdraw. Nothing here changes the schedule directly;
+   a request just lands in the manager's queue. */
+(function () {
+  var wrap = document.getElementById('mcTimeOff');
+  if (!wrap) return;
+  var URL = wrap.dataset.url, err = document.getElementById('mcOffErr');
+
+  function csrf() {
+    var el = wrap.querySelector('[name=csrfmiddlewaretoken]');
+    if (el && el.value) return el.value;
+    var m = document.cookie.match(/(^|; )csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[2]) : '';
+  }
+  function show(msg) {
+    if (!err) return;
+    err.textContent = msg;
+    err.hidden = !msg;
+  }
+  function post(payload) {
+    return fetch(URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+  }
+
+  var form = document.getElementById('mcOffForm');
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    show('');
+    var f = new FormData(form), btn = form.querySelector('.mc-send');
+    btn.disabled = true;
+    post({ action: 'request', start: f.get('start'), end: f.get('end'), reason: f.get('reason'), note: f.get('note') })
+      .then(function (d) {
+        btn.disabled = false;
+        if (!d.success) { show(d.error || 'Could not send that request.'); return; }
+        window.location.reload();
+      }).catch(function () { btn.disabled = false; show('Network error — try again.'); });
+  });
+
+  wrap.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-drop]');
+    if (!b) return;
+    if (!window.confirm('Withdraw this time off?')) return;
+    b.disabled = true;
+    post({ action: 'cancel', id: b.dataset.drop }).then(function (d) {
+      if (!d.success) { b.disabled = false; show(d.error || 'Could not withdraw that.'); return; }
+      window.location.reload();
+    }).catch(function () { b.disabled = false; show('Network error — try again.'); });
   });
 })();
 </script>

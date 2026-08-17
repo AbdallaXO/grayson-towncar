@@ -209,6 +209,8 @@ AIRLINES = [
     "British Airways",
     "Sun Country Airlines",
     "Virgin Atlantic",
+    "Porter Airlines",
+    "Discover Airlines",
 ]
 
 CRUISE_LINES = [
@@ -266,9 +268,10 @@ def extract_airline_from_flight_number(flight_number_input):
     # Convert to uppercase and strip
     flight_num = str(flight_number_input).strip().upper()
     
-    # List of all known IATA codes (2 letters)
-    known_codes = ['AA', 'DL', 'UA', 'WN', 'B6', 'NK', 'F9', 'AS', 'HA', 'G4', 
-                   'AC', 'XP', 'MX', 'BA', 'SY', 'VS', 'WS']
+    # List of all known IATA codes (2 characters — some carry a digit: B6, F9,
+    # G4, 4Y)
+    known_codes = ['AA', 'DL', 'UA', 'WN', 'B6', 'NK', 'F9', 'AS', 'HA', 'G4',
+                   'AC', 'XP', 'MX', 'BA', 'SY', 'VS', 'WS', 'PD', '4Y']
     
     # Check if flight number starts with a known 2-letter code
     if len(flight_num) >= 2:
@@ -408,6 +411,25 @@ def normalize_airline(airline_input):
         'WEST JET AIRLINES': 'WS',
         'WS': 'WS',
         'WJA': 'WS',  # FlightAware code, but normalize to IATA
+
+        # Porter variations. Stored flights already hold PORTER, PORTER
+        # AIRLINES and PORTER AIRLINE as free text; all three are this carrier.
+        'PORTER': 'PD',
+        'PORTER AIRLINES': 'PD',
+        'PORTER AIRLINE': 'PD',
+        'PORTER AIR': 'PD',
+        'PD': 'PD',
+        'POE': 'PD',  # FlightAware code, but normalize to IATA
+
+        # Discover Airlines variations. Lufthansa's leisure carrier, called
+        # Eurowings Discover until Sep 2023 — guests still write the old name,
+        # and Eurowings mainline (EW) doesn't serve Orlando, so "Eurowings"
+        # here means this airline.
+        'DISCOVER': '4Y',
+        'DISCOVER AIRLINES': '4Y',
+        'EUROWINGS DISCOVER': '4Y',
+        '4Y': '4Y',
+        'OCN': '4Y',  # FlightAware code, but normalize to IATA
     }
     
     # First, try exact match
@@ -480,6 +502,8 @@ def get_airline_display_name(iata_code):
         'SY': 'Sun Country Airlines',
         'VS': 'Virgin Atlantic',
         'WS': 'WestJet',
+        'PD': 'Porter Airlines',
+        '4Y': 'Discover Airlines',
     }
     
     return display_name_mapping.get(iata_code, iata_code)
@@ -511,6 +535,8 @@ def get_flightaware_code(iata_code):
         'XP': 'VXP',  # Avelo: IATA is XP, FlightAware uses VXP
         'MX': 'MXY',  # Breeze: IATA is MX, FlightAware uses MXY
         'WS': 'WJA',  # WestJet: IATA is WS, FlightAware uses WJA
+        'PD': 'POE',  # Porter: IATA is PD, FlightAware uses POE
+        '4Y': 'OCN',  # Discover: IATA is 4Y, FlightAware uses OCN
         # All others use the same code
     }
     

@@ -140,6 +140,25 @@ class FlightTrackerUrlTests(TestCase):
         self.assertEqual(links["flightview"],
                          "https://app.flightview.com/flight-tracker/DL/1691")
 
+    def test_porter(self):
+        links = tl.flight_tracker_urls("Porter", "580", date(2026, 8, 8))
+        self.assertEqual(links["ident"], "POE580")
+        self.assertEqual(links["flightview"],
+                         "https://app.flightview.com/flight-tracker/PD/580?date=2026-08-08")
+        self.assertEqual(links["label"], "Porter Airlines 580")
+        # No verified status-page format for flyporter.com, so the menu shows
+        # the two aggregators only.
+        self.assertEqual(links["airline_url"], "")
+
+    def test_discover(self):
+        # 4Y is the one code here with a digit in it — it survives both the
+        # ident build and the FlightView path.
+        links = tl.flight_tracker_urls("Discover Airlines", "111", date(2026, 8, 8))
+        self.assertEqual(links["ident"], "OCN111")
+        self.assertEqual(links["flightview"],
+                         "https://app.flightview.com/flight-tracker/4Y/111?date=2026-08-08")
+        self.assertEqual(links["label"], "Discover Airlines 111")
+
 
 class AirlineTrackerUrlTests(TestCase):
     """The carrier's own status page. Each format below is pinned against a

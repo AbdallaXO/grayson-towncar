@@ -12,6 +12,10 @@ Resolution priority for a date (mirrors drivers/availability.py):
     2. Range override (date <= d <= end_date); most recently updated wins.
     3. StaffWeeklySchedule row for that weekday.
     4. Nothing set -> kind="none" ("No schedule").
+
+Only ``status="approved"`` overrides are considered — a pending time-off request
+changes nothing about the schedule until a manager approves it. Pending rows are
+surfaced by the staffing board directly, never through this resolver.
 """
 
 from datetime import datetime, timedelta
@@ -58,10 +62,16 @@ def _window_label(start_time, end_time):
 
 # ── Resolver ──
 
-def _pick_active_override(overrides, target_date):
-    """Pick the override applying to target_date. Single-date beats range; tie by updated_at desc."""
+def _pick_active_override(overrides, target_date, statuses=("approved",)):
+    """Pick the override applying to target_date. Single-date beats range; tie by updated_at desc.
+
+    ``statuses`` gates which approval states count — the resolver only ever sees
+    approved rows, so a pending request is inert until decided.
+    """
     single, ranges = [], []
     for ov in overrides:
+        if statuses and getattr(ov, "status", "approved") not in statuses:
+            continue
         if ov.end_date is None:
             if ov.date == target_date:
                 single.append(ov)
@@ -101,10 +111,13 @@ def resolve_staff_schedule(user, date):
         "note": "",
         "display_label": "No schedule",
         "tooltip": "No schedule set for this day.",
+        "role": "",
+        "time_off": None,
     }
 
     weekly = _weekly_row(user, date)
     if weekly is not None:
+        result["role"] = getattr(weekly, "role", "") or ""
         if weekly.is_working:
             label = _window_label(weekly.start_time, weekly.end_time)
             result.update(
@@ -130,10 +143,22 @@ def resolve_staff_schedule(user, date):
         result["has_exception"] = True
         if override.note:
             result["note"] = override.note
+        # A one-off role assignment wins over the recurring one; blank keeps it.
+        if getattr(override, "role", ""):
+            result["role"] = override.role
         if override.kind == "off":
+            reason = getattr(override, "reason_label", "") or ""
             result.update(
                 is_working=False, start_time=None, end_time=None, kind="off",
-                display_label="Off", tooltip="Off (one-time exception).",
+                display_label="Off", tooltip=f"Off — {reason}." if reason else "Off (one-time exception).",
+                time_off={
+                    "id": override.id,
+                    "reason": getattr(override, "reason", "") or "",
+                    "reason_label": reason,
+                    "note": override.note or "",
+                    "range_display": override.date_range_display,
+                    "requested": bool(getattr(override, "requested_by_staff", False)),
+                },
             )
         elif override.kind == "custom_hours":
             label = _window_label(override.start_time, override.end_time)

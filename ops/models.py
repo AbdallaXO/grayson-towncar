@@ -572,11 +572,28 @@ class TimeClockBreak(models.Model):
         return int(max(0.0, (end - self.break_start_at).total_seconds()) // 60)
 
 
+# ── Shift roles ───────────────────────────────────────────────────────
+# An *assigned* duty for a shift, distinct from the board's derived
+# "earliest in / latest out". Blank means unassigned — the board then falls
+# back to deriving it from the hours, which is what it always did.
+STAFF_ROLE_CHOICES = [
+    ("opener", "Opener"),
+    ("mid", "Mid-day"),
+    ("closer", "Closer"),
+    ("both", "Opener + Closer"),
+]
+STAFF_ROLE_LABELS = dict(STAFF_ROLE_CHOICES)
+
+
 class StaffWeeklySchedule(models.Model):
     """
     A dispatcher's planned recurring hours for one weekday (admin-set, view-only
     for staff). Mirrors drivers.DriverWeeklySchedule but uses TimeField for
     half-hour precision. Times are Eastern wall-clock. One row per (user, weekday).
+
+    ``role`` is the *assigned* duty for that shift (opener/closer/…). It is
+    deliberately separate from the hours: the earliest person in isn't always the
+    one who owns opening. Blank = unassigned, and the board derives it from hours.
     """
 
     DAY_CHOICES = [
@@ -598,6 +615,10 @@ class StaffWeeklySchedule(models.Model):
     is_working = models.BooleanField(default=True)
     start_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; null when off.")
     end_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; null when off.")
+    role = models.CharField(
+        max_length=12, choices=STAFF_ROLE_CHOICES, blank=True, default="",
+        help_text="Assigned duty for this shift. Blank = derive from hours.",
+    )
     note = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -620,15 +641,38 @@ class StaffWeeklySchedule(models.Model):
 
 class StaffScheduleOverride(models.Model):
     """
-    A one-off exception to a dispatcher's weekly schedule (admin-set). Takes
-    priority over the weekly row. Single day, or a range via end_date.
-    Mirrors drivers.DriverDateOverride minus the approval workflow.
+    A one-off exception to a dispatcher's weekly schedule. Takes priority over the
+    weekly row. Single day, or a range via end_date. Mirrors
+    drivers.DriverDateOverride, approval workflow included.
+
+    Two ways one gets created:
+
+    * A manager adds it directly (schedule editor / staffing board) — those land
+      ``status="approved"`` and take effect immediately, which is the historical
+      behaviour and why "approved" is the default.
+    * A dispatcher requests time off from their own schedule page — those land
+      ``status="pending"`` with ``requested_by_staff=True`` and change *nothing*
+      until a manager approves. Only approved rows are visible to the resolver.
     """
 
     KIND_CHOICES = [
         ("off", "Off"),
         ("custom_hours", "Custom hours"),
         ("note", "Note only"),
+    ]
+    REASON_CHOICES = [
+        ("pto", "PTO / vacation"),
+        ("sick", "Sick"),
+        ("personal", "Personal"),
+        ("appointment", "Appointment"),
+        ("unpaid", "Unpaid"),
+        ("other", "Other"),
+    ]
+    STATUS_CHOICES = [
+        ("approved", "Approved"),
+        ("pending", "Pending review"),
+        ("denied", "Denied"),
+        ("cancelled", "Cancelled"),
     ]
 
     user = models.ForeignKey(
@@ -643,6 +687,14 @@ class StaffScheduleOverride(models.Model):
     kind = models.CharField(max_length=16, choices=KIND_CHOICES, default="off")
     start_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; for custom_hours.")
     end_time = models.TimeField(null=True, blank=True, help_text="Eastern wall-clock; for custom_hours.")
+    role = models.CharField(
+        max_length=12, choices=STAFF_ROLE_CHOICES, blank=True, default="",
+        help_text="One-off assigned duty for these dates. Blank = keep the recurring role.",
+    )
+    reason = models.CharField(
+        max_length=16, choices=REASON_CHOICES, blank=True, default="",
+        help_text="Why the time off — only meaningful for 'off' entries.",
+    )
     note = models.CharField(max_length=200, blank=True, default="")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -654,11 +706,36 @@ class StaffScheduleOverride(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Approval workflow. Manager-created rows default to "approved" so existing
+    # data and admin behaviour are unchanged; staff-submitted requests land
+    # "pending" and only affect the schedule once approved.
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES, default="approved",
+        help_text="Only 'approved' rows change anyone's schedule.",
+    )
+    requested_by_staff = models.BooleanField(
+        default=False,
+        help_text="True when the dispatcher submitted this themselves.",
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="decided_staff_overrides",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    denial_reason = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Shown to the dispatcher when a request is declined.",
+    )
+
     class Meta:
         ordering = ["date", "user"]
         indexes = [
             models.Index(fields=["user", "date"], name="idx_staffov_user_date"),
             models.Index(fields=["user", "date", "end_date"], name="idx_staffov_range"),
+            models.Index(fields=["status", "date"], name="idx_staffov_status_date"),
         ]
         verbose_name = "Staff Schedule Override"
         verbose_name_plural = "Staff Schedule Overrides"
@@ -676,9 +753,26 @@ class StaffScheduleOverride(models.Model):
             return f"{self.date.strftime('%b %d')} – {self.end_date.strftime('%b %d, %Y')}"
         return f"{self.date.strftime('%b %d, %Y')} – {self.end_date.strftime('%b %d, %Y')}"
 
+    @property
+    def day_count(self):
+        return ((self.end_date or self.date) - self.date).days + 1
+
+    @property
+    def reason_label(self):
+        return dict(self.REASON_CHOICES).get(self.reason, "")
+
+    @property
+    def status_label(self):
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+
+    @property
+    def is_time_off(self):
+        return self.kind == "off"
+
     def __str__(self):
         kind_label = dict(self.KIND_CHOICES).get(self.kind, self.kind)
-        return f"{self.user} — {self.date_range_display}: {kind_label}"
+        suffix = "" if self.status == "approved" else f" [{self.status}]"
+        return f"{self.user} — {self.date_range_display}: {kind_label}{suffix}"
 
 
 class StaffOnCall(models.Model):
