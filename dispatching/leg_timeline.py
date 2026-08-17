@@ -25,6 +25,7 @@ import logging
 from datetime import timedelta
 
 from django.utils import timezone
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -132,11 +133,11 @@ def _actor_name(user):
 
 
 def _fmt_time(t):
-    return t.strftime("%-I:%M %p") if t else "—"
+    return strf(t, "%-I:%M %p") if t else "—"
 
 
 def _fmt_date(d):
-    return d.strftime("%a %b %-d") if d else "—"
+    return strf(d, "%a %b %-d") if d else "—"
 
 
 def _event(at, kind, title, actor=None, actor_kind="system", severity="info",
@@ -534,7 +535,7 @@ def _collapse_status_runs(events):
                 actor=head["actor"], actor_kind=head["actor_kind"],
                 severity="quiet", source=head["source"],
                 details=[
-                    _text(f"{s['local'].strftime('%-I:%M %p')}   {s.get('status_value') or s['title']}")
+                    _text(f"{strf(s['local'], '%-I:%M %p')}   {s.get('status_value') or s['title']}")
                     for s in steps
                 ],
             )

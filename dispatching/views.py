@@ -70,6 +70,7 @@ from .forms import (
 # django-simple-history helpers for history views
 from simple_history.utils import get_history_manager_for_model
 from simple_history.template_utils import HistoricalRecordContextHelper
+from business.datefmt import strf
 
 # Configure logging and Stripe
 logger = logging.getLogger(__name__)
@@ -5536,15 +5537,15 @@ def match_leg_time_to_flight(request):
                     "needs_confirmation": "wrong_day",
                     "leg_id": leg.id,
                     "flight_label": flight_label,
-                    "flight_arrives": f"{flight_date.strftime('%a %b %-d')}, {new_time.strftime('%I:%M %p').lstrip('0')}",
-                    "pickup_currently": f"{old_date.strftime('%a %b %-d')}, {old_time.strftime('%I:%M %p').lstrip('0')}" if old_date and old_time else "",
+                    "flight_arrives": f"{strf(flight_date, '%a %b %-d')}, {new_time.strftime('%I:%M %p').lstrip('0')}",
+                    "pickup_currently": f"{strf(old_date, '%a %b %-d')}, {old_time.strftime('%I:%M %p').lstrip('0')}" if old_date and old_time else "",
                     "move_date_summary": describe_pickup_move(old_date, old_time, flight_date, new_time),
                     "move_date_shift": humanize_shift_minutes(full_move_shift),
                     "keep_date_summary": describe_pickup_move(old_date, old_time, old_date, new_time),
                     "keep_date_shift": humanize_shift_minutes(time_only_shift),
                     "message": (
-                        f"{flight_label} lands on {flight_date.strftime('%a %b %-d')}, but this "
-                        f"pickup is set for {old_date.strftime('%a %b %-d')}. Matching the time "
+                        f"{flight_label} lands on {strf(flight_date, '%a %b %-d')}, but this "
+                        f"pickup is set for {strf(old_date, '%a %b %-d')}. Matching the time "
                         f"alone would move the pickup {humanize_shift_minutes(time_only_shift)} "
                         f"and leave it on the wrong day."
                     ),
@@ -5678,7 +5679,7 @@ def match_leg_time_to_flight(request):
         return JsonResponse({
             "success": True,
             "message": (
-                f"Pickup moved to {leg.pickup_date.strftime('%a %b %-d')}, "
+                f"Pickup moved to {strf(leg.pickup_date, '%a %b %-d')}, "
                 f"{new_time.strftime('%I:%M %p').lstrip('0')} to match flight arrival"
                 if day_moved
                 else "Leg pickup time updated to match flight arrival"

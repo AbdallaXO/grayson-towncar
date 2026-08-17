@@ -32,6 +32,7 @@ import logging
 from django.utils import timezone
 
 from reservations.models import AuditLog, Leg
+from business.datefmt import strf
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def _fmt_time(t):
 
 
 def _fmt_date(d):
-    return d.strftime("%b %-d, %Y") if d else ""
+    return strf(d, "%b %-d, %Y") if d else ""
 
 
 def apply_pickup_time_move(leg, new_time, user=None, note="Flight match", new_date=None):
