@@ -14,6 +14,9 @@ Docs reference (confirm against current Samsara API if fields drift):
   GET /fleet/vehicles/stats?types=gps -> data[].gps.{latitude,longitude,time,
       speedMilesPerHour, reverseGeo.formattedLocation}, pagination.endCursor
   GET /fleet/vehicles                 -> data[].{id,name,vin,licensePlate}
+  (GPS breadcrumbs from /fleet/vehicles/locations/history are entitled on this
+   account and their shape/cost is measured in docs/fleet-management.md, but
+   nothing calls them today — the right-click menu uses the stored position.)
 """
 import logging
 from decimal import Decimal

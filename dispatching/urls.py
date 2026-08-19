@@ -7,6 +7,7 @@ from . import keoi_views
 from . import db_health
 from . import fleet_views
 from . import trip_link_views
+from . import vehicle_route_views
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 from ops import leads_board as ops_leads
@@ -56,6 +57,13 @@ urlpatterns = [
     # Right-click trip menu: Google Maps + flight-tracker links for one leg
     path("leg/<int:leg_id>/trip-links/", trip_link_views.leg_trip_links_json,
          name="leg_trip_links"),
+    # ...and the same menu's vehicle row: where the assigned car is now, and
+    # directions from it to this leg's pickup. Split from trip-links because it
+    # answers from the fleet telemetry columns rather than from the booking.
+    path("leg/<int:leg_id>/vehicle-route/", vehicle_route_views.leg_vehicle_route,
+         name="leg_vehicle_route"),
+    path("fleet/<int:pk>/route/", vehicle_route_views.fleet_vehicle_route,
+         name="fleet_vehicle_route"),
 
     path("leg/<int:id>/history/", views.leg_history, name="leg_history"),
     path("leg/<int:id>/history/partial/", views.leg_history_partial, name="leg_history_partial"),

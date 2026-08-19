@@ -1,10 +1,20 @@
 {% comment %}
-Right-click trip menu — Mapping and Flight Tracker for any leg on the page.
+Right-click menu — Mapping, Flight Tracker, and where the car is.
 
 Include ONCE per page, inside {% block extra_js %}. It needs no context: it
 binds at the document level and activates on any element carrying a numeric
-`data-leg-id`, which every board row, timeline bar and unassigned chip already
-has. Links are fetched from `leg_trip_links` on first open and cached per leg.
+`data-leg-id` (every board row, timeline bar and unassigned chip already has
+one) or a numeric `data-fleet-vehicle-id` (the fleet list rows and detail head).
+
+Two sources, each cached per row:
+
+  Mapping / Flight Tracker  `leg_trip_links`     — where the trip is MEANT to go,
+                                                   from the booking. Submenus.
+  The vehicle row           `leg_vehicle_route`  — where the car IS, and
+                            `fleet_vehicle_route`  directions from it to the
+                                                   pickup. A row in the menu
+                                                   itself, filled by its own
+                                                   fetch a moment after paint.
 
 Escape hatches: Shift+right-click gives the browser's own menu, and right-click
 inside a text field is always left alone so copy/paste still works.
@@ -72,6 +82,25 @@ inside a text field is always left alone so copy/paste still works.
   }
   .trip-menu-sub.open { display: block; }
   .trip-menu-sub .trip-menu-item { white-space: normal; }
+  /* The menu's rows are nowrap so short actions stay on one line, but the
+     vehicle row carries an address and a destination and must wrap instead of
+     clipping at the menu edge. */
+  #tripMenuVehicle .trip-menu-item { white-space: normal; }
+  /* Why there is no position, said in words. An empty row reads as a broken
+     feature; "no driver on this trip yet" reads as an answer. */
+  .trip-menu-note {
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #64748b;
+    line-height: 1.35;
+    max-width: 300px;
+  }
+  /* A stale fix is still worth opening — it is where the car was last seen —
+     but it must not look live. The muted pin plus the age in the context line
+     carry that; the server has already refused to report motion on it. */
+  .trip-menu-item.veh-stale > i:first-child { color: #b0b8c4; }
+  .trip-menu-item.veh-stale .trip-menu-addr { font-style: italic; }
   .trip-menu-label {
     padding: 6px 14px 2px;
     font-size: 0.68rem;
@@ -115,11 +144,29 @@ inside a text field is always left alone so copy/paste still works.
 
   var menu = document.getElementById('tripMenu');
   var sub = document.getElementById('tripMenuSub');
-  // Reversible placeholder so the route stays defined by urls.py, not by a
-  // path string duplicated here.
+  // Reversible placeholders so the routes stay defined by urls.py, not by path
+  // strings duplicated here.
   var URL_TEMPLATE = "{% url 'leg_trip_links' leg_id=0 %}";
+  var VEHICLE_URL_TEMPLATE = "{% url 'leg_vehicle_route' leg_id=0 %}";
+  var FLEET_URL_TEMPLATE = "{% url 'fleet_vehicle_route' pk=0 %}";
   var cache = {};
+  // Kept separate from `cache` because it is filled by a SECOND fetch, which
+  // lands after the menu has already painted its trip links.
+  var vehicleCache = {};
   var sourceEl = null;
+
+  /**
+   * The one identity for a right-clicked thing: "leg:123" / "vehicle:9".
+   *
+   * Used BOTH as the vehicleCache key and as the guard an in-flight fetch
+   * checks against menu.dataset.menuKey before painting. Deriving them from one
+   * function is the point — when these were two hand-written strings they
+   * disagreed, the guard never matched, and the submenu hung on "Loading"
+   * forever while the response sat parsed and discarded.
+   */
+  function keyFor(target) {
+    return target.kind + ':' + target.id;
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -150,6 +197,9 @@ inside a text field is always left alone so copy/paste still works.
   function closeMenu() {
     closeSub();
     menu.classList.remove('open');
+    // Clears the in-flight guard: a vehicle fetch that lands after this must
+    // find a key that no longer matches and drop its result on the floor.
+    delete menu.dataset.menuKey;
     if (sourceEl) {
       sourceEl.classList.remove('trip-menu-source');
       sourceEl = null;
@@ -223,6 +273,81 @@ inside a text field is always left alone so copy/paste still works.
     }).join('<div class="trip-menu-sep"></div>');
   }
 
+  /**
+   * The assigned car, as one action with one line of context under it.
+   *
+   * Reads as the rest of the menu does — a short verb phrase, like "Copy pickup
+   * address" — because that is what it is: open Google Maps with directions
+   * from the car's live coordinates to this trip's pickup. On the fleet pages
+   * there is no job in view, so it drops to "Show on map".
+   *
+   * THREE THINGS ARE DELIBERATELY NOT SAID.
+   *  - The destination. You right-clicked this trip; the header already names
+   *    it, and "directions to Disney's Grand Floridian Resort & Spa" was the
+   *    longest line in the menu restating what you just clicked on.
+   *  - The make and model. The unit number identifies the car; "CHEVROLET
+   *    SUBURBAN" only took up width.
+   *  - The age of the fix, while it is fresh. A timestamp is only worth reading
+   *    when it tells you NOT to trust the position, so it appears solely when
+   *    the signal has gone stale — where it also greys the row's icon.
+   */
+  function buildVehicleSub(v) {
+    if (!v) return '<div class="trip-menu-item disabled">Locating vehicle&hellip;</div>';
+    var html = '';
+
+    if (v.live) {
+      var context = [];
+      if (v.vehicle_number) context.push('#' + v.vehicle_number);
+      if (v.live.place) context.push(v.live.place);
+      if (!v.live.fresh && v.live.age) context.push(v.live.age);
+
+      html += '<a class="trip-menu-item' + (v.live.fresh ? '' : ' veh-stale')
+        + '" href="' + esc(v.live.url) + '" target="_blank" rel="noopener noreferrer">'
+        + '<i class="bi bi-geo-alt-fill"></i><span>'
+        + (v.live.destination ? 'Route to pickup' : 'Show on map')
+        + '<span class="trip-menu-addr">' + esc(context.join(' · ')) + '</span>'
+        + '</span></a>';
+    }
+
+    if (v.note) {
+      html += (html ? '<div class="trip-menu-sep"></div>' : '')
+        + '<div class="trip-menu-note">' + esc(v.note) + '</div>';
+    }
+    return html || '<div class="trip-menu-item disabled">No position for this vehicle</div>';
+  }
+
+  /**
+   * Fetch the vehicle track for the open menu, then repaint `paint` with it.
+   * Guarded on menuKey so a dispatcher who moves to another row mid-flight
+   * doesn't get the previous car's route dropped into the new car's menu.
+   */
+  function loadVehicle(target, paint) {
+    var key = keyFor(target);
+    if (vehicleCache[key]) { paint(vehicleCache[key]); return; }
+    var url = target.kind === 'vehicle'
+      ? FLEET_URL_TEMPLATE.replace('/0/route/', '/' + target.id + '/route/')
+      : VEHICLE_URL_TEMPLATE.replace('/0/vehicle-route/', '/' + target.id + '/vehicle-route/');
+
+    paint(null);   // loading state
+    fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        vehicleCache[key] = data;
+        if (menu.dataset.menuKey !== key) return;
+        paint(data);
+      })
+      .catch(function () {
+        if (menu.dataset.menuKey !== key) return;
+        paint({ note: "Couldn't load this vehicle's position." });
+      });
+  }
+
   function openSub(anchor, html) {
     closeSub();
     anchor.classList.add('active');
@@ -264,6 +389,11 @@ inside a text field is always left alone so copy/paste still works.
       + '<span>Mapping</span><i class="bi bi-caret-right-fill trip-menu-caret"></i></div>';
     html += '<div class="trip-menu-item" data-sub="flights"><i class="bi bi-airplane-fill"></i>'
       + '<span>Flight Tracker</span><i class="bi bi-caret-right-fill trip-menu-caret"></i></div>';
+    // Mapping answers "where is this trip meant to go" from the booking. This
+    // slot answers "where is the car, and how does it get there" from the car,
+    // and fills in from its own fetch a moment after the menu paints.
+    html += '<div class="trip-menu-sep"></div><div id="tripMenuVehicle">'
+      + '<div class="trip-menu-item disabled">Locating vehicle&hellip;</div></div>';
 
     var copyable = [];
     if (data.pickup && data.pickup.text) copyable.push(['Copy pickup address', data.pickup.text]);
@@ -292,15 +422,53 @@ inside a text field is always left alone so copy/paste still works.
     cache[data.leg_id] = data;
   }
 
-  function show(legId, x, y, el) {
+  /**
+   * Fill the reserved vehicle slot, then re-place the menu because the row is
+   * taller than the placeholder it replaces. Guarded on menuKey so a dispatcher
+   * who has already moved to another trip never gets the previous car's link.
+   */
+  function paintVehicleRow(target, x, y) {
+    var key = keyFor(target);
+    loadVehicle(target, function (data) {
+      if (menu.dataset.menuKey !== key) return;
+      var slot = document.getElementById('tripMenuVehicle');
+      if (!slot) return;
+      slot.innerHTML = buildVehicleSub(data);
+      place(menu, x, y);
+    });
+  }
+
+  /**
+   * A fleet vehicle right-clicked on its own — the fleet list and detail pages,
+   * where there is no trip to hang the menu off, so the vehicle row IS the menu.
+   */
+  function showVehicleMenu(target, x, y) {
+    menu.dataset.menuKey = keyFor(target);
+    loadVehicle(target, function (data) {
+      if (menu.dataset.menuKey !== keyFor(target)) return;
+      menu.innerHTML = buildVehicleSub(data);
+      place(menu, x, y);
+    });
+  }
+
+  function show(target, x, y, el) {
     closeMenu();
     sourceEl = el;
     el.classList.add('trip-menu-source');
     menu.classList.add('open');
 
+    if (target.kind === 'vehicle') {
+      showVehicleMenu(target, x, y);
+      return;
+    }
+
+    var legId = target.id;
+    menu.dataset.menuKey = keyFor(target);
+
     if (cache[legId]) {
       render(cache[legId]);
       place(menu, x, y);
+      paintVehicleRow(target, x, y);
       return;
     }
 
@@ -321,6 +489,7 @@ inside a text field is always left alone so copy/paste still works.
         if (!menu.classList.contains('open') || menu.dataset.legId != String(legId)) return;
         render(data);
         place(menu, x, y);
+        paintVehicleRow(target, x, y);
       })
       .catch(function () {
         if (!menu.classList.contains('open') || menu.dataset.legId != String(legId)) return;
@@ -328,23 +497,34 @@ inside a text field is always left alone so copy/paste still works.
       });
   }
 
-  function legTargetFor(target) {
+  /**
+   * What was right-clicked: a trip, a fleet vehicle, or nothing we own.
+   *
+   * A leg wins over a vehicle when both are in the ancestry, because on a board
+   * the leg is the more specific thing and its menu carries the vehicle anyway.
+   * `data-fleet-vehicle-id` is deliberately NOT `data-vehicle-id` — that name is
+   * already taken on the capacity planner, where it sometimes means a vehicle
+   * TYPE, and a menu that queried the wrong id space would look like it worked.
+   */
+  function menuTargetFor(target) {
     if (!target || !target.closest) return null;
     // Leave text fields alone — the browser's own menu is the useful one there.
     if (target.closest('input, textarea, select, [contenteditable="true"]')) return null;
-    var el = target.closest('[data-leg-id]');
+    var el = target.closest('[data-leg-id], [data-fleet-vehicle-id]');
     if (!el) return null;
-    var id = (el.dataset.legId || '').trim();
-    if (!/^\d+$/.test(id)) return null;
-    return { el: el, id: id };
+    var legId = (el.dataset.legId || '').trim();
+    if (/^\d+$/.test(legId)) return { el: el, kind: 'leg', id: legId };
+    var vehId = (el.dataset.fleetVehicleId || '').trim();
+    if (/^\d+$/.test(vehId)) return { el: el, kind: 'vehicle', id: vehId };
+    return null;
   }
 
   document.addEventListener('contextmenu', function (e) {
     if (e.shiftKey) return;                       // escape hatch to the native menu
-    var hit = legTargetFor(e.target);
+    var hit = menuTargetFor(e.target);
     if (!hit) return;
     e.preventDefault();
-    show(hit.id, e.clientX, e.clientY, hit.el);
+    show(hit, e.clientX, e.clientY, hit.el);
   });
 
   // Long-press opens the same menu on tablets, which is how the board is
@@ -354,7 +534,7 @@ inside a text field is always left alone so copy/paste still works.
   var swallowClick = false;
   document.addEventListener('touchstart', function (e) {
     if (e.touches.length !== 1) return;
-    var hit = legTargetFor(e.target);
+    var hit = menuTargetFor(e.target);
     if (!hit) return;
     var t = e.touches[0];
     pressStart = { x: t.clientX, y: t.clientY };
@@ -363,7 +543,7 @@ inside a text field is always left alone so copy/paste still works.
       // The row underneath usually has its own click handler (pin, open, drag
       // select). A long-press that opened this menu must not also fire it.
       swallowClick = true;
-      show(hit.id, pressStart.x, pressStart.y, hit.el);
+      show(hit, pressStart.x, pressStart.y, hit.el);
     }, 550);
   }, { passive: true });
 

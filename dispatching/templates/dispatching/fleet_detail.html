@@ -114,7 +114,8 @@
 {% include 'dispatching/dispatcher_navbar.html' %}
 <div class="container-fluid py-4 tap-wrap">
 
-  <div class="tap-page-head">
+  {# The whole head IS this vehicle, so right-clicking it opens its route. #}
+  <div class="tap-page-head" data-fleet-vehicle-id="{{ vehicle.pk }}">
     <div>
       <h1 class="tap-title">
         #{{ vehicle.vehicle_number }}
@@ -950,6 +951,9 @@
   };
 })();
 </script>
+
+{# Right-click the header to see where it has actually been. #}
+{% include "dispatching/includes/_trip_context_menu.html" %}
 {% endblock %}
 
 {% block footer %}{% endblock %}

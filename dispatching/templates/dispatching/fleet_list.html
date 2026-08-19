@@ -251,7 +251,13 @@
       </thead>
       <tbody>
         {% for row in rows %}
-        <tr data-vehicle="{{ row.vehicle.pk }}">
+        {% comment %}
+          data-fleet-vehicle-id (not data-vehicle-id) keys the right-click
+          route menu: data-vehicle-id already means a vehicle TYPE on the
+          capacity planner, and the menu must never query the wrong id space.
+        {% endcomment %}
+        <tr data-vehicle="{{ row.vehicle.pk }}"
+            data-fleet-vehicle-id="{{ row.vehicle.pk }}">
           <td class="pick-col">
             <input type="checkbox" class="form-check-input fleet-pick"
                    value="{{ row.vehicle.pk }}"
@@ -310,9 +316,11 @@
           </td>
           <td class="fuel-cell">
             {% if row.fuel %}
-              {# The bar carries the reading; the figure confirms it. A stale
-                 gateway is hatched rather than hidden — the level it last saw
-                 is still a useful floor, it just isn't current. #}
+              {% comment %}
+                The bar carries the reading; the figure confirms it. A stale
+                gateway is hatched rather than hidden — the level it last saw
+                is still a useful floor, it just isn't current.
+              {% endcomment %}
               <div class="fuel-{{ row.fuel.level }}{% if row.fuel.stale %} fuel-stale{% endif %}"
                    title="{{ row.fuel.detail }}">
                 <span class="fuel-num">{{ row.fuel.percent }}%</span>
@@ -407,10 +415,12 @@
   </button>
 </div>
 
-{# ── Bulk edit ──────────────────────────────────────────────────────────────
-   Every field is inert until it's ticked on, and only ticked fields are sent.
-   That single rule is what makes this safe to use on a whole fleet at once: a
-   blank date input can never mean "clear this on twelve cars" by accident.     #}
+{% comment %}
+  ── Bulk edit ──────────────────────────────────────────────────────────────
+  Every field is inert until it's ticked on, and only ticked fields are sent.
+  That single rule is what makes this safe to use on a whole fleet at once: a
+  blank date input can never mean "clear this on twelve cars" by accident.
+{% endcomment %}
 <div class="modal fade" id="bulkModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
@@ -873,6 +883,9 @@
   };
 })();
 </script>
+
+{# Right-click any vehicle row to see where it has actually been. #}
+{% include "dispatching/includes/_trip_context_menu.html" %}
 {% endblock %}
 
 {% block footer %}{% endblock %}
