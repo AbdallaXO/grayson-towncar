@@ -10,6 +10,11 @@ __pycache__/
 *.html.tmp-*
 # Local Claude resume/status doc + ad-hoc deployment log dumps (never commit)
 /claude.md
+/claude-local.md
+# ...but CLAUDE.md is the project rules file and has to stay tracked. Git on
+# Windows matches ignore patterns case-insensitively, so /claude.md above would
+# otherwise swallow it. Use claude-local.md for a throwaway local scratch doc.
+!/CLAUDE.md
 *logs_last_deployment.json
 
 # C extensions

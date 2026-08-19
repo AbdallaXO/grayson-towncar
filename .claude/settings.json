@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/release_note_guard.py",
+            "if": "Bash(git *)",
+            "timeout": 20,
+            "statusMessage": "Checking for a release note..."
+          }
+        ]
+      }
+    ]
+  }
+}
