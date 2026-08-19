@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry, RouteDistanceCache
+from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry, RouteDistanceCache, LegClientMessage
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 from simple_history.admin import SimpleHistoryAdmin
@@ -3100,4 +3100,36 @@ class RouteDistanceCacheAdmin(admin.ModelAdmin):
     ordering = ['-updated_at']
 
     def has_add_permission(self, request):
+        return False
+
+
+@admin.register(LegClientMessage)
+class LegClientMessageAdmin(admin.ModelAdmin):
+    """Audit trail of the standard guest texts opened from the driver app.
+
+    Read-only on purpose. These rows are the evidence behind the communication
+    KPIs — editing one would rewrite history, and there is no legitimate reason
+    to. Delete stays available for scrubbing a test row.
+    """
+
+    list_display = ("created_at", "leg", "driver", "kind", "situation")
+    list_filter = ("kind", "situation", "created_at")
+    search_fields = (
+        "leg__id",
+        "leg__reservation__customer__first_name",
+        "leg__reservation__customer__last_name",
+        "driver__profile__first_name",
+        "driver__profile__last_name",
+    )
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    list_select_related = ("leg", "driver", "driver__profile")
+    readonly_fields = (
+        "leg", "driver", "sent_by", "kind", "situation", "body", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False

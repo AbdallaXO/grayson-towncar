@@ -59,6 +59,29 @@
     .stat-tile.accent-green .stat-value { color: #4ade80; }
     .stat-tile.accent-blue .stat-value { color: #60a5fa; }
 
+    /* ─── Guest communication rates ─── */
+    /* A proportion bar plus the raw n/N, matching the Tracking column on Driver
+       Performance. The bar carries the comparison the number alone can't. */
+    .comms-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; }
+    .comms-row + .comms-row { border-top: 1px solid var(--gt-border); }
+    .comms-name { flex: 0 0 8.5rem; font-size: 0.82rem; font-weight: 600; }
+    .comms-bar { flex: 1 1 auto; height: 7px; border-radius: 4px; background: var(--gt-surface-2); overflow: hidden; }
+    .comms-bar .fill { display: block; height: 100%; border-radius: 4px; }
+    .comms-fig { flex: 0 0 6.5rem; text-align: right; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.8rem; }
+    .comms-fig .pct { font-weight: 700; }
+    .comms-fig .frac { color: var(--gt-muted); font-size: 0.72rem; margin-left: 0.3rem; }
+    .fill-green { background: #4ade80; } .pct-green { color: #4ade80; }
+    .fill-amber { background: #fbbf24; } .pct-amber { color: #fbbf24; }
+    .fill-red   { background: #f87171; } .pct-red   { color: #f87171; }
+    .fill-muted { background: var(--gt-border); } .pct-muted { color: var(--gt-muted); }
+    .comms-note { font-size: 0.7rem; color: var(--gt-muted); margin-top: 0.6rem; line-height: 1.5; }
+    .comms-win { display: inline-flex; gap: 0.25rem; }
+    .comms-win a {
+      font-size: 0.68rem; padding: 0.15rem 0.45rem; border-radius: 5px;
+      color: var(--gt-muted); text-decoration: none; border: 1px solid transparent;
+    }
+    .comms-win a.on { color: var(--gt-gold); border-color: var(--gt-border); background: var(--gt-surface-2); }
+
     /* Action buttons in hero */
     .hero-actions .btn {
       background: var(--gt-surface-2); color: var(--gt-text);
@@ -217,6 +240,59 @@
           </div>
         </div>
       </div>
+
+      {# ── Guest communication ── #}
+      {# Backward-looking, so it carries its own window selector. Shown only for
+         in-house chauffeurs: affiliates never get a card with these buttons. #}
+      {% if comms_tiles %}
+      <div class="profile-card mb-3">
+        <div class="card-header">
+          <span><i class="bi bi-chat-dots me-2"></i>Guest Communication</span>
+          <span class="comms-win">
+            {% for key, label in comms_windows.items %}
+              <a href="?comms={{ key }}" class="{% if comms_window == key %}on{% endif %}">{{ label }}</a>
+            {% endfor %}
+          </span>
+        </div>
+        <div class="card-body">
+          {% for t in comms_tiles %}
+            <div class="comms-row">
+              <span class="comms-name">{{ t.label }}</span>
+              <span class="comms-bar">
+                <span class="fill fill-{{ t.accent }}" style="width:{% if t.pct %}{{ t.pct }}{% else %}0{% endif %}%;"></span>
+              </span>
+              <span class="comms-fig">
+                {% if t.pct is None %}
+                  <span class="pct pct-muted">—</span>
+                {% else %}
+                  <span class="pct pct-{{ t.accent }}">{{ t.pct }}%</span>
+                  <span class="frac">{{ t.sent }}/{{ t.eligible }}</span>
+                {% endif %}
+              </span>
+            </div>
+          {% endfor %}
+          {% if comms_window_empty %}
+          <div class="comms-note" style="color:var(--gt-gold);">
+            No rates yet, and that is expected &mdash; rates count <em>completed</em> trips on
+            days that have already closed, and tracking only began {{ tracking_start|date:"M j, Y" }}.
+            {% if comms_activity.total %}
+              {{ comms_activity.total }} text{{ comms_activity.total|pluralize }} logged for this
+              chauffeur so far{% if comms_activity.today %}, {{ comms_activity.today }} today{% endif %}.
+            {% else %}
+              Nothing logged for this chauffeur yet.
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="comms-note">
+            Completed trips {{ comms_start|date:"M j" }}&ndash;{{ comms_end|date:"M j, Y" }},
+            cancellations excluded. Counts a text <em>sent from the driver app</em> &mdash;
+            the message opens in the chauffeur&rsquo;s own Messages app, so delivery
+            isn&rsquo;t something we can see. Trips before tracking began are not counted.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
 
       <div class="row g-3">
         {# ── Left column: Contact + Vehicle + Schedule ── #}

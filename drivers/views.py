@@ -35,6 +35,67 @@ from dispatching.scheduler import (
 from dispatching.analytics import categorize_location
 
 
+def _attach_client_messages(driver, legs, *, default_assignment=None):
+    """Pre-render the three standard guest texts onto each job card.
+
+    Rendering happens here rather than in the template so the copy engine stays
+    one testable pure module and the cards keep no business logic. Each leg gets:
+
+        leg.client_msgs  {kind: {"body", "href", "situation", "label"}}
+        leg.client_sent  {kind: True} for messages already opened from the app
+
+    One extra query total (the already-sent lookup), regardless of leg count.
+    """
+    from drivers.client_messages import KINDS, build_all, sms_href
+    from reservations.models import LegClientMessage
+
+    legs = [lg for lg in (legs or [])]
+    if not legs:
+        return
+
+    # Affiliates and operators drive their own guests under their own brand and
+    # never see these buttons — bail before doing any work.
+    if getattr(driver, "driver_type", "") != "inhouse":
+        return
+
+    driver_name = ""
+    profile = getattr(driver, "profile", None)
+    if profile is not None:
+        driver_name = (getattr(profile, "first_name", "") or "").strip()
+
+    sent_map = {}
+    for row in LegClientMessage.objects.filter(leg__in=legs).values_list("leg_id", "kind"):
+        sent_map.setdefault(row[0], set()).add(row[1])
+
+    for leg in legs:
+        vehicle_assignment = getattr(leg, "day_vehicle", None) or default_assignment
+        vehicle = getattr(vehicle_assignment, "vehicle", None)
+        try:
+            built = build_all(leg, driver_name=driver_name, vehicle=vehicle)
+        except Exception:
+            # A malformed leg must never take down the whole board.
+            leg.client_msgs = {}
+            leg.client_sent = {}
+            continue
+
+        phone = getattr(
+            getattr(getattr(leg, "reservation", None), "customer", None),
+            "phone_number",
+            "",
+        )
+        already = sent_map.get(leg.id, set())
+        leg.client_msgs = {
+            kind: {
+                "body": built[kind].body,
+                "href": sms_href(phone, built[kind].body),
+                "situation": built[kind].situation,
+                "label": built[kind].label,
+            }
+            for kind in KINDS
+        }
+        leg.client_sent = {kind: (kind in already) for kind in KINDS}
+
+
 def _compute_eta_string(pickup_date, pickup_time, now, today):
     """Compute a human-friendly ETA string for a leg."""
     from datetime import datetime as _dt
@@ -367,6 +428,8 @@ def index(request):
                     "after" if p.first_pickup >= legs_list[0].pickup_time else "before"
                 )
 
+    _attach_client_messages(driver, legs_list, default_assignment=vehicle_assignment)
+
     return render(
         request, "drivers/index.html", {
             "legs": legs_list,
@@ -488,6 +551,8 @@ def schedule(request):
     if next_leg:
         next_leg_eta = _compute_eta_string(next_leg.pickup_date, next_leg.pickup_time, now, today)
 
+    _attach_client_messages(driver, legs_list)
+
     return render(
         request,
         "drivers/weekly_schedule.html",
@@ -551,6 +616,74 @@ def update_leg_status(request, leg_id):
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+@require_POST
+def log_client_message(request, leg_id):
+    """Record that the chauffeur opened a standard guest text from the driver app.
+
+    This is fired by navigator.sendBeacon at the moment the `sms:` composer takes
+    over the page, so two things differ from the usual JSON endpoint contract:
+
+    * It reads request.POST (FormData), not json.loads(request.body). sendBeacon
+      cannot set an X-CSRFToken header, so the token rides in the body as
+      csrfmiddlewaretoken, which Django's CSRF middleware checks first.
+    * The client never sees the response. Nothing here may depend on the caller
+      reading it, and it must stay fast.
+
+    The BODY IS RE-RENDERED SERVER-SIDE and the client's copy is ignored, so what
+    we store is provably the text this app handed over — a tampered or stale
+    client cannot rewrite the record. What the chauffeur then does in his own
+    composer is beyond our sight either way; see LegClientMessage.
+    """
+    from drivers.client_messages import KINDS, build
+    from reservations.models import LegClientMessage
+
+    leg = get_object_or_404(
+        Leg.objects.select_related("reservation__customer", "flight_information",
+                                   "cruise_information"),
+        id=leg_id,
+        driver__profile=request.user,
+    )
+
+    kind = (request.POST.get("kind") or "").strip()
+    if kind not in KINDS:
+        return JsonResponse({"success": False, "error": "Invalid kind"}, status=400)
+
+    driver = leg.driver
+    driver_name = ""
+    profile = getattr(driver, "profile", None)
+    if profile is not None:
+        driver_name = (getattr(profile, "first_name", "") or "").strip()
+
+    assignment = _vehicle_assignment_map(
+        driver, leg.pickup_date, leg.pickup_date
+    ).get(leg.pickup_date)
+
+    try:
+        msg = build(
+            leg,
+            kind,
+            driver_name=driver_name,
+            vehicle=getattr(assignment, "vehicle", None),
+        )
+        situation, body = msg.situation, msg.body
+    except Exception:
+        # Never lose the tap over a rendering problem — the chauffeur's composer
+        # has already opened by now.
+        situation, body = "", ""
+
+    LegClientMessage.objects.create(
+        leg=leg,
+        driver=driver,
+        sent_by=request.user,
+        kind=kind,
+        situation=situation,
+        body=body,
+    )
+
+    return JsonResponse({"success": True})
 
 
 def _parse_duration_to_minutes(duration_text):
@@ -1031,6 +1164,22 @@ def driver_profile(request, driver_id):
         else len(todays_legs) == 0
     )
 
+    # ── Guest-communication rates ──
+    # Backward-looking, unlike everything else on this page, so it carries its own
+    # ?comms= window. In-house only: an affiliate never sees a card with these
+    # buttons, so a rate on their profile would be a permanent 0% that reads as a
+    # failure rather than "not applicable".
+    from drivers import comms_metrics
+
+    comms_window, comms_days = comms_metrics.resolve_window(request.GET.get("comms"))
+    comms_tiles = None
+    comms_start = comms_end = None
+    if driver.driver_type == "inhouse":
+        comms_start, comms_end = comms_metrics.window_bounds(comms_days, today=today)
+        comms_tiles = comms_metrics.as_tiles(
+            comms_metrics.comms_stats(driver, comms_start, comms_end)
+        )
+
     context = {
         "driver": driver,
         "today": today,
@@ -1045,6 +1194,20 @@ def driver_profile(request, driver_id):
         "weekly_schedule": weekly_schedule,
         "upcoming_overrides": upcoming_overrides,
         "is_available_today": is_available_today,
+        "comms_tiles": comms_tiles,
+        "comms_window": comms_window,
+        "comms_windows": comms_metrics.WINDOW_LABELS,
+        "comms_start": comms_start,
+        "comms_end": comms_end,
+        "tracking_start": comms_metrics.tracking_start(),
+        "comms_window_empty": (
+            comms_metrics.window_is_empty(comms_start, comms_end)
+            if comms_start else False
+        ),
+        "comms_activity": (
+            comms_metrics.recent_activity(days=7, driver=driver)
+            if driver.driver_type == "inhouse" else None
+        ),
     }
     return render(request, "drivers/driver_profile.html", context)
 

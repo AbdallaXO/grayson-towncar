@@ -1,5 +1,5 @@
 from django.urls import path
-from . import operator_views, views
+from . import comms_views, operator_views, views
 
 
 urlpatterns = [
@@ -74,6 +74,7 @@ urlpatterns = [
         views.accept_job,
         name="accept_job",
     ),
+    path("comms-kpis/", comms_views.comms_kpis, name="driver_comms_kpis"),
     path("completed-trips/", views.completed_trips, name="completed_trips"),
     path("weekly-schedule/", views.schedule, name="schedule"),
     path(
@@ -100,6 +101,11 @@ urlpatterns = [
         "toggle_timing/<int:driver_id>/",
         views.toggle_timing_exclude,
         name="toggle_timing_exclude",
+    ),
+    path(
+        "api/client-message/<int:leg_id>/",
+        views.log_client_message,
+        name="driver_log_client_message",
     ),
     path(
         "api/board-state/",

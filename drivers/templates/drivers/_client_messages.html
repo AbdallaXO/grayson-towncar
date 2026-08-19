@@ -1,0 +1,62 @@
+{% comment %}
+Standard guest texts for one job card. Included by BOTH index.html and
+weekly_schedule.html — the two cards had already drifted apart, so anything
+touching guest messaging lives here and is edited once.
+
+Expects `leg.client_msgs` / `leg.client_sent`, set by
+drivers.views._attach_client_messages. Renders nothing at all when they are
+absent (affiliates, operators, or a leg the copy engine could not classify), so
+a card without them looks exactly as it did before this feature.
+
+Each chip is a plain `sms:` link — the chauffeur's own Messages app opens
+pre-filled, so the guest's reply reaches the man actually driving them. The tap
+is logged by the delegated handler in _driver_scripts.html.
+{% endcomment %}
+{% if leg.client_msgs %}
+  <div class="gt-guest-msgs mb-2">
+    <div class="gt-guest-msgs-label">
+      <i class="bi bi-chat-dots-fill"></i> Text the guest
+    </div>
+    <div class="gt-guest-msgs-row">
+      {% with m=leg.client_msgs.on_the_way %}
+        <a href="{{ m.href }}"
+           class="gt-msg-chip{% if leg.client_sent.on_the_way %} is-sent{% elif leg.status == "confirmed" or leg.status == "in-progress" or leg.status == "on-the-way" %} is-next{% endif %}"
+           data-leg-id="{{ leg.id }}" data-msg-kind="on_the_way">
+          {% if leg.client_sent.on_the_way %}<i class="bi bi-check-circle-fill"></i>{% else %}<i class="bi bi-arrow-right-circle"></i>{% endif %}
+          On the way
+        </a>
+      {% endwith %}
+      {% with m=leg.client_msgs.on_location %}
+        <a href="{{ m.href }}"
+           class="gt-msg-chip{% if leg.client_sent.on_location %} is-sent{% elif leg.status == "on-location" %} is-next{% endif %}"
+           data-leg-id="{{ leg.id }}" data-msg-kind="on_location">
+          {% if leg.client_sent.on_location %}<i class="bi bi-check-circle-fill"></i>{% else %}<i class="bi bi-geo-alt"></i>{% endif %}
+          On location
+        </a>
+      {% endwith %}
+      {% with m=leg.client_msgs.review %}
+        <a href="{{ m.href }}"
+           class="gt-msg-chip{% if leg.client_sent.review %} is-sent{% elif leg.status == "picked-up" %} is-next{% endif %}"
+           data-leg-id="{{ leg.id }}" data-msg-kind="review">
+          {% if leg.client_sent.review %}<i class="bi bi-check-circle-fill"></i>{% else %}<i class="bi bi-star"></i>{% endif %}
+          Review
+        </a>
+      {% endwith %}
+    </div>
+  </div>
+
+  {% if leg.status == "picked-up" and not leg.client_sent.review %}
+    <div class="gt-review-reminder gt-review-reminder-active mb-2">
+      <div class="gt-review-stars mb-2">
+        <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+      </div>
+      <div style="font-size:0.8125rem;font-weight:600;color:var(--gt-blue);margin-bottom:8px;">
+        Ask for the review before you complete the trip
+      </div>
+      <a href="{{ leg.client_msgs.review.href }}" class="gt-btn gt-btn-primary gt-btn-block"
+         data-leg-id="{{ leg.id }}" data-msg-kind="review">
+        <i class="bi bi-chat-heart-fill"></i> Request Review
+      </a>
+    </div>
+  {% endif %}
+{% endif %}

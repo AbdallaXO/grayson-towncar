@@ -4108,3 +4108,78 @@ class DemandPattern(models.Model):
 
     def __str__(self):
         return f"{self.date} {self.hour}:00 - {self.total_legs} legs ({self.total_drivers_needed or '?'} drivers needed)"
+
+
+class LegClientMessage(models.Model):
+    """One standard client-facing text a chauffeur opened from the driver app.
+
+    HONEST SEMANTICS — read before building anything on this table. The driver
+    app hands the message to the chauffeur's OWN Messages app via an `sms:` deep
+    link, so the guest can reply to the person actually driving them. That is a
+    client-side handoff: the phone never reports back. A row here therefore means
+
+        "the chauffeur tapped the button and we handed his composer our text"
+
+    and NOT "the guest received a text". He can still edit or discard it in the
+    composer. Every label on top of this data must say *sent from the app* or
+    *opened*, never *delivered*. `body` is what we handed over, not necessarily
+    what went out.
+
+    Re-sends are allowed and each one writes a row — a chauffeur legitimately
+    re-texts a guest who did not answer. Rate KPIs therefore count DISTINCT legs,
+    never rows (see drivers/comms_metrics.py).
+
+    Nothing before this model shipped is recorded, so rates are only meaningful
+    from TRACKING_START onward; the KPI denominator is gated on it the same way
+    driver_performance gates on status_history existing.
+    """
+
+    KIND_CHOICES = [
+        ("on_the_way", "On the way"),
+        ("on_location", "On location"),
+        ("review", "Review request"),
+    ]
+
+    leg = models.ForeignKey(
+        "Leg", on_delete=models.CASCADE, related_name="client_messages",
+    )
+    driver = models.ForeignKey(
+        "drivers.Driver", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="client_messages",
+        help_text="Chauffeur credited with the message. Denormalised from the leg "
+                  "at tap time so a later reassignment can't rewrite history.",
+    )
+    sent_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="client_messages_sent",
+        help_text="User account that tapped. Normally the driver's own login.",
+    )
+    kind = models.CharField(
+        max_length=20, choices=KIND_CHOICES,
+        help_text="Which of the three standard moments this message covers.",
+    )
+    situation = models.CharField(
+        max_length=30, blank=True, default="",
+        help_text="Trip situation the copy was chosen for (arrival_tracked, "
+                  "departure, cruise_from_port, ...). Stored so reworded "
+                  "templates don't retroactively change what we think was sent.",
+    )
+    body = models.TextField(
+        blank=True, default="",
+        help_text="The text handed to the composer. The chauffeur may have "
+                  "edited it before sending — this is our side of the handoff.",
+    )
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["leg", "kind"]),
+            models.Index(fields=["driver", "-created_at"]),
+            models.Index(fields=["kind", "-created_at"]),
+        ]
+        verbose_name = "Client Message Sent"
+        verbose_name_plural = "Client Messages Sent"
+
+    def __str__(self):
+        return f"Leg #{self.leg_id} — {self.get_kind_display()} ({self.created_at:%Y-%m-%d %H:%M})"
