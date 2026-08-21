@@ -10,13 +10,13 @@ Two sources, each cached per row:
 
   Mapping / Flight Tracker  `leg_trip_links`     — where the trip is MEANT to go,
                                                    from the booking. Submenus.
-  The vehicle row           `leg_vehicle_route`  — where the car IS, and
-                            `fleet_vehicle_route`  directions from it to the
-                                                   trip's NEXT stop (the pickup,
-                                                   or the drop-off once the guest
-                                                   is aboard). A row in the menu
-                                                   itself, filled by its own
-                                                   fetch a moment after paint.
+  The vehicle block         `leg_vehicle_route`  — where the car IS, and
+                            `fleet_vehicle_route`  directions from it to BOTH
+                                                   ends of the trip, the one it
+                                                   is heading for badged "next".
+                                                   Rows in the menu itself,
+                                                   filled by their own fetch a
+                                                   moment after paint.
 
 Escape hatches: Shift+right-click gives the browser's own menu, and right-click
 inside a text field is always left alone so copy/paste still works.
@@ -98,11 +98,23 @@ inside a text field is always left alone so copy/paste still works.
     line-height: 1.35;
     max-width: 300px;
   }
+  /* The car itself, said ONCE under its two routes instead of repeated on each:
+     unit number, where it was last seen, and — only when the fix has gone stale —
+     how long ago. Indented to where the rows' text starts (14px padding + a 15px
+     icon + the 9px gap), so it hangs under the labels and not under the pins. */
+  .trip-menu-carline {
+    padding: 1px 14px 7px 38px;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #64748b;
+    line-height: 1.25;
+    max-width: 300px;
+  }
   /* A stale fix is still worth opening — it is where the car was last seen —
-     but it must not look live. The muted pin plus the age in the context line
-     carry that; the server has already refused to report motion on it. */
+     but it must not look live. The muted pins plus the age on the car line carry
+     that; the server has already refused to report motion on it. */
   .trip-menu-item.veh-stale > i:first-child { color: #b0b8c4; }
-  .trip-menu-item.veh-stale .trip-menu-addr { font-style: italic; }
+  .trip-menu-carline.veh-stale { font-style: italic; }
   .trip-menu-label {
     padding: 6px 14px 2px;
     font-size: 0.68rem;
@@ -275,54 +287,80 @@ inside a text field is always left alone so copy/paste still works.
     }).join('<div class="trip-menu-sep"></div>');
   }
 
-  var ROUTE_VERB = { pickup: 'Route to pickup', dropoff: 'Route to drop-off' };
+  // Both ends of the trip, in the trip's own order. The server decides the words
+  // "pickup" and "dropoff" (vehicle_routing.leg_routes) and which one is next;
+  // this table is only how they are said out loud.
+  var ROUTE_VERB = {
+    pickup: { icon: 'bi-geo-alt-fill', label: 'Route to pickup' },
+    dropoff: { icon: 'bi-flag-fill', label: 'Route to drop-off' }
+  };
+
+  function vehicleRow(url, icon, label, stale, isNext) {
+    return '<a class="trip-menu-item' + (stale ? ' veh-stale' : '')
+      + '" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">'
+      + '<i class="bi ' + icon + '"></i><span>' + esc(label)
+      + (isNext ? '<span class="trip-menu-badge">next</span>' : '')
+      + '</span></a>';
+  }
 
   /**
-   * The assigned car, as one action with one line of context under it.
+   * The assigned car: its routes as actions, and one line naming the car itself.
    *
-   * Reads as the rest of the menu does — a short verb phrase, like "Copy pickup
-   * address" — because that is what it is: open Google Maps with directions
-   * from the car's live coordinates to this trip's next stop. On the fleet pages
-   * there is no job in view, so it drops to "Show on map".
+   * BOTH ends are always offered — "Route to pickup" and "Route to drop-off",
+   * each opening Google Maps directions from the car's live coordinates. The
+   * dispatcher's question doesn't reliably stop at the leg the chauffeur is
+   * driving: "how far out is he?" is followed by "and how long once he's got
+   * them?", and a menu answering only the live half sends him to another screen
+   * for the other one. On the fleet pages there is no job in view at all, so the
+   * block drops to a single "Show on map" over a pin.
    *
-   * WHICH stop is the whole point of the verb. A chauffeur who has already
-   * marked picked-up is not driving to the pickup any more, so the row says
-   * "Route to drop-off" and the link goes there — the open question by then is
-   * how far he is from finishing, not from starting. The server decides that
-   * (vehicle_routing.leg_destination) and sends the word down as
-   * `destination_kind`; this only picks the phrasing.
+   * The `next` badge is the shortcut, marking the end he is actually heading for
+   * — the pickup until he marks picked-up, the drop-off after. The server sets
+   * it (vehicle_routing.next_stop_kind, the same rule behind the board's live ETA
+   * badge); nothing about status is worked out here. A trip already completed
+   * gets no badge at all, because nothing is next.
+   *
+   * The rows stay in TRIP order rather than sorting the live one to the top, so
+   * they never swap places under a dispatcher's cursor mid-trip — the same order
+   * as the Copy pickup / Copy drop-off pair lower down this menu.
    *
    * THREE THINGS ARE DELIBERATELY NOT SAID.
-   *  - The destination ADDRESS. You right-clicked this trip; the header already
-   *    names it, and "directions to Disney's Grand Floridian Resort & Spa" was
-   *    the longest line in the menu restating what you just clicked on. Pickup
-   *    vs drop-off is a different matter: one word, and it changes what the row
-   *    means.
+   *  - The destination ADDRESSES. You right-clicked this trip; the header
+   *    already names it, and "directions to Disney's Grand Floridian Resort &
+   *    Spa" was the longest line in the menu restating what you just clicked on.
    *  - The make and model. The unit number identifies the car; "CHEVROLET
    *    SUBURBAN" only took up width.
    *  - The age of the fix, while it is fresh. A timestamp is only worth reading
    *    when it tells you NOT to trust the position, so it appears solely when
-   *    the signal has gone stale — where it also greys the row's icon.
+   *    the signal has gone stale — where it also greys the rows' icons.
    */
   function buildVehicleSub(v) {
     if (!v) return '<div class="trip-menu-item disabled">Locating vehicle&hellip;</div>';
     var html = '';
 
     if (v.live) {
+      var stale = !v.live.fresh;
+      var routes = v.live.routes || [];
+
+      if (routes.length) {
+        html += routes.map(function (r) {
+          var verb = ROUTE_VERB[r.kind];
+          if (!verb) return '';
+          return vehicleRow(r.url, verb.icon, verb.label, stale, r.next);
+        }).join('');
+      } else {
+        // No job in view, or no routable address on the one there is.
+        html += vehicleRow(v.live.map_url, 'bi-geo-alt-fill', 'Show on map', stale, false);
+      }
+
       var context = [];
       if (v.vehicle_number) context.push('#' + v.vehicle_number);
       if (v.live.place) context.push(v.live.place);
-      if (!v.live.fresh && v.live.age) context.push(v.live.age);
-
-      var verb = v.live.destination
-        ? (ROUTE_VERB[v.live.destination_kind] || ROUTE_VERB.pickup)
-        : 'Show on map';
-
-      html += '<a class="trip-menu-item' + (v.live.fresh ? '' : ' veh-stale')
-        + '" href="' + esc(v.live.url) + '" target="_blank" rel="noopener noreferrer">'
-        + '<i class="bi bi-geo-alt-fill"></i><span>' + verb
-        + '<span class="trip-menu-addr">' + esc(context.join(' · ')) + '</span>'
-        + '</span></a>';
+      if (stale && v.live.age) context.push(v.live.age);
+      if (context.length) {
+        html += '<div class="trip-menu-carline' + (stale ? ' veh-stale' : '') + '">'
+          + esc(context.join(' · ')) + '</div>';
+      }
     }
 
     if (v.note) {

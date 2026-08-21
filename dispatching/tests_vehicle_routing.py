@@ -1,9 +1,9 @@
 """Tests for the right-click "where is the car" menu row.
 
-The menu shows one thing: Google Maps directions from the assigned car's live
-coordinates to the leg's NEXT stop — the pickup, or the drop-off once the guest
-is aboard. Covers the pure link/label rules and the two endpoints that serve
-them.
+The menu offers BOTH ends of the trip as Google Maps directions from the
+assigned car's live coordinates — pickup and drop-off — with the end the car is
+actually heading for badged "next". Covers the pure link/label/order rules and
+the two endpoints that serve them.
 
 Both endpoints are DB-only — the position comes from the columns the 3-minute
 poller maintains — so there is nothing to mock and no network in any test here.
@@ -97,56 +97,93 @@ class LiveLinkTests(TestCase):
         self.assertIn("origin=28.431200%2C-81.308100", url)
 
 
-class LegDestinationTests(TestCase):
-    """Which end of the trip the car is still heading for."""
-
-    PICKUP = "Disney's Grand Floridian, Lake Buena Vista, FL"
-    DROPOFF = "MCO Terminal B, Orlando, FL"
-
-    def _dest(self, status):
-        return vr.leg_destination(status, self.PICKUP, self.DROPOFF)
+class NextStopKindTests(TestCase):
+    """Which end of the trip gets the "next" badge."""
 
     def test_before_the_guest_is_aboard_it_is_the_pickup(self):
         for status in ("in-progress", "confirmed", "on-the-way"):
             with self.subTest(status=status):
-                self.assertEqual(self._dest(status), (self.PICKUP, "pickup"))
+                self.assertEqual(vr.next_stop_kind(status), "pickup")
 
-    def test_picked_up_flips_to_the_dropoff(self):
-        """The reason this exists: 'how far out is he' becomes 'how far to done'."""
-        self.assertEqual(self._dest("picked-up"), (self.DROPOFF, "dropoff"))
+    def test_picked_up_flips_it_to_the_dropoff(self):
+        """The live question becomes "how much longer has he got?"."""
+        self.assertEqual(vr.next_stop_kind("picked-up"), "dropoff")
 
     def test_on_location_counts_as_aboard(self):
-        """He is standing at the pickup — routing him to it is a link to himself."""
-        self.assertEqual(self._dest("on-location"), (self.DROPOFF, "dropoff"))
+        """He is standing at the pickup, so the pickup is no longer the question."""
+        self.assertEqual(vr.next_stop_kind("on-location"), "dropoff")
 
     def test_a_finished_or_cancelled_trip_has_no_next_stop(self):
         for status in ("completed", "cancelled"):
             with self.subTest(status=status):
-                self.assertEqual(self._dest(status), ("", ""))
+                self.assertEqual(vr.next_stop_kind(status), "")
 
-    def test_a_missing_status_is_treated_as_not_started(self):
-        self.assertEqual(self._dest(None), (self.PICKUP, "pickup"))
-        self.assertEqual(self._dest(""), (self.PICKUP, "pickup"))
-        self.assertEqual(self._dest("  picked-up  "), (self.DROPOFF, "dropoff"))
-
-    def test_an_unknown_status_never_loses_the_route(self):
-        """A status we don't recognise falls back to the pickup, not to nothing."""
-        self.assertEqual(self._dest("waiting-on-guest"), (self.PICKUP, "pickup"))
-
-    def test_the_missing_end_comes_back_blank_but_still_labelled(self):
-        """The caller needs the kind to say WHICH address is missing."""
-        self.assertEqual(vr.leg_destination("picked-up", self.PICKUP, ""), ("", "dropoff"))
-        self.assertEqual(vr.leg_destination("confirmed", None, self.DROPOFF), ("", "pickup"))
+    def test_a_missing_or_unknown_status_is_treated_as_not_started(self):
+        self.assertEqual(vr.next_stop_kind(None), "pickup")
+        self.assertEqual(vr.next_stop_kind(""), "pickup")
+        self.assertEqual(vr.next_stop_kind("  picked-up  "), "dropoff")
+        self.assertEqual(vr.next_stop_kind("waiting-on-guest"), "pickup")
 
     def test_it_matches_the_line_the_eta_sweep_draws(self):
         """
         One definition of "the guest is aboard", or the board badge reads
-        "18 min to drop-off" over a menu still offering a route to the pickup.
+        "18 min to drop-off" over a menu badging the pickup as next.
         """
         from dispatching import samsara_risk
         for status in samsara_risk._ON_TRIP:
             with self.subTest(status=status):
-                self.assertEqual(self._dest(status)[1], "dropoff")
+                self.assertEqual(vr.next_stop_kind(status), "dropoff")
+
+
+class LegRoutesTests(TestCase):
+    PICKUP = "Disney's Grand Floridian, Lake Buena Vista, FL"
+    DROPOFF = "MCO Terminal B, Orlando, FL"
+
+    def _routes(self, status="confirmed", pickup=None, dropoff=None):
+        return vr.leg_routes(
+            28.4312, -81.3081, status,
+            self.PICKUP if pickup is None else pickup,
+            self.DROPOFF if dropoff is None else dropoff,
+        )
+
+    def test_both_ends_are_always_offered(self):
+        routes = self._routes()
+        self.assertEqual([r["kind"] for r in routes], ["pickup", "dropoff"])
+        for r in routes:
+            self.assertIn("maps/dir", r["url"])
+            self.assertIn("origin=28.431200%2C-81.308100", r["url"])
+
+    def test_they_stay_in_trip_order_whatever_the_status(self):
+        """The rows must not swap under the cursor when a chauffeur marks aboard."""
+        for status in ("confirmed", "picked-up", "completed"):
+            with self.subTest(status=status):
+                self.assertEqual([r["kind"] for r in self._routes(status)],
+                                 ["pickup", "dropoff"])
+
+    def test_the_next_flag_follows_the_chauffeur(self):
+        self.assertEqual([r["next"] for r in self._routes("confirmed")], [True, False])
+        self.assertEqual([r["next"] for r in self._routes("picked-up")], [False, True])
+
+    def test_a_finished_trip_offers_both_and_badges_neither(self):
+        routes = self._routes("completed")
+        self.assertEqual([r["kind"] for r in routes], ["pickup", "dropoff"])
+        self.assertEqual([r["next"] for r in routes], [False, False])
+
+    def test_an_end_with_no_address_is_dropped_rather_than_faked(self):
+        """A pin labelled "Route to drop-off" would lie about what it opens."""
+        routes = self._routes("picked-up", dropoff="")
+        self.assertEqual([r["kind"] for r in routes], ["pickup"])
+        self.assertEqual(self._routes(pickup="", dropoff=""), [])
+
+    def test_no_position_means_no_routes_at_all(self):
+        self.assertEqual(
+            vr.leg_routes(None, None, "confirmed", self.PICKUP, self.DROPOFF), [])
+
+    def test_the_label_is_trimmed_but_the_link_is_not(self):
+        routes = self._routes()
+        self.assertEqual(routes[0]["destination"], "Disney's Grand Floridian")
+        self.assertIn("Lake%20Buena%20Vista", routes[0]["url"])
+
 
 class LegVehicleRouteTests(TestCase):
     @classmethod
@@ -228,50 +265,40 @@ class LegVehicleRouteTests(TestCase):
         self.assertEqual(self.client.post(self._url()).status_code, 405)
 
     # --- the happy path ---
-    def test_the_link_routes_the_car_to_this_legs_pickup(self):
+    def test_both_ends_of_the_trip_are_routable_from_the_car(self):
         data = self._get()
-        self.assertIn("maps/dir", data["live"]["url"])
-        self.assertIn("origin=28.431200%2C-81.308100", data["live"]["url"])
-        self.assertIn("Grand%20Floridian", data["live"]["url"])
-        self.assertEqual(data["live"]["destination"],
-                         "Disney's Grand Floridian Resort")
+        routes = data["live"]["routes"]
+        self.assertEqual([r["kind"] for r in routes], ["pickup", "dropoff"])
+        self.assertIn("Grand%20Floridian", routes[0]["url"])
+        self.assertIn("MCO", routes[1]["url"])
+        for r in routes:
+            self.assertIn("origin=28.431200%2C-81.308100", r["url"])
+        self.assertEqual(routes[0]["destination"], "Disney's Grand Floridian Resort")
         self.assertEqual(data["note"], "")
 
-    def test_a_picked_up_leg_routes_to_the_dropoff_instead(self):
-        """
-        The whole change: he already has the guest, so the dispatcher's question
-        is how far he is from DROPPING OFF, not from a pickup he has made.
-        """
+    def test_an_unstarted_leg_badges_the_pickup_as_next(self):
+        self.assertEqual([r["next"] for r in self._get()["live"]["routes"]],
+                         [True, False])
+
+    def test_a_picked_up_leg_badges_the_dropoff_as_next(self):
+        """He has the guest, so "how much longer?" is the live question."""
         self.leg.status = "picked-up"
         self.leg.save()
-        data = self._get()
-        self.assertIn("maps/dir", data["live"]["url"])
-        self.assertIn("origin=28.431200%2C-81.308100", data["live"]["url"])
-        self.assertIn("MCO", data["live"]["url"])
-        self.assertNotIn("Grand%20Floridian", data["live"]["url"])
-        self.assertEqual(data["live"]["destination"], "MCO")
-        self.assertEqual(data["live"]["destination_kind"], "dropoff")
-        self.assertEqual(data["note"], "")
+        self.assertEqual([r["next"] for r in self._get()["live"]["routes"]],
+                         [False, True])
 
-    def test_an_unstarted_leg_still_routes_to_the_pickup(self):
-        self.assertEqual(self._get()["live"]["destination_kind"], "pickup")
-
-    def test_a_finished_leg_drops_to_a_pin_rather_than_a_stale_route(self):
-        """Nothing is next on a completed job; "Route to pickup" would be a lie."""
+    def test_a_finished_leg_still_offers_both_but_badges_neither(self):
         self.leg.status = "completed"
         self.leg.save()
-        data = self._get()
-        self.assertIn("maps/search", data["live"]["url"])
-        self.assertEqual(data["live"]["destination"], "")
-        self.assertEqual(data["live"]["destination_kind"], "")
-        self.assertIn("completed", data["note"])
+        routes = self._get()["live"]["routes"]
+        self.assertEqual(len(routes), 2)
+        self.assertEqual([r["next"] for r in routes], [False, False])
 
-    def test_a_picked_up_leg_with_no_dropoff_address_names_the_missing_end(self):
-        self.leg.status = "picked-up"
+    def test_a_leg_with_no_dropoff_address_offers_the_pickup_and_says_why(self):
         self.leg.dropoff_location = ""
         self.leg.save()
         data = self._get()
-        self.assertIn("maps/search", data["live"]["url"])
+        self.assertEqual([r["kind"] for r in data["live"]["routes"]], ["pickup"])
         self.assertIn("No drop-off address", data["note"])
 
     def test_the_bare_unit_number_is_sent(self):
@@ -297,7 +324,7 @@ class LegVehicleRouteTests(TestCase):
         data = self._get()
         self.assertFalse(data["live"]["fresh"])
         self.assertFalse(data["live"]["moving"])
-        self.assertIsNotNone(data["live"]["url"])
+        self.assertEqual(len(data["live"]["routes"]), 2)
 
     def test_it_never_calls_samsara(self):
         """DB-only: no outbound call can sit between a dispatcher and this menu."""
@@ -332,12 +359,21 @@ class LegVehicleRouteTests(TestCase):
         self.assertIn("hasn't reported a position", data["note"])
         self.assertIsNone(data["live"])
 
-    def test_a_leg_with_no_pickup_address_still_gives_the_position(self):
+    def test_a_leg_with_no_pickup_address_offers_the_dropoff_and_says_why(self):
         self.leg.pickup_location = ""
         self.leg.save()
         data = self._get()
-        self.assertIn("maps/search", data["live"]["url"])
+        self.assertEqual([r["kind"] for r in data["live"]["routes"]], ["dropoff"])
         self.assertIn("No pickup address", data["note"])
+
+    def test_a_leg_with_neither_address_falls_back_to_the_pin(self):
+        self.leg.pickup_location = ""
+        self.leg.dropoff_location = ""
+        self.leg.save()
+        data = self._get()
+        self.assertEqual(data["live"]["routes"], [])
+        self.assertIn("maps/search", data["live"]["map_url"])
+        self.assertIn("No pickup or drop-off address", data["note"])
 
 
 class FleetVehicleRouteTests(TestCase):
@@ -360,8 +396,8 @@ class FleetVehicleRouteTests(TestCase):
     def test_with_no_job_in_view_the_link_is_a_plain_pin(self):
         self.client.force_login(self.staff)
         data = self.client.get(self._url()).json()
-        self.assertIn("maps/search", data["live"]["url"])
-        self.assertEqual(data["live"]["destination"], "")
+        self.assertEqual(data["live"]["routes"], [])
+        self.assertIn("maps/search", data["live"]["map_url"])
         self.assertEqual(data["vehicle_number"], "007")
 
     def test_an_unmapped_vehicle_says_so(self):

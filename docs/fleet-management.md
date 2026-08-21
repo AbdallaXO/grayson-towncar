@@ -324,40 +324,50 @@ the shared trip menu (`includes/_trip_context_menu.html`). Alongside Mapping and
 Flight Tracker it carries **one** vehicle row — an action with a single line of
 context, so it reads like the menu's other items:
 
-> 📍 **Route to pickup**
+> 📍 **Route to pickup**  `NEXT`
+> 🏁 **Route to drop-off**
 > `#001 · 1000 Floridian Way, Bay Lake`
 
-It opens Google Maps **directions from the assigned car's live coordinates to
-the end of that leg the car is still heading for**, which answers "how far out is
-he?" in one click. On the Fleet pages there is no job in view, so the row becomes
-**Show on map** over a plain pin on the coordinates.
+Each row opens Google Maps **directions from the assigned car's live coordinates
+to that end of the trip**, so "how far out is he?" and "how much longer has he
+got?" are both one click from the board. On the Fleet pages there is no job in
+view, so the block drops to a single **Show on map** over a plain pin.
 
-### Which end it routes to
+### Both ends, one of them badged
 
-The verb changes with the leg's status, because the dispatcher's question does:
+The rows are always **both** ends, in the trip's own order — the same order as
+the Copy pickup / Copy drop-off pair further down the menu — so they never swap
+places under a dispatcher's cursor as a trip progresses. What moves is the
+`next` badge:
 
-| Leg status | Row | Routes to |
-|---|---|---|
-| in-progress / confirmed / on-the-way | **Route to pickup** | the pickup — "how far out is he?" |
-| **picked-up / on-location** | **Route to drop-off** | the drop-off — "how much longer has he got?" |
-| completed / cancelled | **Show on map** | nowhere: a pin on the car, plus a note saying why |
+| Leg status | Badged `next` |
+|---|---|
+| in-progress / confirmed / on-the-way | **Route to pickup** — he is still on his way to the guest |
+| **picked-up / on-location** | **Route to drop-off** — he has the guest; the open question is how much longer |
+| completed / cancelled | neither: nothing is next |
 
-`vehicle_routing.leg_destination(status, pickup, dropoff)` is the whole rule, and
-it reads the status sets `ON_TRIP_STATUSES` / `CLOSED_STATUSES` from
+`vehicle_routing.next_stop_kind(status)` is the whole rule, and it reads the
+status sets `ON_TRIP_STATUSES` / `CLOSED_STATUSES` from
 `reservations/constants.py` — the same two sets `samsara_risk.choose_active_target`
 uses to pick what the live ETA badge measures against. That shared definition is
 the point: while they were separate, a board badge reading "18 min to drop-off"
-sat directly above a menu offering directions to the pickup he had already made.
+sat directly above a menu offering only the pickup he had already made.
 On-location counts as aboard for both, because a car standing at the pickup does
 not need directions to the pickup.
+
+An end with **no address** is dropped from the list rather than rendered as a
+pin, because a pin labelled "Route to drop-off" lies about what the row opens.
+The note under the rows names the missing end. Only when *neither* end has an
+address does the block fall back to `map_url`, the plain pin.
 
 Three things are deliberately left unsaid, after a first version said all of
 them and read as clutter:
 
 | Not shown | Why |
 |---|---|
-| The destination address | You right-clicked that trip; the menu header already names it. "→ directions to Disney's Grand Floridian Resort & Spa" was the longest line in the menu, restating the thing you clicked. (Pickup *vs* drop-off is one word, and it changes what the row means — so that much is said.) |
+| The destination addresses | You right-clicked that trip; the menu header already names it. "→ directions to Disney's Grand Floridian Resort & Spa" was the longest line in the menu, restating the thing you clicked. The *words* pickup and drop-off stay, because they are what the row means. |
 | Make and model | The unit number identifies the car. "#001 · CHEVROLET SUBURBAN" only took up width. |
+| The car, twice | The unit number and last-seen place sit on ONE line under both routes, not repeated inside each row. |
 | The age of the fix | A timestamp is worth reading only when it tells you *not* to trust the position. It appears solely when the signal has gone stale — where it also greys the pin and italicises the line. |
 
 | File | Role |

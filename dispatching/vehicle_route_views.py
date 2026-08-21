@@ -3,8 +3,8 @@
 Two JSON endpoints, each keyed the way the surface that calls them is keyed:
 
   * `leg_vehicle_route`   — a leg id. Resolves the car its driver is in that day
-    and returns directions from that car to THIS leg's next stop — the pickup, or
-    the drop-off once the chauffeur has marked the guest aboard.
+    and returns directions from that car to BOTH ends of this leg, with the end it
+    is actually heading for marked.
   * `fleet_vehicle_route` — a FleetVehicle id, for the fleet pages, where the
     vehicle is the subject and there is no pickup to head for.
 
@@ -33,7 +33,7 @@ from reservations.models import Leg
 logger = logging.getLogger(__name__)
 
 
-def _payload(vehicle, note="", destination="", kind=""):
+def _payload(vehicle, note="", routes=None):
     """
     The one shape both endpoints return.
 
@@ -42,25 +42,23 @@ def _payload(vehicle, note="", destination="", kind=""):
     link when there isn't one — "no driver on this trip yet", "not mapped to
     Samsara" — because a menu that renders nothing reads as a broken feature
     rather than as an honest answer.
+
+    `routes` is the trip's two ends (pickup, drop-off), each already a directions
+    URL from this car, one of them flagged `next`. The fleet pages pass none —
+    no job is in view there — and the menu falls back to `map_url`, the plain pin
+    that is also all a position without any routable address can honestly offer.
     """
     live = None
     if vehicle is not None:
-        url, label = vehicle_routing.live_link(
+        url, _ = vehicle_routing.live_link(
             vehicle.samsara_last_latitude,
             vehicle.samsara_last_longitude,
-            destination,
         )
         if url:
             fresh = vehicle.samsara_is_fresh
             live = {
-                "url": url,
-                "destination": label,
-                # "pickup" / "dropoff", and the menu says which. It is the one
-                # word telling a dispatcher whether he is still on his way to the
-                # guest or already carrying him — and it is blank whenever the
-                # link degraded to a pin, so the row can't promise a route it
-                # isn't opening.
-                "destination_kind": kind if label else "",
+                "map_url": url,
+                "routes": routes or [],
                 # Trimmed the way the reverse-geo strings are everywhere else.
                 "place": vehicle_routing.short_place(
                     vehicle.samsara_last_location_label),
@@ -93,35 +91,33 @@ def _position_note(vehicle):
     return ""
 
 
-def _no_destination_note(leg, kind):
+def _missing_address_note(routes):
     """
-    Why the row is a pin instead of a route. Three different reasons, and a
-    dispatcher deserves to be told which: an address is missing at the end the
-    car is heading for, or the job is over and there is no end to head for.
+    Why an end of the trip isn't offered. A row that quietly isn't there reads as
+    a bug in the menu; "no drop-off address on this trip" reads as an answer, and
+    tells the dispatcher where to go fix it.
     """
-    if kind == "dropoff":
-        return "No drop-off address on this trip — this is just the car's position."
-    if kind == "pickup":
-        return "No pickup address on this trip — this is just the car's position."
-    status = (leg.get_status_display() or "").lower() or "closed out"
-    return f"This trip is {status} — this is just the car's position."
+    kinds = {r["kind"] for r in routes}
+    if kinds == {"pickup", "dropoff"}:
+        return ""
+    if not kinds:
+        return ("No pickup or drop-off address on this trip — "
+                "this is just the car's position.")
+    if "pickup" in kinds:
+        return "No drop-off address on this trip, so only the pickup can be routed."
+    return "No pickup address on this trip, so only the drop-off can be routed."
 
 
 @require_GET
 @login_required(login_url="login")
 def leg_vehicle_route(request, leg_id):
-    """Directions from the car assigned to this leg to this leg's next stop."""
+    """Directions from the car assigned to this leg to both ends of that leg."""
     if not request.user.is_staff:
         return JsonResponse({"error": "Staff only."}, status=403)
 
     leg = get_object_or_404(
         Leg.objects.select_related("reservation", "driver"), id=leg_id
     )
-
-    # Where the car should be heading, which is NOT always the pickup: once the
-    # guest is aboard the open question is how far he is from dropping off.
-    destination, kind = vehicle_routing.leg_destination(
-        leg.status, leg.pickup_location, leg.dropoff_location)
 
     vehicle = resolve_assigned_fleet_vehicle(leg)
     if vehicle is None:
@@ -134,12 +130,17 @@ def leg_vehicle_route(request, leg_id):
             ),
         ))
 
-    note = _position_note(vehicle)
-    if not note and not destination:
-        note = _no_destination_note(leg, kind)
+    # Both ends, in trip order, with the one he is actually driving to marked.
+    routes = vehicle_routing.leg_routes(
+        vehicle.samsara_last_latitude,
+        vehicle.samsara_last_longitude,
+        leg.status,
+        leg.pickup_location,
+        leg.dropoff_location,
+    )
 
-    return JsonResponse(
-        _payload(vehicle, note=note, destination=destination, kind=kind))
+    note = _position_note(vehicle) or _missing_address_note(routes)
+    return JsonResponse(_payload(vehicle, note=note, routes=routes))
 
 
 @require_GET
