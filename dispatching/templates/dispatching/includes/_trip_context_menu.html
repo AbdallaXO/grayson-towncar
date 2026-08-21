@@ -12,7 +12,9 @@ Two sources, each cached per row:
                                                    from the booking. Submenus.
   The vehicle row           `leg_vehicle_route`  — where the car IS, and
                             `fleet_vehicle_route`  directions from it to the
-                                                   pickup. A row in the menu
+                                                   trip's NEXT stop (the pickup,
+                                                   or the drop-off once the guest
+                                                   is aboard). A row in the menu
                                                    itself, filled by its own
                                                    fetch a moment after paint.
 
@@ -273,18 +275,29 @@ inside a text field is always left alone so copy/paste still works.
     }).join('<div class="trip-menu-sep"></div>');
   }
 
+  var ROUTE_VERB = { pickup: 'Route to pickup', dropoff: 'Route to drop-off' };
+
   /**
    * The assigned car, as one action with one line of context under it.
    *
    * Reads as the rest of the menu does — a short verb phrase, like "Copy pickup
    * address" — because that is what it is: open Google Maps with directions
-   * from the car's live coordinates to this trip's pickup. On the fleet pages
+   * from the car's live coordinates to this trip's next stop. On the fleet pages
    * there is no job in view, so it drops to "Show on map".
    *
+   * WHICH stop is the whole point of the verb. A chauffeur who has already
+   * marked picked-up is not driving to the pickup any more, so the row says
+   * "Route to drop-off" and the link goes there — the open question by then is
+   * how far he is from finishing, not from starting. The server decides that
+   * (vehicle_routing.leg_destination) and sends the word down as
+   * `destination_kind`; this only picks the phrasing.
+   *
    * THREE THINGS ARE DELIBERATELY NOT SAID.
-   *  - The destination. You right-clicked this trip; the header already names
-   *    it, and "directions to Disney's Grand Floridian Resort & Spa" was the
-   *    longest line in the menu restating what you just clicked on.
+   *  - The destination ADDRESS. You right-clicked this trip; the header already
+   *    names it, and "directions to Disney's Grand Floridian Resort & Spa" was
+   *    the longest line in the menu restating what you just clicked on. Pickup
+   *    vs drop-off is a different matter: one word, and it changes what the row
+   *    means.
    *  - The make and model. The unit number identifies the car; "CHEVROLET
    *    SUBURBAN" only took up width.
    *  - The age of the fix, while it is fresh. A timestamp is only worth reading
@@ -301,10 +314,13 @@ inside a text field is always left alone so copy/paste still works.
       if (v.live.place) context.push(v.live.place);
       if (!v.live.fresh && v.live.age) context.push(v.live.age);
 
+      var verb = v.live.destination
+        ? (ROUTE_VERB[v.live.destination_kind] || ROUTE_VERB.pickup)
+        : 'Show on map';
+
       html += '<a class="trip-menu-item' + (v.live.fresh ? '' : ' veh-stale')
         + '" href="' + esc(v.live.url) + '" target="_blank" rel="noopener noreferrer">'
-        + '<i class="bi bi-geo-alt-fill"></i><span>'
-        + (v.live.destination ? 'Route to pickup' : 'Show on map')
+        + '<i class="bi bi-geo-alt-fill"></i><span>' + verb
         + '<span class="trip-menu-addr">' + esc(context.join(' · ')) + '</span>'
         + '</span></a>';
     }

@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from drivers.utils import get_drive_time
 from dispatching import pickup_policy
+from reservations.constants import CLOSED_STATUSES, ON_TRIP_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +66,11 @@ ETA_MOVE_REUSE_M = 150
 ETA_FAR_FUTURE_MIN = 180
 
 # Leg statuses meaning the driver has the guest / is at pickup -> next stop is dropoff.
-_ON_TRIP = {"picked-up", "on-location"}
-_DONE = {"completed", "cancelled"}
+# Defined in reservations/constants.py because the right-click "Route to ..." menu
+# has to draw the same line: whichever end THIS says to measure against is the end
+# that menu offers to drive to.
+_ON_TRIP = ON_TRIP_STATUSES
+_DONE = CLOSED_STATUSES
 
 
 def effective_pickup_dt(leg):
