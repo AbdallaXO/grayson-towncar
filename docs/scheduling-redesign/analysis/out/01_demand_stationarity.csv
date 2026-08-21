@@ -1,0 +1,10 @@
+shape,cells,tvd_prior_vs_current,null_p50,null_p95,p_value,verdict
+day of week,7,0.0347,0.04925,0.07045,0.87,"POOLABLE, but blind below TVD 0.070"
+hour of day,24,0.0591,0.03694,0.04811,0.0017,SHIFTED - do not pool
+dow x hour,166,0.10743,0.111,0.12687,0.66,"POOLABLE, but blind below TVD 0.127"
+vehicle class,5,0.01892,0.01661,0.02797,0.3667,"POOLABLE, but blind below TVD 0.028"
+lane (pickup x dropoff),32,0.03718,0.03206,0.04515,0.2333,"POOLABLE, but blind below TVD 0.045"
+trip kind,3,0.01636,0.01141,0.02421,0.2583,"POOLABLE, but blind below TVD 0.024"
+hour | ARRIVAL only,24,0.0784,0.05309,0.06957,0.0133,SHIFTED - do not pool
+hour | DEPARTURE only,20,0.07134,0.05013,0.06583,0.0233,SHIFTED - do not pool
+class x hour,117,0.08172,0.07988,0.09057,0.3933,"POOLABLE, but blind below TVD 0.091"

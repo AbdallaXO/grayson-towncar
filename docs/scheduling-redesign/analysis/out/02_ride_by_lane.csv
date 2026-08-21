@@ -1,0 +1,21 @@
+pickup_cat,dropoff_cat,all_n,all_p50,all_p75,all_p90,gold_n,gold_p50,gold_p75,gold_p90
+MCO Terminal,Disney Resort,4859,35.9,45.6,59.4,1683,35.0,42.6,55.2
+Disney Resort,MCO Terminal,4277,33.2,36.7,41.2,2009,32.7,36.0,39.6
+Port Canaveral Area,MCO Terminal,446,49.6,55.7,65.7,160,49.7,55.0,59.4
+MCO Terminal,Universal Resort,321,27.8,37.5,50.9,104,27.0,37.2,49.0
+MCO Terminal,Port Canaveral Area,311,51.1,57.9,71.1,105,50.4,57.7,68.2
+Universal Resort,MCO Terminal,269,23.6,27.0,30.8,130,23.4,26.1,29.4
+Disney Resort,SFB Terminal,211,58.8,63.5,69.9,100,58.3,62.0,68.6
+SFB Terminal,Disney Resort,199,62.5,73.5,87.2,76,60.0,70.6,80.0
+Disney Resort,Port Canaveral Area,152,74.5,81.0,93.4,49,74.0,76.7,87.2
+Disney Resort,Universal Resort,120,28.3,32.5,40.3,51,28.5,32.2,35.4
+Port Canaveral Area,Disney Resort,118,69.7,80.4,93.2,38,68.2,76.5,90.2
+Airport Hotel,Port Canaveral Area,103,53.2,60.7,74.4,33,49.4,60.7,69.0
+Universal Resort,Disney Resort,97,28.2,33.2,35.6,30,26.6,29.4,32.7
+Airport Hotel,Disney Resort,50,32.1,37.6,46.6,28,31.2,36.6,43.6
+Disney Resort,Disney Resort,40,18.2,20.2,29.2,17,16.6,19.7,24.0
+MCO Terminal,Other Hotel,40,36.9,49.2,78.7,19,44.2,52.0,77.2
+Port Canaveral Area,Airport Hotel,39,48.6,57.3,68.6,18,53.1,59.1,65.8
+MCO Terminal,Residential,35,52.2,72.3,91.8,12,67.5,82.0,92.1
+Universal Resort,Port Canaveral Area,34,65.0,70.5,80.7,11,65.4,73.9,79.2
+Residential,MCO Terminal,30,36.9,47.2,76.0,11,39.1,54.8,75.8

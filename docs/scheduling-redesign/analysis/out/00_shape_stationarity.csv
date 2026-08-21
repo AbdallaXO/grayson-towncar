@@ -1,0 +1,6 @@
+distribution,cells,tvd,iid_null_p95,iid_p,dayblock_null_p95,dayblock_p,verdict_dayblock
+day-of-week,7,0.03429,0.03379,0.045,0.06037,0.6625,STATIONARY
+hour,24,0.06104,0.04893,0.0015,0.05591,0.0135,borderline
+dow x hour,166,0.11892,0.11219,0.006,0.13413,0.5445,STATIONARY
+trip kind,3,0.02069,0.02431,0.096,0.02937,0.197,STATIONARY
+lane bucket,32,0.04715,0.04279,0.0145,0.05113,0.124,STATIONARY
