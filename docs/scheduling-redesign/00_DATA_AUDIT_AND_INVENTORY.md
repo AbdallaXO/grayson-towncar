@@ -632,9 +632,13 @@ WHERE (l.status IS NULL OR l.status <> 'cancelled')
 # PART B — INVENTORY
 
 *The code has not changed since this inventory was first written: `git diff b59ac8f5..HEAD` touches
-only `.gitignore` and `scripts/pull_prod_snapshot.py`. Part B is therefore carried forward and
-**spot-verified mechanically** rather than re-derived. Every `path:line` below was re-checked with
-`grep -n`.*
+only `.gitignore` and `scripts/pull_prod_snapshot.py`. Part B is therefore carried forward rather
+than re-derived — but it was **re-verified mechanically**, both the constants and the behavioural
+claims, and that pass returned **six corrections**: a billed Google call IS reachable from Day
+Setup (asynchronously); there are three background daemon loops, not one; two of the three
+"dead" settings fields are dead-by-flag rather than unreferenced; the two advisor gate stacks have
+drifted apart; `rebalance_advisor` does compute concurrency; and availability is two reads, not
+one bit. Each is marked in place below. Every `path:line` was re-checked with `grep -n`.*
 
 ## B1. This is the fourth demand-vs-staffing signal, not the first
 
@@ -798,28 +802,60 @@ The audit called 45 "close at p75"; **that is no longer true fleet-wide.**
 | Produces a required-driver number? | **No** | No | No |
 | Gate stack | none — defers to Apply | six gates | the same six, **hand-copied** |
 
-All three are **ON in production**, unconditionally, for every `is_staff` user, governed by
-module-level Python constants. They run only inside `views.auto_assign_drivers` when a human clicks
-Build Schedule. **None reads the day's booking volume, revenue, hourly concurrency or tier mix** —
-they read only the output of a build that already happened.
+All three are **ON in production**, unconditionally, for every `is_staff` user, governed by three
+module-level constants (`ADVISOR_ENABLED`, `FOLD_OUT_ENABLED`, `REBALANCE_ENABLED`). The only auth
+is the endpoint's `is_staff` check. They run **only** inside `views.auto_assign_drivers` when a
+human clicks Build Schedule — no management command, no scheduler thread.
 
-**There is no shared gate helper.** `fold_advisor._simulate` and `rebalance_advisor._gate_receiver`
-are two hand-maintained copies. **Extracting one shared `gate_receiver()` should be a prerequisite
-of this feature, not a follow-up.**
+**They read the output of a build, never raw demand** — with one literal exception worth knowing:
+`rebalance_advisor` **does** compute hourly concurrency
+([rebalance_advisor.py:405-419](../../dispatching/rebalance_advisor.py#L405)), building an event
+list over the proposed schedule to decide whether to say *"his 9:15 job IS the peak"*. That is
+concurrency of the **built board**, not of bookings, so the principle holds — but a Phase 2 spec
+that says "no advisor computes concurrency" would be wrong.
+
+**Failure is quieter than it looks.** Each advisor has its own logging try/except, but a **fourth,
+outer** `except Exception` at [views.py:12790-12800](../../dispatching/views.py#L12790) sets
+`_residual_objs = None` and **silences all three at once — without logging.**
+
+**There is no shared gate helper, and the two copies have already drifted.**
+`fold_advisor._simulate` and `rebalance_advisor._gate_receiver` are hand-maintained duplicates that
+are **no longer the same gates**: rebalance carries a **seventh `hollow` gate** fold does not have,
+and their `idle` gates differ semantically (fold requires the receiver to already be carrying work;
+rebalance only requires a schedule to exist). Partial sharing already exists — rebalance imports
+`_slot_for_leg` and `_fmt` from fold. **Extracting one shared `gate_receiver()` is a prerequisite
+of this feature, not a follow-up**, and the extraction must reconcile the drift rather than pick a
+side silently.
 
 ### `day_setup.py` — what Phase 3 extends
 
-- The **"pure function of (date, DB), no writes" contract** is directly true but transitively
-  questionable: `peak_concurrency → estimate_job_end_time → resolve_drive_minutes` can reach a
-  `RouteDistanceCache` write path. *Scope correction:* `scheduler.py:91` records the live
-  Distance-Matrix lookup as **default OFF since a 2026-05-31 hotfix**, and `route_distance.py:12`
-  says the paid call runs only from a management command — so the previous document's "spawns a
-  billed Google call" is **overstated**. Phase 2 should still either fix the write path or restate
-  the contract honestly.
-- **A locked DVA row bypasses the availability hard gate.**
-- **Availability is used as one bit.** `end_hour`, `max_hours`, `flexible`, `available_until`,
-  `available_after` and `preferred_shift` are all discarded — so a driver available 4–8 p.m. is
-  counted against a 09:30 peak they cannot serve.
+- **The "pure function of (date, DB), no writes" contract is directly true and transitively
+  false — and a billed Google call *is* reachable, out of band.** The module itself is clean (no
+  `.save()`, `.create()`, `.delete()`, `cache.set()` or `get_or_create` anywhere in it). But
+  `peak_concurrency → estimate_job_end_time → resolve_drive_minutes → cached_drive_minutes`, on a
+  cache miss for an unknown-category route, **inserts a pending `RouteDistanceCache` row, writes
+  the Django cache, and calls `_maybe_kick_inline_resolver()`** — and `INLINE_RESOLVER` **defaults
+  to `True`** at [route_distance.py:54](../../dispatching/route_distance.py#L54) with no settings
+  override anywhere in the repo. That spawns a detached daemon thread running `resolve_pending()`,
+  which makes the **paid Distance Matrix HTTP call**.
+
+  > The precise statement: **opening Day Setup never blocks on Google and never bills the request,
+  > but it can enqueue rows and trigger a bounded background billed batch** (one thread per
+  > process, throttled to once per 45 s, ≤8 pairs per kick). The synchronous paid branch at
+  > `scheduler.py:701-714` *is* off — `USE_LIVE_DISTANCE` defaults to `"0"`. An earlier draft of
+  > this document called the "spawns a billed Google call" claim overstated; **that was wrong in
+  > the other direction.** Phase 2 must either fix this path or restate the contract honestly.
+
+  `peak_concurrency` also mutates process-global state via `sch.preload_timing_cache()`.
+- **A locked DVA row bypasses the availability hard gate.** The `"locked"` row is emitted and
+  `continue`d at [day_setup.py:358-370](../../dispatching/day_setup.py#L358) — **before**
+  `get_effective_availability` is called at `:372`. A locked row is never availability-checked.
+- **Availability is used as two reads, not one bit.** `end_hour`, `max_hours`, `flexible`,
+  `available_until`, `available_after` and `preferred_shift` are all discarded — so a driver
+  available 4–8 p.m. is still counted against a 09:30 peak they cannot serve. But `start_hour`
+  **is** read ([day_setup.py:432](../../dispatching/day_setup.py#L432)) and drives the AM/PM
+  share-pass ordering and `planned_start_hour`, and the availability `tooltip` becomes the OFF
+  row's `hint`. Phase 2 must not assume the resolver's output is unused.
 - **Apply never deletes**; unticking removes from the payload but does not clear the DVA row.
 - **Load-bearing UI contracts:** `swaps` strings are regex-parsed, `hint` must keep an `N/M`
   substring, `vehicle_label` must stay `"#NNN <type>"`, and injected DOM must not match
@@ -843,14 +879,50 @@ of this feature, not a follow-up.**
 - **`load_insights.py` carries the threshold doctrine**: each outlier rule needs **both** a
   relative condition and an absolute floor; a purely absolute cutoff *"is the `COVERAGE_TARGET = 14`
   mistake."* The codebase's own verdict on the number this engagement replaces.
-- **`samsara_scheduler.py` is the only background loop.** No cron, no Celery — the only place a
-  periodic job could live.
+- **There are THREE background daemon loops, not one** — correcting the previous inventory. Each
+  starts from its own `AppConfig.ready()` behind its own Postgres advisory lock:
+  `dispatching/samsara_scheduler.py` (lock 737_202), `ghl_integration/scheduler.py` (737_201,
+  30-min), `drivers/wakeup_scheduler.py` (737_203, 60-s) — plus the bounded
+  `route-distance-inline` thread above. All three also start together from
+  `dispatching/management/commands/run_schedulers.py`. **The "no cron, no Procfile, no Celery"
+  half holds**: there is no Procfile, `railway.json` starts gunicorn only, and
+  `RUN_SCHEDULERS_IN_WEB` defaults to `"1"`, so all three run inside the web workers.
+  `django_celery_beat` is in `INSTALLED_APPS` but there is no Celery app — a stale dependency.
+  **A new periodic job has three existing homes to choose from, not one.**
 - **Fleet Capacity Intelligence's buy/hire/farm decision engine does not exist in code** (§C2).
   `fleet_intel.affiliate_base_cost` / `inhouse_counterfactual_cost` / `recovered_margin` do, and
   are worth reusing.
-- **`farmout_optimizer.py`'s `WaterfallLedger`** prevents the marginal-vs-total double count —
-  **the pattern any "+1 driver recaptures N legs" number must use**, because per-leg
+- **`farmout_optimizer.py`'s `WaterfallLedger`** prevents the marginal-vs-total double count. It
+  holds one capacity object per affiliate per day — a growing chain for single-vehicle affiliates,
+  a consumed-seat counter for capped ones — pre-seeded with the day's committed farm-outs, and
+  **commits each accepted recommendation before pricing the next**, so N independent "this one
+  could go to Oualid" claims cannot all spend the same vehicle. **Any "+1 driver recaptures N
+  legs" number must commit to a shared board between claims in exactly this way**, because per-leg
   recoverability is not additive.
+- **`assignment.set_leg_driver` is the front door for changing who drives a leg**, enforced by a
+  `pre_save` tripwire — and `auto_assign_drivers`' apply path **re-implements it inline** rather
+  than calling it. The two have already drifted: the inline copy **omits `leg._reassigned_by` and
+  `leg._status_change_user`**, so ops-task auto-close and unassign attribution silently do not
+  happen on the auto-assign path. Phase 3 ships propose-only and writes nothing, so this does not
+  block it — but any later apply feature must route through the front door, not add a third copy.
+
+### The existing shift-template vocabulary is not merely unused — it makes a live rule vacuous
+
+Four overlapping enums exist and none functions. The consequence chain below was verified in code
+**and confirmed empirically against the database** [measured]:
+
+`drivers_driverweeklyschedule.shift_type` holds **exactly two values in production — `full_day`
+196 rows, `custom` 56, nothing else.** `DESIGN_BUCKET` (`views.py:15122-15130`) maps
+`full_day → flex` and `custom → set`, and unknown types default to `flex`. Both `flex` and `set`
+are in `SHIFTS_THAT_COVER_ESSENTIALS` ([schedule_risk.py:62](../../dispatching/schedule_risk.py#L62)),
+so `flex_covering` is greater than zero **whenever any driver is not off**, which makes
+`shift_gaps` **always empty**, which means the essential-shift escalation to `"critical"` in
+`classify_risk` **can never fire in production.** `"critical"` remains reachable only through the
+`delta <= -2` path, and the `"No {shift} coverage"` gap text is dead code.
+
+**Phase 2 may replace `SHIFT_TYPE_CHOICES` outright**, but it must migrate the 56 `custom` rows
+(the only ones carrying real window information) and update `DESIGN_BUCKET` and `schedule_risk.py`
+**together** — otherwise the essential-shift rule flips from always-silent to always-firing.
 
 ## B4. Where the new feature's config belongs
 
@@ -864,7 +936,7 @@ of this feature, not a follow-up.**
 | **Occupancy lead/tail by trip kind** | **nothing fits** — new, and the most important new config |
 | **Staffing target / headcount** | **nothing fits** — needs a per-date or per-weekday home, not a constant |
 | **Percentiles** | **nothing fits** — the engine has exactly one, `p75`, hard-coded |
-| Available for repurposing | `time_scarcity_bonus`, `span_threshold_hours`, `span_penalty_per_hour` — live, UI-exposed, **never read by any code** |
+| Available for repurposing | **Only `time_scarcity_bonus`** is genuinely never read (model + migration only). `span_threshold_hours` / `span_penalty_per_hour` **are** read at [scheduler.py:2200-2201](../../dispatching/scheduler.py#L2200), inside the `else` branch of `if fg.ENFORCE_SPAN_CAPS and fg.SPAN_SOFT_PRICING:` — both flags are `True`, so the branch is **unreachable in production**. They are *dead by flag*, not unreferenced; repurposing them means editing that legacy block, not just the model. |
 
 ---
 
