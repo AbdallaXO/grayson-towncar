@@ -192,6 +192,31 @@ def sqlite_tables(con: sqlite3.Connection) -> dict[str, list[str]]:
     return out
 
 
+def assert_orm_not_loaded() -> None:
+    """Refuse to copy if Django's ORM is importable in THIS process.
+
+    This is the guarantee that an import cannot send anything. Confirmation
+    emails, guest SMS and the GoHighLevel follow-up sequences all hang off
+    `post_save` / `pre_save` handlers registered in reservations/signals.py,
+    payment/signals.py and ops/signals.py. Those handlers only ever run through
+    `Model.save()`. The copy below writes with raw sqlite3 INSERT statements, so
+    no model is ever instantiated and no signal can fire — but that is a property
+    of the code, and code changes. This check makes it an enforced invariant: the
+    moment someone imports a model here "just to look something up", the copy
+    stops instead of quietly acquiring the ability to email customers.
+
+    `manage.py migrate` does load Django, but it runs in a SEPARATE subprocess,
+    against an EMPTY database, and every AppConfig.ready() returns early for
+    management commands, so no scheduler thread starts either.
+    """
+    if "django" in sys.modules:
+        sys.exit(
+            "refusing to copy: django is imported in this process.\n"
+            "The copy path must stay ORM-free so no post_save signal (confirmation\n"
+            "email, guest SMS, GHL sequence) can fire on imported rows."
+        )
+
+
 def copy_table(pg, con: sqlite3.Connection, table: str, columns: list[str]) -> int:
     quoted = ", ".join(f'"{c}"' for c in columns)
     placeholders = ", ".join("?" for _ in columns)
@@ -351,7 +376,8 @@ def main() -> int:
         log(f"  WARNING: in the local schema but not in production (left empty): {only_local}")
         log("           your working tree has unmigrated model changes; harmless here.")
 
-    log("copying tables ...")
+    assert_orm_not_loaded()
+    log("copying tables ... (raw sqlite3 INSERT — no ORM, so no signal can fire)")
     started = time.time()
     counts: dict[str, int] = {}
     for table in sorted(set(prod) & set(local)):
