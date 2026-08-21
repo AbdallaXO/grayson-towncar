@@ -69,6 +69,15 @@ STATEMENT_TIMEOUT_MS = 15 * 60 * 1000
 # just created from the working tree. Everything else is copied verbatim.
 SKIP_TABLES = {"django_migrations"}
 
+# Tables that exist in production but that no current model describes, so
+# `migrate` cannot recreate them and nothing in the app can read them. Verified
+# 2026-08-21; each needs a reason, and anything NOT on this list still stops the
+# copy so a genuinely missing feature table is never waved through.
+#   django_site        django.contrib.sites is not in INSTALLED_APPS
+#   users_driver       the Driver model moved from `users` to `drivers`; the old
+#   users_driver_legs  table and its M2M were left behind, no model, no readers
+LEGACY_ORPHAN_TABLES = {"django_site", "users_driver", "users_driver_legs"}
+
 # Tables whose max(created_at)-style column tells us how fresh the snapshot is.
 FRESHNESS_PROBES = [
     ("reservations_reservation", "created_at"),
@@ -346,11 +355,17 @@ def main() -> int:
     log(f"  production {len(prod)} tables · this checkout {len(local)} tables")
 
     only_prod = sorted(set(prod) - set(local) - SKIP_TABLES)
+    orphans = [t for t in only_prod if t in LEGACY_ORPHAN_TABLES]
+    unexpected = [t for t in only_prod if t not in LEGACY_ORPHAN_TABLES]
     only_local = sorted(set(local) - set(prod) - SKIP_TABLES)
-    if only_prod:
+
+    if orphans:
+        log(f"  skipping {len(orphans)} known-orphan table(s) in production that no current "
+            f"model describes: {', '.join(orphans)}")
+    if unexpected:
         log("")
-        log(f"  STOP: production has {len(only_prod)} table(s) this working tree cannot create:")
-        for t in only_prod:
+        log(f"  STOP: production has {len(unexpected)} table(s) this working tree cannot create:")
+        for t in unexpected:
             log(f"           {t}")
         log("         The schema here is built by `manage.py migrate` from your checkout, so")
         log("         those tables would be silently missing from the copy. Your branch is")
@@ -363,7 +378,8 @@ def main() -> int:
             pg.close()
             shutil.rmtree(tmpdir, ignore_errors=True)
             return 2
-        log("         --allow-schema-drift set; continuing without them.")
+        if args.allow_schema_drift:
+            log("         --allow-schema-drift set; continuing without them.")
     if only_local:
         log(f"  WARNING: in the local schema but not in production (left empty): {only_local}")
         log("           your working tree has unmigrated model changes; harmless here.")
