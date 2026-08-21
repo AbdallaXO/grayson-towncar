@@ -84,7 +84,11 @@ def log(msg: str) -> None:
 
 
 def resolve_source_url() -> str:
-    url = os.environ.get("PROD_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    url = os.environ.get("PROD_DATABASE_URL") or os.environ.get("DATABASE_URL") or ""
+    # Paste damage. A trailing space inside the quotes makes Postgres look for a
+    # database named "railway " and fail with a message that blames the database
+    # rather than the whitespace; surrounding quotes survive some shells too.
+    url = url.strip().strip("'\"").strip()
     if not url:
         sys.exit(
             "No source URL.\n"
