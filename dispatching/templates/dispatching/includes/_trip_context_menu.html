@@ -12,11 +12,12 @@ Two sources, each cached per row:
                                                    from the booking. Submenus.
   The vehicle block         `leg_vehicle_route`  — where the car IS, and
                             `fleet_vehicle_route`  directions from it to BOTH
-                                                   ends of the trip, the one it
-                                                   is heading for badged "next".
-                                                   Rows in the menu itself,
-                                                   filled by their own fetch a
-                                                   moment after paint.
+                                                   ends of the trip (plus the
+                                                   path through a job still being
+                                                   run), the live one badged
+                                                   "next". Rows in the menu
+                                                   itself, filled by their own
+                                                   fetch a moment after paint.
 
 Escape hatches: Shift+right-click gives the browser's own menu, and right-click
 inside a text field is always left alone so copy/paste still works.
@@ -114,6 +115,7 @@ inside a text field is always left alone so copy/paste still works.
      but it must not look live. The muted pins plus the age on the car line carry
      that; the server has already refused to report motion on it. */
   .trip-menu-item.veh-stale > i:first-child { color: #b0b8c4; }
+  .trip-menu-item.veh-stale .trip-menu-addr,
   .trip-menu-carline.veh-stale { font-style: italic; }
   .trip-menu-label {
     padding: 6px 14px 2px;
@@ -287,19 +289,21 @@ inside a text field is always left alone so copy/paste still works.
     }).join('<div class="trip-menu-sep"></div>');
   }
 
-  // Both ends of the trip, in the trip's own order. The server decides the words
-  // "pickup" and "dropoff" (vehicle_routing.leg_routes) and which one is next;
-  // this table is only how they are said out loud.
+  // Both ends of the trip in its own order, then the chained route when the car
+  // has a job to finish first. The server decides the kinds and which one is next
+  // (vehicle_routing.leg_routes); this table is only how they are said out loud.
   var ROUTE_VERB = {
     pickup: { icon: 'bi-geo-alt-fill', label: 'Route to pickup' },
-    dropoff: { icon: 'bi-flag-fill', label: 'Route to drop-off' }
+    dropoff: { icon: 'bi-flag-fill', label: 'Route to drop-off' },
+    via_dropoff: { icon: 'bi-signpost-split-fill', label: 'Route via current drop-off' }
   };
 
-  function vehicleRow(url, icon, label, stale, isNext) {
+  function vehicleRow(url, icon, label, stale, isNext, sub) {
     return '<a class="trip-menu-item' + (stale ? ' veh-stale' : '')
       + '" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">'
       + '<i class="bi ' + icon + '"></i><span>' + esc(label)
       + (isNext ? '<span class="trip-menu-badge">next</span>' : '')
+      + (sub ? '<span class="trip-menu-addr">via ' + esc(sub) + '</span>' : '')
       + '</span></a>';
   }
 
@@ -314,11 +318,21 @@ inside a text field is always left alone so copy/paste still works.
    * for the other one. On the fleet pages there is no job in view at all, so the
    * block drops to a single "Show on map" over a pin.
    *
-   * The `next` badge is the shortcut, marking the end he is actually heading for
-   * — the pickup until he marks picked-up, the drop-off after. The server sets
-   * it (vehicle_routing.next_stop_kind, the same rule behind the board's live ETA
+   * The `next` badge is the shortcut, marking the end actually being driven to —
+   * the pickup until picked-up is marked, the drop-off after. The server sets it
+   * (vehicle_routing.next_stop_kind, the same rule behind the board's live ETA
    * badge); nothing about status is worked out here. A trip already completed
    * gets no badge at all, because nothing is next.
+   *
+   * A THIRD row appears when the chauffeur is still finishing another job:
+   * "Route via current drop-off", which is car -> that drop-off -> this pickup as
+   * one Google route. It takes the badge off the plain pickup row, because
+   * driving straight here is not the trip this car is on. Its sub-line names that
+   * middle stop — the one thing on the row that can't be read off the card you
+   * right-clicked, since it belongs to a different trip. The "via" prefix is
+   * written here rather than sent down, and it earns its place: without it the
+   * line sits directly above the car line in the same grey and reads as part of
+   * it.
    *
    * The rows stay in TRIP order rather than sorting the live one to the top, so
    * they never swap places under a dispatcher's cursor mid-trip — the same order
@@ -346,11 +360,11 @@ inside a text field is always left alone so copy/paste still works.
         html += routes.map(function (r) {
           var verb = ROUTE_VERB[r.kind];
           if (!verb) return '';
-          return vehicleRow(r.url, verb.icon, verb.label, stale, r.next);
+          return vehicleRow(r.url, verb.icon, verb.label, stale, r.next, r.via);
         }).join('');
       } else {
         // No job in view, or no routable address on the one there is.
-        html += vehicleRow(v.live.map_url, 'bi-geo-alt-fill', 'Show on map', stale, false);
+        html += vehicleRow(v.live.map_url, 'bi-geo-alt-fill', 'Show on map', stale, false, '');
       }
 
       var context = [];

@@ -2,8 +2,9 @@
 
 The menu offers BOTH ends of the trip as Google Maps directions from the
 assigned car's live coordinates — pickup and drop-off — with the end the car is
-actually heading for badged "next". Covers the pure link/label/order rules and
-the two endpoints that serve them.
+actually heading for badged "next", plus a chained route through a job the
+driver is still running. Covers the pure link/label/order rules and the two
+endpoints that serve them.
 
 Both endpoints are DB-only — the position comes from the columns the 3-minute
 poller maintains — so there is nothing to mock and no network in any test here.
@@ -185,6 +186,56 @@ class LegRoutesTests(TestCase):
         self.assertIn("Lake%20Buena%20Vista", routes[0]["url"])
 
 
+class ChainedRouteTests(TestCase):
+    """Car -> the drop-off it still has to make -> this leg's pickup."""
+
+    PICKUP = "Disney's Port Orleans Resort, Orleans Drive, Lake Buena Vista, FL"
+    DROPOFF = "Orlando International Airport (MCO), Orlando, FL"
+    VIA = "Orlando International Airport (MCO), Jeff Fuqua Blvd, Orlando, FL"
+
+    def _routes(self, status="confirmed", via=VIA, pickup=None):
+        return vr.leg_routes(
+            28.4312, -81.3081, status,
+            self.PICKUP if pickup is None else pickup,
+            self.DROPOFF, via=via)
+
+    def test_it_is_a_third_row_with_the_middle_stop_as_a_waypoint(self):
+        routes = self._routes()
+        self.assertEqual([r["kind"] for r in routes],
+                         ["pickup", "dropoff", "via_dropoff"])
+        chain = routes[-1]
+        self.assertIn("origin=28.431200%2C-81.308100", chain["url"])
+        self.assertIn("waypoints=", chain["url"])
+        self.assertIn("Jeff%20Fuqua", chain["url"])          # the stop in between
+        self.assertIn("destination=Disney%27s%20Port%20Orleans", chain["url"])
+
+    def test_it_takes_the_badge_off_the_direct_pickup(self):
+        """Driving straight there is not the trip this car is on."""
+        routes = self._routes()
+        self.assertEqual([r["next"] for r in routes], [False, False, True])
+
+    def test_the_middle_stop_is_named_because_it_is_another_trips(self):
+        self.assertEqual(self._routes()[-1]["via"],
+                         "Orlando International Airport (MCO)")
+
+    def test_no_chain_without_a_job_in_the_way(self):
+        routes = self._routes(via="")
+        self.assertEqual([r["kind"] for r in routes], ["pickup", "dropoff"])
+        self.assertEqual([r["next"] for r in routes], [True, False])
+
+    def test_a_leg_already_under_way_is_not_reached_through_another(self):
+        """Nothing stands between the car and a job it is already running."""
+        for status in ("picked-up", "on-location", "completed", "cancelled"):
+            with self.subTest(status=status):
+                kinds = [r["kind"] for r in self._routes(status)]
+                self.assertNotIn("via_dropoff", kinds)
+
+    def test_no_chain_without_somewhere_to_chain_to(self):
+        self.assertNotIn("via_dropoff", [r["kind"] for r in self._routes(pickup="")])
+        self.assertEqual(vr.leg_routes(None, None, "confirmed", self.PICKUP,
+                                       self.DROPOFF, via=self.VIA), [])
+
+
 class LegVehicleRouteTests(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -293,6 +344,66 @@ class LegVehicleRouteTests(TestCase):
         routes = self._get()["live"]["routes"]
         self.assertEqual(len(routes), 2)
         self.assertEqual([r["next"] for r in routes], [False, False])
+
+    def test_a_job_still_being_run_puts_its_dropoff_in_the_route(self):
+        """
+        The two-jobs-back-to-back case: the car is running a guest to MCO and the
+        next job starts back at the resort. "How far from the resort" is a useless
+        number while nobody is driving there — the honest route goes via MCO.
+        """
+        running = Leg.objects.create(
+            reservation=self.reservation, pickup_date=TD, pickup_time=time(7, 30),
+            pickup_location="Disney's Yacht Club Resort, Lake Buena Vista, FL",
+            dropoff_location="Orlando International Airport (MCO), Jeff Fuqua Blvd",
+            driver=self.driver, route=self.route, status="picked-up",
+        )
+        self.addCleanup(running.delete)
+
+        routes = self._get()["live"]["routes"]
+        self.assertEqual([r["kind"] for r in routes],
+                         ["pickup", "dropoff", "via_dropoff"])
+        chain = routes[-1]
+        self.assertIn("waypoints=", chain["url"])
+        self.assertIn("Jeff%20Fuqua", chain["url"])
+        self.assertIn("Grand%20Floridian", chain["url"])     # this leg's pickup
+        self.assertEqual(chain["via"], "Orlando International Airport (MCO)")
+        self.assertEqual([r["next"] for r in routes], [False, False, True])
+
+    def test_a_job_that_starts_later_is_not_in_the_way(self):
+        """An "in progress" job scheduled after this one is stale status, not traffic."""
+        later = Leg.objects.create(
+            reservation=self.reservation, pickup_date=TD, pickup_time=time(18, 0),
+            pickup_location="Disney's Yacht Club Resort, Lake Buena Vista, FL",
+            dropoff_location="Orlando International Airport (MCO), Jeff Fuqua Blvd",
+            driver=self.driver, route=self.route, status="picked-up",
+        )
+        self.addCleanup(later.delete)
+        self.assertNotIn("via_dropoff",
+                         [r["kind"] for r in self._get()["live"]["routes"]])
+
+    def test_another_drivers_job_is_not_in_the_way(self):
+        other_user = User.objects.create_user(username="sam", first_name="Sam")
+        other = Driver.objects.create(profile=other_user, driver_type="inhouse")
+        running = Leg.objects.create(
+            reservation=self.reservation, pickup_date=TD, pickup_time=time(7, 30),
+            pickup_location="Disney's Yacht Club Resort, Lake Buena Vista, FL",
+            dropoff_location="Orlando International Airport (MCO), Jeff Fuqua Blvd",
+            driver=other, route=self.route, status="picked-up",
+        )
+        self.addCleanup(running.delete)
+        self.assertNotIn("via_dropoff",
+                         [r["kind"] for r in self._get()["live"]["routes"]])
+
+    def test_the_chain_does_not_confuse_the_missing_address_note(self):
+        """The note reads the two ENDS; a third route must not read as a miss."""
+        running = Leg.objects.create(
+            reservation=self.reservation, pickup_date=TD, pickup_time=time(7, 30),
+            pickup_location="Disney's Yacht Club Resort, Lake Buena Vista, FL",
+            dropoff_location="Orlando International Airport (MCO), Jeff Fuqua Blvd",
+            driver=self.driver, route=self.route, status="picked-up",
+        )
+        self.addCleanup(running.delete)
+        self.assertEqual(self._get()["note"], "")
 
     def test_a_leg_with_no_dropoff_address_offers_the_pickup_and_says_why(self):
         self.leg.dropoff_location = ""

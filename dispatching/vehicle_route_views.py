@@ -4,7 +4,8 @@ Two JSON endpoints, each keyed the way the surface that calls them is keyed:
 
   * `leg_vehicle_route`   — a leg id. Resolves the car its driver is in that day
     and returns directions from that car to BOTH ends of this leg, with the end it
-    is actually heading for marked.
+    is actually heading for marked — plus, when the driver is still finishing
+    another job, the route that goes through that drop-off on the way here.
   * `fleet_vehicle_route` — a FleetVehicle id, for the fleet pages, where the
     vehicle is the subject and there is no pickup to head for.
 
@@ -28,6 +29,7 @@ from django.views.decorators.http import require_GET
 from dispatching import vehicle_routing
 from dispatching.samsara_service import resolve_assigned_fleet_vehicle
 from drivers.models import FleetVehicle
+from reservations.constants import ON_TRIP_STATUSES
 from reservations.models import Leg
 
 logger = logging.getLogger(__name__)
@@ -97,7 +99,8 @@ def _missing_address_note(routes):
     a bug in the menu; "no drop-off address on this trip" reads as an answer, and
     tells the dispatcher where to go fix it.
     """
-    kinds = {r["kind"] for r in routes}
+    # Only the two ENDS can be missing an address; the chained route is extra.
+    kinds = {r["kind"] for r in routes} & {"pickup", "dropoff"}
     if kinds == {"pickup", "dropoff"}:
         return ""
     if not kinds:
@@ -106,6 +109,33 @@ def _missing_address_note(routes):
     if "pickup" in kinds:
         return "No drop-off address on this trip, so only the pickup can be routed."
     return "No pickup address on this trip, so only the drop-off can be routed."
+
+
+def _leg_being_run(leg):
+    """
+    The OTHER job this driver has a guest in the car for right now, or None.
+
+    A driver rarely goes straight to the next pickup: they finish the one they are
+    on first. When that is true, the honest route to THIS leg starts with that
+    drop-off, so the caller passes it down as the chain's middle stop.
+
+    Same driver, same day, and scheduled no later than this leg — an "in progress"
+    job that starts AFTER the one being looked at is stale status data, not a job
+    standing between the car and this pickup. The latest such leg wins, because
+    that is the one they are most plausibly running now. `ON_TRIP_STATUSES` is the
+    shared definition of a guest being aboard (reservations/constants.py), so this
+    agrees with the badge and with the board's live ETA.
+    """
+    if not getattr(leg, "driver_id", None):
+        return None
+    return (Leg.objects
+            .filter(driver_id=leg.driver_id,
+                    pickup_date=leg.pickup_date,
+                    pickup_time__lte=leg.pickup_time,
+                    status__in=ON_TRIP_STATUSES)
+            .exclude(pk=leg.pk)
+            .order_by("-pickup_time")
+            .first())
 
 
 @require_GET
@@ -130,13 +160,16 @@ def leg_vehicle_route(request, leg_id):
             ),
         ))
 
-    # Both ends, in trip order, with the one he is actually driving to marked.
+    # Both ends, in trip order, with the one actually being driven to marked —
+    # plus the route through the job in progress, when there is one in the way.
+    running = _leg_being_run(leg)
     routes = vehicle_routing.leg_routes(
         vehicle.samsara_last_latitude,
         vehicle.samsara_last_longitude,
         leg.status,
         leg.pickup_location,
         leg.dropoff_location,
+        via=running.dropoff_location if running else "",
     )
 
     note = _position_note(vehicle) or _missing_address_note(routes)

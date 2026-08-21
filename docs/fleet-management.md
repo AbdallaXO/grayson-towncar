@@ -324,14 +324,19 @@ the shared trip menu (`includes/_trip_context_menu.html`). Alongside Mapping and
 Flight Tracker it carries **one** vehicle row — an action with a single line of
 context, so it reads like the menu's other items:
 
-> 📍 **Route to pickup**  `NEXT`
+> 📍 **Route to pickup**
 > 🏁 **Route to drop-off**
+> ⤴ **Route via current drop-off**  `NEXT`
+> &nbsp;&nbsp;&nbsp;via Orlando International Airport (MCO)
 > `#001 · 1000 Floridian Way, Bay Lake`
 
-Each row opens Google Maps **directions from the assigned car's live coordinates
-to that end of the trip**, so "how far out is he?" and "how much longer has he
-got?" are both one click from the board. On the Fleet pages there is no job in
-view, so the block drops to a single **Show on map** over a plain pin.
+Each row opens Google Maps **directions from the assigned car's live coordinates**
+to that end of the trip, so "how far out is he?" and "how much longer has he got?"
+are both one click from the board. On the Fleet pages there is no job in view, so
+the block drops to a single **Show on map** over a plain pin.
+
+The third row appears **only while the driver is still running another job** (see
+"Through a job in progress" below).
 
 ### Both ends, one of them badged
 
@@ -359,6 +364,35 @@ An end with **no address** is dropped from the list rather than rendered as a
 pin, because a pin labelled "Route to drop-off" lies about what the row opens.
 The note under the rows names the missing end. Only when *neither* end has an
 address does the block fall back to `map_url`, the plain pin.
+
+### Through a job in progress
+
+Two jobs back to back is the case that breaks a straight-line answer. The car is
+halfway to MCO with a guest aboard and the next job starts back at Port Orleans:
+"how far is the car from Port Orleans" is then a number nobody should act on,
+because nobody is driving there next. The menu on **that next job** grows a third
+row, `via_dropoff`:
+
+    car's live GPS  →  the drop-off it is still running  →  this leg's pickup
+
+as ONE Google Maps route with the middle stop as a waypoint, so both hops come
+back timed. It takes the `next` badge off the plain pickup row, since driving
+straight there is not the trip the car is on. Its sub-line names the middle stop
+— unlike the two ends, that address belongs to a *different* trip and can't be
+read off the card you right-clicked.
+
+`vehicle_route_views._leg_being_run()` finds it: same driver, same day, scheduled
+no later than this leg, status in `ON_TRIP_STATUSES`, latest one wins. An "in
+progress" job scheduled *after* the one you are looking at is stale status data,
+not a job standing in the way, so it is excluded. The chain never appears on a leg
+that is itself under way or already closed — nothing stands between a car and the
+job it is already running.
+
+The link is driving time only: it does not pad the minutes spent at the drop-off
+itself. Google is timing the driving, the dispatcher knows what a hand-off costs,
+and the board's own risk badge already adds that allowance (`samsara_risk` chains
+the same two hops with `DROPOFF_SERVICE_MIN` between them, which is what puts
+"ETA 56 min vs pickup in 48 min" on the card).
 
 Three things are deliberately left unsaid, after a first version said all of
 them and read as clutter:

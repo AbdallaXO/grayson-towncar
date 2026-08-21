@@ -4,7 +4,9 @@ The trip menu already answers "where is this job *supposed* to go" from the
 booking (reservations/trip_links.py). This module answers the other half from
 the vehicle's own telemetry: the car's live coordinates, and Google Maps
 directions from those coordinates to BOTH ends of the trip — pickup and drop-off
-— with the end the car is actually heading for marked.
+— with the end the car is actually heading for marked. Plus, when the chauffeur
+is still finishing another job, the real path to this one: car → that drop-off →
+this pickup, in one link.
 
 Pure: no network, no database, no clock. Callers pass the stored position and
 get back a URL, which is what makes the fallback rules testable without a single
@@ -49,6 +51,16 @@ def short_place(formatted):
     return ", ".join(parts[:2])
 
 
+def _coord(lat, lng):
+    """
+    "28.431200,-81.308100" — the car's position as Google takes it.
+
+    trip_links.map_query passes a bare "lat,lng" through untouched, so the
+    coordinate is never region-hinted into somewhere else.
+    """
+    return f"{float(lat):.6f},{float(lng):.6f}"
+
+
 def live_link(lat, lng, destination=""):
     """
     (url, destination_label) for the car's current position.
@@ -74,9 +86,7 @@ def live_link(lat, lng, destination=""):
     if lat is None or lng is None:
         return None, ""
 
-    # trip_links.map_query passes a bare "lat,lng" through untouched, so the
-    # coordinate is never region-hinted into somewhere else.
-    coord = f"{float(lat):.6f},{float(lng):.6f}"
+    coord = _coord(lat, lng)
     destination = (destination or "").strip()
 
     if destination:
@@ -115,7 +125,7 @@ def next_stop_kind(status):
     return "pickup"
 
 
-def leg_routes(lat, lng, status, pickup, dropoff):
+def leg_routes(lat, lng, status, pickup, dropoff, via=""):
     """
     Both ends of the trip as directions FROM the car, in the trip's own order:
     [{kind, url, destination, next}, ...].
@@ -134,6 +144,10 @@ def leg_routes(lat, lng, status, pickup, dropoff):
     An end with no address is simply absent from the list: `live_link` falls back
     to a pin there, and a pin labelled "Route to drop-off" would be a lie about
     what the row opens. Callers get the reason into the note.
+
+    `via` is the drop-off of a job the chauffeur is STILL RUNNING — pass it and a
+    third route appears, the honest one: car -> that drop-off -> this pickup, as a
+    single Google Maps route with a stop in the middle. See `_chained_route`.
     """
     next_kind = next_stop_kind(status)
     routes = []
@@ -147,4 +161,50 @@ def leg_routes(lat, lng, status, pickup, dropoff):
             "destination": label,
             "next": kind == next_kind,
         })
+
+    # Only a job that hasn't started can be reached "through" another one. If this
+    # leg is the one being run, or is over, there is nothing to chain.
+    chained = _chained_route(lat, lng, via, pickup) if next_kind == "pickup" else None
+    if chained:
+        # The chain IS what happens next, so the plain pickup row stops claiming to
+        # be: driving straight there is not the trip this car is on.
+        for r in routes:
+            r["next"] = False
+        routes.append(chained)
     return routes
+
+
+def _chained_route(lat, lng, via, pickup):
+    """
+    Car -> a drop-off it still has to make -> this leg's pickup, in one link, or
+    None when that path doesn't exist.
+
+    The situation this is for: a chauffeur is halfway to MCO with a guest aboard,
+    and the next job starts back at Port Orleans. "How far is the car from Port
+    Orleans" is then a useless number — nobody is driving there next; they are
+    driving to MCO first. Google takes the middle stop as a waypoint and returns
+    the real thing, both hops timed.
+
+    It deliberately does NOT add the minutes spent at the drop-off itself. Google
+    is timing the driving; the dispatcher knows what a hand-off costs, and the
+    board's own risk badge already adds that allowance (samsara_risk chains the
+    same two hops with DROPOFF_SERVICE_MIN between them).
+    """
+    via = (via or "").strip()
+    pickup = (pickup or "").strip()
+    if lat is None or lng is None or not via or not pickup:
+        return None
+
+    url = maps_directions_url(_coord(lat, lng), pickup, waypoints=[via])
+    if not url:
+        return None
+    return {
+        "kind": "via_dropoff",
+        "url": url,
+        "destination": pickup.split(",")[0].strip() or pickup,
+        # The stop in the middle belongs to ANOTHER trip, so unlike the two ends
+        # it is named: it is the one thing on this row the dispatcher can't read
+        # off the card they right-clicked.
+        "via": via.split(",")[0].strip() or via,
+        "next": True,
+    }
