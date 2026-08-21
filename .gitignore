@@ -204,5 +204,6 @@ cython_debug/
 
 # Local DB backups + report artifacts (session tooling, never ship)
 content/db_backup_*.sqlite3
+content/db_snapshot_meta.json
 /report.html
 /vehicle-assignments.html
