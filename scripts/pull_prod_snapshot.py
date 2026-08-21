@@ -212,6 +212,33 @@ def copy_table(pg, con: sqlite3.Connection, table: str, columns: list[str]) -> i
     return total
 
 
+def migration_drift(pg) -> tuple[list[str], list[str]]:
+    """(applied in prod but absent from this checkout, present here but unapplied).
+
+    The schema this script builds comes from `manage.py migrate` on the working
+    tree, so a checkout that is behind the deploy silently cannot create some of
+    production's tables. Comparing django_migrations against the migration files on
+    disk says exactly which commit is missing, before anything is copied.
+    """
+    with pg.cursor() as cur:
+        cur.execute("SELECT app, name FROM django_migrations ORDER BY app, name")
+        applied = cur.fetchall()
+
+    on_disk: set[tuple[str, str]] = set()
+    for app_dir in REPO.iterdir():
+        migrations = app_dir / "migrations"
+        if app_dir.is_dir() and migrations.is_dir():
+            for path in migrations.glob("[0-9]*.py"):
+                on_disk.add((app_dir.name, path.stem))
+
+    known_apps = {app for app, _ in on_disk}
+    behind = [f"{app}.{name}" for app, name in applied
+              if app in known_apps and (app, name) not in on_disk]
+    ahead = [f"{app}.{name}" for app, name in sorted(on_disk)
+             if (app, name) not in set(applied) and app in {a for a, _ in applied}]
+    return behind, ahead
+
+
 def probe_freshness(pg, tables: dict[str, list[str]]) -> dict[str, str | None]:
     out: dict[str, str | None] = {}
     with pg.cursor() as cur:
@@ -263,6 +290,19 @@ def main() -> int:
     log("  freshness probes (max timestamp per stream):")
     for key, value in freshness.items():
         log(f"    {key:45s} {value}")
+
+    behind, ahead = migration_drift(pg)
+    if behind:
+        log("")
+        log(f"  YOUR CHECKOUT IS BEHIND THE DEPLOY — {len(behind)} migration(s) are applied")
+        log("  in production but their files are not in this working tree:")
+        for name in behind:
+            log(f"           {name}")
+        log("  The schema is built from this checkout, so the tables those migrations")
+        log("  create cannot be copied. Check out the deployed commit before the real run.")
+    if ahead:
+        log(f"  (this tree has {len(ahead)} migration(s) not yet applied in production: "
+            f"{', '.join(ahead[:4])}{' ...' if len(ahead) > 4 else ''})")
 
     if args.dry_run:
         with pg.cursor() as cur:
