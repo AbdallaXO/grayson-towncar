@@ -227,6 +227,15 @@ def assert_orm_not_loaded() -> None:
 
 
 def copy_table(pg, con: sqlite3.Connection, table: str, columns: list[str]) -> int:
+    # `manage.py migrate` fires Django's post_migrate signal, which auto-populates
+    # django_content_type and auth_permission (one row per model/permission) in the
+    # fresh schema before a single production row is copied. Left alone, production's
+    # rows for those same tables then collide on id. Production is authoritative for
+    # every table here, so clear whatever migrate seeded before inserting — cheap
+    # (everything else is already empty) and safe for any table future Django
+    # versions decide to auto-populate the same way.
+    con.execute(f'DELETE FROM "{table}"')
+
     quoted = ", ".join(f'"{c}"' for c in columns)
     placeholders = ", ".join("?" for _ in columns)
     insert = f'INSERT INTO "{table}" ({quoted}) VALUES ({placeholders})'
