@@ -319,33 +319,23 @@ def main() -> int:
     behind, ahead = migration_drift(pg)
     if behind:
         log("")
-        log(f"  YOUR CHECKOUT IS BEHIND THE DEPLOY — {len(behind)} migration(s) are applied")
-        log("  in production but their files are not in this working tree:")
+        log(f"  note: {len(behind)} ledger entries in production have no migration file here.")
+        log("        Usually squashed/renamed/deleted migrations — Django never removes the")
+        log("        django_migrations row when the file goes. Harmless on its own; the")
+        log("        table comparison below is what actually decides whether this checkout")
+        log("        can hold production's schema.")
         for name in behind:
             log(f"           {name}")
-        log("  The schema is built from this checkout, so the tables those migrations")
-        log("  create cannot be copied. Check out the deployed commit before the real run.")
     if ahead:
-        log(f"  (this tree has {len(ahead)} migration(s) not yet applied in production: "
-            f"{', '.join(ahead[:4])}{' ...' if len(ahead) > 4 else ''})")
+        log(f"  note: this tree has {len(ahead)} migration(s) not applied in production: "
+            f"{', '.join(ahead[:4])}{' ...' if len(ahead) > 4 else ''}")
 
-    if args.dry_run:
-        with pg.cursor() as cur:
-            log("  row counts (top 15 tables):")
-            counts = []
-            for table in prod:
-                cur.execute(f'SELECT count(*) FROM "{table}"')
-                counts.append((cur.fetchone()[0], table))
-            for n, table in sorted(counts, reverse=True)[:15]:
-                log(f"    {n:>9,}  {table}")
-            log(f"  TOTAL {sum(n for n, _ in counts):,} rows")
-        pg.close()
-        log("\ndry run — nothing written.")
-        return 0
-
+    # The authoritative check. Build the schema this checkout produces and diff the
+    # TABLE lists — a stale ledger entry proves nothing either way, but a table that
+    # exists in production and cannot be created here would be silently lost.
     tmpdir = Path(tempfile.mkdtemp(prefix="gtc_snapshot_"))
     new_db = tmpdir / "db.sqlite3"
-    log(f"building an empty schema at {new_db}")
+    log(f"building the schema this checkout produces, to compare against production")
     build_empty_schema(new_db)
 
     con = sqlite3.connect(new_db)
@@ -353,6 +343,7 @@ def main() -> int:
     con.execute("PRAGMA journal_mode = OFF")
     con.execute("PRAGMA synchronous = OFF")
     local = sqlite_tables(con)
+    log(f"  production {len(prod)} tables · this checkout {len(local)} tables")
 
     only_prod = sorted(set(prod) - set(local) - SKIP_TABLES)
     only_local = sorted(set(local) - set(prod) - SKIP_TABLES)
@@ -366,7 +357,8 @@ def main() -> int:
         log("         behind what is deployed.")
         log("         Fix: check out the commit that is actually deployed, then re-run.")
         log("         Override (loses those tables): --allow-schema-drift")
-        if not args.allow_schema_drift:
+        # A dry run writes nothing, so aborting here would just hide the row counts.
+        if not args.allow_schema_drift and not args.dry_run:
             con.close()
             pg.close()
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -375,6 +367,22 @@ def main() -> int:
     if only_local:
         log(f"  WARNING: in the local schema but not in production (left empty): {only_local}")
         log("           your working tree has unmigrated model changes; harmless here.")
+
+    if args.dry_run:
+        with pg.cursor() as cur:
+            log("  row counts (top 15 tables):")
+            counts = []
+            for table in prod:
+                cur.execute(f'SELECT count(*) FROM "{table}"')
+                counts.append((cur.fetchone()[0], table))
+            for n, table in sorted(counts, reverse=True)[:15]:
+                log(f"    {n:>9,}  {table}")
+            log(f"  TOTAL {sum(n for n, _ in counts):,} rows")
+        con.close()
+        pg.close()
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        log("\ndry run — nothing written.")
+        return 0
 
     assert_orm_not_loaded()
     log("copying tables ... (raw sqlite3 INSERT — no ORM, so no signal can fire)")
