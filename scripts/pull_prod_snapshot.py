@@ -294,6 +294,40 @@ def probe_freshness(pg, tables: dict[str, list[str]]) -> dict[str, str | None]:
     return out
 
 
+def verify_on_disk(path: Path, expected_row_counts: dict[str, int]) -> str | None:
+    """None if `path` matches `expected_row_counts`; otherwise a reason it doesn't.
+
+    `content/` lives inside an actively-syncing OneDrive folder. A file this large
+    dropped into a synced folder by shutil.move() has, at least once, come out the
+    other side byte-identical to the file it replaced — same size, same content —
+    with no exception raised anywhere in this process. Whatever intervenes (a
+    stale cloud placeholder being reconciled is the leading theory; a real-time
+    antivirus scan of a large new binary is another) does it after this process's
+    own os.rename() returns, so nothing short of reading the result back proves
+    the move actually stuck. Every prior version of this script logged "wrote ..."
+    and exited 0 while silently leaving the OLD database in place.
+    """
+    try:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        ok = con.execute("PRAGMA integrity_check").fetchone()[0]
+        if ok != "ok":
+            con.close()
+            return f"PRAGMA integrity_check failed: {ok}"
+        # A handful of large tables is enough to catch "this is the old file back
+        # again" without re-counting all 100+ tables.
+        for table in sorted(expected_row_counts, key=expected_row_counts.get,
+                            reverse=True)[:5]:
+            got = con.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+            want = expected_row_counts[table]
+            if got != want:
+                con.close()
+                return f"{table}: expected {want:,} rows, found {got:,} on disk"
+        con.close()
+    except sqlite3.Error as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -445,7 +479,18 @@ def main() -> int:
                 "migrate from the working tree; rows copied from production read-only.",
     }
 
+    # Verify the BUILT file — still in Temp, outside anything that syncs — before
+    # it goes anywhere near the OneDrive-synced destination. This is the copy the
+    # counts in `meta` describe; if this is wrong the copy loop itself is at fault.
+    problem = verify_on_disk(new_db, counts)
+    if problem:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        sys.exit(f"the freshly-built file failed verification before it was even "
+                 f"moved into place: {problem}\nNothing on disk was touched. This "
+                 f"points at the copy loop, not at OneDrive — please report it.")
+
     destination = args.out or TARGET
+    backup = None
     if destination.exists() and args.keep_backup:
         stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = destination.parent / f"db_backup_{stamp}.sqlite3"
@@ -455,10 +500,33 @@ def main() -> int:
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(new_db), str(destination))
     shutil.rmtree(tmpdir, ignore_errors=True)
+
+    # Verify AGAIN, now that the file has actually landed at its real destination
+    # inside content/. This is the check that catches OneDrive (or antivirus, or
+    # anything else watching that folder) silently replacing what was just written
+    # — content/ is under active cloud sync, and a large file dropped into it has,
+    # at least once, come out the other side byte-identical to the file it
+    # replaced, with no exception raised anywhere in this process.
+    log("verifying the file at its destination ...")
+    problem = verify_on_disk(destination, counts)
+    if problem:
+        log(f"\n!! VERIFICATION FAILED AFTER THE MOVE: {problem}")
+        log("!! Something replaced the file after it was written — most likely OneDrive")
+        log("!! reconciling a stale cloud copy of the old database. Production was NOT")
+        log("!! affected; this is purely local.")
+        if backup is not None:
+            log(f"!! Restoring {backup.name} so you are not left with a broken database.")
+            if destination.exists():
+                destination.unlink()
+            shutil.copy2(str(backup), str(destination))
+        log("\nBefore retrying: pause OneDrive sync (tray icon -> Pause syncing) or")
+        log("exclude content/ from sync, then re-run this script.")
+        return 3
+
     (destination.parent / "db_snapshot_meta.json").write_text(
         json.dumps(meta, indent=2), encoding="utf-8")
 
-    log(f"\nwrote {destination}  ({destination.stat().st_size / 1e6:.0f} MB)")
+    log(f"\nverified — wrote {destination}  ({destination.stat().st_size / 1e6:.0f} MB)")
     log(f"wrote {destination.parent / 'db_snapshot_meta.json'}")
     log("\nverify with:")
     log("  python docs/scheduling-redesign/analysis/00_snapshot_provenance.py | head -40")
