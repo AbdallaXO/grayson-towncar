@@ -1,0 +1,19 @@
+method,vehicle_class,cells,farmed_n_matched,premium_per_leg_usd,ci95_lo,ci95_hi
+class_x_revband,suv,,907,68.9,67.05,70.39
+class_x_revband,towncar,,982,57.85,56.47,61.61
+class_x_revband,mini_van,,577,68.96,68.27,71.76
+class_x_revband,van,,271,110.55,110.0,116.09
+class_x_revband,Van(14 Pax),,75,134.22,114.32,161.63
+route_x_class,suv,,865,72.18,71.45,73.3
+route_x_class,towncar,,923,59.23,58.4,61.27
+route_x_class,mini_van,,524,68.51,68.29,69.21
+route_x_class,van,,267,127.49,123.9,127.69
+route_x_class,Van(14 Pax),,65,130.77,130.77,159.25
+class_x_revband,ALL,14,2812,70.81,70.13,72.85
+route_x_class,ALL,18,2644,73.96,73.51,75.01
+rate_table_config,suv,14,903,72.83,,
+rate_table_config,towncar,13,947,61.11,,
+rate_table_config,mini_van,10,562,70.89,,
+rate_table_config,van,11,289,116.06,,
+rate_table_config,Van(14 Pax),7,80,125.69,,
+rate_table_config,ALL,55,2781,74.46,,

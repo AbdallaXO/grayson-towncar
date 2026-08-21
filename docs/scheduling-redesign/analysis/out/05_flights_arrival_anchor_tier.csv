@@ -1,0 +1,8 @@
+month,airport_pickup_legs,actual_gate_arrival_local,estimated_gate_arrival_local,actual_arrival_local,estimated_arrival_local,scheduled_gate_arrival_local,scheduled_arrival_local,none
+2026-02,756,465,275,1,0,0,0,15
+2026-03,1271,979,249,0,0,5,1,37
+2026-04,1303,1190,45,0,0,2,0,66
+2026-05,1371,1245,44,0,0,1,0,81
+2026-06,1326,1210,43,0,0,1,0,72
+2026-07,486,446,36,0,0,0,0,4
+ALL,6513,5535,692,1,0,9,1,275

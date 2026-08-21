@@ -1,0 +1,31 @@
+rank,pickup_bucket,dropoff_bucket,legs,share_pct,ride_n,ride_p50,ride_p75,ride_p90,ride_p95,table_min,table_fallback_min,p75_minus_table,gold_n,gold_p50,gold_p75
+1,MCO Terminal,Disney Resort,5416,40.34,2495,35.8,44.3,57.4,64.8,30,,14.3,2129,35.6,44.2
+2,Disney Resort,MCO Terminal,4576,34.083,2934,33.1,36.5,40.9,45.3,30,,6.5,2388,32.9,36.3
+3,Port Canaveral Area,MCO Terminal,532,3.962,245,49.6,55.2,63.4,71.5,55,,0.2,192,49.6,55.2
+4,MCO Terminal,Universal Resort,361,2.689,168,27.1,36.7,49.0,58.0,25,,11.7,133,29.4,37.1
+5,MCO Terminal,Port Canaveral Area,341,2.54,173,50.9,57.9,70.0,87.2,55,,2.9,145,50.6,58.6
+6,Universal Resort,MCO Terminal,323,2.406,188,23.7,27.0,30.7,35.4,25,,2.0,155,23.5,27.1
+7,SFB Terminal,Disney Resort,266,1.981,112,60.4,76.3,87.3,96.2,60,,16.3,89,60.1,71.8
+8,Disney Resort,SFB Terminal,241,1.795,154,58.9,63.1,69.8,78.1,60,,3.1,130,58.9,62.8
+9,Disney Resort,Port Canaveral Area,176,1.311,76,74.5,80.9,96.7,111.2,72,,8.9,73,74.5,80.8
+10,Disney Resort,Universal Resort,142,1.058,90,28.7,32.6,38.2,42.3,28,,4.6,75,29.1,32.8
+11,Port Canaveral Area,Disney Resort,128,0.953,63,69.1,80.9,92.1,94.3,72,,8.9,47,71.0,81.3
+12,Airport Hotel,Port Canaveral Area,118,0.879,66,54.4,63.4,74.6,84.6,55,,8.4,54,54.0,60.6
+13,Universal Resort,Disney Resort,118,0.879,70,28.8,32.9,35.3,37.0,28,,4.9,48,29.4,32.9
+14,Disney Resort,Disney Resort,63,0.469,27,17.7,20.1,26.4,27.6,12,,8.1,22,18.3,20.1
+15,Airport Hotel,Disney Resort,53,0.395,33,32.9,38.6,50.0,59.4,25,,13.6,29,32.4,37.9
+16,Port Canaveral Area,Airport Hotel,46,0.343,23,49.3,59.5,72.7,73.5,55,,4.5,14,,
+17,MCO Terminal,Other Hotel,44,0.328,24,44.0,53.7,78.8,88.6,25,,28.7,18,,
+18,Universal Resort,Port Canaveral Area,42,0.313,18,,,,,60,,,13,,
+19,Port Canaveral Area,Universal Resort,37,0.276,16,,,,,60,,,11,,
+20,MCO Terminal,Residential,36,0.268,16,,,,,30,,,15,,
+21,Residential,MCO Terminal,33,0.246,19,,,,,30,,,13,,
+22,Other Hotel,MCO Terminal,28,0.209,15,,,,,25,,,13,,
+23,Disney Resort,Residential,24,0.179,8,,,,,,35,,4,,
+24,Residential,Disney Resort,19,0.142,8,,,,,,35,,5,,
+25,Disney Resort,Airport Hotel,19,0.142,17,,,,,25,,,15,,
+26,Other,Disney Resort,16,0.119,5,,,,,,35,,4,,
+27,MCO Terminal,Other,16,0.119,10,,,,,,35,,9,,
+28,Disney Resort,Other,16,0.119,9,,,,,,35,,4,,
+29,Other Hotel,Disney Resort,14,0.104,9,,,,,25,,,6,,
+30,Other,MCO Terminal,13,0.097,5,,,,,,35,,3,,

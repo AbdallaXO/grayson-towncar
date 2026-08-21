@@ -1,0 +1,31 @@
+rank,pickup_bucket,dropoff_bucket,window_legs,rtm_rows,rtm_samples,rows_at_or_above_trust_floor
+1,MCO Terminal,Disney Resort,5416,22,2059,15/22 rows
+2,Disney Resort,MCO Terminal,4576,22,2189,17/22 rows
+3,Port Canaveral Area,MCO Terminal,532,9,236,4/9 rows
+4,MCO Terminal,Universal Resort,361,11,149,7/11 rows
+5,MCO Terminal,Port Canaveral Area,341,19,168,8/19 rows
+6,Universal Resort,MCO Terminal,323,12,147,9/12 rows
+7,SFB Terminal,Disney Resort,266,15,110,8/15 rows
+8,Disney Resort,SFB Terminal,241,16,141,9/16 rows
+9,Disney Resort,Port Canaveral Area,176,8,70,4/8 rows
+10,Disney Resort,Universal Resort,142,12,88,4/12 rows
+11,Port Canaveral Area,Disney Resort,128,6,59,2/6 rows
+12,Airport Hotel,Port Canaveral Area,118,5,62,4/5 rows
+13,Universal Resort,Disney Resort,118,8,70,6/8 rows
+14,Disney Resort,Disney Resort,63,9,18,1/9 rows
+15,Airport Hotel,Disney Resort,53,8,32,3/8 rows
+16,Port Canaveral Area,Airport Hotel,46,3,21,2/3 rows
+17,MCO Terminal,Other Hotel,44,14,35,2/14 rows
+18,Universal Resort,Port Canaveral Area,42,5,16,1/5 rows
+19,Port Canaveral Area,Universal Resort,37,5,19,1/5 rows
+20,MCO Terminal,Residential,36,12,33,1/12 rows
+21,Residential,MCO Terminal,33,11,19,1/11 rows
+22,Other Hotel,MCO Terminal,28,13,57,3/13 rows
+23,Disney Resort,Residential,24,13,16,0/13 rows
+24,Residential,Disney Resort,19,9,15,0/9 rows
+25,Disney Resort,Airport Hotel,19,7,12,0/7 rows
+26,Other,Disney Resort,16,13,21,0/13 rows
+27,MCO Terminal,Other,16,10,16,0/10 rows
+28,Disney Resort,Other,16,15,24,1/15 rows
+29,Other Hotel,Disney Resort,14,8,19,1/8 rows
+30,Other,MCO Terminal,13,10,18,0/10 rows
