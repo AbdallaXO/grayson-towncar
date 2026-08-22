@@ -188,6 +188,55 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ── Store-stop handler (At Publix / Leaving Publix / Skipping) ──
+    // Deliberately NOT sendStatusUpdate: these ride their own endpoint because
+    // they must never become Leg.status. The leg stays "picked-up" through the
+    // whole stop; only the LegStatus trail records it. See dispatching/store_stop.py.
+    document.querySelectorAll('.store-stop-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const btn = event.currentTarget;
+            const legId = btn.dataset.legId;
+            const storeEvent = btn.dataset.storeEvent;
+
+            if (storeEvent === 'store-skipped') {
+                if (!confirm('Mark this trip as having no store stop?')) return;
+            }
+
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+
+            const failsafe = setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 10000);
+
+            fetch(`${window.location.origin}/drivers/update_leg_store_stop/${legId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ event: storeEvent })
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                clearTimeout(failsafe);
+                if (ok && data.success) {
+                    showToast(data.note || 'Store stop recorded', 'success');
+                    setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
+                } else {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(() => {
+                clearTimeout(failsafe);
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                showToast('Error saving the store stop. Please try again.', 'danger');
+            });
+        });
+    });
+
     // ── Auto-refresh: poll for schedule changes ──
     // Pages that want it set window.GT_BOARD_POLL = { start: 'Y-m-d', end: 'Y-m-d' }
     // before including this file. We poll a lightweight fingerprint endpoint and

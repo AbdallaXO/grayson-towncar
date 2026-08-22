@@ -335,6 +335,33 @@
                         <option value="completed" {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
                       </select>
                       {% if leg.status == "picked-up" %}
+                        {% comment %}Store stop — same controls as the mobile card, compact.{% endcomment %}
+                        <div class="mt-2">
+                          {% if leg.store_phase == "expected" %}
+                            <button class="gt-btn gt-btn-warning gt-btn-sm gt-btn-block store-stop-btn mb-1"
+                                    data-leg-id="{{ leg.id }}" data-store-event="store-arrived">
+                              <i class="bi bi-cart-fill"></i> At Publix
+                            </button>
+                            <button class="gt-btn gt-btn-outline gt-btn-sm gt-btn-block store-stop-btn"
+                                    data-leg-id="{{ leg.id }}" data-store-event="store-skipped"
+                                    style="font-size:0.75rem;">Skipping the stop</button>
+                          {% elif leg.store_phase == "shopping" %}
+                            <button class="gt-btn gt-btn-warning gt-btn-sm gt-btn-block store-stop-btn"
+                                    data-leg-id="{{ leg.id }}" data-store-event="store-departed">
+                              <i class="bi bi-cart-check-fill"></i> Leaving Publix
+                            </button>
+                          {% elif leg.store_note %}
+                            <div style="font-size:0.75rem;color:var(--gt-text-secondary);">
+                              <i class="bi bi-cart-check"></i> {{ leg.store_note }}
+                            </div>
+                          {% else %}
+                            <button class="gt-btn gt-btn-ghost gt-btn-sm gt-btn-block store-stop-btn"
+                                    data-leg-id="{{ leg.id }}" data-store-event="store-arrived"
+                                    style="font-size:0.75rem;">
+                              <i class="bi bi-cart"></i> Stopping at Publix
+                            </button>
+                          {% endif %}
+                        </div>
                         <div class="gt-review-reminder gt-review-reminder-active mt-2" style="padding:8px;">
                           <div class="gt-review-stars mb-1" style="font-size:1rem;">
                             <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
@@ -565,6 +592,47 @@
                     <i class="bi bi-person-check-fill"></i> Picked Up
                   </button>
                 {% elif leg.status == "picked-up" %}
+                  {% comment %}
+                    Store stop, recorded as it happens. Every tap here replaces a
+                    guess in the clearing time dispatch is looking at — see
+                    dispatching/store_stop.py. Offered on EVERY picked-up leg,
+                    not just the ones flagged at booking, because guests add the
+                    stop last-minute as often as they skip it.
+                  {% endcomment %}
+                  {% if leg.store_phase == "expected" %}
+                    <button class="gt-btn gt-btn-warning gt-btn-block gt-progression store-stop-btn mb-2"
+                            data-leg-id="{{ leg.id }}" data-store-event="store-arrived">
+                      <i class="bi bi-cart-fill"></i> At Publix
+                    </button>
+                    <button class="gt-btn gt-btn-outline gt-btn-block gt-btn-sm store-stop-btn mb-2"
+                            data-leg-id="{{ leg.id }}" data-store-event="store-skipped">
+                      Skipping the stop
+                    </button>
+                  {% elif leg.store_phase == "shopping" %}
+                    <div class="gt-note gt-note-leg mb-2">
+                      <i class="bi bi-cart-fill"></i> {{ leg.store_note }}
+                    </div>
+                    <button class="gt-btn gt-btn-warning gt-btn-block gt-progression store-stop-btn mb-2"
+                            data-leg-id="{{ leg.id }}" data-store-event="store-departed">
+                      <i class="bi bi-cart-check-fill"></i> Leaving Publix
+                    </button>
+                  {% elif leg.store_phase == "rolling" %}
+                    <div class="gt-note gt-note-leg mb-2">
+                      <i class="bi bi-cart-check-fill"></i> {{ leg.store_note }}
+                    </div>
+                  {% elif leg.store_phase == "skipped" %}
+                    <div class="gt-note gt-note-leg mb-2">{{ leg.store_note }}</div>
+                    <button class="gt-btn gt-btn-ghost gt-btn-block gt-btn-sm store-stop-btn mb-2"
+                            data-leg-id="{{ leg.id }}" data-store-event="store-arrived">
+                      <i class="bi bi-cart"></i> Actually stopping
+                    </button>
+                  {% else %}
+                    <button class="gt-btn gt-btn-ghost gt-btn-block gt-btn-sm store-stop-btn mb-2"
+                            data-leg-id="{{ leg.id }}" data-store-event="store-arrived">
+                      <i class="bi bi-cart"></i> Stopping at Publix
+                    </button>
+                  {% endif %}
+
                   <div class="gt-review-reminder gt-review-reminder-active mb-2">
                     <div class="gt-review-stars mb-2">
                       <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>

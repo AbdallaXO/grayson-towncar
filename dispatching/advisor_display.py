@@ -445,7 +445,11 @@ def _clear_dt(board, leg, slot=None, leg_id=None, detection=False):
             src = _slot_leg_shim(slot)
         if src is not None:
             try:
-                return chain_clear_dt_from_actual(src, picked)
+                # Store taps sharpen this further still — and the shim carries no
+                # history, so the resolved state has to be handed in.
+                return chain_clear_dt_from_actual(
+                    src, picked,
+                    store_state=(getattr(board, "store_by_leg", None) or {}).get(lid))
             except Exception:
                 pass
     if slot is not None and getattr(slot, "chain_clear_dt", None):

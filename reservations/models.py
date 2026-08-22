@@ -3267,6 +3267,14 @@ class LegStatus(models.Model):
         ('on-the-way', 'On the Way'),
         ('on-location', 'On Location'),
         ('picked-up', 'Picked Up'),
+        # Mid-trip store stop. These are history-only: they never become
+        # `Leg.status`, which stays "picked-up" from the moment the guest is in
+        # the car until "completed". They exist so the board can tell the
+        # difference between a van sitting in a Publix car park and one already
+        # pulling up to the resort — see dispatching/store_stop.py.
+        ('store-arrived', 'At Store'),
+        ('store-departed', 'Left Store'),
+        ('store-skipped', 'Store Stop Skipped'),
         ('completed', 'Completed'),
     ]
 

@@ -38,6 +38,7 @@ from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
 from . import quote_engine
 from . import pickup_policy
+from . import store_stop
 from django.templatetags.static import static
 from drivers.models import (
     Driver,
@@ -1125,8 +1126,14 @@ def schedule_board(request):
     # Status map
     _now = timezone.now()
     _leg_status_map = {}
+    # Store stop as RECORDED, resolved off the same prefetched trail (no extra
+    # queries). Feeds the pill's clearing read-out: once a driver taps his way
+    # through a Publix stop, the board stops guessing at a flat 25 minutes.
+    _store_state_map = {}
     for leg in all_legs:
         _sh_list = list(leg.status_history.all())
+        _store_state_map[leg.id] = store_stop.resolve_store_state(
+            leg, status_rows=_sh_list)
         if _sh_list:
             _latest = _sh_list[0]
             _local_ts = timezone.localtime(_latest.timestamp)
@@ -1299,9 +1306,32 @@ def schedule_board(request):
                 _expected_dt, _deadline_basis = pickup_policy.pickup_expected_dt(
                     _risk_leg_src, aware=False)
                 _flight_gated = _risk_leg_src.is_flight_tracked_arrival()
+            # ── Live clearing (the "second clearing time") ───────────────────
+            # Until the guest is aboard, the clear time is a forecast off the
+            # flight. After the pickup tap it is arithmetic off what the driver
+            # actually did — and every store tap sharpens it further. Drawing the
+            # forecast instead is what let a van that had been rolling since 1:27
+            # occupy the board until 2:55, and what raised CRITICAL conflict tasks
+            # about turns the driver was comfortably going to make.
+            _picked_dt = (_sinfo.get('picked_up_dt') if _sinfo else None)
+            _store = _store_state_map.get(slot.leg_id)
+            _est_end = slot.estimated_end_time
+            if (_risk_leg_src is not None and _picked_dt is not None
+                    and slot.status not in ('completed', 'cancelled')):
+                try:
+                    from dispatching.scheduler import chain_clear_dt_from_actual
+                    _est_end = chain_clear_dt_from_actual(
+                        _risk_leg_src, _picked_dt, store_state=_store)
+                except Exception:
+                    _est_end = slot.estimated_end_time
+            slot.store_phase = _store.phase if _store else 'none'
+            slot.store_note = store_stop.describe(_store) or '' if _store else ''
+            slot.store_adhoc = bool(_store and _store.adhoc)
+            slot.clearing_is_live = _est_end is not slot.estimated_end_time
+
             _span = _truthful_pill_span(
                 sched_start_dt=datetime.combine(selected_date, slot.pickup_time),
-                est_end_dt=slot.estimated_end_time,
+                est_end_dt=_est_end,
                 status=slot.status,
                 trip_type=slot.trip_type,
                 picked_up_dt=(_sinfo.get('picked_up_dt') if _sinfo else None),

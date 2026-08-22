@@ -223,6 +223,7 @@ class BoardState:
     driver_vtypes: dict = field(default_factory=dict)
     sharer_partners: dict = field(default_factory=dict)
     picked_up_by_leg: dict = field(default_factory=dict) # {leg_id: naive local earliest tap}
+    store_by_leg: dict = field(default_factory=dict)     # {leg_id: StoreStopState}
     vip_leg_ids: set = field(default_factory=set)
     pending_refund_leg_ids: set = field(default_factory=set)
     keoi_leg_ids: set = field(default_factory=set)
@@ -443,6 +444,11 @@ def build_board_state(target_date, now=None):
                 picked_up_by_leg[l.id] = (
                     timezone.localtime(sh.timestamp).replace(tzinfo=None))
 
+    # Publix stop as recorded, not as booked. Query-free: status_history is
+    # already prefetched above, which is the same trail the pickup taps ride.
+    from dispatching.store_stop import store_states_for_legs
+    store_by_leg = store_states_for_legs(legs)
+
     vip_leg_ids = {l.id for l in legs if l.is_vip}
     pending_refund_leg_ids = {l.id for l in legs
                               if getattr(l, "has_pending_refund", False)}
@@ -467,10 +473,12 @@ def build_board_state(target_date, now=None):
         drivers_by_id=drivers_by_id, windows=windows,
         window_sources=window_sources, vehicle_caps=vehicle_caps,
         driver_vtypes=driver_vtypes, sharer_partners=sharer_partners,
-        picked_up_by_leg=picked_up_by_leg, vip_leg_ids=vip_leg_ids,
+        picked_up_by_leg=picked_up_by_leg, store_by_leg=store_by_leg,
+        vip_leg_ids=vip_leg_ids,
         pending_refund_leg_ids=pending_refund_leg_ids, keoi_leg_ids=keoi_leg_ids,
         open_tasks_by_leg=open_tasks_by_leg,
-        baseline_bands=board_turn_bands(schedules, target_date),
+        baseline_bands=board_turn_bands(schedules, target_date,
+                                        store_states=store_by_leg),
         prev_tail=_load_prev_tail(target_date, schedules),
     )
     return board
@@ -523,7 +531,8 @@ def _load_prev_tail(target_date, schedules):
 # THE ONE CLOCK-SELECTION FUNCTION (hazard guard 1)
 # ════════════════════════════════════════════════════════════════════════════
 
-def advisor_clear_dt(leg, target_date, picked_up_dt=None, mode="detection"):
+def advisor_clear_dt(leg, target_date, picked_up_dt=None, mode="detection",
+                     store_state=None):
     """When does this leg release its driver, on the requested clock?
 
     The verified state matrix — the ONLY clock selection the advisor uses:
@@ -556,15 +565,15 @@ def advisor_clear_dt(leg, target_date, picked_up_dt=None, mode="detection"):
     except Exception:
         pass  # bare/synthetic legs without flight plumbing: not ambiguous
     if status == "picked-up" and picked_up_dt is not None:
-        actual = chain_clear_dt_from_actual(leg, picked_up_dt)
+        actual = chain_clear_dt_from_actual(leg, picked_up_dt, store_state=store_state)
         if mode == "detection":
             return actual
-        return max(chain_clear_dt(leg, target_date), actual)
-    return chain_clear_dt(leg, target_date)
+        return max(chain_clear_dt(leg, target_date, store_state=store_state), actual)
+    return chain_clear_dt(leg, target_date, store_state=store_state)
 
 
 def planning_clock_schedules(schedules, legs_by_id, picked_up_by_leg,
-                             target_date):
+                             target_date, store_by_leg=None):
     """Guard 1, planning half: a schedules map re-anchored on the PLANNING
     clock — every slot whose leg is under way with a recorded tap clears at
     ``advisor_clear_dt(mode='planning')`` = max(static, actual), so future
@@ -587,7 +596,8 @@ def planning_clock_schedules(schedules, legs_by_id, picked_up_by_leg,
             if picked is not None and leg is not None:
                 plan_dt = advisor_clear_dt(leg, target_date,
                                            picked_up_dt=picked,
-                                           mode="planning")
+                                           mode="planning",
+                                           store_state=(store_by_leg or {}).get(s.leg_id))
                 if plan_dt is not None and (s.chain_clear_dt is None
                                             or plan_dt > s.chain_clear_dt):
                     s = _dc_replace(s, chain_clear_dt=plan_dt)
@@ -610,11 +620,13 @@ def _planning(board):
 
     scheds = planning_clock_schedules(board.schedules, board.legs_by_id,
                                       board.picked_up_by_leg,
-                                      board.target_date)
+                                      board.target_date,
+                                      store_by_leg=board.store_by_leg)
     if scheds is board.schedules and board.baseline_bands:
         bands = board.baseline_bands
     else:
-        bands = board_turn_bands(scheds, board.target_date)
+        bands = board_turn_bands(scheds, board.target_date,
+                                 store_states=board.store_by_leg)
     board._planning_scheds, board._planning_bands = scheds, bands
     board._planning_built = True
     return scheds, bands
@@ -1266,9 +1278,11 @@ def _detect_overlaps(board, out, claimed_prev_ids):
         board_turn_bands, turn_slack_minutes, _slot_leg_shim)
 
     detection = board_turn_bands(board.schedules, board.target_date,
-                                 picked_up_by_leg=board.picked_up_by_leg)
+                                 picked_up_by_leg=board.picked_up_by_leg,
+                                 store_states=board.store_by_leg)
     baseline = board.baseline_bands or board_turn_bands(board.schedules,
-                                                        board.target_date)
+                                                        board.target_date,
+                                                        store_states=board.store_by_leg)
 
     def _consider(driver_id, prev_slot_leg_id, next_leg_id, slack,
                   planning_slack, prev_picked, cross_midnight=False):

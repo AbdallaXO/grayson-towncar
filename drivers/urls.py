@@ -43,6 +43,11 @@ urlpatterns = [
         name="update_leg_status",
     ),
     path(
+        "update_leg_store_stop/<int:leg_id>/",
+        views.update_leg_store_stop,
+        name="update_leg_store_stop",
+    ),
+    path(
         "accept_job/<int:leg_id>/",
         views.accept_job,
         name="accept_job",

@@ -80,6 +80,17 @@ DRIVE_TIME_ESTIMATES = {
     ('Port Canaveral Area', 'Other Hotel'): 55,
 }
 
+# Publix waypoint hops (dispatching/store_stop.py). Merged in rather than typed
+# out here so the store-stop model owns its own numbers, but folded into the same
+# dict so every existing lookup — including resolve_drive_minutes and the
+# breakdown diagnostics — can price a grocery detour without special-casing it.
+# 'Publix Store' is never a leg pickup or dropoff, so categorize_location is
+# deliberately not taught about it. store_stop imports scheduler only inside
+# function bodies, so this direction is cycle-free.
+from dispatching.store_stop import PUBLIX_DRIVE_ESTIMATES as _PUBLIX_DRIVE_ESTIMATES
+
+DRIVE_TIME_ESTIMATES.update(_PUBLIX_DRIVE_ESTIMATES)
+
 DEFAULT_DRIVE_TIME = 35  # fallback for unknown routes
 
 # Live-distance fallback. The category table above only knows Orlando landmarks; a stop it
@@ -768,7 +779,38 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str,
     return 45  # Default: 45 min airport dwell (flight land → bags → walk → in car)
 
 
-PUBLIX_STOP_MINUTES = 25  # Extra time for grocery store stop
+PUBLIX_STOP_MINUTES = 25  # DEPRECATED flat constant — see _store_stop_minutes below.
+
+
+def _store_stop_minutes(leg, pickup_cat, dropoff_cat, state=None):
+    """Extra minutes a grocery stop adds on top of the DIRECT drive already priced.
+
+    Callers here have all committed to `dwell + direct_drive + X`, so this returns
+    X — the difference between driving airport→Publix→resort and driving
+    airport→resort — rather than the whole in-job time. That keeps the shape of
+    every existing formula (and its breakdown string) intact while replacing the
+    flat 25 with the real detour.
+
+    Deliberately a STATIC differential: `direct_drive` at the call sites is
+    sometimes a live RouteTimingMetric p75, and subtracting a p75 from a
+    table-priced route mixes two clocks and can go negative — which would make a
+    store stop cost nothing.
+
+    Returns 0 when the driver has told us there is no stop, which is the half of
+    this the booking flag could never express.
+    """
+    from dispatching.store_stop import detour_minutes, resolve_store_state
+
+    if state is None:
+        try:
+            state = resolve_store_state(leg)
+        except Exception:
+            # Synthetic/bare legs with no history: fall back to the shipped flag.
+            res = getattr(leg, 'reservation', None)
+            if res is not None and getattr(res, 'store_stop', False):
+                return PUBLIX_STOP_MINUTES
+            return 0
+    return detour_minutes(pickup_cat, dropoff_cat, state)
 
 # RETROSPECTIVE-EVAL ONLY. When True, _get_best_flight_arrival returns the SCHEDULED (decision-time)
 # flight arrival instead of best_arrival_local() (estimated/actual = hindsight). The live scheduler /
@@ -850,9 +892,7 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
         # red-eyes (landing just after midnight) aren't pulled ~24h early.
         start_dt = _anchor_flight_dt(flight_dt, pickup_dt) if flight_dt else pickup_dt
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
-        store_stop_minutes = 0
-        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
-            store_stop_minutes = PUBLIX_STOP_MINUTES
+        store_stop_minutes = _store_stop_minutes(leg, pickup_cat, dropoff_cat)
         return start_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop_minutes)
 
     # Cruise legs picking up from airport (MCO → Cruise Port) need dwell time too
@@ -896,9 +936,14 @@ def get_clearing_breakdown(leg, target_date: date) -> dict:
     if trip_type == 'arrival':
         flight_dt = _get_best_flight_arrival(leg)
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
-        store_stop = 0
-        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
-            store_stop = PUBLIX_STOP_MINUTES
+        from dispatching.store_stop import (
+            PUBLIX_CATEGORY, PUBLIX_DWELL_MINUTES, describe, resolve_store_state,
+        )
+        try:
+            store_state = resolve_store_state(leg)
+        except Exception:
+            store_state = None
+        store_stop = _store_stop_minutes(leg, pickup_cat, dropoff_cat, state=store_state)
 
         start_dt = _anchor_flight_dt(flight_dt, pickup_dt) if flight_dt else pickup_dt
         end_dt = start_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop)
@@ -909,6 +954,16 @@ def get_clearing_breakdown(leg, target_date: date) -> dict:
         breakdown['pickup_time'] = pickup_dt.strftime('%I:%M %p').lstrip('0')
         breakdown['dwell_minutes'] = dwell_minutes
         breakdown['store_stop_minutes'] = store_stop
+        # Segmented view of that one number, so a dispatcher diagnosing a clear
+        # time can see WHICH half is wrong — the detour or the shopping.
+        if store_stop:
+            breakdown['drive_to_store'] = DRIVE_TIME_ESTIMATES.get(
+                (pickup_cat, PUBLIX_CATEGORY))
+            breakdown['drive_from_store'] = DRIVE_TIME_ESTIMATES.get(
+                (PUBLIX_CATEGORY, dropoff_cat))
+            breakdown['store_dwell_minutes'] = PUBLIX_DWELL_MINUTES
+        breakdown['store_phase'] = store_state.phase if store_state else 'none'
+        breakdown['store_note'] = describe(store_state) if store_state else None
         breakdown['clearing_time'] = end_dt.strftime('%I:%M %p').lstrip('0')
         breakdown['total_minutes'] = dwell_minutes + drive_minutes + store_stop
         breakdown['formula'] = (
@@ -962,7 +1017,7 @@ def _arrival_static_floor_dt(pickup_time, pickup_category, dropoff_category, tar
         minutes=STATIC_FLOOR_DWELL_MIN + drive)
 
 
-def chain_clear_dt(leg, target_date: date) -> datetime:
+def chain_clear_dt(leg, target_date: date, store_state=None) -> datetime:
     """Clear time used for CHAIN feasibility (CHAIN_STATIC_TIMING — the founder's
     planning model): pickup + 45-min dwell (arrivals and airport-pickup cruises) +
     category-table drive (+ Publix stop), with the anchor pushed LATER by a live flight
@@ -984,16 +1039,14 @@ def chain_clear_dt(leg, target_date: date) -> datetime:
             anchored = _anchor_flight_dt(flight_dt, anchor)
             if anchored > anchor:
                 anchor = anchored
-        if (getattr(leg, 'reservation', None) is not None
-                and getattr(leg.reservation, 'store_stop', False)):
-            store_stop = PUBLIX_STOP_MINUTES
+        store_stop = _store_stop_minutes(leg, pickup_cat, dropoff_cat, state=store_state)
     elif trip == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
         dwell = STATIC_FLOOR_DWELL_MIN
     return anchor + timedelta(minutes=dwell + drive + store_stop)
 
 
-def chain_clear_dt_from_actual(leg, actual_pickup_dt) -> datetime:
-    """chain_clear_dt re-anchored on the RECORDED pickup time.
+def chain_clear_dt_from_actual(leg, actual_pickup_dt, store_state=None) -> datetime:
+    """chain_clear_dt re-anchored on what the driver has actually recorded.
 
     Once the guest is in the car the dwell is no longer an estimate — it happened —
     so all that remains is the in-job drive (plus any Publix stop). A driver who
@@ -1001,21 +1054,36 @@ def chain_clear_dt_from_actual(leg, actual_pickup_dt) -> datetime:
     planning model, and the board should say so instead of insisting he clears at
     the modelled time.
 
-    DISPLAY ONLY, and only for a leg that is genuinely under way. Planning paths
-    (auto-assign, feasibility, swaps) must keep using chain_clear_dt(): there the
-    45-min dwell is protective, and optimism seats jobs that cannot be done — the
-    same reason chain_clear_dt never lets an early-trending flight pull it earlier.
+    The store stop works the same way, one tap at a time. Each thing the driver
+    records retires a guess, so this returns a SHARPER number as the trip runs:
+
+        picked up only   → pickup + detour + shopping + drive
+        tapped At Publix → store arrival + shopping + drive-from-store
+        tapped Leaving   → store departure + drive-from-store
+        tapped No stop   → pickup + the direct drive, store gone entirely
+
+    That last line matters as much as the others: the founder's guests skip the
+    stop and add it last-minute, so a booking checkbox is not evidence about a
+    trip already under way.
+
+    DISPLAY AND DETECTION ONLY. Planning paths (auto-assign, feasibility, swaps)
+    must keep using chain_clear_dt(): there the 45-min dwell is protective, and
+    optimism seats jobs that cannot be done — the same reason chain_clear_dt
+    never lets an early-trending flight pull it earlier.
     """
     from dispatching.analytics import categorize_location
+    from dispatching.store_stop import clear_dt_from_pickup, resolve_store_state
+
     pickup_cat = categorize_location(leg.pickup_location)
     dropoff_cat = categorize_location(leg.dropoff_location)
-    drive = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat), DEFAULT_DRIVE_TIME)
-    store_stop = 0
-    if (leg.get_trip_type() == 'arrival'
-            and getattr(leg, 'reservation', None) is not None
-            and getattr(leg.reservation, 'store_stop', False)):
-        store_stop = PUBLIX_STOP_MINUTES
-    return actual_pickup_dt + timedelta(minutes=drive + store_stop)
+    if store_state is None:
+        try:
+            store_state = resolve_store_state(leg)
+        except Exception:
+            store_state = None
+    clear_dt, _basis = clear_dt_from_pickup(
+        pickup_cat, dropoff_cat, actual_pickup_dt, store_state)
+    return clear_dt
 
 
 def chain_repo_needs_real_distance(from_category, to_category) -> bool:

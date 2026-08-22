@@ -140,12 +140,60 @@ def _get_flight_priority(mismatch_minutes, days_until):
     return _PRIORITY_MATRIX.get((severity, bucket), OperationalTask.Priority.MEDIUM)
 
 
+def _recorded_pickup_dt(leg):
+    """Earliest "picked-up" tap for this leg as naive local time, or None.
+
+    Costs no query where `status_history` is prefetched, which every caller in
+    this module now arranges.
+    """
+    from django.utils import timezone
+
+    if str(getattr(leg, "status", "") or "") not in ("picked-up", "completed"):
+        return None
+    try:
+        rows = list(leg.status_history.all())
+    except Exception:
+        return None
+    stamps = [r.timestamp for r in rows if r.status == "picked-up" and r.timestamp]
+    if not stamps:
+        return None
+    earliest = min(stamps)
+    return (timezone.localtime(earliest).replace(tzinfo=None)
+            if timezone.is_aware(earliest) else earliest)
+
+
 def _estimate_leg_end_time(leg, target_date):
     """
-    Estimate when a driver finishes a leg. Reuses the existing scheduling engine.
+    Estimate when a driver finishes a leg.
+
+    TWO CLOCKS, the same split dispatching.conflict_advisor.advisor_clear_dt keeps:
+
+      * A leg NOT yet under way is a prediction, so it keeps the engine's
+        `estimate_job_end_time` — flight-anchored, dwell included, unchanged.
+      * A leg WITH a recorded pickup is re-anchored on what the driver actually
+        did, including any store taps.
+
+    That second branch is why this function was rewritten. A driver who tapped
+    "Picked Up" at 1:27 PM on a flight that landed at 12:59 was still being priced
+    as busy until 2:55 — flight + 45 min dwell + drive + a flat 25-minute Publix
+    guess, none of which was still in his future. The scanner then "found" a
+    conflict with his 3:08 PM arrival and raised a CRITICAL task about a turn he
+    was comfortably going to make. Detection has to read the clock reality is on;
+    planning (auto-assign, feasibility, swaps) stays pessimistic elsewhere.
+
     Falls back to pickup_time + FALLBACK_TRIP_DURATION_MINUTES if the scheduler
-    function is unavailable.
+    is unavailable.
     """
+    actual_pickup = _recorded_pickup_dt(leg)
+    if actual_pickup is not None:
+        try:
+            from dispatching.scheduler import chain_clear_dt_from_actual
+            from dispatching.store_stop import resolve_store_state
+            return chain_clear_dt_from_actual(
+                leg, actual_pickup, store_state=resolve_store_state(leg))
+        except Exception:
+            pass  # fall through to the prediction rather than lose the check
+
     try:
         from dispatching.scheduler import estimate_job_end_time
         return estimate_job_end_time(leg, target_date)
@@ -318,6 +366,7 @@ def _prior_same_driver_leg(leg, target_date):
         .exclude(reservation__status="cancelled")
         .filter(pickup_time__lte=leg.pickup_time)
         .select_related("flight_information", "reservation", "reservation__customer")
+        .prefetch_related("status_history")
         .order_by("-pickup_time")
         .first()
     )
@@ -376,6 +425,9 @@ def detect_driver_conflicts(leg, target_date):
         .exclude(status__in=["completed", "cancelled"])
         .exclude(reservation__status="cancelled")
         .select_related("flight_information", "reservation", "reservation__customer")
+        # _estimate_leg_end_time reads the pickup + store taps off this trail;
+        # without the prefetch that is two queries per leg on every scan.
+        .prefetch_related("status_history")
         .order_by("pickup_time")
     )
 
@@ -833,6 +885,7 @@ def _scan_driver_overlaps():
             "flight_information",
             "reservation", "reservation__customer",
         )
+        .prefetch_related("status_history")
         .order_by("driver_id", "pickup_time")
     )
 

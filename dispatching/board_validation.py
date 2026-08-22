@@ -50,7 +50,7 @@ from datetime import datetime, timedelta
 # ════════════════════════════════════════════════════════════════════════════
 
 def turn_slack_minutes(prev_slot, next_slot, target_date, prev_leg=None,
-                       prev_picked_up_dt=None):
+                       prev_picked_up_dt=None, prev_store_state=None):
     """Real turnaround slack (minutes) between two consecutive slots of one driver.
 
         slack = next pickup - (prev clear + required_turnaround)
@@ -83,7 +83,8 @@ def turn_slack_minutes(prev_slot, next_slot, target_date, prev_leg=None,
         return None
     try:
         if prev_leg is not None and prev_picked_up_dt is not None:
-            prev_end = chain_clear_dt_from_actual(prev_leg, prev_picked_up_dt)
+            prev_end = chain_clear_dt_from_actual(
+                prev_leg, prev_picked_up_dt, store_state=prev_store_state)
         else:
             prev_end = _slot_chain_end(prev_slot, target_date)
         next_pickup = datetime.combine(target_date, next_slot.pickup_time)
@@ -118,7 +119,8 @@ def _slot_leg_shim(slot):
     )
 
 
-def board_turn_bands(schedules, target_date, picked_up_by_leg=None):
+def board_turn_bands(schedules, target_date, picked_up_by_leg=None,
+                     store_states=None):
     """Sweep ``turn_slack_minutes`` over every adjacent slot pair of every driver.
 
     schedules: {driver_id: DriverDaySchedule} (scheduler.build_driver_schedules).
@@ -135,6 +137,7 @@ def board_turn_bands(schedules, target_date, picked_up_by_leg=None):
     from dispatching import pickup_policy
 
     picked = picked_up_by_leg or {}
+    stores = store_states or {}
     bands = {}
     for did, sched in schedules.items():
         slots = sorted(sched.slots, key=lambda s: (s.pickup_time, s.leg_id))
@@ -144,6 +147,9 @@ def board_turn_bands(schedules, target_date, picked_up_by_leg=None):
                 prev_slot, next_slot, target_date,
                 prev_leg=(_slot_leg_shim(prev_slot) if picked_dt is not None else None),
                 prev_picked_up_dt=picked_dt,
+                # The shim is built from a slot and has no status history, so a
+                # recorded store stop can only reach the math by being handed in.
+                prev_store_state=stores.get(prev_slot.leg_id),
             )
             bands[(did, prev_slot.leg_id, next_slot.leg_id)] = {
                 "slack": slack, "band": pickup_policy.turn_band(slack),

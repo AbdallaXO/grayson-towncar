@@ -16,7 +16,7 @@ from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from dispatching.aeroapi_service import AeroAPIService
 import json
 import os
@@ -292,7 +292,7 @@ def index(request):
             "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
         )
-        .prefetch_related("reservation__legs")
+        .prefetch_related("reservation__legs", "status_history")
         .filter(driver=driver, pickup_date=selected_date)
         .order_by("pickup_time")
     )
@@ -301,10 +301,19 @@ def index(request):
     today = timezone.localdate()
     legs_list = list(legs)
 
+    from dispatching.store_stop import describe as _store_describe, resolve_store_state
+
     for leg in legs_list:
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
         leg.eta = _compute_eta_string(leg.pickup_date, leg.pickup_time, now, today)
+        # Store stop, as recorded so far. `store_phase` drives which button the
+        # driver sees next; it rides the status_history prefetch above, so this
+        # costs no extra query.
+        store = resolve_store_state(leg)
+        leg.store_state = store
+        leg.store_phase = store.phase
+        leg.store_note = _store_describe(store)
 
     # ── Flight delay alerts ──
     for leg in legs_list:
@@ -541,6 +550,84 @@ def update_leg_status(request, leg_id):
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def update_leg_store_stop(request, leg_id):
+    """Record the grocery stop as it happens: At Publix / Left Publix / No stop.
+
+    Writes a LegStatus row and NOTHING else. In particular:
+
+      * `Leg.status` is untouched — it stays "picked-up" for the whole stop.
+        Around sixty files filter, colour and count off that field, and a guest
+        standing in an aisle is still picked up by every one of those measures.
+      * `Reservation.store_stop` is untouched, even when the driver adds a stop
+        the booking never asked for. That flag is tied to what the guest was
+        quoted, and a driver tap must not silently create or cancel a charge.
+        The ad-hoc stop shows up for dispatch instead (store_stop.StoreStopState.adhoc).
+
+    Why this exists: the clearing time between "picked up" and "completed" used
+    to be a flat 25-minute guess bolted onto the direct drive, which is what let
+    the board insist a driver was busy until 2:55 when he had been rolling since
+    1:27. Each tap here replaces a guess with a fact.
+    """
+    from dispatching.store_stop import (
+        STATUS_ARRIVED, STATUS_DEPARTED, STATUS_SKIPPED, describe,
+        resolve_store_state,
+    )
+
+    try:
+        leg = get_object_or_404(Leg, id=leg_id, driver__profile=request.user)
+
+        data = json.loads(request.body)
+        event = data.get("event")
+        if event not in (STATUS_ARRIVED, STATUS_DEPARTED, STATUS_SKIPPED):
+            return JsonResponse(
+                {"success": False, "error": "Invalid store stop event"}, status=400
+            )
+
+        # The stop lives between pickup and drop-off, so it can only be recorded
+        # once the guest is aboard. Guarding here keeps the timing model honest:
+        # an arrival stamped before the pickup would anchor the clear time to a
+        # moment the trip hadn't started.
+        if leg.status not in ("picked-up", "completed"):
+            return JsonResponse(
+                {"success": False,
+                 "error": "Mark the guest picked up first."}, status=409
+            )
+
+        state = resolve_store_state(leg)
+        if event == STATUS_DEPARTED and not state.arrived_at:
+            return JsonResponse(
+                {"success": False,
+                 "error": "Tap 'At Publix' first."}, status=409
+            )
+
+        LegStatus.objects.create(
+            leg=leg,
+            status=event,
+            updated_by=request.user,
+            timestamp=timezone.now(),
+        )
+
+        state = resolve_store_state(leg, status_rows=list(leg.status_history.all()))
+        return JsonResponse({
+            "success": True,
+            "event": event,
+            "phase": state.phase,
+            "adhoc": state.adhoc,
+            "note": describe(state),
+        })
+
+    except Http404:
+        # A leg that isn't this driver's must stay a 404. Swallowing it into the
+        # blanket 500 below would turn "not yours" into "server broke".
+        raise
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 

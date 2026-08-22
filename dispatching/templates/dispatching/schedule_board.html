@@ -1026,6 +1026,9 @@
                          data-time="{{ slot.pickup_time|time:'g:i A' }}"
                          data-cleared="{{ slot.end_time_display }}"
                          data-cleared-actual="{{ slot.cleared_is_actual|yesno:'1,0' }}"
+                         data-cleared-live="{{ slot.clearing_is_live|yesno:'1,0' }}"
+                         data-store-note="{{ slot.store_note }}"
+                         data-store-adhoc="{{ slot.store_adhoc|yesno:'1,0' }}"
                          data-late-mins="{{ slot.late_start_mins }}"
                          data-actual-pickup="{{ slot.actual_pickup_display }}"
                          data-overrun-mins="{{ slot.overrun_mins }}"
@@ -1273,11 +1276,23 @@
           html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="color:'+sc+';">'+statusHtml+'</span></div>';
         }
         // Clearing read-out — reality once we know it (no tilde), estimate while projected.
+        // A LIVE clearing sits between the two: still a projection, but anchored on the
+        // driver's own taps (pickup, and each Publix tap) rather than on the flight, so
+        // it earns the "from his taps" note instead of reading like a pure forecast.
         var _clearedActual = el.dataset.clearedActual === '1';
+        var _clearedLive = el.dataset.clearedLive === '1';
         if (el.dataset.cleared) {
           html += '<div class="tl-popup-row"><span class="tl-label">'+(_clearedActual ? 'Cleared' : 'Clearing')+'</span>'
-               +  '<span class="tl-value"'+(_clearedActual ? ' style="color:#059669;font-weight:700;"' : '')+'>'
-               +  (_clearedActual ? '' : '~')+el.dataset.cleared+'</span></div>';
+               +  '<span class="tl-value"'+(_clearedActual ? ' style="color:#059669;font-weight:700;"' : (_clearedLive ? ' style="color:#0f766e;font-weight:700;"' : ''))+'>'
+               +  (_clearedActual ? '' : '~')+el.dataset.cleared
+               +  (!_clearedActual && _clearedLive ? ' <span style="opacity:0.7;font-weight:400;">from his taps</span>' : '')
+               +  '</span></div>';
+        }
+        if (el.dataset.storeNote) {
+          html += '<div class="tl-popup-row"><span class="tl-label">Store</span>'
+               +  '<span class="tl-value"><i class="bi bi-cart"></i> '+el.dataset.storeNote
+               +  (el.dataset.storeAdhoc === '1' ? ' <span style="color:#b45309;font-weight:700;">(not booked — check billing)</span>' : '')
+               +  '</span></div>';
         }
         var _overrunMins = parseInt(el.dataset.overrunMins || '0', 10);
         if (_overrunMins > 0 && !_clearedActual) {
