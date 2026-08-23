@@ -129,13 +129,24 @@ without stating the assumption.
 | **A0 (done)** | Amended 00 + this document | **Gate 1 — founder approves both. Nothing later starts first.** |
 | **A1** | `02_BENCHMARK_AND_EVIDENCE.md` + committed `analysis/` scripts reproducing every §2 headline from the DB at run time (state-B benchmark, de-phantomed transition stream, standby pool, cap+mint replay, hour-binder, zone chain validation). The session findings become re-runnable — when the data moves, the numbers move. | Gate 2 — scripts reproduce §2 within stated tolerances. |
 | **A2** | `03_STANDBY_AND_HANDOFF_MODEL.md` — the config the optimizer will carry: the zone-labeled handoff chain table (every component tagged [founder-supplied]/[shipped-estimate]/[assumed]; fuel time still **[assumed 5–10 min]** — founder to confirm), the standby eligibility definition, mint rules (soft ≥2 packing, thin-mint flag), the 13.5/15 exception structure, green/amber/red handoff feasibility. | Reviewed with A1. |
-| **A3** | `PLANNER_AND_BUILD_PLAN.md` (Phase 2 of the brief — a spec, no code). Must cover the engineering the sessions proved necessary: **extracting the build pipeline from the 700-line view** into a callable that accepts hypothetical rosters (the six unparameterised call sites + eight view-level ones are enumerated in session evidence); the **co-driver car-share gate** (the bug the verifier caught in replay is the same gap that let unit #14 double-book live); the **apply-path write contract per output field** — including "leave this driver off" (the current Apply cannot delete a DVA row) and held-date behavior (roster writes must not leak live); the surrogate-noise test before any roster ladder ships; server-side enforcement of ≤2 drivers/vehicle-day; alert calibration to D5's 7–8/10 bar; where every config value lives. Explicit non-goals: no auto-apply, no new write surface beyond the specced doors. | **Gate 3 — founder approves the spec. Deviations go back for review, not judgment calls.** |
+| **A3** | `PLANNER_AND_BUILD_PLAN.md` (Phase 2 of the brief — a spec, no code). Must cover the engineering the sessions proved necessary: **extracting the build pipeline from the 700-line view** into a callable that accepts hypothetical rosters (the six unparameterised call sites + eight view-level ones are enumerated in session evidence); the **co-driver car-share gate** (the replay verifier proved its absence mints physically impossible plans — ~2 legs/day of them — so it is a hard prerequisite); the **apply-path write contract per output field** — including "leave this driver off" (the current Apply cannot delete a DVA row) and held-date behavior (roster writes must not leak live); the surrogate-noise test before any roster ladder ships; server-side enforcement of ≤2 drivers/vehicle-day; alert calibration to D5's 7–8/10 bar; where every config value lives. Explicit non-goals: no auto-apply, no new write surface beyond the specced doors. | **Gate 3 — founder approves the spec. Deviations go back for review, not judgment calls.** |
 | **A4** | Phase 3 — the build, into Day Setup, per spec exactly. Dispatcher-visible ⇒ ships with a release note per CLAUDE.md. Browser-tested on a real date. | **Gate 4 — acceptance:** on replayed dates, proposed plans ≥ hand-built board on in-house coverage with 0 hard conflicts, 0 days >15 h, exceptions priced and visible; flagged conflicts ≥70–80% real. |
 
 ### Track B — quick fixes (independent of the big build; small, high-certainty)
 
-1. The plain assign endpoint runs **no feasibility and no share gate** — how unit #14 was
-   double-booked four times on 2026-08-21. Add the existing validation to that path.
+1. The plain assign endpoint runs **no feasibility and no share validation** — established from
+   the code itself [verified 2026-08-23]: `update_leg_assignment`
+   ([views.py:2719](../../dispatching/views.py#L2719)) checks only staff permission and
+   cancelled-status, warns (without blocking) on pending refunds, then calls `set_leg_driver`
+   ([assignment.py:126](../../dispatching/assignment.py#L126)), which routes sandbox-vs-live and
+   writes `leg.driver` — neither layer calls `check_feasibility`, any turn/slack test, any
+   vehicle-share/co-driver check, or any span/rest gate. Adding the existing validation to that
+   path is still the recommended fix, on code grounds alone. *(Correction, 2026-08-23: an
+   apparent quadruple booking of unit #14 on 2026-08-21 was previously cited as this gap's
+   consequence; founder review established it was a **vehicle swap**, not simultaneous use. No
+   incident is attributed to this gap — and rapid same-day driver changes on one unit are a swap
+   signature, not evidence of conflict. That caution applies to any future reading of the
+   assignment history.)*
 2. The `signals.py:751` skip-guard writing phantom assignment rows (30.8% of the trail).
 3. `VEHICLE_SHARE_PAD_MIN` 60 → the zone chain (or at minimum 120, the empirical anchor).
 4. The `'canceled'` one-L spelling gap in `day_setup.py:122`.
