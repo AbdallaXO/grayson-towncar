@@ -5,6 +5,7 @@
 | | |
 |---|---|
 | Produced | 2026-08-21 |
+| Amended | **2026-08-23**, during review — the base correction (§A4.3a), the phantom-auditlog finding (§A4.6), the extinct board build (§B1). See the amendment note under the verdict. |
 | Source | `content/db.sqlite3`, a **live** production copy pulled 2026-08-21 22:17 UTC, opened read-only (`file:...?mode=ro`) throughout |
 | Supersedes | the 2026-08-21 version of this document, which was written against a snapshot frozen at 2026-07-11. **Every figure in it has been re-derived or replaced.** |
 | Prior art reconciled | [`docs/operational-data-audit.md`](../operational-data-audit.md) (2026-07-31) |
@@ -17,6 +18,18 @@ stated assumption), **[modeled]** (output of a model), or **[unavailable]** (the
 ---
 
 ## VERDICT
+
+> **AMENDED 2026-08-23, during review.** Three verification-session findings correct this document;
+> none changes the GO, but two reverse named conclusions. (1) **§A4.3's "there is no base" was a
+> period artifact** — an operational base exists at 6785 Narcoossee Rd, opened ~2026-06-01, ten
+> days before the GPS archive closed; the "busiest day-start cell" that seeded the refutation is
+> its predecessor, a staging residence on Tandori Circle (§A4.3a). (2) **`reservations_auditlog`
+> is unusable for assignment events** — 30.8% of its driver-assignment rows are phantoms written
+> by a signal skip-guard bug (§A4.6). (3) **Board-level auto-assign is extinct in the current
+> regime** (last run 2026-08-10); today's board is hand-built, so the incumbent any redesign must
+> beat is the hand-built board, not this engine's output (§A4.6, §B1). Corrections are marked in
+> place; amendment figures were derived in the 2026-08-23 verification sessions and their scripts
+> land with the revised Phase-1 deliverables.
 
 **GO.** The data supports every Phase 1 deliverable. Four findings change the shape of the work.
 
@@ -396,7 +409,7 @@ instant**, and it starts 2026-03-03. That is the hard floor on any faithful repl
 |---|---|---|---|
 | Leg demand (`pickup_date` / `pickup_time`) | **A** | 2025-04-26 | 99.9% populated. But see §A3 — on arrivals this is the flight time, and it moves. |
 | Driver status taps (`legstatus`) | **A−** | 2026-02-08 | Full-ladder coverage improved to **88.0% overall / 91.0% in-house** (Aug) from 73.2%/80.3% (Feb) [measured]. Affiliates lag badly (§A4.1). |
-| `reservations_auditlog` | **A** | 2026-01-10 | 260,125 rows. Full assignment and status churn history. **New.** |
+| `reservations_auditlog` | **A** for state replay; **F** for assignment row-counts *(amended 2026-08-23)* | 2026-01-10 | 260,125 rows — but **30.8% of driver-assignment rows are no-op phantoms** (§A4.6). Recover assignment history from `historicalleg` transitions, never by counting auditlog rows. |
 | `reservations_historicalleg` | **A** | 2026-03-03 | 208,508 rows, field-level Leg history. Recovers plan-time values. **New.** |
 | Farm-out identification | **A** | 2026-02-08 | `driver.driver_type = 'affiliate'`; agrees with the payment ledger. |
 | Driver pay | **A** | 2025 | The cleanest data in the file. |
@@ -492,6 +505,11 @@ computed by counting rows is wrong by an order of magnitude.
 
 ### A4.3 There is no base — in the code *or* in the geography
 
+> **AMENDED 2026-08-23 — this section's conclusion is a period artifact.** It correctly describes
+> the pre-June world the GPS archive could see; the operating base that exists today is
+> established in §A4.3a below, which supersedes this section's one-tunable-constant
+> recommendation.
+
 The scheduler says so itself ([scheduler.py:133-139](../../dispatching/scheduler.py#L133)): a
 geography-aware split *"needs a base-location concept the engine doesn't have yet."* Confirmed in
 code — no base address, no depot `Location` row, no per-vehicle home yard.
@@ -519,6 +537,54 @@ against the measured same-driver reposition and observed vehicle-handoff distrib
 plainly that its components are unobservable. Do not decompose it — that buys false precision.
 A home-kept fleet also means "return to base" is the wrong mental model entirely for Phase 2: a
 handoff is a **driver-to-driver meet**, not a yard visit.
+
+### A4.3a AMENDMENT (2026-08-23) — the base the data missed
+
+*Written during review, after the founder disclosed the operating base and its process. Figures
+below were derived in the 2026-08-23 verification session; scripts land with the revised Phase-1
+deliverables.*
+
+**There is an operational base: 6785 Narcoossee Rd, Orlando FL 32822** [founder-supplied]. It
+appears nowhere in the code or the database — the only `BASE_LOCATION` in the tree is MCO, a
+pricing anchor ([quote_engine.py:259](../../dispatching/quote_engine.py#L259)) — so §A4.3's code
+half stands. The geography half was correct about what it measured and wrong as an inference:
+
+- **The GPS archive corroborates the base once properly geocoded** [measured]: 12 distinct
+  drivers launched legs from within 500 m of it (36 leg-departures; 21 within 300 m by 10
+  drivers), with a consistent parking cluster ~260 m from the interpolated address point and an
+  hourly peak at **08:00–12:00** — mid-day handoff hours, not the pre-dawn signature of a home.
+- **The base is new — the archive caught only its first ~11 days.** Near-base fixes ran 12 (Mar),
+  14 (Apr), 8 (May), then **91 in the archive's final 11 June days** — a ~25× ramp — exactly as a
+  predecessor staging site went to zero: a **residence at 2601 Tandori Circle** (Mar 173, Apr 149,
+  May 122, **Jun 0**; 16 drivers, 93 first-leg departures, hour peak 04:00–08:00) [measured].
+  Staging moved to Narcoossee around **2026-06-01**; the archive closed 2026-06-11.
+- **§A4.3's "busiest day-start cell" IS Tandori Circle** — a house, 17 km from the base
+  [measured]. The behavioural-base test answered honestly for the world it could see: the
+  pre-June arrangement. The current regime opened 43 days after the archive closed.
+
+**What survives §A4.3:** the fleet is home-kept **overnight** — day-starts are per-driver origins.
+**What changes:** mid-day vehicle handoffs are **base-mediated**, and the founder supplied the
+chain: drop last guest → car wash (MCO→wash 14–17 min, wash 15–20, fuel ~5–10 **[assumed — no
+figure given]**) → base (wash→base ~20; MCO→base 12; Disney/Universal→base ~40); the incoming
+driver waits at base ≥1 h before their own first pickup. Rare house-handoffs exist and are
+handled ad hoc; the system is to be built around the base process [founder-supplied].
+
+**The one-tunable-constant recommendation above is superseded.** The chain decomposes into a
+zone-labeled component table, and it validates against practice [measured, current regime]:
+handoffs occur on 34 of 389 vehicle-days (8.7%), on 21 of 28 dates, never more than two drivers
+per car; pickup-to-pickup gaps n=32: min 72 / P25 182 / P50 220 / P75 286 / P90 394 min. The
+central chain estimate for an MCO drop (car ready ~55–67 min after the last guest steps out;
+MCO→MCO clear-to-pickup ≈ 83 min) sits under the observed median with **~51 min of schedulable
+headroom**; 75% of real handoffs clear it. The observed 72-min floor is the **skip-wash fast
+path** (wash done the evening prior, or handoff at MCO: ≈34 min clear-to-pickup) [inferred], and
+west-side Disney→Disney handoffs rationally bypass the base entirely.
+`VEHICLE_SHARE_PAD_MIN = 60` ([scheduler.py:138](../../dispatching/scheduler.py#L138)) sits near
+the **9th percentile** of observed practice — optimistic roughly nine times in ten. And every
+handoff on record was arranged **by hand**: no scheduler code path writes a
+`DriverVehicleAssignment` row, and `planned_start_hour`/`planned_end_hour` are NULL on all 2,591
+DVA rows — including the founder's own named example (2026-08-20: two pre-planned splits, jobs
+demonstrably shuffled between the pair members to carve the gaps, both AM shifts ending at MCO
+12 min from base, both gaps clearing the full chain with slack).
 
 ### A4.4 What dispatchers actually worry about
 
@@ -592,6 +658,42 @@ of the time; where the chain says he cannot make it at all (negative slack, n=44
 often (36.0%) as the binding one, so slack alone does not predict misses and something else is
 driving the tail.
 
+### A4.6 AMENDMENT (2026-08-23) — the assignment trail writes phantoms
+
+*This is what downgrades the `reservations_auditlog` grade in the §A4 table for assignment events.*
+
+**30.8% of the log's driver-assignment rows record events that never happened** [measured]:
+28,255 of 91,670 `driver_assigned`/`driver_unassigned` rows are no-ops on legs already carrying
+that exact driver, and a further 35.2% carry an `old_value` that disagrees with the replayed
+state. The mechanism is a skip-guard bug:
+[reservations/signals.py:751](../../reservations/signals.py#L751) returns early when a
+`save(update_fields=…)` names neither `status` nor `driver`, so the pre-save snapshot is empty and
+the post-save handler logs a fresh assignment with `old = NULL`. The biggest writer is the nightly
+confirmation-SMS job ([confirmation_sms.py:509](../../dispatching/confirmation_sms.py#L509)),
+whose phantoms arrive in one Twilio-paced burst per day, exactly one day before service, 100%
+"fresh" — **perfectly mimicking a nightly machine build**. Machine and manual writes are
+byte-identical rows (no source string survives a live write), and **Reset Schedule writes nothing
+at all** — queryset `.update()` at
+[views.py:12947](../../dispatching/views.py#L12947)/[12950](../../dispatching/views.py#L12950)
+bypasses both the signal and simple-history.
+
+**The valid assignment stream is `reservations_historicalleg`**: walk each leg ordered by
+`(id, history_date, history_id)` and emit a transition wherever `driver_id` changes — 48,278
+clean, authored, timestamped events from 2026-03-03 under the §A6 filters. On that stream the
+machine-vs-human burst signature is cleanly bimodal (server loops write 0.03–0.09 s per leg,
+humans act ~30 s apart; the 0.5–2 s valley holds 1.3% of gaps).
+
+**And on that stream, board-level auto-assign is extinct** [measured]: a whole-board build appears
+on 18 of 155 dates ever and **1 of 28 current-regime dates** (2026-08-10 — also the last on
+record), corroborated independently by the 45 `before_auto_assign` snapshots and the 12
+auto-assign draft events, both series stopping the same week. The current board is built **by
+hand**, leg by leg, interleaved with per-driver builder bursts (median 9/day, present on all 28
+current dates). Two consequences: any analysis that counts auditlog rows measures the signal bug,
+not the dispatchers (§A6 gains a rule); and Part B's framing of `auto_assign_drivers` as the
+incumbent board-builder describes a code path dispatchers have effectively stopped invoking —
+which also means the three advisors' cards (§B3), reachable only through that click, have
+effectively stopped appearing (§B1).
+
 ## A5. Assumptions register
 
 | # | Assumption | Basis | If wrong |
@@ -626,6 +728,9 @@ WHERE (l.status IS NULL OR l.status <> 'cancelled')
   demand flag.
 - **Never bound a window with `MIN()`/`MAX()` on `pickup_date`.** Junk dates exist.
 - Anything reading taps additionally needs `pickup_date <= last_actuals_day`.
+- **Never count `reservations_auditlog` assignment rows** *(amended 2026-08-23)* — 30.8% are
+  phantoms (§A4.6). Recover assignment history only from `historicalleg` driver transitions, and
+  read final board state only from `reservations_leg` (Reset Schedule bypasses both trails).
 
 ---
 
@@ -656,6 +761,13 @@ one bit. Each is marked in place below. Every `path:line` was re-checked with `g
 `DAY_SETUP_PEAK_BUFFER = 1` at [day_setup.py:59](../../dispatching/day_setup.py#L59) [verified].
 The comment at [day_setup.py:941](../../dispatching/day_setup.py#L941) records why the raw peak was
 demoted: it *"counts bookings we farm out and **fired on 9 of 23 days**"*.
+
+> **AMENDED 2026-08-23:** the rows above describe live code, but the engine row's caller has gone
+> quiet — board-level `auto_assign_drivers` last ran for any service date on **2026-08-10** and
+> appears on 1 of 28 current-regime dates (§A4.6). The current-regime board is hand-built, leg by
+> leg, with per-driver builder bursts. The three advisors (§B3) are reachable only through that
+> click, so their cards have effectively stopped appearing as well. The incumbent any redesign
+> must beat is therefore the **hand-built board**, not this engine's output.
 
 ## B2. The reconciliation — measured
 
@@ -1104,7 +1216,7 @@ savings; it will not find them. Driver fairness/density remains fully in scope.
 |---|---|
 | Rest Advisor is "built but currently off, default `rest_min_gap_minutes=510`" | **It is ON.** The live singleton carries `rest_min_gap_minutes = 510` **and** `rest_penalty_per_hour = 40`, so both the scorer penalty and the cards are armed [measured]. Any new inter-shift minimum must read this field, not fork it. |
 | Fleet Capacity Intelligence "already has a config-driven margin engine" for buy vs hire vs farm | **The margin functions exist; the decision engine does not.** `VehicleTypeCostProfile`, `simulate_plus_one_vehicle` and `fleet_simulation.py` are documented and unbuilt. There is no cost input anywhere in the schema. |
-| The handoff chain: "return to base (MCO ↔ base ≈ 12 min)" | **There is no base in the code** — no address, no depot row, no per-vehicle yard. But the **GPS shows a behavioural base** (§A4.3): 15 drivers start their day in one ~500 m cell. Model the round trip as one tunable constant anchored on that geography, and state that its components are unobservable. |
+| The handoff chain: "return to base (MCO ↔ base ≈ 12 min)" | **The brief was right, and this row's original correction was wrong** *(amended 2026-08-23)*. The base exists — 6785 Narcoossee Rd, MCO↔base ≈ 12 min confirmed [founder-supplied] — but is invisible to code and DB, and opened ~2026-06-01, after which the GPS archive ran only 11 more days. The "behavioural base" cell this row once cited is the predecessor staging residence on Tandori Circle. See §A4.3a: the chain is decomposable per zone, not one tunable constant. |
 
 ## C3. What is still needed before Phase 2 can start
 
@@ -1155,7 +1267,7 @@ verification pass that only ever confirms is not doing its job.
 | Affiliate rows are vendors, not chauffeurs | **CONFIRMED** | Booked times only, no taps: **32.1%** of affiliate driver-days carry two pickups ≤15 min apart against **3.1%** in-house. |
 | `on-the-way` is a physical departure event | **CORRECTED** | It is a **mixture**: P50 8.4 min after the previous completion, but **31.6% land inside one minute** and **8.0% are negative**. Valid as a percentile over many legs; **invalid per leg**. |
 | Deterministic modelling inflates the peak by synchronising overlaps | **REFUTED** | Re-injecting measured per-leg jitter **raised** the peak (17.05 → 17.49 against a realised 15.88). The hypothesis was wrong; the real cause is that the all-legs model covers legs with no taps, so the comparison was never like-for-like. |
-| There is a de facto base the fleet returns to | **REFUTED** | The busiest cell holds only **12.0%** of 1,006 day-starts, and a driver returns to his **own** modal cell on a median **23.1%** of days. Drivers *touching* a cell is not drivers *based* there. This is a home-kept fleet. |
+| There is a de facto base the fleet returns to | **REFUTED AS TESTED — SUPERSEDED** *(2026-08-23)* | The busiest cell holds only **12.0%** of 1,006 day-starts, and a driver returns to his **own** modal cell on a median **23.1%** of days — the tested hypothesis (an overnight depot visible in day-starts) stays refuted, and the fleet IS home-kept overnight. But the busiest cell is the pre-June staging **residence** (Tandori Circle), and the mid-day handoff base at Narcoossee opened ~2026-06-01, eleven days before the archive closed (§A4.3a). The test measured the world that no longer exists. |
 
 Two methodological rules fell out of this pass and apply to every downstream deliverable:
 
@@ -1185,4 +1297,6 @@ output lands in `analysis/out/`.
 | [`06_challenge.py`](analysis/06_challenge.py) | Adversarial re-computation of the highest-stakes claims by structurally different methods |
 | [`07_new_evidence.py`](analysis/07_new_evidence.py) | The five tables the previous snapshot lacked: `historicalleg`, `auditlog`, `driverlocation`, `schedulesnapshot`, `legkeoi` |
 
-**Phase 1 continues with `DEMAND_AND_UTILIZATION.md` once this document is reviewed.**
+**Phase 1 continues per the revised plan (`01_REVISED_SCOPE_AND_PLAN.md`, next to be produced —
+the 2026-08-23 scope correction re-points the engagement at a Day Setup optimizer) once this
+amended document is reviewed.**
