@@ -147,6 +147,24 @@ class SchedulerSettings(models.Model):
     rest_min_gap_minutes = models.IntegerField(default=510, help_text="Min overnight rest: minutes between a driver's last drop-off (prev day) and his first pickup (next day). 510=8.5h. 0 disables rest scoring + advisories.")
     rest_penalty_per_hour = models.IntegerField(default=40, help_text="Score penalty per hour of overnight-rest deficit, charged ONLY when a leg would become a driver's first pickup of the day (soft — never blocks coverage).")
 
+    # ── Shared-Car Handoff (scheduling redesign, Build 1) ─────────
+    vehicle_share_pad_min = models.IntegerField(
+        default=120,
+        help_text="Shared-car handoff pad: when two drivers hold ONE physical unit "
+                  "for the day, an insert for one must clear the partner's jobs by "
+                  "this many minutes each side. 120 is the empirical anchor from "
+                  "measured handoffs — the retired constant 60 sat near the 9th "
+                  "percentile of real pickup-to-pickup handoff gaps (optimistic "
+                  "nine times in ten).")
+
+    # ── Manual-Assign Warnings (scheduling redesign, Build 1) ─────
+    manual_assign_warnings = models.BooleanField(
+        default=True,
+        help_text="Warn-only validation on the manual assign path (board drag-drop "
+                  "and driver dropdowns): turn-slack and shared-car checks returned "
+                  "as dismissible warnings on the response. NEVER blocks an "
+                  "assignment. Off (0) skips the computation entirely.")
+
     # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
     type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
     type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")

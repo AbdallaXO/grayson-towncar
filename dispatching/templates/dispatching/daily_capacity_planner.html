@@ -1131,6 +1131,29 @@
         z-index: 10001;
         font-size: 0.85rem;
     }
+    /* Advisory warnings for the assignment just made (warn-only validation).
+       Bottom-right, clear of the centered undo toast. Amber edge = warning,
+       muted edge = info. Dismiss via the × or the 30 s timeout. */
+    .dnd-warn-toast {
+        position: fixed; bottom: 72px; right: 20px; z-index: 10002;
+        max-width: 380px; background: #1e293b; color: #fff;
+        border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        font-size: 0.83rem; overflow: hidden;
+    }
+    .dnd-warn-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 8px 12px; font-weight: 600;
+        color: #fbbf24; border-bottom: 1px solid rgba(251,191,36,0.25);
+    }
+    .dnd-warn-close {
+        background: none; border: none; color: #cbd5e1; font-size: 1.1rem;
+        line-height: 1; cursor: pointer; padding: 0 2px;
+    }
+    .dnd-warn-close:hover { color: #fff; }
+    .dnd-warn-row { padding: 8px 12px 8px 10px; border-left: 3px solid transparent; }
+    .dnd-warn-row + .dnd-warn-row { border-top: 1px solid rgba(255,255,255,0.07); }
+    .dnd-warn-warn { border-left-color: #e0a63a; }
+    .dnd-warn-info { border-left-color: #64748b; color: #d7dde6; }
     .dnd-unassigned-row {
         background: repeating-linear-gradient(
             -45deg, transparent, transparent 8px,
@@ -2371,6 +2394,8 @@
                                 <div class="row g-2 mb-3">
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Job Buffer (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="inter_job_buffer" style="width:75px;"></div>
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Arrival Grace (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="arrival_grace_minutes" style="width:75px;" title="Airport arrivals: pax deplane + bags, driver can arrive this many min after flight time"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Share Pad (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="vehicle_share_pad_min" style="width:75px;" title="Shared car (two drivers, one unit): minutes an insert must clear the partner's jobs each side — covers return to base, wash, fuel, drive out. 120 = measured anchor from real handoffs"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Assign Warnings (1/0)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="manual_assign_warnings" min="0" max="1" style="width:75px;" title="Warn-only checks on manual assigns (drag-drop / dropdowns): 1 = on, 0 = off. Never blocks an assignment either way"></div>
                                 </div>
                                 <h6 class="fw-bold mb-2">Auto-Assign Buffer Scores</h6>
                                 <div class="row g-2 mb-3">
@@ -2951,6 +2976,11 @@
             if (data.success || data.status === 'success') {
                 btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Done';
                 btn.style.background = '#1b5e20';
+                // Advisory warnings for this assignment — survive the reload
+                // (rendered as the corner toast by timeline-dnd.js).
+                if (data.warnings && data.warnings.length && window.dndStashAssignWarnings) {
+                    window.dndStashAssignWarnings(data.warnings);
+                }
                 // Fade out the whole suggestion card and reload after a beat
                 const card = btn.closest('.suggested-driver') || btn.closest('.sg-alt-item');
                 if (card) card.style.opacity = '0.5';
@@ -4819,10 +4849,16 @@
             document.querySelectorAll('.tuning-input').forEach(input => {
                 const field = input.dataset.field;
                 if (field in settings) {
-                    input.value = settings[field];
+                    // Boolean flags (e.g. manual_assign_warnings) render as 1/0
+                    // in their number input; the save path posts them back as
+                    // ints, which the endpoint's int() coercion accepts.
+                    const v = settings[field];
+                    input.value = (v === true) ? 1 : (v === false) ? 0 : v;
                 }
                 // Show default as placeholder
                 if (field in tuningDefaults) {
+                    if (tuningDefaults[field] === true) tuningDefaults[field] = 1;
+                    if (tuningDefaults[field] === false) tuningDefaults[field] = 0;
                     input.placeholder = tuningDefaults[field];
                     // Add or update default hint text
                     let hint = input.parentElement.querySelector('.default-hint');

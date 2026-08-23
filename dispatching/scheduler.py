@@ -132,10 +132,11 @@ SPAN_COVERAGE_RESCUE = True
 # Founder rule (2026-06-10): the pad must cover the AM driver RETURNING the car to the
 # warehouse + wash/fuel (~30-40 min after his last clear) + the PM driver's drive OUT to
 # his first pickup — "done by 3:00 means the car is ready at base ~3:30-3:40, first PM
-# job ~4:30". 60 is the founder's minimum; a geography-aware split (car_ready = clear +
-# drive_to_base + service; PM pickup >= car_ready + drive_out) needs a base-location
-# concept the engine doesn't have yet — see the smarter-handoff arc.
-VEHICLE_SHARE_PAD_MIN = 60
+# job ~4:30". The pad lives on SchedulerSettings.vehicle_share_pad_min (default 120,
+# live-editable): the old flat constant of 60 sat near the 9th percentile of measured
+# pickup-to-pickup handoff gaps — optimistic nine times in ten (scheduling redesign,
+# Build 1c). A geography-aware split (car_ready = clear + drive_to_base + service;
+# PM pickup >= car_ready + drive_out) is the Build-2 zone-chain upgrade.
 # Span-trim relocation pass (Span Governor Phase 3): after coverage is settled, actively
 # SHORTEN over-long days — peel a long driver's FIRST or LAST leg (the only span-shrinking
 # legs) onto a driver with room: the founder's "Roberto just starts later" move applied to
@@ -3179,7 +3180,10 @@ def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
     partners = (sharer_partners or {}).get(driver_id)
     if not partners:
         return False
-    pad = timedelta(minutes=VEHICLE_SHARE_PAD_MIN if pad_min is None else pad_min)
+    if pad_min is None:
+        from dispatching.models import SchedulerSettings
+        pad_min = SchedulerSettings.get_settings().vehicle_share_pad_min
+    pad = timedelta(minutes=pad_min)
     start = datetime.combine(target_date, leg.pickup_time) - pad
     end = estimate_job_end_time(leg, target_date) + pad
     for pid in partners:

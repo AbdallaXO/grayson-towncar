@@ -477,6 +477,32 @@
       }
       @keyframes dndToastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
+      /* Advisory warnings for the assignment just made (warn-only validation).
+         Sits ABOVE the undo toast's slot so the two never collide. Same dark
+         base as the undo toast; each row carries an amber (warning) or muted
+         (info) edge. Dismiss via the × or the 30 s timeout. */
+      .dnd-warn-toast {
+          position: fixed; bottom: 72px; right: 20px; z-index: 1061;
+          max-width: 380px; background: #1a2332; color: #fff;
+          border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+          font-size: 0.83rem; border: 1px solid rgba(201,162,39,0.35);
+          animation: dndToastIn 0.2s ease-out; overflow: hidden;
+      }
+      .dnd-warn-head {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 12px; padding: 8px 12px; font-weight: 600; letter-spacing: 0.02em;
+          color: #e8c96a; border-bottom: 1px solid rgba(201,162,39,0.25);
+      }
+      .dnd-warn-close {
+          background: none; border: none; color: #cbd5e1; font-size: 1.1rem;
+          line-height: 1; cursor: pointer; padding: 0 2px;
+      }
+      .dnd-warn-close:hover { color: #fff; }
+      .dnd-warn-row { padding: 8px 12px 8px 10px; border-left: 3px solid transparent; }
+      .dnd-warn-row + .dnd-warn-row { border-top: 1px solid rgba(255,255,255,0.07); }
+      .dnd-warn-warn { border-left-color: #e0a63a; }
+      .dnd-warn-info { border-left-color: #64748b; color: #d7dde6; }
+
       /* ── Live clock + "now" marker ───────────────────────────────────── */
       /* Dark pill against the light header: maximum legibility at a glance without
          a loud accent colour. The only saturated element is a small live-dot. */

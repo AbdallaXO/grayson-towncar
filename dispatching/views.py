@@ -2798,6 +2798,7 @@ def update_leg_assignment(request):
             # live_override -> live + overlay mirror) lives in set_leg_driver —
             # the single front door in dispatching/assignment.py.
             live_override = bool(data.get("live_override"))
+            assign_warnings_list = []
             if value:
                 try:
                     driver = Driver.objects.get(id=value)
@@ -2845,6 +2846,20 @@ def update_leg_assignment(request):
                     logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
                     cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
             use_overlay = (mode == "staged")
+            # Warn-only validation (scheduling redesign, Build 1a): turn slack
+            # + co-driver car-share checks on the assignment just made. NEVER
+            # blocks — the write above already happened; any failure degrades
+            # to no warnings. LIVE writes only: a staged (held-day draft) edit
+            # lives in the overlay, and these checks read committed rows, so
+            # scoring them against the live board would contradict the draft
+            # the dispatcher is looking at (both false alarms and false
+            # silence). Draft-aware warnings are a Build-2+ concern.
+            if value and not use_overlay:
+                try:
+                    from dispatching.assign_warnings import compute_manual_assign_warnings
+                    assign_warnings_list = compute_manual_assign_warnings(leg, driver)
+                except Exception:
+                    logger.exception("manual-assign warnings failed for leg %s", leg_id)
         elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
@@ -2916,6 +2931,10 @@ def update_leg_assignment(request):
             # Tell the caller whether this edit was staged in a draft (held day,
             # granted user) vs written live, so the UI can badge it accordingly.
             response_data["held"] = use_overlay
+            # Advisory warnings for this assignment (Build 1a). New payload key
+            # — additive, safe per the 00 §B3 payload contract; [] on unassign,
+            # with the flag off, or when nothing fired.
+            response_data["warnings"] = assign_warnings_list
         return JsonResponse(response_data)
 
     except Exception as e:

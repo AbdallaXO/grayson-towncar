@@ -595,21 +595,50 @@ class SharerConflictTests(TestCase):
         self.assertTrue(sch.sharers_conflict(
             self._mk_leg(16, 15), 8, {8: {7}}, self._board(), D))
 
-    def test_pad_is_founder_60_minutes(self):
-        # Founder warehouse rule (2026-06-10): return the car + wash/fuel + drive out.
-        # Pin the constant AND the behavior boundary it creates: partner clears 16:00,
-        # so a 16:45 pickup (inside 60, outside the old 30) must conflict, while a
-        # 17:05 pickup (just past clear + 60) must be clean.
-        self.assertEqual(sch.VEHICLE_SHARE_PAD_MIN, 60)
+    def test_pad_default_is_empirical_120(self):
+        # Scheduling redesign Build 1c: the flat 60-min constant sat near the 9th
+        # percentile of measured pickup-to-pickup handoff gaps, so the pad now lives
+        # on SchedulerSettings.vehicle_share_pad_min, default 120 (the empirical
+        # anchor). Pin the default AND the behavior boundary it creates: partner
+        # clears 16:00, so a 17:05 pickup (clean under the old 60) now conflicts,
+        # while an 18:05 pickup (just past clear + 120) is clean.
+        from dispatching.models import SchedulerSettings
+        SchedulerSettings.clear_cache()
+        self.addCleanup(SchedulerSettings.clear_cache)
+        self.assertEqual(
+            SchedulerSettings.get_settings().vehicle_share_pad_min, 120)
+        self.assertTrue(sch.sharers_conflict(
+            self._mk_leg(17, 5), 8, {8: {7}}, self._board(), D))
+        self.assertFalse(sch.sharers_conflict(
+            self._mk_leg(18, 5), 8, {8: {7}}, self._board(), D))
+
+    def test_pad_is_live_editable(self):
+        # The founder can tune the pad without a deploy: drop it to 60 and the
+        # old boundary comes back (16:45 conflicts, 17:05 is clean again).
+        from dispatching.models import SchedulerSettings
+        SchedulerSettings.clear_cache()
+        self.addCleanup(SchedulerSettings.clear_cache)
+        cfg = SchedulerSettings.get_settings()
+        cfg.vehicle_share_pad_min = 60
+        cfg.save()
+        SchedulerSettings.clear_cache()
         self.assertTrue(sch.sharers_conflict(
             self._mk_leg(16, 45), 8, {8: {7}}, self._board(), D))
         self.assertFalse(sch.sharers_conflict(
             self._mk_leg(17, 5), 8, {8: {7}}, self._board(), D))
 
-    def test_clean_evening_job_allowed(self):
-        # 17:30 pickup, well after the partner clears + pad -> fine.
+    def test_explicit_pad_min_still_wins(self):
+        # A caller-passed pad bypasses the setting (the engine's own passes rely
+        # on this for what-if scoring).
+        self.assertTrue(sch.sharers_conflict(
+            self._mk_leg(16, 45), 8, {8: {7}}, self._board(), D, pad_min=60))
         self.assertFalse(sch.sharers_conflict(
-            self._mk_leg(17, 30), 8, {8: {7}}, self._board(), D))
+            self._mk_leg(17, 5), 8, {8: {7}}, self._board(), D, pad_min=60))
+
+    def test_clean_evening_job_allowed(self):
+        # 18:30 pickup, well after the partner clears + pad -> fine.
+        self.assertFalse(sch.sharers_conflict(
+            self._mk_leg(18, 30), 8, {8: {7}}, self._board(), D))
 
     def test_non_sharer_unaffected(self):
         self.assertFalse(sch.sharers_conflict(
