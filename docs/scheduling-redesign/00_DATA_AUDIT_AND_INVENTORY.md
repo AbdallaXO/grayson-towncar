@@ -26,8 +26,10 @@ stated assumption), **[modeled]** (output of a model), or **[unavailable]** (the
 > its predecessor, a staging residence on Tandori Circle (§A4.3a). (2) **`reservations_auditlog`
 > is unusable for assignment events** — 30.8% of its driver-assignment rows are phantoms written
 > by a signal skip-guard bug (§A4.6). (3) **Board-level auto-assign is extinct in the current
-> regime** (last run 2026-08-10); today's board is hand-built, so the incumbent any redesign must
-> beat is the hand-built board, not this engine's output (§A4.6, §B1). Corrections are marked in
+> regime** (last run 2026-08-10); today's board is built driver-by-driver with the per-driver
+> Schedule Builder, scarce tiers first, then manually rebalanced — so the incumbent any redesign
+> must beat is that builder-assisted, hand-finished board, not the whole-board engine's output
+> (§A4.6, §B1). Corrections are marked in
 > place; amendment figures were derived in the 2026-08-23 verification sessions and their scripts
 > land with the revised Phase-1 deliverables.
 
@@ -686,9 +688,14 @@ humans act ~30 s apart; the 0.5–2 s valley holds 1.3% of gaps).
 **And on that stream, board-level auto-assign is extinct** [measured]: a whole-board build appears
 on 18 of 155 dates ever and **1 of 28 current-regime dates** (2026-08-10 — also the last on
 record), corroborated independently by the 45 `before_auto_assign` snapshots and the 12
-auto-assign draft events, both series stopping the same week. The current board is built **by
-hand**, leg by leg, interleaved with per-driver builder bursts (median 9/day, present on all 28
-current dates). Two consequences: any analysis that counts auditlog rows measures the signal bug,
+auto-assign draft events, both series stopping the same week. The current board is built
+**driver-by-driver with the per-driver Schedule Builder** (median 9 builder bursts/day, present
+on all 28 current dates), interleaved with heavy manual placement and redistribution. The
+sequence [founder-supplied, 2026-08-23]: Sprinter (14-pax) drivers first, one by one — select
+the vehicle, assign the 14-pax-only jobs — then fill the gaps that creates with next-tier (van)
+work, descending the tiers, then redistribute to balance. **That is the whole-board engine's own
+scarcity-first ordering, executed by humans one driver at a time.** What is extinct is the
+one-click whole-board build. Two consequences: any analysis that counts auditlog rows measures the signal bug,
 not the dispatchers (§A6 gains a rule); and Part B's framing of `auto_assign_drivers` as the
 incumbent board-builder describes a code path dispatchers have effectively stopped invoking —
 which also means the three advisors' cards (§B3), reachable only through that click, have
@@ -764,10 +771,12 @@ demoted: it *"counts bookings we farm out and **fired on 9 of 23 days**"*.
 
 > **AMENDED 2026-08-23:** the rows above describe live code, but the engine row's caller has gone
 > quiet — board-level `auto_assign_drivers` last ran for any service date on **2026-08-10** and
-> appears on 1 of 28 current-regime dates (§A4.6). The current-regime board is hand-built, leg by
-> leg, with per-driver builder bursts. The three advisors (§B3) are reachable only through that
-> click, so their cards have effectively stopped appearing as well. The incumbent any redesign
-> must beat is therefore the **hand-built board**, not this engine's output.
+> appears on 1 of 28 current-regime dates (§A4.6). The current-regime board is built
+> driver-by-driver through the per-driver Schedule Builder — scarce tiers first (Sprinter/14-pax,
+> then down), then manually rebalanced (§A4.6). The three advisors (§B3) are reachable only
+> through the whole-board click, so their cards have effectively stopped appearing as well. The
+> incumbent any redesign must beat is therefore the **builder-assisted, hand-finished board**,
+> not this engine's output.
 
 ## B2. The reconciliation — measured
 

@@ -31,7 +31,7 @@ the number that goes up; conflicts and hours are walls — not a weighted soup.
 **And the governing style rule: available ≠ required.** "Use 9 drivers and 11 cars, leave these
 3 people off and these 3 cars parked" is a *correct answer* on a light day. The objective must
 prefer the smallest resource set that covers the day well — structurally (minimise driver-days
-subject to coverage ≥ the hand-built baseline), not as a tiebreak, because a
+subject to coverage ≥ the hand-finished baseline), not as a tiebreak, because a
 coverage-first ordering provably degenerates to "use everybody" on the 64% of days when demand
 tops the fleet.
 
@@ -47,7 +47,7 @@ tops the fleet.
 | D6 | **Minted second shifts ideally carry ≥2 jobs — soft, never a hard floor** (drivers are paid per job; there is **no call-out minimum pay**). |
 | D7 | **The base handoff process is the model**: drop last guest → wash (MCO→wash 14–17 min, wash 15–20) → fuel → base at 6785 Narcoossee Rd (wash→base ~20; MCO→base 12; Disney/Universal→base ~40); incoming driver waits at base ≥1 h ahead. House handoffs exist but are exceptions — do not build around them. [founder-supplied] |
 | D8 | **Fleet expansion ("how many cars, when") is the follow-on phase**, fed by the optimizer's residuals — optimize what we own first. |
-| D9 | The build process to automate is the schedulers' own: vehicles→drivers first, then overflow drivers, then hunt/create a mid-day gap and pair the second driver on the same car. Named ground truth: **2026-08-20, Angel & Charlie and Jose & Omar** — reconstructed and validated in evidence. |
+| D9 | The build process to automate is the schedulers' own. Initial build: driver-by-driver with the per-driver Schedule Builder, in **descending vehicle-tier order** — Sprinter/14-pax drivers first (select vehicle, assign the 14-pax-only jobs), fill the gaps that creates with next-tier (van) work, descend the tiers, then **redistribute to balance**. Splits: vehicles→drivers first, then overflow drivers, then hunt/create a mid-day gap and pair the second driver on the same car. Named ground truth: **2026-08-20, Angel & Charlie and Jose & Omar** — reconstructed and validated in evidence. |
 
 ---
 
@@ -61,8 +61,12 @@ under the same cap reaches 77.1% — two independent constructions 0.4 pp apart 
 roster is consumed (15.11 rostered drivers/day on 13.89 cars, 0.07 idle). **The farm-out is a
 capacity fact, not a scheduling fact.**
 
-**The board is hand-built.** Board-level auto-assign last ran 2026-08-10; 1 of 28 current-regime
-dates [measured]. The incumbent to beat is the hand-finished board (state B: 81.3% in-house,
+**The whole-board build is extinct; the board is built driver-by-driver.** Board-level
+auto-assign last ran 2026-08-10; 1 of 28 current-regime dates [measured]. What runs daily is the
+per-driver Schedule Builder in descending vehicle-tier order — Sprinter/14-pax drivers first,
+gaps then filled with next-tier work, then manual redistribution to balance [founder-supplied;
+corroborated by median 9 builder bursts/day on all 28 dates]. The incumbent to beat is that
+builder-assisted, hand-finished board (state B: 81.3% in-house,
 108.0 legs/day) — and today's 81.3% is partly **bought with illegal hours** (4.00 driver-days
 >13.5 h and 2.18 >15 h *per day*, max 23.6 h) and carries **11.61 hard-infeasible turn pairs/day**,
 which measurably matter (2.06× late-arrival lift) [measured].
@@ -130,7 +134,7 @@ without stating the assumption.
 | **A1** | `02_BENCHMARK_AND_EVIDENCE.md` + committed `analysis/` scripts reproducing every §2 headline from the DB at run time (state-B benchmark, de-phantomed transition stream, standby pool, cap+mint replay, hour-binder, zone chain validation). The session findings become re-runnable — when the data moves, the numbers move. | Gate 2 — scripts reproduce §2 within stated tolerances. |
 | **A2** | `03_STANDBY_AND_HANDOFF_MODEL.md` — the config the optimizer will carry: the zone-labeled handoff chain table (every component tagged [founder-supplied]/[shipped-estimate]/[assumed]; fuel time still **[assumed 5–10 min]** — founder to confirm), the standby eligibility definition, mint rules (soft ≥2 packing, thin-mint flag), the 13.5/15 exception structure, green/amber/red handoff feasibility. | Reviewed with A1. |
 | **A3** | `PLANNER_AND_BUILD_PLAN.md` (Phase 2 of the brief — a spec, no code). Must cover the engineering the sessions proved necessary: **extracting the build pipeline from the 700-line view** into a callable that accepts hypothetical rosters (the six unparameterised call sites + eight view-level ones are enumerated in session evidence); the **co-driver car-share gate** (the replay verifier proved its absence mints physically impossible plans — ~2 legs/day of them — so it is a hard prerequisite); the **apply-path write contract per output field** — including "leave this driver off" (the current Apply cannot delete a DVA row) and held-date behavior (roster writes must not leak live); the surrogate-noise test before any roster ladder ships; server-side enforcement of ≤2 drivers/vehicle-day; alert calibration to D5's 7–8/10 bar; where every config value lives. Explicit non-goals: no auto-apply, no new write surface beyond the specced doors. | **Gate 3 — founder approves the spec. Deviations go back for review, not judgment calls.** |
-| **A4** | Phase 3 — the build, into Day Setup, per spec exactly. Dispatcher-visible ⇒ ships with a release note per CLAUDE.md. Browser-tested on a real date. | **Gate 4 — acceptance:** on replayed dates, proposed plans ≥ hand-built board on in-house coverage with 0 hard conflicts, 0 days >15 h, exceptions priced and visible; flagged conflicts ≥70–80% real. |
+| **A4** | Phase 3 — the build, into Day Setup, per spec exactly. Dispatcher-visible ⇒ ships with a release note per CLAUDE.md. Browser-tested on a real date. | **Gate 4 — acceptance:** on replayed dates, proposed plans ≥ the hand-finished board on in-house coverage with 0 hard conflicts, 0 days >15 h, exceptions priced and visible; flagged conflicts ≥70–80% real. |
 
 ### Track B — quick fixes (independent of the big build; small, high-certainty)
 
