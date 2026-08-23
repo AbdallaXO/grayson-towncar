@@ -120,7 +120,11 @@ def peak_concurrency(target_date, legs=None):
     if legs is None:
         from reservations.models import Leg
         legs = list(Leg.objects.filter(pickup_date=target_date)
-                    .exclude(reservation__status="cancelled").exclude(status="cancelled")
+                    # BOTH cancellation spellings exist on Reservation.status in
+                    # production ('cancelled' and one-L 'canceled'); Leg.status only
+                    # ever carries the two-L form. (00 §A6 non-negotiable filter.)
+                    .exclude(reservation__status__in=("cancelled", "canceled"))
+                    .exclude(status="cancelled")
                     .select_related("reservation__vehicle", "vehicle",
                                     "reservation", "flight_information"))
     if sch._timing_cache is None:
@@ -314,7 +318,10 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
     # flight_information, so select them here and avoid the N+1).
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
-        .exclude(reservation__status="cancelled").exclude(status="cancelled")
+        # Same exclusion as peak_concurrency above (the docstring there promises
+        # parity): both Reservation cancellation spellings, two-L Leg status.
+        .exclude(reservation__status__in=("cancelled", "canceled"))
+        .exclude(status="cancelled")
         .select_related("reservation__vehicle", "vehicle",
                         "reservation", "flight_information")
     )
