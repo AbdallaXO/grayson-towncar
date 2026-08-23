@@ -48,6 +48,9 @@ tops the fleet.
 | D7 | **The base handoff process is the model**: drop last guest → wash (MCO→wash 14–17 min, wash 15–20) → fuel → base at 6785 Narcoossee Rd (wash→base ~20; MCO→base 12; Disney/Universal→base ~40); incoming driver waits at base ≥1 h ahead. House handoffs exist but are exceptions — do not build around them. [founder-supplied] |
 | D8 | **Fleet expansion ("how many cars, when") is the follow-on phase**, fed by the optimizer's residuals — optimize what we own first. |
 | D9 | The build process to automate is the schedulers' own. Initial build: driver-by-driver with the per-driver Schedule Builder, in **descending vehicle-tier order** — Sprinter/14-pax drivers first (select vehicle, assign the 14-pax-only jobs), fill the gaps that creates with next-tier (van) work, descend the tiers, then **redistribute to balance**. Splits: vehicles→drivers first, then overflow drivers, then hunt/create a mid-day gap and pair the second driver on the same car. Named ground truth: **2026-08-20, Angel & Charlie and Jose & Omar** — reconstructed and validated in evidence. |
+| D10 | **The per-trip what-if simulator is deferred.** ("Could this farmed/unassigned trip go in-house? What swap frees someone?") A natural later add-on over the proven engine parts — swap_optimizer/execute_swap, the Farm-Out Optimizer, the replay fill logic — not part of the first build. |
+| D11 | **Additive deployment; promotion is the founder's judgment.** The current build flow stays exactly as it is; everything here ships alongside it as an additional tool. It becomes the main flow only when the founder decides it has proved itself — his call, made later; no formal metric gate is defined now. |
+| D12 | **No rushed build.** "This is literally the heart of the operations." All Phase-1/Phase-2 documents are completed and reviewed before any code — the build starts from an approved build-readiness package (Gate 3), not from momentum. |
 
 ---
 
