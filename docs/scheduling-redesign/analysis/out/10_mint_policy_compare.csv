@@ -1,0 +1,4 @@
+policy,net_per_day,coverage_pct,usd_per_year,callouts,one_leg_mints,two_plus_mints,mints_per_day,new_rest_breaches,conflicts,interleaves
+free,3.0,84.1,77734,93,70,23,3.32,0,0,0
+soft,3.0,84.1,77734,90,63,27,3.21,0,0,0
+hard2,0.82,82.1,21284,28,0,28,1.0,0,0,0
