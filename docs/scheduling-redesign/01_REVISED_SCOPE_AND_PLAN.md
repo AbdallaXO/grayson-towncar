@@ -86,30 +86,34 @@ Enforcing it **while minting standby second shifts on shared cars** nets, vs tod
 [modeled, adversarially verified — an earlier +4.0 headline was cut to +2.4 after the verifier
 caught a car-in-two-places bug]:
 
+*(Re-derived 2026-08-23 under the adopted availability-based standby rule — the founder's own
+definition widened the pool and raised every figure; the car-bound saturation is unchanged.)*
+
 | Setting | Coverage | Net legs/day | Gross ≈ net $/yr (no call-out minimum exists) |
 |---|---|---|---|
-| Conservative (gap 180 / buf 45) | 82.5% | +1.29 | ~$33k |
-| **Central (gap 120 / buf 30)** | **83.5%** | **+2.36** | **~$61k** |
-| Generous (gap 90 / buf 5) | 84.9% | +3.89 | ~$101k |
+| Conservative (gap 180 / buf 45) | 83.1% | +1.93 | ~$50k |
+| **Central (gap 120 / buf 30)** | **84.1%** | **+3.00** | **~$78k** |
+| Generous (gap 90 / buf 5) | 85.5% | +4.54 | ~$118k |
 
 Zero driver-days over 13.5 h, zero new rest breaches — and capping *heals* existing breach-pairs
-68→32. Standby usage 2.7 mints/day, inside the founder's 1–4 envelope on 24/28 days. The
-behavioural standby pool is 6–9/day (never below 4); the reachable core matches the founder's
-1–4 [measured/inferred]. Pool is thinnest Friday — inside the Fri–Sun band carrying 76.3% of
-farm-out — but bodies bound only 23 of 476 fill failures; **cars bound the rest**.
+68→32. The adopted standby pool runs 8–14/day (P50 10, never below 8); the founder's "1–4" is
+its reachable-by-habit core [measured]. Central settings now sit **at** the car-bound saturation
+(84.1%) — the real pool reaches the ceiling. The replay draws ~3.2 call-outs/day, 5–10 on the
+heaviest days; **no daily call-out cap** [founder-supplied — "whatever is best for the
+business"]; dispatchers remain the throttle. Pool is thinnest Friday — inside the Fri–Sun band carrying 76.3%
+of farm-out — but bodies bind almost nothing; **cars bind** (480 no-free-car fill failures).
 
 **The ≥2-job preference (D6) costs nothing soft, and a hard floor would gut the program**
-[modeled]: soft packing = +2.39 legs/day (+$925/yr vs unrestricted) with 1-leg mints trimmed
-54→50; a hard 2-leg floor collapses it to +0.61 (~$16k), re-farming 50 legs. ~Two-thirds of mints
-are structurally single-job (no second pool leg can feasibly join). **Implement soft packing +
-dispatcher discretion on the residual ~1.8 single-job call-outs/day — offer, let the driver
-decline.**
+[modeled]: soft packing = identical net to unrestricted with fewer call-outs; a hard 2-leg floor
+forfeits −2.18 legs/day (~$56k/yr), cancelling every structurally single-job mint (~70% of
+call-outs — no second pool leg can feasibly join them). **Implement soft packing + dispatcher
+discretion on the residual single-job call-outs — offer, let the driver decline.**
 
 **The ceiling and the ladder.** Unlimited standby saturates at **84.1%** — cars run out, not
 bodies; 88% of residual farm-out picks up 08:00–12:59, where no rolling car has a free side
-[modeled]. The priced ladder: standby mints → ~83.5% (~$61k/yr) · each +1 rostered morning
-driver-shift ≈ +2.75 legs/day (~$71k/yr) · past ~93%, vehicles (Fri–Sun 10:00 crest runs ~6 cars
-short). Rungs 2–3 are the D8 follow-on.
+[modeled]. The priced ladder: standby mints → ~84.1% (~$78k/yr, the saturation itself under the
+adopted pool) · each +1 rostered morning driver-shift ≈ +2.75 legs/day (~$71k/yr) · past ~93%,
+vehicles (Fri–Sun 10:00 crest runs ~6 cars short). Rungs 2–3 are the D8 follow-on.
 
 **Handoffs.** 8.7% of vehicle-days, 21/28 dates, never 3+ drivers/car, gaps n=32 min 72 / P50 220
 / P90 394 [measured]. The founder's chain closes against practice with ~51 min median headroom;
