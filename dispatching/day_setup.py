@@ -1038,6 +1038,17 @@ def _fmt_clock(dt_):
     return dt_.strftime("%I:%M %p").lstrip("0")
 
 
+def _fmt_hour(h):
+    """12-hour label for a whole hour — the panel never shows 24-hour time."""
+    if h == 0:
+        return "12:00 AM"
+    if h < 12:
+        return f"{h}:00 AM"
+    if h == 12:
+        return "12:00 PM"
+    return f"{h - 12}:00 PM"
+
+
 def _split_shift_extras(target_date, legs, all_units, oos_units,
                         proposed, drivers, by_id, rows):
     """Build the Build-2 payload keys. Read-only; estimates from booked times."""
@@ -1289,6 +1300,9 @@ def _split_shift_extras(target_date, legs, all_units, oos_units,
                               if m["veh"] in unit_by_id else f"#{m['veh']}"),
             "side": m["side"],
             "window": f"{_fmt_clock(first.pick)} – {_fmt_clock(last.end)}",
+            "cut_label": _fmt_hour(cut),
+            "first_pickup": _fmt_clock(first.pick),
+            "est_done": _fmt_clock(last.end),
             "planned_start_hour": mint_w[0], "planned_end_hour": mint_w[1],
             "partner_driver_id": partner_id,
             "partner_name": name_of(partner_id) if partner_id else None,

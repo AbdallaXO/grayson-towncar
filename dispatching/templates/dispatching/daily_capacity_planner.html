@@ -5414,6 +5414,14 @@
                 return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
             });
         }
+        // 12-hour label for a whole hour — this panel never shows 24-hour time.
+        function dsxHour(h) {
+            h = parseInt(h, 10);
+            if (h === 0) return '12:00 AM';
+            if (h < 12) return h + ':00 AM';
+            if (h === 12) return '12:00 PM';
+            return (h - 12) + ':00 PM';
+        }
         // The board's own vehicle-type hues, so a unit reads the same colour here as
         // it does on the timeline behind the modal.
         var VDOT = {towncar:'#d97706', suv:'#2563eb', mini_van:'#7c3aed',
@@ -5573,8 +5581,8 @@
             var rs = r.reason || '';
             if (r.share) {
                 return '<span class="ds-tag swap" title="Two drivers share this car in shifts — the windows are split so it can never be double-booked">'
-                    + (r.share.role === 'AM' ? 'hands off at ' + r.share.until + ':00'
-                                             : 'takes over at ' + r.share.from + ':00') + '</span>';
+                    + (r.share.role === 'AM' ? 'hands off at ' + dsxHour(r.share.until)
+                                             : 'takes over at ' + dsxHour(r.share.from)) + '</span>';
             }
             if (/set in admin/.test(rs)) return '<span class="ds-tag his">his car</span>';
             if (/^usual unit/.test(rs)) return '<span class="ds-tag usual">' + esc(rs.replace('usual unit · ', 'usual · ')) + '</span>';
@@ -5688,19 +5696,56 @@
                 + '<div class="ds-note">Nobody is called automatically — tick one to put it on the plan, then Apply. Times are estimates from booked jobs.</div>';
             data.mint_proposals.forEach(function(mp, i) {
                 var unitN = (mp.vehicle_label || '').split(' ')[0];
+                // Sentence rules: 12-hour AM/PM only, and clauses in the order
+                // things actually happen — pick up the car, run the job(s),
+                // finish, hand off. Never a handoff before the job it follows.
+                var cutLbl = mp.cut_label || dsxHour(mp.cut_hour);
+                var done = mp.est_done
+                    || (mp.window ? mp.window.split(' – ').pop() : '');
+                var legs = mp.legs || [];
+                var times = legs.map(function(l) { return l.time; });
+                function joinAnd(a) {
+                    return a.length <= 1 ? (a[0] || '')
+                        : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+                }
+                var KIND = {arrival: 'arrival', departure: 'departure'};
+                var sameKind = legs.length
+                    && legs.every(function(l) { return l.kind === legs[0].kind; });
+                var jobsClause;
+                if (sameKind && KIND[legs[0].kind]) {
+                    jobsClause = joinAnd(times) + ' ' + KIND[legs[0].kind]
+                        + (legs.length > 1 ? 's' : '');
+                } else if (sameKind) {
+                    jobsClause = joinAnd(times);        // "other" jobs: times only
+                } else {
+                    jobsClause = joinAnd(legs.map(function(l) {
+                        return l.time + (KIND[l.kind] ? ' ' + KIND[l.kind] : '');
+                    }));
+                }
+                var nFarm = legs.filter(function(l) { return l.source !== 'shed'; }).length;
                 var head;
                 if (mp.side === 'early') {
-                    head = '<b>' + esc(mp.driver_name) + '</b> starts the morning on ' + esc(unitN)
-                        + (mp.partner_name ? ', hands it to ' + esc(mp.partner_name) : ', hands it off')
-                        + ' at ' + mp.cut_hour + ':00';
+                    head = '<b>' + esc(mp.driver_name) + '</b> drives ' + esc(unitN)
+                        + ' first — pickup' + (times.length > 1 ? 's' : '') + ' '
+                        + esc(joinAnd(times)) + ', done ~' + esc(done) + ' — then hands it '
+                        + (mp.partner_name ? 'to ' + esc(mp.partner_name) : 'off')
+                        + ' at ' + esc(cutLbl) + '.';
+                    if (mp.est_saving) {
+                        head += ' Catches ' + nFarm + ' job' + (nFarm !== 1 ? 's' : '')
+                            + ' that would’ve farmed out — saves ≈$' + mp.est_saving + '.';
+                    }
                 } else {
                     head = '<b>' + esc(mp.driver_name) + '</b> takes ' + esc(unitN)
                         + (mp.partner_name ? ' from ' + esc(mp.partner_name) : '')
-                        + ' at ' + mp.cut_hour + ':00';
+                        + ' at ' + esc(cutLbl) + '. Covers ' + mp.n_jobs + ' job'
+                        + (mp.n_jobs !== 1 ? 's' : '') + ' (' + esc(jobsClause)
+                        + '), done by ~' + esc(done) + '.';
+                    if (mp.est_saving) {
+                        head += ' Saves ≈$' + mp.est_saving + ' vs. farming '
+                            + (nFarm === 1 ? 'it' : nFarm === 2 ? 'both' : nFarm + ' of them')
+                            + ' out.';
+                    }
                 }
-                head += ' — ' + esc(mp.window) + ', catches ' + mp.n_jobs + ' job'
-                    + (mp.n_jobs !== 1 ? 's' : '');
-                if (mp.est_saving) head += ' — saves ≈ $' + mp.est_saving + ' farm-out';
                 var chips = '';
                 if (mp.thin) chips += ' <span class="ds-tag swap" title="Fewer jobs than the soft minimum — no call-out minimum pay exists, so the only cost is goodwill. Offer; let the driver decline.">thin — worth it?</span>';
                 if (mp.handoff_band) {
