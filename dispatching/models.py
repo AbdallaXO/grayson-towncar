@@ -165,6 +165,35 @@ class SchedulerSettings(models.Model):
                   "as dismissible warnings on the response. NEVER blocks an "
                   "assignment. Off (0) skips the computation entirely.")
 
+    # ── Split Shifts & Handoffs (scheduling redesign, Build 2) ────
+    share_split_hour = models.IntegerField(
+        default=16,
+        help_text="Default AM/PM cut hour for a planned shared car when no better "
+                  "cut is known (16 = the measured modal handoff hour). A standby "
+                  "second-shift proposal derives its own cut from the actual "
+                  "handoff; this is the fallback for hand-made shares.")
+    handoff_gap_green_pct = models.IntegerField(
+        default=100,
+        help_text="Handoff GREEN bar as a percent of the central wash-fuel-base "
+                  "zone chain (drop zone to next-pickup zone). 100 = the 03-model "
+                  "rule exactly; lower is more permissive. Structured chain tables "
+                  "live in dispatching/handoff_chain.py.")
+    handoff_gap_amber_floor_pct = models.IntegerField(
+        default=100,
+        help_text="Handoff AMBER floor as a percent of the LOW zone chain — below "
+                  "this (and below the skip-wash fast path) a handoff is RED: "
+                  "shown, never suggested. 100 = the 03-model rule exactly.")
+    mint_min_jobs_soft = models.IntegerField(
+        default=2,
+        help_text="Soft minimum jobs on a proposed standby second shift (D6). "
+                  "NEVER a hard floor — a thinner proposal still shows, flagged "
+                  "'thin — worth it?' with the dollars it saves.")
+    span_exception_max_hours = models.FloatField(
+        default=15.0,
+        help_text="Hard ceiling for the priced crunch exception: a per-driver day "
+                  "may be proposed past the 13.5h soft cap ONLY up to this many "
+                  "hours, priced and rendered as a choice — never a default.")
+
     # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
     type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
     type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")
