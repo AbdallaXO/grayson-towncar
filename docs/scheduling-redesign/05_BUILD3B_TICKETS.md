@@ -125,6 +125,23 @@ shipped function (00 §B3 names it as worth reusing), do not invent a second cos
 a per-leg cost is unavailable, fall back to `standby_mints.FARMOUT_PREMIUM_PER_LEG` (70.99)
 and **say so in the UI**, per 04 §1 rule 3.
 
+> **Founder note (2026-08-24) — WHICH legs get farmed, not just how many.** `farm_cost` above
+> is a Pass-A/roster-level dollar total; it says nothing about which specific legs a given
+> roster leaves for affiliates. That decision is made ENTIRELY by the existing
+> `run_assignment_pipeline` Ticket A calls as a black box (§0/P1) — Build 3b adds no new
+> leg-placement logic, so it inherits whatever that pipeline already does. **It already does
+> almost exactly what the founder described** (a 9 AM arrival with a Publix stop eating
+> 1h44m vs. a 9 AM straight departure at 30 min — prefer farming the arrival when cost is
+> close): `scheduler.leg_value()` scores departures/returns as the protected in-house core
+> and arrivals as "the farm-out currency" (comment cites ~30 driver-min for a departure vs.
+> ~75 for an arrival), and `evict_to_farm_for_value()` will pull an assigned arrival back off
+> the board to seat a residual departure/return, never the reverse. This is a CATEGORY rule
+> (trip type), not a literal dollar-and-minutes comparison — it does not compute "is this
+> pair within $5–10 of each other" the way the founder stated it. It produces the founder's
+> answer on the stated example and is presumed to generalise; if a future review finds a case
+> where it doesn't, refining `leg_value()` (not touching Build 3b) is the fix, since Build 3b
+> never re-implements this decision.
+
 **`quality`** = a weighted sum, and the ONLY place weights are allowed, because these terms are
 genuinely commensurable preferences rather than rules:
 
