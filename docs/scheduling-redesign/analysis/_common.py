@@ -18,7 +18,12 @@ import os
 import sqlite3
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-DB_PATH = os.path.join(REPO_ROOT, "content", "db.sqlite3")
+# GRAYSON_SNAPSHOT_DB points a run at a frozen copy of the snapshot — needed
+# when the live local copy is simultaneously in use by a dev server, whose
+# writes (auditlog/historicalleg timestamps) would silently move the derived
+# horizon between runs. Default unchanged: the canonical snapshot path.
+DB_PATH = (os.environ.get("GRAYSON_SNAPSHOT_DB")
+           or os.path.join(REPO_ROOT, "content", "db.sqlite3"))
 OUT_DIR = os.path.join(os.path.dirname(__file__), "out")
 
 

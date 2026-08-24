@@ -45,23 +45,32 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _common as C  # noqa: E402
 
+# The pool rule + per-day mint engine are the SHARED core in
+# dispatching/standby_mints.py (Build 2c: extracted from this script so script
+# and product cannot drift). Pure module — no Django needed to import it.
+sys.path.insert(0, C.REPO_ROOT)
+from dispatching.standby_mints import (  # noqa: E402
+    FARMOUT_PREMIUM_PER_LEG as PREMIUM,
+    MintLeg as Leg,
+    SPAN_CAP_H as CAP_H,
+    VEHICLE_TIER as TIER,
+    VEHICLE_TIER_DEFAULT as TIER_DEFAULT,
+    best_window,
+    buffer_ok,
+    replay_one_day,
+    span_h,
+    standby_pool_ids,
+)
+
 # --------------------------------------------------------------------------
 # parameters — every knob, with its source. These are parameters, not dates.
+# (Occupancy lead/tail, the 13.5h cap, the tier ladder and the $70.99 premium
+# now come from the shared core above — one home, imported here.)
 # --------------------------------------------------------------------------
 
-# Occupancy minutes around booked pickup_time, fitted on paired taps (00 §A3.5).
-LEAD_TAIL = {"ARRIVAL": (20.6, 75.5), "DEPARTURE": (36.3, 34.8), "OTHER": (39.8, 53.6)}
-
-CAP_H = 13.5          # daily span cap, hours — D4 (01_REVISED_SCOPE_AND_PLAN.md)
 SPAN_WARN_H = 15.0    # "tolerable on crunch days" line — D4
 REST_MIN = 510.0      # min inter-shift rest, minutes — live SchedulerSettings
                       # rest_min_gap_minutes (00, shipped scheduler constants)
-PREMIUM = 70.99       # farm-out premium per leg, $ — 00 §B (range 68.13..75.45)
-
-# Vehicle capability ladder — mirrors VEHICLE_TIER_ORDER in dispatching/scheduler.py.
-# A driver/car at tier t can run any leg of tier <= t. Unknown types default to suv.
-TIER = {"towncar": 0, "mini_van": 1, "suv": 2, "van": 3, "Van(14 Pax)": 4}
-TIER_DEFAULT = 2
 
 # gap = min pickup-to-pickup separation on a shared car (both the mint anchor and the
 # strict no-interleave rule). Grid brackets the founder's base handoff chain — D7:
@@ -108,58 +117,7 @@ def d(s):
 
 
 # --------------------------------------------------------------------------
-# leg model + board geometry
-# --------------------------------------------------------------------------
-
-class Leg:
-    __slots__ = ("id", "day", "pick", "kind", "did", "tier", "start", "end")
-
-    def __init__(self, id, day, pick, kind, did, tier):
-        self.id, self.day, self.pick = id, day, pick
-        self.kind, self.did, self.tier = kind, did, tier
-        lead, tail = LEAD_TAIL[kind]
-        self.start = pick - dt.timedelta(minutes=lead)
-        self.end = pick + dt.timedelta(minutes=tail)
-
-
-def span_h(legs):
-    if not legs:
-        return 0.0
-    return (max(l.end for l in legs) - min(l.start for l in legs)).total_seconds() / 3600.0
-
-
-def best_window(legs):
-    """Longest contiguous run (pickup order) with span <= CAP_H; ties -> smallest span.
-    Everything outside the kept window is shed to the refill pool."""
-    n = len(legs)
-    bi, bj, bcount, bspan = 0, -1, 0, 1e9
-    for i in range(n):
-        for j in range(i, n):
-            sp = span_h(legs[i:j + 1])
-            if sp <= CAP_H:
-                cnt = j - i + 1
-                if cnt > bcount or (cnt == bcount and sp < bspan):
-                    bcount, bspan, bi, bj = cnt, sp, i, j
-    return legs[bi:bj + 1], legs[:bi] + legs[bj + 1:]
-
-
-def buffer_ok(seq, newleg, buf):
-    """Occupancy-interval clearance >= buf vs immediate board neighbours, no overlap."""
-    before = [l for l in seq if l.pick <= newleg.pick]
-    after = [l for l in seq if l.pick > newleg.pick]
-    if before:
-        prevl = max(before, key=lambda l: l.pick)
-        if (newleg.start - prevl.end).total_seconds() / 60.0 < buf:
-            return False
-    if after:
-        nxtl = min(after, key=lambda l: l.pick)
-        if (nxtl.start - newleg.end).total_seconds() / 60.0 < buf:
-            return False
-    return True
-
-
-# --------------------------------------------------------------------------
-# data loading
+# data loading  (leg model + board geometry come from dispatching.standby_mints)
 # --------------------------------------------------------------------------
 
 def load(con, cur_a, cur_b):
@@ -267,6 +225,12 @@ def run_setting(GAP, BUF, D, by_drv_day, cur_a, cur_b, policy="free",
     Rest checks are chronologically stateful: the PREVIOUS day is the REPLAYED board
     (mints included), the NEXT day is the baseline; a morning extension tomorrow
     re-validates against the replayed today, so every pair is checked in final form.
+
+    The per-day engine (cap-shed, waterfall refill, strict-share minting, the D6
+    policies) is dispatching.standby_mints.replay_one_day — the SHARED core the
+    Day Setup panel runs on, extracted from this script (Build 2c). This wrapper
+    keeps the chronology: it feeds each day's state in, commits the result to
+    `final`, and hands the engine rest callbacks that read `final` for yesterday.
     """
     dtyp, dva, fleet, off = D["dtyp"], D["dva"], D["fleet"], D["off"]
     ndays = (cur_b - cur_a).days + 1
@@ -314,334 +278,52 @@ def run_setting(GAP, BUF, D, by_drv_day, cur_a, cur_b, policy="free",
             elif dtyp.get(did) == "affiliate":
                 farmed.extend(ls)
         dva_day = dva.get(day, {})
-        # driver capability tier: DVA vehicle's tier, or the max leg tier run that day
-        drv_tier = {}
-        for did, ls in boards.items():
-            t = -1
-            v = dva_day.get(did)
-            if v is not None and v in fleet:
-                t = fleet[v]["tier"]
-            drv_tier[did] = max(t, max(l.tier for l in ls))
-        # vehicle -> rostered drivers (the car-share ledger)
-        veh_drivers = defaultdict(list)
-        for did2, v in dva_day.items():
-            if v is not None:
-                veh_drivers[v].append(did2)
 
-        # ---- STEP 1: enforce the cap, shed edges ----
-        pool = []
-        for did in sorted(boards):
-            ls = boards[did]
-            sp = span_h(ls)
-            if sp > CAP_H:
-                tot_capped_days += 1
-                keep, shed = best_window(ls)
-                boards[did] = keep
-                pool.extend(shed)
-                capped_info.append((day, did, sp, span_h(keep), len(shed)))
-        tot_shed += len(pool)
-        pool.extend(farmed)
-        pool.sort(key=lambda l: l.pick)
-        for ls in boards.values():
-            if span_h(ls) > CAP_H + 1e-9:
-                post_viol += 1
-
-        # ---- STEP 2: the day's standby pool (real bodies only when limit_mode None).
-        # This pool ADDITIONALLY requires is_active (a mint is a real call-out);
-        # part 1's behavioural pool does not — the delta is reported there. ----
+        # ---- the day's standby pool (real bodies only when limit_mode None).
+        # The ADOPTED rule is the shared standby_pool_ids (03 §1); the struck
+        # +/-W behavioural variants remain reproducible via POOL_W. This pool
+        # ADDITIONALLY requires is_active (a mint is a real call-out); part 1's
+        # behavioural pool does not — the delta is reported there. ----
         if limit_mode is None:
-            standby = []
-            for did, t in dtyp.items():
-                if t != "inhouse" or not D["active"].get(did):
-                    continue
-                if by_drv_day.get((did, day)):
-                    continue
-                if did in dva_day or (day, did) in off:
-                    continue
-                # adopted rule (POOL_W=None): no activity-history filter [founder]
-                if POOL_W is not None and not any(
-                        (did, day + dt.timedelta(days=k)) in by_drv_day
-                        for k in range(-POOL_W, POOL_W + 1) if k != 0):
-                    continue
-                standby.append(did)
-            standby.sort()
+            cand = [did for did, t in dtyp.items()
+                    if t == "inhouse" and D["active"].get(did)]
+            works_today = {did for did in cand if by_drv_day.get((did, day))}
+            off_today = {did for did in cand if (day, did) in off}
+            standby = standby_pool_ids(cand, works_today, dva_day, off_today)
+            if POOL_W is not None:
+                standby = [did for did in standby if any(
+                    (did, day + dt.timedelta(days=k)) in by_drv_day
+                    for k in range(-POOL_W, POOL_W + 1) if k != 0)]
             pool_per_day.append(len(standby))
         else:
             standby = None
             pool_per_day.append(-1)
 
-        mints = []      # {"veh", "side", "bound", "driver", "legs"}
-        synth = [0]
-
-        def veh_free_sides(v):
-            """Usable (side, roster boundary) pairs. 'free' = no rostered pickups.
-            <= 2 drivers per vehicle-day: a car with 2 roster rows takes no mint."""
-            dids = [x for x in veh_drivers.get(v, []) if boards.get(x)]
-            alld = veh_drivers.get(v, [])
-            if limit_mode != "all" and not alld:
-                return []
-            if len(alld) >= 2:
-                return []
-            if not dids:
-                return [("free", None)]
-            picks = [l.pick for x in dids for l in boards[x]]
-            return [("early", min(picks)), ("late", max(picks))]
-
-        def mint_fits(m, leg):
-            """May `leg` join existing mint `m`? Tier, anchor gap, buffer, cap, the
-            co-driver overlap ban (strict fix 3), and both-side rest."""
-            if leg.tier > fleet[m["veh"]]["tier"]:
-                return False
-            if m["side"] == "early" and (m["bound"] - leg.pick).total_seconds() / 60.0 < GAP:
-                return False
-            if m["side"] == "late" and (leg.pick - m["bound"]).total_seconds() / 60.0 < GAP:
-                return False
-            if not buffer_ok(m["legs"], leg, BUF):
-                return False
-            if span_h(m["legs"] + [leg]) > CAP_H:
-                return False
-            for od in veh_drivers.get(m["veh"], []):
-                for ol in (boards.get(od) or []):
-                    if leg.start < ol.end and ol.start < leg.end:
-                        return False
-            if limit_mode is None:
-                cur = m["legs"]
-                nf = min([l.start for l in cur] + [leg.start])
-                nl = max([l.end for l in cur] + [leg.end])
-                if not rest_ok_first(m["driver"], day, nf):
-                    return False
-                if not rest_ok_last(m["driver"], day, nl):
-                    return False
-            return True
-
-        def mint_fits_nodrv(m, leg):
-            """mint_fits minus the standby-driver rest checks — candidate RANKING only
-            for the soft policy; full mint_fits still gates every actual placement."""
-            if leg.tier > fleet[m["veh"]]["tier"]:
-                return False
-            if m["side"] == "early" and (m["bound"] - leg.pick).total_seconds() / 60.0 < GAP:
-                return False
-            if m["side"] == "late" and (leg.pick - m["bound"]).total_seconds() / 60.0 < GAP:
-                return False
-            if not buffer_ok(m["legs"], leg, BUF):
-                return False
-            if span_h(m["legs"] + [leg]) > CAP_H:
-                return False
-            for od in veh_drivers.get(m["veh"], []):
-                for ol in (boards.get(od) or []):
-                    if leg.start < ol.end and ol.start < leg.end:
-                        return False
-            return True
-
-        def roster_gap_ok(did, leg):
-            """A rostered driver's edge extension must keep GAP vs any mint on his car."""
-            v = dva_day.get(did)
-            if v is None:
-                return True
-            for m in mints:
-                if m["veh"] != v:
-                    continue
-                if m["side"] == "late":
-                    if (min(l.pick for l in m["legs"]) - leg.pick).total_seconds() / 60.0 < GAP:
-                        return False
-                if m["side"] == "early":
-                    if (leg.pick - max(l.pick for l in m["legs"])).total_seconds() / 60.0 < GAP:
-                        return False
-            return True
-
-        def car_share_ok(did, leg):
-            """STRICT car sharing (fix 1+2): vs everything the co-driver(s) on the same
-            car hold (roster board + mints), the new leg may neither overlap in
-            occupancy nor interleave — its pickup must sit entirely >= GAP before
-            their first pickup or >= GAP after their last."""
-            v = dva_day.get(did)
-            if v is None:
-                return True
-            others = []
-            for od in veh_drivers.get(v, []):
-                if od != did and boards.get(od):
-                    others.extend(boards[od])
-            for m in mints:
-                if m["veh"] == v and m["driver"] != did:
-                    others.extend(m["legs"])
-            if not others:
-                return True
-            for ol in others:
-                if leg.start < ol.end and ol.start < leg.end:
-                    return False
-            pmin = min(l.pick for l in others)
-            pmax = max(l.pick for l in others)
-            lo = (pmin - leg.pick).total_seconds() / 60.0
-            hi = (leg.pick - pmax).total_seconds() / 60.0
-            return lo >= GAP or hi >= GAP
-
-        # ---- STEP 3: fill — rostered drivers first (waterfall), then mints ----
-        farmed_set = set(id(l) for l in farmed)
         base_ih_day = sum(len(ls) for (dd, dy), ls in by_drv_day.items()
                           if dy == day and dtyp.get(dd) == "inhouse")
 
-        def try_roster(leg):
-            for did in sorted(boards, key=lambda x: (drv_tier[x], x)):
-                if drv_tier[did] < leg.tier:
-                    continue
-                ls = boards[did]
-                if not buffer_ok(ls, leg, BUF):
-                    continue
-                if span_h(ls + [leg]) > CAP_H:
-                    continue
-                if not roster_gap_ok(did, leg):
-                    continue
-                if not car_share_ok(did, leg):
-                    continue
-                nf = min([l.start for l in ls] + [leg.start]) if ls else leg.start
-                nl = max([l.end for l in ls] + [leg.end]) if ls else leg.end
-                of = min(l.start for l in ls) if ls else None
-                ol = max(l.end for l in ls) if ls else None
-                if (of is None or nf < of) and not rest_ok_first(did, day, nf):
-                    continue
-                if (ol is None or nl > ol) and not rest_ok_last(did, day, nl):
-                    continue
-                boards[did] = sorted(ls + [leg], key=lambda l: l.pick)
-                return True
-            return False
-
-        def try_mints(leg, only_single=False):
-            for m in mints:
-                if only_single and len(m["legs"]) != 1:
-                    continue
-                if mint_fits(m, leg):
-                    m["legs"] = sorted(m["legs"] + [leg], key=lambda l: l.pick)
-                    return True
-            return False
-
-        def open_mint(leg, remaining):
-            cand = []
-            vehicles = set(veh_drivers)
-            if limit_mode == "all":
-                vehicles |= {v for v, f in fleet.items() if f["active"]}
-            for v in vehicles:
-                if v not in fleet or not fleet[v]["active"]:
-                    continue
-                if car_is_oos(D, v, day):        # strict fix 4: OOS cars never minted
-                    continue
-                if fleet[v]["tier"] < leg.tier:
-                    continue
-                n_mints_here = sum(1 for m in mints if m["veh"] == v)
-                n_roster = len(veh_drivers.get(v, []))
-                if n_roster + n_mints_here >= 2:  # <= 2 drivers per vehicle-day
-                    continue
-                for side, bound in veh_free_sides(v):
-                    if side == "early" and (bound - leg.pick).total_seconds() / 60.0 < GAP:
-                        continue
-                    if side == "late" and (leg.pick - bound).total_seconds() / 60.0 < GAP:
-                        continue
-                    # strict fix 4: the seed leg may not overlap co-driver occupancy
-                    if any(leg.start < ol.end and ol.start < leg.end
-                           for od in veh_drivers.get(v, [])
-                           for ol in (boards.get(od) or [])):
-                        continue
-                    cand.append((fleet[v]["tier"], v, side, bound))
-            if not cand:
-                fail_reasons["no_car_side"] += 1
-                return False
-            if policy in ("soft", "hard2") and remaining:
-                # D6 soft packing: prefer a (car, side) that could feasibly capture a
-                # second leg still waiting in the pool
-                ranked = []
-                for tier_, v, side, bound in cand:
-                    m0 = {"veh": v, "side": side, "bound": bound, "legs": [leg]}
-                    cap2 = any(mint_fits_nodrv(m0, rl) for rl in remaining)
-                    ranked.append((0 if cap2 else 1, tier_, v, side, bound))
-                ranked.sort()
-                cand = [(t, v, s, b) for _, t, v, s, b in ranked]
-            else:
-                cand.sort()
-            got = None
-            for tier_, v, side, bound in cand:
-                if limit_mode is not None:
-                    synth[0] += 1
-                    got = (f"synth{synth[0]}", v, side, bound)
-                    break
-                for sdid in standby:
-                    if not rest_ok_first(sdid, day, leg.start):
-                        continue
-                    if not rest_ok_last(sdid, day, leg.end):
-                        continue
-                    got = (sdid, v, side, bound)
-                    break
-                if got:
-                    break
-            if not got:
-                fail_reasons["no_standby_body"] += 1
-                return False
-            sdid, v, side, bound = got
-            if limit_mode is None:
-                standby.remove(sdid)
-                used_standby[sdid] += 1
-            mints.append({"veh": v, "side": side, "bound": bound, "driver": sdid,
-                          "legs": [leg]})
-            return True
-
-        for idx, leg in enumerate(pool):
-            where = None
-            if policy in ("soft", "hard2") and not no_mint and try_mints(leg, only_single=True):
-                where = "mint"
-            if where is None and try_roster(leg):
-                where = "roster"
-            if where is None and not no_mint:
-                if try_mints(leg):
-                    where = "mint"
-                elif open_mint(leg, pool[idx + 1:]):
-                    where = "mint"
-            if where is None:
-                if id(leg) in farmed_set:
-                    residual_farm_hours[leg.pick.hour] += 1
-                continue
-            if where == "roster":
-                roster_refill += 1
-            if id(leg) in farmed_set:
-                tot_refill_farm += 1
-            else:
-                tot_refill_shed += 1
-
-        # ---- hard floor (D6 'hard2'): cancel 1-leg mints, return leg to pool ----
-        if policy == "hard2" and not no_mint:
-            while True:
-                singles = [m for m in mints if len(m["legs"]) == 1]
-                if not singles:
-                    break
-                m = singles[0]
-                mints.remove(m)
-                fail_reasons["cancelled_1leg_mint"] += 1
-                if limit_mode is None:
-                    used_standby[m["driver"]] -= 1
-                    if used_standby[m["driver"]] <= 0:
-                        del used_standby[m["driver"]]
-                    standby.append(m["driver"])
-                    standby.sort()
-                leg = m["legs"][0]
-                if try_mints(leg, only_single=True):
-                    fail_reasons["cancel_leg_replaced"] += 1
-                elif try_roster(leg):
-                    fail_reasons["cancel_leg_replaced"] += 1
-                    roster_refill += 1
-                elif try_mints(leg):
-                    fail_reasons["cancel_leg_replaced"] += 1
-                else:
-                    if id(leg) in farmed_set:
-                        tot_refill_farm -= 1
-                        residual_farm_hours[leg.pick.hour] += 1
-                    else:
-                        tot_refill_shed -= 1
+        r1 = replay_one_day(
+            day, boards, farmed, dva_day, fleet, standby,
+            gap=GAP, buf=BUF, cap_h=CAP_H, policy=policy,
+            limit_mode=limit_mode, no_mint=no_mint,
+            rest_ok_first=rest_ok_first, rest_ok_last=rest_ok_last,
+            is_oos=lambda v, _d=day: car_is_oos(D, v, _d))
+        boards, mints = r1["boards"], r1["mints"]
+        tot_capped_days += r1["capped_days"]
+        capped_info.extend(r1["capped_info"])
+        tot_shed += r1["shed"]
+        tot_refill_shed += r1["refill_shed"]
+        tot_refill_farm += r1["refill_farm"]
+        roster_refill += r1["roster_refill"]
+        post_viol += r1["post_viol"]
+        fail_reasons.update(r1["fail_reasons"])
+        residual_farm_hours.update(r1["residual_farm_hours"])
+        used_standby.update(r1["used_standby"])
+        mint_shapes.extend(r1["mint_shapes"])
 
         mints_per_day.append(len(mints))
         all_mints.append((day, [{"veh": m["veh"], "driver": m["driver"],
                                  "legs": list(m["legs"])} for m in mints]))
-        for m in mints:
-            ml = m["legs"]
-            mint_shapes.append((day, m["side"], min(l.pick for l in ml),
-                                max(l.pick for l in ml), span_h(ml),
-                                fleet[m["veh"]]["tier"], len(ml)))
         # ---- commit the day (stateful rest reads this tomorrow) ----
         for did2, ls in boards.items():
             assert span_h(ls) <= CAP_H + 1e-9, f"final board over cap {did2} {day}"
