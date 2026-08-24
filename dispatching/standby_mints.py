@@ -22,10 +22,12 @@ booked one car in two places; the adversarial verifier cut +4.0/day to +2.4):
     driver's ACTUAL adjacent-day boards — via caller-supplied callbacks.
 """
 from collections import Counter
-from datetime import timedelta
 
+from dispatching.car_share import (
+    MAX_DRIVERS_PER_VEHICLE_DATE, intervals_overlap, mint_share_ok,
+    occupancy_block, holders_by_unit,
+)
 from dispatching.feasibility_guards import SPAN_SOFT_EFFECTIVE_HOURS
-from dispatching.handoff_chain import OCCUPANCY_LEAD_TAIL_P50
 
 # Daily span cap for a legal day — D4's 13.5h soft cap, read from its shipped
 # home (feasibility_guards) so there is exactly one 13.5 in the codebase.
@@ -58,9 +60,9 @@ class MintLeg:
     def __init__(self, id, day, pick, kind, did, tier):
         self.id, self.day, self.pick = id, day, pick
         self.kind, self.did, self.tier = kind, did, tier
-        lead, tail = OCCUPANCY_LEAD_TAIL_P50[kind]
-        self.start = pick - timedelta(minutes=lead)
-        self.end = pick + timedelta(minutes=tail)
+        # P50 = the aggregate-arithmetic convention (00 §A3.5): the replay
+        # places many concurrent legs, where per-leg conservatism compounds.
+        self.start, self.end = occupancy_block(pick, kind, "p50")
 
 
 def span_h(legs):
@@ -159,10 +161,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
             t = fleet[v]["tier"]
         drv_tier[did] = max(t, max(l.tier for l in ls))
     # vehicle -> rostered drivers (the car-share ledger)
-    veh_drivers = {}
-    for did2, v in dva_day.items():
-        if v is not None:
-            veh_drivers.setdefault(v, []).append(did2)
+    veh_drivers = holders_by_unit(dva_day.items())
 
     # ---- STEP 1: enforce the cap, shed edges ----
     pool = []
@@ -191,7 +190,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
         alld = veh_drivers.get(v, [])
         if limit_mode != "all" and not alld:
             return []
-        if len(alld) >= 2:
+        if len(alld) >= MAX_DRIVERS_PER_VEHICLE_DATE:
             return []
         if not dids:
             return [("free", None)]
@@ -213,7 +212,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
             return False
         for od in veh_drivers.get(m["veh"], []):
             for ol in (boards.get(od) or []):
-                if leg.start < ol.end and ol.start < leg.end:
+                if intervals_overlap(leg.start, leg.end, ol.start, ol.end):
                     return False
         if limit_mode is None:
             cur = m["legs"]
@@ -240,7 +239,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
             return False
         for od in veh_drivers.get(m["veh"], []):
             for ol in (boards.get(od) or []):
-                if leg.start < ol.end and ol.start < leg.end:
+                if intervals_overlap(leg.start, leg.end, ol.start, ol.end):
                     return False
         return True
 
@@ -261,10 +260,10 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
         return True
 
     def car_share_ok(did, leg):
-        """STRICT car sharing: vs everything the co-driver(s) on the same car
-        hold (roster board + mints), the new leg may neither overlap in
-        occupancy nor interleave — its pickup must sit entirely >= GAP before
-        their first pickup or >= GAP after their last."""
+        """STRICT car sharing vs everything the co-driver(s) on the same car
+        hold (roster board + mints). The rule itself is
+        ``car_share.mint_share_ok`` — the one home for every co-driver rule
+        (Build 3a, P2); this assembles the co-driver's blocks for it."""
         v = dva_day.get(did)
         if v is None:
             return True
@@ -275,16 +274,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
         for m in mints:
             if m["veh"] == v and m["driver"] != did:
                 others.extend(m["legs"])
-        if not others:
-            return True
-        for ol in others:
-            if leg.start < ol.end and ol.start < leg.end:
-                return False
-        pmin = min(l.pick for l in others)
-        pmax = max(l.pick for l in others)
-        lo = (pmin - leg.pick).total_seconds() / 60.0
-        hi = (leg.pick - pmax).total_seconds() / 60.0
-        return lo >= gap or hi >= gap
+        return mint_share_ok(leg, others, gap)
 
     # ---- STEP 3: fill — rostered drivers first (waterfall), then mints ----
     farmed_set = set(id(l) for l in farmed)
@@ -337,7 +327,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
                 continue
             n_mints_here = sum(1 for m in mints if m["veh"] == v)
             n_roster = len(veh_drivers.get(v, []))
-            if n_roster + n_mints_here >= 2:  # <= 2 drivers per vehicle-day
+            if n_roster + n_mints_here >= MAX_DRIVERS_PER_VEHICLE_DATE:
                 continue
             for side, bound in veh_free_sides(v):
                 if side == "early" and (bound - leg.pick).total_seconds() / 60.0 < gap:
@@ -345,7 +335,7 @@ def replay_one_day(day, boards, farmed, dva_day, fleet, standby, *,
                 if side == "late" and (leg.pick - bound).total_seconds() / 60.0 < gap:
                     continue
                 # the seed leg may not overlap co-driver occupancy
-                if any(leg.start < ol.end and ol.start < leg.end
+                if any(intervals_overlap(leg.start, leg.end, ol.start, ol.end)
                        for od in veh_drivers.get(v, [])
                        for ol in (boards.get(od) or [])):
                     continue

@@ -4052,10 +4052,14 @@ def apply_day_setup(request):
 
         # ≤2 DRIVERS PER VEHICLE-DATE — server-side hard rule (scheduling redesign
         # Build 2a; never observed above 2 in either regime, now enforced). Counts
-        # this payload's pairs plus live rows held outside the payload.
+        # this payload's pairs plus live rows held outside the payload. The number
+        # itself is car_share.MAX_DRIVERS_PER_VEHICLE_DATE — one home for every
+        # co-driver rule (Build 3a, P2). This is the ONLY place the rule is
+        # enforced against a write.
+        from dispatching.car_share import MAX_DRIVERS_PER_VEHICLE_DATE
         for vid, shares in _by_vid.items():
             n_total = len(shares) + len(_live_outside_holders(vid))
-            if n_total > 2:
+            if n_total > MAX_DRIVERS_PER_VEHICLE_DATE:
                 return JsonResponse(
                     {"success": False,
                      "error": f"#{vehicles[vid].vehicle_number} would end up with "
@@ -12212,13 +12216,11 @@ def auto_assign_drivers(request):
 
     from datetime import datetime as dt
     from dispatching.scheduler import (
-        build_driver_schedules, suggest_assignments_clustered,
         ScheduleSlot, estimate_job_end_time, preload_timing_cache as _preload_cache,
         resolve_run_min_buffer, load_driver_min_buffers,
     )
     from dispatching.analytics import categorize_location
     from copy import deepcopy
-    from decimal import Decimal
     # Pre-load the route-timing cache once (1 query) so the build + pre-farm swap + gap-compaction
     # passes don't each fall back to per-leg RouteTimingMetric DB hits (~1,500 queries → 1).
     # Mirrors capacity_planner; independent of the USE_LIVE_DISTANCE setting.
@@ -12313,49 +12315,20 @@ def auto_assign_drivers(request):
             # Modal-typed Max hrs wins over the saved-availability value.
             driver_max_hours.setdefault(d.id, float(full_avail["max_hours"]))
 
-    # ── Span Governor: one cap-clamped, modal-aware window per working driver ──
-    # max_hours via the get_effective_window funnel: min(stub, 15h default) — but a
-    # modal-typed/DB per-driver value is INTENT and may raise past the default, up to
-    # the 17h absolute ceiling.
-    # Built for EVERY working driver and handed to the swap + rescue passes (find_swaps
-    # restricts its receiver pool to this dict's keys, so a partial map would silently
-    # shrink swap recovery). The greedy + gap passes get the same caps through their own
-    # get_effective_window calls.
+    # ── The assignment build ──
+    # Every pass — build-first seeding, greedy placement, pre-farm swap recovery,
+    # evict-to-farm, span rescue, span trim, gap compaction and the final
+    # free-insertion sweep — lives in dispatching/assignment_pipeline.py. It used
+    # to live inline here, reachable only by POSTing to this endpoint; Build 3's
+    # optimizer has to run the SAME build over a hypothetical roster (01 §A3), so
+    # it is now a callable and this view is one of its callers: parse, load, run,
+    # render. The build itself is unchanged — analysis/14_pipeline_parity.py
+    # captures this view's whole JSON response before and after and fails on any
+    # difference.
     from dispatching import feasibility_guards as fg
-    capped_windows = {}
-    for d in inhouse_drivers:
-        _sh_eh = driver_hours.get(d.id)
-        capped_windows[d.id] = fg.get_effective_window(d.id, configured={
-            "start": _sh_eh[0] if _sh_eh else None,
-            "end": _sh_eh[1] if _sh_eh else None,
-            "max_hours": driver_max_hours.get(d.id),
-            "flexible": d.id in flexible_drivers,
-        })
-
-    # Shared-car partner map: two WORKING drivers on one physical unit (Day Setup planned
-    # AM/PM share or an advisor freed-unit accept). Every engine pass gates inserts against
-    # the partner's jobs — the planned windows alone are not airtight (modal End is a
-    # last-pickup bound; a 14:50 pickup clears past the partner's 15:05 start).
-    from dispatching.scheduler import build_sharer_partners
-    sharer_partners = build_sharer_partners(
-        {d.id for d in inhouse_drivers}, target_date)
-
-    schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
-
-    # Parse per-driver trip preferences: {driver_id: "prefer_arrival"}
-    # Start with driver availability defaults, then apply frontend overrides
-    driver_preferences = {}
-    for d in inhouse_drivers:
-        avail = d.get_availability_for_date(target_date)
-        if avail[3]:  # preference
-            driver_preferences[d.id] = avail[3]
-
-    for did_str, pref in raw_preferences.items():
-        try:
-            if pref:
-                driver_preferences[int(did_str)] = str(pref)
-        except (ValueError, TypeError):
-            continue
+    from dispatching.assignment_pipeline import (
+        PipelineLocks, PipelineWindows, run_assignment_pipeline,
+    )
 
     # Parse manual assignments: {leg_id: driver_id}
     manual_assignments = {}
@@ -12365,8 +12338,48 @@ def auto_assign_drivers(request):
         except (ValueError, TypeError):
             continue
 
-    legs_by_id = {l.id: l for l in legs}
-    drivers_by_id = {d.id: d for d in inhouse_drivers}
+    # Parse per-driver trip preference overrides: {driver_id: "prefer_arrival"}.
+    # The pipeline layers these over each driver's saved availability preference.
+    preference_overrides = {}
+    for did_str, pref in raw_preferences.items():
+        try:
+            if pref:
+                preference_overrides[int(did_str)] = str(pref)
+        except (ValueError, TypeError):
+            continue
+
+    _built = run_assignment_pipeline(
+        legs, inhouse_drivers, target_date,
+        PipelineWindows(
+            driver_hours=driver_hours,
+            flexible_drivers=flexible_drivers,
+            driver_max_hours=driver_max_hours,
+            strict_span_caps=strict_span_caps,
+            preferences=preference_overrides,
+            run_min_buffer=run_min_buffer,
+            driver_min_buffers=driver_min_buffers,
+        ),
+        PipelineLocks(
+            manual_assignments=manual_assignments,
+            build_first=raw_build_first,
+            excluded_leg_ids=excluded_leg_ids,
+            exclude_unpaid=exclude_unpaid,
+        ),
+    )
+    # The documented three-tuple, then the derived state the preview and the
+    # advisors render from (recomputing any of it here would risk drift).
+    final_assignments, _span_warnings, _moves = _built
+    _evict_moves, _trim_moves = _moves["evict"], _moves["trim"]
+    schedules = _built.board
+    legs_by_id = _built.legs_by_id
+    drivers_by_id = _built.drivers_by_id
+    unassigned = _built.unassigned
+    locked_ids = _built.locked_ids
+    _priority_ids = _built.priority_ids
+    prev_end_by_driver = _built.prev_end_by_driver
+    capped_windows = _built.capped_windows
+    sharer_partners = _built.sharer_partners
+    excluded_set = set(excluded_leg_ids)
 
     # Vehicle (number + type) per driver for the date — shown in the schedule header.
     veh_by_driver = {}
@@ -12377,241 +12390,6 @@ def auto_assign_drivers(request):
             _num = _dva.vehicle.vehicle_number
             _vt = str(_dva.vehicle.vehicle_type).upper() if _dva.vehicle.vehicle_type else ""
             veh_by_driver[_dva.driver_id] = f"{_vt} · {_num}" if _vt else (_num or "")
-
-    # Get unassigned legs (excluding user-excluded ones)
-    excluded_set = set(excluded_leg_ids)
-    unassigned = [l for l in legs if not l.driver and l.id not in excluded_set]
-
-    # Separate manually-assigned legs from auto-assign pool
-    manual_leg_ids = set(manual_assignments.keys())
-    auto_unassigned = [l for l in unassigned if l.id not in manual_leg_ids]
-
-    # Drop unpaid reservations from the auto pool when the dispatcher asked to skip
-    # them. Manual assignments are kept (deliberate override).
-    if exclude_unpaid:
-        auto_unassigned = [
-            l for l in auto_unassigned
-            if l.reservation and l.reservation.payment_status == 'paid'
-        ]
-
-    # ── "Build first" priority seeding ──
-    # Drivers the dispatcher marked "Build first" get their FULL day built BEFORE the general
-    # assignment — mirrors building a fixed driver's day (e.g. Yovanny) by hand and shuffling the
-    # rest around it, so flexible drivers don't out-compete them for legs they could do. Coverage
-    # and feasibility are unchanged (build_smart_schedule gates every leg); this only reserves their
-    # legs first. Most-constrained (narrowest window) priority driver is seeded first.
-    seeded_assignments = {}
-    assign_board = schedules   # board the general assigner sees (gets seeded occupancy below)
-    _priority_ids = [int(x) for x in raw_build_first if str(x).isdigit() and int(x) in driver_hours
-                     and int(x) not in sharer_partners]  # seeding bypasses the shared-car gate
-    _priority_ids.sort(key=lambda did: 24 if did in flexible_drivers else (driver_hours[did][1] - driver_hours[did][0]))
-    if _priority_ids:
-        from dispatching.scheduler import build_smart_schedule
-        _pool = list(auto_unassigned)
-        for did in _priority_ids:
-            sh, eh = driver_hours[did]
-            existing = schedules.get(did)
-            existing_ids = {s.leg_id for s in existing.slots} if existing else set()
-            res = build_smart_schedule(
-                driver_id=did, driver_name=str(drivers_by_id[did]),
-                available_legs=_pool, target_date=target_date,
-                start_hour=sh, end_hour=eh, existing_schedule=existing,
-                # Span Governor: Build-1st seeding was the one path with NO span bound
-                # (max_hours used to be hardcoded None) — pass the same clamped cap the
-                # rest of the pipeline enforces.
-                max_hours=(capped_windows.get(did) or {}).get("max_hours"),
-                # Build-1st seeding is still the ENGINE choosing legs, so it pays the same
-                # turn buffer as the general pass (build_smart_schedule applies this
-                # driver's own typed override on top).
-                min_buffer=run_min_buffer,
-            )
-            for s in res.get('schedule', []):
-                if s.leg_id not in existing_ids and s.leg_id not in seeded_assignments:
-                    seeded_assignments[s.leg_id] = did
-            _pool = [l for l in _pool if l.id not in seeded_assignments]
-        # Build a SEPARATE board (assign_board) that includes the seeded occupancy so the general
-        # pass sees these drivers as busy. Do NOT mutate `schedules` itself: the preview deepcopies
-        # `schedules` as the pre-existing board and re-adds final_assignments on top, so seeded legs
-        # must live ONLY in final_assignments — else they render twice (the "15 legs" duplication).
-        for lid, did in seeded_assignments.items():
-            lg = legs_by_id.get(lid)
-            if lg is not None:
-                lg.driver = drivers_by_id.get(did); lg.driver_id = did
-        assign_board = build_driver_schedules(legs, inhouse_drivers, target_date)
-        for lid in seeded_assignments:   # restore: seeded are tracked via final_assignments, not leg.driver
-            lg = legs_by_id.get(lid)
-            if lg is not None:
-                lg.driver = None; lg.driver_id = None
-        auto_unassigned = [l for l in auto_unassigned if l.id not in seeded_assignments]
-
-    # ── Rest Advisor: previous day's last drop-off per working driver ──
-    # Feeds the overnight-rest deficit penalty (suggest_assignments scorer) AND the rest
-    # advisory cards below. max(end) across ALL of yesterday's legs = the real clear time
-    # (a slightly earlier pickup with a longer drive can be the one that clears last).
-    # A driver with no legs yesterday is absent from the map => treated as fully rested.
-    prev_end_by_driver = {}
-    try:
-        from dispatching.scheduler import estimate_job_end_time as _est_end
-        _prev_day = target_date - timedelta(days=1)
-        _wids = set(driver_hours.keys())
-        if _wids:
-            _prev_legs = (Leg.objects.filter(pickup_date=_prev_day, driver_id__in=_wids)
-                          .exclude(status="cancelled")
-                          .select_related("reservation", "flight_information"))
-            for _pl in _prev_legs:
-                try:
-                    _end = _est_end(_pl, _prev_day)
-                except Exception:
-                    continue
-                if _end > prev_end_by_driver.get(_pl.driver_id, datetime.min):
-                    prev_end_by_driver[_pl.driver_id] = _end
-    except Exception:
-        prev_end_by_driver = {}
-
-    # Run suggestion engine on remaining unassigned legs
-    suggestions = suggest_assignments_clustered(auto_unassigned, assign_board, target_date,
-                                                driver_hours=driver_hours or None,
-                                                driver_preferences=driver_preferences or None,
-                                                flexible_drivers=flexible_drivers or None,
-                                                driver_max_hours=driver_max_hours or None,
-                                                sharer_partners=sharer_partners or None,
-                                                prev_end_by_driver=prev_end_by_driver or None,
-                                                min_buffer=run_min_buffer,
-                                                driver_min_buffers=driver_min_buffers) if auto_unassigned else []
-
-    # Merge: auto suggestions + manual overrides
-    valid_suggestions = [
-        s for s in suggestions
-        if s.suggested_driver_id and legs_by_id.get(s.leg_id) and drivers_by_id.get(s.suggested_driver_id)
-    ]
-    # Build final assignment map: {leg_id: driver_id}
-    final_assignments = {}
-    for s in valid_suggestions:
-        final_assignments[s.leg_id] = s.suggested_driver_id
-    for lid, did in manual_assignments.items():
-        if legs_by_id.get(lid) and drivers_by_id.get(did):
-            final_assignments[lid] = did
-    # "Build first" seeded legs are part of the final board (and locked from later passes).
-    for lid, did in seeded_assignments.items():
-        final_assignments[lid] = did
-
-    # Manual + seeded assignments are LOCKED — never relocated by the swap / gap passes.
-    locked_ids = set(manual_assignments.keys()) | set(seeded_assignments.keys())
-
-    # ── Auto pre-farm swap pass ──
-    # The greedy build is single-leg and can't rearrange, so it farms legs that a cascade of
-    # existing assignments could absorb. Before finalizing the farm list, try to recover each
-    # would-be-farmed auto leg in-house via find_swaps. Read-only; updates final_assignments
-    # (recovered + any moved legs). Manual + build-first assignments are locked (never relocated).
-    _span_warnings = []
-    _evict_moves = []
-    if auto_unassigned:
-        from dispatching.scheduler import (
-            recover_residuals_via_swaps, rescue_span_blocked_residuals,
-            evict_to_farm_for_value, load_all_driver_vtypes,
-        )
-        _dvtypes = load_all_driver_vtypes(target_date)
-        final_assignments, _swap_recovered = recover_residuals_via_swaps(
-            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
-            inhouse_drivers, drivers_by_id, target_date, _dvtypes,
-            locked_leg_ids=locked_ids,
-            driver_windows=capped_windows or None,
-            driver_hours=driver_hours or None,
-            flexible_drivers=flexible_drivers or None,
-            sharer_partners=sharer_partners or None,
-        )
-        # ── Evict-to-farm value pass (founder brain R1+R2) ──
-        # An assigned leg is not sacred: a residual that outvalues an engine-proposed
-        # ARRIVAL (a departure, a higher booked class) evicts it to the farm pool and
-        # takes the seat — arrivals are the farm-out currency; true departures are never
-        # evicted (is_departure parity with the farm-out optimizer). Runs AFTER the swap
-        # pass (cheaper cascades first), BEFORE the span rescue (so the rescue re-seats
-        # evicted arrivals anywhere they still fit) and BEFORE the trim/gap passes
-        # (which polish a settled board). Manual/seeded/pre-existing stay locked; every
-        # move re-validates the whole chain through the guards.
-        final_assignments, _evict_moves = evict_to_farm_for_value(
-            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
-            inhouse_drivers, drivers_by_id, target_date, _dvtypes,
-            locked_leg_ids=locked_ids,
-            driver_windows=capped_windows or None,
-            driver_hours=driver_hours or None,
-            flexible_drivers=flexible_drivers or None,
-            sharer_partners=sharer_partners or None,
-            min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
-        )
-        if _evict_moves:
-            import logging as _logging
-            _ev_log = _logging.getLogger(__name__)
-            for _mv in _evict_moves:
-                _ev_log.info("AUTO-ASSIGN evict pass: %s", _mv["reason"])
-        # ── Span-cap coverage rescue ──
-        # Priority #1: the duty-span cap may never cost an in-house job. Any residual whose
-        # ONLY blocker was the cap is assigned anyway with a loud RED preview warning —
-        # except drivers with a dispatcher-TYPED Max hrs (strict; the leg stays residual
-        # with a named reason). Runs BEFORE gap compaction so rescued legs can still be healed.
-        final_assignments, _span_rescued, _span_warnings = rescue_span_blocked_residuals(
-            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
-            inhouse_drivers, drivers_by_id, target_date, _dvtypes,
-            capped_windows,
-            driver_hours=driver_hours or None,
-            flexible_drivers=flexible_drivers or None,
-            strict_cap_driver_ids=set(strict_span_caps.keys()),
-            locked_leg_ids=locked_ids,
-            sharer_partners=sharer_partners or None,
-            min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
-        )
-
-    # ── Span-trim relocation pass ──
-    # Coverage is settled; now actively SHORTEN over-long days: peel a long driver's first or
-    # last leg onto a driver with room (the founder's "Roberto just starts later" move). Never
-    # farms (keyset asserted unchanged); moved legs are locked against the gap pass below.
-    from dispatching.scheduler import trim_spans_via_relocation, compact_gaps_via_relocation, load_all_driver_vtypes
-    final_assignments, _trim_moves = trim_spans_via_relocation(
-        final_assignments, legs_by_id, inhouse_drivers, drivers_by_id, target_date,
-        load_all_driver_vtypes(target_date),
-        locked_leg_ids=locked_ids,
-        driver_hours=driver_hours or None,
-        flexible_drivers=flexible_drivers or None,
-        capped_windows=capped_windows or None,
-        sharer_partners=sharer_partners or None,
-        min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
-    )
-    locked_ids = locked_ids | {m["leg_id"] for m in _trim_moves}
-
-    # ── Gap-compaction relocation pass ──
-    # Coverage is settled above; now compact for quality. If a driver has a big internal hole
-    # and another driver holds a job sitting inside it, relocate that job to fill the hole (the
-    # donor just starts later / finishes earlier) — but only when it heals more gap than it
-    # opens. Manual assignments stay locked (never relocated). Read-only; updates final_assignments.
-    final_assignments, _gap_moves = compact_gaps_via_relocation(
-        final_assignments, legs_by_id, inhouse_drivers, drivers_by_id, target_date,
-        load_all_driver_vtypes(target_date),
-        locked_leg_ids=locked_ids,
-        driver_hours=driver_hours or None,
-        flexible_drivers=flexible_drivers or None,
-        sharer_partners=sharer_partners or None,
-        min_buffer=run_min_buffer, driver_min_buffers=driver_min_buffers,
-    )
-
-    # ── Final free-insertion sweep (founder brain) ──
-    # The trim/gap relocations above can open seats that did not exist when coverage was
-    # settled — never leave a leg farmed that fits the FINAL board as-is (the founder's
-    # answer key missed two such insertions on 6/14; the engine must not). No evictions
-    # here (free_insert_only) — pure coverage wins, every insert re-runs the guards.
-    if auto_unassigned:
-        from dispatching.scheduler import evict_to_farm_for_value as _evict_pass
-        final_assignments, _final_inserts = _evict_pass(
-            final_assignments, [l.id for l in auto_unassigned], legs_by_id,
-            inhouse_drivers, drivers_by_id, target_date,
-            load_all_driver_vtypes(target_date),
-            locked_leg_ids=locked_ids,
-            driver_windows=capped_windows or None,
-            driver_hours=driver_hours or None,
-            flexible_drivers=flexible_drivers or None,
-            sharer_partners=sharer_partners or None,
-            free_insert_only=True,
-        )
-        _evict_moves.extend(_final_inserts)
 
     assigned_count = len(final_assignments)
     remaining = len(unassigned) - assigned_count

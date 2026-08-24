@@ -3144,57 +3144,14 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
     return final_assignments, moves
 
 
-def build_sharer_partners(driver_ids, target_date, rows=None):
-    """Map {driver_id: {other drivers sharing the SAME physical vehicle that date}}.
-
-    Built from DriverVehicleAssignment: a vehicle held by >1 working driver is one
-    physical unit split across shifts (Day Setup AM/PM share or an advisor freed-unit
-    accept). Feed the result to sharers_conflict() to gate any insert against the
-    car-share partner's jobs. Mirrors the inline construction in suggest_assignments().
-    Pass ``rows`` (the date's DVA rows) to skip the query."""
-    from drivers.models import DriverVehicleAssignment
-
-    working = set(driver_ids)
-    if rows is None:
-        rows = DriverVehicleAssignment.objects.filter(
-            date=target_date, vehicle__isnull=False, driver_id__in=working)
-    unit_holders = {}
-    for dva in rows:
-        if dva.vehicle_id is None or dva.driver_id not in working:
-            continue
-        unit_holders.setdefault(dva.vehicle_id, []).append(dva.driver_id)
-    partners = {}
-    for holders in unit_holders.values():
-        if len(holders) > 1:
-            for did in holders:
-                partners.setdefault(did, set()).update(
-                    h for h in holders if h != did)
-    return partners
-
-
-def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
-                     pad_min=None):
-    """True if giving `leg` to `driver_id` would overlap his car-share PARTNER's jobs
-    (one physical unit). Interval = [pickup - pad, est_end + pad] vs every partner slot.
-    schedules: {driver_id: DriverDaySchedule} for the CURRENT board state."""
-    partners = (sharer_partners or {}).get(driver_id)
-    if not partners:
-        return False
-    if pad_min is None:
-        from dispatching.models import SchedulerSettings
-        pad_min = SchedulerSettings.get_settings().vehicle_share_pad_min
-    pad = timedelta(minutes=pad_min)
-    start = datetime.combine(target_date, leg.pickup_time) - pad
-    end = estimate_job_end_time(leg, target_date) + pad
-    for pid in partners:
-        psched = schedules.get(pid)
-        if psched is None:
-            continue
-        for s in psched.slots:
-            s_start = datetime.combine(target_date, s.pickup_time)
-            if start < s.estimated_end_time and s_start < end:
-                return True
-    return False
+# The co-driver car-share gate is defined ONCE, in dispatching/car_share.py —
+# alongside the manual-warning and mint-engine conventions, so the three can be
+# read side by side (Build 3a, P2). Re-exported here because ~12 modules and the
+# replay scripts import these names from `scheduler`, and `sch.sharers_conflict`
+# is what the tests patch.
+from dispatching.car_share import (            # noqa: E402  (re-export)
+    build_sharer_partners, sharers_conflict,
+)
 
 
 def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,

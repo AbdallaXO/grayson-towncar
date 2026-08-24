@@ -131,81 +131,14 @@ def _turn_warnings(new_slot, day_slots, target_date):
 # (ii) co-driver car-share check (one physical unit, two drivers)
 # ════════════════════════════════════════════════════════════════════════════
 
-def share_conflicts(entries, pad_min, focus_leg_id=None):
-    """PURE decision core of the co-driver car-share check — shared verbatim by
-    the endpoint path below and the precision replay
-    (docs/scheduling-redesign/analysis/12_warn_precision.py), so script and
-    product cannot drift.
-
-    ``entries``: one shared unit-day as
-    ``[{"leg_id", "did", "pick", "start", "end"}, ...]`` — occupancy blocks per
-    leg (handoff_chain lead/tail around the booked pickup ``pick``). Need not be
-    sorted. ``focus_leg_id`` scopes the verdicts to conflicts a specific leg
-    creates (the endpoint's "warn about THIS assignment" contract); None scores
-    the whole unit-day (the replay).
-
-    Returns a list of {"code", "a", "b"} dicts:
-      * ``share_overlap``    a/b cross-driver entries whose blocks intersect —
-                             one physical car in two places;
-      * ``share_pad``        adjacent cross-driver pickups (by pickup order)
-                             whose pickup-to-pickup gap is under ``pad_min``,
-                             skipped where the same pair already overlaps;
-      * ``share_interleave`` (a=b=None) the unit's day switches drivers more
-                             than once — with a focus leg, only when THAT leg
-                             creates the extra switch.
-    """
-    entries = sorted(entries, key=lambda e: (e["pick"], e["leg_id"]))
-    out = []
-
-    # Overlap: cross-driver occupancy blocks that intersect.
-    overlapped_pairs = set()
-    for i, a in enumerate(entries):
-        for b in entries[i + 1:]:
-            if a["did"] == b["did"]:
-                continue
-            if focus_leg_id is not None and focus_leg_id not in (a["leg_id"], b["leg_id"]):
-                continue
-            if a["start"] < b["end"] and b["start"] < a["end"]:
-                overlapped_pairs.add((a["leg_id"], b["leg_id"]))
-                out.append({"code": "share_overlap", "a": a, "b": b})
-
-    # Interleave: at most one hand-back per unit-day.
-    def switches(seq):
-        ids = [e["did"] for e in seq]
-        return sum(1 for x, y in zip(ids, ids[1:]) if x != y)
-
-    with_all = switches(entries)
-    if focus_leg_id is not None:
-        without = switches([e for e in entries if e["leg_id"] != focus_leg_id])
-        if with_all > max(1, without):
-            out.append({"code": "share_interleave", "a": None, "b": None})
-    elif with_all > 1:
-        out.append({"code": "share_interleave", "a": None, "b": None})
-
-    # Handoff pad: adjacent cross-driver pickups must clear the pad; an
-    # overlapping pair already fired the harder verdict above.
-    for a, b in zip(entries, entries[1:]):
-        if a["did"] == b["did"]:
-            continue
-        if focus_leg_id is not None and focus_leg_id not in (a["leg_id"], b["leg_id"]):
-            continue
-        if (a["leg_id"], b["leg_id"]) in overlapped_pairs:
-            continue
-        gap = int((b["pick"] - a["pick"]).total_seconds() / 60)
-        if gap < pad_min:
-            out.append({"code": "share_pad", "a": a, "b": b})
-    return out
-
-
-def build_share_entry(leg_id, did, pickup_dt, pickup_category, dropoff_category):
-    """One ``share_conflicts`` entry from a leg's booked pickup + categories.
-    Shared by the endpoint path and the replay (same P75 feasibility blocks)."""
-    from dispatching.handoff_chain import occupancy_interval, occupancy_kind
-    start, end = occupancy_interval(
-        pickup_dt, occupancy_kind(pickup_category, dropoff_category),
-        percentile="p75")
-    return {"leg_id": leg_id, "did": did, "pick": pickup_dt,
-            "start": start, "end": end}
+# The decision core and the entry builder live in dispatching/car_share.py —
+# the one home for every co-driver rule (Build 3a, P2). Re-exported here
+# because the precision replay imports them from this module
+# (docs/scheduling-redesign/analysis/12_warn_precision.py), so script and
+# product cannot drift.
+from dispatching.car_share import (           # noqa: E402  (re-export)
+    build_share_entry, share_conflicts,
+)
 
 
 def _share_warnings(leg, driver, target_date, pad_min):
