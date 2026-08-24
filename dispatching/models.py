@@ -155,7 +155,20 @@ class SchedulerSettings(models.Model):
                   "this many minutes each side. 120 is the empirical anchor from "
                   "measured handoffs — the retired constant 60 sat near the 9th "
                   "percentile of real pickup-to-pickup handoff gaps (optimistic "
-                  "nine times in ten).")
+                  "nine times in ten). Read by the manual-assign warning and the "
+                  "second-shift/mint engine — NOT by the build engine's own "
+                  "farm-out gate, which has its own dial below.")
+    engine_share_pad_min = models.IntegerField(
+        default=65,
+        help_text="Shared-car pad for the BUILD ENGINE's farm-out gate only "
+                  "(car_share.sharers_conflict) — separate from vehicle_share_pad_"
+                  "min on purpose (2026-08-24). The engine measures this pad from "
+                  "the outgoing driver's estimated CLEAR time to the partner's "
+                  "pickup; the warning/mint pad above measures pickup-to-pickup. "
+                  "At the shared 120 the engine was rejecting, and therefore "
+                  "farming out, real handoffs the founder confirmed ran fine — one "
+                  "as tight as a 48-min clear-to-pickup gap. Tune this one alone; "
+                  "it never affects the warning or the second-shift proposals.")
 
     # ── Manual-Assign Warnings (scheduling redesign, Build 1) ─────
     manual_assign_warnings = models.BooleanField(

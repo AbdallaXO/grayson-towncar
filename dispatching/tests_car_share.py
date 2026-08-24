@@ -22,9 +22,9 @@ to its own documented behaviour so a future "tidy-up" cannot quietly merge them.
 
 Run with:  ./manage.py test dispatching.tests_car_share
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from dispatching import car_share as cs
 
@@ -215,3 +215,80 @@ class ReExportTests(SimpleTestCase):
         tree = ast.parse(inspect.getsource(cs))
         top = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))]
         self.assertEqual(top, [], "car_share must have no module-level imports")
+
+
+class SharersConflictDefaultPadTests(TestCase):
+    """sharers_conflict's default (pad_min=None) reads
+    SchedulerSettings.engine_share_pad_min — a DEDICATED dial split from
+    vehicle_share_pad_min on 2026-08-24 (05_BUILD3B_TICKETS.md §9.1/9.2).
+
+    The split matters because this convention measures its pad from the
+    candidate's own estimated CLEAR time forward, not pickup-to-pickup, so
+    the same numeric pad is a materially stricter test here than B/C's —
+    strict enough, at the shared 120, to farm out real handoffs the founder
+    ground-truthed as fine. These tests set the two settings to DIFFERENT
+    values so a regression that reverts to reading vehicle_share_pad_min
+    fails loudly rather than by coincidence."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from dispatching.scheduler import preload_timing_cache
+        preload_timing_cache()
+
+    def setUp(self):
+        from dispatching.models import SchedulerSettings
+        SchedulerSettings.clear_cache()
+        self.addCleanup(SchedulerSettings.clear_cache)
+
+    def _partner_slot(self, leg_id, pickup, end):
+        from dispatching.scheduler import ScheduleSlot
+        return ScheduleSlot(
+            leg_id=leg_id, pickup_time=pickup,
+            pickup_location="Disney Contemporary", pickup_category="Disney Resort",
+            dropoff_location="MCO", dropoff_category="MCO Terminal",
+            trip_type="departure", estimated_end_time=end,
+            reservation_id=0, customer_name="", status="in-progress",
+            has_flight=False)
+
+    def _fixture(self, engine_pad, vehicle_pad):
+        from dispatching.models import SchedulerSettings
+        from dispatching.scheduler import DriverDaySchedule
+        from dispatching.tests_swap_guards import fake_leg
+        cfg = SchedulerSettings.get_settings()
+        cfg.engine_share_pad_min = engine_pad
+        cfg.vehicle_share_pad_min = vehicle_pad   # deliberately different
+        cfg.save()
+        # Reproduces the real 2026-04-10 case: driver clears ~13:06, partner
+        # picks up 15:00 — a 114-min clear-to-pickup gap. At 120 that's a
+        # conflict; at 65 (the fixed default) it is not.
+        candidate = fake_leg(leg_id=1, pickup=dt_time(12, 30))
+        partner_slot = self._partner_slot(
+            2, dt_time(15, 0), datetime(2026, 4, 10, 15, 35))
+        schedules = {2: DriverDaySchedule(
+            driver_id=2, driver_name="Partner", driver_type="inhouse",
+            slots=[partner_slot])}
+        return candidate, {1: {2}, 2: {1}}, schedules
+
+    def test_default_pad_reads_engine_share_pad_min_not_vehicle_share_pad_min(self):
+        candidate, sharer_partners, schedules = self._fixture(
+            engine_pad=65, vehicle_pad=120)
+        self.assertFalse(
+            cs.sharers_conflict(candidate, 1, sharer_partners, schedules,
+                                datetime(2026, 4, 10).date()),
+            "with engine_share_pad_min=65 this real, founder-confirmed-fine "
+            "handoff must NOT be flagged — if this fails, the default pad "
+            "selection has regressed to reading vehicle_share_pad_min")
+
+    def test_explicit_pad_min_still_overrides_both_settings(self):
+        # Callers that pass pad_min explicitly (the replay scripts, the
+        # precision gate) must be completely unaffected by either setting.
+        candidate, sharer_partners, schedules = self._fixture(
+            engine_pad=65, vehicle_pad=120)
+        self.assertTrue(
+            cs.sharers_conflict(candidate, 1, sharer_partners, schedules,
+                                datetime(2026, 4, 10).date(), pad_min=200),
+            "an explicit pad_min must win over both DB settings")
+
+    def test_default_value_is_65(self):
+        from dispatching.models import SchedulerSettings
+        self.assertEqual(SchedulerSettings.get_settings().engine_share_pad_min, 65)

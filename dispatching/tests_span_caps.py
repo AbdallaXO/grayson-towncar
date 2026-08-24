@@ -595,22 +595,29 @@ class SharerConflictTests(TestCase):
         self.assertTrue(sch.sharers_conflict(
             self._mk_leg(16, 15), 8, {8: {7}}, self._board(), D))
 
-    def test_pad_default_is_empirical_120(self):
-        # Scheduling redesign Build 1c: the flat 60-min constant sat near the 9th
-        # percentile of measured pickup-to-pickup handoff gaps, so the pad now lives
-        # on SchedulerSettings.vehicle_share_pad_min, default 120 (the empirical
-        # anchor). Pin the default AND the behavior boundary it creates: partner
-        # clears 16:00, so a 17:05 pickup (clean under the old 60) now conflicts,
-        # while an 18:05 pickup (just past clear + 120) is clean.
+    def test_pad_default_is_engine_share_pad_min_65(self):
+        # Scheduling redesign: Build 1c first moved this off a flat 60-min
+        # constant onto SchedulerSettings.vehicle_share_pad_min (120, the
+        # pickup-to-pickup empirical anchor). 2026-08-24 split it again:
+        # sharers_conflict measures its pad from the CANDIDATE'S OWN estimated
+        # clear time, not pickup-to-pickup, so the same 120 was a materially
+        # stricter test here than intended — strict enough to farm out real
+        # handoffs the founder confirmed ran fine. It now reads a DEDICATED
+        # SchedulerSettings.engine_share_pad_min, default 65, and
+        # vehicle_share_pad_min stays 120 for the other two conventions. Pin
+        # both defaults and the boundary the new one creates: partner clears
+        # 16:00, so a 16:30 pickup (35 min after clear) conflicts under the
+        # 65-min pad, while a 17:10 pickup (70 min after clear) is clean.
         from dispatching.models import SchedulerSettings
         SchedulerSettings.clear_cache()
         self.addCleanup(SchedulerSettings.clear_cache)
-        self.assertEqual(
-            SchedulerSettings.get_settings().vehicle_share_pad_min, 120)
+        cfg = SchedulerSettings.get_settings()
+        self.assertEqual(cfg.engine_share_pad_min, 65)
+        self.assertEqual(cfg.vehicle_share_pad_min, 120)
         self.assertTrue(sch.sharers_conflict(
-            self._mk_leg(17, 5), 8, {8: {7}}, self._board(), D))
+            self._mk_leg(16, 30), 8, {8: {7}}, self._board(), D))
         self.assertFalse(sch.sharers_conflict(
-            self._mk_leg(18, 5), 8, {8: {7}}, self._board(), D))
+            self._mk_leg(17, 10), 8, {8: {7}}, self._board(), D))
 
     def test_pad_is_live_editable(self):
         # The founder can tune the pad without a deploy: drop it to 60 and the

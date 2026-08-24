@@ -37,7 +37,15 @@ instead of spread across four.
      No pre-pickup lead — the pad IS the lead. The engine clock is
      flight-aware. Rules: overlap only, no interleave rule.
      Verdict: bool; every caller treats True as a HARD skip (the leg goes to
-     the farm pool). Pad: ``SchedulerSettings.vehicle_share_pad_min`` (120).
+     the farm pool). Pad: ``SchedulerSettings.engine_share_pad_min`` (65) — a
+     DEDICATED dial, split from B/C's ``vehicle_share_pad_min`` on 2026-08-24.
+     Reason for the split: this test measures its pad from the candidate's
+     CLEAR time forward, so the SAME numeric pad is a materially stricter
+     requirement here than B/C's pickup-to-pickup measurement (§9.1/9.2 in
+     05_BUILD3B_TICKETS.md) — at the shared 120 it was rejecting, and
+     therefore farming out, real handoffs the founder confirmed ran fine
+     against actual operating history, one as tight as a 48-minute
+     clear-to-pickup gap. Tune it alone; it never touches B or C.
 
   B. MANUAL-PATH WARNINGS — ``share_conflicts``.
      Interval: ``handoff_chain`` occupancy lead/tail at **P75** (the
@@ -196,8 +204,15 @@ def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
     if not partners:
         return False
     if pad_min is None:
+        # engine_share_pad_min, NOT vehicle_share_pad_min — separate dial since
+        # 2026-08-24. This convention measures its pad from the candidate's own
+        # CLEAR time (see below), not pickup-to-pickup, so it is a materially
+        # stricter test of the SAME 120-min figure than conventions B/C apply —
+        # strict enough that it was farming out real handoffs the founder
+        # ground-truthed as fine (one at a 48-min clear-to-pickup gap). See
+        # car_share.py's module docstring and 05_BUILD3B_TICKETS.md §9.1/9.2.
         from dispatching.models import SchedulerSettings
-        pad_min = SchedulerSettings.get_settings().vehicle_share_pad_min
+        pad_min = SchedulerSettings.get_settings().engine_share_pad_min
     pad = timedelta(minutes=pad_min)
     start = datetime.combine(target_date, leg.pickup_time) - pad
     end = estimate_job_end_time(leg, target_date) + pad
