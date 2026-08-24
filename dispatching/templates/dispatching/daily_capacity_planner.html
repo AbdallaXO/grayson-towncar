@@ -1249,6 +1249,32 @@
         display: flex; align-items: center; gap: 0.5rem; }
     .ds-count { margin-right: auto; font-size: 0.73rem; color: #6c757d; }
     .ds-count.bad { color: #b02a37; font-weight: 600; }
+
+    /* ── Day Setup: split shifts & handoffs (Build 2). New dsx- namespace on
+       purpose — injected DOM must never match .ds-row/.ds-check/.ds-veh. */
+    .dsx-span { font-size: 0.62rem; font-weight: 700; color: #6c757d; white-space: nowrap; }
+    .dsx-span.warn { color: #B4530A; }
+    .dsx-span.bad  { color: #b02a37; }
+    .dsx-strip { padding: 0.45rem 1.05rem 0.45rem; display: flex; flex-wrap: wrap;
+        gap: 0.35rem; border-bottom: 1px solid #e9ecef; background: #fff; }
+    .dsx-chip { font-size: 0.66rem; font-weight: 650; padding: 0.14rem 0.5rem;
+        border-radius: 999px; display: inline-flex; gap: 0.32rem; align-items: center;
+        cursor: default; }
+    .dsx-chip .dxd { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .dsx-green { background: rgba(44,122,76,0.12);  color: #2C7A4C; }
+    .dsx-amber { background: rgba(224,166,58,0.18); color: #8A6A12; }
+    .dsx-red   { background: rgba(198,40,40,0.12);  color: #b02a37; }
+    .dsx-none  { background: #f0eeea; color: #6c757d; }
+    .dsx-mint { display: grid; grid-template-columns: 16px 1fr; gap: 0.55rem;
+        padding: 0.4rem 1.05rem; align-items: start; }
+    .dsx-mint + .dsx-mint { box-shadow: inset 0 1px 0 #f4f2ee; }
+    .dsx-mint:hover { background: #fbfaf7; }
+    .dsx-mint-check { width: 15px; height: 15px; accent-color: #198754;
+        cursor: pointer; margin-top: 2px; }
+    .dsx-mint-t { font-size: 0.78rem; }
+    .dsx-mint-s { font-size: 0.68rem; color: #6c757d; margin-top: 1px; }
+    .dsx-exc { margin: 0.4rem 1.05rem 0; padding: 0.45rem 0.6rem; border-radius: 6px;
+        background: rgba(185,143,38,0.10); color: #6b5410; font-size: 0.73rem; }
 </style>
 {% endblock %}
 
@@ -2396,6 +2422,11 @@
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Arrival Grace (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="arrival_grace_minutes" style="width:75px;" title="Airport arrivals: pax deplane + bags, driver can arrive this many min after flight time"></div>
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Share Pad (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="vehicle_share_pad_min" style="width:75px;" title="Shared car (two drivers, one unit): minutes an insert must clear the partner's jobs each side — covers return to base, wash, fuel, drive out. 120 = measured anchor from real handoffs"></div>
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Assign Warnings (1/0)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="manual_assign_warnings" min="0" max="1" style="width:75px;" title="Warn-only checks on manual assigns (drag-drop / dropdowns): 1 = on, 0 = off. Never blocks an assignment either way"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Share Cut Hour</label><input type="number" class="form-control form-control-sm tuning-input" data-field="share_split_hour" min="0" max="23" style="width:75px;" title="Default AM/PM cut hour for a planned shared car when no better cut is known (16 = the measured modal handoff hour). A second-shift proposal derives its own cut from the actual handoff"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Handoff Green (%)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="handoff_gap_green_pct" min="10" max="300" style="width:75px;" title="GREEN bar for a car handoff, as % of the central wash-fuel-base zone chain. 100 = the model rule exactly; lower is more permissive"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Handoff Amber Floor (%)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="handoff_gap_amber_floor_pct" min="10" max="300" style="width:75px;" title="AMBER floor for a car handoff, as % of the LOW zone chain — under this (and under the skip-wash fast path) a handoff is RED: shown, never suggested"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Min Jobs / 2nd Shift</label><input type="number" class="form-control form-control-sm tuning-input" data-field="mint_min_jobs_soft" min="1" max="6" style="width:75px;" title="Soft minimum jobs on a proposed standby second shift — never a hard floor; thinner proposals still show, flagged 'thin — worth it?'"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Crunch Cap (h)</label><input type="number" step="0.5" class="form-control form-control-sm tuning-input" data-field="span_exception_max_hours" min="13.5" max="16" style="width:75px;" title="Hard ceiling for the priced crunch exception: a driver-day may be proposed past 13.5h only up to this, priced and shown as a choice — never a default"></div>
                                 </div>
                                 <h6 class="fw-bold mb-2">Auto-Assign Buffer Scores</h6>
                                 <div class="row g-2 mb-3">
@@ -5489,6 +5520,27 @@
                 + '</div></div></div>';
         }
 
+        // ── Shared cars (Build 2b): one chip per two-driver unit, colored by the
+        // green/amber/red handoff feasibility from the wash-fuel-base zone chain.
+        var sharedStrip = '';
+        if ((data.shared_units || []).length) {
+            sharedStrip = '<div class="dsx-strip">'
+                + '<span style="font-size:0.6rem;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:#9a948b;align-self:center;">Shared cars</span>'
+                + data.shared_units.map(function(su) {
+                    var cls = su.handoff_band ? 'dsx-' + su.handoff_band : 'dsx-none';
+                    var who = su.from_driver && su.to_driver
+                        ? esc(su.from_driver) + ' → ' + esc(su.to_driver)
+                        : esc((su.drivers || []).map(function(d) { return d.name; }).join(' + '));
+                    var tail = su.handoff_band
+                        ? su.handoff_band.toUpperCase() + (su.handoff_ready_at
+                            ? ' · car back ~' + esc(su.handoff_ready_at) : '')
+                        : 'no verdict yet';
+                    return '<span class="dsx-chip ' + cls + '" title="' + esc(su.handoff_reason || '') + '">'
+                        + '<i class="dxd"></i>' + esc((su.vehicle_label || '').split(' ')[0])
+                        + ' ' + who + ' · ' + tail + '</span>';
+                }).join('') + '</div>';
+        }
+
         // Handback / swap callouts move ONTO the rows they concern; anything left is a
         // day-level note and stays as a short line.
         var rowNote = {};
@@ -5608,17 +5660,84 @@
                 body += locked
                     ? '<i class="bi bi-lock-fill" style="color:#ccc;font-size:0.8rem;"></i>'
                     : '<input type="checkbox" class="ds-check" ' + (r.checked ? 'checked' : '') + ' aria-label="' + esc(r.driver_name) + '">';
+                var spanBadge = '';
+                if (r.span_hours != null) {
+                    var sc = r.span_state === 'over_hard' ? ' bad'
+                           : r.span_state === 'over_soft' ? ' warn' : '';
+                    spanBadge = '<span class="dsx-span' + sc
+                        + '" title="Planned day span vs the 13.5h cap (15h is the crunch ceiling) — estimate from booked times">'
+                        + r.span_hours + 'h</span>';
+                }
                 body += '<span class="ds-who"><span class="ds-name">' + esc(r.driver_name) + '</span>'
                     + (r.forced ? '<span class="ds-tag pick">your pick</span>' : '')
                     + (locked ? '' : chip(r))
                     + (rowNote[r.driver_name] ? '<span class="ds-tag swap">' + esc(rowNote[r.driver_name]) + '</span>' : '')
-                    + streak(r.hint) + '</span>';
+                    + streak(r.hint) + spanBadge + '</span>';
                 body += locked
                     ? '<span style="font-size:0.76rem;font-weight:600;color:#6c757d;">' + dot(r.vehicle_label) + esc(r.vehicle_label) + '</span>'
                     : '<span class="ds-carwrap">' + vehSelect(r) + '</span>';
                 body += '</div>';
             });
             if (isBench) body += '</div>';
+        });
+        // ── Standby second shifts (Build 2c): propose-only — a ticked proposal
+        // rides the normal Apply as a deliberate share; nothing else is written.
+        if ((data.mint_proposals || []).length) {
+            body += '<div class="ds-grp">Second shifts — standby call-outs <b>'
+                + data.mint_proposals.length + '</b></div>'
+                + '<div class="ds-note">Nobody is called automatically — tick one to put it on the plan, then Apply. Times are estimates from booked jobs.</div>';
+            data.mint_proposals.forEach(function(mp, i) {
+                var unitN = (mp.vehicle_label || '').split(' ')[0];
+                var head;
+                if (mp.side === 'early') {
+                    head = '<b>' + esc(mp.driver_name) + '</b> starts the morning on ' + esc(unitN)
+                        + (mp.partner_name ? ', hands it to ' + esc(mp.partner_name) : ', hands it off')
+                        + ' at ' + mp.cut_hour + ':00';
+                } else {
+                    head = '<b>' + esc(mp.driver_name) + '</b> takes ' + esc(unitN)
+                        + (mp.partner_name ? ' from ' + esc(mp.partner_name) : '')
+                        + ' at ' + mp.cut_hour + ':00';
+                }
+                head += ' — ' + esc(mp.window) + ', catches ' + mp.n_jobs + ' job'
+                    + (mp.n_jobs !== 1 ? 's' : '');
+                if (mp.est_saving) head += ' — saves ≈ $' + mp.est_saving + ' farm-out';
+                var chips = '';
+                if (mp.thin) chips += ' <span class="ds-tag swap" title="Fewer jobs than the soft minimum — no call-out minimum pay exists, so the only cost is goodwill. Offer; let the driver decline.">thin — worth it?</span>';
+                if (mp.handoff_band) {
+                    chips += ' <span class="dsx-chip dsx-' + mp.handoff_band + '" title="'
+                        + esc(mp.handoff_reason || '') + '"><i class="dxd"></i>'
+                        + mp.handoff_band.toUpperCase()
+                        + (mp.handoff_ready_at ? ' · car back ~' + esc(mp.handoff_ready_at) : '')
+                        + '</span>';
+                }
+                var legsTxt = (mp.legs || []).map(function(l) {
+                    var src = l.source === 'shed'
+                        ? 'off ' + (l.from_driver || 'a') + '’s long day'
+                        : l.source === 'farm' ? 'farmed today' : 'unassigned';
+                    return esc(l.time) + ' ' + esc(l.kind) + ' (' + esc(src) + ')';
+                }).join(' · ');
+                var planLine = (mp.handoff_band === 'amber' && mp.handoff_reason)
+                    ? '<div class="dsx-mint-s" style="color:#8A6A12;">' + esc(mp.handoff_reason) + '</div>' : '';
+                body += '<div class="dsx-mint" data-mint-idx="' + i + '"'
+                    + ' data-driver-id="' + mp.driver_id + '" data-vehicle-id="' + mp.vehicle_id + '"'
+                    + ' data-ps="' + mp.planned_start_hour + '" data-pe="' + mp.planned_end_hour + '"'
+                    + ' data-partner-id="' + (mp.partner_driver_id || '') + '"'
+                    + ' data-partner-ps="' + (mp.partner_planned_start_hour == null ? '' : mp.partner_planned_start_hour) + '"'
+                    + ' data-partner-pe="' + (mp.partner_planned_end_hour == null ? '' : mp.partner_planned_end_hour) + '">'
+                    + '<input type="checkbox" class="dsx-mint-check" aria-label="Second shift: ' + esc(mp.driver_name) + ' on ' + esc(unitN) + '">'
+                    + '<div><div class="dsx-mint-t">' + head + chips + '</div>'
+                    + '<div class="dsx-mint-s">' + legsTxt + '</div>' + planLine + '</div></div>';
+            });
+        }
+        // ── The priced crunch exception (Build 2d): a choice, never a default.
+        (data.span_exceptions || []).forEach(function(ex) {
+            body += '<div class="dsx-exc"><i class="bi bi-clock-history me-1"></i>'
+                + '<b>+' + ex.added_hours + ' h on ' + esc(ex.driver_name) + '</b> keeps '
+                + ex.n_legs + ' leg' + (ex.n_legs !== 1 ? 's' : '') + ' in-house (≈ $'
+                + ex.est_value + '): ' + ex.base_span + 'h → ' + ex.new_span
+                + 'h — over the 13.5h day, inside the crunch ceiling. Your call: set it up '
+                + 'in the builder (' + (ex.legs || []).map(function(l) { return esc(l.time); }).join(', ')
+                + '); nothing happens on its own.</div>';
         });
         (data.warnings || []).forEach(function(w) {
             body += '<div class="ds-warn"><i class="bi bi-exclamation-triangle me-1"></i>' + esc(w) + '</div>';
@@ -5632,7 +5751,7 @@
             + '<button class="btn btn-sm ds-apply" style="font-size:0.8rem;background:var(--dark);color:var(--gold);font-weight:600;"><i class="bi bi-check2 me-1"></i>Apply</button>'
             + '</div>';
 
-        modal.innerHTML = header + cov + ledger + body + footer;
+        modal.innerHTML = header + cov + ledger + sharedStrip + body + footer;
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
         overlay.querySelector('.ds-cancel').addEventListener('click', function() { overlay.remove(); });
@@ -5690,6 +5809,31 @@
                     pairs.push(p);
                 }
             });
+            // Ticked standby second shifts (Build 2c) ride along as deliberate
+            // shares. If the outgoing partner's own pair is in this payload
+            // (an unlocked row still holding the same unit), it gets the AM/PM
+            // partition too; a locked partner stays out and the server fills
+            // his window on Apply (Build 2a).
+            modal.querySelectorAll('.dsx-mint').forEach(function(row) {
+                var cb = row.querySelector('.dsx-mint-check');
+                if (!cb || !cb.checked) return;
+                var vid = parseInt(row.dataset.vehicleId);
+                pairs.push({driver_id: parseInt(row.dataset.driverId), vehicle_id: vid,
+                            allow_share: true,
+                            planned_start_hour: parseInt(row.dataset.ps),
+                            planned_end_hour: parseInt(row.dataset.pe)});
+                var partnerId = parseInt(row.dataset.partnerId || '');
+                if (!isNaN(partnerId)) {
+                    var pp = pairs.find(function(p) {
+                        return p.driver_id === partnerId && p.vehicle_id === vid && !p.allow_share;
+                    });
+                    if (pp && row.dataset.partnerPs !== '' && row.dataset.partnerPe !== '') {
+                        pp.allow_share = true;
+                        pp.planned_start_hour = parseInt(row.dataset.partnerPs);
+                        pp.planned_end_hour = parseInt(row.dataset.partnerPe);
+                    }
+                }
+            });
             return pairs;
         }
         function dsRefresh() {
@@ -5709,10 +5853,15 @@
             // both drivers instead of the old bare "same unit picked twice!".
             var el = modal.querySelector('.ds-count');
             var idle = ((data.capacity || {}).idle || []).length;
+            var carsOut = {};
+            pairs.forEach(function(p) { carsOut[p.vehicle_id] = 1; });
+            var nCars = Object.keys(carsOut).length;
+            var nShifts = pairs.length;
             el.classList.toggle('bad', !!dup);
             el.textContent = dup
                 ? dupLabel + ' is picked twice — change one of them'
-                : pairs.length + ' car' + (pairs.length !== 1 ? 's' : '') + ' out'
+                : nCars + ' car' + (nCars !== 1 ? 's' : '') + ' out'
+                  + (nShifts > nCars ? ' · ' + (nShifts - nCars) + ' shared' : '')
                   + (idle ? ' · ' + idle + ' parked' : '');
             modal.querySelector('.ds-apply').disabled = dup || pairs.length === 0;
         }
@@ -5724,6 +5873,7 @@
             });
         });
         modal.querySelectorAll('.ds-veh').forEach(function(sel) { sel.addEventListener('change', dsRefresh); });
+        modal.querySelectorAll('.dsx-mint-check').forEach(function(cb) { cb.addEventListener('change', dsRefresh); });
         dsRefresh();
 
         modal.querySelector('.ds-apply').addEventListener('click', function() {

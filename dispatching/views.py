@@ -3978,18 +3978,16 @@ def apply_day_setup(request):
                                 status=400)
 
     # A share row whose PARTNER was unchecked in the modal arrives as the only pair for its
-    # unit. Declining a proposed split must mean "one driver keeps the car all day" — so
-    # strip the orphaned PARTITIONED WINDOW, otherwise the remaining driver would be capped
-    # at the handoff hour for a handoff that no longer exists. The allow_share flag itself
-    # SURVIVES for a single pair: a deliberate one-pair share is exactly what a Second-Shift
-    # Advisor freed-unit accept sends (the unit's holder keeps his row and is NOT in the
-    # payload) — stripping the flag made the holder cross-check below reject every advisor
-    # accept. The shared-car occupancy gate, not this flag, is what keeps a real share
-    # physically safe; for a declined proposal no outside holder exists, so the surviving
-    # flag is inert.
-    clean = [(did, vid, share,
-              ps if (share and len(_by_vid[vid]) > 1) else None,
-              pe if (share and len(_by_vid[vid]) > 1) else None)
+    # unit. Declining a proposed split must mean "one driver keeps the car all day" — the
+    # orphaned PARTITIONED WINDOW is stripped below (inside the transaction, where the
+    # holder lookup can tell a declined proposal from a real single-pair share), otherwise
+    # the remaining driver would be capped at the handoff hour for a handoff that no longer
+    # exists. The allow_share flag itself SURVIVES for a single pair: a deliberate one-pair
+    # share is exactly what a Second-Shift Advisor freed-unit accept (or a ticked standby
+    # second-shift proposal onto a locked row) sends — the unit's holder keeps his row and
+    # is NOT in the payload. The shared-car occupancy gate, not this flag, is what keeps a
+    # real share physically safe. Non-share pairs never carry a window.
+    clean = [(did, vid, share, ps if share else None, pe if share else None)
              for did, vid, share, ps, pe in clean]
 
     drivers = {d.id: d for d in Driver.objects.filter(
@@ -4039,19 +4037,92 @@ def apply_day_setup(request):
         # Cross-check, scoped to payload vehicles only: a unit we are assigning must not be
         # held by a driver OUTSIDE the payload (pre-existing shares among untouched rows are
         # the founder's business, never a failure).
+        def _live_outside_holders(vid):
+            return [a for other_id, a in existing.items()
+                    if other_id not in payload_driver_ids and a.vehicle_id == vid
+                    and a.driver.is_active and a.driver.driver_type == "inhouse"]
         for did, vid, allow_share, _ps, _pe in clean:
             if allow_share:
                 continue   # advisor freed-unit share: holder keeps his row, both are real
-            for other_id, a in existing.items():
-                if other_id not in payload_driver_ids and a.vehicle_id == vid:
-                    if not a.driver.is_active or a.driver.driver_type != "inhouse":
-                        continue   # stale row held by a deactivated driver — not a real claim
-                    return JsonResponse(
-                        {"success": False,
-                         "error": f"#{vehicles[vid].vehicle_number} is already assigned to "
-                                  f"{a.driver} — include or clear them first."}, status=400)
+            for a in _live_outside_holders(vid):
+                return JsonResponse(
+                    {"success": False,
+                     "error": f"#{vehicles[vid].vehicle_number} is already assigned to "
+                              f"{a.driver} — include or clear them first."}, status=400)
+
+        # ≤2 DRIVERS PER VEHICLE-DATE — server-side hard rule (scheduling redesign
+        # Build 2a; never observed above 2 in either regime, now enforced). Counts
+        # this payload's pairs plus live rows held outside the payload.
+        for vid, shares in _by_vid.items():
+            n_total = len(shares) + len(_live_outside_holders(vid))
+            if n_total > 2:
+                return JsonResponse(
+                    {"success": False,
+                     "error": f"#{vehicles[vid].vehicle_number} would end up with "
+                              f"{n_total} drivers — at most two can share one "
+                              f"car per day."}, status=400)
+
+        # PLANNED WINDOWS (Build 2a): when Apply saves a shared car, BOTH rows get
+        # planned_start_hour/planned_end_hour — the plan is written down, not implied.
+        # Two-pair shares carry their partition from the modal; a single-pair share
+        # (advisor accept / standby proposal onto a locked row) derives the missing
+        # side, and an orphaned share (partner unchecked, no outside holder) keeps
+        # today's behavior: one driver, whole day, no window.
+        from dispatching.models import SchedulerSettings
+        default_cut = SchedulerSettings.get_settings().share_split_hour
+
+        def _first_pickup(did_):
+            leg = (Leg.objects.filter(driver_id=did_, pickup_date=target_date,
+                                      pickup_time__isnull=False)
+                   .exclude(status="cancelled")
+                   .exclude(reservation__status__in=("cancelled", "canceled"))
+                   .order_by("pickup_time").first())
+            return leg.pickup_time if leg else None
+
+        partner_fill = {}   # partner DVA row id -> (ps, pe), only where row's window is NULL
+        resolved = []
+        for did, vid, share, ps, pe in clean:
+            if share and len(_by_vid[vid]) == 1:
+                holders = _live_outside_holders(vid)
+                if not holders:
+                    ps = pe = None      # declined proposal — whole day, no window
+                else:
+                    partner = holders[0]
+                    # AM/PM by who picks up first (booked times; availability
+                    # order is the tiebreak the modal already showed).
+                    mine, his = _first_pickup(did), _first_pickup(partner.driver_id)
+                    payload_is_pm = not (mine is not None and his is not None
+                                         and mine < his)
+                    if payload_is_pm:
+                        cut = ps if ps is not None else default_cut
+                        ps, pe = cut, (pe if pe is not None else 23)
+                        p_win = (4, max(cut - 1, 0))
+                    else:
+                        cut = (pe + 1) if pe is not None else default_cut
+                        ps, pe = (ps if ps is not None else 4), max(cut - 1, 0)
+                        p_win = (cut, 23)
+                    if partner.planned_start_hour is None and partner.planned_end_hour is None:
+                        partner_fill[partner.pk] = p_win
+            resolved.append((did, vid, share, ps, pe))
+
+        # A two-pair share that arrived without windows still gets the plan
+        # written on both rows: partition at the default cut, AM/PM by who
+        # picks up first (booked times; earlier row id breaks a tie).
+        for vid, shares in _by_vid.items():
+            idxs = [i for i, (d_, v_, s_, ps_, pe_) in enumerate(resolved)
+                    if v_ == vid and s_]
+            if len(idxs) == 2 and all(resolved[i][3] is None
+                                      and resolved[i][4] is None for i in idxs):
+                fp = {i: _first_pickup(resolved[i][0]) for i in idxs}
+                am, pm = sorted(idxs, key=lambda i: (fp[i] is None,
+                                                     fp[i] or datetime.max.time(), i))
+                d_, v_, s_, _, _ = resolved[am]
+                resolved[am] = (d_, v_, s_, 4, max(default_cut - 1, 0))
+                d_, v_, s_, _, _ = resolved[pm]
+                resolved[pm] = (d_, v_, s_, default_cut, 23)
+
         created = updated = 0
-        for did, vid, _share, _ps, _pe in clean:
+        for did, vid, _share, _ps, _pe in resolved:
             obj, was_created = DriverVehicleAssignment.objects.get_or_create(
                 driver=drivers[did], date=target_date)
             changed = (obj.vehicle_id != vid or obj.planned_start_hour != _ps
@@ -4065,6 +4136,12 @@ def apply_day_setup(request):
                 created += 1
             elif changed:
                 updated += 1
+        for pk, (p_ps, p_pe) in partner_fill.items():
+            n = DriverVehicleAssignment.objects.filter(
+                pk=pk, planned_start_hour__isnull=True,
+                planned_end_hour__isnull=True).update(
+                planned_start_hour=p_ps, planned_end_hour=p_pe)
+            updated += n
 
     cache.delete(f"capacity_planner_{target_date.isoformat()}")
     return JsonResponse({"success": True, "created": created, "updated": updated,
@@ -14842,17 +14919,22 @@ def update_scheduler_settings(request):
 
     # Get valid field names
     valid_fields = set(settings.to_dict().keys())
+    float_fields = {f.name for f in settings._meta.get_fields()
+                    if f.__class__.__name__ == "FloatField"}
     updated = []
 
     for field_name, value in data.items():
         if field_name not in valid_fields:
             continue
         try:
-            value = int(value)
+            # FloatFields (load_balance_exponent, span_exception_max_hours) take
+            # decimals; everything else stays on the integer-only path so the
+            # existing fields round-trip exactly as before.
+            value = float(value) if field_name in float_fields else int(value)
         except (ValueError, TypeError):
             return JsonResponse({
                 "success": False,
-                "error": f"Invalid value for {field_name}: must be an integer",
+                "error": f"Invalid value for {field_name}: must be a number",
             }, status=400)
         setattr(settings, field_name, value)
         updated.append(field_name)
