@@ -18,8 +18,10 @@ What is pinned here and why:
     a car-share partner overlap blocks.
 """
 from datetime import datetime, date as dt_date, time as dt_time
+from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 
 from dispatching import board_validation as bv
@@ -29,6 +31,9 @@ from dispatching.scheduler import (
 )
 from dispatching.tests_swap_guards import fake_leg
 from dispatching.views import _gap_turn_slack, _pickup_risk
+from drivers.models import Driver, DriverVehicleAssignment, FleetVehicle
+from rates.models import Location, Rate, Route, Vehicle as RateVehicle
+from reservations.models import Customer, Leg, Reservation
 
 DAY = dt_date(2026, 5, 1)
 
@@ -307,3 +312,89 @@ class ValidatePostMoveBoardTests(TestCase):
         res = self._validate(_schedules({1: [a]}), _legs_by_id(a), [(101, 77)])
         self.assertFalse(res.ok)
         self.assertIn("not on the board", res.reason)
+
+
+class RevalidateSharerScopeTests(TestCase):
+    """revalidate_moves_against_db's car-share partner map must see every
+    ROSTERED co-holder of a shared vehicle, not just the ones who already
+    hold a leg — 2026-08-24 fix (05_BUILD3B_TICKETS.md §9.2 item 3).
+
+    build_sharer_partners() silently returns {} for a unit whose co-holder
+    isn't in the id set it's given (car_share.py's own docstring). The old
+    code built that set from `{l.driver_id for l in legs if l.driver_id}` —
+    a driver rostered (DVA row) but not yet holding any leg that day was
+    invisible. Traced through by hand before writing this: because the
+    function (a) re-queries ALL of the date's legs, not just the ones being
+    moved, and (b) applies every move in `valid_moves` before deriving that
+    set, a co-holder who is truly legless has nothing to conflict against
+    regardless — so this fix does not flip any REACHABLE verdict in this
+    caller today. What it fixes is real: the partner map it hands to
+    sharers_conflict() is now complete, which is what any future move batch
+    or reader of that map is entitled to assume. Test the map, not a verdict
+    that provably can't differ."""
+
+    @classmethod
+    def setUpTestData(cls):
+        preload_timing_cache()
+        vtype = RateVehicle.objects.create(
+            vehicle_type="suv", capacity=6, luggage_capacity=4)
+        origin = Location.objects.create(name="MCO")
+        dest = Location.objects.create(name="Disney")
+        route = Route.objects.create(
+            origin=origin, destination=dest, inhouse_base_pay=Decimal("50.00"))
+        rate = Rate.objects.create(
+            route=route, vehicle=vtype,
+            oneway_price=Decimal("100.00"), round_trip_price=Decimal("180.00"))
+        cls.route = route
+        cls.driver = Driver.objects.create(
+            profile=User.objects.create_user(username="b_driver", first_name="B"),
+            driver_type="inhouse")
+        cls.legless_partner = Driver.objects.create(
+            profile=User.objects.create_user(username="d_driver", first_name="D"),
+            driver_type="inhouse")
+        customer = Customer.objects.create(
+            first_name="Pat", last_name="Guest", email="pat@example.com",
+            phone_number="5550001111")
+        cls.reservation = Reservation.objects.create(
+            trip_type="one-way", customer=customer, vehicle=vtype, rate=rate,
+            base_price=Decimal("100.00"), total_price=Decimal("100.00"))
+        car = FleetVehicle.objects.create(
+            vehicle_number="014", year=2023, make="Chevrolet", model="Suburban",
+            vehicle_type=vtype)
+        DriverVehicleAssignment.objects.create(driver=cls.driver, date=DAY, vehicle=car)
+        DriverVehicleAssignment.objects.create(
+            driver=cls.legless_partner, date=DAY, vehicle=car)  # rostered, ZERO legs
+
+    def test_rostered_legless_coholder_is_included_as_a_partner(self):
+        leg = Leg.objects.create(
+            reservation=self.reservation, pickup_date=DAY, pickup_time=dt_time(9, 0),
+            pickup_location="Disney Contemporary", dropoff_location="MCO",
+            route=self.route)
+        from dispatching import car_share as cs
+        with patch("dispatching.scheduler.build_sharer_partners",
+                   wraps=cs.build_sharer_partners) as spy:
+            bv.revalidate_moves_against_db([(leg.id, self.driver.id)], DAY)
+        called_with_ids = spy.call_args[0][0]
+        self.assertIn(self.legless_partner.id, called_with_ids,
+                      "the legless co-holder must still be visible to "
+                      "build_sharer_partners so the partnership itself is "
+                      "recorded, even though nothing conflicts with an "
+                      "empty schedule today")
+
+    def test_unrostered_uninvolved_driver_still_excluded(self):
+        # A driver who is neither rostered on this car nor part of the move
+        # must NOT be pulled in — the fix widens scope to the ROSTER, it
+        # does not widen it to every driver in the system.
+        other = Driver.objects.create(
+            profile=User.objects.create_user(username="e_driver", first_name="E"),
+            driver_type="inhouse")
+        leg = Leg.objects.create(
+            reservation=self.reservation, pickup_date=DAY, pickup_time=dt_time(9, 0),
+            pickup_location="Disney Contemporary", dropoff_location="MCO",
+            route=self.route)
+        from dispatching import car_share as cs
+        with patch("dispatching.scheduler.build_sharer_partners",
+                   wraps=cs.build_sharer_partners) as spy:
+            bv.revalidate_moves_against_db([(leg.id, self.driver.id)], DAY)
+        called_with_ids = spy.call_args[0][0]
+        self.assertNotIn(other.id, called_with_ids)

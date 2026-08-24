@@ -414,10 +414,21 @@ def revalidate_moves_against_db(valid_moves, target_date):
 
     # Shared-car gate: a receiving driver who SHARES a physical vehicle with another
     # working driver can't take a leg that overlaps the partner's jobs — the car is one
-    # unit. Build the partner map over every driver holding a leg, plus post-move
-    # schedules so sharers_conflict() can compare against the partner's real slots.
+    # unit. Build the partner map over every driver ROSTERED that date (not just ones
+    # already holding a leg) so a co-holder with no legs YET still counts as a partner —
+    # build_sharer_partners() silently returns {} for a unit whose co-holder isn't in
+    # the id set it's given (see its docstring), and a legs-only set was letting a
+    # rostered-but-legless co-holder make the gate a no-op (2026-08-24 fix). Plus
+    # post-move schedules so sharers_conflict() can compare against the partner's real
+    # slots — a legless partner gets an empty schedule and can't itself conflict, it
+    # just needs to be visible AS a partner once a leg lands on them.
+    from drivers.models import DriverVehicleAssignment as _DVA
     all_leg_driver_ids = {l.driver_id for l in legs if l.driver_id}
-    sharer_partners = build_sharer_partners(all_leg_driver_ids, target_date)
+    rostered_driver_ids = set(
+        _DVA.objects.filter(date=target_date, vehicle__isnull=False)
+        .values_list("driver_id", flat=True))
+    sharer_partners = build_sharer_partners(
+        all_leg_driver_ids | rostered_driver_ids, target_date)
     if sharer_partners:
         share_drv_ids = set(all_leg_driver_ids)
         for _ps in sharer_partners.values():
