@@ -1615,19 +1615,33 @@ def _build_payment_chase_context(task, request, comm_attempts):
         reminders["total"] += 1
 
     # Trip-when fragment for the hero sentence (no %-d — cross-platform).
+    # trip_spoken/trip_countdown are the same trip said out loud on the call:
+    # "August 27 at 10:40 AM", "coming up in 2 days".
+    trip_spoken = ""
+    trip_countdown = ""
     if leg_data:
         first = leg_data[0]
+        pickup_date = first["pickup_date"]
         trip_when = "a trip on %s %d at %s" % (
-            first["pickup_date"].strftime("%b"), first["pickup_date"].day,
-            first["pickup_time_str"],
+            pickup_date.strftime("%b"), pickup_date.day, first["pickup_time_str"],
         )
+        trip_spoken = "%s %d at %s" % (
+            pickup_date.strftime("%B"), pickup_date.day, first["pickup_time_str"],
+        )
+        days_out = (pickup_date - today).days
+        if days_out == 0:
+            trip_countdown = "Your trip is later today"
+        elif days_out == 1:
+            trip_countdown = "Your trip is coming up tomorrow"
+        elif days_out > 1:
+            trip_countdown = "Your trip is coming up in %d days" % days_out
     else:
         trip_when = "this reservation"
 
     # Action wiring — reuse existing flows (payment portal / reservation page /
     # checkout link). No new payment or SMS endpoints (logged-manual text).
     portal_url = reverse("dispatcher_payment_portal", kwargs={"reservation_id": reservation.uuid})
-    reservation_url = reverse("reservation_details", args=[reservation.id])
+    reservation_url = reverse("reservation_details", args=[reservation.uuid])
     checkout_url = request.build_absolute_uri(
         reverse("create_checkout_session", args=[str(reservation.uuid)])
     )
@@ -1641,11 +1655,43 @@ def _build_payment_chase_context(task, request, comm_attempts):
         f"If not, please let us know so we can cancel it. Otherwise, unpaid reservations may be "
         f"automatically canceled the day before service. Thank you!"
     )
+    # Opening of the call, said out loud. Deliberately a confirmation call, not a
+    # collections one: the guest hears someone checking their trip is still on, and
+    # the card is how it gets confirmed. It stops after the ask — the dispatcher
+    # pauses there and takes the call wherever the guest goes next.
+    confirm_line = (
+        f"I'm just reaching out to confirm your transportation for {trip_spoken}."
+        if trip_spoken else
+        "I'm just reaching out to confirm your upcoming transportation."
+    )
+    pending_line = (
+        f"{trip_countdown}, and it's still showing as pending on our end, so I wanted to "
+        f"make sure everything is still good."
+        if trip_countdown else
+        "It's still showing as pending on our end, so I wanted to make sure everything "
+        "is still good."
+    )
+    # Who is making the call — whoever is reading this page. A login handle is only
+    # usable when it's a plain name (usernames here are lowercase first names);
+    # anything else falls back to the placeholder rather than have someone
+    # introduce themselves to a guest as "dispatcher1".
+    caller = (getattr(request.user, "first_name", "") or "").strip()
+    if not caller:
+        handle = (getattr(request.user, "username", "") or "").strip()
+        caller = handle.title() if handle.isalpha() else "[your name]"
+    call_script = (
+        f"Hi {first_name}, this is {caller} calling from Grayson Towncar.\n\n"
+        f"{confirm_line} {pending_line}\n\n"
+        f"If everything is still good, I can get it confirmed for you now. I would just "
+        f"need a card to finalize the reservation, and once that's done, you'll receive "
+        f"an email confirmation."
+    )
 
     ladder_ctx = {
         "phone": guest_phone,
         "phone_href": phone_href,
         "sms_draft": sms_draft,
+        "call_script": call_script,
         "portal_url": portal_url,
         "reservation_url": reservation_url,
     }
