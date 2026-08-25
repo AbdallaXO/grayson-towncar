@@ -107,16 +107,21 @@ class _FutureBoardFixture(TestCase):
         return OperationalTask.objects.filter(
             task_type=OperationalTask.TaskType.DRIVER_CONFLICT)
 
+    def _tight_turn_tasks(self):
+        return OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.TIGHT_TURN)
+
 
 class FutureConflictIsRaisedTests(_FutureBoardFixture):
     def test_future_flight_shift_raises_a_driver_conflict(self):
-        """The whole point: this used to produce a guest-verification task and nothing else."""
-        self._build_board(days_out=1)
+        """The whole point: this used to produce a guest-verification task and nothing else.
+        A big enough drift (37 min, past TURN_TIGHT_SLACK_MIN) genuinely won't make it."""
+        self._build_board(days_out=1, flight_arrival_time=time(14, 40))
         _scan_flight_mismatches()
         self.assertEqual(self._conflict_tasks().count(), 1)
 
     def test_the_task_explains_it_in_dispatcher_language(self):
-        arrival, departure, day = self._build_board(days_out=1)
+        arrival, departure, day = self._build_board(days_out=1, flight_arrival_time=time(14, 40))
         _scan_flight_mismatches()
         task = self._conflict_tasks().first()
         self.assertIn("Alex", task.title)
@@ -138,21 +143,21 @@ class FutureConflictIsRaisedTests(_FutureBoardFixture):
         self.assertEqual(arrival.pickup_time, time(14, 3))
 
     def test_inside_48h_is_critical_beyond_is_high(self):
-        self._build_board(days_out=1)
+        self._build_board(days_out=1, flight_arrival_time=time(14, 40))
         _scan_flight_mismatches()
         self.assertEqual(self._conflict_tasks().first().priority,
                          OperationalTask.Priority.CRITICAL)
 
         OperationalTask.objects.all().delete()
         Leg.objects.all().delete()
-        self._build_board(days_out=5)
+        self._build_board(days_out=5, flight_arrival_time=time(14, 40))
         _scan_flight_mismatches()
         self.assertEqual(self._conflict_tasks().first().priority,
                          OperationalTask.Priority.HIGH)
 
     def test_repeat_scans_do_not_pile_up_tasks(self):
         """The scanner runs every 30 minutes; create_task dedups on leg + type."""
-        self._build_board(days_out=1)
+        self._build_board(days_out=1, flight_arrival_time=time(14, 40))
         _scan_flight_mismatches()
         _scan_flight_mismatches()
         _scan_flight_mismatches()
@@ -174,10 +179,14 @@ class SubThresholdDriftTests(_FutureBoardFixture):
 
     def test_thirteen_minute_drift_still_rechecks_the_chain(self):
         """2:03 booked, flight now 2:16 — 13 min, well under the 30-min guest bar, and
-        enough to break a chain the engine built at zero slack."""
+        enough to break a chain the engine built at zero slack. The point pinned here is
+        that the chain gets RE-EXAMINED at all (the founder's bug was the scan skipping it
+        outright) — 13 min is inside TURN_TIGHT_SLACK_MIN (15), so it's correctly triaged
+        as a tight_turn "keep an eye on it", not a false CRITICAL emergency."""
         self._build_board(days_out=1, flight_arrival_time=time(14, 16))
         _scan_flight_mismatches()
-        self.assertEqual(self._conflict_tasks().count(), 1)
+        self.assertEqual(self._tight_turn_tasks().count(), 1)
+        self.assertEqual(self._conflict_tasks().count(), 0)
 
     def test_it_does_not_pester_the_guest_over_thirteen_minutes(self):
         """The whole reason we did not just lower MINOR_THRESHOLD."""
@@ -247,7 +256,7 @@ class NoPaidApiCallsTests(_FutureBoardFixture):
     Distance Matrix call was removed first. If it comes back, this fails."""
 
     def test_the_whole_scan_makes_no_distance_matrix_calls(self):
-        self._build_board(days_out=1)
+        self._build_board(days_out=1, flight_arrival_time=time(14, 40))
         with patch("drivers.utils.get_drive_time") as paid:
             _scan_flight_mismatches()
             paid.assert_not_called()

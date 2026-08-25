@@ -20,9 +20,9 @@ from django.test import TestCase
 from django.utils import timezone
 
 from rates.models import Vehicle, Location, Route, Rate
-from reservations.models import Customer, Reservation, Leg, Flight
+from reservations.models import Customer, Reservation, Leg, Flight, LegKeoi
 from ops.models import OperationalTask
-from ops.tasks import classify_turn, _scan_driver_overlaps
+from ops.tasks import classify_turn, detect_driver_conflicts, _scan_driver_overlaps
 from ops.services import create_task
 from drivers.models import Driver
 
@@ -206,3 +206,107 @@ class DriverOverlapScanTests(_TurnFixtureMixin, TestCase):
         self._run_scan(datetime(2026, 6, 1, 9, 0))
         self.assertFalse(self._open(OperationalTask.TaskType.TIGHT_TURN).exists())
         self.assertTrue(self._open(OperationalTask.TaskType.DRIVER_CONFLICT).exists())
+
+
+class ClassifyTurnBookedPickupTierTests(_TurnFixtureMixin, TestCase):
+    """The booked-pickup-to-booked-pickup shape — next leg is NOT a tracked flight
+    arrival (e.g. an airport drop-off followed by a hotel pickup). This branch used
+    to have no amber tier at all: any late minute, however small, was hardcoded to
+    red. That's the exact alert-fatigue bug — a driver 0-6 min "behind" showing up
+    identical to one who's an hour late. Mirrors ClassifyTurnTierTests' shape for
+    the flight-arrival branch, using TURN_TIGHT_SLACK_MIN (15) instead of
+    ARRIVAL_MEET_GRACE_MIN (10) since this is a different question."""
+
+    def setUp(self):
+        self.prior = self._leg("Disney's Grand Floridian Resort", "MCO Airport", time(15, 30))
+        self.next_pickup = self._leg("Loews Royal Pacific Resort", "MCO Airport", time(16, 30))
+
+    def _tier(self, driver_free):
+        with patch("ops.tasks._estimate_leg_end_time", return_value=driver_free), \
+             patch("ops.tasks._reposition_minutes", return_value=0):
+            return classify_turn(self.prior, self.next_pickup, TARGET)
+
+    def test_on_time_or_early_is_no_flag(self):
+        self.assertIsNone(self._tier(datetime(2026, 6, 1, 16, 30)))
+        self.assertIsNone(self._tier(datetime(2026, 6, 1, 16, 20)))
+
+    def test_one_to_fifteen_min_behind_is_amber(self):
+        # The screenshot cases (0 and 6 min "behind pickup"): a driver clearing
+        # the prior job within TURN_TIGHT_SLACK_MIN of the next ready time is
+        # "keep an eye on it", not a CRITICAL emergency.
+        for late in (1, 6, 15):
+            risk = self._tier(datetime(2026, 6, 1, 16, 30) + timezone.timedelta(minutes=late))
+            self.assertIsNotNone(risk, f"{late} min behind should still flag")
+            self.assertEqual(risk["tier"], "amber")
+            self.assertEqual(risk["late"], late)
+
+    def test_over_fifteen_min_behind_is_red(self):
+        risk = self._tier(datetime(2026, 6, 1, 16, 46))  # 16 min behind
+        self.assertIsNotNone(risk)
+        self.assertEqual(risk["tier"], "red")
+        self.assertEqual(risk["late"], 16)
+
+
+class DetectDriverConflictsTierTests(_TurnFixtureMixin, TestCase):
+    """detect_driver_conflicts (used by the flight-shift-triggered same-day/future
+    scanners) must band the same way classify_turn does, not just flag on any
+    conflict_minutes > 0."""
+
+    def setUp(self):
+        self.checked = self._leg("Disney's Grand Floridian Resort", "MCO Airport", time(15, 30))
+        self.other = self._leg("Loews Royal Pacific Resort", "MCO Airport", time(16, 30))
+
+    def _conflicts(self, checked_end):
+        with patch("ops.tasks._estimate_leg_end_time", side_effect=lambda leg, d: (
+            checked_end if leg.pk == self.checked.pk else datetime(2026, 6, 1, 20, 0)
+        )), patch("ops.tasks._reposition_minutes", return_value=0):
+            return detect_driver_conflicts(self.checked, TARGET)
+
+    def test_six_min_late_is_amber_not_hardcoded_red(self):
+        conflicts = self._conflicts(datetime(2026, 6, 1, 16, 36))  # 6 min late to `other`
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(conflicts[0]["tier"], "amber")
+        self.assertEqual(conflicts[0]["conflict_minutes"], 6)
+
+    def test_thirty_min_late_is_red(self):
+        conflicts = self._conflicts(datetime(2026, 6, 1, 17, 0))  # 30 min late
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(conflicts[0]["tier"], "red")
+
+
+class DriverConflictKeoiTests(_TurnFixtureMixin, TestCase):
+    """A genuinely red conflict raises the board's watch-flag (KEOI) on the
+    affected leg — the "turn the next one into a KEOI" behavior — while an amber
+    (tight-but-makes-it) turn must not."""
+
+    def setUp(self):
+        self.prior = self._leg("Disney's Grand Floridian Resort", "MCO Airport", time(15, 30))
+        self.next_pickup = self._leg("Loews Royal Pacific Resort", "MCO Airport", time(16, 30))
+        self.fixed_now = timezone.make_aware(datetime(2026, 6, 1, 6, 0))
+
+    def _run_scan(self, driver_free):
+        with patch("ops.tasks.timezone.now", return_value=self.fixed_now), \
+             patch("ops.tasks.timezone.localdate", return_value=TARGET), \
+             patch("ops.tasks._reposition_minutes", return_value=0), \
+             patch("ops.tasks._estimate_leg_end_time", return_value=driver_free):
+            return _scan_driver_overlaps()
+
+    def _open_keoi(self):
+        return LegKeoi.objects.filter(leg=self.next_pickup, closed_at__isnull=True)
+
+    def test_red_conflict_raises_keoi(self):
+        self._run_scan(datetime(2026, 6, 1, 16, 50))  # 20 min late → red
+        self.assertTrue(self._open_keoi().exists())
+        self.assertEqual(self._open_keoi().first().category, LegKeoi.Category.DRIVER_CONFLICT)
+
+    def test_amber_turn_does_not_raise_keoi(self):
+        self._run_scan(datetime(2026, 6, 1, 16, 36))  # 6 min late → amber
+        self.assertFalse(self._open_keoi().exists())
+
+    def test_duplicate_keoi_not_created_if_already_open(self):
+        LegKeoi.objects.create(
+            leg=self.next_pickup, category=LegKeoi.Category.OTHER,
+            description="Pre-existing flag", operational_status=LegKeoi.OperationalStatus.NEEDS_ATTENTION,
+        )
+        self._run_scan(datetime(2026, 6, 1, 16, 50))  # 20 min late → red
+        self.assertEqual(self._open_keoi().count(), 1)
