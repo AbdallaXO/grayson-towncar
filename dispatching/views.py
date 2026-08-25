@@ -64,7 +64,6 @@ from .forms import (
     DispatcherLegFormSet,
     DispatcherFlightFormSet,
     DispatcherPricingForm,
-    TripTypeForm,
 )
 
 # django-simple-history helpers for history views
@@ -5637,7 +5636,11 @@ def match_leg_time_to_flight(request):
         for task in dc_tasks:
             if remaining is None:
                 continue
-            if not remaining:
+            still_red = [c for c in remaining if c.get("tier") == "red"]
+            if not still_red:
+                # Empty, or cooled to amber (tight but makes it) — either way this
+                # is no longer a CRITICAL emergency; the 30-min scan will raise a
+                # fresh TIGHT_TURN task if an amber conflict is still open.
                 close_task(task, resolved_by=request.user, resolution_notes=match_note)
                 StaffActivity.objects.create(
                     user=request.user,
@@ -5645,8 +5648,8 @@ def match_leg_time_to_flight(request):
                     task=task,
                 )
             else:
-                # Conflict persists — update the task description but keep it open
-                worst = max(remaining, key=lambda c: c["conflict_minutes"])
+                # Genuinely still won't make it — update the task description but keep it open
+                worst = max(still_red, key=lambda c: c["conflict_minutes"])
                 task.description = (
                     f"Flight matched but conflict remains: driver will be "
                     f"{worst['conflict_minutes']} min late — reassign or adjust times."
@@ -7536,42 +7539,23 @@ def delete_leg_flight(request, leg_id, legflight_id):
 @login_required(login_url="login")
 def dispatcher_booking_start(request):
     """
-    Step 1: Trip type selection for dispatcher booking
+    Entry point: start a fresh booking and go straight to the customer step.
+
+    How many legs the trip has is no longer asked up front — the dispatcher
+    adds and removes legs on the trip-details step as the call unfolds, and
+    trip_type is derived from the final leg count there.
     """
     if not request.user.is_staff:
         return redirect("home")
-    
-    if request.method == "POST":
-        form = TripTypeForm(request.POST)
-        if form.is_valid():
-            trip_type = form.cleaned_data['trip_type']
-            num_legs = form.cleaned_data.get('num_legs', 1)
-            
-            # Store in session for next steps
-            request.session['dispatcher_booking'] = {
-                'trip_type': trip_type,
-                'num_legs': num_legs if trip_type == 'multi_leg' else (2 if trip_type == 'round_trip' else 1),
-                'step': 1
-            }
-            
-            return redirect('dispatcher_booking_customer')
-    else:
-        form = TripTypeForm()
-    
-    context = {
-        'form': form,
-        'step': 1,
-        'step_title': 'Select Trip Type',
-        'step_description': 'Choose the type of trip for this reservation'
-    }
-    
-    return render(request, 'dispatching/booking/step_trip_type.html', context)
+
+    request.session['dispatcher_booking'] = {'step': 1}
+    return redirect('dispatcher_booking_customer')
 
 
 @login_required(login_url="login")
 def dispatcher_booking_customer(request):
     """
-    Step 2: Customer information collection
+    Step 1: Customer information collection
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7589,7 +7573,7 @@ def dispatcher_booking_customer(request):
             
             # Update session with customer ID
             booking_data['customer_id'] = customer.id
-            booking_data['step'] = 2
+            booking_data['step'] = 1
             request.session['dispatcher_booking'] = booking_data
             
             messages.success(request, f"Customer {customer.get_full_name()} saved successfully.")
@@ -7613,7 +7597,7 @@ def dispatcher_booking_customer(request):
 
     context = {
         'form': form,
-        'step': 2,
+        'step': 1,
         'step_title': 'Customer Information',
         'step_description': 'Enter customer contact details',
         'booking_data': booking_data
@@ -7625,7 +7609,7 @@ def dispatcher_booking_customer(request):
 @login_required(login_url="login")
 def dispatcher_booking_reservation(request):
     """
-    Step 3: Reservation details (pricing, vehicle, passengers, etc.)
+    Step 2: Reservation details (pricing, vehicle, passengers, etc.)
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7650,7 +7634,7 @@ def dispatcher_booking_reservation(request):
                     reservation_data[field] = str(value) if value is not None else None
             
             booking_data['reservation_data'] = reservation_data
-            booking_data['step'] = 3
+            booking_data['step'] = 2
             request.session['dispatcher_booking'] = booking_data
             
             return redirect('dispatcher_booking_legs')
@@ -7681,7 +7665,7 @@ def dispatcher_booking_reservation(request):
     context = {
         'form': form,
         'customer': customer,
-        'step': 3,
+        'step': 2,
         'step_title': 'Reservation Details',
         'step_description': 'Set pricing, vehicle type, and passenger details',
         'booking_data': booking_data
@@ -7693,7 +7677,10 @@ def dispatcher_booking_reservation(request):
 @login_required(login_url="login")
 def dispatcher_booking_legs(request):
     """
-    Step 4: Trip legs and flight information
+    Step 3: Trip legs and flight information
+
+    The dispatcher adds and removes legs here, so the leg count comes from the
+    formset itself, never from a value chosen earlier in the flow.
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7704,7 +7691,6 @@ def dispatcher_booking_legs(request):
         return redirect('dispatcher_booking_reservation')
 
     customer = get_object_or_404(Customer, id=booking_data['customer_id'])
-    num_legs = booking_data.get('num_legs', 1)
     reservation_data = booking_data.get('reservation_data', {})
 
     # Resolve the reservation-level vehicle (used as override default placeholder)
@@ -7824,13 +7810,18 @@ def dispatcher_booking_legs(request):
                         ),
                     }
                 else:
+                    n = len(legs_data)
+                    booking_data['trip_type'] = (
+                        'one_way' if n == 1 else 'round_trip' if n == 2 else 'multi_leg'
+                    )
+                    booking_data['num_legs'] = n
                     booking_data['legs_data'] = legs_data
                     booking_data['flights_data'] = flights_data
                     # Carried to the review step so acknowledged warnings and
                     # verified-flight confirmations stay visible at confirm time.
                     booking_data['sanity_results'] = sanity_warnings
                     booking_data['sanity_acknowledged'] = bool(blocking)
-                    booking_data['step'] = 4
+                    booking_data['step'] = 3
                     request.session['dispatcher_booking'] = booking_data
 
                     return redirect('dispatcher_booking_pricing')
@@ -7874,16 +7865,19 @@ def dispatcher_booking_legs(request):
                     error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
                 messages.error(request, error_msg)
     else:
-        # Pre-populate from session if data exists (back-button support)
-        legs_initial = booking_data.get('legs_data', [{} for _ in range(num_legs)])
-        flights_initial = booking_data.get('flights_data', [{} for _ in range(num_legs)])
-        # Pad with empty dicts if fewer than num_legs
-        while len(legs_initial) < num_legs:
-            legs_initial.append({})
-        while len(flights_initial) < num_legs:
+        # Pre-populate from session if data exists (back-button support).
+        # A fresh booking starts with a single leg; the dispatcher adds more.
+        legs_initial = booking_data.get('legs_data') or [{}]
+        flights_initial = booking_data.get('flights_data') or []
+        while len(flights_initial) < len(legs_initial):
             flights_initial.append({})
         leg_formset = DispatcherLegFormSet(prefix='legs', initial=legs_initial)
         flight_formset = DispatcherFlightFormSet(prefix='flights', initial=flights_initial)
+
+    # The formset is the single source of truth for how many legs are on screen:
+    # on a validation-error or sanity-panel re-render the dispatcher may have
+    # added or removed legs client-side, so the session count would be stale.
+    num_legs = leg_formset.total_form_count()
 
     # Build per-leg override list for template (used to repopulate fields on
     # back-nav and to keep the override panel expanded when overrides are set).
@@ -7903,9 +7897,9 @@ def dispatcher_booking_legs(request):
         'flight_formset': flight_formset,
         'customer': customer,
         'num_legs': num_legs,
-        'step': 4,
+        'step': 3,
         'step_title': 'Trip Details',
-        'step_description': f'Enter details for {num_legs} trip leg(s)',
+        'step_description': 'Add each leg of the trip — one for a one-way, two for a round trip, or as many as the guest needs',
         'booking_data': booking_data,
         'reservation_data': reservation_data,
         'vehicle': vehicle,
@@ -7920,7 +7914,7 @@ def dispatcher_booking_legs(request):
 @login_required(login_url="login")
 def dispatcher_booking_pricing(request):
     """
-    Step 5: Pricing and final details
+    Step 4: Pricing and final details
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7958,7 +7952,7 @@ def dispatcher_booking_pricing(request):
                 }
                 
                 booking_data['pricing_data'] = pricing_data
-                booking_data['step'] = 5
+                booking_data['step'] = 4
                 request.session['dispatcher_booking'] = booking_data
                 
                 return redirect('dispatcher_booking_review')
@@ -8044,7 +8038,7 @@ def dispatcher_booking_pricing(request):
         'vehicle': vehicle,
         'legs_data': booking_data.get('legs_data', []),
         'flights_data': booking_data.get('flights_data', []),
-        'step': 5,
+        'step': 4,
         'step_title': 'Pricing & Notes',
         'step_description': 'Set pricing and add any final notes',
         'booking_data': booking_data,
@@ -8059,7 +8053,7 @@ def dispatcher_booking_pricing(request):
 @login_required(login_url="login")
 def dispatcher_booking_review(request):
     """
-    Step 6: Review and confirm reservation
+    Step 5: Review and confirm reservation
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -8181,7 +8175,7 @@ def dispatcher_booking_review(request):
         'legs_data': combined_legs,  # Use combined legs data
         'flights_data': flights_data,
         'vehicle': vehicle,
-        'step': 6,
+        'step': 5,
         'step_title': 'Review & Confirm',
         'step_description': 'Review all details and create the reservation',
         'booking_data': booking_data,

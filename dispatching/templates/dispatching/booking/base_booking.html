@@ -295,50 +295,42 @@
           <div class="booking-page-title">Dispatcher Booking</div>
           <h1>{{ step_title|default:"New Reservation" }}</h1>
         </div>
-        {% if step > 1 %}
-          <a href="{% url 'dispatcher_booking_cancel' %}" class="btn btn-outline-danger btn-sm">
-            <i class="fas fa-times me-1"></i> Cancel Booking
-          </a>
-        {% endif %}
+        <a href="{% url 'dispatcher_booking_cancel' %}" class="btn btn-outline-danger btn-sm">
+          <i class="fas fa-times me-1"></i> Cancel Booking
+        </a>
       </div>
 
-      {# step indicator: 6 nodes — Trip Type, Customer, Details, Trips, Pricing, Review #}
+      {# step indicator: 5 nodes — Customer, Details, Trips, Pricing, Review #}
       {% with current=step|default:1 %}
       <div class="step-rail">
-        {% for label in "Trip Type,Customer,Details,Trips,Pricing,Review"|cut:" "|slice:":0" %}{% endfor %}
         <div class="step-node {% if current == 1 %}is-active{% elif current > 1 %}is-done{% endif %}">
-          <div class="step-num"><span>1</span></div><div class="step-label">Trip Type</div>
+          <div class="step-num"><span>1</span></div><div class="step-label">Customer</div>
         </div>
         <div class="step-bar {% if current > 1 %}is-done{% endif %}"></div>
         <div class="step-node {% if current == 2 %}is-active{% elif current > 2 %}is-done{% endif %}">
-          <div class="step-num"><span>2</span></div><div class="step-label">Customer</div>
+          <div class="step-num"><span>2</span></div><div class="step-label">Details</div>
         </div>
         <div class="step-bar {% if current > 2 %}is-done{% endif %}"></div>
         <div class="step-node {% if current == 3 %}is-active{% elif current > 3 %}is-done{% endif %}">
-          <div class="step-num"><span>3</span></div><div class="step-label">Details</div>
+          <div class="step-num"><span>3</span></div><div class="step-label">Trips</div>
         </div>
         <div class="step-bar {% if current > 3 %}is-done{% endif %}"></div>
         <div class="step-node {% if current == 4 %}is-active{% elif current > 4 %}is-done{% endif %}">
-          <div class="step-num"><span>4</span></div><div class="step-label">Trips</div>
+          <div class="step-num"><span>4</span></div><div class="step-label">Pricing</div>
         </div>
         <div class="step-bar {% if current > 4 %}is-done{% endif %}"></div>
         <div class="step-node {% if current == 5 %}is-active{% elif current > 5 %}is-done{% endif %}">
-          <div class="step-num"><span>5</span></div><div class="step-label">Pricing</div>
-        </div>
-        <div class="step-bar {% if current > 5 %}is-done{% endif %}"></div>
-        <div class="step-node {% if current == 6 %}is-active{% elif current > 6 %}is-done{% endif %}">
-          <div class="step-num"><span>6</span></div><div class="step-label">Review</div>
+          <div class="step-num"><span>5</span></div><div class="step-label">Review</div>
         </div>
       </div>
       {% endwith %}
 
       {# Progress bar #}
       <div class="booking-progress mb-4">
-        {% if step == 1 %}<div class="bar" style="width: 8%"></div>
-        {% elif step == 2 %}<div class="bar" style="width: 25%"></div>
-        {% elif step == 3 %}<div class="bar" style="width: 42%"></div>
-        {% elif step == 4 %}<div class="bar" style="width: 60%"></div>
-        {% elif step == 5 %}<div class="bar" style="width: 78%"></div>
+        {% if step == 1 %}<div class="bar" style="width: 20%"></div>
+        {% elif step == 2 %}<div class="bar" style="width: 40%"></div>
+        {% elif step == 3 %}<div class="bar" style="width: 60%"></div>
+        {% elif step == 4 %}<div class="bar" style="width: 80%"></div>
         {% else %}<div class="bar" style="width: 100%"></div>{% endif %}
       </div>
 

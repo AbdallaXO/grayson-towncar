@@ -367,18 +367,21 @@ class DispatcherFlightForm(forms.ModelForm):
 # Formset for multiple legs
 from django.forms import formset_factory
 
+# extra=0: the dispatcher adds legs explicitly on the trip-details step, so the
+# formset renders exactly the legs that exist — never a spare blank card.
 DispatcherLegFormSet = formset_factory(
     DispatcherLegForm,
-    extra=1,
+    extra=0,
     max_num=5,
     min_num=1,
     can_delete=True,
-    validate_min=True
+    validate_min=True,
+    validate_max=True
 )
 
 DispatcherFlightFormSet = formset_factory(
     DispatcherFlightForm,
-    extra=1,
+    extra=0,
     max_num=5,
     min_num=0,
     can_delete=True
@@ -473,39 +476,3 @@ class DispatcherPricingForm(forms.Form):
                 base_price + additional_charges + gratuity
             ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         return cleaned_data
-
-
-class TripTypeForm(forms.Form):
-    """Form to select trip type for dispatcher booking"""
-    
-    TRIP_CHOICES = [
-        ('one_way', 'One Way'),
-        ('round_trip', 'Round Trip'),
-        ('multi_leg', 'Multiple Legs'),
-    ]
-    
-    trip_type = forms.ChoiceField(
-        choices=TRIP_CHOICES,
-        widget=forms.RadioSelect(
-            attrs={"class": "form-check-input"}
-        ),
-        label="Trip Type",
-        initial='one_way'
-    )
-    
-    num_legs = forms.IntegerField(
-        min_value=1,
-        max_value=5,
-        initial=1,
-        widget=forms.NumberInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "min": "1",
-                "max": "5",
-                # Removed inline style - visibility controlled by JavaScript
-            }
-        ),
-        label="Number of Legs",
-        help_text="How many separate trips for this reservation?",
-        required=False
-    )

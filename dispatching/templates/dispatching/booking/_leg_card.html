@@ -1,0 +1,226 @@
+{% comment %}
+One trip leg: when/where, optional flight, notes, and the per-leg override panel.
+
+Rendered twice — once per real leg, and once hidden with leg_index="__prefix__"
+as the blueprint the "Add another leg" button clones. Every index in here must
+come from `leg_index` so that clone can swap it for a real number.
+
+  leg_form, flight_form : formset forms (or the formsets' empty_form)
+  leg_index             : 0-based index, or "__prefix__" in the blueprint
+  leg_number            : human "Leg N" label
+  override_data         : saved per-leg overrides, for repopulating on back-nav
+  vehicle, vehicles, reservation_data : reservation-level defaults to show
+{% endcomment %}
+<div class="leg-card" data-leg-card data-leg-index="{{ leg_index }}">
+  <div class="leg-card-head">
+    <h5>
+      <i class="fas fa-route text-primary"></i>
+      Leg <span data-leg-number>{{ leg_number }}</span>
+    </h5>
+    <button type="button"
+            class="btn-remove-leg"
+            data-remove-leg
+            title="Remove this leg">
+      <i class="fas fa-times"></i> Remove
+    </button>
+  </div>
+  <div class="leg-card-body">
+    {% for hidden in leg_form.hidden_fields %}{{ hidden }}{% endfor %}
+
+    {# When #}
+    <div class="form-section-label">When</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label for="{{ leg_form.pickup_date.id_for_label }}" class="form-label fw-semibold">
+          Pickup Date <span class="text-danger">*</span>
+        </label>
+        {{ leg_form.pickup_date }}
+        {% if leg_form.pickup_date.errors %}
+          <div class="invalid-feedback d-block">{{ leg_form.pickup_date.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <label for="{{ leg_form.pickup_time.id_for_label }}" class="form-label fw-semibold">
+          Pickup Time <span class="text-danger">*</span>
+        </label>
+        {{ leg_form.pickup_time }}
+        {% if leg_form.pickup_time.errors %}
+          <div class="invalid-feedback d-block">{{ leg_form.pickup_time.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <hr class="form-section-divider">
+
+    {# Where #}
+    <div class="form-section-label">Where</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label for="{{ leg_form.pickup_location.id_for_label }}" class="form-label fw-semibold">
+          Pickup Address <span class="text-danger">*</span>
+        </label>
+        {{ leg_form.pickup_location }}
+        {% if leg_form.pickup_location.errors %}
+          <div class="invalid-feedback d-block">{{ leg_form.pickup_location.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <label for="{{ leg_form.dropoff_location.id_for_label }}" class="form-label fw-semibold">
+          Drop-off Address <span class="text-danger">*</span>
+        </label>
+        {{ leg_form.dropoff_location }}
+        {% if leg_form.dropoff_location.errors %}
+          <div class="invalid-feedback d-block">{{ leg_form.dropoff_location.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <hr class="form-section-divider">
+
+    {# Flight info #}
+    <div class="flight-card">
+      <div class="head">
+        <i class="fas fa-plane"></i> Flight Information
+        <span class="opt">— optional</span>
+      </div>
+      {% for hidden in flight_form.hidden_fields %}{{ hidden }}{% endfor %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label for="{{ flight_form.airline.id_for_label }}" class="form-label small">Airline</label>
+          {{ flight_form.airline }}
+          {% if flight_form.airline.errors %}<div class="invalid-feedback d-block">{{ flight_form.airline.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label for="{{ flight_form.flight_number.id_for_label }}" class="form-label small">Flight Number</label>
+          {{ flight_form.flight_number }}
+          {% if flight_form.flight_number.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_number.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label for="{{ flight_form.flight_type.id_for_label }}" class="form-label small">Type</label>
+          {{ flight_form.flight_type }}
+          {% if flight_form.flight_type.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_type.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Trip notes — full width #}
+    <div class="row g-3 mt-1">
+      <div class="col-12">
+        <label for="{{ leg_form.private_notes.id_for_label }}" class="form-label fw-semibold">Trip Notes</label>
+        {{ leg_form.private_notes }}
+        <div class="form-text">Special instructions for the driver.</div>
+      </div>
+    </div>
+
+    {# Override trip details (optional, collapsed by default) #}
+    <div class="mt-4">
+      {% with has_override=override_data.has_any %}
+        <button type="button"
+                class="override-toggle"
+                data-bs-toggle="collapse"
+                data-bs-target="#legOverrides_{{ leg_index }}"
+                aria-expanded="{% if has_override %}true{% else %}false{% endif %}"
+                aria-controls="legOverrides_{{ leg_index }}">
+          <span><i class="fas fa-sliders-h me-2"></i>This leg is different from the rest <span class="text-muted small fw-normal">(optional)</span></span>
+          <span class="d-flex align-items-center gap-2">
+            {% if has_override %}<span class="badge-active">Active</span>{% endif %}
+            <i class="fas fa-chevron-down chev"></i>
+          </span>
+        </button>
+
+        <div class="collapse {% if has_override %}show{% endif %}" id="legOverrides_{{ leg_index }}">
+          <div class="override-panel">
+            <div class="hint"><i class="fas fa-info-circle"></i> Use this only if this leg has a different passenger count, needs car seats, or uses a different vehicle than the rest of the trip.</div>
+
+            {# Vehicle #}
+            <div class="mb-3">
+              <label class="ovr-label">Vehicle</label>
+              <select class="form-select form-select-sm"
+                      name="legs-{{ leg_index }}-override-vehicle">
+                <option value="">Use reservation default{% if vehicle %} — {{ vehicle.get_vehicle_type_display }}{% endif %}</option>
+                {% for v in vehicles %}
+                  <option value="{{ v.id }}" {% if override_data.vehicle == v.id|stringformat:"s" %}selected{% endif %}>
+                    {{ v.get_vehicle_type_display }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            {# Passengers / Suitcases / Luggage Type #}
+            <div class="row g-3 mb-2">
+              <div class="col-sm-4">
+                <label class="ovr-label">Passengers</label>
+                <input type="number" min="0"
+                       class="form-control form-control-sm"
+                       name="legs-{{ leg_index }}-override-passenger_count"
+                       value="{{ override_data.passenger_count|default:'' }}"
+                       placeholder="{{ reservation_data.passenger_count|default:1 }}">
+                <div class="ovr-default">Default: {{ reservation_data.passenger_count|default:1 }}</div>
+              </div>
+              <div class="col-sm-4">
+                <label class="ovr-label">Suitcases</label>
+                <input type="number" min="0"
+                       class="form-control form-control-sm"
+                       name="legs-{{ leg_index }}-override-luggage_count"
+                       value="{{ override_data.luggage_count|default:'' }}"
+                       placeholder="{{ reservation_data.luggage_count|default:1 }}">
+                <div class="ovr-default">Default: {{ reservation_data.luggage_count|default:1 }}</div>
+              </div>
+              <div class="col-sm-4">
+                <label class="ovr-label">Luggage Type</label>
+                <select class="form-select form-select-sm"
+                        name="legs-{{ leg_index }}-override-luggage_type">
+                  <option value="">Use default</option>
+                  <option value="carry_on" {% if override_data.luggage_type == 'carry_on' %}selected{% endif %}>Carry-On</option>
+                  <option value="checked"  {% if override_data.luggage_type == 'checked' %}selected{% endif %}>Checked</option>
+                </select>
+                <div class="ovr-default">Default: {{ reservation_data.luggage_type|default:"—" }}</div>
+              </div>
+            </div>
+
+            <hr class="ovr-divider">
+
+            {# Car seats #}
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <span class="ovr-label mb-0"><i class="fas fa-baby me-1"></i> Car Seats</span>
+              <div style="min-width:220px;">
+                <select class="form-select form-select-sm"
+                        name="legs-{{ leg_index }}-override-need_carseats">
+                  <option value="">Use default ({% if reservation_data.need_carseats == 'True' %}Yes{% else %}No{% endif %})</option>
+                  <option value="true"  {% if override_data.need_carseats == 'true' %}selected{% endif %}>Yes, needed</option>
+                  <option value="false" {% if override_data.need_carseats == 'false' %}selected{% endif %}>Not needed</option>
+                </select>
+              </div>
+            </div>
+            <div class="row g-3">
+              <div class="col-sm-4">
+                <label class="form-label small text-muted mb-1">Rear-Facing</label>
+                <input type="number" min="0"
+                       class="form-control form-control-sm"
+                       name="legs-{{ leg_index }}-override-rf_carseats"
+                       value="{{ override_data.rf_carseats|default:'' }}"
+                       placeholder="0">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small text-muted mb-1">Forward-Facing</label>
+                <input type="number" min="0"
+                       class="form-control form-control-sm"
+                       name="legs-{{ leg_index }}-override-ff_carseats"
+                       value="{{ override_data.ff_carseats|default:'' }}"
+                       placeholder="0">
+              </div>
+              <div class="col-sm-4">
+                <label class="form-label small text-muted mb-1">Boosters</label>
+                <input type="number" min="0"
+                       class="form-control form-control-sm"
+                       name="legs-{{ leg_index }}-override-booster_seats"
+                       value="{{ override_data.booster_seats|default:'' }}"
+                       placeholder="0">
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endwith %}
+    </div>
+  </div>
+</div>

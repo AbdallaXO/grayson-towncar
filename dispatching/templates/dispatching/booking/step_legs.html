@@ -40,6 +40,55 @@
       .leg-card-head .leg-pill.return { background: #ecfdf5; color: #059669; }
       .leg-card-body { padding: 1.25rem; }
 
+      /* Remove-leg: quiet but always reachable — hover-only would vanish on touch */
+      .btn-remove-leg {
+          background: transparent;
+          border: 1px solid transparent;
+          color: #94a3b8;
+          font-size: .78rem;
+          font-weight: 600;
+          padding: .25rem .6rem;
+          border-radius: 8px;
+          display: inline-flex;
+          align-items: center;
+          gap: .35rem;
+          opacity: .7;
+          transition: opacity .18s ease, color .18s ease, background .18s ease, border-color .18s ease;
+      }
+      .leg-card:hover .btn-remove-leg,
+      .btn-remove-leg:focus-visible { opacity: 1; }
+      .btn-remove-leg:hover { color: #b91c1c; background: #fef2f2; border-color: #fecaca; opacity: 1; }
+
+      /* Add-leg: the primary affordance of this step */
+      .add-leg-wrap { text-align: center; margin: 0 0 2rem; }
+      .btn-add-leg {
+          background: #fff;
+          border: 1.5px dashed #c7d2fe;
+          color: var(--booking-primary, #2563eb);
+          font-weight: 650;
+          font-size: .92rem;
+          padding: .7rem 1.5rem;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          gap: .5rem;
+          transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+      }
+      .btn-add-leg:hover:not(:disabled) {
+          background: #f5f8ff;
+          border-color: var(--booking-primary, #2563eb);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(37, 99, 235, .12);
+      }
+      .btn-add-leg:disabled { opacity: .45; cursor: not-allowed; }
+      .add-leg-hint { font-size: .8rem; color: var(--booking-muted, #64748b); margin-top: .5rem; }
+
+      /* New leg slides in rather than snapping into place */
+      @media (prefers-reduced-motion: no-preference) {
+          .leg-card { transition: opacity .28s ease, transform .28s ease; }
+          .leg-card.is-entering { opacity: 0; transform: translateY(-8px); }
+      }
+
       .form-section-label {
           font-size: .72rem;
           text-transform: uppercase;
@@ -345,258 +394,26 @@
       </div>
     {% endif %}
 
-    <div class="booking-flash info mb-4">
-      <span class="icon"><i class="fas fa-info"></i></span>
-      <div class="body">
-        <strong>Trip Legs.</strong>
-        Enter details for each segment of the trip.
-        {% if num_legs == 1 %}This is a one-way trip.
-        {% elif num_legs == 2 %}This is a round trip (2 legs).
-        {% else %}This trip has {{ num_legs }} legs.{% endif %}
-      </div>
-    </div>
-
     {{ leg_formset.management_form }}
     {{ flight_formset.management_form }}
 
-    <div id="legs-container">
+    <div id="legs-container" data-max-legs="{{ leg_formset.max_num }}">
       {% for leg_form in leg_formset %}
-        {% with forloop.counter0 as leg_index %}
-          {% with override_data=leg_overrides|index:leg_index %}
-            <div class="leg-card">
-              <div class="leg-card-head">
-                <h5>
-                  <i class="fas fa-route text-primary"></i>
-                  Leg {{ forloop.counter }}
-                  {% if leg_index == 0 and num_legs == 2 %}
-                    <span class="leg-pill">Outbound</span>
-                  {% elif leg_index == 1 and num_legs == 2 %}
-                    <span class="leg-pill return">Return</span>
-                  {% endif %}
-                </h5>
-                {% if num_legs > 2 and forloop.counter > 1 %}
-                  <button type="button"
-                          class="btn btn-sm btn-outline-danger remove-leg"
-                          data-leg-index="{{ leg_index }}">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                {% endif %}
-              </div>
-              <div class="leg-card-body">
-                {% for hidden in leg_form.hidden_fields %}{{ hidden }}{% endfor %}
-
-                {# When + Where #}
-                <div class="form-section-label">When</div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.pickup_date.id_for_label }}" class="form-label fw-semibold">
-                      Pickup Date <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.pickup_date }}
-                    {% if leg_form.pickup_date.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.pickup_date.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.pickup_time.id_for_label }}" class="form-label fw-semibold">
-                      Pickup Time <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.pickup_time }}
-                    {% if leg_form.pickup_time.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.pickup_time.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <hr class="form-section-divider">
-
-                <div class="form-section-label">Where</div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.pickup_location.id_for_label }}" class="form-label fw-semibold">
-                      Pickup Address <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.pickup_location }}
-                    {% if leg_form.pickup_location.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.pickup_location.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.dropoff_location.id_for_label }}" class="form-label fw-semibold">
-                      Drop-off Address <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.dropoff_location }}
-                    {% if leg_form.dropoff_location.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.dropoff_location.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <hr class="form-section-divider">
-
-                {# Flight info #}
-                {% for flight_form in flight_formset.forms %}
-                  {% if forloop.counter0 == leg_index %}
-                    <div class="flight-card">
-                      <div class="head">
-                        <i class="fas fa-plane"></i> Flight Information
-                        <span class="opt">— optional</span>
-                      </div>
-                      {% for hidden in flight_form.hidden_fields %}{{ hidden }}{% endfor %}
-                      <div class="row g-3">
-                        <div class="col-md-4">
-                          <label for="{{ flight_form.airline.id_for_label }}" class="form-label small">Airline</label>
-                          {{ flight_form.airline }}
-                          {% if flight_form.airline.errors %}<div class="invalid-feedback d-block">{{ flight_form.airline.errors.0 }}</div>{% endif %}
-                        </div>
-                        <div class="col-md-4">
-                          <label for="{{ flight_form.flight_number.id_for_label }}" class="form-label small">Flight Number</label>
-                          {{ flight_form.flight_number }}
-                          {% if flight_form.flight_number.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_number.errors.0 }}</div>{% endif %}
-                        </div>
-                        <div class="col-md-4">
-                          <label for="{{ flight_form.flight_type.id_for_label }}" class="form-label small">Type</label>
-                          {{ flight_form.flight_type }}
-                          {% if flight_form.flight_type.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_type.errors.0 }}</div>{% endif %}
-                        </div>
-                      </div>
-                    </div>
-                  {% endif %}
-                {% endfor %}
-
-                {# Trip notes — full width #}
-                <div class="row g-3 mt-1">
-                  <div class="col-12">
-                    <label for="{{ leg_form.private_notes.id_for_label }}" class="form-label fw-semibold">Trip Notes</label>
-                    {{ leg_form.private_notes }}
-                    <div class="form-text">Special instructions for the driver.</div>
-                  </div>
-                </div>
-
-                {# Override trip details (optional, collapsed by default) #}
-                <div class="mt-4">
-                  {% with has_override=override_data.has_any %}
-                    <button type="button"
-                            class="override-toggle"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#legOverrides_{{ leg_index }}"
-                            aria-expanded="{% if has_override %}true{% else %}false{% endif %}"
-                            aria-controls="legOverrides_{{ leg_index }}">
-                      <span><i class="fas fa-sliders-h me-2"></i>This leg is different from the rest <span class="text-muted small fw-normal">(optional)</span></span>
-                      <span class="d-flex align-items-center gap-2">
-                        {% if has_override %}<span class="badge-active">Active</span>{% endif %}
-                        <i class="fas fa-chevron-down chev"></i>
-                      </span>
-                    </button>
-
-                    <div class="collapse {% if has_override %}show{% endif %}" id="legOverrides_{{ leg_index }}">
-                      <div class="override-panel">
-                        <div class="hint"><i class="fas fa-info-circle"></i> Use this only if this leg has a different passenger count, needs car seats, or uses a different vehicle than the rest of the trip.</div>
-
-                        {# Vehicle #}
-                        <div class="mb-3">
-                          <label class="ovr-label">Vehicle</label>
-                          <select class="form-select form-select-sm"
-                                  name="legs-{{ leg_index }}-override-vehicle">
-                            <option value="">Use reservation default{% if vehicle %} — {{ vehicle.get_vehicle_type_display }}{% endif %}</option>
-                            {% for v in vehicles %}
-                              <option value="{{ v.id }}" {% if override_data.vehicle == v.id|stringformat:"s" %}selected{% endif %}>
-                                {{ v.get_vehicle_type_display }}
-                              </option>
-                            {% endfor %}
-                          </select>
-                        </div>
-
-                        {# Passengers / Suitcases / Luggage Type #}
-                        <div class="row g-3 mb-2">
-                          <div class="col-sm-4">
-                            <label class="ovr-label">Passengers</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-passenger_count"
-                                   value="{{ override_data.passenger_count|default:'' }}"
-                                   placeholder="{{ reservation_data.passenger_count|default:1 }}">
-                            <div class="ovr-default">Default: {{ reservation_data.passenger_count|default:1 }}</div>
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="ovr-label">Suitcases</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-luggage_count"
-                                   value="{{ override_data.luggage_count|default:'' }}"
-                                   placeholder="{{ reservation_data.luggage_count|default:1 }}">
-                            <div class="ovr-default">Default: {{ reservation_data.luggage_count|default:1 }}</div>
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="ovr-label">Luggage Type</label>
-                            <select class="form-select form-select-sm"
-                                    name="legs-{{ leg_index }}-override-luggage_type">
-                              <option value="">Use default</option>
-                              <option value="carry_on" {% if override_data.luggage_type == 'carry_on' %}selected{% endif %}>Carry-On</option>
-                              <option value="checked"  {% if override_data.luggage_type == 'checked' %}selected{% endif %}>Checked</option>
-                            </select>
-                            <div class="ovr-default">Default: {{ reservation_data.luggage_type|default:"—" }}</div>
-                          </div>
-                        </div>
-
-                        <hr class="ovr-divider">
-
-                        {# Car seats #}
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                          <span class="ovr-label mb-0"><i class="fas fa-baby me-1"></i> Car Seats</span>
-                          <div style="min-width:220px;">
-                            <select class="form-select form-select-sm"
-                                    name="legs-{{ leg_index }}-override-need_carseats">
-                              <option value="">Use default ({% if reservation_data.need_carseats == 'True' %}Yes{% else %}No{% endif %})</option>
-                              <option value="true"  {% if override_data.need_carseats == 'true' %}selected{% endif %}>Yes, needed</option>
-                              <option value="false" {% if override_data.need_carseats == 'false' %}selected{% endif %}>Not needed</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div class="row g-3">
-                          <div class="col-sm-4">
-                            <label class="form-label small text-muted mb-1">Rear-Facing</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-rf_carseats"
-                                   value="{{ override_data.rf_carseats|default:'' }}"
-                                   placeholder="0">
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="form-label small text-muted mb-1">Forward-Facing</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-ff_carseats"
-                                   value="{{ override_data.ff_carseats|default:'' }}"
-                                   placeholder="0">
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="form-label small text-muted mb-1">Boosters</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-booster_seats"
-                                   value="{{ override_data.booster_seats|default:'' }}"
-                                   placeholder="0">
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  {% endwith %}
-                </div>
-              </div>
-            </div>
-          {% endwith %}
-        {% endwith %}
+        {% include "dispatching/booking/_leg_card.html" with leg_form=leg_form flight_form=flight_formset.forms|index:forloop.counter0 leg_index=forloop.counter0 leg_number=forloop.counter override_data=leg_overrides|index:forloop.counter0 %}
       {% endfor %}
     </div>
 
-    {% if num_legs > 2 %}
-      <div class="text-center mb-4">
-        <button type="button" class="btn btn-outline-primary" id="add-leg-btn">
-          <i class="fas fa-plus me-2"></i> Add Another Leg
-        </button>
-      </div>
-    {% endif %}
+    {# Blueprint for "Add another leg" — cloned by JS with __prefix__ swapped for the new index #}
+    <template id="leg-blueprint">
+      {% include "dispatching/booking/_leg_card.html" with leg_form=leg_formset.empty_form flight_form=flight_formset.empty_form leg_index="__prefix__" leg_number="" override_data=empty_overrides %}
+    </template>
+
+    <div class="add-leg-wrap">
+      <button type="button" class="btn-add-leg" id="add-leg-btn">
+        <i class="fas fa-plus"></i> Add another leg
+      </button>
+      <div class="add-leg-hint" id="add-leg-hint">Round trip? Add a second leg for the return.</div>
+    </div>
 
     <div class="leg-actions">
       <a href="{% url 'dispatcher_booking_reservation' %}" class="btn btn-booking-secondary">
@@ -607,6 +424,7 @@
       </button>
     </div>
   </form>
+
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
@@ -698,8 +516,8 @@
               if (e.target.matches && e.target.matches('input[name$="pickup_time"]')) updateTimeEcho(e.target);
           }));
           refreshEchoes(form);
-          form.querySelectorAll('input,select,textarea').forEach(el => {
-              el.addEventListener('input', () => el.classList.remove('is-invalid'));
+          form.addEventListener('input', function(e) {
+              if (e.target.classList) e.target.classList.remove('is-invalid');
           });
 
           // Common locations autocomplete
@@ -728,20 +546,103 @@
               "Disney Springs",
               "Universal CityWalk"
           ];
-          document.querySelectorAll('input[name*="pickup_location"], input[name*="dropoff_location"]').forEach(input => {
-              const datalistId = input.id + '_datalist';
-              if (!document.getElementById(datalistId)) {
-                  const dl = document.createElement('datalist');
-                  dl.id = datalistId;
-                  commonLocations.forEach(loc => {
-                      const o = document.createElement('option');
-                      o.value = loc;
-                      dl.appendChild(o);
+          function attachDatalists(root) {
+              root.querySelectorAll('input[name*="pickup_location"], input[name*="dropoff_location"]').forEach(input => {
+                  const datalistId = input.id + '_datalist';
+                  if (!document.getElementById(datalistId)) {
+                      const dl = document.createElement('datalist');
+                      dl.id = datalistId;
+                      commonLocations.forEach(loc => {
+                          const o = document.createElement('option');
+                          o.value = loc;
+                          dl.appendChild(o);
+                      });
+                      document.body.appendChild(dl);
+                  }
+                  input.setAttribute('list', datalistId);
+              });
+          }
+          attachDatalists(document);
+
+          // ── Add / remove legs ──
+          // Django needs a contiguous legs-0..N-1 / flights-0..N-1 set of field
+          // names on submit, so every add and remove renumbers the whole stack.
+          const legsContainer = document.getElementById('legs-container');
+          const blueprint = document.getElementById('leg-blueprint');
+          const addBtn = document.getElementById('add-leg-btn');
+          const addHint = document.getElementById('add-leg-hint');
+          const legTotal = document.querySelector('input[name="legs-TOTAL_FORMS"]');
+          const flightTotal = document.querySelector('input[name="flights-TOTAL_FORMS"]');
+          const maxLegs = parseInt(legsContainer.dataset.maxLegs, 10) || 5;
+
+          function legCards() {
+              return Array.from(legsContainer.querySelectorAll('[data-leg-card]'));
+          }
+
+          function reindexAttr(value, i) {
+              return value
+                  .replace(/(legs|flights)-\d+-/, '$1-' + i + '-')
+                  .replace(/legOverrides_\d+/, 'legOverrides_' + i);
+          }
+
+          function reindex() {
+              const cards = legCards();
+              cards.forEach((card, i) => {
+                  card.dataset.legIndex = i;
+                  const num = card.querySelector('[data-leg-number]');
+                  if (num) num.textContent = i + 1;
+                  ['name', 'id', 'for', 'data-bs-target', 'aria-controls'].forEach(attr => {
+                      card.querySelectorAll('[' + attr + ']').forEach(el => {
+                          el.setAttribute(attr, reindexAttr(el.getAttribute(attr), i));
+                      });
                   });
-                  document.body.appendChild(dl);
+                  const removeBtn = card.querySelector('[data-remove-leg]');
+                  if (removeBtn) removeBtn.style.display = cards.length > 1 ? '' : 'none';
+                  attachDatalists(card);
+              });
+
+              const n = cards.length;
+              if (legTotal) legTotal.value = n;
+              if (flightTotal) flightTotal.value = n;
+              if (addBtn) addBtn.disabled = n >= maxLegs;
+              if (addHint) {
+                  addHint.textContent = n >= maxLegs
+                      ? 'That’s the most legs one reservation can hold.'
+                      : (n === 1
+                          ? 'Round trip? Add a second leg for the return.'
+                          : n + ' legs on this reservation.');
               }
-              input.setAttribute('list', datalistId);
+          }
+
+          function addLeg() {
+              const cards = legCards();
+              if (cards.length >= maxLegs) return;
+              const wrap = document.createElement('div');
+              wrap.innerHTML = blueprint.innerHTML.replace(/__prefix__/g, String(cards.length)).trim();
+              const card = wrap.firstElementChild;
+              card.classList.add('is-entering');
+              legsContainer.appendChild(card);
+              reindex();
+              card.querySelectorAll('input[type="date"]').forEach(i => i.min = today);
+              refreshEchoes(card);
+              requestAnimationFrame(() => card.classList.remove('is-entering'));
+              const firstField = card.querySelector('input[name$="pickup_date"]');
+              if (firstField) firstField.focus({preventScroll: true});
+              card.scrollIntoView({behavior: 'smooth', block: 'center'});
+          }
+
+          if (addBtn) addBtn.addEventListener('click', addLeg);
+
+          legsContainer.addEventListener('click', function(e) {
+              const btn = e.target.closest('[data-remove-leg]');
+              if (!btn) return;
+              if (legCards().length <= 1) return;
+              const card = btn.closest('[data-leg-card]');
+              card.classList.add('is-entering');
+              setTimeout(() => { card.remove(); reindex(); }, 180);
           });
+
+          reindex();
       });
   </script>
 {% endblock %}
