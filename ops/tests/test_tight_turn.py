@@ -213,9 +213,8 @@ class ClassifyTurnBookedPickupTierTests(_TurnFixtureMixin, TestCase):
     arrival (e.g. an airport drop-off followed by a hotel pickup). This branch used
     to have no amber tier at all: any late minute, however small, was hardcoded to
     red. That's the exact alert-fatigue bug — a driver 0-6 min "behind" showing up
-    identical to one who's an hour late. Mirrors ClassifyTurnTierTests' shape for
-    the flight-arrival branch, using TURN_TIGHT_SLACK_MIN (15) instead of
-    ARRIVAL_MEET_GRACE_MIN (10) since this is a different question."""
+    identical to one who's an hour late. Shares TIGHT_TURN_RED_AFTER_MIN (10) with
+    the flight-arrival branch above — one clock for both turn shapes."""
 
     def setUp(self):
         self.prior = self._leg("Disney's Grand Floridian Resort", "MCO Airport", time(15, 30))
@@ -230,21 +229,21 @@ class ClassifyTurnBookedPickupTierTests(_TurnFixtureMixin, TestCase):
         self.assertIsNone(self._tier(datetime(2026, 6, 1, 16, 30)))
         self.assertIsNone(self._tier(datetime(2026, 6, 1, 16, 20)))
 
-    def test_one_to_fifteen_min_behind_is_amber(self):
+    def test_one_to_ten_min_behind_is_amber(self):
         # The screenshot cases (0 and 6 min "behind pickup"): a driver clearing
-        # the prior job within TURN_TIGHT_SLACK_MIN of the next ready time is
+        # the prior job within TIGHT_TURN_RED_AFTER_MIN of the next ready time is
         # "keep an eye on it", not a CRITICAL emergency.
-        for late in (1, 6, 15):
+        for late in (1, 6, 10):
             risk = self._tier(datetime(2026, 6, 1, 16, 30) + timezone.timedelta(minutes=late))
             self.assertIsNotNone(risk, f"{late} min behind should still flag")
             self.assertEqual(risk["tier"], "amber")
             self.assertEqual(risk["late"], late)
 
-    def test_over_fifteen_min_behind_is_red(self):
-        risk = self._tier(datetime(2026, 6, 1, 16, 46))  # 16 min behind
+    def test_over_ten_min_behind_is_red(self):
+        risk = self._tier(datetime(2026, 6, 1, 16, 41))  # 11 min behind
         self.assertIsNotNone(risk)
         self.assertEqual(risk["tier"], "red")
-        self.assertEqual(risk["late"], 16)
+        self.assertEqual(risk["late"], 11)
 
 
 class DetectDriverConflictsTierTests(_TurnFixtureMixin, TestCase):

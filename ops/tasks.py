@@ -61,9 +61,12 @@ CHAIN_RECHECK_THRESHOLD = 5
 # SEPARATE from the scheduler's AIRPORT_ARRIVAL_GRACE_MINUTES so the morning
 # safety flag stays conservative even if the deplaning grace is retuned.
 TIGHT_TURN_ENABLED = True
-# Past this many minutes after the raw arrival the driver has missed his meet
-# deadline -> red. Sourced from the one policy constant so the task queue, the
-# board and auto-assign cannot drift apart again.
+# Past this many minutes late the driver has missed the deadline -> red. Used for
+# BOTH turn shapes classify_turn()/detect_driver_conflicts() judge: a flight-arrival
+# meet (measured against the raw arrival) and a booked-pickup-to-booked-pickup
+# overlap — one number so the task queue, the board and auto-assign cannot drift
+# apart, and a hotel-to-hotel turn isn't judged more leniently than an airport one.
+# Sourced from the one policy constant (pickup_policy.ARRIVAL_MEET_GRACE_MIN).
 TIGHT_TURN_RED_AFTER_MIN = pickup_policy.ARRIVAL_MEET_GRACE_MIN
 
 # Priority matrix: (severity_tier, days_until_bucket) → Priority
@@ -259,14 +262,10 @@ def classify_turn(prev_leg, curr_leg, target_date):
     two never disagree at the threshold.
 
     Returns a dict {tier, late, driver_arrives, raw_arrival, end_prev, travel} or None
-    (no flag). `tier` is:
-      * 'red'   — driver reaches an airport arrival >= TIGHT_TURN_RED_AFTER_MIN min
-                  after the RAW flight arrival (won't make it), OR is more than
-                  TURN_TIGHT_SLACK_MIN min late for a booked-pickup overlap.
-      * 'amber' — driver reaches the airport 0..TIGHT_TURN_RED_AFTER_MIN min after the
-                  raw flight arrival (tight, still makes it), OR is 1..TURN_TIGHT_SLACK_MIN
-                  min late for a booked-pickup overlap (same idea, the pickup-turn
-                  constant instead of the flight-meet one — different questions).
+    (no flag). One threshold for both shapes — TIGHT_TURN_RED_AFTER_MIN (10 min) —
+    so a flight-arrival turn and a booked-pickup turn are judged by the same clock:
+      * 'red'   — driver is > TIGHT_TURN_RED_AFTER_MIN min late (won't make it).
+      * 'amber' — driver is 1..TIGHT_TURN_RED_AFTER_MIN min late (tight, still makes it).
     """
     risk = _turn_late_minutes(prev_leg, curr_leg, target_date)
     if risk is not None:
@@ -292,7 +291,7 @@ def classify_turn(prev_leg, curr_leg, target_date):
     if late <= 0:
         return None  # driver clears the prior job with time to spare — comfortable
     return {
-        "tier": "red" if late > pickup_policy.TURN_TIGHT_SLACK_MIN else "amber",
+        "tier": "red" if late > TIGHT_TURN_RED_AFTER_MIN else "amber",
         "late": late,
         "driver_arrives": driver_arrives,
         "raw_arrival": None,
@@ -380,7 +379,7 @@ def detect_driver_conflicts(leg, target_date):
       - driver_clears_at: datetime when driver finishes the prior leg
       - effective_ready: datetime when passenger is ready for the checked leg
       - conflict_minutes: how many minutes late the driver would be
-      - tier: 'red' (won't make it, > TURN_TIGHT_SLACK_MIN min late) or 'amber'
+      - tier: 'red' (won't make it, > TIGHT_TURN_RED_AFTER_MIN min late) or 'amber'
         (tight but still makes it) — same banding classify_turn uses for the
         overlap scan, so the two detectors never disagree at the threshold.
 
@@ -441,7 +440,7 @@ def detect_driver_conflicts(leg, target_date):
                     "driver_clears_at": this_end_time,
                     "effective_ready": other_ready_time,
                     "conflict_minutes": conflict_mins,
-                    "tier": "red" if conflict_mins > pickup_policy.TURN_TIGHT_SLACK_MIN else "amber",
+                    "tier": "red" if conflict_mins > TIGHT_TURN_RED_AFTER_MIN else "amber",
                     "direction": "this_delays_other",
                 })
 
@@ -457,7 +456,7 @@ def detect_driver_conflicts(leg, target_date):
                     "driver_clears_at": other_end_time,
                     "effective_ready": this_ready_time,
                     "conflict_minutes": conflict_mins,
-                    "tier": "red" if conflict_mins > pickup_policy.TURN_TIGHT_SLACK_MIN else "amber",
+                    "tier": "red" if conflict_mins > TIGHT_TURN_RED_AFTER_MIN else "amber",
                     "direction": "other_delays_this",
                 })
 

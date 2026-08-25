@@ -179,11 +179,21 @@ class SubThresholdDriftTests(_FutureBoardFixture):
 
     def test_thirteen_minute_drift_still_rechecks_the_chain(self):
         """2:03 booked, flight now 2:16 — 13 min, well under the 30-min guest bar, and
-        enough to break a chain the engine built at zero slack. The point pinned here is
-        that the chain gets RE-EXAMINED at all (the founder's bug was the scan skipping it
-        outright) — 13 min is inside TURN_TIGHT_SLACK_MIN (15), so it's correctly triaged
-        as a tight_turn "keep an eye on it", not a false CRITICAL emergency."""
+        enough to break a chain the engine built at zero slack. 13 min is past
+        TIGHT_TURN_RED_AFTER_MIN (10), so it's a genuine CRITICAL conflict, not just
+        a tight_turn watch — the point pinned here is that the chain gets RE-EXAMINED
+        at all (the founder's bug was the scan skipping it outright)."""
         self._build_board(days_out=1, flight_arrival_time=time(14, 16))
+        _scan_flight_mismatches()
+        self.assertEqual(self._conflict_tasks().count(), 1)
+        self.assertEqual(self._tight_turn_tasks().count(), 0)
+
+    def test_a_smaller_drift_inside_the_grace_is_amber(self):
+        """A drift small enough to stay inside TIGHT_TURN_RED_AFTER_MIN (10) is still
+        re-examined, but correctly triaged as "keep an eye on it" — not a false
+        CRITICAL emergency. This is the exact alert-fatigue bug the driver-conflict
+        severity fix targets, on the future-board code path."""
+        self._build_board(days_out=1, flight_arrival_time=time(14, 10))  # 7 min drift
         _scan_flight_mismatches()
         self.assertEqual(self._tight_turn_tasks().count(), 1)
         self.assertEqual(self._conflict_tasks().count(), 0)
