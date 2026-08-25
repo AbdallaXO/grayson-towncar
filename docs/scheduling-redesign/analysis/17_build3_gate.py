@@ -17,6 +17,20 @@ proposed plan clears every one of the ten criteria in 05 §7:
    9  driver-days used <= the same-date baseline (the point of Pass A)
   10  wall-clock <= opt_runtime_budget_s, or budget_exhausted flagged
 
+FOUNDER RULING D15 (2026-08-25, 05 §11.4) — two engine-level findings the
+first gated run surfaced are ACCEPTED for v1, and criteria 1 and 5 are gated
+under the ratified readings so the gate keeps catching OPTIMIZER regressions
+instead of staying permanently red on a known, accepted engine property:
+
+   1  passes when the plan matches state B, OR matches an engine baseline
+      that itself falls short of state B (the shortfall is the shipped
+      engine's, not the optimizer's — printed as an ACCEPTED FINDING);
+   5  gates on "the plan adds NO rest breach beyond the same-date engine
+      baseline's own" (the reading the builder enforces internally); the
+      absolute vs-real-board breaches still print as an ACCEPTED FINDING.
+
+Nothing is hidden: every accepted finding prints per date, every time.
+
 Criterion 1 is the founder's success test and criterion 9 is
 "available != required"; a run that passes 1 but not 9 has not built what
 Build 3 was for. Also emitted, as EVIDENCE rather than as a gate: the
@@ -486,7 +500,7 @@ def main():
                 "4 none>15h", "5 no new rest", "6 exceptions priced",
                 "7 <=2/vehicle", "8 no RED handoff", "9 dd<=baseline",
                 "10 runtime"]
-    results, evidence, failures = [], [], []
+    results, evidence, failures, accepted = [], [], [], []
 
     for day in picks:
         iso = day.isoformat()
@@ -504,9 +518,17 @@ def main():
 
         n_cleared = clear_day(day)
         print(f"\n{iso}: cleared {n_cleared} assignments on the copy (cold)")
+        raw_by_id = {r["id"]: r for r in rows_}
         base_assign, legs, drivers, base_s = run_baseline(day)
         legs_by_id = {l.id: l for l in legs}
         base = board_metrics(base_assign, legs, drivers, day, a6_ids, hard_cap)
+        # The baseline build's own rest breaches — criterion 5's D15 yardstick.
+        base_boards = defaultdict(list)
+        for lid, did in base_assign.items():
+            r = raw_by_id.get(lid)
+            if r is not None:
+                base_boards[did].append(r)
+        base_rest = rest_breaches(iso, base_boards, adjacent, m09.OCC)
         base_cost, base_fb = farm_cost_usd(base["farmed_leg_ids"], legs_by_id)
         print(f"  baseline : {base['coverage_pct']:.1f}% coverage, "
               f"{base['driver_days']} driver-days, {base['farm_a6']} farmed "
@@ -539,12 +561,13 @@ def main():
         plan_cost, plan_fb = farm_cost_usd(p["farmed_leg_ids"], legs_by_id)
 
         plan_boards = defaultdict(list)
-        raw_by_id = {r["id"]: r for r in rows_}
         for lid, did in assignments.items():
             r = raw_by_id.get(lid)
             if r is not None:
                 plan_boards[did].append(r)
-        new_rest = rest_breaches(iso, plan_boards, adjacent, m09.OCC) - pre_existing
+        plan_rest = rest_breaches(iso, plan_boards, adjacent, m09.OCC)
+        rest_beyond_baseline = plan_rest - base_rest      # the D15 gate
+        rest_vs_real = plan_rest - pre_existing           # the accepted-finding evidence
 
         exceptions = list(plan_get(plan, "exceptions") or [])
         priced = {plan_get(e, "driver_id") for e in exceptions
@@ -566,12 +589,25 @@ def main():
 
         budget_exhausted = bool(plan_get(plan, "budget_exhausted", False))
 
+        c1_direct = p["coverage_pct"] >= stateb["coverage"] - 1e-9
+        c1_engine_shortfall = (base["coverage_pct"] < stateb["coverage"] - 1e-9
+                               and p["coverage_pct"] >= base["coverage_pct"] - 1e-9)
+        if c1_engine_shortfall and not c1_direct:
+            accepted.append(
+                (iso, "1", f"engine baseline {base['coverage_pct']:.1f}% < state B "
+                           f"{stateb['coverage']:.1f}% — the plan matches the "
+                           f"baseline; shortfall is the shipped engine's (D15)"))
+        if rest_vs_real and not rest_beyond_baseline:
+            accepted.append(
+                (iso, "5", f"{len(rest_vs_real)} engine-build rest breach(es) vs "
+                           f"the real board {sorted(rest_vs_real)} — none added "
+                           f"by the plan (D15)"))
         verdicts = {
-            "1 coverage>=stateB": p["coverage_pct"] >= stateb["coverage"] - 1e-9,
+            "1 coverage>=stateB": c1_direct or c1_engine_shortfall,
             "2 coverage>=baseline": p["coverage_pct"] >= base["coverage_pct"] - 1e-9,
             "3 no critical": p["critical_pairs"] == 0,
             "4 none>15h": len(p["over_hard"]) == 0,
-            "5 no new rest": len(new_rest) == 0,
+            "5 no new rest": len(rest_beyond_baseline) == 0,
             "6 exceptions priced": len(unpriced) == 0,
             "7 <=2/vehicle": len(over_two) == 0,
             "8 no RED handoff": len(reds) == 0,
@@ -586,11 +622,12 @@ def main():
         for name, ok in verdicts.items():
             if not ok:
                 detail = {
-                    "1 coverage>=stateB": f"{p['coverage_pct']:.1f}% < {stateb['coverage']:.1f}%",
+                    "1 coverage>=stateB": f"{p['coverage_pct']:.1f}% < {stateb['coverage']:.1f}% "
+                                          f"AND below the {base['coverage_pct']:.1f}% baseline",
                     "2 coverage>=baseline": f"{p['coverage_pct']:.1f}% < {base['coverage_pct']:.1f}%",
                     "3 no critical": f"{p['critical_pairs']} critical pair(s)",
                     "4 none>15h": f"drivers {p['over_hard']}",
-                    "5 no new rest": f"{sorted(new_rest)}",
+                    "5 no new rest": f"beyond the baseline's own: {sorted(rest_beyond_baseline)}",
                     "6 exceptions priced": f"unpriced over-13.5h drivers {unpriced}",
                     "7 <=2/vehicle": f"{over_two}",
                     "8 no RED handoff": f"{len(reds)} RED share(s) proposed",
@@ -640,6 +677,12 @@ def main():
         print(f"runtime: {time.time() - t0:.1f}s")
         return
 
+    if accepted:
+        print("ACCEPTED FINDINGS (founder ruling D15, 2026-08-25 — shown every "
+              "run, never gated, never hidden):")
+        for iso, crit, note in accepted:
+            print(f"  {iso}  [criterion {crit}]  {note}")
+        print()
     print(f"dates gated : {len(picks)}")
     print(f"failures    : {len(failures)}")
     for iso, name, detail in failures:

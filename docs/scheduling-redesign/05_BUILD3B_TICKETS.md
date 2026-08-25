@@ -497,3 +497,21 @@ in-house (+0.5 pp) at equal driver-days.**
 
 `opt_enabled` ships **False**. Promotion and the criterion-5 ruling are the
 founder's (D11/D12).
+
+### 11.4 Founder ruling (2026-08-25) — both findings accepted for v1 (D15)
+
+The founder ruled on both: **accepted for now, to be diagnosed later.**
+Recorded as D15 in 01 §1.1. Consequences implemented the same day:
+
+* **Criterion 5** now gates on "the plan adds NO rest breach beyond the
+  same-date engine baseline" — the reading the builder itself enforces; the
+  absolute vs-real-board count still prints, per date, as an ACCEPTED
+  FINDING so the alarm distinguishes the known engine property from a real
+  optimizer regression. A future engine hard-gate remains an open founder
+  option, not scheduled.
+* **Criterion 1** passes when the plan matches state B, or matches an engine
+  baseline that itself falls short of state B (2026-08-03: 81.7% vs 83.7%,
+  16 human driver-days vs 14) — the shortfall prints as an ACCEPTED FINDING,
+  never silently.
+* With these readings, `analysis/17_build3_gate.py` is **green on all ten
+  criteria across all ten dates**. The feature remains OFF (D11 untouched).
