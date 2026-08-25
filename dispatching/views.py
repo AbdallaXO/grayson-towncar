@@ -19194,7 +19194,7 @@ def quote_calculator_api(request):
     # founder prices these by hand. Only worth measuring for trips short enough
     # to be in-area; get_drive_time caches, so repeat addresses are free.
     def _snap(address):
-        if miles > quote_engine.SERVICE_AREA_RADIUS_MI:
+        if miles > quote_engine.LOCAL_CHAINABLE_RADIUS_MI:
             return None, None
 
         def measure(zone_address):
