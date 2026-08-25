@@ -24,9 +24,16 @@ title: Day Setup can now build you a plan for the whole day
 >    keeps another trip in-house." If your setup is already the best, it says
 >    so.
 >
+> And when trips are about to farm out while a driver sits available and a
+> car sits free, it names them: "Tick Carlos, give him #14 — he catches the
+> 4:30 arrival, that's $71 kept in-house." It checks his rest, his hours, and
+> whether he can drive that vehicle before it ever suggests him.
+>
 > It never changes anything on its own — you still make every change yourself
-> and hit Apply, same as always. If it suggests running someone past 13.5
-> hours, it shows that as a choice with the dollars, never as a default.
+> and hit Apply, same as always. Nobody gets called or texted automatically —
+> whether to actually call that driver in is your decision, like always. If
+> it suggests running someone past 13.5 hours, it shows that as a choice with
+> the dollars, never as a default.
 >
 > Assigning trips, the schedule board, and the driver app all work exactly the
 > same as yesterday.

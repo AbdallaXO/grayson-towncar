@@ -278,6 +278,82 @@ class EndpointTests(PlannerBase):
         self.assertEqual(body["result"]["date"], TD.isoformat())
 
 
+class CatchTheRestTests(PlannerBase):
+    """D16 (founder, 2026-08-25): when trips farm out while certified drivers
+    sit available and cars sit free, the plan PROPOSES ticking them by name —
+    each suggestion must verifiably capture >=1 otherwise-farmed trip, pass
+    rest/availability/certification, and remain propose-only."""
+
+    def _bench_driver(self, username):
+        return Driver.objects.create(
+            profile=User.objects.create_user(username=username,
+                                             first_name=username.title()),
+            driver_type="inhouse")
+
+    def _overloaded_day(self):
+        """One rostered driver, two same-time trips: one MUST farm."""
+        self._roster(self.d1, self.unit1)
+        a = self._leg(9, 0)
+        b = self._leg(9, 5)
+        return a, b
+
+    def test_bench_driver_on_free_car_is_proposed_and_captures_the_trip(self):
+        self._overloaded_day()          # unit2 stays free; d2 has no DVA row
+        plan = build_day_plan(TD, epsilon=0)
+        self.assertEqual(plan.baseline["farm_outs"], 1)
+        self.assertEqual(len(plan.additions), 1)
+        add = plan.additions[0]
+        self.assertEqual(add["driver_id"], self.d2.id)
+        self.assertEqual(add["vehicle_id"], self.unit2.id)
+        self.assertEqual(len(add["captured_leg_ids"]), 1)
+        self.assertEqual(plan.with_additions["farm_outs"], 0)
+        self.assertEqual(plan.with_additions["coverage_pct"], 100.0)
+        # propose-only: the addition wrote nothing
+        self.assertFalse(DriverVehicleAssignment.objects
+                         .filter(driver=self.d2, date=TD).exists())
+        # and the fixed-headcount plan is untouched by the suggestion
+        self.assertNotIn(self.d2.id, set(plan.assignments.values()))
+
+    def test_no_free_car_means_no_addition(self):
+        self._overloaded_day()
+        DriverVehicleAssignment.objects.create(   # unit2 held by someone off-roster
+            driver=self._bench_driver("holder"), date=TD, vehicle=self.unit2)
+        plan = build_day_plan(TD, epsilon=0)
+        self.assertEqual(plan.additions, [])
+
+    def test_uncertified_driver_never_offered_a_certified_unit(self):
+        vt_van14 = Vehicle.objects.create(
+            vehicle_type="Van(14 Pax)", capacity=14, luggage_capacity=14,
+            requires_certification=True)
+        self.unit2.vehicle_type = vt_van14
+        self.unit2.save()
+        self._overloaded_day()          # only free unit now needs certification
+        plan = build_day_plan(TD, epsilon=0)
+        self.assertEqual(plan.additions, [],
+                         "an uncertified bench driver was offered a "
+                         "certification-restricted unit")
+
+    def test_rest_blocked_bench_driver_is_not_proposed(self):
+        self._overloaded_day()
+        # d2 worked late yesterday; with a 12h floor his 9:00 pickup today is
+        # an unambiguous breach regardless of the estimated trip duration.
+        self._leg(23, 30, day=TD - timedelta(days=1), driver=self.d2)
+        cfg = SchedulerSettings.get_settings()
+        cfg.rest_min_gap_minutes = 720
+        cfg.save()
+        SchedulerSettings.clear_cache()
+        plan = build_day_plan(TD, epsilon=0)
+        self.assertEqual(plan.additions, [],
+                         "a rest-blocked bench driver was proposed")
+
+    def test_nothing_farmed_means_no_additions(self):
+        self._roster(self.d1, self.unit1)
+        self._leg(9, 0)
+        plan = build_day_plan(TD, epsilon=0)
+        self.assertEqual(plan.baseline["farm_outs"], 0)
+        self.assertEqual(plan.additions, [])
+
+
 class BillingWallTests(PlannerBase):
     """Ticket D: a hypothetical board must never spend money — probe mode makes
     route-distance lookups read-only, and a full build enqueues NOTHING."""

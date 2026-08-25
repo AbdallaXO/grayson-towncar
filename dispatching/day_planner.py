@@ -20,11 +20,19 @@ chosen headcount** — it never proposes changing how many drivers work.
 Two further calls made under the same delegation, both documented here so
 they can be revisited:
 
-* **No auto-planned call-outs.** Standby second shifts (mints) are phone
-  calls to real people — call-first, dispatcher-owned, willingness
-  unrecorded (03 §1). The plan never bakes one in; mint proposals stay
-  where Build 2 put them, as dispatcher-ticked cards in the same panel.
-  This also keeps Gate-4 criterion 9 (driver-days <= baseline) exact.
+* **No call-outs baked into the plan itself.** Standby second shifts (mints)
+  are phone calls to real people — call-first, dispatcher-owned, willingness
+  unrecorded (03 §1). The plan never bakes one in; mint proposals stay where
+  Build 2 put them, as dispatcher-ticked cards in the same panel. This also
+  keeps Gate-4 criterion 9 (driver-days <= baseline) exact.
+  **Refined by D16 (founder, 2026-08-25):** when trips are farming while
+  certified drivers sit available and cars sit free, the plan DOES carry
+  "catch the rest" suggestions — a NAMED bench driver on a NAMED free car,
+  each verified by a full-pipeline evaluation to capture >=1 otherwise-farmed
+  trip under the same walls (his rest, his window, certification). They ride
+  in ``additions``, separate from ``assignments``; the dispatcher still ticks
+  and makes the call. This is not the cut roster ladder — no size search,
+  only targeted named additions that pay for themselves in captured trips.
 * **Walls are counted as deltas against the day's pre-plan board.** 05's
   wall table sets every threshold at 0; on a cold day (the Gate-4 replay)
   delta == absolute. On a partially built day, a conflict the dispatcher's
@@ -128,6 +136,15 @@ class DayPlanResult:
     #: the engine build's own hard-rule issues beyond the live board — shown,
     #: never hidden (the Gate-4 harness still judges the plan absolutely)
     seed_wall_notes: list = field(default_factory=list)
+    #: "catch the rest" (D16): named bench drivers on named free cars, each
+    #: verifiably capturing >=1 otherwise-farmed trip. Propose-only — the
+    #: dispatcher ticks and makes the call. NOT part of `assignments`.
+    additions: list = field(default_factory=list)
+    #: the day's numbers IF every addition is ticked (from the full-pipeline
+    #: evaluation of the augmented roster), or None when there are none
+    with_additions: dict = None
+    #: plain-language reason when farmed trips remain and no addition helps
+    additions_note: str = ""
 
     def to_payload(self):
         d = dict(self.__dict__)
@@ -515,18 +532,19 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
     seed_units = {frozenset(s["driver_ids"]): s["vehicle_id"]
                   for s in seed["shares"]}
 
-    def walls(e):
+    def walls(e, base=None):
+        base = base if base is not None else seed
         out = []
-        if e["criticals"] - seed["criticals"]:
+        if e["criticals"] - base["criticals"]:
             out.append(f"adds hard-infeasible turn pair(s): "
-                       f"{sorted(e['criticals'] - seed['criticals'])[:3]}")
-        if e["over_hard"] - seed["over_hard"]:
+                       f"{sorted(e['criticals'] - base['criticals'])[:3]}")
+        if e["over_hard"] - base["over_hard"]:
             out.append(f"adds a driver-day over {ctx['hard_cap']:g}h: "
-                       f"{sorted(e['over_hard'] - seed['over_hard'])}")
-        if e["rest_breaches"] - seed["rest_breaches"]:
+                       f"{sorted(e['over_hard'] - base['over_hard'])}")
+        if e["rest_breaches"] - base["rest_breaches"]:
             out.append(f"adds a rest-floor breach: "
-                       f"{sorted(e['rest_breaches'] - seed['rest_breaches'])}")
-        if e["share_conflicts"] - seed["share_conflicts"]:
+                       f"{sorted(e['rest_breaches'] - base['rest_breaches'])}")
+        if e["share_conflicts"] - base["share_conflicts"]:
             out.append("double-books a shared car")
         over2 = [s for s in e["shares"] if len(s["driver_ids"]) > 2]
         if over2:
@@ -644,6 +662,185 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
                 f"and takes {max(dspan, 0):.1f} h of over-target hours off the "
                 f"crew vs the strict plan.")
 
+    # ── "Catch the rest" — named bench additions (founder ruling D16,
+    # 2026-08-25: when trips are farming while certified drivers sit available
+    # and cars sit free, propose ticking them — he would "rather have 100%
+    # in-house and give a driver a few jobs than farm a job"). This is NOT the
+    # cut roster ladder: no size search — each suggestion is a NAMED driver on
+    # a NAMED free car that verifiably captures ≥1 otherwise-farmed trip
+    # through the same full-pipeline evaluation, passes the same walls (his
+    # overnight rest, availability window, certification), or it is not shown.
+    # Propose-only: the dispatcher ticks and makes the call, exactly like a
+    # Build-2 second-shift card. The fixed-headcount plan above is unchanged.
+    additions = []
+    additions_note = ""
+    current = best
+    if best["farmed"] and (len(evals) >= max_evals or budget_exhausted):
+        additions_note = ("Ran out of time before testing extra drivers — "
+                          "re-build to try again.")
+    if best["farmed"] and len(evals) < max_evals and not budget_exhausted:
+        from dispatching.day_setup import _is_excluded, _unit_label
+        from drivers.models import FleetVehicle
+
+        held_unit_ids = {r.vehicle_id for r in dva_all if r.vehicle_id}
+        free_units = [u for u in FleetVehicle.objects.filter(is_active=True)
+                      .select_related("vehicle_type")
+                      if u.id not in held_unit_ids
+                      and not u.is_out_of_service_on(target_date)]
+        roster_ids = {d.id for d in drivers}
+        from drivers.models import Driver
+        bench = []
+        for d in (Driver.objects.filter(driver_type="inhouse", is_active=True)
+                  .exclude(id__in=roster_ids)
+                  .select_related("profile")
+                  .prefetch_related("weekly_schedule", "date_overrides",
+                                    "certified_vehicle_types")):
+            if _is_excluded(d):
+                continue
+            is_avail, sh, eh, _pref, flex = d.get_availability_for_date(target_date)
+            if is_avail:
+                bench.append((d, sh, eh, flex))
+        if not bench:
+            additions_note = ("No spare drivers today — everyone available is "
+                              "already working or off, so the farmed trip(s) "
+                              "stay farmed.")
+        elif not free_units:
+            additions_note = ("Every roadworthy car is already out — no free "
+                              "car to put another driver in, so the farmed "
+                              "trip(s) stay farmed.")
+        if bench and free_units:
+            # Extend the adjacent-day rest maps to the bench, so an addition's
+            # overnight rest is walled exactly like a rostered driver's.
+            bench_ids = [d.id for d, _s, _e, _f in bench]
+            for pl in (Leg.objects.filter(pickup_date=prev_day,
+                                          driver_id__in=bench_ids)
+                       .exclude(status="cancelled")
+                       .select_related("reservation", "flight_information")):
+                try:
+                    end = estimate_job_end_time(pl, prev_day)
+                except Exception:
+                    continue
+                if end > prev_end_by_driver.get(pl.driver_id, datetime.min):
+                    prev_end_by_driver[pl.driver_id] = end
+            for nl in (Leg.objects.filter(pickup_date=next_day,
+                                          driver_id__in=bench_ids)
+                       .exclude(status="cancelled")):
+                if nl.pickup_time is None:
+                    continue
+                dtm = datetime.combine(next_day, nl.pickup_time)
+                if dtm < next_first_by_driver.get(nl.driver_id, datetime.max):
+                    next_first_by_driver[nl.driver_id] = dtm
+
+            def _farmed_meta(e):
+                out = []
+                for lid in e["farmed"]:
+                    lg = legs_by_id.get(lid)
+                    if lg is None or lg.pickup_time is None:
+                        continue
+                    vt = lg.effective_vehicle_type
+                    out.append((lid, get_vehicle_tier(str(vt)) if vt else 0,
+                                lg.pickup_time))
+                return out
+
+            def _rank(cands, farmed_meta):
+                ranked = []
+                for d, sh, eh, flex in cands:
+                    reach = [(lid, t) for lid, t, pt in farmed_meta
+                             if flex or sh <= pt.hour <= eh]
+                    if not reach:
+                        continue
+                    units = [u for u in free_units if d.can_drive(u.vehicle_type)]
+                    if not units:
+                        continue
+                    best_u, best_key = None, None
+                    for u in units:
+                        ut = get_vehicle_tier(_vtype_str(u))
+                        catch = sum(1 for _lid, t in reach if t <= ut)
+                        k = (-catch, ut, u.id)   # most catchable, smallest car
+                        if best_key is None or k < best_key:
+                            best_u, best_key = u, k
+                    if best_key[0] == 0:         # his best car catches nothing
+                        continue
+                    ranked.append((best_key[0], d.id, d, sh, eh, flex, best_u))
+                # most potential captures first (-catch ascending), then lower id
+                ranked.sort(key=lambda r: (r[0], r[1]))
+                return [(d, sh, eh, flex, u) for _negc, _did, d, sh, eh, flex, u
+                        in ranked]
+
+            tried = set()
+            for d, sh, eh, flex, unit in _rank(bench, _farmed_meta(current)):
+                if (not current["farmed"] or len(evals) >= max_evals
+                        or _time.monotonic() - t_start > budget_s):
+                    if _time.monotonic() - t_start > budget_s:
+                        budget_exhausted = True
+                    break
+                if d.id in tried:
+                    continue
+                tried.add(d.id)
+                rows2 = list(current["dva_rows"]) + [DriverVehicleAssignment(
+                    date=target_date, driver_id=d.id, vehicle=unit)]
+                ctx2 = dict(ctx)
+                ctx2["drivers"] = list(ctx["drivers"]) + [d]
+                ctx2["drivers_by_id"] = dict(ctx["drivers_by_id"])
+                ctx2["drivers_by_id"][d.id] = d
+                ctx2["driver_hours"] = dict(ctx["driver_hours"])
+                ctx2["driver_hours"][d.id] = (sh, eh)
+                ctx2["driver_max_hours"] = dict(ctx["driver_max_hours"])
+                fa = d.get_full_availability(target_date)
+                if fa.get("max_hours"):
+                    ctx2["driver_max_hours"].setdefault(d.id, float(fa["max_hours"]))
+                if flex:
+                    ctx2["flexible"] = set(ctx["flexible"]) | {d.id}
+                ev = _evaluate(f"+ {d} on {_unit_label(unit)}", rows2, ctx2)
+                evals.append(ev)
+                captured = sorted(set(current["farmed"]) - set(ev["farmed"]))
+                if (not captured or ev["farm_outs"] >= current["farm_outs"]
+                        or walls(ev, base=current)):
+                    continue
+                kept = 0.0
+                cap_detail = []
+                for lid in captured:
+                    lg = legs_by_id.get(lid)
+                    c, _fb = _leg_cost(lg)
+                    kept += c
+                    cap_detail.append({
+                        "leg_id": lid,
+                        "pickup": (lg.pickup_time.strftime("%I:%M %p").lstrip("0")
+                                   if lg is not None and lg.pickup_time else ""),
+                        "route": (f"{(lg.pickup_location or '')[:30]} → "
+                                  f"{(lg.dropoff_location or '')[:30]}"
+                                  if lg is not None else ""),
+                    })
+                additions.append({
+                    "driver_id": d.id, "driver_name": str(d),
+                    "vehicle_id": unit.id, "vehicle_label": _unit_label(unit),
+                    "window": (f"{sh}:00–{eh}:00" if not flex else "flexible"),
+                    "captured": cap_detail,
+                    "captured_leg_ids": captured,
+                    "kept_usd": round(kept, 2),
+                    "farmed_after": ev["farm_outs"],
+                })
+                # Update the maps the next candidate is judged against.
+                ctx["drivers"] = ctx2["drivers"]
+                ctx["drivers_by_id"] = ctx2["drivers_by_id"]
+                ctx["driver_hours"] = ctx2["driver_hours"]
+                ctx["driver_max_hours"] = ctx2["driver_max_hours"]
+                ctx["flexible"] = ctx2["flexible"] if flex else ctx["flexible"]
+                current = ev
+
+            if current["farm_outs"] > 0 and not additions_note:
+                if additions:
+                    additions_note = (
+                        f"{current['farm_outs']} trip(s) still farm even with "
+                        f"the tick(s) above — no driver/car combination "
+                        f"reaches them.")
+                else:
+                    additions_note = (
+                        "Tried putting a spare driver on a free car — none of "
+                        "them can reach the farmed trip(s) (timing, overnight "
+                        "rest, or vehicle size). Farming them is the right "
+                        "call today.")
+
     # ── Render-ready pieces ──
     total = len(legs)
     def cov(e):
@@ -671,6 +868,21 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
         "schedule as usual." if best is seed else
         f"In Day Setup: {best['label']}, then Apply and re-build the schedule. "
         f"Nothing is changed until you do — this is a proposal.")
+    if additions:
+        instructions += (
+            f" To go further: tick the {len(additions)} suggested driver"
+            f"{'s' if len(additions) != 1 else ''} below, Apply, and re-build "
+            f"— each one catches trips that would otherwise farm out.")
+
+    with_additions = None
+    if additions:
+        with_additions = {
+            "coverage_pct": round(cov(current), 1),
+            "farm_outs": current["farm_outs"],
+            "farm_cost_usd": current["farm_cost"],
+            "driver_days": current["driver_days"],
+            "kept_usd": round(sum(a["kept_usd"] for a in additions), 2),
+        }
 
     result = DayPlanResult(
         date=target_date.isoformat(),
@@ -708,6 +920,9 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
         bookings_as_of=bookings_as_of.isoformat(),
         farmed_summaries=farmed_summaries,
         seed_wall_notes=seed_wall_notes,
+        additions=additions,
+        with_additions=with_additions,
+        additions_note=additions_note,
     )
     return result
 

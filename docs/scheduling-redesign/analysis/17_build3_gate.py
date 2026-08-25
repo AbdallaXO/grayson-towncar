@@ -31,6 +31,14 @@ instead of staying permanently red on a known, accepted engine property:
 
 Nothing is hidden: every accepted finding prints per date, every time.
 
+FOUNDER RULING D16 (2026-08-25): when trips farm out while certified drivers
+sit available and cars sit free, the plan carries "catch the rest" ADDITIONS
+(a named bench driver on a named free car, each claiming to capture specific
+otherwise-farmed trips). This harness RE-DERIVES every such claim: the
+pipeline is re-run with the augmented roster and each claimed leg must land
+in-house, with the augmented farm-out count matching the plan's own figure
+exactly. A false claim is a gate failure ("additions").
+
 Criterion 1 is the founder's success test and criterion 9 is
 "available != required"; a run that passes 1 but not 9 has not built what
 Build 3 was for. Also emitted, as EVIDENCE rather than as a gate: the
@@ -414,6 +422,66 @@ def farm_cost_usd(farmed_leg_ids, legs_by_id):
 # the optimizer under test
 # --------------------------------------------------------------------------
 
+def verify_additions(day, plan, legs):
+    """Re-derive the D16 'catch the rest' claims: re-run the SHIPPED pipeline
+    with the plan's pairing PLUS every suggested addition (bench driver on a
+    free car) and check that (a) every claimed captured leg really lands
+    in-house and (b) the augmented farm-out count matches the plan's own
+    with_additions figure exactly (the pipeline is deterministic; a mismatch
+    is a real contract break, not noise). Returns (ok, detail)."""
+    from drivers.models import Driver, DriverVehicleAssignment, FleetVehicle
+    from dispatching.assignment_pipeline import (
+        PipelineLocks, PipelineWindows, run_assignment_pipeline)
+    from dispatching.scheduler import resolve_run_min_buffer, load_driver_min_buffers
+
+    adds = list(plan_get(plan, "additions") or [])
+    wa = plan_get(plan, "with_additions") or {}
+    pairs = [tuple(p) for p in (plan_get(plan, "dva_rows") or [])]
+    pairs += [(plan_get(a, "driver_id"), plan_get(a, "vehicle_id")) for a in adds]
+    claimed = [lid for a in adds for lid in (plan_get(a, "captured_leg_ids") or [])]
+
+    all_ids = sorted({d for d, _v in pairs})
+    drivers = list(Driver.objects.filter(id__in=all_ids)
+                   .select_related("profile")
+                   .prefetch_related("weekly_schedule", "date_overrides"))
+    vehicles = {v.id: v for v in FleetVehicle.objects.filter(
+        id__in=[v for _d, v in pairs]).select_related("vehicle_type")}
+    rows = [DriverVehicleAssignment(date=day, driver_id=d, vehicle=vehicles.get(v))
+            for d, v in pairs if vehicles.get(v) is not None]
+    driver_hours, flexible = {}, set()
+    for d in drivers:
+        is_avail, sh, eh, _p, flex = d.get_availability_for_date(day)
+        if is_avail:
+            driver_hours[d.id] = (sh, eh)
+            if flex:
+                flexible.add(d.id)
+    drivers = [d for d in drivers if d.id in driver_hours]
+    # Same max-hours derivation as the planner's roster path — the augmented
+    # re-run must be input-identical or the determinism assert below is unfair.
+    driver_max_hours = {}
+    for d in drivers:
+        fa = d.get_full_availability(day)
+        if fa.get("max_hours"):
+            driver_max_hours.setdefault(d.id, float(fa["max_hours"]))
+    res = run_assignment_pipeline(
+        legs, drivers, day,
+        PipelineWindows(driver_hours=driver_hours, flexible_drivers=flexible,
+                        driver_max_hours=driver_max_hours,
+                        run_min_buffer=resolve_run_min_buffer(None),
+                        driver_min_buffers=load_driver_min_buffers(
+                            [d.id for d in drivers])),
+        PipelineLocks(), dva_rows=rows)
+    missing = [lid for lid in claimed if lid not in res.assignments]
+    if missing:
+        return False, (f"claimed captured legs not in-house on the augmented "
+                       f"re-run: {missing}")
+    aug_farm = len(res.unassigned) - len(res.assignments)
+    if wa and aug_farm != wa.get("farm_outs"):
+        return False, (f"augmented farm-outs {aug_farm} != plan's "
+                       f"with_additions {wa.get('farm_outs')}")
+    return True, f"{len(adds)} addition(s), {len(claimed)} captured leg(s) verified"
+
+
 def load_optimizer():
     try:
         from dispatching.day_planner import build_day_plan
@@ -588,6 +656,17 @@ def main():
         reds = [s for s in shares if str(plan_get(s, "band", "")).lower() == "red"]
 
         budget_exhausted = bool(plan_get(plan, "budget_exhausted", False))
+
+        # D16 "catch the rest" additions: every claim re-derived (see helper).
+        if plan_get(plan, "additions"):
+            try:
+                a_ok, a_detail = verify_additions(day, plan, legs)
+            except Exception as e:                        # noqa: BLE001
+                a_ok, a_detail = False, f"verification raised {type(e).__name__}: {e}"
+            if a_ok:
+                print(f"  additions: {a_detail}")
+            else:
+                failures.append((iso, "additions", a_detail))
 
         c1_direct = p["coverage_pct"] >= stateb["coverage"] - 1e-9
         c1_engine_shortfall = (base["coverage_pct"] < stateb["coverage"] - 1e-9

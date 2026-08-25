@@ -515,3 +515,30 @@ Recorded as D15 in 01 §1.1. Consequences implemented the same day:
   never silently.
 * With these readings, `analysis/17_build3_gate.py` is **green on all ten
   criteria across all ten dates**. The feature remains OFF (D11 untouched).
+
+### 11.5 Founder refinement (2026-08-25, D16) — "catch the rest" additions
+
+First live use (Tue Aug 25, a quiet day: 65 trips, 98.5%, 1 farmed at ~$71,
+4 free cars, 5 available bench drivers) surfaced the founder's actual
+preference the rescoped build had walled off: *"I would rather have 100%
+in-house and add another driver+car and give him a few jobs than farm a
+job."* Implemented same day as D16 (recorded in 01 §1.1):
+
+* After the fixed-headcount plan settles, if farmed trips remain, the builder
+  greedily tries NAMED bench drivers (active, available, not demo-excluded,
+  no roster row) on NAMED free cars (active, not OOS, unheld), ranked by how
+  many farmed trips their window+certified-car could reach. Each candidate
+  costs one full pipeline evaluation (shared `pass_b_max_evals` /
+  `opt_runtime_budget_s` budgets) and is accepted only if it strictly
+  captures ≥1 farmed trip and adds no wall violation (his overnight rest
+  both sides, ≤2/unit, no share conflict, no RED share, certification via
+  `Driver.can_drive`).
+* Suggestions ride in the payload as `additions` (+ `with_additions`
+  totals), SEPARATE from `assignments` — the fixed-headcount plan, the A1
+  comparator and Gate-4 criterion 9 are untouched. The panel renders "Tick
+  X, give him unit N — catches the 4:30 arrival, ≈$71 kept"; when nothing
+  can be added, `additions_note` says why in plain language (no spare
+  drivers / no free cars / none can reach them / out of time).
+* The Gate-4 harness re-derives every claim: pipeline re-run at the
+  augmented roster; every claimed captured leg must land in-house and the
+  augmented farm-out count must match exactly (`additions` failure class).

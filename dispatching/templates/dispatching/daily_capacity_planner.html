@@ -5969,6 +5969,33 @@
                         + esc(String(sh.vehicle_id)) + ' · ' + esc((sh.band || '?').toUpperCase())
                         + '</span></div>';
                 });
+                // "Catch the rest" (D16): named spare drivers on free cars, each
+                // verified to capture farmed trips. Tick-suggestions only.
+                (r.additions || []).forEach(function(ad) {
+                    var caught = (ad.captured || []).map(function(c) {
+                        return c.pickup;
+                    }).filter(Boolean).join(', ');
+                    html += '<div class="dsp-do"><i class="bi bi-person-plus me-1"></i>'
+                        + 'Tick <b>' + esc(ad.driver_name) + '</b> and give him <b>'
+                        + esc(ad.vehicle_label) + '</b> — catches '
+                        + (ad.captured || []).length + ' trip'
+                        + ((ad.captured || []).length !== 1 ? 's' : '')
+                        + (caught ? ' (' + esc(caught) + ')' : '')
+                        + ', keeps ≈' + money(ad.kept_usd || 0) + ' in-house.</div>';
+                });
+                if (r.with_additions) {
+                    var wa = r.with_additions;
+                    html += '<div class="dsp-line">With '
+                        + (r.additions.length !== 1 ? 'those ticks' : 'that tick')
+                        + ': <b>' + wa.coverage_pct + '%</b> coverage, <b>'
+                        + wa.farm_outs + '</b> farmed, <b>' + wa.driver_days
+                        + '</b> drivers — ≈' + money(wa.kept_usd || 0)
+                        + ' kept in-house. Tick them in the crew list above, '
+                        + 'Apply, then build the schedule.</div>';
+                }
+                if (r.additions_note) {
+                    html += '<div class="dsp-quiet dsp-line">' + esc(r.additions_note) + '</div>';
+                }
                 (r.seed_wall_notes || []).forEach(function(n) {
                     html += '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
                         + esc(n) + '</div>';
