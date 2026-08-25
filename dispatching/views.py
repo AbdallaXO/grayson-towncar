@@ -3924,6 +3924,81 @@ def suggest_day_setup_view(request):
 
 @login_required
 @require_POST
+def build_day_plan_view(request):
+    """Day-Builder (Build 3b, Ticket D): claim the date's job row and run the
+    build in a background daemon thread. NEVER in the request cycle (the
+    measured search is minutes against a 60s gunicorn timeout), and NEVER a
+    write to the schedule — the plan is propose-only (Ticket E); the only
+    write here is the DayPlan job ledger row itself."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        data = json.loads(request.body)
+        target_date = datetime.strptime(data.get("date", ""), "%Y-%m-%d").date()
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid request"}, status=400)
+    from dispatching.models import SchedulerSettings
+    if not SchedulerSettings.get_settings().opt_enabled:
+        return JsonResponse({"success": False,
+                             "error": "The Day-Builder is switched off."}, status=400)
+    epsilon = data.get("epsilon")
+    try:
+        epsilon = None if epsilon in (None, "") else max(0, min(3, int(epsilon)))
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Bad epsilon"}, status=400)
+
+    # Held-date refusal up front (Ticket E): the no-leak invariant is never
+    # risked, and the dispatcher hears WHY before a job even starts.
+    from dispatching.assignment import _active_draft_for_date
+    draft = _active_draft_for_date(target_date)
+    if draft is not None:
+        return JsonResponse({
+            "success": False, "refused": True,
+            "error": f"This date is held for review (draft #{draft.pk}). "
+                     f"Publish or discard the draft first — the builder never "
+                     f"plans against a day someone is reviewing."}, status=409)
+
+    from dispatching.day_planner import start_day_plan_job
+    started, row = start_day_plan_job(target_date, request.user, epsilon)
+    return JsonResponse({"success": True, "started": started, "status": row.status})
+
+
+@login_required
+def day_plan_status(request):
+    """Poll endpoint for the Day-Builder panel: the date's job status and, once
+    done, the stored plan payload with its computed-at stamp and stale flag."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        target_date = datetime.strptime(request.GET.get("date", ""), "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
+    from django.utils import timezone as _tz
+    from dispatching.models import DayPlan, SchedulerSettings
+    cfg = SchedulerSettings.get_settings()
+    row = DayPlan.objects.filter(date=target_date).first()
+    if row is None:
+        return JsonResponse({"success": True, "status": "none"})
+    out = {
+        "success": True, "status": row.status, "error": row.error,
+        "epsilon": row.epsilon,
+        "requested_at": row.requested_at.isoformat() if row.requested_at else None,
+        "bookings_as_of": row.bookings_as_of.isoformat() if row.bookings_as_of else None,
+        "computed_at": row.computed_at.isoformat() if row.computed_at else None,
+        "budget_exhausted": row.budget_exhausted,
+        "stale": bool(row.computed_at and (_tz.now() - row.computed_at)
+                      > timedelta(minutes=cfg.opt_stale_after_min)),
+    }
+    if row.status == "done" and row.result_json:
+        try:
+            out["result"] = json.loads(row.result_json)
+        except ValueError:
+            out["status"], out["error"] = "error", "Stored plan is unreadable — re-build."
+    return JsonResponse(out)
+
+
+@login_required
+@require_POST
 def apply_day_setup(request):
     """Create the accepted Day Setup vehicle assignments — ONE atomic, validated write.
 

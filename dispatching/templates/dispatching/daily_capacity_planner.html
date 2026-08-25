@@ -1275,6 +1275,36 @@
     .dsx-mint-s { font-size: 0.68rem; color: #6c757d; margin-top: 1px; }
     .dsx-exc { margin: 0.4rem 1.05rem 0; padding: 0.45rem 0.6rem; border-radius: 6px;
         background: rgba(185,143,38,0.10); color: #6b5410; font-size: 0.73rem; }
+
+    /* ── Day Setup: the Day-Builder panel (Build 3b). dsp- namespace on purpose —
+       injected DOM must never match .ds-row/.ds-check/.ds-veh. Propose-only:
+       nothing in this panel writes; it tells the dispatcher what to change. */
+    .dsp { margin: 0.55rem 1.05rem 0.15rem; border: 1px solid #eceae5;
+        border-radius: 8px; background: #fdfcfa; overflow: hidden; }
+    .dsp-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+        padding: 0.5rem 0.75rem; background: #f7f5f1; }
+    .dsp-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: #6b5410; }
+    .dsp-eps { font-size: 0.7rem; color: #6c757d; display: flex; align-items: center;
+        gap: 0.35rem; margin-left: auto; }
+    .dsp-eps select { font-size: 0.72rem; padding: 0.06rem 0.3rem; border-radius: 5px;
+        border: 1px solid #d9d5cd; background: #fff; }
+    .dsp-build { font-size: 0.74rem; font-weight: 650; border: 0; border-radius: 6px;
+        padding: 0.28rem 0.7rem; background: var(--dark, #1E1C17); color: var(--gold, #B98F26);
+        transition: opacity 0.15s ease; }
+    .dsp-build:disabled { opacity: 0.55; }
+    .dsp-bd { padding: 0.5rem 0.75rem 0.6rem; font-size: 0.74rem; }
+    .dsp-quiet { color: #8a857c; font-size: 0.7rem; }
+    .dsp-line { margin-top: 0.3rem; }
+    .dsp-line b { font-weight: 650; }
+    .dsp-do { margin-top: 0.4rem; padding: 0.4rem 0.55rem; border-radius: 6px;
+        background: rgba(44,122,76,0.09); color: #22573a; font-size: 0.74rem; }
+    .dsp-warn { margin-top: 0.35rem; padding: 0.35rem 0.55rem; border-radius: 6px;
+        background: rgba(224,166,58,0.14); color: #6b5410; font-size: 0.7rem; }
+    .dsp-stamp { margin-top: 0.45rem; font-size: 0.66rem; color: #9a948b; }
+    .dsp.stale .dsp-bd { opacity: 0.55; }
+    .dsp-rebuild { font-size: 0.68rem; font-weight: 650; color: #6b5410;
+        background: none; border: 0; text-decoration: underline; padding: 0; }
 </style>
 {% endblock %}
 
@@ -2428,6 +2458,11 @@
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Handoff Amber Floor (%)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="handoff_gap_amber_floor_pct" min="10" max="300" style="width:75px;" title="AMBER floor for a car handoff, as % of the LOW zone chain — under this (and under the skip-wash fast path) a handoff is RED: shown, never suggested"></div>
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Min Jobs / 2nd Shift</label><input type="number" class="form-control form-control-sm tuning-input" data-field="mint_min_jobs_soft" min="1" max="6" style="width:75px;" title="Soft minimum jobs on a proposed standby second shift — never a hard floor; thinner proposals still show, flagged 'thin — worth it?'"></div>
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Crunch Cap (h)</label><input type="number" step="0.5" class="form-control form-control-sm tuning-input" data-field="span_exception_max_hours" min="13.5" max="16" style="width:75px;" title="Hard ceiling for the priced crunch exception: a driver-day may be proposed past 13.5h only up to this, priced and shown as a choice — never a default"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Day-Builder (1/0)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="opt_enabled" min="0" max="1" style="width:75px;" title="Master switch for 'Build a plan' in Day Setup. 0 = the panel does not exist anywhere (ships off); 1 = on. Propose-only either way — the builder never writes a schedule"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Builder Budget (s)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="opt_runtime_budget_s" min="30" max="900" style="width:75px;" title="Wall-clock ceiling for one 'Build a plan' run. Hitting it returns the best plan found so far, clearly flagged — never silently truncated"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Builder Swaps</label><input type="number" class="form-control form-control-sm tuning-input" data-field="pass_b_max_swaps" min="0" max="12" style="width:75px;" title="Max targeted unit swaps the builder considers per run (each costs one full engine evaluation, ~6-15s)"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Builder Evals</label><input type="number" class="form-control form-control-sm tuning-input" data-field="pass_b_max_evals" min="1" max="20" style="width:75px;" title="Hard budget of full engine evaluations per 'Build a plan' run"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Plan Stale (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="opt_stale_after_min" min="10" max="1440" style="width:75px;" title="A built plan older than this renders greyed with a re-build prompt — bookings move"></div>
                                 </div>
                                 <h6 class="fw-bold mb-2">Auto-Assign Buffer Scores</h6>
                                 <div class="row g-2 mb-3">
@@ -5788,6 +5823,25 @@
         (data.warnings || []).forEach(function(w) {
             body += '<div class="ds-warn"><i class="bi bi-exclamation-triangle me-1"></i>' + esc(w) + '</div>';
         });
+        // ── Day-Builder (Build 3b): propose-only "Build a plan" panel. Renders
+        // ONLY when the founder has switched it on (opt_enabled) — with it off,
+        // this modal is byte-for-byte what Build 2 shipped.
+        if (data.opt_enabled) {
+            var epsNow = parseInt(data.opt_epsilon_farmouts || 0, 10);
+            body += '<div class="dsp" id="dspPanel">'
+                + '<div class="dsp-head">'
+                + '<span class="dsp-title"><i class="bi bi-compass me-1"></i>Build a plan</span>'
+                + '<span class="dsp-eps"><label for="dspEps">Allow up to</label>'
+                + '<select id="dspEps" aria-label="Extra farm-outs allowed">'
+                + [0, 1, 2, 3].map(function(n) {
+                    return '<option value="' + n + '"' + (n === epsNow ? ' selected' : '') + '>' + n + '</option>';
+                }).join('')
+                + '</select><label for="dspEps">more farmed trips to buy a better day</label></span>'
+                + '<button class="dsp-build" id="dspBuild"><i class="bi bi-compass me-1"></i>Build a plan</button>'
+                + '</div>'
+                + '<div class="dsp-bd" id="dspBody"><span class="dsp-quiet">Checking for a plan…</span></div>'
+                + '</div>';
+        }
         body += '</div>';
 
         var footer = '<div class="ds-foot">'
@@ -5839,6 +5893,144 @@
                 btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Re-plan with my picks';
             });
         });
+
+        // ── Day-Builder wiring (Build 3b). Read-only: this panel never writes a
+        // schedule — it launches the background build, polls, and RENDERS the
+        // proposal with instructions the dispatcher carries out through the
+        // ordinary Day Setup + Build Schedule doors.
+        var dspPanel = modal.querySelector('#dspPanel');
+        if (dspPanel) (function() {
+            var dspBody = dspPanel.querySelector('#dspBody');
+            var dspBtn = dspPanel.querySelector('#dspBuild');
+            var dspEps = dspPanel.querySelector('#dspEps');
+            var pollTimer = null;
+
+            function clock(iso) {
+                if (!iso) return '';
+                var d = new Date(iso);
+                if (isNaN(d)) return '';
+                var h = d.getHours(), m = ('0' + d.getMinutes()).slice(-2);
+                var ap = h >= 12 ? 'PM' : 'AM';
+                h = h % 12 || 12;
+                return h + ':' + m + ' ' + ap;
+            }
+            function money(v) { return '$' + Math.round(v).toLocaleString(); }
+
+            function render(st) {
+                dspPanel.classList.toggle('stale', !!st.stale && st.status === 'done');
+                if (st.status === 'none') {
+                    dspBody.innerHTML = '<span class="dsp-quiet">No plan built for this '
+                        + 'date yet. Building takes a few minutes and changes nothing — '
+                        + 'you review, then apply what you like in Day Setup.</span>';
+                    return;
+                }
+                if (st.status === 'running') {
+                    dspBody.innerHTML = '<span class="dsp-quiet"><i class="bi bi-hourglass-split me-1"></i>'
+                        + 'Building… started ' + clock(st.requested_at) + '. You can close '
+                        + 'this — the plan keeps building and shows here when done.</span>';
+                    if (!pollTimer) pollTimer = setInterval(load, 4000);
+                    return;
+                }
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                if (st.status === 'refused' || st.status === 'error') {
+                    dspBody.innerHTML = '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
+                        + esc(st.error || 'The builder could not plan this day.') + '</div>';
+                    return;
+                }
+                var r = st.result || {};
+                var b = r.baseline || {}, s = r.score || {};
+                var html = '<div class="dsp-line">Today’s setup builds to <b>'
+                    + (b.coverage_pct != null ? b.coverage_pct + '%' : '—') + '</b> coverage, '
+                    + '<b>' + b.farm_outs + '</b> farmed (≈' + money(b.farm_cost_usd || 0)
+                    + '), <b>' + b.driver_days + '</b> drivers. Best plan found: <b>'
+                    + (s.coverage_pct != null ? s.coverage_pct + '%' : '—') + '</b> coverage, <b>'
+                    + s.farm_outs + '</b> farmed (≈' + money(s.farm_cost_usd || 0)
+                    + '), <b>' + s.driver_days + '</b> drivers.</div>';
+                if ((r.swaps || []).length) {
+                    html += '<div class="dsp-do"><i class="bi bi-check2-circle me-1"></i>'
+                        + esc(r.instructions || r.swaps.join('; ')) + '</div>';
+                } else {
+                    html += '<div class="dsp-quiet dsp-line">' + esc(r.instructions
+                        || 'Your current setup is already the best this search found.') + '</div>';
+                }
+                if (r.epsilon_note) {
+                    html += '<div class="dsp-warn">' + esc(r.epsilon_note) + '</div>';
+                }
+                (r.exceptions || []).forEach(function(ex) {
+                    html += '<div class="dsp-line"><i class="bi bi-clock-history me-1"></i><b>'
+                        + esc(ex.driver_name) + '</b> runs ' + ex.eff_hours + 'h — over the '
+                        + '13.5h day, inside the crunch ceiling — keeping ' + ex.legs_kept
+                        + ' leg' + (ex.legs_kept !== 1 ? 's' : '') + ' in-house (≈'
+                        + money(ex.price_usd || 0) + ' if farmed). Your call.</div>';
+                });
+                (r.shares || []).forEach(function(sh) {
+                    html += '<div class="dsp-line"><span class="dsx-chip dsx-' + esc(sh.band || 'none')
+                        + '" title="' + esc(sh.reason || '') + '"><i class="dxd"></i>proposed share · unit '
+                        + esc(String(sh.vehicle_id)) + ' · ' + esc((sh.band || '?').toUpperCase())
+                        + '</span></div>';
+                });
+                (r.seed_wall_notes || []).forEach(function(n) {
+                    html += '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
+                        + esc(n) + '</div>';
+                });
+                if (st.budget_exhausted) {
+                    html += '<div class="dsp-warn">Time budget hit — this is the best found '
+                        + 'so far, not an exhaustive search.</div>';
+                }
+                html += '<div class="dsp-stamp">Built ' + clock(st.computed_at)
+                    + ' · from bookings as of ' + clock(st.bookings_as_of)
+                    + ' · ' + (r.evaluations || '?') + ' evaluations in '
+                    + (r.wall_clock_s != null ? r.wall_clock_s + 's' : '?')
+                    + (st.stale ? ' · <b>bookings may have moved</b> — '
+                        + '<button class="dsp-rebuild" id="dspRebuild">re-build</button>' : '')
+                    + '</div>';
+                dspBody.innerHTML = html;
+                var rb = dspBody.querySelector('#dspRebuild');
+                if (rb) rb.addEventListener('click', build);
+            }
+
+            function load() {
+                if (!document.body.contains(dspPanel)) {
+                    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                    return;
+                }
+                fetch('{% url "day_plan_status" %}?date={{ selected_date|date:"Y-m-d" }}')
+                    .then(function(r) { return r.json(); })
+                    .then(function(st) { if (st.success) render(st); })
+                    .catch(function() {});
+            }
+
+            function build() {
+                var eps = parseInt(dspEps.value, 10) || 0;
+                dspBtn.disabled = true;
+                // Persist the dial (Ticket B) — fire-and-forget; the build itself
+                // carries the value either way.
+                fetch('{% url "update_scheduler_settings" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({opt_epsilon_farmouts: eps}),
+                }).catch(function() {});
+                fetch('{% url "build_day_plan" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', epsilon: eps}),
+                }).then(function(r) { return r.json(); }).then(function(res) {
+                    dspBtn.disabled = false;
+                    if (!res.success) {
+                        dspBody.innerHTML = '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
+                            + esc(res.error || 'Could not start the build.') + '</div>';
+                        return;
+                    }
+                    load();
+                }).catch(function(err) {
+                    dspBtn.disabled = false;
+                    dspBody.innerHTML = '<div class="dsp-warn">Error: ' + esc(String(err)) + '</div>';
+                });
+            }
+
+            dspBtn.addEventListener('click', build);
+            load();
+        })();
 
         function dsCollect() {
             var pairs = [];

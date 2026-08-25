@@ -65,6 +65,36 @@ _PENDING_SENTINEL = "__pending__"
 _inline_lock = threading.Lock()
 _inline_last_run = [0.0]
 
+# ---------------------------------------------------------------------------
+# Probe mode (Build 3b, Ticket D's billing wall)
+# ---------------------------------------------------------------------------
+# The Day-Builder scores HYPOTHETICAL boards through the shipped pipeline —
+# dozens of adjacencies the real board may never have. Inside this window a
+# cache lookup behaves exactly as normal when a value is KNOWN, but a miss is
+# strictly read-only: no pending row is enqueued, no resolver is kicked, no
+# process-cache sentinel is written (a probe must never suppress a later real
+# enqueue either). The caller falls back to the category estimate, exactly as
+# it already does for any unknown pair. Default behaviour with the flag off is
+# byte-identical — this can only ever REDUCE what reaches the billed resolver.
+_probe_tl = threading.local()
+
+
+class probe_mode:
+    """``with route_distance.probe_mode(): ...`` — read-only cache window."""
+
+    def __enter__(self):
+        self._prev = getattr(_probe_tl, "on", False)
+        _probe_tl.on = True
+        return self
+
+    def __exit__(self, *exc):
+        _probe_tl.on = self._prev
+        return False
+
+
+def _probing():
+    return getattr(_probe_tl, "on", False)
+
 
 def _normalize(text: str) -> str:
     return " ".join((text or "").split()).strip().lower()
@@ -101,6 +131,8 @@ def cached_drive_minutes(pickup_text: str, dropoff_text: str):
             .first()
         )
         if row is None:
+            if _probing():          # planning probe: read-only, never enqueue
+                return None
             _enqueue(h, pickup_text, dropoff_text)
             _cache.set(_ckey(h), _PENDING_SENTINEL, _PROCESS_CACHE_TTL)
             _maybe_kick_inline_resolver()
@@ -110,7 +142,7 @@ def cached_drive_minutes(pickup_text: str, dropoff_text: str):
             return row["drive_minutes"]
         # pending or failed → no usable value yet
         _cache.set(_ckey(h), _PENDING_SENTINEL, _PROCESS_CACHE_TTL)
-        if row["status"] == "pending":
+        if row["status"] == "pending" and not _probing():
             _maybe_kick_inline_resolver()
         return None
     except Exception:

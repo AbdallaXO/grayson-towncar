@@ -207,6 +207,60 @@ class SchedulerSettings(models.Model):
                   "may be proposed past the 13.5h soft cap ONLY up to this many "
                   "hours, priced and rendered as a choice — never a default.")
 
+    # ── Day-Builder (scheduling redesign, Build 3b — Ticket A/B/D) ────────
+    # Pass A (the roster-size ladder) was CUT by the Ticket-C surrogate-noise
+    # gate (analysis/16, 2026-08-25): between-size differences don't clear
+    # within-size jitter. The builder optimizes pairing and splits at the
+    # dispatcher's chosen headcount, so there are no pass_a_* knobs.
+    opt_enabled = models.BooleanField(
+        default=False,
+        help_text="Master switch for the Day-Builder ('Build a plan' in Day "
+                  "Setup). Ships OFF — the feature exists but stays invisible "
+                  "until the founder turns it on (05 §7 acceptance).")
+    opt_epsilon_farmouts = models.IntegerField(
+        default=0,
+        help_text="The coverage dial: allow up to this many MORE farm-outs than "
+                  "the same-date suggest+build baseline to buy a better day "
+                  "(0-3). At 0 the builder may never worsen coverage. Applies "
+                  "to the farm-out count ONLY — it can never buy a wall "
+                  "(conflicts, hours, rest, shared-car rules).")
+    pass_b_max_swaps = models.IntegerField(
+        default=6,
+        help_text="Day-Builder: max targeted pairing swaps considered per run. "
+                  "A swap is considered only when it changes a tier constraint "
+                  "or reshapes a shared car.")
+    pass_b_max_evals = models.IntegerField(
+        default=10,
+        help_text="Day-Builder: hard budget of full pipeline evaluations per "
+                  "run (each costs ~6-15s on a real day).")
+    opt_runtime_budget_s = models.IntegerField(
+        default=240,
+        help_text="Day-Builder: wall-clock ceiling in seconds. The job stops "
+                  "at the ceiling and returns its best-so-far, flagged "
+                  "'budget exhausted' — never silently truncated.")
+    opt_stale_after_min = models.IntegerField(
+        default=120,
+        help_text="Day-Builder: a computed plan older than this many minutes "
+                  "renders greyed with a 're-build' prompt (bookings move).")
+    opt_w_span = models.FloatField(
+        default=1.0,
+        help_text="Day-Builder quality weight [assumed]: sum of per-driver "
+                  "effective hours over the 13.5h target. Tie-break only — "
+                  "never outranks coverage or farm cost, never moves a wall.")
+    opt_w_fairness = models.FloatField(
+        default=1.0,
+        help_text="Day-Builder quality weight [assumed]: stdev of legs per "
+                  "working driver. Tie-break only.")
+    opt_w_handoff = models.FloatField(
+        default=2.0,
+        help_text="Day-Builder quality weight [assumed]: count of AMBER "
+                  "handoff bands in the plan (RED is a wall, never scored). "
+                  "Tie-break only.")
+    opt_w_gaps = models.FloatField(
+        default=0.5,
+        help_text="Day-Builder quality weight [assumed]: hours of internal "
+                  "idle gaps above the idle-gap threshold. Tie-break only.")
+
     # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
     type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
     type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")
@@ -334,3 +388,36 @@ class ChauffeurExceptionDismissal(models.Model):
     def __str__(self):
         state = "cleared" if self.cleared_at else "active"
         return f"{self.driver} · {self.rule} ({state})"
+
+
+class DayPlan(models.Model):
+    """One Day-Builder job + its latest result, per service date (Build 3b, Ticket D).
+
+    The claim row: "Build a plan" claims the date's row by a race-safe UPDATE
+    (status -> running) so a double-click cannot double-run, then the work runs
+    in a `_run_in_background` daemon thread (the existing pattern; the wrapper
+    closes the thread's DB connection on exit — the 2026-07-18 standing rule).
+    The panel polls status and renders `result_json` with the computed-at stamp.
+
+    STRICTLY the job ledger: the plan itself never writes a Leg or a
+    DriverVehicleAssignment row — v1 is propose-only (05 Ticket E).
+    """
+    STATUS_CHOICES = [
+        ("idle", "Idle"), ("running", "Running"), ("done", "Done"),
+        ("refused", "Refused"), ("error", "Error"),
+    ]
+    date = models.DateField(unique=True, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="idle")
+    epsilon = models.IntegerField(default=0)
+    requested_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    requested_at = models.DateTimeField(null=True, blank=True)
+    #: When the job STARTED reading the day — the "from bookings as of" stamp.
+    bookings_as_of = models.DateTimeField(null=True, blank=True)
+    computed_at = models.DateTimeField(null=True, blank=True)
+    result_json = models.TextField(blank=True, default="")
+    error = models.TextField(blank=True, default="")
+    budget_exhausted = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"DayPlan {self.date} ({self.status})"

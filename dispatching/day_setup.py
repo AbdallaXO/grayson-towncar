@@ -1176,6 +1176,11 @@ def _split_shift_extras(target_date, legs, all_units, oos_units,
         "standby_pool": [{"id": did, "name": name_of(did)} for did in pool],
         "shared_units": [], "mint_proposals": [], "span_exceptions": [],
         "premium_per_leg": sm.FARMOUT_PREMIUM_PER_LEG,
+        # Build 3b (additive keys): whether the Day-Builder panel renders, and
+        # the current epsilon dial value it prefills. The plan itself comes
+        # from the day-plan-status endpoint, never through this payload.
+        "opt_enabled": bool(cfg.opt_enabled),
+        "opt_epsilon_farmouts": int(cfg.opt_epsilon_farmouts or 0),
     }
 
     # ── Per-row span readout (2d): the driver's planned day vs 13.5 h ──

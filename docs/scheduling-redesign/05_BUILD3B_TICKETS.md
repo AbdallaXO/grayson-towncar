@@ -432,3 +432,68 @@ the new file would be worse.
 Build 3a's discipline carried forward: **the gate script is written and the baseline captured
 BEFORE the code changes**, the snapshot is frozen before any replay arithmetic, and a deviation
 from this spec comes back for review rather than being decided mid-build.
+
+---
+
+## 11. Build-time addendum (2026-08-25) — what actually shipped, and the deviations awaiting review
+
+*Recorded during the Build 3b session. The founder delegated the Ticket-C
+rescope decision ("decide for me"); every judgment call made under that
+delegation is listed here for review — none is silent.*
+
+### 11.1 Ticket C verdict: CUT — Ticket A shipped rescoped
+
+`analysis/16_surrogate_noise.py` (P50 day 2026-08-10, P90 day 2026-08-15,
+66 deterministic evaluations): between-roster-size differences do NOT exceed
+within-size jitter — on farm_outs, farm_cost and quality, under both the
+literal and the strict reading, on both days. Per §4's own cut path, Ticket A
+shipped as **pairing/split optimization at the dispatcher's chosen headcount**
+(`dispatching/day_planner.py`). §2 A2's descent and the `pass_a_probe_width` /
+`pass_a_max_evals` fields were not built. What the data DOES show, for any
+future revisit: median farm-outs rise monotonically as the roster shrinks, and
+some *named* removals are free — driver identity dominates headcount.
+
+### 11.2 Decisions made under delegation (each reversible)
+
+1. **No auto-planned call-outs.** A standby mint is a phone call to a real
+   person (03 §1: willingness unrecorded; standing rule: call-first,
+   dispatcher-owned). §2 A4.3's "whether to take each mint" lever is NOT
+   exercised by the optimizer; mint proposals remain Build-2 dispatcher-ticked
+   cards in the same panel. This also keeps Gate-4 criterion 9 exact.
+2. **Walls enforced as NO-WORSE-THAN-SEED inside the builder.** First cold
+   replay: the shipped engine's own build places drivers under the 510-min
+   rest floor vs actual adjacent-day work (rest is a soft penalty in the
+   scorer, not a placement gate). Absolute-vs-empty walls would discard every
+   candidate — including the exact board the ordinary Build Schedule click
+   hands the dispatcher silently — and the tool would refuse days it should
+   serve. So a candidate is discarded only when WORSE than the seed on any
+   wall dimension (introducing a RED share stays absolute); the seed's own
+   issues ship in the payload (`seed_wall_notes`), and the Gate-4 harness
+   still judges the final plan absolutely. §7's bar is unchanged.
+3. **§2 A4.1 seed** = the date's existing DVA pairing (the dispatcher's
+   applied Day Setup), not a re-derivation via `suggest_day_setup` — same
+   "don't re-solve tier/affinity" intent, one less moving part.
+4. **Ticket D's billing wall** = `route_distance.probe_mode()`: candidate
+   evaluations read every known drive time but a miss never enqueues a
+   pending row nor kicks the resolver. Default path byte-identical; the first
+   gate run measured 3–60 enqueued rows/date without it, 0 with it.
+
+### 11.3 Gate 4 outcome (analysis/17, frozen 2026-08-21 snapshot, epsilon=0)
+
+Green on all 10 dates: criteria 2, 3, 4, 6, 7, 8, 9, 10 and the billing
+assertion. **Criterion 1 fails on 2026-08-03** (plan 81.7% vs state B 83.7% —
+the humans used 16 driver-days where the engine's build uses 14; six tier
+swaps did not close it). **Criterion 5 fails on 9 of 10 dates** (1–4
+driver-sides/date under the rest floor vs actual adjacent boards) — an
+ENGINE-placement property the optimizer cannot fix by pairing and Build 3b
+was scoped not to touch ("adds no new leg-placement logic"). Founder options:
+ratify criterion 5 as "no new breaches beyond the same-date engine baseline"
+(what the builder itself enforces), or open a follow-on ticket making the
+rest floor a hard placement gate in the engine (a leg-placement behavior
+change, gated on its own evidence). **Both failures are engine findings, not
+optimizer regressions: on 8 of 10 dates the chosen plan IS the baseline; on
+2026-08-03 it cuts farm cost $105, on 2026-08-22 it keeps one more leg
+in-house (+0.5 pp) at equal driver-days.**
+
+`opt_enabled` ships **False**. Promotion and the criterion-5 ruling are the
+founder's (D11/D12).
