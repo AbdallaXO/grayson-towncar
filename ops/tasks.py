@@ -8,6 +8,7 @@ against existing open tasks, and bulk-creates new ones.
 
 import logging
 from datetime import datetime, timedelta
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 
@@ -363,10 +364,120 @@ def _raise_conflict_keoi(affected_leg, driver_name, conflict_minutes):
                 f"pickup — needs coverage."
             ),
             operational_status=LegKeoi.OperationalStatus.NEEDS_ATTENTION,
+            # Both NULL is the mark of "system raised it, nobody has worked it" —
+            # the only state reconcile_conflict_keois() is allowed to close.
             created_by=None,
+            updated_by=None,
         )
     except Exception:
         logger.exception("Could not raise KEOI for driver conflict on leg %s", affected_leg.id)
+
+
+def _legs_backed_by_open_conflict():
+    """Leg ids that an OPEN driver-conflict task points at — the legs whose flag
+    is still earning its place on the board.
+
+    "Points at" is metadata['affected_leg_id'] when present. A same-day flight
+    shift raises its flag on the OTHER leg it delays, not on the leg that moved
+    (see _handle_same_day_mismatch), so the two are genuinely different legs.
+
+    Tasks written before that key existed (every task in the database predating
+    2026-08-27) must credit BOTH legs of the pair, because from the outside there
+    is no telling which one carries the flag. Over-crediting leaves a flag up one
+    tick longer and the next scan re-checks it. Under-crediting takes a flag down
+    while its conflict is live AND its task is open — and create_task's two-hour
+    cooldown then refuses to re-raise it, so the board goes quiet on a real
+    conflict. When in doubt this fails toward red.
+    """
+    backed = set()
+    rows = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+        leg__isnull=False,
+    ).values_list("leg_id", "metadata")
+    for leg_id, meta in rows:
+        meta = meta or {}
+        affected = meta.get("affected_leg_id")
+        if affected:
+            backed.add(affected)
+            continue
+        backed.add(leg_id)
+        if meta.get("conflicting_leg_id"):
+            backed.add(meta["conflicting_leg_id"])
+    return backed
+
+
+def reconcile_conflict_keois(leg_ids=None):
+    """Enforce the one rule that keeps the board's conflict flags honest:
+
+        a SYSTEM-raised driver-conflict flag exists only while an OPEN
+        driver-conflict task points at that leg.
+
+    Nothing used to take these flags down. The task behind a flag auto-closed on
+    schedule while the flag — the part dispatchers actually see — stayed red, so
+    the board filled with conflicts that were no longer true and stopped being
+    worth reading (2026-08-27: 9 flags, 1 real).
+
+    Two callers, one rule, so they can never disagree:
+      * _auto_close_resolved_tasks() passes leg_ids=None to sweep everything on
+        the 30-minute tick — the backstop that catches flags orphaned by write
+        paths no signal can see (a bulk .update() that skips post_save).
+      * ops/signals.py reconciles just the legs a save touched, so a dispatcher
+        reassigning a trip sees the flag go on the next board render instead of
+        up to half an hour later.
+
+    Only flags NO HUMAN HAS TOUCHED are closed — created_by IS NULL (the system
+    raised it) AND updated_by IS NULL (nobody has worked it since). created_by
+    alone is not enough: a dispatcher who ADOPTS a system flag — marks it
+    "Backup Arranged", rewrites the note to say who is covering — edits it
+    through keoi_save(), which sets updated_by and leaves created_by NULL
+    (dispatching/keoi_views.py::_apply_keoi_edit). Closing that would delete a
+    person's work and their note while they were relying on it.
+
+    Returns the number of flags closed.
+    """
+    from reservations.keoi import close_active_keoi
+    from reservations.models import LegKeoi
+
+    flags = LegKeoi.objects.filter(
+        closed_at__isnull=True,
+        category=LegKeoi.Category.DRIVER_CONFLICT,
+        created_by__isnull=True,
+        updated_by__isnull=True,
+    )
+    if leg_ids is not None:
+        leg_ids = {lid for lid in leg_ids if lid}
+        if not leg_ids:
+            return 0
+        flags = flags.filter(leg_id__in=leg_ids)
+    flags = list(flags.select_related("leg"))
+    if not flags:
+        return 0  # nothing flagged — don't pay for the task query
+
+    backed = _legs_backed_by_open_conflict()
+    closed = 0
+    for flag in flags:
+        if flag.leg_id in backed:
+            continue
+        try:
+            # Savepoint per flag so one bad row can't poison the rest of the loop
+            # (or an outer atomic block). keoi_pk pins the close to the row vetted
+            # above — a dispatcher can file their own flag on this leg between the
+            # read and the write, and theirs is never ours to close.
+            with transaction.atomic():
+                close_active_keoi(
+                    flag.leg,
+                    reason=LegKeoi.ClosedReason.CONFLICT_RESOLVED,
+                    keoi_pk=flag.pk,
+                )
+            closed += 1
+            logger.info(
+                "Closed driver-conflict KEOI on leg %s — no open conflict task backs it",
+                flag.leg_id,
+            )
+        except Exception:
+            logger.exception("Could not close conflict KEOI #%s", flag.id)
+    return closed
 
 
 def detect_driver_conflicts(leg, target_date):
@@ -1467,54 +1578,15 @@ def _auto_close_resolved_tasks():
         logger.error(f"Auto-close conflict tasks error: {e}", exc_info=True)
 
     # ── 2a. Take down conflict flags whose conflict is gone ──────────────────
-    # _raise_conflict_keoi() puts a red flag on the board for a red conflict,
-    # but nothing took it back down: the task above would auto-close while the
-    # flag — the part dispatchers actually see — stayed lit. The board filled
-    # with red that was no longer true (2026-08-27: 9 flags, 1 real) and became
-    # something to ignore.
-    #
     # Runs AFTER section 2, so a task that just resolved is already closed and
-    # its flag falls out here. Deliberately reconciles against task state rather
-    # than closing each flag at its task's close site: one rule covers flags
-    # orphaned by any path, including ones no close site can see (a leg
-    # completed by a bulk .update() that bypasses the KEOI signal), and a leg
-    # carrying two conflict tasks correctly keeps its flag until BOTH clear.
-    #
-    # The invariant: a system-raised driver-conflict flag exists only while an
-    # open DRIVER_CONFLICT task points at that leg. Dispatcher-raised flags
-    # (created_by IS NOT NULL) are never touched — those are a person's to close.
+    # its flag falls out here. ops/signals.py runs the same rule on the legs a
+    # save touches, which is what makes a reassignment clear the flag instantly;
+    # this full sweep is the backstop for flags orphaned by write paths no signal
+    # can see (a bulk .update() that skips post_save).
     try:
-        from reservations.keoi import close_active_keoi
-        from reservations.models import LegKeoi
-
-        auto_flags = LegKeoi.objects.filter(
-            closed_at__isnull=True,
-            category=LegKeoi.Category.DRIVER_CONFLICT,
-            created_by__isnull=True,
-        ).select_related("leg")
-
-        backed_leg_ids = set()
-        open_conflicts = OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
-            status__in=list(OperationalTask.OPEN_STATUSES),
-            leg__isnull=False,
-        ).values_list("leg_id", "metadata")
-        for open_leg_id, open_meta in open_conflicts:
-            backed_leg_ids.add((open_meta or {}).get("affected_leg_id") or open_leg_id)
-
-        for flag in auto_flags:
-            try:
-                if flag.leg_id in backed_leg_ids:
-                    continue
-                close_active_keoi(flag.leg, reason=LegKeoi.ClosedReason.CONFLICT_RESOLVED)
-                logger.info(
-                    "Closed orphaned driver-conflict KEOI on leg %s (no open conflict task)",
-                    flag.leg_id,
-                )
-            except Exception as e:
-                logger.error(f"Error closing orphaned KEOI #{flag.id}: {e}", exc_info=True)
+        reconcile_conflict_keois()
     except Exception as e:
-        logger.error(f"Orphaned conflict KEOI sweep error: {e}", exc_info=True)
+        logger.error(f"Conflict KEOI reconciliation error: {e}", exc_info=True)
 
     # ── 2b. Tight-turn (amber) tasks: close when no longer tight ─────────────
     try:

@@ -12,6 +12,7 @@ wait for the 30-minute scheduler cycle:
 """
 
 import logging
+from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -65,11 +66,19 @@ def _ops_store_leg_old_values(sender, instance, **kwargs):
     """Store old driver_id and status for change detection.
     Skips DB fetch when update_fields is specified and neither field is in it
     (same guard as reservations/signals.py:store_leg_old_values).
+
+    Tests BOTH names for the FK: Django accepts the field name ("driver") and the
+    attname ("driver_id") in update_fields and normalises neither, and it builds
+    update_fields from the ATTNAME on its own when saving a deferred instance
+    (one loaded via .only()/.defer()). Matching only "driver" silently disabled
+    every conflict-task close and flag takedown on those saves — the guard this
+    whole path leans on, failing quietly. Same test the sandbox tripwire uses
+    (dispatching/assignment.py:179).
     """
     if not instance.pk:
         return
     update_fields = kwargs.get("update_fields")
-    track_driver = update_fields is None or "driver" in update_fields
+    track_driver = update_fields is None or bool({"driver", "driver_id"} & set(update_fields))
     track_status = update_fields is None or "status" in update_fields
     if not track_driver and not track_status:
         return
@@ -110,7 +119,29 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
     # in the activity feed; system-driven saves leave it None (closed silently).
     _actor = getattr(instance, "_reassigned_by", None)
 
+    # Every leg whose conflict FLAG may be stale once the closes below are done.
+    # Collected from the tasks themselves as they close, because a task's flag
+    # does not always sit on task.leg — a same-day flight shift flags the OTHER
+    # leg it delays (metadata['affected_leg_id']). The saved leg is always a
+    # candidate: its flag may already have been orphaned by an earlier sweep.
+    touched_leg_ids = {instance.pk}
+
+    def _mark_touched(task):
+        meta = task.metadata or {}
+        affected = meta.get("affected_leg_id")
+        if affected:
+            touched_leg_ids.add(affected)
+            return
+        # No affected_leg_id: the task predates the key (every task written before
+        # 2026-08-27), and the flag may sit on EITHER leg of the pair. Offer both —
+        # reconcile re-tests each against the invariant, so a wrong guess costs one
+        # indexed seek while a missing one leaves red on the board for half an hour.
+        touched_leg_ids.add(task.leg_id)
+        if meta.get("conflicting_leg_id"):
+            touched_leg_ids.add(meta["conflicting_leg_id"])
+
     def _close_and_log(task, notes):
+        _mark_touched(task)
         close_task(task, resolved_by=_actor, resolution_notes=notes, auto=True)
         if _actor:
             try:
@@ -187,6 +218,7 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
             leg=instance,
             status__in=list(OperationalTask.OPEN_STATUSES),
         ):
+            _mark_touched(task)
             close_task(
                 task,
                 resolution_notes=f"Auto-closed: leg {instance.status}",
@@ -199,10 +231,35 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
             status__in=list(OperationalTask.OPEN_STATUSES),
             metadata__conflicting_leg_id=instance.pk,
         ):
+            _mark_touched(task)
             close_task(
                 task,
                 resolution_notes=f"Auto-closed: conflicting leg {instance.status}",
                 auto=True,
+            )
+
+    # ── C. Take the board's conflict flags down with the tasks ──────────────
+    # The closes above are invisible to dispatchers — the red KEOI badge on the
+    # board is what they read. Without this the flag outlived its conflict until
+    # the next 30-minute sweep, so a dispatcher who had just fixed the problem
+    # still saw red (leg 30493 carried a flag naming a driver the leg no longer
+    # had). Same rule as the sweep, scoped to the legs this save touched.
+    #
+    # Never allowed to break a leg save: a flag that fails to come down is a
+    # cosmetic problem, a failed save is a real one.
+    if driver_changed or status_changed:
+        try:
+            from .tasks import reconcile_conflict_keois
+            # A savepoint, not just try/except. publish_draft wraps its whole
+            # per-leg loop in transaction.atomic() (dispatching/views.py), so a
+            # DatabaseError swallowed here would leave the connection needing
+            # rollback and blow up the NEXT query in that loop — costing a whole
+            # day's publish to save a badge. The savepoint absorbs it instead.
+            with transaction.atomic():
+                reconcile_conflict_keois(touched_leg_ids)
+        except Exception:
+            logger.exception(
+                "Could not reconcile conflict KEOIs after leg %s changed", instance.pk
             )
 
 

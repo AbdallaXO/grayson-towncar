@@ -60,19 +60,30 @@ def _audit(leg, field_name, old_value, new_value, actor, notes):
         logger.warning(f"KEOI audit ({field_name}) failed for leg {leg.id}: {e}")
 
 
-def close_active_keoi(leg, reason, actor=None):
+def close_active_keoi(leg, reason, actor=None, keoi_pk=None):
     """Close the active KEOI flag on ``leg`` (if any) with ``reason``.
 
     ``reason`` is a LegKeoi.ClosedReason value (typically 'leg_completed' or
     'leg_cancelled'). Idempotent: returns 0 when there is nothing to close.
     Returns the number of rows closed (0 or 1).
+
+    ``keoi_pk`` narrows the close to ONE row the caller has already vetted. A
+    caller that selected its rows earlier (ops.tasks.reconcile_conflict_keois
+    checks created_by/updated_by are both NULL before deciding) must pass it:
+    between that read and this write a dispatcher can close the system flag and
+    file their own, and a leg-scoped update would then close THEIR flag — the
+    one thing the reconciler is never allowed to touch. Without it the caller is
+    relying on the uniq_active_keoi_per_leg constraint to mean something it
+    doesn't.
     """
     from reservations.models import LegKeoi
 
     actor = _resolve_actor(actor)
+    qs = LegKeoi.objects.filter(leg=leg, closed_at__isnull=True)
+    if keoi_pk is not None:
+        qs = qs.filter(pk=keoi_pk)
     updated = (
-        LegKeoi.objects.filter(leg=leg, closed_at__isnull=True)
-        .update(
+        qs.update(
             closed_at=timezone.now(),
             closed_reason=reason,
             closed_by=actor if actor else None,
