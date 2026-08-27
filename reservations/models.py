@@ -3420,6 +3420,7 @@ class LegKeoi(models.Model):
         LEG_COMPLETED = "leg_completed", "Leg Completed"
         LEG_CANCELLED = "leg_cancelled", "Leg Cancelled"
         ADMIN_REMOVED = "admin_removed", "Removed by Admin"
+        CONFLICT_RESOLVED = "conflict_resolved", "Conflict Resolved"
 
     leg = models.ForeignKey("Leg", on_delete=models.CASCADE, related_name="keoi_flags")
     category = models.CharField(max_length=30, choices=Category.choices)
