@@ -313,6 +313,20 @@
         padding: 1px 5px; border-radius: 3px;
         letter-spacing: 0.04em;
     }
+    /* Card on file, not yet charged — the calmer sibling of .unpaid-card. Pale
+       champagne rather than the alarm amber above: this one is a click to
+       collect, not a guest to chase. */
+    .suggestion-card.card-on-file-card {
+        border-left: 4px solid #c9b072;
+        background: #fdfaf1;
+    }
+    .card-on-file-tag {
+        display: inline-flex; align-items: center; gap: 2px;
+        background: #e8d9a8; color: #4a3b12;
+        font-size: 0.6rem; font-weight: 800;
+        padding: 1px 5px; border-radius: 3px;
+        letter-spacing: 0.04em;
+    }
 
     .timeline-hour-markers {
         display: flex;
@@ -1815,7 +1829,7 @@
 
                 {% if unassigned_legs %}
                 {% for leg in unassigned_legs %}
-                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}{% if leg.is_vip %} vip-card{% endif %}"
+                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status == 'card_saved' %} card-on-file-card{% elif leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}{% if leg.reservation.has_pending_refund %} refund-pending-card{% endif %}{% if leg.is_vip %} vip-card{% endif %}"
                      data-leg-id="{{ leg.id }}">
                     <div class="row align-items-start">
                         <div class="col-sm-7">
@@ -1836,8 +1850,10 @@
                                 {% if leg.reservation.has_pending_refund %}
                                 <span class="refund-badge" title="A refund is in progress — do not assign a driver"><i class="bi bi-arrow-counterclockwise"></i> Refund pending</span>
                                 {% endif %}
-                                {% if leg.reservation and leg.reservation.payment_status != 'paid' %}
-                                <span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>
+                                {% if leg.reservation and leg.reservation.payment_status == 'card_saved' %}
+                                <span class="card-on-file-tag" title="Card on file — not charged yet"><i class="bi bi-credit-card-fill"></i> Card on file</span>
+                                {% elif leg.reservation and leg.reservation.payment_status != 'paid' %}
+                                <span class="unpaid-tag" title="Unpaid — no card on file"><i class="bi bi-exclamation-circle"></i> Unpaid</span>
                                 {% endif %}
                                 {% if leg.cleared_time %}
                                 <span style="font-size: 0.7rem; color: #666;">
@@ -2261,7 +2277,7 @@
                         <div class="sb-jobs-list" id="sbJobsList">
                             {% for leg in unassigned_legs %}
                             {% with sb_status=leg.reservation.payment_status %}
-                            <div class="sb-leg-item{% if sb_status != 'paid' %} sb-leg-unpaid{% endif %}" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" data-paid="{% if sb_status == 'paid' %}1{% else %}0{% endif %}" onclick="togglePin(this)">
+                            <div class="sb-leg-item{% if sb_status != 'paid' and sb_status != 'card_saved' %} sb-leg-unpaid{% endif %}" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" data-paid="{% if sb_status == 'paid' %}1{% else %}0{% endif %}" onclick="togglePin(this)">
                                 <i class="bi bi-pin-angle pin-icon"></i>
                                 <div class="flex-grow-1">
                                     <strong>{{ leg.pickup_time|time:"g:i A" }}</strong>
@@ -2269,7 +2285,7 @@
                                         {% if leg.get_trip_type == 'arrival' %}Arrival{% elif leg.get_trip_type == 'return' %}Return{% elif leg.get_trip_type == 'cruise' %}Cruise{% else %}Other{% endif %}
                                     </span>
                                     {% if leg.effective_vehicle_type %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.effective_vehicle_type|upper }}</span>{% endif %}
-                                    {% if sb_status != 'paid' %}<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>{% endif %}
+                                    {% if sb_status == 'card_saved' %}<span class="card-on-file-tag" title="Card on file — not charged yet"><i class="bi bi-credit-card-fill"></i> Card on file</span>{% elif sb_status != 'paid' %}<span class="unpaid-tag" title="Unpaid — no card on file"><i class="bi bi-exclamation-circle"></i> Unpaid</span>{% endif %}
                                     {% if leg.shows_store_stop %}<span class="badge" style="font-size:0.55rem; padding:0.1rem 0.3rem; background:#2e7d32; color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>{% endif %}
                                     <span class="text-muted" style="font-size:0.8rem;">
                                         {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}

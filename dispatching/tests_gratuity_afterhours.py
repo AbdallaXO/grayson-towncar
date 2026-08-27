@@ -31,6 +31,7 @@ from reservations.utils import (
 from ops.models import OperationalTask
 from ops.tasks import flag_afterhours_fee
 from drivers.models import Driver
+from payment.models import Payment
 
 
 def _make_driver(username):
@@ -444,3 +445,103 @@ class PortalGratuityChargeTests(_BillingFixtureMixin, TestCase):
         self.assertEqual(self.leg2.driver_gratuity, Decimal("23.00"))
         self.assertIn("$23.00 Gratuity Included", self.leg1.private_notes or "")
         self.assertIn("$23.00 Gratuity Included", self.leg2.private_notes or "")
+
+
+class PortalTripFareChargeTests(_BillingFixtureMixin, TestCase):
+    """Collecting the fare itself on a saved card.
+
+    This was possible but unnamed: the only charge types were "Additional Charge"
+    and "Gratuity", so a dispatcher collecting a $195 fare had to pick
+    "Additional Charge -> Extra Stop" and rely on a heuristic to avoid inflating
+    the total. The guest's receipt then read "Extra Stop" for their trip.
+    """
+
+    def setUp(self):
+        self.customer.stripe_customer_id = "cus_x"
+        self.customer.save(update_fields=["stripe_customer_id"])
+        self.staff = User.objects.create_user(username="farestaff", is_staff=True)
+        self.client.force_login(self.staff)
+        self.res = self._res(base=Decimal("195.00"))
+        self.res.total_price = Decimal("195.00")
+        self.res.save(update_fields=["total_price"])
+        self.leg1 = self._leg(self.res)
+
+    def _stub_stripe(self, mock_list, mock_cust, mock_pm_ret, mock_pi, cents):
+        pm = Mock()
+        pm.type = "card"
+        pm.customer = "cus_x"
+        pm.card = Mock(brand="visa", last4="3105", exp_month=2, exp_year=2030)
+        mock_list.return_value = Mock(data=[pm])
+        mock_cust.return_value = Mock()
+        mock_pm_ret.return_value = pm
+        mock_pi.return_value = Mock(
+            status="succeeded", id="pi_fare", amount=cents, payment_method="pm_1"
+        )
+
+    def test_trip_fare_option_is_offered_and_defaulted_when_money_is_owed(self):
+        url = reverse("dispatcher_payment_portal", kwargs={"reservation_id": self.res.uuid})
+        with patch("dispatching.views.stripe.Customer.retrieve", return_value=Mock()), \
+             patch("dispatching.views.stripe.PaymentMethod.list") as mock_list:
+            pm = Mock()
+            pm.type = "card"
+            pm.card = Mock(brand="visa", last4="3105", exp_month=2, exp_year=2030)
+            mock_list.return_value = Mock(data=[pm])
+            html = self.client.get(url).content.decode()
+        self.assertIn('value="trip_fare"', html)
+        self.assertIn("Trip Fare", html)
+
+    @patch("dispatching.views._run_in_background", lambda *a, **k: None)
+    @patch("dispatching.views.save_card_to_customer", lambda *a, **k: None)
+    @patch("dispatching.views.stripe.PaymentIntent.create")
+    @patch("dispatching.views.stripe.PaymentMethod.retrieve")
+    @patch("dispatching.views.stripe.Customer.retrieve")
+    @patch("dispatching.views.stripe.PaymentMethod.list")
+    def test_charging_the_fare_does_not_inflate_the_total(
+        self, mock_list, mock_cust, mock_pm_ret, mock_pi
+    ):
+        """The whole point: collecting what is owed is not new money."""
+        self._stub_stripe(mock_list, mock_cust, mock_pm_ret, mock_pi, 19500)
+
+        url = reverse("dispatcher_payment_portal", kwargs={"reservation_id": self.res.uuid})
+        resp = self.client.post(url, {
+            "action": "use_saved_card",
+            "payment_method_id": "pm_1",
+            "amount": "195.00",
+            "charge_type": "trip_fare",
+            "description": "Trip Fare for Res",
+        })
+        self.assertIn(resp.status_code, (302, 200))
+
+        self.res.refresh_from_db()
+        self.assertEqual(self.res.total_price, Decimal("195.00"))
+        self.assertEqual(self.res.gratuity_amount or Decimal("0.00"), Decimal("0.00"))
+
+    @patch("dispatching.views._run_in_background", lambda *a, **k: None)
+    @patch("dispatching.views.save_card_to_customer", lambda *a, **k: None)
+    @patch("dispatching.views.stripe.PaymentIntent.create")
+    @patch("dispatching.views.stripe.PaymentMethod.retrieve")
+    @patch("dispatching.views.stripe.Customer.retrieve")
+    @patch("dispatching.views.stripe.PaymentMethod.list")
+    def test_trip_fare_never_adds_to_total_even_when_nothing_is_owed(
+        self, mock_list, mock_cust, mock_pm_ret, mock_pi
+    ):
+        """"Additional Charge" decides by heuristic — nothing owed means new
+        money. "Trip Fare" is stated outright, so it must never inflate the
+        total, even if the dispatcher picks it on an already-settled booking."""
+        Payment.objects.create(
+            reservation=self.res, customer=self.customer,
+            amount=Decimal("195.00"), status="paid",
+        )
+        self._stub_stripe(mock_list, mock_cust, mock_pm_ret, mock_pi, 5000)
+
+        url = reverse("dispatcher_payment_portal", kwargs={"reservation_id": self.res.uuid})
+        self.client.post(url, {
+            "action": "use_saved_card",
+            "payment_method_id": "pm_1",
+            "amount": "50.00",
+            "charge_type": "trip_fare",
+            "description": "Trip Fare for Res",
+        })
+
+        self.res.refresh_from_db()
+        self.assertEqual(self.res.total_price, Decimal("195.00"))

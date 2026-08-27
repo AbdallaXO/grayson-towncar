@@ -115,9 +115,9 @@
           <div class="d-flex align-items-center bg-light rounded px-3 py-2">
             <i class="bi bi-credit-card text-info me-2"></i>
             <div>
-              <small class="text-muted d-block">Saved Cards</small>
+              <small class="text-muted d-block">Card on File</small>
               <span class="fw-bold" id="cardSavedCount">{{ card_saved_count }}</span>
-              {% if can_view_revenue and card_saved_total %}
+              {% if can_view_revenue %}
                 <small class="text-muted ms-1">($<span id="cardSavedTotal">{{ card_saved_total|floatformat:2 }}</span>)</small>
               {% endif %}
             </div>
@@ -184,7 +184,7 @@
                   <option value="need_payment"
                           {% if status_filter == 'need_payment' %}selected{% endif %}>Need Payment</option>
                   <option value="card_saved"
-                          {% if status_filter == 'card_saved' %}selected{% endif %}>Saved Cards</option>
+                          {% if status_filter == 'card_saved' %}selected{% endif %}>Unpaid — Card on File</option>
                 </select>
               </div>
 

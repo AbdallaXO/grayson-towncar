@@ -38,6 +38,7 @@ from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
 from . import quote_engine
 from . import pickup_policy
+from .payment_display import board_pay_state
 from django.templatetags.static import static
 from drivers.models import (
     Driver,
@@ -1555,6 +1556,7 @@ def schedule_board(request):
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
             'is_paid': (leg.reservation.payment_status == 'paid') if leg.reservation else True,
+            'pay_state': board_pay_state(leg.reservation),
             'passengers': int(leg.effective_passenger_count or 1),
             'luggage': int(leg.effective_luggage_count or 0),
             'luggage_type': leg.effective_luggage_type or '',
@@ -1883,9 +1885,22 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         status_filter = self.request.GET.get("status")
         if status_filter:
             if status_filter == "need_payment":
+                # "no payment row of ANY kind" — deliberately not the complement of
+                # card_saved below. A reservation whose only row is 'pending' sits in
+                # neither bucket; the two do not partition the unpaid world.
                 queryset = queryset.filter(payments__isnull=True)
             elif status_filter == "card_saved":
-                queryset = queryset.filter(payments__status="card_saved").distinct()
+                # "Still owes us, but we hold a card" — NOT "was ever booked with a
+                # card". Charging a saved card INSERTs a second Payment row keyed on a
+                # fresh PaymentIntent rather than mutating the booking-time card_saved
+                # row, so a has-any-row test returned every already-collected trip too.
+                # exclude() compiles to a row-level NOT EXISTS over the whole payment
+                # set, so a second join row cannot defeat it. This is the ORM
+                # transcription of Reservation.payment_status's paid-beats-card_saved
+                # precedence — the property itself stays the source of truth.
+                queryset = (queryset.filter(payments__status="card_saved")
+                                    .exclude(payments__status="paid")
+                                    .distinct())
             else:
                 queryset = queryset.filter(status=status_filter)
 
@@ -1901,23 +1916,35 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         context = super().get_context_data(**kwargs)
         queryset = self._get_filtered_queryset(include_related=False)
 
-        # Annotate counts in a single query
+        # Annotate counts in a single query.
+        # distinct=True throughout: the sibling filter=Q(payments__...) clauses force
+        # the payments join onto the whole aggregate, so a reservation with several
+        # payment rows was being counted once per row.
         stats = queryset.aggregate(
-            total_count=Count("id"),
-            pending_count=Count("id", filter=Q(status="pending")),
-            confirmed_count=Count("id", filter=Q(status="confirmed")),
-            need_payment_count=Count("id", filter=Q(payments__isnull=True)),
-            card_saved_count=Count("id", filter=Q(payments__status="card_saved"), distinct=True),
+            total_count=Count("id", distinct=True),
+            pending_count=Count("id", filter=Q(status="pending"), distinct=True),
+            confirmed_count=Count("id", filter=Q(status="confirmed"), distinct=True),
+            need_payment_count=Count("id", filter=Q(payments__isnull=True), distinct=True),
         )
+
+        # The card-on-file figures can't be an aggregate filter: the predicate is a
+        # NOT EXISTS, and Sum() has no distinct= that survives the payments join.
+        # Computed off their own de-duplicated queryset so the headline number always
+        # equals the number of rows the filter actually shows.
+        _card_qs = (queryset.filter(payments__status="card_saved")
+                            .exclude(payments__status="paid")
+                            .distinct())
+        card_saved_count = _card_qs.count()
 
         # Only calculate revenue for admins
         if can_view_revenue(self.request.user):
-            revenue_stats = queryset.aggregate(
-                total_revenue=Sum("total_price", filter=Q(payments__status="paid")),
-                card_saved_total=Sum("total_price", filter=Q(payments__status="card_saved")),
-            )
-            total_revenue = revenue_stats["total_revenue"] or 0
-            card_saved_total = revenue_stats["card_saved_total"] or 0
+            # .distinct() makes Django wrap the aggregate in a subquery, which is what
+            # stops total_price being added once per joined payment row — a
+            # reservation paid in two instalments was counting its full price twice.
+            total_revenue = (queryset.filter(payments__status="paid")
+                                     .distinct()
+                                     .aggregate(t=Sum("total_price"))["t"] or 0)
+            card_saved_total = _card_qs.aggregate(t=Sum("total_price"))["t"] or 0
         else:
             total_revenue = None
             card_saved_total = None
@@ -1929,7 +1956,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 "pending_reservations": stats["pending_count"],
                 "confirmed_reservations": stats["confirmed_count"],
                 "need_payment_count": stats["need_payment_count"],
-                "card_saved_count": stats["card_saved_count"],
+                "card_saved_count": card_saved_count,
                 "card_saved_total": card_saved_total,
                 "total_revenue": total_revenue,
                 "can_view_revenue": can_view_revenue(self.request.user),
@@ -4676,7 +4703,17 @@ def dispatcher_payment_portal(request, reservation_id):
                         else:
                             # Additional charge (existing behavior): add to total only
                             # if nothing was owed (else it's a payment toward a balance).
-                            should_add_to_total = amount_owed_before <= Decimal("0.01")
+                            #
+                            # 'trip_fare' is the same money movement stated outright:
+                            # collecting what is already owed, so it NEVER adds to the
+                            # total. It existed as behaviour before it existed as an
+                            # option — a dispatcher charging a fare on a saved card had
+                            # to pick "Additional Charge → Extra Stop" and rely on this
+                            # heuristic, which put "Extra Stop" on the guest's receipt.
+                            should_add_to_total = (
+                                charge_type != "trip_fare"
+                                and amount_owed_before <= Decimal("0.01")
+                            )
                             if should_add_to_total:
                                 reservation.total_price += final_amount
                                 logger.info(
@@ -12741,6 +12778,7 @@ def auto_assign_drivers(request):
             "pickup_minutes": leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0,
             "store_stop": has_store_stop,
             "is_paid": (leg.reservation.payment_status == 'paid') if leg.reservation else True,
+            "pay_state": board_pay_state(leg.reservation),
         })
 
     # Driver list for manual assignment dropdown
@@ -13285,10 +13323,12 @@ def smart_schedule_builder(request):
                 if res.booster_seats: cs_parts.append(f"{res.booster_seats} b")
             slot_data['carseats'] = ", ".join(cs_parts)
             slot_data['is_paid'] = res.payment_status == 'paid'
+            slot_data['pay_state'] = board_pay_state(res)
             slot_data['reservation_uuid'] = str(res.uuid) if res.uuid else ''
             slot_data['store_stop'] = leg_obj.shows_store_stop
         else:
             slot_data['is_paid'] = True
+            slot_data['pay_state'] = board_pay_state(None)
             slot_data['reservation_uuid'] = ''
             slot_data['store_stop'] = False
         # Add timing details for new slots
@@ -13346,6 +13386,7 @@ def smart_schedule_builder(request):
             'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
             'store_stop': leg_alt.shows_store_stop,
             'is_paid': (res.payment_status == 'paid') if res else True,
+            'pay_state': board_pay_state(res),
         })
 
     response = {
