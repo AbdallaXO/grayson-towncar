@@ -7060,6 +7060,55 @@ def _apply_leg_override_fields(leg, leg_data):
     return modified, None
 
 
+def _booking_leg_vehicle(leg_data, default_vehicle):
+    """The Vehicle that actually applies to one wizard leg: its own
+    per-leg override if the dispatcher set one, else the reservation-level
+    vehicle chosen back in Step 2."""
+    override_id = (leg_data.get('overrides') or {}).get('vehicle')
+    if override_id:
+        try:
+            return Vehicle.objects.get(id=int(override_id))
+        except (Vehicle.DoesNotExist, ValueError, TypeError):
+            pass
+    return default_vehicle
+
+
+def _booking_is_round_trip(legs_data, default_vehicle, locations):
+    """True only when leg 2 is genuinely the return half of leg 1 — same
+    vehicle, and its pickup/dropoff are leg 1's dropoff/pickup reversed.
+
+    Two one-way legs that both happen to number two (e.g. MCO -> Disney,
+    then Disney -> Port) are NOT a round trip just because there are two of
+    them; mislabeling them as one caused a real reservation to be priced off
+    a single round-trip rate for leg 1's route/vehicle only, silently
+    dropping leg 2 from the price entirely.
+    """
+    if len(legs_data) != 2:
+        return False
+    leg0, leg1 = legs_data
+    if _booking_leg_vehicle(leg0, default_vehicle) != _booking_leg_vehicle(leg1, default_vehicle):
+        return False
+    p0, _ = quote_engine.match_location(leg0.get('pickup_location'), locations)
+    d0, _ = quote_engine.match_location(leg0.get('dropoff_location'), locations)
+    p1, _ = quote_engine.match_location(leg1.get('pickup_location'), locations)
+    d1, _ = quote_engine.match_location(leg1.get('dropoff_location'), locations)
+    if not (p0 and d0 and p1 and d1):
+        return False
+    return p1.pk == d0.pk and d1.pk == p0.pk
+
+
+def _booking_lookup_rate(vehicle, origin, destination):
+    """Published Rate for a vehicle + location pair, either direction."""
+    rate = Rate.objects.filter(
+        vehicle=vehicle, route__origin=origin, route__destination=destination
+    ).select_related('route', 'route__origin', 'route__destination').first()
+    if not rate:
+        rate = Rate.objects.filter(
+            vehicle=vehicle, route__origin=destination, route__destination=origin
+        ).select_related('route', 'route__origin', 'route__destination').first()
+    return rate
+
+
 @login_required
 @require_POST
 def update_leg_info(request):
@@ -7848,9 +7897,16 @@ def dispatcher_booking_legs(request):
                     }
                 else:
                     n = len(legs_data)
-                    booking_data['trip_type'] = (
-                        'one_way' if n == 1 else 'round_trip' if n == 2 else 'multi_leg'
-                    )
+                    if n == 1:
+                        booking_data['trip_type'] = 'one_way'
+                    elif n == 2 and _booking_is_round_trip(
+                        legs_data, vehicle, Location.objects.all()
+                    ):
+                        booking_data['trip_type'] = 'round_trip'
+                    else:
+                        # Two (or more) legs that aren't a verified return trip
+                        # are independent one-way legs, priced separately.
+                        booking_data['trip_type'] = 'multi_leg'
                     booking_data['num_legs'] = n
                     booking_data['legs_data'] = legs_data
                     booking_data['flights_data'] = flights_data
@@ -8024,50 +8080,58 @@ def dispatcher_booking_pricing(request):
         vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
 
     # --- Suggested rate lookup ---
-    suggested_rate = None
+    # A verified round trip (see _booking_is_round_trip in Step 3) prices as
+    # one bundled round-trip rate off leg 1's route/vehicle, same as before.
+    # Anything else -- one leg, or several legs that are NOT a matched return
+    # trip -- prices each leg independently on ITS OWN route and vehicle and
+    # sums them, so a leg using a different vehicle (e.g. a Van return after
+    # an SUV outbound) is never silently priced (or dropped) as if it shared
+    # leg 1's vehicle/route.
     suggested_price = None
     suggested_route_label = None
-    if vehicle and booking_data.get('legs_data'):
-        first_leg = booking_data['legs_data'][0]
-        pickup_text = (first_leg.get('pickup_location') or '').lower()
-        dropoff_text = (first_leg.get('dropoff_location') or '').lower()
-        if pickup_text and dropoff_text:
-            locations = Location.objects.all()
-            pickup_match = None
-            dropoff_match = None
-            for loc in locations:
-                keywords = [loc.name.lower()]
-                if loc.aliases:
-                    keywords += [a.strip().lower() for a in loc.aliases.split(',')]
-                for kw in keywords:
-                    if kw and kw in pickup_text:
-                        pickup_match = loc
-                        break
-                for kw in keywords:
-                    if kw and kw in dropoff_text:
-                        dropoff_match = loc
-                        break
-            if pickup_match and dropoff_match:
-                trip_type = booking_data.get('trip_type', 'one_way')
-                rate = Rate.objects.filter(
-                    vehicle=vehicle,
-                    route__origin=pickup_match,
-                    route__destination=dropoff_match,
-                ).select_related('route', 'route__origin', 'route__destination').first()
-                # Try reverse direction if not found
-                if not rate:
-                    rate = Rate.objects.filter(
-                        vehicle=vehicle,
-                        route__origin=dropoff_match,
-                        route__destination=pickup_match,
-                    ).select_related('route', 'route__origin', 'route__destination').first()
+    legs_data = booking_data.get('legs_data', [])
+    trip_type = booking_data.get('trip_type', 'one_way')
+    if legs_data:
+        locations = list(Location.objects.all())
+
+        if trip_type == 'round_trip' and len(legs_data) == 2:
+            first_leg = legs_data[0]
+            leg_vehicle = _booking_leg_vehicle(first_leg, vehicle)
+            pickup_match, _ = quote_engine.match_location(first_leg.get('pickup_location'), locations)
+            dropoff_match, _ = quote_engine.match_location(first_leg.get('dropoff_location'), locations)
+            if leg_vehicle and pickup_match and dropoff_match:
+                rate = _booking_lookup_rate(leg_vehicle, pickup_match, dropoff_match)
                 if rate:
-                    suggested_rate = rate
-                    if trip_type == 'round_trip':
-                        suggested_price = rate.round_trip_price
-                    else:
-                        suggested_price = rate.oneway_price
-                    suggested_route_label = f"{rate.route.origin.name} to {rate.route.destination.name}"
+                    suggested_price = rate.round_trip_price
+                    suggested_route_label = (
+                        f"{leg_vehicle.get_vehicle_type_display()} · "
+                        f"{rate.route.origin.name} to {rate.route.destination.name} · Round Trip"
+                    )
+        else:
+            leg_labels = []
+            total = Decimal('0.00')
+            priced_count = 0
+            for leg_data in legs_data:
+                leg_vehicle = _booking_leg_vehicle(leg_data, vehicle)
+                pickup_match, _ = quote_engine.match_location(leg_data.get('pickup_location'), locations)
+                dropoff_match, _ = quote_engine.match_location(leg_data.get('dropoff_location'), locations)
+                if not (leg_vehicle and pickup_match and dropoff_match):
+                    continue
+                rate = _booking_lookup_rate(leg_vehicle, pickup_match, dropoff_match)
+                if not rate:
+                    continue
+                total += rate.oneway_price
+                priced_count += 1
+                leg_labels.append(
+                    f"{rate.route.origin.name} to {rate.route.destination.name} "
+                    f"({leg_vehicle.get_vehicle_type_display()})"
+                )
+            if priced_count:
+                suggested_price = total
+                suggested_route_label = " + ".join(leg_labels)
+                if priced_count < len(legs_data):
+                    unpriced = len(legs_data) - priced_count
+                    suggested_route_label += f" (+{unpriced} leg{'s' if unpriced != 1 else ''} not priced)"
 
     context = {
         'form': form,
@@ -8081,7 +8145,6 @@ def dispatcher_booking_pricing(request):
         'booking_data': booking_data,
         'suggested_price': suggested_price,
         'suggested_route_label': suggested_route_label,
-        'suggested_trip_type': 'Round Trip' if booking_data.get('trip_type') == 'round_trip' else 'One Way',
     }
 
     return render(request, 'dispatching/booking/step_pricing.html', context)

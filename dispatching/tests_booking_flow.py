@@ -1,6 +1,7 @@
 """Dispatcher booking wizard: legs are added on the trip-details step, and the
 trip type is derived from how many the dispatcher ended up with."""
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -226,6 +227,109 @@ class BookingWizardFlowTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn("legs_data", self.client.session["dispatcher_booking"])
+
+
+class BookingWizardMultiVehiclePricingTests(TestCase):
+    """A second leg that goes somewhere else entirely (different route AND a
+    different vehicle) is NOT a round trip and must not be priced as one.
+
+    Regression for a real mispriced reservation: MCO -> Disney (SUV) then
+    Disney -> Port (Van) was quoted as a single $275 MCO<->Disney SUV round
+    trip -- leg 2's own route and vehicle were silently ignored. It should
+    price as two independent one-ways: $140 SUV + $235 Van = $375.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user("dispatcher_multiveh", password="x", is_staff=True)
+        cls.suv = Vehicle.objects.create(vehicle_type="suv", capacity=6, luggage_capacity=6)
+        cls.van = Vehicle.objects.create(vehicle_type="van", capacity=10, luggage_capacity=15)
+        mco = Location.objects.create(name="MCO Airport")
+        disney = Location.objects.create(name="Disney Pop Century")
+        port = Location.objects.create(name="Port Canaveral")
+        Rate.objects.create(
+            vehicle=cls.suv,
+            route=Route.objects.create(origin=mco, destination=disney),
+            oneway_price="140.00", round_trip_price="275.00",
+        )
+        Rate.objects.create(
+            vehicle=cls.van,
+            route=Route.objects.create(origin=disney, destination=port),
+            oneway_price="235.00", round_trip_price="420.00",
+        )
+
+    def setUp(self):
+        cache.clear()
+        self.client.force_login(self.staff)
+        self.future = django_timezone.localdate() + timedelta(days=30)
+
+    def _leg(self, pickup, dropoff, time, day_offset=0, vehicle_override=None):
+        leg = {
+            "pickup_date": (self.future + timedelta(days=day_offset)).isoformat(),
+            "pickup_time": time,
+            "pickup_location": pickup,
+            "dropoff_location": dropoff,
+            "private_notes": "",
+        }
+        if vehicle_override is not None:
+            leg["override-vehicle"] = str(vehicle_override)
+        return leg
+
+    def _legs_payload(self, legs):
+        n = len(legs)
+        data = {
+            "legs-TOTAL_FORMS": str(n), "legs-INITIAL_FORMS": "0",
+            "legs-MIN_NUM_FORMS": "1", "legs-MAX_NUM_FORMS": "5",
+            "flights-TOTAL_FORMS": str(n), "flights-INITIAL_FORMS": "0",
+            "flights-MIN_NUM_FORMS": "0", "flights-MAX_NUM_FORMS": "5",
+        }
+        for i, leg in enumerate(legs):
+            for k, v in leg.items():
+                data[f"legs-{i}-{k}"] = v
+        return data
+
+    def _walk_to_legs(self):
+        self.client.get(reverse("dispatcher_booking_start"))
+        self.client.post(reverse("dispatcher_booking_customer"), {
+            "first_name": "Jane", "last_name": "Guest",
+            "email": "jane.multiveh@example.com", "phone_number": "4075551236",
+            "zipcode": "32819",
+        })
+        self.client.post(reverse("dispatcher_booking_reservation"), {
+            "passenger_count": "2", "luggage_count": "2", "luggage_type": "checked",
+            "rf_carseats": "0", "ff_carseats": "0", "booster_seats": "0",
+            "manual_vehicle": str(self.suv.id),
+        })
+
+    def test_mismatched_second_leg_is_multi_leg_not_round_trip(self):
+        self._walk_to_legs()
+        resp = self.client.post(reverse("dispatcher_booking_legs"), self._legs_payload([
+            self._leg("MCO Airport", "Disney Pop Century", "14:30"),
+            self._leg("Disney Pop Century", "Port Canaveral", "09:00", day_offset=3,
+                       vehicle_override=self.van.id),
+        ]))
+        self.assertRedirects(
+            resp, reverse("dispatcher_booking_pricing"), fetch_redirect_response=False
+        )
+        saved = self.client.session["dispatcher_booking"]
+        self.assertEqual(saved["trip_type"], "multi_leg")
+
+        resp = self.client.get(reverse("dispatcher_booking_pricing"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["suggested_price"], Decimal("375.00"))
+
+    def test_genuine_return_trip_still_prices_as_one_round_trip_rate(self):
+        """Same route, reversed, same vehicle -- still a real round trip."""
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"), self._legs_payload([
+            self._leg("MCO Airport", "Disney Pop Century", "14:30"),
+            self._leg("Disney Pop Century", "MCO Airport", "09:00", day_offset=5),
+        ]))
+        saved = self.client.session["dispatcher_booking"]
+        self.assertEqual(saved["trip_type"], "round_trip")
+
+        resp = self.client.get(reverse("dispatcher_booking_pricing"))
+        self.assertEqual(resp.context["suggested_price"], Decimal("275.00"))
 
 
 class BookingCustomerCleanupTests(TestCase):
