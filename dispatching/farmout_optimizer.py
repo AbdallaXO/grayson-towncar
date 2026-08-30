@@ -519,8 +519,13 @@ def _price_one_leg(leg, day, ledger, roster) -> dict:
 
     ctx = _leg_pricing_ctx(leg)
     if ctx["route"] is None:
+        # No route at all — distinct from "no affiliate cards this route". Since the
+        # booking-rate fallback was removed, a leg whose addresses match nothing in the
+        # rate table has no route, and the page would otherwise render an empty roster
+        # with no explanation. Say it needs a price instead.
         return {"status": _UNCARDED, "leg_id": leg.id, "affiliate": None, "affiliate_id": None,
-                "base": None, "night": None, "total": None}
+                "base": None, "night": None, "total": None,
+                "skip_reason": "No route matches these addresses — this leg needs a price set by hand."}
 
     eligible = []            # (base, affiliate_name, night, commit_callable, driver_id)
     carded_but_full = False  # some affiliate cards the route but has no remaining capacity
@@ -755,6 +760,7 @@ def _apply_decision_time_pickups(day_legs, day) -> None:
     Paired with the scheduled CLEAR anchor (scheduler.USE_SCHEDULED_ARRIVAL_FOR_EVAL), this makes
     arrival legs fully decision-time on BOTH ends. Shift only when the delta meets the 15-min auto-bump
     threshold, and skip a (rare) midnight-crossing shift rather than corrupt the time-only field."""
+    import copy
     from datetime import datetime, timedelta
     from dispatching.analytics import best_flight_arrival_local, scheduled_flight_arrival_local
 
@@ -774,6 +780,12 @@ def _apply_decision_time_pickups(day_legs, day) -> None:
         dec_dt = datetime.combine(day, leg.pickup_time) - timedelta(minutes=delta_min)
         if dec_dt.date() != day:  # crossed midnight — leave stored pickup rather than corrupt it
             continue
+        # Copy before mutating. These are live Leg instances off the board, and
+        # Leg.save() now moves the night bonus when pickup_time changes — so an
+        # in-place edit here, on an object this module never saves, would become a
+        # payroll write the moment anything else saved that same instance. Same
+        # defence board_validation and advisor_display already use.
+        leg = copy.copy(leg)
         leg.pickup_time = dec_dt.time()
 
 

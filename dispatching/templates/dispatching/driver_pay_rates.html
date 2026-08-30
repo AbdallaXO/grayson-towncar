@@ -78,6 +78,120 @@
   }
   .rates-page table.table-bordered { --bs-table-border-color: var(--gt-border); }
   .rate-row:hover { background: rgba(201,162,39,0.06) !important; }
+
+  /* ── How pay is worked out: the one explainer, so the page stops looking
+     like a list of routes when routes are only the exceptions ── */
+  .pay-explainer {
+    background: linear-gradient(135deg, rgba(201,162,39,0.09) 0%, rgba(201,162,39,0.02) 100%);
+    border: 1px solid rgba(201,162,39,0.28); border-left: 3px solid var(--gt-gold);
+    border-radius: 10px; padding: 0.9rem 1.15rem; margin-bottom: 1.25rem;
+  }
+  .pay-explainer .steps { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; margin: 0.45rem 0 0; padding: 0; list-style: none; }
+  .pay-explainer .steps li {
+    font-size: 0.82rem; color: var(--gt-muted);
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .pay-explainer .steps .n {
+    width: 1.15rem; height: 1.15rem; flex: 0 0 1.15rem; border-radius: 50%;
+    background: rgba(201,162,39,0.18); color: var(--gt-gold);
+    font-size: 0.66rem; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pay-explainer .steps .sep { color: var(--gt-border); }
+
+  /* ── Zone price grid ── */
+  .zone-grid { border-collapse: separate; border-spacing: 0; width: auto; min-width: 100%; }
+  .zone-grid th, .zone-grid td { border: 1px solid var(--gt-border); padding: 0.4rem 0.55rem; }
+  .zone-grid thead th {
+    background: var(--gt-surface-2); color: var(--gt-muted);
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+    font-weight: 700; text-align: center; white-space: nowrap;
+  }
+  .zone-grid tbody th {
+    background: var(--gt-surface-2); color: var(--gt-text);
+    font-size: 0.82rem; font-weight: 600; white-space: nowrap; text-align: left;
+  }
+  .zone-grid td { background: transparent; text-align: center; }
+  .zone-grid td.mirror { background: rgba(255,255,255,0.015); }
+  .zone-cell-input {
+    width: 92px; background: var(--gt-bg); border: 1px solid var(--gt-border);
+    color: var(--gt-text); border-radius: 6px; padding: 0.28rem 0.4rem;
+    font-size: 0.88rem; font-weight: 600; text-align: center;
+  }
+  .zone-cell-input:focus {
+    outline: none; border-color: var(--gt-gold);
+    box-shadow: 0 0 0 2px rgba(201,162,39,0.16);
+  }
+  .zone-cell-input::placeholder { color: #5a636e; font-weight: 400; }
+  .zone-cell-input.is-empty { border-style: dashed; }
+  .mirror-val { color: var(--gt-muted); font-size: 0.82rem; }
+
+  /* ── Places ── */
+  .place-zone-select, .place-alias-input {
+    background: var(--gt-bg); border: 1px solid var(--gt-border);
+    color: var(--gt-text); border-radius: 6px; padding: 0.28rem 0.45rem;
+    font-size: 0.84rem; width: 100%;
+  }
+  .place-zone-select:focus, .place-alias-input:focus {
+    outline: none; border-color: var(--gt-gold);
+    box-shadow: 0 0 0 2px rgba(201,162,39,0.16);
+  }
+  .place-alias-input::placeholder { color: #5a636e; }
+  tr.place-row.no-zone td { background: rgba(220,53,69,0.06); }
+  .zone-pill {
+    display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em;
+    padding: 0.12rem 0.5rem; border-radius: 999px;
+    background: rgba(201,162,39,0.14); color: var(--gt-gold);
+    border: 1px solid rgba(201,162,39,0.3);
+  }
+  .zone-pill.none { background: rgba(220,53,69,0.14); color: #ff8a95; border-color: rgba(220,53,69,0.35); }
+  .inline-add {
+    background: var(--gt-surface-2); border: 1px dashed var(--gt-border);
+    border-radius: 8px; padding: 0.75rem 0.9rem; margin-top: 0.85rem;
+  }
+  .inline-add input, .inline-add select {
+    background: var(--gt-bg); border: 1px solid var(--gt-border); color: var(--gt-text);
+    border-radius: 6px; padding: 0.32rem 0.5rem; font-size: 0.85rem;
+  }
+  .inline-add input:focus, .inline-add select:focus {
+    outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 2px rgba(201,162,39,0.16);
+  }
+  .btn-gold {
+    background: var(--gt-gold); color: #0d1117; border: 1px solid var(--gt-gold);
+    font-weight: 700; font-size: 0.82rem; border-radius: 6px; padding: 0.34rem 0.9rem;
+    transition: filter 0.18s ease;
+  }
+  .btn-gold:hover { filter: brightness(1.1); color: #0d1117; }
+  .btn-quiet {
+    background: transparent; color: var(--gt-muted); border: 1px solid var(--gt-border);
+    font-size: 0.78rem; border-radius: 6px; padding: 0.24rem 0.6rem;
+  }
+  .btn-quiet:hover { color: var(--gt-text); border-color: var(--gt-gold); }
+  .field-note { font-size: 0.72rem; color: var(--gt-muted); margin-top: 0.25rem; }
+  /* A place in a zone can still have trips that do not pay the zone price.
+     Without this the zone column reads as one flat rate for everywhere. */
+  .place-exceptions { margin-top: 0.3rem; font-size: 0.7rem; color: var(--gt-muted); line-height: 1.45; }
+  .place-exceptions .ex-pay {
+    color: var(--gt-gold); font-weight: 700;
+    border-bottom: 1px dotted rgba(201,162,39,0.45);
+  }
+  .row-error { color: #ff8a95; font-size: 0.74rem; }
+
+  /* Wide tables scroll sideways on a phone instead of squeezing every column
+     to nothing. Without this the alias field and the price boxes end up a few
+     characters wide and cannot be typed into. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll > table { min-width: 720px; }
+  .scroll-hint { display: none; }
+
+  @media (max-width: 767px) {
+    .zone-grid { display: block; overflow-x: auto; }
+    .pay-explainer .steps { flex-direction: column; gap: 0.35rem; }
+    .pay-explainer .steps .sep { display: none; }
+    .scroll-hint { display: block; font-size: 0.7rem; color: var(--gt-muted); margin-bottom: 0.4rem; }
+    .inline-add input, .inline-add select { width: 100% !important; }
+    .inline-add .d-flex > div { width: 100%; }
+  }
   .rate-row:hover td { background: transparent; }
 
   /* Form inputs */
@@ -185,44 +299,265 @@
     </div>
   </div>
 
-  {# ── Section 1: Inhouse Default Rates ─────────────────────────── #}
+  {# ── How pay is worked out ────────────────────────────────────── #}
+  <div class="pay-explainer">
+    <div style="font-size:0.9rem;font-weight:600;color:var(--gt-text);">
+      <i class="bi bi-info-circle me-1" style="color:var(--gt-gold);"></i>How an in-house trip is priced
+    </div>
+    <ul class="steps">
+      <li><span class="n">1</span> a rate set for that driver</li>
+      <li class="sep">&rarr;</li>
+      <li><span class="n">2</span> an exception set for that exact trip</li>
+      <li class="sep">&rarr;</li>
+      <li><span class="n">3</span> the price between the two zones</li>
+      <li class="sep">&rarr;</li>
+      <li><span class="n">4</span> nothing &mdash; the trip is flagged as needing a price</li>
+    </ul>
+  </div>
+
+  {# ── Section 1: Zone prices ───────────────────────────────────── #}
   <div class="section-card">
-    <div class="section-header">
+    <div class="section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
       <h6 class="mb-0">
-        <i class="bi bi-building me-2" style="color: var(--gt-gold);"></i>Inhouse Default Rates
-        <small class="ms-2">applies to all in-house drivers unless overridden</small>
+        <i class="bi bi-diagram-3 me-2" style="color: var(--gt-gold);"></i>Zone prices
+        <small class="ms-2">what a driver gets for a trip between any two zones</small>
       </h6>
+      <span class="save-indicator text-success" id="zone-rate-save" style="display:none">Saved</span>
     </div>
     <div class="p-3">
+      {% if zones %}
+      <div style="overflow-x:auto;">
+        <table class="zone-grid">
+          <thead>
+            <tr>
+              <th style="text-align:left;">From &rarr; To</th>
+              {% for z in zones %}<th>{{ z.name }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in zone_matrix %}
+            <tr>
+              <th>{{ row.zone.name }}</th>
+              {% for cell in row.cells %}
+                {% if cell.editable %}
+                <td>
+                  <input type="number" step="0.01" min="0"
+                         class="zone-cell-input zone-rate-input{% if cell.pay is None %} is-empty{% endif %}"
+                         data-zone-a="{{ cell.zone_a.id }}"
+                         data-zone-b="{{ cell.zone_b.id }}"
+                         value="{% if cell.pay is not None %}{{ cell.pay }}{% endif %}"
+                         placeholder="not priced"
+                         title="{{ cell.zone_a.name }} to {{ cell.zone_b.name }}">
+                </td>
+                {% else %}
+                <td class="mirror"><span class="mirror-val" id="mirror-{{ cell.zone_b.id }}-{{ cell.zone_a.id }}">{% if cell.pay is not None %}${{ cell.pay }}{% else %}&mdash;{% endif %}</span></td>
+                {% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="field-note">
+        A trip runs both ways for the same money, so each pairing is set once &mdash; the greyed half is the mirror.
+        Leave a box empty on purpose and those trips will show as <strong>needs a price</strong> on the driver pay page
+        instead of being guessed at.
+      </div>
+      {% else %}
+      <p class="text-muted mb-0" style="font-size:0.88rem;">No zones yet. Add one below to start pricing by zone.</p>
+      {% endif %}
+
+      <div class="inline-add">
+        <div class="d-flex flex-wrap align-items-end gap-2">
+          <div>
+            <label class="d-block" style="font-size:0.72rem;color:var(--gt-muted);">New zone</label>
+            <input type="text" id="new-zone-name" placeholder="e.g. Clermont / west" style="width:230px">
+          </div>
+          <div class="flex-grow-1" style="min-width:220px;">
+            <label class="d-block" style="font-size:0.72rem;color:var(--gt-muted);">What belongs in it (optional)</label>
+            <input type="text" id="new-zone-desc" placeholder="a note for whoever picks this next" style="width:100%">
+          </div>
+          <button class="btn btn-gold" id="add-zone-btn"><i class="bi bi-plus-lg me-1"></i>Add zone</button>
+          <span class="row-error" id="new-zone-error"></span>
+        </div>
+        <div class="field-note">After adding a zone, price it against the others in the grid above and put places in it below.</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Section 2: Places ────────────────────────────────────────── #}
+  <div class="section-card">
+    <div class="section-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h6 class="mb-0">
+        <i class="bi bi-geo-alt me-2" style="color: var(--gt-gold);"></i>Places &amp; their zones
+        <small class="ms-2">which zone each pickup or drop-off belongs to</small>
+      </h6>
+      <div class="d-flex align-items-center gap-2">
+        {% if unzoned_count %}
+        <span class="zone-pill none">{{ unzoned_count }} with no zone</span>
+        {% endif %}
+        <span class="save-indicator text-success" id="place-save" style="display:none">Saved</span>
+      </div>
+    </div>
+    <div class="p-3">
+      <div class="scroll-hint"><i class="bi bi-arrow-left-right me-1"></i>swipe the table sideways</div>
+      <div class="table-scroll">
       <table class="table table-sm table-bordered mb-0">
         <thead>
           <tr>
-            <th>Route</th>
-            <th style="width:140px">Default Base Pay</th>
-            <th style="width:80px"></th>
+            <th style="width:260px">Place</th>
+            <th style="width:230px">Zone &amp; any exceptions</th>
+            <th>Also written as &mdash; comma separated</th>
           </tr>
         </thead>
         <tbody>
-          {% for route in routes %}
-          <tr>
-            <td>{{ route.origin.name }} &rarr; {{ route.destination.name }}</td>
+          {% for loc in locations %}
+          <tr class="place-row{% if not loc.pay_zone_id %} no-zone{% endif %}" data-location-id="{{ loc.id }}">
+            <td>{{ loc.name }}</td>
             <td>
-              <div class="input-group input-group-sm">
-                <span class="input-group-text">$</span>
-                <input type="number" step="0.01" min="0"
-                       class="form-control form-control-sm rate-input inhouse-rate"
-                       data-route-id="{{ route.id }}"
-                       value="{% if route.inhouse_base_pay %}{{ route.inhouse_base_pay }}{% endif %}"
-                       placeholder="Not set">
+              <select class="place-zone-select" data-location-id="{{ loc.id }}">
+                <option value="">&mdash; no zone, needs a price &mdash;</option>
+                {% for z in zones %}
+                <option value="{{ z.id }}" {% if loc.pay_zone_id == z.id %}selected{% endif %}>{{ z.name }}</option>
+                {% endfor %}
+              </select>
+              {% if loc.exceptions %}
+              <div class="place-exceptions">
+                {% for ex in loc.exceptions %}
+                <div><span class="ex-pay">${{ ex.pay }}</span> to/from {{ ex.other }}</div>
+                {% endfor %}
               </div>
+              {% endif %}
             </td>
             <td>
-              <span class="save-indicator text-success" id="inhouse-save-{{ route.id }}" style="display:none">Saved</span>
+              <input type="text" class="place-alias-input" data-location-id="{{ loc.id }}"
+                     value="{{ loc.aliases }}"
+                     placeholder="Waldorf Astoria, Shades of Green, Epic Universe">
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+      </div>
+      <div class="field-note">
+        These are the names we look for in a booking address. If a hotel keeps showing as needing a price,
+        add the way it is written to the row for its zone &mdash; a trip to
+        &ldquo;Waldorf Astoria Orlando&rdquo; only prices once &ldquo;Waldorf Astoria&rdquo; is listed here.
+      </div>
+
+      <div class="inline-add">
+        <div class="d-flex flex-wrap align-items-end gap-2">
+          <div>
+            <label class="d-block" style="font-size:0.72rem;color:var(--gt-muted);">New place</label>
+            <input type="text" id="new-place-name" placeholder="e.g. Clermont" style="width:210px">
+          </div>
+          <div>
+            <label class="d-block" style="font-size:0.72rem;color:var(--gt-muted);">Zone</label>
+            <select id="new-place-zone" style="width:200px">
+              <option value="">&mdash; no zone yet &mdash;</option>
+              {% for z in zones %}<option value="{{ z.id }}">{{ z.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="flex-grow-1" style="min-width:220px;">
+            <label class="d-block" style="font-size:0.72rem;color:var(--gt-muted);">Also written as</label>
+            <input type="text" id="new-place-aliases" placeholder="comma separated" style="width:100%">
+          </div>
+          <button class="btn btn-gold" id="add-place-btn"><i class="bi bi-plus-lg me-1"></i>Add place</button>
+          <span class="row-error" id="new-place-error"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Section 3: Trip exceptions ───────────────────────────────── #}
+  <div class="section-card">
+    <div class="section-header">
+      <h6 class="mb-0">
+        <i class="bi bi-sliders me-2" style="color: var(--gt-gold);"></i>Trip exceptions
+        <small class="ms-2">specific trips that do not pay their zone price</small>
+      </h6>
+    </div>
+    <div class="p-3">
+      <div class="scroll-hint"><i class="bi bi-arrow-left-right me-1"></i>swipe the table sideways</div>
+      <div class="table-scroll">
+      <table class="table table-sm table-bordered mb-0">
+        <thead>
+          <tr>
+            <th>Trip</th>
+            <th style="width:150px">Pays</th>
+            <th style="width:130px">Zone price</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in route_overrides %}
+          <tr>
+            <td>{{ item.route.origin.name }} &rarr; {{ item.route.destination.name }}</td>
+            <td>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" min="0"
+                       class="form-control form-control-sm rate-input inhouse-rate"
+                       data-route-id="{{ item.route.id }}"
+                       value="{% if item.route.inhouse_base_pay %}{{ item.route.inhouse_base_pay }}{% endif %}"
+                       placeholder="follows zone">
+              </div>
+            </td>
+            <td class="text-muted" style="font-size:0.84rem;">
+              {% if item.zone_pay is not None %}${{ item.zone_pay }}{% else %}<span class="zone-pill none">no zone price</span>{% endif %}
+            </td>
+            <td>
+              <span class="save-indicator text-success" id="inhouse-save-{{ item.route.id }}" style="display:none">Saved</span>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted" style="font-size:0.88rem;">
+            Nothing here &mdash; every trip follows its zone price. That is the tidy state.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <div class="field-note">
+        Clear a price here and that trip goes back to its zone price. These win over the zone, so keep the list short.
+      </div>
+
+      {% if route_matching_zone %}
+      <div class="mt-3">
+        <button class="btn-quiet" type="button" data-bs-toggle="collapse" data-bs-target="#zone-matching-routes">
+          <i class="bi bi-chevron-down me-1"></i>{{ route_matching_zone|length }} more trip{{ route_matching_zone|length|pluralize }} already matching the zone price
+        </button>
+        <div class="collapse mt-2" id="zone-matching-routes">
+          <div class="table-scroll">
+          <table class="table table-sm table-bordered mb-0">
+            <thead>
+              <tr><th>Trip</th><th style="width:150px">Pays</th><th style="width:130px">Zone price</th><th style="width:80px"></th></tr>
+            </thead>
+            <tbody>
+              {% for item in route_matching_zone %}
+              <tr>
+                <td>{{ item.route.origin.name }} &rarr; {{ item.route.destination.name }}</td>
+                <td>
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text">$</span>
+                    <input type="number" step="0.01" min="0"
+                           class="form-control form-control-sm rate-input inhouse-rate"
+                           data-route-id="{{ item.route.id }}"
+                           value="{% if item.route.inhouse_base_pay %}{{ item.route.inhouse_base_pay }}{% endif %}"
+                           placeholder="follows zone">
+                  </div>
+                </td>
+                <td class="text-muted" style="font-size:0.84rem;">${{ item.zone_pay }}</td>
+                <td><span class="save-indicator text-success" id="inhouse-save-{{ item.route.id }}" style="display:none">Saved</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          <div class="field-note">These say the same thing as the zone, so they change nothing. Safe to leave.</div>
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -577,6 +912,120 @@ document.querySelectorAll('.inhouse-rate').forEach(input => {
     }, 600);
   });
 });
+
+// ── Zone prices ────────────────────────────────────────────────────
+document.querySelectorAll('.zone-rate-input').forEach(input => {
+  let timer;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    const el = this;
+    timer = setTimeout(() => {
+      fetch('{% url "update_zone_rate" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({
+          zone_a: el.dataset.zoneA,
+          zone_b: el.dataset.zoneB,
+          base_pay: el.value === '' ? null : el.value
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          el.classList.toggle('is-empty', data.base_pay === null);
+          showSaved(document.getElementById('zone-rate-save'));
+          // A trip prices the same both ways, so keep the greyed mirror in step.
+          const mirror = document.getElementById('mirror-' + el.dataset.zoneA + '-' + el.dataset.zoneB);
+          if (mirror) {
+            mirror.innerHTML = data.base_pay === null ? '&mdash;' : ('$' + data.base_pay.toFixed(2));
+          }
+        } else {
+          alert(data.error || 'Could not save that price.');
+        }
+      });
+    }, 600);
+  });
+});
+
+const addZoneBtn = document.getElementById('add-zone-btn');
+if (addZoneBtn) {
+  addZoneBtn.addEventListener('click', function() {
+    const nameEl = document.getElementById('new-zone-name');
+    const descEl = document.getElementById('new-zone-desc');
+    const errEl = document.getElementById('new-zone-error');
+    errEl.textContent = '';
+    if (!nameEl.value.trim()) { errEl.textContent = 'Give the zone a name.'; return; }
+    fetch('{% url "save_zone" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      body: JSON.stringify({name: nameEl.value, description: descEl.value})
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) { window.location.reload(); }
+      else { errEl.textContent = data.error || 'Could not add that zone.'; }
+    });
+  });
+}
+
+// ── Places ─────────────────────────────────────────────────────────
+function savePlace(payload, onOk) {
+  fetch('{% url "save_place" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) { showSaved(document.getElementById('place-save')); if (onOk) onOk(data); }
+    else { alert(data.error || 'Could not save that place.'); }
+  });
+}
+
+document.querySelectorAll('.place-zone-select').forEach(sel => {
+  sel.addEventListener('change', function() {
+    const row = this.closest('tr');
+    savePlace(
+      {location_id: this.dataset.locationId, zone_id: this.value || null},
+      () => { row.classList.toggle('no-zone', this.value === ''); }
+    );
+  });
+});
+
+document.querySelectorAll('.place-alias-input').forEach(input => {
+  let timer;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    const el = this;
+    timer = setTimeout(() => {
+      savePlace({location_id: el.dataset.locationId, aliases: el.value});
+    }, 700);
+  });
+});
+
+const addPlaceBtn = document.getElementById('add-place-btn');
+if (addPlaceBtn) {
+  addPlaceBtn.addEventListener('click', function() {
+    const nameEl = document.getElementById('new-place-name');
+    const errEl = document.getElementById('new-place-error');
+    errEl.textContent = '';
+    if (!nameEl.value.trim()) { errEl.textContent = 'Give the place a name.'; return; }
+    fetch('{% url "save_place" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      body: JSON.stringify({
+        name: nameEl.value,
+        zone_id: document.getElementById('new-place-zone').value || null,
+        aliases: document.getElementById('new-place-aliases').value
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) { window.location.reload(); }
+      else { errEl.textContent = data.error || 'Could not add that place.'; }
+    });
+  });
+}
 
 // ── Night bonus ────────────────────────────────────────────────────
 const nightInput = document.getElementById('night-bonus-input');

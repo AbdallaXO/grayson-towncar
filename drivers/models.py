@@ -118,6 +118,13 @@ class Driver(models.Model):
         default=False,
         help_text="Exclude this driver's completed trips from route timing data. Affiliates are always excluded."
     )
+    exclude_from_payroll = models.BooleanField(
+        default=False,
+        help_text="Keep this driver off the Driver Payments page and out of the Gusto export. "
+                  "For owner/founder accounts and placeholder records that run trips but are "
+                  "never paid through payroll. Changes nothing about dispatch — they still "
+                  "appear on the board and can still be assigned trips."
+    )
     night_bonus = models.DecimalField(
         max_digits=6, decimal_places=2, default=Decimal("10.00"),
         help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."

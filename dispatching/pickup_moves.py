@@ -67,6 +67,15 @@ def apply_pickup_time_move(leg, new_time, user=None, note="Flight match", new_da
     old_time = leg.pickup_time
     old_date = leg.pickup_date
 
+    # Drop seconds. Flight-derived times carry them, and the driver night-bonus
+    # window opens at 22:01:00 while the customer after-hours window opens at
+    # 22:00:00 — so a 22:00:30 pickup falls in the gap and bills the guest while
+    # paying the driver nothing. Those two windows are deliberately different
+    # (a 22:00 pickup earning no bonus is the rule, not a bug); the seconds are
+    # just noise, and they also make an unchanged time look changed.
+    if new_time is not None and new_time.second:
+        new_time = new_time.replace(second=0, microsecond=0)
+
     date_moves = new_date is not None and new_date != old_date
     time_moves = new_time is not None and new_time != old_time
     if not date_moves and not time_moves:

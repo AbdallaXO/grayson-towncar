@@ -90,15 +90,17 @@ def _find_rate(driver, route, vehicle, direction):
     return None
 
 
-def calculate_driver_pay(leg):
+def calculate_driver_pay(leg, locations=None):
     """Calculate base_pay for a leg based on driver, route, vehicle.
 
     Lookup chain:
       INHOUSE:
         1. DriverPayRate(driver, route) → driver override
-        2. Route.inhouse_base_pay → default
+        2. Route.inhouse_base_pay → this pair overrides its zone
+        3. ZoneRate for the two endpoints' pay zones → the normal case
+        4. None → outside the service area, needs a human
 
-      AFFILIATE:
+      AFFILIATE (route required — negotiated card rates, no zone concept):
         1. DriverPayRate with exact direction + vehicle
         2. DriverPayRate with 'both' + vehicle
         3. DriverPayRate with exact direction + all vehicles
@@ -112,7 +114,25 @@ def calculate_driver_pay(leg):
         return None
 
     route = leg.route
-    if not route:
+
+    if driver.driver_type == "inhouse":
+        # 1. Driver-specific override on this exact route.
+        if route is not None:
+            rate = _find_rate(driver, route, vehicle=None, direction="both")
+            if rate is not None:
+                return rate
+            # 2. The route's own price. A Route is an OVERRIDE on its zone, so
+            #    it wins whenever someone has set one.
+            if route.inhouse_base_pay is not None:
+                return route.inhouse_base_pay
+        # 3. The zone rate. Most trips have no Route row and never will — the
+        #    table only ever held the pairs someone got round to entering. Two
+        #    endpoints in known zones is enough to price the trip.
+        return _zone_base_pay(leg, locations=locations)
+
+    if route is None:
+        # Affiliates are paid negotiated per-route card rates, so an unrouted
+        # leg genuinely has no affiliate price. Zones are an in-house concept.
         return None
 
     direction = _determine_direction(leg)
@@ -122,16 +142,7 @@ def calculate_driver_pay(leg):
     if leg.reservation and leg.reservation.vehicle:
         vehicle = leg.reservation.vehicle
 
-    if driver.driver_type == "inhouse":
-        # Check for driver-specific override
-        rate = _find_rate(driver, route, vehicle=None, direction="both")
-        if rate:
-            return rate
-
-        # Default: Route.inhouse_base_pay
-        return route.inhouse_base_pay  # May be None
-
-    elif driver.driver_type == "affiliate":
+    if driver.driver_type == "affiliate":
         rate = _find_rate(driver, route, vehicle, direction)
         if rate is None and (leg.effective_vehicle_type or "") == "mini_van":
             # minivan == SUV pricing equivalence (founder rule — see the farm-out optimizer's
@@ -145,6 +156,21 @@ def calculate_driver_pay(leg):
         return rate
 
     return None
+
+
+def _zone_base_pay(leg, locations=None):
+    """In-house base pay from the pay zones of the leg's two endpoints.
+
+    None when either endpoint is somewhere we do not serve (Tampa, Miami) or
+    has no zone set — those legs stay unpriced on purpose and surface on the
+    driver-pay page as needing a price.
+    """
+    from rates.models import ZoneRate
+
+    origin, destination = leg._resolve_location_endpoints(locations=locations)
+    if not (origin and destination):
+        return None
+    return ZoneRate.pay_for(origin.pay_zone_id, destination.pay_zone_id)
 
 
 def calculate_night_bonus(driver, pickup_time):

@@ -4,7 +4,11 @@
 {# handles only brief pauses with a duration: luggage drops, store stops, waits.        #}
 {# Renders nothing when leg has no intermediate stops.                                   #}
 {# Required context: leg #}
-{% with stops=leg.intermediate_stops %}
+{# Optional: pass `stops` to render a different set (the driver-pay page passes ALL   #}
+{# of a leg's stops, drop-offs included — a drop-off is work the chauffeur did).      #}
+{# Optional: `show_fee=1` shows what the guest was charged for the stop, so whoever   #}
+{# is paying the driver can see there is something to pay for.                        #}
+{% with stops=stops|default:leg.intermediate_stops %}
   {% if stops %}
     <div class="leg-stops-inline" style="margin: 4px 0 4px 8px;">
       {% for stop in stops %}
@@ -14,6 +18,11 @@
           <span class="text-muted">— {{ stop.get_stop_type_display|lower }}</span>
           {% if stop.requires_manual_review %}
             <span class="badge bg-warning text-dark" title="Pending price review" style="font-size: 0.6rem;">review</span>
+          {% endif %}
+          {% if show_fee and stop.extra_fee %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"
+                  style="font-size: 0.65rem;"
+                  title="Charged to the guest for this stop">guest paid ${{ stop.extra_fee|floatformat:2 }}</span>
           {% endif %}
           {% if stop.notes %}
             <div class="text-muted small ps-3" style="font-style: italic;">{{ stop.notes }}</div>
