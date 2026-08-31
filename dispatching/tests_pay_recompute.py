@@ -1248,3 +1248,186 @@ class UnverifiablePriceTests(_PayFixtureMixin, TestCase):
         )
         got = self._flags(leg)
         self.assertFalse(got.unverified_price)
+
+
+class LoweringATipTests(_PayFixtureMixin, TestCase):
+    """Taking a tip back is not the mirror image of giving one.
+
+    Every one of these was a real defect on this branch, found before it shipped
+    and reproduced through the live view: a dispatcher lowering a tip wrote a
+    NEGATIVE share onto the legs, and the same push rewrote legs that were
+    cancelled or already paid.
+    """
+
+    def _apply(self, res, amount, **kw):
+        from dispatching.views import _apply_gratuity_to_legs
+
+        _apply_gratuity_to_legs(
+            Reservation.objects.prefetch_related("legs").get(pk=res.pk),
+            amount, "whole", **kw
+        )
+
+    def test_a_reduction_never_pushes_a_leg_below_zero(self):
+        res = self._res(gratuity=Decimal("100.00"))
+        drv = _make_driver("tipdown")
+        a = self._leg(res, driver=drv)
+        b = self._leg(res, driver=drv)
+        # The whole tip is pinned to one leg, as a per-leg card charge leaves it.
+        Leg.objects.filter(pk=a.pk).update(driver_gratuity=Decimal("100.00"))
+        Leg.objects.filter(pk=b.pk).update(driver_gratuity=Decimal("0.00"))
+
+        self._apply(res, Decimal("-100.00"), payable_only=True)
+
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.driver_gratuity, Decimal("0.00"))
+        self.assertEqual(b.driver_gratuity, Decimal("0.00"),
+                         "an even split of the reduction overdrew the leg holding nothing")
+
+    def test_a_reduction_comes_out_of_what_each_leg_is_holding(self):
+        res = self._res(gratuity=Decimal("90.00"))
+        drv = _make_driver("tipprop")
+        a, b = self._leg(res, driver=drv), self._leg(res, driver=drv)
+        Leg.objects.filter(pk=a.pk).update(driver_gratuity=Decimal("60.00"))
+        Leg.objects.filter(pk=b.pk).update(driver_gratuity=Decimal("30.00"))
+
+        self._apply(res, Decimal("-30.00"), payable_only=True)
+
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.driver_gratuity, Decimal("40.00"))
+        self.assertEqual(b.driver_gratuity, Decimal("20.00"))
+        self.assertEqual(a.driver_gratuity + b.driver_gratuity, Decimal("60.00"))
+
+    def test_a_cancelled_leg_is_never_given_a_share(self):
+        res = self._res(gratuity=Decimal("100.00"))
+        drv = _make_driver("tipcancel")
+        live = self._leg(res, driver=drv, status="completed")
+        dead = self._leg(res, driver=drv, status="cancelled")
+        # Creating a leg on a tipped booking already splits the tip; start from
+        # nothing so this test measures only what the push itself does.
+        Leg.objects.filter(reservation=res).update(driver_gratuity=Decimal("0.00"))
+
+        self._apply(res, Decimal("100.00"), payable_only=True)
+
+        live.refresh_from_db(); dead.refresh_from_db()
+        self.assertEqual(live.driver_gratuity, Decimal("100.00"),
+                         "half the tip was parked where payroll can never reach it")
+        self.assertIn(dead.driver_gratuity, (None, Decimal("0.00")))
+
+    def test_a_paid_leg_is_left_behind_its_statement(self):
+        res = self._res(gratuity=Decimal("100.00"))
+        drv = _make_driver("tippaid")
+        settled = self._leg(res, driver=drv, status="completed")
+        open_leg = self._leg(res, driver=drv, status="completed")
+        Leg.objects.filter(pk=settled.pk).update(
+            payment_status="paid", driver_gratuity=Decimal("50.00")
+        )
+
+        self._apply(res, Decimal("40.00"), payable_only=True)
+
+        settled.refresh_from_db(); open_leg.refresh_from_db()
+        self.assertEqual(settled.driver_gratuity, Decimal("50.00"),
+                         "a frozen statement was rewritten behind itself")
+        self.assertEqual(open_leg.driver_gratuity, Decimal("40.00"))
+
+    def test_a_card_charge_still_reaches_every_leg(self):
+        """payable_only is opt-in; the saved-card path must be unchanged."""
+        res = self._res(gratuity=Decimal("80.00"))
+        drv = _make_driver("tipcard")
+        a = self._leg(res, driver=drv, status="completed")
+        b = self._leg(res, driver=drv, status="cancelled")
+        Leg.objects.filter(reservation=res).update(driver_gratuity=Decimal("0.00"))
+
+        self._apply(res, Decimal("80.00"))
+
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.driver_gratuity, Decimal("40.00"))
+        self.assertEqual(b.driver_gratuity, Decimal("40.00"))
+
+    def test_a_negative_share_is_flagged_if_one_ever_appears(self):
+        from dispatching.pay_flags import annotate_pay_flags
+
+        drv = _make_driver("tipneg")
+        leg = self._leg(self._res(), driver=drv)
+        Leg.objects.filter(pk=leg.pk).update(
+            status="completed", payment_status="unpaid",
+            driver_gratuity=Decimal("-41.00"),
+        )
+        legs = list(
+            Leg.objects.filter(pk=leg.pk)
+            .select_related("driver", "reservation", "route")
+            .prefetch_related("legstop_set__location", "reservation__legs")
+        )
+        annotate_pay_flags(legs)
+        self.assertTrue(legs[0].negative_pay)
+        self.assertTrue(legs[0].needs_review)
+        self.assertIn("below zero", flag_labels(legs[0])[0])
+
+
+class ResetKeepsWhatAPersonPutThereTests(_PayFixtureMixin, TestCase):
+    """Reset clears the system's own pricing so the next driver is priced fresh.
+    It must not clear anything a person decided."""
+
+    def _reset(self, legs_qs):
+        """The pay half of reset_schedule, as the view runs it."""
+        from django.db.models import Q
+
+        legs_qs.filter(
+            Q(driver_gratuity__isnull=True) | Q(driver_gratuity=Decimal("0.00")),
+            payment_status="unpaid", pay_manually_set=False,
+        ).update(
+            driver_base_pay=None, driver_additional=None, driver_pay_amount=None,
+        )
+
+    def test_a_hand_typed_amount_survives_a_reset(self):
+        drv = _make_driver("resetman")
+        leg = self._leg(self._res(), driver=drv)
+        Leg.objects.filter(pk=leg.pk).update(
+            status="completed", payment_status="unpaid",
+            driver_base_pay=Decimal("70.00"), pay_manually_set=True,
+        )
+        self._reset(Leg.objects.filter(pk=leg.pk))
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("70.00"))
+        self.assertTrue(leg.pay_manually_set)
+
+    def test_a_pinned_tip_survives_a_reset(self):
+        res = self._res(gratuity=Decimal("200.00"))
+        drv = _make_driver("resettip")
+        a, b = self._leg(res, driver=drv), self._leg(res, driver=drv)
+        Leg.objects.filter(pk=a.pk).update(
+            payment_status="unpaid", driver_gratuity=Decimal("200.00")
+        )
+        Leg.objects.filter(pk=b.pk).update(payment_status="unpaid")
+        self._reset(Leg.objects.filter(reservation=res))
+        a.refresh_from_db()
+        self.assertEqual(a.driver_gratuity, Decimal("200.00"),
+                         "the record of which leg the tip was pinned to was erased")
+
+    def test_an_ordinary_auto_priced_leg_is_still_cleared(self):
+        drv = _make_driver("resetauto")
+        leg = self._leg(self._res(), driver=drv)
+        self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
+        Leg.objects.filter(pk=leg.pk).update(payment_status="unpaid")
+        self._reset(Leg.objects.filter(pk=leg.pk))
+        leg.refresh_from_db()
+        self.assertIsNone(leg.driver_base_pay)
+
+    def test_a_leg_with_no_tip_is_cleared_even_though_its_share_is_zero_not_null(self):
+        """Auto-fill writes 0.00, never NULL. Testing isnull alone matched no leg
+        in the whole database, so the reset silently stopped working."""
+        drv = _make_driver("resetzero")
+        leg = self._leg(self._res(), driver=drv)
+        Leg.objects.filter(pk=leg.pk).update(
+            payment_status="unpaid", driver_gratuity=Decimal("0.00")
+        )
+        self._reset(Leg.objects.filter(pk=leg.pk))
+        leg.refresh_from_db()
+        self.assertIsNone(leg.driver_base_pay)
+
+    def test_a_paid_leg_is_never_cleared(self):
+        drv = _make_driver("resetpaid")
+        leg = self._leg(self._res(), driver=drv)
+        Leg.objects.filter(pk=leg.pk).update(payment_status="paid")
+        self._reset(Leg.objects.filter(pk=leg.pk))
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("25.00"))

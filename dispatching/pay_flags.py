@@ -30,6 +30,7 @@ def annotate_pay_flags(legs):
     counts = {
         "needs_pricing": 0,
         "zero_pay": 0,
+        "negative_pay": 0,
         "gratuity_over_split": 0,
         "unpaid_stop": 0,
         "pay_mismatch": 0,
@@ -52,6 +53,16 @@ def annotate_pay_flags(legs):
         )
         leg.is_sanford = any(kw in loc for kw in SANFORD_KEYWORDS)
         leg.is_zero_pay = not leg.driver_base_pay or leg.driver_base_pay == 0
+
+        # No component of a chauffeur's pay can be below zero. Nothing should be
+        # able to produce one, but "nothing should" is what was believed about
+        # the price borrowed from the booking too, and a negative share reads as
+        # a smaller correct number on every screen. Cheap to check, and it can
+        # only ever fire on something genuinely wrong.
+        leg.negative_pay = any(
+            (part or Decimal("0.00")) < 0
+            for part in (leg.driver_base_pay, leg.driver_gratuity, leg.driver_additional)
+        )
 
         # Nothing could price this trip: no driver rate, no route of its own, and
         # at least one endpoint in no zone. It is not that a route is missing —
@@ -155,6 +166,7 @@ def annotate_pay_flags(legs):
         # and buried the two that genuinely needed a decision.
         leg.needs_review = (
             leg.is_zero_pay
+            or leg.negative_pay
             or leg.needs_pricing
             or leg.gratuity_over_split
             or leg.has_unpaid_stop
@@ -167,6 +179,8 @@ def annotate_pay_flags(legs):
             counts["needs_pricing"] += 1
         if leg.is_zero_pay:
             counts["zero_pay"] += 1
+        if leg.negative_pay:
+            counts["negative_pay"] += 1
         if leg.gratuity_over_split:
             counts["gratuity_over_split"] += 1
         if leg.has_unpaid_stop:
@@ -188,6 +202,8 @@ def annotate_pay_flags(legs):
 def flag_labels(leg):
     """Short reasons this leg is flagged, for a compact list."""
     out = []
+    if getattr(leg, "negative_pay", False):
+        out.append("part of this pay is below zero")
     if leg.needs_pricing:
         out.append("needs a price")
     elif leg.is_zero_pay:

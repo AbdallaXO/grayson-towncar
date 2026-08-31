@@ -2513,6 +2513,7 @@ def modify_reservation(request, id):
                         ),
                         _gratuity_delta,
                         "whole",
+                        payable_only=True,
                     )
                 except Exception as e:
                     logger.warning(
@@ -4279,7 +4280,12 @@ def _add_leg_gratuity(leg, portion):
     convention as booking-time extra_charges). Setting driver_gratuity keeps the
     Leg.save() equal-split from later overwriting this attribution."""
     portion = Decimal(str(portion)).quantize(Decimal("0.01"))
-    leg.driver_gratuity = (leg.driver_gratuity or Decimal("0.00")) + portion
+    # Floor at zero. A leg can hold no share of a tip; it can never hold a
+    # negative one, which would read as the chauffeur owing money on a trip he
+    # drove and would drag total_driver_pay below his base rate.
+    leg.driver_gratuity = max(
+        (leg.driver_gratuity or Decimal("0.00")) + portion, Decimal("0.00")
+    )
     leg.driver_pay_amount = (
         (leg.driver_base_pay or Decimal("0.00"))
         + leg.driver_gratuity
@@ -4293,12 +4299,26 @@ def _add_leg_gratuity(leg, portion):
     leg.save(update_fields=update_fields)
 
 
-def _apply_gratuity_to_legs(reservation, amount, target):
+def _apply_gratuity_to_legs(reservation, amount, target, payable_only=False):
     """Attribute a charged customer gratuity to per-leg driver_gratuity so payroll
     pays the right driver. target='whole' splits evenly across legs (rounding
     remainder on the last leg); otherwise `target` is a leg id and the whole tip
-    goes to that one leg's driver."""
+    goes to that one leg's driver.
+
+    ``payable_only`` restricts the split to legs that can still receive money.
+    A charge coming off a card is attributed to whatever legs the booking has,
+    which is right for a charge. A dispatcher CORRECTING a tip is a different
+    act: a share parked on a cancelled leg is money no chauffeur ever sees
+    (payroll reads completed + unpaid), and a paid leg sits behind a statement
+    that is a frozen snapshot — rewriting the leg desyncs the two.
+    """
     legs = list(reservation.legs.all())
+    if payable_only:
+        legs = [
+            leg for leg in legs
+            if leg.payment_status == "unpaid"
+            and (leg.status or "").lower() not in ("cancelled", "canceled")
+        ]
     if not legs:
         return
     amount = Decimal(str(amount)).quantize(Decimal("0.01"))
@@ -4313,6 +4333,29 @@ def _apply_gratuity_to_legs(reservation, amount, target):
             _add_leg_gratuity(chosen, amount)
             return
         # Unknown leg id → fall through to an even split (never drop the money).
+
+    if amount < 0:
+        # Taking a tip back is not the mirror image of giving one. An even split
+        # of a reduction overdraws any leg holding less than its share — a $100
+        # tip pinned to one leg of two, reduced to $0, leaves the other leg at
+        # −$50. Take it back in proportion to what each leg is actually holding
+        # instead: that can never overdraw, and a leg holding nothing gives up
+        # nothing.
+        held = [(leg, leg.driver_gratuity or Decimal("0.00")) for leg in legs]
+        pool = sum((amount_held for _, amount_held in held), Decimal("0.00"))
+        if pool <= 0:
+            return
+        take = min(-amount, pool)
+        removed = Decimal("0.00")
+        for i, (leg, amount_held) in enumerate(held):
+            if i < len(held) - 1:
+                portion = min((take * amount_held / pool).quantize(Decimal("0.01")), amount_held)
+            else:
+                portion = min(take - removed, amount_held)
+            if portion > 0:
+                _add_leg_gratuity(leg, -portion)
+                removed += portion
+        return
 
     # Whole reservation → split evenly; put any rounding remainder on the last leg.
     share = (amount / Decimal(len(legs))).quantize(Decimal("0.01"))
@@ -13493,11 +13536,26 @@ def reset_schedule(request):
     # the incoming driver silently inherited the previous driver's rate, night
     # bonus and gratuity share. Only ever on unpaid legs — a completed leg that
     # has already been paid keeps its payroll record.
-    _unpaid_pay_reset = dict(
-        driver_base_pay=None, driver_gratuity=None, driver_additional=None,
-        driver_pay_amount=None, pay_manually_set=False,
+    # ...but ONLY where the number is the system's own. Two things a person put
+    # there must survive a reset, because nothing rebuilds them:
+    #   * a hand-typed amount (pay_manually_set) — clearing it re-prices the leg
+    #     off the rate table on the next assignment and the typed figure is gone;
+    #   * an attributed gratuity — the auto-fill splits only the UNattributed
+    #     remainder of a tip, so nulling every leg's share erases the record of
+    #     which leg a tip was pinned to and re-smears it evenly across the trip.
+    # A leg skipped here keeps the previous driver's rate, which the payroll
+    # screen flags as disagreeing with the rate table rather than paying quietly.
+    # NULL *or* zero means "no tip attributed here". Auto-fill writes 0.00 rather
+    # than NULL when a booking carries no tip, so testing isnull alone matches
+    # nothing at all: every leg would be skipped and the reset would quietly stop
+    # working. (In the 2026-08-27 snapshot: 0 legs NULL, 194 at 0.00, 90 with a
+    # real share.)
+    legs.filter(
+        Q(driver_gratuity__isnull=True) | Q(driver_gratuity=Decimal("0.00")),
+        payment_status="unpaid", pay_manually_set=False,
+    ).update(
+        driver_base_pay=None, driver_additional=None, driver_pay_amount=None,
     )
-    legs.filter(payment_status="unpaid").update(**_unpaid_pay_reset)
     legs.filter(status="completed").update(
         driver=None, driver_assigned_by=None, driver_assigned_at=None
     )
