@@ -229,6 +229,20 @@
     color: #ff8a95; font-size: .78rem; padding: .5rem 1.1rem;
   }
 
+  .priceable-bar {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    background: rgba(212,160,23,.09); border: 1px solid rgba(212,160,23,.3);
+    border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1.1rem;
+    font-size: .84rem;
+  }
+  #price-them {
+    background: var(--gt-gold); border: none; color: #1a1a1a; font-weight: 600;
+    border-radius: 6px; font-size: .78rem; padding: .3rem .85rem;
+  }
+  #price-them:disabled { opacity: .5; }
+  .priceable-msg { font-size: .78rem; color: #7ee787; }
+  .priceable-msg.bad { color: #ff8a95; }
+
   .run-empty { text-align: center; padding: 3rem 1rem; color: var(--gt-muted); }
   .run-empty i { font-size: 2.4rem; color: var(--gt-gold); display: block; margin-bottom: .6rem; }
 
@@ -269,6 +283,18 @@
       <a href="{% url 'gusto_export' %}" class="header-action-btn"><i class="bi bi-filetype-csv me-1"></i>Gusto CSV</a>
     </div>
   </div>
+
+  {% if priceable_count %}
+  <div class="priceable-bar">
+    <span>
+      <strong>{{ priceable_count }} trip{{ priceable_count|pluralize }}</strong>
+      {{ priceable_count|pluralize:"has,have" }} a rate the system already knows
+      but has never been asked to write down. Nothing to decide.
+    </span>
+    <button type="button" id="price-them">Price {{ priceable_count|pluralize:"it,them" }}</button>
+    <span class="priceable-msg" id="price-them-msg"></span>
+  </div>
+  {% endif %}
 
   {% if rows %}
   <div class="run-summary">
@@ -511,6 +537,40 @@
 <script>
 const csrfToken = '{{ csrf_token }}';
 const toDate = '{{ to_date_str }}';
+
+// One write for every trip the rate table can already answer. These are not
+// decisions and must never sit in a list of decisions.
+const priceableIds = {{ priceable_ids|safe }};
+const priceThemBtn = document.getElementById('price-them');
+if (priceThemBtn) {
+  priceThemBtn.addEventListener('click', function () {
+    const msg = document.getElementById('price-them-msg');
+    this.disabled = true;
+    msg.className = 'priceable-msg';
+    msg.textContent = 'Pricing...';
+    fetch('/dispatching/recalculate-driver-pay/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ leg_ids: priceableIds, force: false }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          msg.textContent = 'Done. Reloading...';
+          window.location.reload();
+        } else {
+          this.disabled = false;
+          msg.className = 'priceable-msg bad';
+          msg.textContent = data.error || 'Could not price those.';
+        }
+      })
+      .catch(() => {
+        this.disabled = false;
+        msg.className = 'priceable-msg bad';
+        msg.textContent = 'Could not reach the server. Nothing changed.';
+      });
+  });
+}
 
 // "Make this price stick": set the trip AND record the rate in one action, so
 // the same trip does not come back next Sunday asking the same question.

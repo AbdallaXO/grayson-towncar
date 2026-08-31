@@ -23,6 +23,8 @@ title: A price you give once is now remembered, and shop stops stop asking
 >
 > A trip with a price we can't confirm now says which: "we haven't listed that address, price looks normal" is quiet, but a local price on a run to the port or an eighty-mile drive shouts.
 >
+> If the top of the page says some trips have a rate we already know, press **Price them** — that is one button for the lot, not a decision each.
+>
 > Nothing changed about how you assign drivers or record a statement.
 
 ---
@@ -37,6 +39,10 @@ Three things underneath, none of them visible:
 
 - **The auto-fill gate was wrong.** It needed all four pay fields empty, so any trip that picked up a tip before it had a rate could never be priced again — permanently reading "needs a price" on a route we run daily. It now looks at the rate alone and fills each field only if that field is empty. **2,329 legs** were stuck like that.
 - **Recalculate refused any trip without a route row** — exactly the trips zones exist for — and nulled attributed tips on the way past. Both fixed.
+- **Pay is written by a save, and reading a page saves nothing.** So the stuck legs above
+  kept reporting themselves as unpriced however many times anyone opened the payroll
+  screen. They are now separated from trips that genuinely need a decision and cleared
+  by one button for the whole run.
 - **A known endpoint now sets a floor.** Nothing touching the port zone has ever cost under $40, so $25 on a port run is money even when the other end is unlisted. And a price in the local band on an eighty-mile drive is flagged off the real cached distance.
 
 **Expect to be asked:**

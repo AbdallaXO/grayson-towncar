@@ -1573,3 +1573,118 @@ class APriceGivenOnceIsNeverAskedAgainTests(_PayFixtureMixin, TestCase):
         body = resp.content.decode()
         self.assertIn(f'id="stick-{odd.id}"', body)
         self.assertNotIn(f'id="stick-{fine.id}"', body)
+
+
+class NotPricedYetIsNotADecisionTests(_PayFixtureMixin, TestCase):
+    """Pay is written by a save. Reading a page saves nothing, so a leg left over
+    from the old shut gate keeps reporting itself as unpriced no matter how many
+    times anyone opens the payroll screen. That is a button, not a question."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user("pricestaff", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+
+    def _stuck(self, **kw):
+        """A leg the system can price, whose stored base pay is NULL — exactly
+        the shape the all-four-NULL gate used to create."""
+        drv = kw.pop("driver", None) or _make_driver(f"stuck{Leg.objects.count()}")
+        leg = self._leg(self._res(), driver=drv, **kw)
+        Leg.objects.filter(pk=leg.pk).update(
+            status="completed", payment_status="unpaid",
+            driver_base_pay=None, driver_pay_amount=None,
+            driver_gratuity=Decimal("57.00"),
+        )
+        leg.refresh_from_db()
+        return leg
+
+    def test_a_priceable_leg_is_not_put_in_front_of_a_person(self):
+        leg = self._stuck(pickup_location="MCO", dropoff_location="Disney")
+        resp = self.client.get(
+            reverse("payroll_run"), {"to_date": "2026-06-30", "show": "all"}
+        )
+        row = resp.context["rows"][0]
+        got = row["legs"][0]
+        self.assertTrue(got.priceable_now)
+        self.assertFalse(got.needs_pricing)
+        self.assertFalse(got.needs_review, "a button's worth of work became a decision")
+        self.assertEqual(row["flag_count"], 0)
+        self.assertIn("not priced yet", " ".join(context_labels(got)))
+        self.assertIn(leg.id, resp.context["priceable_ids"])
+
+    def test_a_leg_nothing_can_price_is_still_a_decision(self):
+        leg = self._stuck(pickup_location="MCO", dropoff_location="Nowhere We Know")
+        resp = self.client.get(
+            reverse("payroll_run"), {"to_date": "2026-06-30", "show": "all"}
+        )
+        got = resp.context["rows"][0]["legs"][0]
+        self.assertTrue(got.needs_pricing)
+        self.assertTrue(got.needs_review)
+        self.assertNotIn(leg.id, resp.context["priceable_ids"])
+
+    def test_one_press_prices_the_whole_run(self):
+        drv = _make_driver("pricebulk")
+        legs = [
+            self._stuck(driver=drv, pickup_location="MCO", dropoff_location="Disney")
+            for _ in range(3)
+        ]
+        resp = self.client.post(
+            reverse("recalculate_driver_pay"),
+            data=json.dumps({"leg_ids": [l.id for l in legs], "force": False}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        for leg in legs:
+            leg.refresh_from_db()
+            self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
+
+    def test_pricing_the_run_does_not_disturb_an_attributed_tip(self):
+        leg = self._stuck(pickup_location="MCO", dropoff_location="Disney")
+        self.assertEqual(leg.driver_gratuity, Decimal("57.00"))
+        self.client.post(
+            reverse("recalculate_driver_pay"),
+            data=json.dumps({"leg_ids": [leg.id], "force": False}),
+            content_type="application/json",
+        )
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
+        self.assertEqual(
+            leg.driver_gratuity, Decimal("57.00"),
+            "the guest's money was re-smeared by a recalculation",
+        )
+        self.assertEqual(leg.driver_pay_amount, Decimal("82.00"))
+
+    def test_the_bar_is_absent_when_there_is_nothing_to_price(self):
+        self._leg(self._res(), driver=_make_driver("pricenone"))
+        resp = self.client.get(reverse("payroll_run"), {"to_date": "2026-06-30"})
+        self.assertEqual(resp.context["priceable_count"], 0)
+        self.assertNotIn("Price them", resp.content.decode())
+
+
+class DeferredFieldsDoNotRecurseTests(_PayFixtureMixin, TestCase):
+    """refresh_from_db re-anchors the change-tracking attributes. It used to do
+    that with plain attribute reads, which recurse forever on an instance from a
+    .only() queryset that is missing one of them: reading a deferred field makes
+    Django call refresh_from_db, which reads it again. Pricing a leg from the
+    payroll screen hit it instantly."""
+
+    def test_refreshing_a_partially_loaded_leg_terminates(self):
+        drv = _make_driver("deferred")
+        leg = self._leg(self._res(), driver=drv)
+
+        partial = Leg.objects.only(
+            "id", "driver", "driver_id", "pickup_location", "dropoff_location",
+        ).get(pk=leg.pk)
+        partial.refresh_from_db()  # recursed until the stack gave out
+        self.assertEqual(partial.pk, leg.pk)
+
+    def test_an_unloaded_field_keeps_its_anchor_rather_than_being_blanked(self):
+        """Blanking it would disarm the driver-change clear and the pickup-moved
+        badge for the rest of that instance's life."""
+        drv = _make_driver("deferred2")
+        leg = self._leg(self._res(), driver=drv)
+
+        partial = Leg.objects.only("id", "driver", "driver_id").get(pk=leg.pk)
+        partial._original_pickup_time = time(4, 30)
+        partial.refresh_from_db(fields=["driver_id"])
+        self.assertEqual(partial._original_pickup_time, time(4, 30))
+        self.assertEqual(partial._original_driver_id, drv.id)

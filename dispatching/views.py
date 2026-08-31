@@ -9206,7 +9206,7 @@ def recalculate_driver_pay(request):
         .select_related('driver', 'reservation', 'reservation__vehicle', 'route')
         .only(
             'id', 'driver', 'driver_id', 'route', 'route_id',
-            'pickup_location', 'dropoff_location', 'pickup_time',
+            'pickup_location', 'dropoff_location', 'pickup_time', 'pickup_date',
             'driver_base_pay', 'driver_gratuity', 'driver_additional',
             'driver_pay_amount', 'profit_estimate', 'revenue_share',
             'payment_status', 'pay_manually_set',
@@ -9942,6 +9942,11 @@ def payroll_run(request):
         "money_total": sum(r["total"] for r in rows),
         "oldest_overall": min((r["oldest"] for r in rows), default=None),
         "flag_counts": flag_counts,
+        # Legs the system can price but has never been asked to. One button for
+        # the whole run — pay is written by a save, and reading a page saves
+        # nothing, so these need one write and not a decision each.
+        "priceable_ids": [l.id for l in legs if getattr(l, "priceable_now", False)],
+        "priceable_count": flag_counts.get("priceable_now", 0),
         # For the "make this stick" control: a price is only an answer if it can
         # be saved somewhere it will be found again.
         "zones": zones,

@@ -123,6 +123,7 @@ def annotate_pay_flags(legs, distance_cache=None):
 
     counts = {
         "needs_pricing": 0,
+        "priceable_now": 0,
         "zero_pay": 0,
         "negative_pay": 0,
         "gratuity_over_split": 0,
@@ -152,6 +153,7 @@ def annotate_pay_flags(legs, distance_cache=None):
     floors = {}
 
     for leg in legs:
+        leg.expected_base_pay = None
         loc = f"{leg.pickup_location} {leg.dropoff_location}".lower()
         leg.is_cruise = bool(leg.cruise_information_id) or any(
             kw in loc for kw in CRUISE_PORT_KEYWORDS
@@ -167,11 +169,27 @@ def annotate_pay_flags(legs, distance_cache=None):
             for part in (leg.driver_base_pay, leg.driver_gratuity, leg.driver_additional)
         )
 
-        # Nothing could price this trip. Note this is now genuinely rare: a leg
-        # that merely lacks a Route row prices from its zone, and since the
-        # auto-fill gate was narrowed to base pay alone, a leg that picked up a
-        # tip before it had a rate is no longer stuck without one forever.
-        leg.needs_pricing = bool(leg.driver_id) and leg.driver_base_pay is None
+        # Two different things hide behind "no price", and only one of them is a
+        # decision. The system may know perfectly well what this trip is worth
+        # and simply never have been asked — pay is written by Leg.save(), and
+        # reading a page saves nothing, so a leg left over from the old shut gate
+        # keeps reporting itself as unpriced until something writes to it. That
+        # is a button, not a question for Abdalla.
+        leg.priceable_now = False
+        leg.needs_pricing = False
+        if leg.driver_id and leg.driver_base_pay is None:
+            try:
+                known = calculate_driver_pay(
+                    leg, locations=location_cache, routes=route_cache,
+                    driver_rates=rate_cache,
+                )
+            except Exception:
+                known = None
+            if known is None:
+                leg.needs_pricing = True
+            else:
+                leg.priceable_now = True
+                leg.expected_base_pay = known
 
         # ── stops ────────────────────────────────────────────────────────────
         # A shop run and a second drop-off are not the same thing. One is a few
@@ -337,7 +355,7 @@ def annotate_pay_flags(legs, distance_cache=None):
         # Cruise/Sanford keywords, an unlisted address on an otherwise ordinary
         # price, and a shop stop are CONTEXT. None of them is a decision.
         leg.needs_review = (
-            leg.is_zero_pay
+            (leg.is_zero_pay and not leg.priceable_now)
             or leg.negative_pay
             or leg.needs_pricing
             or leg.gratuity_over_split
@@ -352,6 +370,7 @@ def annotate_pay_flags(legs, distance_cache=None):
 
         for name, fired in (
             ("needs_pricing", leg.needs_pricing),
+            ("priceable_now", leg.priceable_now),
             ("zero_pay", leg.is_zero_pay),
             ("negative_pay", leg.negative_pay),
             ("gratuity_over_split", leg.gratuity_over_split),
@@ -384,6 +403,8 @@ def flag_labels(leg):
         out.append("part of this pay is below zero")
     if leg.needs_pricing:
         out.append("needs a price")
+    elif getattr(leg, "priceable_now", False):
+        pass  # a button fixes this, not a person
     elif leg.is_zero_pay:
         out.append("$0 pay")
     if getattr(leg, "below_zone_floor", False):
@@ -420,6 +441,11 @@ def flag_labels(leg):
 def context_labels(leg):
     """Things worth seeing on the row that are NOT a reason to stop."""
     out = []
+    if getattr(leg, "priceable_now", False):
+        out.append(
+            f"not priced yet — the rates say ${leg.expected_base_pay}, "
+            f"press Price them"
+        )
     if getattr(leg, "address_unlisted", False):
         out.append("address not listed yet — price looks normal")
     if getattr(leg, "has_store_stop", False):

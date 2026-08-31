@@ -1720,11 +1720,31 @@ class Leg(models.Model):
         change onto that save.
         """
         super().refresh_from_db(*args, **kwargs)
-        self._original_pickup_time = self.pickup_time
-        self._original_pickup_date = self.pickup_date
-        self._original_driver_id = self.driver_id
-        self._original_pickup_location = self.pickup_location
-        self._original_dropoff_location = self.dropoff_location
+        # Read through __dict__, exactly as __init__ does, and re-anchor only
+        # what is actually loaded.
+        #
+        # These used to be plain attribute reads, which is fine until the
+        # instance came from a .only() queryset missing one of them: reading a
+        # deferred field makes Django call refresh_from_db to fetch it, which
+        # re-enters this method, which reads the still-deferred field again.
+        # It recurses until the stack gives out. Nothing hit it while the only
+        # callers loaded every field; pricing a leg from the payroll screen's
+        # .only() queryset did, instantly.
+        #
+        # A field that is not loaded keeps whatever anchor it had. That is the
+        # honest answer — there is no fresh value to anchor to — and it is safer
+        # than blanking it, which would disarm the driver-change clear and the
+        # pickup-moved badge for the rest of that instance's life.
+        loaded = self.__dict__
+        for attr, field in (
+            ("_original_pickup_time", "pickup_time"),
+            ("_original_pickup_date", "pickup_date"),
+            ("_original_driver_id", "driver_id"),
+            ("_original_pickup_location", "pickup_location"),
+            ("_original_dropoff_location", "dropoff_location"),
+        ):
+            if field in loaded:
+                setattr(self, attr, loaded[field])
 
     def save(self, *args, **kwargs):
         # PERF TEMP START
