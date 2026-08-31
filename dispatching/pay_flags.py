@@ -24,7 +24,8 @@ def annotate_pay_flags(legs):
     ``legs`` must already have ``reservation`` selected and ``legstop_set`` and
     ``reservation__legs`` prefetched, or this will N+1.
     """
-    from rates.models import Location
+    from drivers.models import DriverPayRate
+    from rates.models import Location, Route
 
     counts = {
         "needs_pricing": 0,
@@ -32,13 +33,17 @@ def annotate_pay_flags(legs):
         "gratuity_over_split": 0,
         "unpaid_stop": 0,
         "pay_mismatch": 0,
+        "unverified_price": 0,
         "night_bonus_missing": 0,
         "route_review": 0,
         "total_flagged": 0,
     }
 
-    # Read once for the whole page rather than once per leg.
+    # Read once for the whole page rather than once per leg. Both tables are a
+    # couple of dozen rows; a leg-by-leg read here is hundreds of queries.
     location_cache = list(Location.objects.select_related("pay_zone").all())
+    route_cache = list(Route.objects.all())
+    rate_cache = list(DriverPayRate.objects.all())
 
     for leg in legs:
         loc = f"{leg.pickup_location} {leg.dropoff_location}".lower()
@@ -85,12 +90,48 @@ def annotate_pay_flags(legs):
             and not leg.pay_manually_set
         ):
             try:
-                expected = calculate_driver_pay(leg, locations=location_cache)
+                expected = calculate_driver_pay(
+                    leg, locations=location_cache, routes=route_cache,
+                    driver_rates=rate_cache,
+                )
             except Exception:
                 expected = None
             leg.expected_base_pay = expected
             if expected is not None and expected != leg.driver_base_pay:
                 leg.pay_mismatch = True
+
+        # Can the system actually check this number, or does it only look
+        # checked? A leg carries a route as a LINK, not as a fact, and the old
+        # booking-rate fallback wrote a thousand links that point at a different
+        # trip. Priced off one of those, a leg agrees with itself perfectly: the
+        # audit asks the wrong route what the trip costs and gets the answer
+        # already stored. That is how a 70-mile run to Sebastian sits at $25 and
+        # reads as ready. So say plainly when a price cannot be verified.
+        leg.unverified_price = False
+        leg.unverified_reason = ""
+        if (
+            leg.driver_id
+            and leg.driver_base_pay is not None
+            and not leg.pay_manually_set
+            and not leg.pay_mismatch
+        ):
+            origin, dest = leg._resolve_location_endpoints(locations=location_cache)
+            if not (origin and dest):
+                leg.unverified_price = True
+                leg.unverified_reason = "an address here isn't one we know"
+            elif leg.route_id and {
+                leg.route.origin_id, leg.route.destination_id
+            } != {origin.id, dest.id}:
+                # The link is wrong. Only worth a look when believing it would
+                # change the money — otherwise it is tidy-up, not payroll.
+                from rates.models import ZoneRate
+
+                by_zone = ZoneRate.pay_for(origin.pay_zone_id, dest.pay_zone_id)
+                if by_zone is not None and by_zone != leg.driver_base_pay:
+                    leg.unverified_price = True
+                    leg.unverified_reason = (
+                        "linked to a different trip than the one it ran"
+                    )
 
         # A night pickup with no bonus. Pay now follows a pickup that moves
         # across the window, but a leg priced before that landed — or one where
@@ -118,6 +159,7 @@ def annotate_pay_flags(legs):
             or leg.gratuity_over_split
             or leg.has_unpaid_stop
             or leg.pay_mismatch
+            or leg.unverified_price
             or leg.night_bonus_missing
         )
 
@@ -131,6 +173,8 @@ def annotate_pay_flags(legs):
             counts["unpaid_stop"] += 1
         if leg.pay_mismatch:
             counts["pay_mismatch"] += 1
+        if leg.unverified_price:
+            counts["unverified_price"] += 1
         if leg.night_bonus_missing:
             counts["night_bonus_missing"] += 1
         if leg.is_cruise or leg.is_sanford:
@@ -157,6 +201,8 @@ def flag_labels(leg):
         out.append(
             f"pays ${leg.driver_base_pay} but the rates say ${leg.expected_base_pay}"
         )
+    if getattr(leg, "unverified_price", False):
+        out.append(f"pays ${leg.driver_base_pay}, but {leg.unverified_reason}")
     if leg.night_bonus_missing:
         out.append(f"night pickup, ${leg.night_bonus_due} bonus not on it")
     return out

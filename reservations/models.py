@@ -1654,7 +1654,7 @@ class Leg(models.Model):
         self._loc_endpoints_cache = (key, result)
         return result
 
-    def _resolve_route_from_locations(self):
+    def _resolve_route_from_locations(self, locations=None, routes=None):
         """Return the explicit Route this leg's addresses text-match, or None.
 
         There is deliberately NO fallback to the reservation's booking rate.
@@ -1666,15 +1666,32 @@ class Leg(models.Model):
         Returning None here is not the end of pricing — a leg whose endpoints
         are both in a known pay zone is still priced from the zone rate (see
         drivers.pay_calc). A Route exists only to override its zone.
+
+        ``locations`` and ``routes`` let a caller checking a page full of legs
+        hand in both tables once. Both are a couple of dozen rows and change
+        rarely; passing nothing keeps the original per-leg queries.
         """
-        origin, destination = self._resolve_location_endpoints()
+        key = (self.pickup_location or "", self.dropoff_location or "")
+        cached = getattr(self, "_route_match_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+
+        origin, destination = self._resolve_location_endpoints(locations=locations)
         if not (origin and destination):
-            return None
-        return (
-            Route.objects.filter(origin=origin, destination=destination).first()
-            # Reverse direction (return trips match origin↔destination)
-            or Route.objects.filter(origin=destination, destination=origin).first()
-        )
+            match = None
+        elif routes is not None:
+            pair = {origin.id, destination.id}
+            match = next(
+                (r for r in routes if {r.origin_id, r.destination_id} == pair), None
+            )
+        else:
+            match = (
+                Route.objects.filter(origin=origin, destination=destination).first()
+                # Reverse direction (return trips match origin↔destination)
+                or Route.objects.filter(origin=destination, destination=origin).first()
+            )
+        self._route_match_cache = (key, match)
+        return match
 
     def _assign_route_from_locations(self):
         if self.route:

@@ -20,7 +20,9 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from drivers.models import Driver
+from drivers.models import Driver, DriverPayRate
+from drivers.pay_calc import calculate_driver_pay
+from dispatching.pay_flags import flag_labels
 from rates.models import Location, Rate, Route, Vehicle, Zone, ZoneRate
 from reservations.models import Customer, Leg, LegStop, Reservation
 
@@ -650,13 +652,23 @@ class RatesPageTests(_PayFixtureMixin, TestCase):
         resp = self.client.post(
             reverse("save_place"),
             data=json.dumps({
-                "name": "Clermont", "zone_id": self.outer.id, "aliases": "Clermont FL",
+                "name": "Cocoa Beach", "zone_id": self.outer.id,
+                "aliases": "Cocoa Bch",
             }),
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 200)
-        loc = Location.objects.get(name="Clermont")
+        loc = Location.objects.get(name="Cocoa Beach")
         self.assertEqual(loc.pay_zone_id, self.outer.id)
+
+    def test_a_place_that_already_exists_is_refused(self):
+        resp = self.client.post(
+            reverse("save_place"),
+            data=json.dumps({"name": "mco", "zone_id": self.local.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Location.objects.filter(name__iexact="mco").count(), 1)
 
     def test_a_non_staff_user_cannot_change_prices(self):
         self.client.logout()
@@ -1048,3 +1060,191 @@ class NoBrowserDialogsTests(_PayFixtureMixin, TestCase):
         self.assertLess(
             body.index("Waited 45 min"), body.index("Two extra bags")
         )
+
+
+class RouteExceptionsBeatZonesTests(_PayFixtureMixin, TestCase):
+    """A Route is an override on its zone, and it has to override whether or
+    not anyone linked the leg to it.
+
+    This is the shape of the original bug seen from the other side: pay written
+    by one code path and audited by another. If save() prices a trip off the
+    exception and the audit prices the same trip off the zone, the audit calls
+    a correct amount wrong, and someone "fixes" it.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.far = Location.objects.create(name="Farville", pay_zone=cls.local)
+        # Local to Local would be $25 from the zone; this pair is dearer.
+        cls.far_route = Route.objects.create(
+            origin=cls.far, destination=cls.port, inhouse_base_pay=Decimal("55.00")
+        )
+
+    def test_an_unlinked_leg_still_gets_the_exception_price(self):
+        drv = _make_driver("exc1")
+        leg = self._leg(
+            self._res(), driver=drv,
+            pickup_location="Farville", dropoff_location="Port Canaveral",
+        )
+        self.assertEqual(leg.driver_base_pay, Decimal("55.00"))
+
+        leg.route = None
+        self.assertEqual(
+            calculate_driver_pay(leg), Decimal("55.00"),
+            "an unlinked leg fell back to the zone price and undercut the route",
+        )
+
+    def test_the_exception_applies_in_both_directions(self):
+        drv = _make_driver("exc2")
+        leg = self._leg(
+            self._res(), driver=drv,
+            pickup_location="Port Canaveral", dropoff_location="Farville",
+        )
+        self.assertEqual(leg.driver_base_pay, Decimal("55.00"))
+
+    def test_a_pair_with_no_exception_still_prices_from_its_zone(self):
+        drv = _make_driver("exc3")
+        leg = self._leg(
+            self._res(), driver=drv,
+            pickup_location="I-Drive", dropoff_location="Port Canaveral",
+        )
+        self.assertEqual(leg.driver_base_pay, Decimal("40.00"))
+
+    def test_the_prefetched_tables_give_the_same_answer(self):
+        """Handing the tables in is an optimisation, never a different rule."""
+        drv = _make_driver("exc4")
+        legs = [
+            self._leg(self._res(), driver=drv, pickup_location=a, dropoff_location=b)
+            for a, b in [
+                ("Farville", "Port Canaveral"),
+                ("MCO", "Disney"),
+                ("I-Drive", "Port Canaveral"),
+                ("MCO", "Nowheresville"),
+            ]
+        ]
+        locations = list(Location.objects.select_related("pay_zone").all())
+        routes = list(Route.objects.all())
+        rates = list(DriverPayRate.objects.all())
+        for leg in legs:
+            leg.route = None
+            leg._route_match_cache = None
+            alone = calculate_driver_pay(leg)
+            leg._route_match_cache = None
+            together = calculate_driver_pay(
+                leg, locations=locations, routes=routes, driver_rates=rates
+            )
+            self.assertEqual(alone, together, f"{leg.pickup_location} -> {leg.dropoff_location}")
+
+
+class PayrollRunQueryBudgetTests(_PayFixtureMixin, TestCase):
+    """The run screen reads every unpaid trip for the whole roster. Pricing has
+    to come out of tables read once, not out of a query per trip — a page that
+    is quietly 600 queries on Postgres is a page nobody opens on a Sunday."""
+
+    def test_pricing_a_page_of_legs_does_not_scale_with_the_legs(self):
+        from dispatching.pay_flags import annotate_pay_flags
+
+        drivers = [_make_driver(f"budget{i}") for i in range(3)]
+        made = []
+        for drv in drivers:
+            for _ in range(6):
+                leg = self._leg(self._res(), driver=drv)
+                leg.status = "completed"
+                leg.payment_status = "unpaid"
+                leg.save(update_fields=["status", "payment_status"])
+                made.append(leg.pk)
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def read(pks):
+            legs = list(
+                Leg.objects.filter(pk__in=pks)
+                .select_related("driver", "driver__profile", "reservation", "route")
+                .prefetch_related("legstop_set__location", "reservation__legs")
+            )
+            with CaptureQueriesContext(connection) as cap:
+                annotate_pay_flags(legs)
+            return len(cap)
+
+        # Pinning an exact number would just re-record whatever the code does
+        # today. The invariant is that pricing reads the rate tables, not the
+        # legs: three times the trips must not cost a single query more.
+        few, many = read(made[:6]), read(made)
+        self.assertEqual(few, many, f"{few} queries for 6 legs, {many} for {len(made)}")
+        self.assertLess(many, 10)
+
+
+class UnverifiablePriceTests(_PayFixtureMixin, TestCase):
+    """A number nobody can check is not the same as a number that is right.
+
+    The old fallback left legs linked to a route they never ran. Priced off one
+    of those, a leg agrees with itself: the audit asks the wrong route and gets
+    back the amount already stored. Those legs read as ready when nothing about
+    them has been checked.
+    """
+
+    def _completed(self, **kw):
+        drv = kw.pop("driver", None) or _make_driver(f"unv{Leg.objects.count()}")
+        leg = self._leg(self._res(), driver=drv, **kw)
+        leg.status = "completed"
+        leg.payment_status = "unpaid"
+        leg.save(update_fields=["status", "payment_status"])
+        return leg
+
+    def _flags(self, leg):
+        from dispatching.pay_flags import annotate_pay_flags
+
+        legs = list(
+            Leg.objects.filter(pk=leg.pk)
+            .select_related("driver", "reservation", "route")
+            .prefetch_related("legstop_set__location", "reservation__legs")
+        )
+        annotate_pay_flags(legs)
+        return legs[0]
+
+    def test_an_address_we_cannot_place_is_called_out(self):
+        leg = self._completed(
+            pickup_location="MCO", dropoff_location="Disney",
+        )
+        # It ran somewhere else entirely; the link stayed behind.
+        Leg.objects.filter(pk=leg.pk).update(
+            dropoff_location="1215 Calusa Drive, Sebastian, FL 32976"
+        )
+        got = self._flags(leg)
+        self.assertTrue(got.unverified_price)
+        self.assertTrue(got.needs_review)
+        self.assertIn("isn't one we know", flag_labels(got)[0])
+
+    def test_a_stale_link_that_would_change_the_money_is_called_out(self):
+        leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
+        self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
+        # Same stored $25 and the same linked MCO->Disney route, but the trip
+        # it actually ran is a $40 run out to the port.
+        Leg.objects.filter(pk=leg.pk).update(dropoff_location="Port Canaveral")
+        got = self._flags(leg)
+        self.assertTrue(got.unverified_price)
+        self.assertIn("different trip", flag_labels(got)[0])
+
+    def test_a_stale_link_worth_the_same_money_is_left_alone(self):
+        """Tidy-up is not payroll. A wrong link that changes nothing stays quiet."""
+        leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
+        Leg.objects.filter(pk=leg.pk).update(dropoff_location="I-Drive")
+        got = self._flags(leg)
+        self.assertFalse(got.unverified_price)
+        self.assertFalse(got.needs_review)
+
+    def test_a_trip_that_checks_out_is_not_flagged(self):
+        got = self._flags(self._completed())
+        self.assertFalse(got.unverified_price)
+        self.assertFalse(got.needs_review)
+
+    def test_a_hand_typed_amount_is_never_second_guessed(self):
+        leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
+        Leg.objects.filter(pk=leg.pk).update(
+            dropoff_location="1215 Calusa Drive, Sebastian, FL 32976",
+            pay_manually_set=True,
+        )
+        got = self._flags(leg)
+        self.assertFalse(got.unverified_price)

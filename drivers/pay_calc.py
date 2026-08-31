@@ -51,7 +51,7 @@ def _determine_direction(leg):
     return "forward"  # default
 
 
-def _find_rate(driver, route, vehicle, direction):
+def _find_rate(driver, route, vehicle, direction, driver_rates=None):
     """Find the best matching DriverPayRate.
 
     Lookup priority:
@@ -59,8 +59,37 @@ def _find_rate(driver, route, vehicle, direction):
       2. 'both' direction with vehicle
       3. Exact direction match, all vehicles
       4. 'both' direction, all vehicles
+
+    ``driver_rates`` is the whole table handed in by a caller pricing a page of
+    legs. It is a few hundred rows and no in-house driver has a row in it at
+    all, so looking it up per leg is hundreds of queries to learn nothing.
     """
     from drivers.models import DriverPayRate
+
+    if driver_rates is not None:
+        pool = [
+            r for r in driver_rates
+            if r.driver_id == driver.id and r.route_id == route.id
+        ]
+        if not pool:
+            return None
+
+        def pick(vehicle_id, want):
+            for r in pool:
+                if r.vehicle_id == vehicle_id and r.direction == want:
+                    return r.base_pay
+            return None
+
+        if vehicle:
+            for want in (direction, "both"):
+                found = pick(vehicle.id, want)
+                if found is not None:
+                    return found
+        for want in (direction, "both"):
+            found = pick(None, want)
+            if found is not None:
+                return found
+        return None
 
     base_qs = DriverPayRate.objects.filter(driver=driver, route=route)
 
@@ -90,11 +119,11 @@ def _find_rate(driver, route, vehicle, direction):
     return None
 
 
-def calculate_driver_pay(leg, locations=None):
+def calculate_driver_pay(leg, locations=None, routes=None, driver_rates=None):
     """Calculate base_pay for a leg based on driver, route, vehicle.
 
     Lookup chain:
-      INHOUSE:
+      INHOUSE (an unlinked leg still matches a Route by its addresses):
         1. DriverPayRate(driver, route) → driver override
         2. Route.inhouse_base_pay → this pair overrides its zone
         3. ZoneRate for the two endpoints' pay zones → the normal case
@@ -116,9 +145,22 @@ def calculate_driver_pay(leg, locations=None):
     route = leg.route
 
     if driver.driver_type == "inhouse":
+        if route is None:
+            # A Route exception has to apply because the two ADDRESSES are that
+            # pair, not because someone remembered to link the row. Otherwise
+            # the same trip prices at $55 when it is saved and reads as $40 when
+            # it is audited, and the audit is what a person believes.
+            # Read-only on purpose: assigning leg.route here would turn every
+            # pay lookup into a pending write.
+            route = leg._resolve_route_from_locations(
+                locations=locations, routes=routes
+            )
         # 1. Driver-specific override on this exact route.
         if route is not None:
-            rate = _find_rate(driver, route, vehicle=None, direction="both")
+            rate = _find_rate(
+                driver, route, vehicle=None, direction="both",
+                driver_rates=driver_rates,
+            )
             if rate is not None:
                 return rate
             # 2. The route's own price. A Route is an OVERRIDE on its zone, so
@@ -143,7 +185,7 @@ def calculate_driver_pay(leg, locations=None):
         vehicle = leg.reservation.vehicle
 
     if driver.driver_type == "affiliate":
-        rate = _find_rate(driver, route, vehicle, direction)
+        rate = _find_rate(driver, route, vehicle, direction, driver_rates=driver_rates)
         if rate is None and (leg.effective_vehicle_type or "") == "mini_van":
             # minivan == SUV pricing equivalence (founder rule — see the farm-out optimizer's
             # loud header): an affiliate with no minivan row is paid their SUV rate. FALLBACK
@@ -152,7 +194,9 @@ def calculate_driver_pay(leg, locations=None):
             from rates.models import Vehicle
             suv = Vehicle.objects.filter(vehicle_type="suv").first()
             if suv is not None:
-                rate = _find_rate(driver, route, suv, direction)
+                rate = _find_rate(
+                    driver, route, suv, direction, driver_rates=driver_rates
+                )
         return rate
 
     return None

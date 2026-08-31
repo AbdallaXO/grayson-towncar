@@ -97,8 +97,10 @@ Two things that follow from this:
 - **"No route linked" is no longer a finding.** Most trips have no route row and price
   perfectly well from their zones. Do not flag a leg for lacking one.
 - **A place can be in a zone and still have exceptions.** Championsgate is Local, but the
-  airport run is $35 rather than $25. The Pay Rates page lists a place's exceptions directly
-  under its zone; read them there rather than assuming one flat rate.
+  airport run is $35 rather than $25; Clermont is Local, but the cruise-port run is $55. The
+  Pay Rates page lists a place's exceptions directly under its zone; read them there rather
+  than assuming one flat rate. An exception applies because the two addresses are that pair,
+  so it holds whether or not the trip is linked to the route.
 
 **Night bonus is automatic.** It is per driver (`Driver.night_bonus` — most are $10, at
 least one is $20, some are $0) and the window is pickup at or after 22:01 or at or before
@@ -144,7 +146,7 @@ comparing totals to a rate flags all of them as wrong when nothing is wrong.
 Open the Payroll Run screen with the To Date set. Work down from the top, since the drivers
 needing decisions are already there.
 
-**For each flagged trip, the flag tells you what is wrong.** There are six:
+**For each flagged trip, the flag tells you what is wrong.** There are seven:
 
 | Flag | What it means | What to do |
 |---|---|---|
@@ -153,6 +155,7 @@ needing decisions are already there.
 | **N extra stops, nothing added for it** | The trip had a stop the guest was charged for; the driver's extra-pay box is empty | **Flag for Abdalla** with the stop and the guest fee. What the driver gets for a stop is his call, not a lookup. |
 | **holds more of the tip than its share** | A sibling leg on the same booking sits at exactly $0.00, so this leg absorbed the whole tip | **Flag for Abdalla.** Do not re-divide it yourself: moving money off this leg strands it, because the sibling is not re-saved. |
 | **pays $X but the rates say $Y** | The stored amount disagrees with what the zones and exceptions work out today | If it is a clean 10x/100x slip, correct it. Otherwise **flag it** — it may be a deliberate override from before amounts were marked. |
+| **pays $X, but an address here isn't one we know** / **linked to a different trip** | The trip carries an amount, but nothing can confirm it: either an endpoint is a place we can't place, or the leg is still linked to a route it never ran, so the check would be asking the wrong trip. | **Flag for Abdalla** with both addresses. Usually a property worth adding to a zone on the Pay Rates page; occasionally a genuinely out-of-area run that was paid the local rate. |
 | **night pickup, $X bonus not on it** | Pickup is inside 22:01–05:59 and the bonus is missing | Add the driver's bonus to the extra-pay box. Also report it: pay follows the window automatically now, so this means something bypassed that. |
 
 **Fix yourself, only these:**
@@ -168,6 +171,7 @@ needing decisions are already there.
 - a completed leg missing pickup or dropoff data,
 - two legs on one reservation that look like duplicates,
 - a night pickup with no night bonus (see above — this should not happen any more),
+- a trip whose price cannot be verified — never assume the stored number is fine because it looks like every other one,
 - anything where the fix requires knowing intent rather than reading a number.
 
 **Record what you changed.** Per driver: trips corrected, dollar delta, one line each.
