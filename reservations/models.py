@@ -1940,13 +1940,22 @@ class Leg(models.Model):
                     'operator_driver_name', 'operator_driver_phone', 'operator_accepted_at'
                 }
 
-        # Auto-fill driver pay when not set (inhouse and affiliate)
-        _autofilled = False
+        # Auto-fill driver pay when not set (inhouse and affiliate).
+        #
+        # The gate is BASE PAY ALONE. It used to require all four pay fields to be
+        # NULL, which quietly created a class of permanently unpriceable legs: any
+        # leg that got a gratuity before it got a rate — a tip charged to one leg
+        # through the payment portal, a dispatcher's tip correction — had the gate
+        # shut on it forever. Base pay could never be filled, so the trip read as
+        # "needs a price" on every payroll run for the rest of its life, even on a
+        # route the system prices hundreds of times a week. neuma's Sanford → Beach
+        # Club leg (#26497) is one: $57.00 of tip, no rate, both endpoints known.
+        #
+        # Each field is now filled only if it is individually unset, so this can
+        # add what is missing and can never overwrite what is already there.
+        _autofill_set_bonus = False
         if (
             self.driver_base_pay is None
-            and self.driver_gratuity is None
-            and self.driver_additional is None
-            and self.driver_pay_amount is None
             and self.driver
             and not self.pay_manually_set
         ):
@@ -1955,7 +1964,6 @@ class Leg(models.Model):
             base_pay = calculate_driver_pay(self)
 
             if base_pay is not None:
-                _autofilled = True
                 # Gratuity split — divide customer gratuity across all legs
                 gratuity_share = Decimal("0.00")
                 reservation = self.reservation
@@ -2004,25 +2012,37 @@ class Leg(models.Model):
 
                 # Set base pay and gratuity separately
                 self.driver_base_pay = base_pay.quantize(Decimal("0.01"))
-                self.driver_gratuity = gratuity_share.quantize(Decimal("0.01"))
+                # Only when nothing is attributed yet. A share already sitting on
+                # this leg was put there on purpose and the split above has
+                # already excluded it from what the siblings divide.
+                if self.driver_gratuity is None:
+                    self.driver_gratuity = gratuity_share.quantize(Decimal("0.01"))
 
-                # Night pickup bonus goes in additional (early/late fee)
-                night_bonus = calculate_night_bonus(self.driver, self.pickup_time)
+                # Night pickup bonus goes in additional (early/late fee). Only
+                # into an EMPTY box: driver_additional is a mixed bucket, and
+                # something already in it may or may not already be the bonus.
+                # A night pickup whose box is occupied is left for the
+                # night-bonus flag to raise rather than guessed at here.
                 additional = self.driver_additional or Decimal("0.00")
-                if night_bonus > 0:
-                    additional = (additional + night_bonus).quantize(Decimal("0.01"))
-                    self.driver_additional = additional
-                self.driver_pay_amount = (self.driver_base_pay + self.driver_gratuity + additional).quantize(
-                    Decimal("0.01")
-                )
+                if self.driver_additional is None:
+                    night_bonus = calculate_night_bonus(self.driver, self.pickup_time)
+                    if night_bonus > 0:
+                        additional = night_bonus.quantize(Decimal("0.01"))
+                        self.driver_additional = additional
+                        _autofill_set_bonus = True
+                self.driver_pay_amount = (
+                    self.driver_base_pay
+                    + (self.driver_gratuity or Decimal("0.00"))
+                    + additional
+                ).quantize(Decimal("0.01"))
 
         # The pickup moved across the night-bonus boundary AFTER pay was already
         # computed. Apply the DIFFERENCE, never an overwrite: driver_additional is a
         # mixed bucket (night bonus + wait time + whatever a dispatcher typed for an
         # extra stop) and overwriting it would silently delete the rest.
         #
-        # Skipped when the auto-fill just ran (it already applied the bonus for the
-        # new time — adding the delta on top would double it), when the driver
+        # Skipped when the auto-fill just wrote the bonus itself (it used the new
+        # time — adding the delta on top would double it), when the driver
         # changed in the same save (the delta is the NEW driver's rate applied to the
         # OLD driver's money), and when there is no computed pay to adjust (writing a
         # bonus onto an all-NULL leg leaves base pay NULL and shuts the guard above
@@ -2030,7 +2050,7 @@ class Leg(models.Model):
         _night_delta = getattr(self, '_night_delta', None)
         if (
             _night_delta
-            and not _autofilled
+            and not _autofill_set_bonus
             and not _driver_changed
             and self.driver_base_pay is not None
         ):

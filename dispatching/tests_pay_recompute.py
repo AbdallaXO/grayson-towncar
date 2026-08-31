@@ -22,7 +22,7 @@ from django.urls import reverse
 
 from drivers.models import Driver, DriverPayRate
 from drivers.pay_calc import calculate_driver_pay
-from dispatching.pay_flags import flag_labels
+from dispatching.pay_flags import context_labels, flag_labels
 from rates.models import Location, Rate, Route, Vehicle, Zone, ZoneRate
 from reservations.models import Customer, Leg, LegStop, Reservation
 
@@ -725,17 +725,32 @@ class PayrollRunScreenTests(_PayFixtureMixin, TestCase):
         self.assertEqual(resp.context["needs_look_count"], 1)
         self.assertEqual(resp.context["ready_count"], 1)
 
-    def test_an_unpaid_extra_stop_is_flagged(self):
+    def test_a_shop_stop_is_context_not_a_decision(self):
+        """A Publix run is a few minutes of waiting that nobody pays for. Putting
+        it in the review list every week only teaches people to skim it."""
         drv = _make_driver("run_stop")
         leg = self._completed(drv)
         LegStop.objects.create(
-            leg=leg, sequence=0, location_text="Publix", stop_type="stop",
-            duration_minutes=20, extra_fee=Decimal("40.00"),
+            leg=leg, sequence=0, location_text="Publix Super Market",
+            stop_type="stop", duration_minutes=20, extra_fee=Decimal("40.00"),
+        )
+        resp = self.client.get(reverse("payroll_run"), {"to_date": "2026-06-30"})
+        row = resp.context["rows"][0]
+        self.assertEqual(row["flag_count"], 0)
+        self.assertIn("shop stop", " ".join(row["legs"][0].context_labels))
+
+    def test_an_extra_destination_is_a_decision(self):
+        """A second drop-off is work, and what it pays is a decision every time."""
+        drv = _make_driver("run_dest")
+        leg = self._completed(drv)
+        LegStop.objects.create(
+            leg=leg, sequence=0, location_text="Yacht Club Resort",
+            stop_type="stop", duration_minutes=20, extra_fee=Decimal("40.00"),
         )
         resp = self.client.get(reverse("payroll_run"), {"to_date": "2026-06-30"})
         row = resp.context["rows"][0]
         self.assertEqual(row["flag_count"], 1)
-        self.assertIn("extra stop", " ".join(row["flagged"][0].flag_labels))
+        self.assertIn("extra destination", " ".join(row["flagged"][0].flag_labels))
 
     def test_excluded_and_affiliate_drivers_never_appear(self):
         founder = _make_driver("run_founder")
@@ -1176,24 +1191,25 @@ class PayrollRunQueryBudgetTests(_PayFixtureMixin, TestCase):
         self.assertLess(many, 10)
 
 
-class UnverifiablePriceTests(_PayFixtureMixin, TestCase):
-    """A number nobody can check is not the same as a number that is right.
+class KnownEndSetsTheFloorTests(_PayFixtureMixin, TestCase):
+    """One unlisted address is not one kind of problem, it is two.
 
-    The old fallback left legs linked to a route they never ran. Priced off one
-    of those, a leg agrees with itself: the audit asks the wrong route and gets
-    back the amount already stored. Those legs read as ready when nothing about
-    them has been checked.
+    "$25 to a Disney resort we have not typed in yet" is fine and must stay
+    quiet. "$25 to the cruise port" is money, because nothing touching that zone
+    has ever been under $40. The end we DO know is enough to tell them apart,
+    and the 8/30 run showed what happens otherwise: twenty-two rows of the first
+    kind buried four of the second.
     """
 
     def _completed(self, **kw):
-        drv = kw.pop("driver", None) or _make_driver(f"unv{Leg.objects.count()}")
+        drv = kw.pop("driver", None) or _make_driver(f"floor{Leg.objects.count()}")
         leg = self._leg(self._res(), driver=drv, **kw)
-        leg.status = "completed"
-        leg.payment_status = "unpaid"
-        leg.save(update_fields=["status", "payment_status"])
+        Leg.objects.filter(pk=leg.pk).update(
+            status="completed", payment_status="unpaid"
+        )
         return leg
 
-    def _flags(self, leg):
+    def _read(self, leg, distance_cache=None):
         from dispatching.pay_flags import annotate_pay_flags
 
         legs = list(
@@ -1201,53 +1217,67 @@ class UnverifiablePriceTests(_PayFixtureMixin, TestCase):
             .select_related("driver", "reservation", "route")
             .prefetch_related("legstop_set__location", "reservation__legs")
         )
-        annotate_pay_flags(legs)
+        annotate_pay_flags(legs, distance_cache=distance_cache or {})
         return legs[0]
 
-    def test_an_address_we_cannot_place_is_called_out(self):
-        leg = self._completed(
-            pickup_location="MCO", dropoff_location="Disney",
-        )
-        # It ran somewhere else entirely; the link stayed behind.
-        Leg.objects.filter(pk=leg.pk).update(
-            dropoff_location="1215 Calusa Drive, Sebastian, FL 32976"
-        )
-        got = self._flags(leg)
-        self.assertTrue(got.unverified_price)
-        self.assertTrue(got.needs_review)
-        self.assertIn("isn't one we know", flag_labels(got)[0])
-
-    def test_a_stale_link_that_would_change_the_money_is_called_out(self):
+    def test_the_local_rate_to_an_unlisted_place_stays_quiet(self):
         leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
         self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
-        # Same stored $25 and the same linked MCO->Disney route, but the trip
-        # it actually ran is a $40 run out to the port.
-        Leg.objects.filter(pk=leg.pk).update(dropoff_location="Port Canaveral")
-        got = self._flags(leg)
-        self.assertTrue(got.unverified_price)
-        self.assertIn("different trip", flag_labels(got)[0])
+        Leg.objects.filter(pk=leg.pk).update(dropoff_location="Somewhere Unlisted")
 
-    def test_a_stale_link_worth_the_same_money_is_left_alone(self):
-        """Tidy-up is not payroll. A wrong link that changes nothing stays quiet."""
+        got = self._read(leg)
+        self.assertFalse(got.needs_review, "an ordinary price was made into a chore")
+        self.assertTrue(got.address_unlisted)
+        self.assertIn("not listed yet", " ".join(context_labels(got)))
+
+    def test_the_local_rate_on_a_port_run_shouts(self):
         leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
-        Leg.objects.filter(pk=leg.pk).update(dropoff_location="I-Drive")
-        got = self._flags(leg)
-        self.assertFalse(got.unverified_price)
+        Leg.objects.filter(pk=leg.pk).update(
+            pickup_location="Port Canaveral", dropoff_location="Somewhere Unlisted"
+        )
+        got = self._read(leg)
+        self.assertTrue(got.below_zone_floor)
+        self.assertTrue(got.needs_review)
+        label = " ".join(flag_labels(got))
+        self.assertIn("Test Outer", label)
+        self.assertIn("40.00", label)
+
+    def test_a_price_that_clears_the_floor_is_left_alone(self):
+        leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
+        Leg.objects.filter(pk=leg.pk).update(
+            pickup_location="Port Canaveral", dropoff_location="Somewhere Unlisted",
+            driver_base_pay=Decimal("40.00"), route=None,
+        )
+        got = self._read(leg)
+        self.assertFalse(got.below_zone_floor)
         self.assertFalse(got.needs_review)
 
-    def test_a_trip_that_checks_out_is_not_flagged(self):
-        got = self._flags(self._completed())
-        self.assertFalse(got.unverified_price)
+    def test_the_local_rate_for_a_very_long_drive_shouts(self):
+        """Both floors can pass and the price still be plainly wrong: MCO is
+        Local, $25 clears the Local floor, and the drive was eighty miles."""
+        leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
+        Leg.objects.filter(pk=leg.pk).update(dropoff_location="Sebastian FL")
+        got = self._read(leg, {("MCO", "Sebastian FL"): 82.0})
+        self.assertTrue(got.distance_mismatch)
+        self.assertTrue(got.needs_review)
+        self.assertIn("82-mile", " ".join(flag_labels(got)))
+        self.assertFalse(got.address_unlisted, "shouted and whispered at once")
+
+    def test_a_short_drive_to_an_unlisted_place_stays_quiet(self):
+        leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
+        Leg.objects.filter(pk=leg.pk).update(dropoff_location="Somewhere Close")
+        got = self._read(leg, {("MCO", "Somewhere Close"): 18.0})
         self.assertFalse(got.needs_review)
 
     def test_a_hand_typed_amount_is_never_second_guessed(self):
         leg = self._completed(pickup_location="MCO", dropoff_location="Disney")
         Leg.objects.filter(pk=leg.pk).update(
-            dropoff_location="1215 Calusa Drive, Sebastian, FL 32976",
+            pickup_location="Port Canaveral", dropoff_location="Somewhere Unlisted",
             pay_manually_set=True,
         )
-        got = self._flags(leg)
-        self.assertFalse(got.unverified_price)
+        got = self._read(leg)
+        self.assertFalse(got.below_zone_floor)
+        self.assertFalse(got.needs_review)
 
 
 class LoweringATipTests(_PayFixtureMixin, TestCase):
@@ -1431,3 +1461,115 @@ class ResetKeepsWhatAPersonPutThereTests(_PayFixtureMixin, TestCase):
         self._reset(Leg.objects.filter(pk=leg.pk))
         leg.refresh_from_db()
         self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
+
+
+class APriceGivenOnceIsNeverAskedAgainTests(_PayFixtureMixin, TestCase):
+    """The review list only ever shrinks if answering a trip changes something
+    beyond that trip. Before this, a price typed during a run went onto the leg
+    and nowhere else, so the identical trip the following week asked again."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user("stickstaff", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+
+    def _unpaid(self, **kw):
+        drv = kw.pop("driver", None) or _make_driver(f"stick{Leg.objects.count()}")
+        leg = self._leg(self._res(), driver=drv, **kw)
+        Leg.objects.filter(pk=leg.pk).update(
+            status="completed", payment_status="unpaid"
+        )
+        leg.refresh_from_db()
+        return leg
+
+    def _post(self, **body):
+        return self.client.post(
+            reverse("save_leg_rate"),
+            data=json.dumps(body),
+            content_type="application/json",
+        )
+
+    def test_placing_the_address_prices_every_future_trip_through_it(self):
+        leg = self._unpaid(pickup_location="MCO", dropoff_location="Villatel Resort")
+        resp = self._post(
+            leg_id=leg.id, base_pay="30.00",
+            place={"name": "Villatel Resort", "zone_id": self.local.id},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("30.00"))
+        self.assertTrue(leg.pay_manually_set)
+
+        placed = Location.objects.get(name="Villatel Resort")
+        self.assertEqual(placed.pay_zone_id, self.local.id)
+
+        # The point of the whole exercise: the NEXT one prices itself.
+        nxt = self._unpaid(pickup_location="MCO", dropoff_location="Villatel Resort")
+        self.assertEqual(nxt.driver_base_pay, Decimal("25.00"))
+
+    def test_an_exception_prices_the_pair_in_both_directions(self):
+        leg = self._unpaid(pickup_location="I-Drive", dropoff_location="Port Canaveral")
+        self.assertEqual(leg.driver_base_pay, Decimal("40.00"))
+
+        resp = self._post(leg_id=leg.id, base_pay="65.00", as_exception=True)
+        self.assertEqual(resp.status_code, 200)
+
+        there = self._unpaid(pickup_location="I-Drive", dropoff_location="Port Canaveral")
+        back = self._unpaid(pickup_location="Port Canaveral", dropoff_location="I-Drive")
+        self.assertEqual(there.driver_base_pay, Decimal("65.00"))
+        self.assertEqual(back.driver_base_pay, Decimal("65.00"))
+
+    def test_an_exception_needs_both_ends_known(self):
+        leg = self._unpaid(pickup_location="MCO", dropoff_location="Nowhere We Know")
+        resp = self._post(leg_id=leg.id, base_pay="70.00", as_exception=True)
+        self.assertEqual(resp.status_code, 400)
+        # The leg still got its price; only the rate could not be written.
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("70.00"))
+        self.assertIn("Place the address first", resp.json()["error"])
+
+    def test_a_price_alone_is_still_allowed(self):
+        """Some trips really are one-offs."""
+        leg = self._unpaid(pickup_location="MCO", dropoff_location="Nowhere We Know")
+        resp = self._post(leg_id=leg.id, base_pay="70.00")
+        self.assertEqual(resp.status_code, 200)
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("70.00"))
+        self.assertFalse(Location.objects.filter(name="Nowhere We Know").exists())
+
+    def test_a_paid_trip_is_refused(self):
+        leg = self._unpaid(pickup_location="MCO", dropoff_location="Disney")
+        Leg.objects.filter(pk=leg.pk).update(payment_status="paid")
+        resp = self._post(leg_id=leg.id, base_pay="99.00")
+        self.assertEqual(resp.status_code, 400)
+        leg.refresh_from_db()
+        self.assertEqual(leg.driver_base_pay, Decimal("25.00"))
+
+    def test_a_negative_price_is_refused(self):
+        leg = self._unpaid(pickup_location="MCO", dropoff_location="Disney")
+        self.assertEqual(self._post(leg_id=leg.id, base_pay="-5").status_code, 400)
+
+    def test_a_non_staff_user_cannot_write_rates(self):
+        self.client.logout()
+        self.client.force_login(User.objects.create_user("stickplain", password="x"))
+        leg = self._unpaid(pickup_location="MCO", dropoff_location="Villatel Resort")
+        resp = self._post(
+            leg_id=leg.id, base_pay="30.00",
+            place={"name": "Villatel Resort", "zone_id": self.local.id},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Location.objects.filter(name="Villatel Resort").exists())
+
+    def test_the_control_only_appears_where_it_can_help(self):
+        """A trip that priced itself does not need a rate written for it."""
+        drv = _make_driver("stickshow")
+        fine = self._unpaid(driver=drv, pickup_location="MCO", dropoff_location="Disney")
+        odd = self._unpaid(driver=drv, pickup_location="MCO",
+                           dropoff_location="Nowhere We Know")
+        resp = self.client.get(
+            reverse("payroll_run"), {"to_date": "2026-06-30", "show": "all"}
+        )
+        body = resp.content.decode()
+        self.assertIn(f'id="stick-{odd.id}"', body)
+        self.assertNotIn(f'id="stick-{fine.id}"', body)

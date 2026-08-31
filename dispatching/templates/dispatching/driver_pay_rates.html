@@ -282,6 +282,20 @@
 {% block navbar %}{% endblock %}
 
 {% block content %}
+<style>
+  .unzoned-banner {
+    background: rgba(220,53,69,.10); border: 1px solid rgba(220,53,69,.35);
+    border-radius: 10px; padding: .85rem 1.1rem; margin: 0 0 1.25rem;
+    font-size: .88rem; color: var(--gt-text, #e6e6e6);
+  }
+  .unzoned-list { margin-top: .55rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+  .unzoned-chip {
+    background: rgba(220,53,69,.16); border: 1px solid rgba(220,53,69,.3);
+    border-radius: 999px; padding: .18rem .6rem; font-size: .78rem;
+    color: #ff9aa4; text-decoration: none;
+  }
+  .unzoned-chip:hover { color: #fff; border-color: #ff9aa4; }
+</style>
 {% include 'dispatching/dispatcher_navbar.html' %}
 <div class="rates-page">
 <div class="container-fluid">
@@ -289,6 +303,19 @@
   {# ── Page header with action buttons ──────────────────────────── #}
   <div class="rates-header">
     <h1><i class="bi bi-cash-stack"></i>Driver Pay Rates</h1>
+
+  {% if unzoned_places %}
+  {# Loud on purpose. A place with no zone prices nothing, and the way it
+     happens — a name that no longer matches what the seeding looked for —
+     leaves no other trace. #}
+  <div class="unzoned-banner">
+    <strong><i class="bi bi-exclamation-triangle me-2"></i>{{ unzoned_count }} place{{ unzoned_count|pluralize }} with no zone.</strong>
+    Trips through {{ unzoned_count|pluralize:"it,these" }} cannot be priced and will keep asking every payroll run.
+    <div class="unzoned-list">
+      {% for loc in unzoned_places %}<a href="#place-{{ loc.id }}" class="unzoned-chip">{{ loc.name }}</a>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
     <div class="d-flex flex-wrap gap-2">
       <a href="{% url 'driver_payment_management' %}" class="header-action-btn">
         <i class="bi bi-credit-card-2-back me-1"></i>Driver Pay
@@ -412,7 +439,7 @@
         </thead>
         <tbody>
           {% for loc in locations %}
-          <tr class="place-row{% if not loc.pay_zone_id %} no-zone{% endif %}" data-location-id="{{ loc.id }}">
+          <tr class="place-row{% if not loc.pay_zone_id %} no-zone{% endif %}" id="place-{{ loc.id }}" data-location-id="{{ loc.id }}">
             <td>{{ loc.name }}</td>
             <td>
               <select class="place-zone-select" data-location-id="{{ loc.id }}">

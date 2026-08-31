@@ -146,13 +146,28 @@ comparing totals to a rate flags all of them as wrong when nothing is wrong.
 Open the Payroll Run screen with the To Date set. Work down from the top, since the drivers
 needing decisions are already there.
 
-**For each flagged trip, the flag tells you what is wrong.** There are seven:
+**Two tiers.** A row carries either a **flag** (a decision is needed) or **context**
+(worth seeing, never worth stopping for). Report flags. Context — *address not listed
+yet*, *N shop stops*, the cruise/Sanford markers — is not a decision.
+
+**Three things that are correct and keep being reported as bugs:**
+
+- The driver night window starts at **22:01**, deliberately, and is NOT the same as the
+  customer after-hours fee at 22:00. A 10:00 PM pickup with no bonus is right.
+- **SeaWorld to Walt Disney World is $40**, a standing exception, not a mispriced local hop.
+- **Grocery and shop stops pay nothing.** Publix, Walmart, Target, CVS and the like are
+  context only. A second *destination* is different and does flag.
+
+**For each flagged trip, the flag tells you what is wrong:**
 
 | Flag | What it means | What to do |
 |---|---|---|
-| **needs a price** | No rate, no exception, and at least one endpoint is in no zone | **Flag for Abdalla.** Name the place. It usually needs adding to a zone once, on the Pay Rates page, and then it never recurs. |
+| **needs a price** | Nothing could price it at all | **Answer it with "make this price stick" on the row** — put in the price, name the place, pick its zone. That prices this trip and every future one through it. Do not use the plain pay box unless the trip really is a one-off. |
+| **pays $X on a \<zone\> run — nothing touching that zone is under $Y** | One end is known and the price is below anything that end has ever cost | **Flag for Abdalla.** This is usually real money. |
+| **pays $X, the local rate, for an N-mile drive** | The price is plausible on paper; the real cached drive distance is not | **Flag for Abdalla.** |
+| **driver says the guest left no tip** / **…but the booking is holding one** | The chauffeur's own note says the tip never arrived | Report both. The second one means money did not reach the leg — say so loudly. |
 | **$0 pay** | Priced, but at zero | Recalculate the leg (`force = false`). If it stays at zero, flag it. |
-| **N extra stops, nothing added for it** | The trip had a stop the guest was charged for; the driver's extra-pay box is empty | **Flag for Abdalla** with the stop and the guest fee. What the driver gets for a stop is his call, not a lookup. |
+| **N extra destinations, nothing added for it** | A second drop-off, not a shop stop, with an empty extra-pay box | **Flag for Abdalla** with the stop and the guest fee. What the driver gets for a stop is his call, not a lookup. |
 | **holds more of the tip than its share** | A sibling leg on the same booking sits at exactly $0.00, so this leg absorbed the whole tip | **Flag for Abdalla.** Do not re-divide it yourself: moving money off this leg strands it, because the sibling is not re-saved. |
 | **pays $X but the rates say $Y** | The stored amount disagrees with what the zones and exceptions work out today | If it is a clean 10x/100x slip, correct it. Otherwise **flag it** — it may be a deliberate override from before amounts were marked. |
 | **pays $X, but an address here isn't one we know** / **linked to a different trip** | The trip carries an amount, but nothing can confirm it: either an endpoint is a place we can't place, or the leg is still linked to a route it never ran, so the check would be asking the wrong trip. | **Flag for Abdalla** with both addresses. Usually a property worth adding to a zone on the Pay Rates page; occasionally a genuinely out-of-area run that was paid the local rate. |

@@ -168,6 +168,39 @@
     border-radius: 3px; padding: 0 .25rem;
   }
   .note-tag.drv { color: #7ee787; border-color: rgba(63,185,80,.3); }
+  /* A shop stop and an unlisted address are things to KNOW, not things to do.
+     They read quieter than a flag on purpose — a page where everything shouts
+     is a page nobody reads. */
+  .tag.shop, .tag.ctx { opacity: .62; font-style: italic; }
+
+  /* Answering a price and recording it are the same act. Splitting them across
+     two pages is exactly why the same trips came back every week. */
+  .stick-btn {
+    background: none; border: 1px dashed var(--gt-gold); color: var(--gt-gold);
+    border-radius: 6px; font-size: .72rem; padding: .12rem .5rem; margin-top: .3rem;
+  }
+  .stick-btn:hover { background: rgba(212,160,23,.12); }
+  .stick-panel {
+    margin-top: .45rem; padding: .55rem .65rem; border-radius: 8px;
+    background: rgba(212,160,23,.07); border: 1px solid rgba(212,160,23,.25);
+  }
+  .stick-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+  .stick-row label { font-size: .72rem; color: var(--gt-muted); min-width: 3rem; }
+  .stick-panel input[type=text], .stick-panel input[type=number], .stick-panel select {
+    background: var(--gt-panel, #14161a); border: 1px solid var(--gt-border, #2a2e35);
+    color: var(--gt-text, #e6e6e6); border-radius: 6px; padding: .2rem .4rem;
+    font-size: .76rem;
+  }
+  .stick-panel input[type=number] { width: 5.5rem; }
+  .stick-panel input[type=text] { flex: 1 1 8rem; min-width: 6rem; }
+  .stick-check { min-width: 0; font-size: .74rem; color: var(--gt-text); }
+  .stick-hint { font-size: .68rem; color: var(--gt-muted); margin-bottom: .35rem; }
+  .stick-save {
+    background: var(--gt-gold); border: none; color: #1a1a1a; font-weight: 600;
+    border-radius: 6px; font-size: .74rem; padding: .22rem .7rem;
+  }
+  .stick-msg { font-size: .7rem; color: #7ee787; }
+  .stick-msg.bad { color: #ff8a95; }
   /* What the chauffeur wrote is the note most likely to change what he is owed,
      so it reads at full strength rather than as muted metadata. */
   .note-line.drv-note { color: var(--gt-text); }
@@ -392,9 +425,42 @@
                   <span class="note-tag guest">guest</span>{{ leg.reservation.special_requests|truncatechars:140 }}
                 </div>
               {% endif %}
+              {% if leg.needs_pricing or leg.below_zone_floor or leg.distance_mismatch or leg.address_unlisted %}
+                <button type="button" class="stick-btn" data-leg-id="{{ leg.id }}">make this price stick</button>
+                <div class="stick-panel" id="stick-{{ leg.id }}" hidden
+                     data-unlisted-name="{{ leg.unlisted_name }}">
+                  <div class="stick-row">
+                    <label>Price</label>
+                    <input type="number" step="0.01" min="0" class="stick-pay" placeholder="0.00"
+                           value="{% if leg.driver_base_pay is not None %}{{ leg.driver_base_pay }}{% endif %}">
+                  </div>
+                  {% if leg.unlisted_name %}
+                    <div class="stick-row">
+                      <label>Place</label>
+                      <input type="text" class="stick-name" value="{{ leg.unlisted_name }}">
+                      <select class="stick-zone">
+                        <option value="">&mdash; which zone? &mdash;</option>
+                        {% for z in zones %}<option value="{{ z.id }}">{{ z.name }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="stick-hint">Placing it prices this trip and every future one through it.</div>
+                  {% else %}
+                    <label class="stick-row stick-check">
+                      <input type="checkbox" class="stick-exception">
+                      <span>this pair always costs this, for everyone</span>
+                    </label>
+                  {% endif %}
+                  <div class="stick-row">
+                    <button type="button" class="stick-save" data-leg-id="{{ leg.id }}">Save</button>
+                    <span class="stick-msg"></span>
+                  </div>
+                </div>
+              {% endif %}
               <div class="note-foot">
                 {% if leg.pay_manually_set %}<span class="tag">typed by hand</span>{% endif %}
-                {% for stop in leg.pay_stops %}<span class="tag stop">stop: {{ stop.display_location|truncatechars:22 }}</span>{% endfor %}
+                {% for stop in leg.destination_stops %}<span class="tag stop">extra drop: {{ stop.display_location|truncatechars:22 }}</span>{% endfor %}
+                {% for stop in leg.store_stops %}<span class="tag shop">shop: {{ stop.display_location|truncatechars:22 }}</span>{% endfor %}
+                {% for label in leg.context_labels %}<span class="tag ctx">{{ label }}</span>{% endfor %}
                 <a href="{% url 'reservation_details' leg.reservation.uuid %}" target="_blank">#{{ leg.reservation.id }}</a>
                 <span class="save-ok" id="cell-save-{{ leg.id }}">saved</span>
               </div>
@@ -445,6 +511,66 @@
 <script>
 const csrfToken = '{{ csrf_token }}';
 const toDate = '{{ to_date_str }}';
+
+// "Make this price stick": set the trip AND record the rate in one action, so
+// the same trip does not come back next Sunday asking the same question.
+document.querySelectorAll('.stick-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const panel = document.getElementById('stick-' + this.dataset.legId);
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) { const f = panel.querySelector('.stick-pay'); if (f) f.focus(); }
+  });
+});
+
+document.querySelectorAll('.stick-save').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const legId = this.dataset.legId;
+    const panel = document.getElementById('stick-' + legId);
+    const msg = panel.querySelector('.stick-msg');
+    const pay = panel.querySelector('.stick-pay').value;
+    if (!pay) { msg.className = 'stick-msg bad'; msg.textContent = 'Give it a price first.'; return; }
+
+    const body = { leg_id: parseInt(legId, 10), base_pay: pay };
+    const nameEl = panel.querySelector('.stick-name');
+    const zoneEl = panel.querySelector('.stick-zone');
+    const excEl = panel.querySelector('.stick-exception');
+    if (nameEl && zoneEl) {
+      if (!zoneEl.value) { msg.className = 'stick-msg bad'; msg.textContent = 'Pick a zone.'; return; }
+      body.place = { name: nameEl.value, zone_id: parseInt(zoneEl.value, 10) };
+    } else if (excEl && excEl.checked) {
+      body.as_exception = true;
+    }
+
+    this.disabled = true;
+    msg.className = 'stick-msg';
+    msg.textContent = 'Saving...';
+    fetch('/dispatching/save-leg-rate/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(body),
+    })
+      .then(r => r.json())
+      .then(data => {
+        this.disabled = false;
+        if (data.success) {
+          msg.className = 'stick-msg';
+          msg.textContent = data.message;
+          const baseInput = document.querySelector('.pay-base[data-leg-id="' + legId + '"]');
+          if (baseInput) { baseInput.value = data.base_pay; }
+          const totalCell = document.getElementById('row-total-' + legId);
+          if (totalCell) { totalCell.textContent = '$' + data.total; }
+        } else {
+          msg.className = 'stick-msg bad';
+          msg.textContent = data.error || 'Could not save that.';
+        }
+      })
+      .catch(() => {
+        this.disabled = false;
+        msg.className = 'stick-msg bad';
+        msg.textContent = 'Could not reach the server. Nothing was saved.';
+      });
+  });
+});
 
 // Errors belong on the row that failed, not in a dialog that hides which one.
 function showRowError(card, message) {

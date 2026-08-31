@@ -364,6 +364,7 @@ urlpatterns = [
     path("save-zone/", views.save_zone, name="save_zone"),
     path("delete-zone/", views.delete_zone, name="delete_zone"),
     path("save-place/", views.save_place, name="save_place"),
+    path("save-leg-rate/", views.save_leg_rate, name="save_leg_rate"),
     path(
         "delete-leg/",
         views.delete_leg,
