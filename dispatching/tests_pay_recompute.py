@@ -1000,3 +1000,51 @@ class TemplateCommentsDoNotLeakTests(_PayFixtureMixin, TestCase):
             self.assertNotIn("Deliberately NOT", body)
             self.assertNotIn("{#", body)
             self.assertNotIn("#}", body)
+
+
+class NoBrowserDialogsTests(_PayFixtureMixin, TestCase):
+    """Nothing on this screen may open a native browser dialog.
+
+    A confirm()/alert() is slow to dismiss, looks nothing like the page, hides
+    which row failed, and is one more thing for an assistant driving the screen
+    to trip over. Confirmation is two clicks in place; errors land on the row.
+    """
+
+    def setUp(self):
+        self.staff = User.objects.create_user("dialogstaff", password="x", is_staff=True)
+        self.client.force_login(self.staff)
+        drv = _make_driver("dialogdrv")
+        self._leg(self._res(), driver=drv, status="completed")
+
+    def test_neither_mode_uses_a_browser_dialog(self):
+        for params in ({"to_date": "2026-06-30"},
+                       {"to_date": "2026-06-30", "show": "all"}):
+            body = self.client.get(reverse("payroll_run"), params).content.decode()
+            self.assertNotIn("alert(", body)
+            # The word appears in a CSS comment; the call never should.
+            self.assertNotIn("confirm('", body)
+            self.assertNotIn('confirm("', body)
+
+    def test_the_row_carries_its_own_confirm_and_cancel(self):
+        body = self.client.get(
+            reverse("payroll_run"), {"to_date": "2026-06-30"}
+        ).content.decode()
+        self.assertIn("btn-cancel", body)
+        self.assertIn("confirm-wrap", body)
+        self.assertIn("Record statement", body)
+
+    def test_driver_notes_lead_the_notes_column(self):
+        leg = Leg.objects.filter(status="completed").first()
+        Leg.objects.filter(pk=leg.pk).update(
+            driver_notes="Waited 45 min, flight was late",
+            private_notes="Two extra bags",
+        )
+        body = self.client.get(
+            reverse("payroll_run"), {"to_date": "2026-06-30", "show": "all"}
+        ).content.decode()
+        self.assertIn("Waited 45 min, flight was late", body)
+        self.assertIn("Two extra bags", body)
+        # The chauffeur's own note is the one that changes what he is owed.
+        self.assertLess(
+            body.index("Waited 45 min"), body.index("Two extra bags")
+        )
