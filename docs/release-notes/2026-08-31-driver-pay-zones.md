@@ -1,5 +1,5 @@
 ---
-date: 2026-08-28
+date: 2026-08-31
 audience: Dispatchers
 title: Local trips price themselves, extra stops show up, and the rest say they need a price
 ---
