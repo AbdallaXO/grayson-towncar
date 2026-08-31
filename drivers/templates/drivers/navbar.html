@@ -21,6 +21,9 @@
         <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-nav-link">
           <i class="bi bi-calendar-x me-1"></i>Time Off
         </a>
+        <a href="{% url 'driver_my_documents' %}" class="gt-nav-link">
+          <i class="bi bi-person-vcard me-1"></i>Documents
+        </a>
         {% if WEBPUSH_VAPID_PUBLIC_KEY %}
           <button id="gt-push-toggle" class="gt-nav-link d-none" style="border:none;cursor:pointer;padding:6px 10px;background:none;"
                   title="Trip notifications" aria-label="Trip notifications">
@@ -66,6 +69,9 @@
         </a>
         <a href="{% url 'driver_my_timeoff_requests' %}" class="gt-nav-link-mobile">
           <i class="bi bi-calendar-x me-2"></i>Time Off Requests
+        </a>
+        <a href="{% url 'driver_my_documents' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-person-vcard me-2"></i>My Documents
         </a>
       </div>
     </div>

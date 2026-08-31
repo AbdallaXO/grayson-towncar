@@ -6,12 +6,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-  /* Same palette as driver_profile.html so the two pages read as one surface. */
-  :root {
-    --gt-gold: #C9A227;  --gt-bg: #0d1117;   --gt-surface: #161b22;
-    --gt-surface-2: #1c2128;  --gt-border: #2a313a;
-    --gt-text: #e6edf3;  --gt-muted: #8b949e;
-  }
+  {% include "drivers/_comms_admin_palette.html" %}
   .comms-page { background: var(--gt-bg); color: var(--gt-text); min-height: 100vh; padding: 1.5rem 0 3rem; }
   .comms-page h1 { font-size: 1.35rem; font-weight: 700; margin: 0; }
   .comms-sub { font-size: 0.78rem; color: var(--gt-muted); margin-top: 0.25rem; }
@@ -55,11 +50,6 @@
   .cell .bar span { display: block; height: 100%; border-radius: 3px; }
   .cell .fig { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.78rem; min-width: 2.6rem; text-align: right; }
   .cell .frac { color: var(--gt-muted); font-size: 0.68rem; min-width: 3rem; text-align: right; }
-
-  .fill-green { background: #4ade80; } .pct-green { color: #4ade80; }
-  .fill-amber { background: #fbbf24; } .pct-amber { color: #fbbf24; }
-  .fill-red   { background: #f87171; } .pct-red   { color: #f87171; }
-  .fill-muted { background: var(--gt-border); } .pct-muted { color: var(--gt-muted); }
 
   .footnote { font-size: 0.72rem; color: var(--gt-muted); line-height: 1.6; padding: 0.9rem 1.1rem; border-top: 1px solid var(--gt-border); }
   .table-wrap { overflow-x: auto; }
@@ -106,7 +96,7 @@
       <div class="col-12 col-md-4">
         <div class="panel headline">
           <div class="cap">Fleet rate</div>
-          <div class="big {% if fleet_pct is None %}pct-muted{% elif fleet_pct >= 80 %}pct-green{% elif fleet_pct >= 50 %}pct-amber{% else %}pct-red{% endif %}">
+          <div class="big pct-{{ fleet_accent }}">
             {% if fleet_pct is None %}&mdash;{% else %}{{ fleet_pct }}%{% endif %}
           </div>
           <div class="comms-sub">
@@ -182,7 +172,7 @@
                   {% if row.overall is None %}
                     <span class="pct-muted">&mdash;</span>
                   {% else %}
-                    <strong class="{% if row.overall >= 80 %}pct-green{% elif row.overall >= 50 %}pct-amber{% else %}pct-red{% endif %}">{{ row.overall }}%</strong>
+                    <strong class="pct-{{ row.accent }}">{{ row.overall }}%</strong>
                   {% endif %}
                 </td>
               </tr>
@@ -201,8 +191,9 @@
         <em>sent from the app</em> &mdash; not a delivery receipt, and he may have edited it
         before sending. A tap made with no signal isn&rsquo;t recorded, so these under-count
         rather than over-count.<br>
-        <strong>Denominator.</strong> Completed trips only, cancellations excluded, ending
-        yesterday &mdash; today&rsquo;s trips haven&rsquo;t had their chance yet. Nothing before
+        <strong>Denominator.</strong> Completed trips only, cancellations excluded, through
+        today &mdash; a trip counts the moment it&rsquo;s marked completed, so today&rsquo;s
+        rate can still move as more trips finish. Nothing before
         {{ tracking_start|date:"M j, Y" }} is counted; tracking did not exist. Re-sends to the
         same guest count once. Affiliates and operators are excluded &mdash; their job cards
         carry no guest phone number, so they have no chance to take.

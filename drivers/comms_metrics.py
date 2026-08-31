@@ -21,9 +21,12 @@ DENOMINATOR RULES, and why each one is there:
   shipped, so counting older trips would bury every driver at 0% forever. Same
   device as driver_performance gating on status_history existing
   (dispatching/views.py:14098).
-* in-house drivers only — affiliates and operators never see a job card with
-  these buttons on it (their portal card has no customer phone at all), so they
-  would score a permanent 0% that reads as a performance failure.
+* in-house drivers only — an affiliate chauffeur DOES see the same texting
+  buttons on his job card (only true operators, who never drive and never
+  reach a card with a guest phone number, are excluded from the feature
+  itself). Affiliates are contractors, not held to Grayson's in-house guest-
+  communication standard, so scoring them here would read as a performance
+  failure against a bar they were never asked to meet.
 * pickup_date filtered directly on Leg, never reservation__pickup_date.
 
 This is a QUALITY metric, so it is barred from the chauffeur load/KPI pages by
@@ -69,9 +72,10 @@ def resolve_window(raw):
 def window_bounds(days, *, today=None):
     """(start, end) for a look-back window.
 
-    Ends YESTERDAY, never today — a trip still running today has not had its
-    chance to be texted yet, and counting it drags every rate down before noon.
-    Matches the chauffeur pages (dispatching/views.py:20468-20472).
+    Ends TODAY — a tap counts toward a chauffeur's rate the moment it lands,
+    same as recent_activity(). A trip still in progress is excluded anyway,
+    because _eligible_legs() only counts status="completed" trips; today's rate
+    can still move as more trips finish and more texts go out.
 
     The start is clamped to tracking_start() so a 12-month window never reaches
     back into untracked history.
@@ -79,7 +83,7 @@ def window_bounds(days, *, today=None):
     from django.utils import timezone
 
     today = today or timezone.localdate()
-    end = today - timedelta(days=1)
+    end = today
     start = end - timedelta(days=days - 1)
     floor = tracking_start()
     if start < floor:
@@ -90,10 +94,10 @@ def window_bounds(days, *, today=None):
 def window_is_empty(start, end):
     """True when the window contains no days at all.
 
-    Happens on and just after launch day: the window ends YESTERDAY but is
-    clamped forward to tracking_start(), so start lands after end. Every rate is
-    then legitimately unknowable, and the page must SAY so — a grid of dashes
-    reads like "nobody is doing it" when it means "no data could exist yet".
+    Happens on and just before launch day: the window is clamped forward to
+    tracking_start(), which can land after end. Every rate is then legitimately
+    unknowable, and the page must SAY so — a grid of dashes reads like "nobody
+    is doing it" when it means "no data could exist yet".
     """
     return start > end
 
@@ -105,7 +109,13 @@ def recent_activity(*, days=7, driver=None, today=None):
     here the moment it lands, long before the trip is completed and long before
     any rate window can include it. Without this there is no way to tell a
     working system from a broken one during the first days.
+
+    One query — called on both the driver profile and the KPI dashboard, so
+    the four separate .count()/.first() calls this used to make (four round
+    trips for what's really one pass over the same rows) are collapsed into a
+    single .aggregate().
     """
+    from django.db.models import Count, Max, Q
     from django.utils import timezone
 
     from reservations.models import LegClientMessage
@@ -115,15 +125,13 @@ def recent_activity(*, days=7, driver=None, today=None):
     if driver is not None:
         qs = qs.filter(driver_id=getattr(driver, "id", driver))
     since = today - timedelta(days=days - 1)
-    window_qs = qs.filter(created_at__date__gte=since)
-    latest = qs.order_by("-created_at").values_list("created_at", flat=True).first()
-    return {
-        "days": days,
-        "window": window_qs.count(),
-        "today": qs.filter(created_at__date=today).count(),
-        "total": qs.count(),
-        "latest": latest,
-    }
+    agg = qs.aggregate(
+        window=Count("id", filter=Q(created_at__date__gte=since)),
+        today=Count("id", filter=Q(created_at__date=today)),
+        total=Count("id"),
+        latest=Max("created_at"),
+    )
+    return {"days": days, **agg}
 
 
 def _eligible_legs(start, end, *, driver_ids=None):
@@ -157,6 +165,20 @@ def _pct(sent, eligible):
     return round(sent / eligible * 100)
 
 
+def accent_for(pct):
+    """green/amber/red/muted for a rate — the single threshold ladder (>=80
+    green, >=50 amber) every page that colors a rate must use, so the fleet
+    headline and the per-row "overall" figure can't silently drift from the
+    per-kind cells `as_tiles()` colors."""
+    if pct is None:
+        return "muted"
+    if pct >= 80:
+        return "green"
+    if pct >= 50:
+        return "amber"
+    return "red"
+
+
 def comms_stats_bulk(driver_ids, start, end):
     """{driver_id: {kind: {sent, eligible, pct}}} for many drivers in 2 queries.
 
@@ -182,10 +204,10 @@ def comms_stats_bulk(driver_ids, start, end):
     sent = (
         LegClientMessage.objects
         .filter(leg__in=eligible)
-        .values("leg__driver_id", "kind")
+        .values("driver_id", "kind")
         .annotate(n=Count("leg_id", distinct=True))
     )
-    sent_counts = {(r["leg__driver_id"], r["kind"]): r["n"] for r in sent}
+    sent_counts = {(r["driver_id"], r["kind"]): r["n"] for r in sent}
 
     for did in ids:
         total = trip_counts.get(did, 0)
@@ -216,14 +238,7 @@ def as_tiles(stats):
     for kind in KINDS:
         row = stats.get(kind) or {"sent": 0, "eligible": 0, "pct": None}
         pct = row["pct"]
-        if pct is None:
-            accent = "muted"
-        elif pct >= 80:
-            accent = "green"
-        elif pct >= 50:
-            accent = "amber"
-        else:
-            accent = "red"
+        accent = accent_for(pct)
         tiles.append(
             {
                 "kind": kind,

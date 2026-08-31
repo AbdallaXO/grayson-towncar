@@ -201,3 +201,6 @@ cython_debug/
 content/db_backup_*.sqlite3
 /report.html
 /vehicle-assignments.html
+
+# SOP engine: raw unredacted Cowork captures are never committed
+SOPS/*/captures/raw/

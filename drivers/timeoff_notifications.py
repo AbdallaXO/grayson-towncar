@@ -1,60 +1,17 @@
 """SMS notifications for the driver time-off request workflow.
 
 Founders get a text on every new request. The submitting driver gets a text
-when their request is approved or denied. Twilio is reused from the existing
-confirmation pipeline; if it isn't configured, sends silently no-op so the
-request flow never blocks on notification failure.
+when their request is approved or denied. Twilio sending itself lives in
+drivers.sms (shared with document-upload notifications); if it isn't
+configured, sends silently no-op so the request flow never blocks on
+notification failure.
 """
-
-import logging
 
 from django.conf import settings
 from business.datefmt import day_month, time12
+from drivers import sms
 
-logger = logging.getLogger(__name__)
-
-
-def _normalize_e164(number):
-    """Best-effort E.164 normalization for US numbers."""
-    if not number:
-        return ""
-    digits = "".join(c for c in str(number) if c.isdigit() or c == "+")
-    if digits.startswith("+"):
-        return digits
-    if len(digits) == 10:
-        return "+1" + digits
-    if len(digits) == 11 and digits.startswith("1"):
-        return "+" + digits
-    return digits
-
-
-def _twilio_client():
-    sid = (getattr(settings, "TWILIO_ACCOUNT_SID", None) or "").strip()
-    auth = (getattr(settings, "TWILIO_AUTH_TOKEN", None) or "").strip()
-    from_number = _normalize_e164(getattr(settings, "TWILIO_PHONE_NUMBER", None))
-    if not sid or not auth or not from_number:
-        return None, None
-    try:
-        from twilio.rest import Client
-        return Client(sid, auth), from_number
-    except ImportError:
-        return None, None
-
-
-def _send(to_number, body):
-    to = _normalize_e164(to_number)
-    if not to:
-        return False, "missing recipient"
-    client, from_number = _twilio_client()
-    if client is None:
-        logger.info("Twilio not configured; skipping time-off SMS to %s", to)
-        return False, "twilio not configured"
-    try:
-        client.messages.create(body=body, from_=from_number, to=to)
-        return True, None
-    except Exception as e:
-        logger.exception("Failed to send time-off SMS to %s", to)
-        return False, str(e)
+_send = sms.send
 
 
 def _range_display(override):

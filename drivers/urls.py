@@ -138,4 +138,6 @@ urlpatterns = [
     path("time-off/", views.my_timeoff_requests, name="driver_my_timeoff_requests"),
     path("time-off/new/", views.request_timeoff, name="driver_request_timeoff"),
     path("time-off/<int:override_id>/cancel/", views.cancel_timeoff, name="driver_cancel_timeoff"),
+    # Licensing documents (driver self-serve)
+    path("my-documents/", views.my_documents, name="driver_my_documents"),
 ]

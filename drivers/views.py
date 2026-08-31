@@ -8,6 +8,11 @@ from .models import (
     DriverPayoutAdjustment,
     DriverDateOverride,
 )
+from .forms import DriverProfileForm, DriverLicenseDetailsForm
+from .license_ocr import scan_license, is_expiration_plausible, is_date_of_birth_plausible
+from .document_uploads import prepare_document_upload, sniff_and_validate
+from .document_notifications import notify_staff_of_document_upload
+from django.forms.models import model_to_dict
 from datetime import datetime, timedelta
 from reservations.models import Leg, LegStatus
 from django.contrib.auth.decorators import login_required
@@ -53,9 +58,15 @@ def _attach_client_messages(driver, legs, *, default_assignment=None):
     if not legs:
         return
 
-    # Affiliates and operators drive their own guests under their own brand and
-    # never see these buttons — bail before doing any work.
-    if getattr(driver, "driver_type", "") != "inhouse":
+    # Operators re-dispatch to their own drivers and never see a job card with a
+    # guest phone number on it — bail before doing any work. Both callers
+    # (index(), schedule()) already redirect operators to operator_board before
+    # reaching here, so this is a belt-and-suspenders check, not the live gate.
+    # Affiliate CHAUFFEURS (driver_type="affiliate", portal_role="driver") drive
+    # their own job card same as inhouse — they get the standard texts too, same
+    # as the single hardcoded "Request Review" link every driver had before this
+    # feature existed.
+    if getattr(driver, "is_operator", False):
         return
 
     driver_name = ""
@@ -349,13 +360,15 @@ def index(request):
         selected_date = timezone.localdate()
 
     # Use select_related to fetch related reservation and customer data in a single query
-    # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
+    # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg.
+    # legstop_set: _is_charter() (via _attach_client_messages) iterates it per
+    # leg -> without this each leg fired its own query (N+1), same as schedule().
     legs = (
         Leg.objects.select_related(
             "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
         )
-        .prefetch_related("reservation__legs")
+        .prefetch_related("reservation__legs", "legstop_set")
         .filter(driver=driver, pickup_date=selected_date)
         .order_by("pickup_time")
     )
@@ -1106,6 +1119,36 @@ def driver_profile(request, driver_id):
         Driver.objects.select_related("profile"), id=driver_id
     )
 
+    # Editing (payment method, night bonus, active status, license/permit/DOT-card
+    # data) used to only be reachable through Django admin, which enforces its own
+    # per-model permission. This inline form replaces that route, so it keeps the
+    # same is_superuser bar rather than opening it to every is_staff account —
+    # dispatcher logins are is_staff but must stay view-only here.
+    can_edit = request.user.is_superuser
+
+    if request.method == "POST":
+        if not can_edit:
+            return HttpResponse(status=403)
+        # Bound to a SEPARATE copy of the row, not `driver` itself: Django's
+        # ModelForm._post_clean applies every valid field straight onto
+        # form.instance even when the form as a whole fails validation. Using
+        # `driver` there would leave the rest of this view — and the header
+        # it renders below — looking at an unsaved, half-edited row on an
+        # invalid submit.
+        driver_form = DriverProfileForm(
+            request.POST, request.FILES,
+            instance=Driver.objects.select_related("profile").get(pk=driver.pk),
+        )
+        if driver_form.is_valid():
+            driver_form.save()
+            messages.success(request, "Driver profile updated.")
+            return redirect("driver_profile", driver_id=driver.id)
+        messages.error(request, "Please fix the errors below.")
+        edit_mode = True
+    else:
+        driver_form = DriverProfileForm(instance=driver)
+        edit_mode = can_edit and request.GET.get("edit") == "1"
+
     today = timezone.localdate()
     horizon = today + timedelta(days=14)
 
@@ -1166,9 +1209,10 @@ def driver_profile(request, driver_id):
 
     # ── Guest-communication rates ──
     # Backward-looking, unlike everything else on this page, so it carries its own
-    # ?comms= window. In-house only: an affiliate never sees a card with these
-    # buttons, so a rate on their profile would be a permanent 0% that reads as a
-    # failure rather than "not applicable".
+    # ?comms= window. In-house only: affiliates ARE offered the same texting
+    # buttons (see _attach_client_messages), but they're contractors, not held
+    # to this standard — a rate on their profile would read as a failure
+    # against a bar they were never asked to meet.
     from drivers import comms_metrics
 
     comms_window, comms_days = comms_metrics.resolve_window(request.GET.get("comms"))
@@ -1182,6 +1226,9 @@ def driver_profile(request, driver_id):
 
     context = {
         "driver": driver,
+        "driver_form": driver_form,
+        "edit_mode": edit_mode,
+        "can_edit": can_edit,
         "today": today,
         "horizon": horizon,
         "todays_legs": todays_legs,
@@ -1966,6 +2013,137 @@ def my_timeoff_requests(request):
             "approved_upcoming": approved_upcoming,
         },
     )
+
+
+@login_required(login_url="login")
+def my_documents(request):
+    """Driver self-service for their own licensing documents.
+
+    Three separate one-file forms rather than one big one, because a driver
+    photographs one card at a time on a phone. The license upload additionally
+    runs OCR and comes back as a pre-filled confirm step; the permit and DOT
+    card are photo-only (no reliable extractor exists for them) and save
+    straight away.
+
+    A driver can only ever reach their OWN row — `profile=request.user` — and
+    can only write the scan files plus their own license details. Expirations
+    for the permit/DOT card, and everything else on Driver, stay staff-only.
+    """
+    driver = get_object_or_404(Driver, profile=request.user)
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+
+        # Step 2 of the license flow: the driver confirmed (or corrected) what
+        # the scan read back.
+        if action == "confirm_license":
+            details_form = DriverLicenseDetailsForm(request.POST, instance=driver)
+            if details_form.is_valid():
+                details_form.save()
+                messages.success(request, "License details saved. Thank you!")
+                return redirect("driver_my_documents")
+            messages.error(request, "Please check the license details below.")
+            return render(request, "drivers/my_documents.html", {
+                "driver": driver,
+                "details_form": details_form,
+                "confirming_license": True,
+            })
+
+        upload = request.FILES.get("scan")
+        if not upload:
+            messages.error(request, "Please choose or take a photo first.")
+            return redirect("driver_my_documents")
+
+        if action == "upload_license":
+            # Validate BEFORE scanning — a spoofed or unrecognized upload
+            # must never reach Textract at all, only a real, size-capped
+            # photo. Scanning itself needs the ORIGINAL bytes (Textract
+            # AnalyzeID only reads JPEG/PNG); prepare_document_upload() below
+            # recompresses to WebP for storage (drivers.image_compression)
+            # AFTER the scan, so compression can never interfere with OCR.
+            # The photo is still saved unconditionally either way — a failed
+            # or unavailable scan never loses it.
+            _, upload_error = sniff_and_validate(upload)
+            if upload_error:
+                messages.error(request, upload_error)
+                return redirect("driver_my_documents")
+
+            result = scan_license(upload)
+
+            prepared, upload_error = prepare_document_upload(upload)
+            if upload_error:
+                messages.error(request, upload_error)
+                return redirect("driver_my_documents")
+            driver.license_scan = prepared
+            driver.save(update_fields=["license_scan"])
+
+            if not result.ok:
+                messages.error(request, result.error)
+                return render(request, "drivers/my_documents.html", {
+                    "driver": driver,
+                    "details_form": DriverLicenseDetailsForm(instance=driver),
+                    "confirming_license": True,
+                })
+
+            # Pre-fill, never auto-commit — a misread digit is a compliance
+            # problem, so a human confirms before anything is written.
+            initial = {**model_to_dict(driver, fields=DriverLicenseDetailsForm.Meta.fields),
+                       **result.fields}
+            expiration = result.fields.get("license_expiration")
+            if expiration and not is_expiration_plausible(expiration):
+                messages.warning(
+                    request,
+                    "That expiration date looks unusual — please double-check it before saving.",
+                )
+            dob = result.fields.get("license_date_of_birth")
+            if dob and not is_date_of_birth_plausible(dob):
+                messages.warning(
+                    request,
+                    "That date of birth looks unusual — please double-check it before saving.",
+                )
+            messages.success(request, "Photo saved. Check the details we read, then save.")
+            return render(request, "drivers/my_documents.html", {
+                "driver": driver,
+                "details_form": DriverLicenseDetailsForm(initial=initial, instance=driver),
+                "confirming_license": True,
+                "scanned_fields": sorted(result.fields.keys()),
+            })
+
+        if action in ("upload_permit", "upload_dot_card"):
+            # Sniffs the real file type (never the client-declared one),
+            # enforces a size cap, recompresses the photo to WebP, and
+            # randomizes the storage name so two drivers uploading
+            # "license.jpg" don't overwrite each other.
+            prepared, upload_error = prepare_document_upload(upload)
+            if upload_error:
+                messages.error(request, upload_error)
+                return redirect("driver_my_documents")
+            field = ("chauffeur_permit_scan" if action == "upload_permit"
+                     else "dot_medical_card_scan")
+            setattr(driver, field, prepared)
+            driver.save(update_fields=[field])
+            # The only signal staff get that this exists — permit/DOT-card
+            # expirations have no OCR, so nothing else ever flags "uploaded,
+            # not yet transcribed" (a blank expiration is deliberately not a
+            # credential alert; see Driver.credential_alerts). Backgrounded —
+            # `driver` is already saved, and the SMS loop has no return value
+            # the response needs, so there's no reason to hold the request
+            # open on a Twilio round-trip per configured staff number.
+            from reservations.utils import _run_in_background
+            _run_in_background(notify_staff_of_document_upload, driver, field)
+            messages.success(
+                request,
+                "Photo uploaded. The office will fill in the details and confirm.",
+            )
+            return redirect("driver_my_documents")
+
+        messages.error(request, "Unknown action.")
+        return redirect("driver_my_documents")
+
+    return render(request, "drivers/my_documents.html", {
+        "driver": driver,
+        "details_form": DriverLicenseDetailsForm(instance=driver),
+    })
 
 
 @login_required(login_url="login")

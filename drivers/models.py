@@ -123,6 +123,134 @@ class Driver(models.Model):
         help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."
     )
 
+    # ── Licensing & credentials ───────────────────────────────────────────────
+    # Centralizes what used to live off-system (paper files, spreadsheets). All
+    # optional — filled in as staff collect them, not required at driver creation.
+    # Scans are staff-uploaded via the admin for now; a driver self-upload flow
+    # can reuse these same fields later without another migration.
+    license_number = models.CharField(max_length=50, blank=True, default="")
+    license_state = models.CharField(
+        max_length=30, blank=True, default="",
+        help_text="Issuing state (or country, for a non-US license), e.g. \"FL\"."
+    )
+    license_class = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="License class/endorsement, e.g. \"E\" (standard FL) or \"CDL-A\"."
+    )
+    license_expiration = models.DateField(null=True, blank=True)
+    license_scan = models.FileField(
+        upload_to="drivers/licenses/", blank=True, null=True,
+        help_text="Optional scan/photo of the driver's license.",
+    )
+    license_full_name = models.CharField(
+        max_length=150, blank=True, default="",
+        help_text="Name exactly as printed on the license — for matching against the "
+                  "account name, not a replacement for it. May legitimately differ "
+                  "(maiden name, nickname on the account, etc.).",
+    )
+    license_date_of_birth = models.DateField(
+        null=True, blank=True,
+        help_text="Date of birth as printed on the license.",
+    )
+    license_address = models.CharField(
+        max_length=255, blank=True, default="",
+        help_text="Address as printed on the license. Often out of date — drivers move "
+                  "without reprinting a license — so this is reference only.",
+    )
+
+    chauffeur_permit_number = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Chauffeur / for-hire permit number, where required.",
+    )
+    chauffeur_permit_expiration = models.DateField(null=True, blank=True)
+    chauffeur_permit_scan = models.FileField(
+        upload_to="drivers/permits/", blank=True, null=True,
+        help_text="Optional scan/photo of the chauffeur / for-hire permit.",
+    )
+    chauffeur_permit_fdl_number = models.CharField(
+        max_length=50, blank=True, default="",
+        help_text="Driver's-license number as printed on the physical permit card "
+                  "(labeled \"FDL#\" on a City of Orlando permit) — cross-checked "
+                  "against license_number below; a mismatch usually means one of "
+                  "the two was mistyped.",
+    )
+
+    dot_medical_card_expiration = models.DateField(
+        null=True, blank=True,
+        help_text="Expiration of the DOT medical examiner's certificate, if applicable.",
+    )
+    dot_medical_card_scan = models.FileField(
+        upload_to="drivers/medical_cards/", blank=True, null=True,
+        help_text="Optional scan/photo of the DOT medical card.",
+    )
+
+    #: Days out at which an expiration starts showing as "expiring soon" rather
+    #: than a clean OK. Matches the directory/profile warning-pill threshold.
+    CREDENTIAL_WARNING_DAYS = 30
+
+    def _credential_status(self, expiration):
+        """None (nothing on file), 'expired', 'expiring', or 'ok'.
+
+        No date on file is deliberately NOT an alert — this is a new field
+        being backfilled over time, and treating "not entered yet" as
+        "expired" would flag every driver on day one."""
+        if expiration is None:
+            return None
+        days = (expiration - timezone.localdate()).days
+        if days < 0:
+            return "expired"
+        if days <= self.CREDENTIAL_WARNING_DAYS:
+            return "expiring"
+        return "ok"
+
+    @property
+    def license_status(self):
+        return self._credential_status(self.license_expiration)
+
+    @property
+    def chauffeur_permit_status(self):
+        return self._credential_status(self.chauffeur_permit_expiration)
+
+    @property
+    def dot_medical_card_status(self):
+        return self._credential_status(self.dot_medical_card_expiration)
+
+    @property
+    def chauffeur_permit_fdl_mismatch(self):
+        """True when the FDL# printed on the physical permit card doesn't
+        match license_number on file. Only fires once BOTH are entered — a
+        blank field is "not compared yet", not a mismatch, same reasoning as
+        _credential_status treating a blank expiration as "no alert"."""
+        permit_fdl = (self.chauffeur_permit_fdl_number or "").strip().upper()
+        on_file = (self.license_number or "").strip().upper()
+        if not permit_fdl or not on_file:
+            return False
+        return permit_fdl != on_file
+
+    def credential_alerts(self):
+        """Labeled list of credentials that are expired, expiring soon, or
+        (chauffeur permit only) have a mismatched FDL# — backs the warning
+        pills on the directory and profile pages."""
+        items = [
+            ("Driver's license", self.license_status, self.license_expiration),
+            ("Chauffeur permit", self.chauffeur_permit_status, self.chauffeur_permit_expiration),
+            ("DOT medical card", self.dot_medical_card_status, self.dot_medical_card_expiration),
+        ]
+        alerts = [
+            {"label": label, "status": status, "expiration": expiration}
+            for label, status, expiration in items
+            if status in ("expired", "expiring")
+        ]
+        if self.chauffeur_permit_fdl_mismatch:
+            alerts.append({
+                "label": "Chauffeur permit FDL#", "status": "mismatch", "expiration": None,
+            })
+        return alerts
+
+    @property
+    def has_credential_alert(self):
+        return bool(self.credential_alerts())
+
     # ── Vehicle capability + preferences (driver knowledge for dispatchers) ──
     # Capability is exception-based: a vehicle TYPE is only restricted if its
     # rates.Vehicle.requires_certification is set (today only the Sprinter / 14-pax).

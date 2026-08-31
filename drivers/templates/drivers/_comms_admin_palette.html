@@ -1,0 +1,19 @@
+{% comment %}
+Shared dark/gold palette + rate-accent classes for the two admin comms
+surfaces (comms_kpis.html, driver_profile.html) so they read as one surface
+and can't drift apart the way two hand-copied :root blocks eventually do.
+Included inside each page's own <style> block — not a standalone stylesheet.
+{% endcomment %}
+:root {
+  --gt-gold: #C9A227;
+  --gt-bg: #0d1117;
+  --gt-surface: #161b22;
+  --gt-surface-2: #1c2128;
+  --gt-border: #2a313a;
+  --gt-text: #e6edf3;
+  --gt-muted: #8b949e;
+}
+.fill-green { background: #4ade80; } .pct-green { color: #4ade80; }
+.fill-amber { background: #fbbf24; } .pct-amber { color: #fbbf24; }
+.fill-red   { background: #f87171; } .pct-red   { color: #f87171; }
+.fill-muted { background: var(--gt-border); } .pct-muted { color: var(--gt-muted); }

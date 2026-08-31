@@ -7,67 +7,115 @@ here and hand this file back** — the IDs are what I'll match on, so keep them.
 Generated from `drivers/client_messages.py`; verified byte-identical to what the
 code renders. If you change this file, the code does not change until I apply it.
 
+Rewritten 2026-08-31 — the previous version of this doc (and the code) named the
+flight number and landing time, and quoted a carousel number. Guest-facing copy
+no longer does either; see Design rules below.
+
 ## Slots
 
 | Slot | Fills with | If missing |
 |---|---|---|
 | `{guest}` | Guest's first name, title-cased | `there` |
-| `{driver}` | Chauffeur's first name | phrase becomes "your Grayson Towncar chauffeur" |
-| `{daypart}` | `morning` / `afternoon` / `evening`, from the pickup time | `day` |
-| `{time}` | Pickup time, e.g. `6:15 AM` | drops to "your pickup" |
-| `{airport}` | e.g. `Orlando International Airport (MCO)` | `the airport` |
-| `{flight}` | e.g. `Delta 1423` | becomes "your flight" |
-| `{landing}` | ` (landing 4:35 PM)` | omitted entirely |
-| `{carousel}` | ` at carousel 7` | omitted — usually blank, the airline rarely reports it |
+| `{driver}` | Chauffeur's first name, folded into an intro line | phrase becomes "I'm your Grayson Towncar chauffeur" |
+| `{daypart}` | `morning` / `afternoon` / `evening`, from the BOOKED pickup time (before noon / before 5 PM / after) | `day` |
+| `{time}` | Pickup time, e.g. `6:15 AM` | drops out — the sentence just says "your pickup" |
+| `{airport}` | e.g. `Orlando International Airport` — departure copy only, no internal airport code | `the airport` |
+| `{meet_point}` | Where to find the chauffeur at an arrival airport — see Meet points below | `the baggage claim area` |
 | `{car}` | ` in a Chevrolet Suburban` — make + model, **never a colour** | omitted |
 | `{terminal}` | `the Royal Caribbean terminal` | `the cruise terminal` |
 | `{port}` | `the Royal Caribbean terminal at Port Canaveral` | `the cruise terminal at Port Canaveral` |
+| `{pickup}` | The booked pickup address, verbatim | omitted |
 | `{review_url}` | The Google review link | — |
 
-Slots that start with a space (`{landing}`, `{carousel}`, `{car}`) carry their own
-leading space so the sentence closes up cleanly when they're empty. Keep them
-tight against the preceding word.
+## Meet points (airport-specific)
 
-## Rules the copy has to keep
+An arrival text names where to find the chauffeur. This is only ever as precise
+as a VERIFIED set of directions for that specific airport — never invented.
 
-1. **Airport pickups are never curbside.** The driver walks in. Don't introduce
-   "curb", "outside" or "arrivals level" into any arrival message.
+| Airport | Meet point |
+|---|---|
+| Orlando International (MCO) | the baggage claim area on the 2nd floor, right at the bottom of the escalators by the information desk |
+| Sanford International (SFB) | the baggage claim area on level 1, at the bottom of the escalator or elevator by the information desk |
+| Melbourne (MLB), Lakeland (LAL), anything else | the baggage claim area *(no floor or landmark — none verified yet)* |
+
+**Open question, needs your call:** `services/mco-terminal-c-transportation.html`
+(an existing page on the site) describes MCO's Terminal C meet point as
+**"Level 6 near the escalators and elevators… vehicle on Level 1"** — different
+from the "2nd floor" instructions above. MCO has more than one terminal
+building and the trip data has no field to tell them apart. Until this is
+reconciled, every MCO arrival gets the "2nd floor" instructions regardless of
+terminal.
+
+## Design rules the copy has to keep
+
+1. **Airport pickups are never curbside.** The driver walks in and waits inside.
 2. **Never promise a colour.** Nothing in the system stores one.
-3. **Departures can't quote a flight time.** Only arrival times exist in the data.
+3. **Never quote a flight number or landing time.** The driver tracks the flight
+   internally, but the guest text doesn't say so.
+4. **Never quote a departing flight TIME.** Only arrival times exist in the data.
    A departure text can only use `{time}`, the booked pickup.
-4. Keep `{review_url}` on its own line, last.
+5. **Never invent a meet point.** An airport without verified instructions gets
+   the plain "baggage claim area", not a guessed floor or landmark.
+6. Keep `{review_url}` on its own line, last.
 
 ---
 
-## Airport arrival — flight tracked
+## Airport arrival
 
-`ARR-T` — triggers when: pickup is at an airport AND we have a usable landing time
+`ARR` — triggers when: pickup is at any airport. (Whether or not a flight
+arrival time is on file no longer changes the wording — both render the same.)
 
-### ARR-T-WAY · On the way
+### ARR-WAY · On the way
 
 ```
-Hi {guest}, this is {driver} with Grayson Towncar — I'll be your chauffeur today. I'm tracking {flight}{landing} and I'll meet you inside baggage claim with a name sign. No need to call if you're running behind, I'll be watching the flight. Just text me here once you have your bags.
+Hello, {guest}! This is {driver} with Grayson Towncar. Welcome to Orlando — I hope you had a great flight.
+
+Please send me a quick message as soon as you get off the plane. I'll meet you in {meet_point}. I'll be holding a sign with your name.
+
+I look forward to meeting you shortly!
 ```
 
-<details><summary>Reads as</summary>
+<details><summary>Reads as (MCO)</summary>
 
-> Hi Jane, this is Marcus with Grayson Towncar — I'll be your chauffeur today. I'm tracking Delta 1423 (landing 4:35 PM) and I'll meet you inside baggage claim with a name sign. No need to call if you're running behind, I'll be watching the flight. Just text me here once you have your bags.
+> Hello, Jane! This is Marcus with Grayson Towncar. Welcome to Orlando — I hope you had a great flight.
+>
+> Please send me a quick message as soon as you get off the plane. I'll meet you in the baggage claim area on the 2nd floor, right at the bottom of the escalators by the information desk. I'll be holding a sign with your name.
+>
+> I look forward to meeting you shortly!
 
 </details>
 
-### ARR-T-LOC · On location
+<details><summary>Reads as (SFB)</summary>
 
-```
-{guest}, I'm here and waiting for you inside baggage claim{carousel} with a name sign — {driver}, Grayson Towncar. Take your time. Just text me when you have your bags and I'll bring the car around.
-```
-
-<details><summary>Reads as</summary>
-
-> Jane, I'm here and waiting for you inside baggage claim at carousel 7 with a name sign — Marcus, Grayson Towncar. Take your time. Just text me when you have your bags and I'll bring the car around.
+> Hello, Jane! This is Marcus with Grayson Towncar. Welcome to Orlando — I hope you had a great flight.
+>
+> Please send me a quick message as soon as you get off the plane. I'll meet you in the baggage claim area on level 1, at the bottom of the escalator or elevator by the information desk. I'll be holding a sign with your name.
+>
+> I look forward to meeting you shortly!
 
 </details>
 
-### ARR-T-REV · Review request
+### ARR-LOC · On location
+
+```
+Hi {guest}, I'm here at {meet_point}. I'll be holding a sign with your name.
+
+See you shortly!
+
+— {driver}, Grayson Towncar
+```
+
+<details><summary>Reads as (MCO)</summary>
+
+> Hi Jane, I'm here at the baggage claim area on the 2nd floor, right at the bottom of the escalators by the information desk. I'll be holding a sign with your name.
+>
+> See you shortly!
+>
+> — Marcus, Grayson Towncar
+
+</details>
+
+### ARR-REV · Review request
 
 ```
 It was a pleasure driving you today, {guest}. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Enjoy your stay!
@@ -85,77 +133,43 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 
 ---
 
-## Airport arrival — no flight data
+## Airport departure
 
-`ARR-U` — triggers when: pickup is at an airport but no landing time is known (no flight on the booking, or a red-eye whose arrival lands on a different date)
-
-### ARR-U-WAY · On the way
-
-```
-Hi {guest}, this is {driver} with Grayson Towncar — I'll be your chauffeur today. I'll meet you inside baggage claim at {airport} with a name sign. Text me here once you've landed and have your bags, and I'll walk you out.
-```
-
-<details><summary>Reads as</summary>
-
-> Hi Jane, this is Marcus with Grayson Towncar — I'll be your chauffeur today. I'll meet you inside baggage claim at Orlando International Airport (MCO) with a name sign. Text me here once you've landed and have your bags, and I'll walk you out.
-
-</details>
-
-### ARR-U-LOC · On location
-
-```
-{guest}, I'm here and waiting for you inside baggage claim{carousel} with a name sign — {driver}, Grayson Towncar. Take your time. Just text me when you have your bags and I'll bring the car around.
-```
-
-<details><summary>Reads as</summary>
-
-> Jane, I'm here and waiting for you inside baggage claim with a name sign — Marcus, Grayson Towncar. Take your time. Just text me when you have your bags and I'll bring the car around.
-
-</details>
-
-### ARR-U-REV · Review request
-
-```
-It was a pleasure driving you today, {guest}. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Enjoy your stay!
-
-{review_url}
-```
-
-<details><summary>Reads as</summary>
-
-> It was a pleasure driving you today, Jane. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Enjoy your stay!
->
-> https://g.page/r/CRWIXii71sLGEBM/review
-
-</details>
-
----
-
-## Departure — to the airport
-
-`DEP` — triggers when: drop-off is at an airport and the pickup is not
+`DEP` — triggers when: drop-off is at an airport and the pickup is not.
 
 ### DEP-WAY · On the way
 
 ```
-Good {daypart}, {guest} — this is {driver} with Grayson Towncar. I'm on my way to you now for your {time} pickup to {airport}{car}. I'll text you the moment I'm outside.
+Good {daypart}, {guest}! This is {driver} with Grayson Towncar. I'm on my way for your {time} pickup from {pickup} to {airport}.
+
+I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 ```
 
 <details><summary>Reads as</summary>
 
-> Good morning, Jane — this is Marcus with Grayson Towncar. I'm on my way to you now for your 6:15 AM pickup to Orlando International Airport (MCO) in a Chevrolet Suburban. I'll text you the moment I'm outside.
+> Good morning, Jane! This is Marcus with Grayson Towncar. I'm on my way for your 6:15 AM pickup from The Ritz-Carlton Orlando, Grande Lakes to Orlando International Airport.
+>
+> I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 
 </details>
 
 ### DEP-LOC · On location
 
 ```
-{guest}, I'm outside now{car} — {driver}, Grayson Towncar. No rush — come out whenever you're ready.
+Good {daypart}, {guest}! I've arrived at {pickup} and I'm outside for your pickup.
+
+Just send me a quick message when you're coming out, and I'll be ready to assist you with your luggage.
+
+— {driver}, Grayson Towncar
 ```
 
 <details><summary>Reads as</summary>
 
-> Jane, I'm outside now in a Chevrolet Suburban — Marcus, Grayson Towncar. No rush — come out whenever you're ready.
+> Good morning, Jane! I've arrived at The Ritz-Carlton Orlando, Grande Lakes and I'm outside for your pickup.
+>
+> Just send me a quick message when you're coming out, and I'll be ready to assist you with your luggage.
+>
+> — Marcus, Grayson Towncar
 
 </details>
 
@@ -177,33 +191,13 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 
 ---
 
-## Cruise embarkation — from the airport
+## Cruise departure — from the airport
 
-`CRU-AIR` — triggers when: drop-off is a cruise port and the pickup is an airport
+`CRU-AIR` — triggers when: drop-off is a cruise port and the pickup is an airport.
 
-### CRU-AIR-WAY · On the way
-
-```
-Hi {guest}, this is {driver} with Grayson Towncar — I'll be your chauffeur out to {port} today. I'm tracking {flight}{landing} and I'll meet you inside baggage claim with a name sign. No need to call if you're running behind, I'll be watching the flight. Just text me here once you have your bags.
-```
-
-<details><summary>Reads as</summary>
-
-> Hi Jane, this is Marcus with Grayson Towncar — I'll be your chauffeur out to the Royal Caribbean terminal at Port Canaveral today. I'm tracking Delta 1423 (landing 4:35 PM) and I'll meet you inside baggage claim with a name sign. No need to call if you're running behind, I'll be watching the flight. Just text me here once you have your bags.
-
-</details>
-
-### CRU-AIR-LOC · On location
-
-```
-{guest}, I'm here and waiting for you inside baggage claim{carousel} with a name sign — {driver}, Grayson Towncar. Take your time. Just text me when you have your bags and I'll bring the car around. We'll head straight for the ship.
-```
-
-<details><summary>Reads as</summary>
-
-> Jane, I'm here and waiting for you inside baggage claim at carousel 7 with a name sign — Marcus, Grayson Towncar. Take your time. Just text me when you have your bags and I'll bring the car around. We'll head straight for the ship.
-
-</details>
+Uses the **Airport arrival** messages above, word for word — a cruise guest
+arriving by air gets exactly the same on-the-way/on-location texts as a plain
+airport arrival, right down to the meet point. Only the review closing differs.
 
 ### CRU-AIR-REV · Review request
 
@@ -213,41 +207,45 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 {review_url}
 ```
 
-<details><summary>Reads as</summary>
-
-> It was a pleasure driving you today, Jane. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Have a wonderful cruise!
->
-> https://g.page/r/CRWIXii71sLGEBM/review
-
-</details>
-
 ---
 
-## Cruise embarkation — from a hotel
+## Cruise departure — from a hotel
 
-`CRU-HOTEL` — triggers when: drop-off is a cruise port and the pickup is not an airport
+`CRU-HOTEL` — triggers when: drop-off is a cruise port and the pickup is not an airport.
 
 ### CRU-HOTEL-WAY · On the way
 
 ```
-Hi {guest}, this is {driver} with Grayson Towncar. I'm on my way to you now for your {time} pickup to {port}{car}. I'll text you the moment I'm outside.
+Good {daypart}, {guest}! This is {driver} with Grayson Towncar. I'm on my way for your {time} pickup to {port}.
+
+I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 ```
 
 <details><summary>Reads as</summary>
 
-> Hi Jane, this is Marcus with Grayson Towncar. I'm on my way to you now for your 6:15 AM pickup to the Royal Caribbean terminal at Port Canaveral in a Chevrolet Suburban. I'll text you the moment I'm outside.
+> Good morning, Jane! This is Marcus with Grayson Towncar. I'm on my way for your 10:00 AM pickup to the Royal Caribbean terminal at Port Canaveral.
+>
+> I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 
 </details>
 
 ### CRU-HOTEL-LOC · On location
 
 ```
-{guest}, I'm outside now{car} — {driver}, Grayson Towncar. No rush — come out whenever you're ready.
+Good {daypart}, {guest}! I've arrived and I'm outside for your pickup{car}.
+
+Just send me a quick message when you're coming out, and I'll be ready to assist you with your luggage.
+
+— {driver}, Grayson Towncar
 ```
 
 <details><summary>Reads as</summary>
 
-> Jane, I'm outside now in a Chevrolet Suburban — Marcus, Grayson Towncar. No rush — come out whenever you're ready.
+> Good morning, Jane! I've arrived and I'm outside for your pickup in a Chevrolet Suburban.
+>
+> Just send me a quick message when you're coming out, and I'll be ready to assist you with your luggage.
+>
+> — Marcus, Grayson Towncar
 
 </details>
 
@@ -259,41 +257,49 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 {review_url}
 ```
 
-<details><summary>Reads as</summary>
-
-> It was a pleasure driving you today, Jane. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Have a wonderful cruise!
->
-> https://g.page/r/CRWIXii71sLGEBM/review
-
-</details>
-
 ---
 
-## Cruise debarkation — off the ship
+## Cruise return — off the ship
 
-`CRU-OFF` — triggers when: pickup is at a cruise port (whether they go on to a hotel or the airport)
+`CRU-OFF` — triggers when: pickup is at a cruise port.
 
 ### CRU-OFF-WAY · On the way
 
 ```
-Hi {guest}, this is {driver} with Grayson Towncar — I'll be your chauffeur today. I'll be waiting for you at {terminal} when you come off the ship. Take your time with customs and text me here once you're through — I'll bring the car right to you.
+Good {daypart}, {guest}! This is {driver} with Grayson Towncar. Welcome back! I'll be your chauffeur from {port} today.
+
+Once you're through customs and ready for pickup, please send me a quick message. I'll be nearby and ready to meet you.
+
+See you shortly!
 ```
 
 <details><summary>Reads as</summary>
 
-> Hi Jane, this is Marcus with Grayson Towncar — I'll be your chauffeur today. I'll be waiting for you at the Royal Caribbean terminal when you come off the ship. Take your time with customs and text me here once you're through — I'll bring the car right to you.
+> Good morning, Jane! This is Marcus with Grayson Towncar. Welcome back! I'll be your chauffeur from the Royal Caribbean terminal at Port Canaveral today.
+>
+> Once you're through customs and ready for pickup, please send me a quick message. I'll be nearby and ready to meet you.
+>
+> See you shortly!
 
 </details>
 
 ### CRU-OFF-LOC · On location
 
 ```
-{guest}, I'm here at {terminal}{car} — {driver}, Grayson Towncar. Text me as soon as you're through customs and I'll pull right up.
+Hi {guest}, I'm here at {terminal}{car}.
+
+Once you're through customs and ready for pickup, just send me a quick message and I'll pull around to meet you.
+
+— {driver}, Grayson Towncar
 ```
 
 <details><summary>Reads as</summary>
 
-> Jane, I'm here at the Royal Caribbean terminal in a Chevrolet Suburban — Marcus, Grayson Towncar. Text me as soon as you're through customs and I'll pull right up.
+> Hi Jane, I'm here at the Royal Caribbean terminal in a Chevrolet Suburban.
+>
+> Once you're through customs and ready for pickup, just send me a quick message and I'll pull around to meet you.
+>
+> — Marcus, Grayson Towncar
 
 </details>
 
@@ -305,41 +311,45 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 {review_url}
 ```
 
-<details><summary>Reads as</summary>
-
-> It was a pleasure driving you today, Jane. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Welcome back!
->
-> https://g.page/r/CRWIXii71sLGEBM/review
-
-</details>
-
 ---
 
-## Charter / hourly — as directed
+## Charter / hourly booking
 
-`CHARTER` — triggers when: the booking carries an hourly / as-directed stop
+`CHARTER` — triggers when: the booking carries an hourly / as-directed stop.
 
 ### CHARTER-WAY · On the way
 
 ```
-Hi {guest}, this is {driver} with Grayson Towncar. I'm on my way to you now for your {time} pickup{car}. I'm at your service for the day — wherever you'd like to go. I'll text you the moment I'm outside.
+Good {daypart}, {guest}! This is {driver} with Grayson Towncar. I'm on my way for your {time} pickup and will be your chauffeur for the day.
+
+I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 ```
 
 <details><summary>Reads as</summary>
 
-> Hi Jane, this is Marcus with Grayson Towncar. I'm on my way to you now for your 6:15 AM pickup in a Chevrolet Suburban. I'm at your service for the day — wherever you'd like to go. I'll text you the moment I'm outside.
+> Good morning, Jane! This is Marcus with Grayson Towncar. I'm on my way for your 9:00 AM pickup and will be your chauffeur for the day.
+>
+> I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 
 </details>
 
 ### CHARTER-LOC · On location
 
 ```
-{guest}, I'm outside now{car} — {driver}, Grayson Towncar. No rush at all — come out whenever you're ready and we'll go from there.
+Good {daypart}, {guest}! I've arrived and I'm outside for your pickup{car}.
+
+Just send me a quick message when you're coming out, and I'll be ready for you.
+
+— {driver}, Grayson Towncar
 ```
 
 <details><summary>Reads as</summary>
 
-> Jane, I'm outside now in a Chevrolet Suburban — Marcus, Grayson Towncar. No rush at all — come out whenever you're ready and we'll go from there.
+> Good morning, Jane! I've arrived and I'm outside for your pickup in a Chevrolet Suburban.
+>
+> Just send me a quick message when you're coming out, and I'll be ready for you.
+>
+> — Marcus, Grayson Towncar
 
 </details>
 
@@ -351,41 +361,45 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 {review_url}
 ```
 
-<details><summary>Reads as</summary>
-
-> It was a pleasure driving you today, Jane. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Take care!
->
-> https://g.page/r/CRWIXii71sLGEBM/review
-
-</details>
-
 ---
 
-## Point to point — everything else
+## Point to point
 
-`P2P` — triggers when: everything else — hotel to venue, point to point
+`P2P` — triggers when: everything else — hotel to a venue, and similar.
 
 ### P2P-WAY · On the way
 
 ```
-Hi {guest}, this is {driver} with Grayson Towncar. I'm on my way to you now for your {time} pickup{car}. I'll text you the moment I'm outside.
+Good {daypart}, {guest}! This is {driver} with Grayson Towncar. I'm on my way for your {time} pickup.
+
+I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 ```
 
 <details><summary>Reads as</summary>
 
-> Hi Jane, this is Marcus with Grayson Towncar. I'm on my way to you now for your 6:15 AM pickup in a Chevrolet Suburban. I'll text you the moment I'm outside.
+> Good evening, Jane! This is Marcus with Grayson Towncar. I'm on my way for your 7:00 PM pickup.
+>
+> I'll send you a quick message as soon as I arrive. I look forward to seeing you shortly!
 
 </details>
 
 ### P2P-LOC · On location
 
 ```
-{guest}, I'm outside now{car} — {driver}, Grayson Towncar. No rush — come out whenever you're ready.
+Good {daypart}, {guest}! I've arrived and I'm outside for your pickup{car}.
+
+Just send me a quick message when you're coming out, and I'll be ready for you.
+
+— {driver}, Grayson Towncar
 ```
 
 <details><summary>Reads as</summary>
 
-> Jane, I'm outside now in a Chevrolet Suburban — Marcus, Grayson Towncar. No rush — come out whenever you're ready.
+> Good evening, Jane! I've arrived and I'm outside for your pickup in a Chevrolet Suburban.
+>
+> Just send me a quick message when you're coming out, and I'll be ready for you.
+>
+> — Marcus, Grayson Towncar
 
 </details>
 
@@ -397,13 +411,11 @@ It was a pleasure driving you today, {guest}. If I took good care of you, a quic
 {review_url}
 ```
 
-<details><summary>Reads as</summary>
-
-> It was a pleasure driving you today, Jane. If I took good care of you, a quick review means a great deal to us at Grayson Towncar — and it's the surest way to have me requested again. Take care!
->
-> https://g.page/r/CRWIXii71sLGEBM/review
-
-</details>
-
 ---
 
+## Not documented here: who gets these texts
+
+Every in-house chauffeur AND every affiliate who drives his own jobs (a one-man
+affiliate, not a re-dispatching operator) sees these buttons on his job card.
+A true operator — who re-dispatches to his own drivers and never sees a guest
+phone number — does not. See `drivers.views._attach_client_messages`.

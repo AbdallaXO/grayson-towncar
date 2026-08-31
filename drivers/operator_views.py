@@ -444,7 +444,7 @@ def _notify_dispatch_of_decline(leg, operator, reason):
         )
         return
     try:
-        from drivers.timeoff_notifications import _send
+        from drivers import sms
         when = f"{leg.pickup_date:%b %d} {leg.pickup_time:%I:%M %p}".replace(" 0", " ")
         body = "\n".join([
             "FARM-OUT DECLINED",
@@ -453,7 +453,7 @@ def _notify_dispatch_of_decline(leg, operator, reason):
             "Leg is unassigned and flagged on the board.",
         ])
         for phone in phones:
-            _send(phone, body)
+            sms.send(phone, body)
     except Exception:
         logger.exception("Could not text dispatch about declined leg %s", leg.id)
 

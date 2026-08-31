@@ -159,7 +159,8 @@ class CopyTests(TestCase):
         return _make_leg(self.res, pickup=pickup, dropoff=dropoff, **kw)
 
     def _all_bodies(self):
-        """Every kind x every situation — for blanket invariants."""
+        """Every kind x every situation — for blanket invariants. Tagged with
+        (situation, kind) so a test can carve out a known exception."""
         specs = [
             ("MCO", "Disney"),
             ("Disney", "MCO"),
@@ -172,67 +173,123 @@ class CopyTests(TestCase):
         for pickup, dropoff in specs:
             leg = self._leg(pickup, dropoff)
             for kind in KINDS:
-                out.append(build(leg, kind, driver_name="Marcus").body)
+                msg = build(leg, kind, driver_name="Marcus")
+                out.append((msg.situation, kind, msg.body))
         return out
 
-    def test_every_message_names_the_guest_and_the_company(self):
-        for body in self._all_bodies():
+    def test_every_message_names_the_guest(self):
+        for _, _, body in self._all_bodies():
             self.assertIn("Jane", body, body)
+
+    def test_every_message_names_the_company(self):
+        for _, _, body in self._all_bodies():
             self.assertIn("Grayson Towncar", body, body)
 
     def test_no_message_ever_promises_a_curbside_airport_pickup(self):
-        for body in self._all_bodies():
+        for _, _, body in self._all_bodies():
             self.assertNotIn("curb", body.lower(), body)
 
     def test_no_message_invents_a_vehicle_colour(self):
         """No vehicle model in this system stores a colour."""
-        for body in self._all_bodies():
+        for _, _, body in self._all_bodies():
             low = body.lower()
             for colour in ("black ", "white ", "silver ", "grey ", "gray "):
                 self.assertNotIn(colour, low, body)
 
-    def test_arrival_meets_inside_baggage_claim_with_a_sign(self):
+    def test_arrival_meets_at_the_baggage_claim_area_with_a_sign(self):
         leg = self._leg("MCO", "Disney")
         body = build(leg, ON_THE_WAY, driver_name="Marcus").body
-        self.assertIn("inside baggage claim", body)
-        self.assertIn("name sign", body)
+        self.assertIn("baggage claim area", body)
+        self.assertIn("sign with your name", body)
 
-    def test_arrival_on_location_quotes_the_carousel_when_known(self):
+    def test_mco_arrival_names_its_verified_meet_point(self):
+        """MCO has a specific, verified floor/landmark — see
+        client_messages._MEET_POINT_BY_AIRPORT_CODE."""
         leg = self._leg("MCO", "Disney")
-        leg.flight_information = Flight.objects.create(
-            airline="DL", flight_number="1423", baggage_claim="7",
-            scheduled_gate_arrival_local=timezone.now(),
-        )
-        leg.save(update_fields=["flight_information"])
-        body = build(leg, ON_LOCATION, driver_name="Marcus").body
-        self.assertIn("carousel 7", body)
+        for kind in (ON_THE_WAY, ON_LOCATION):
+            body = build(leg, kind, driver_name="Marcus").body
+            self.assertIn("2nd floor", body, body)
+            self.assertIn("escalators", body, body)
+            self.assertIn("information desk", body, body)
 
-    def test_arrival_on_location_omits_carousel_when_unknown(self):
-        body = build(self._leg("MCO", "Disney"), ON_LOCATION, driver_name="Marcus").body
-        self.assertNotIn("carousel", body)
-        self.assertIn("inside baggage claim", body)
+    def test_sfb_arrival_names_its_own_verified_meet_point(self):
+        leg = self._leg("SFB", "Disney")
+        for kind in (ON_THE_WAY, ON_LOCATION):
+            body = build(leg, kind, driver_name="Marcus").body
+            self.assertIn("level 1", body, body)
+            self.assertIn("escalator or elevator", body, body)
+            self.assertIn("information desk", body, body)
 
-    def test_tracked_arrival_names_the_flight(self):
+    def test_unverified_airport_gets_the_plain_baggage_claim_area(self):
+        """Melbourne and Lakeland have no verified meet-point instructions on
+        file — the copy must not invent a floor or landmark for them."""
+        leg = self._leg("MLB", "Disney")
+        body = build(leg, ON_THE_WAY, driver_name="Marcus").body
+        self.assertIn("baggage claim area", body)
+        self.assertNotIn("2nd floor", body)
+        self.assertNotIn("level 1", body)
+
+    def test_arrival_does_not_name_the_flight_or_landing_time(self):
+        """As of the 2026-08-31 rewrite the guest-facing copy no longer
+        quotes a flight number or landing time, even when one is known —
+        classify() still tracks tracked-vs-untracked internally, but the
+        rendered text is the same either way."""
         leg = self._leg("MCO", "Disney")
         leg.flight_information = Flight.objects.create(
             airline_display_name="Delta", flight_number="1423",
             scheduled_gate_arrival_local=timezone.now(),
         )
         leg.save(update_fields=["flight_information"])
+        self.assertEqual(classify(leg), ARRIVAL_TRACKED)
         body = build(leg, ON_THE_WAY, driver_name="Marcus").body
-        self.assertIn("Delta", body)
-        self.assertIn("1423", body)
+        self.assertNotIn("Delta", body)
+        self.assertNotIn("1423", body)
+        self.assertNotIn("landing", body.lower())
+
+    def test_cruise_from_the_airport_reads_exactly_like_a_plain_arrival(self):
+        """Explicit product requirement: a cruise guest arriving by air gets
+        the same on-the-way/on-location wording as a plain airport arrival —
+        no mention of the cruise or the port in either message."""
+        plain_arrival = self._leg("MCO", "Disney")
+        cruise_from_air = self._leg("MCO", "Port Canaveral Cruise Terminal")
+        for kind in (ON_THE_WAY, ON_LOCATION):
+            plain_body = build(plain_arrival, kind, driver_name="Marcus").body
+            cruise_body = build(cruise_from_air, kind, driver_name="Marcus").body
+            self.assertEqual(plain_body, cruise_body)
 
     def test_departure_quotes_the_pickup_time_and_the_airport(self):
         leg = self._leg("Disney", "MCO", pickup_time_=time(6, 15))
         body = build(leg, ON_THE_WAY, driver_name="Marcus").body
         self.assertIn("6:15 AM", body)
-        self.assertIn("(MCO)", body)
-        self.assertIn("on my way", body.lower())
+        self.assertIn("Orlando International Airport", body)
+        # The internal (MCO) shorthand is for staff pages, not guest copy.
+        self.assertNotIn("(MCO)", body)
+
+    def test_departure_on_the_way_greets_by_time_of_day_and_names_the_pickup(self):
+        leg = self._leg("Hyatt Regency Grand Cypress", "MCO", pickup_time_=time(6, 15))
+        body = build(leg, ON_THE_WAY, driver_name="Marcus").body
+        self.assertIn("Good morning, Jane!", body)
+        self.assertIn("This is Marcus with Grayson Towncar", body)
+        self.assertIn("Hyatt Regency Grand Cypress", body)
 
     def test_departure_never_mentions_baggage_claim(self):
         body = build(self._leg("Disney", "MCO"), ON_THE_WAY, driver_name="Marcus").body
         self.assertNotIn("baggage claim", body)
+
+    def test_departure_on_location_greets_by_time_of_day_and_names_the_pickup(self):
+        leg = self._leg("Main entrance of Disney's Animal Kingdom Lodge", "MCO")
+        body = build(leg, ON_LOCATION, driver_name="Marcus").body
+        self.assertIn("Good morning, Jane!", body)
+        self.assertIn("Main entrance of Disney's Animal Kingdom Lodge", body)
+        self.assertIn("send me a quick message", body.lower())
+
+    def test_greeting_follows_the_booked_pickup_time_not_the_clock(self):
+        """The daypart greeting is keyed off leg.pickup_time — an evening
+        booking reads 'Good evening' regardless of when the page happens to
+        render."""
+        leg = self._leg("Disney", "MCO", pickup_time_=time(18, 15))
+        body = build(leg, ON_THE_WAY, driver_name="Marcus").body
+        self.assertIn("Good evening, Jane!", body)
 
     def test_debarkation_waits_at_the_named_terminal_and_mentions_customs(self):
         leg = self._leg("Port Canaveral Cruise Terminal", "Disney")
@@ -258,7 +315,7 @@ class CopyTests(TestCase):
             duration_minutes=240, start_time=time(9, 0),
         )
         body = build(leg, ON_THE_WAY, driver_name="Marcus").body
-        self.assertIn("at your service", body)
+        self.assertIn("chauffeur for the day", body)
 
     def test_the_three_kinds_differ_from_each_other(self):
         leg = self._leg("MCO", "Disney")
@@ -307,8 +364,10 @@ class CopyTests(TestCase):
 
 class SmsHrefTests(TestCase):
     def test_body_is_percent_encoded(self):
+        """Phone normalization goes through drivers.sms.normalize_e164, same
+        as every other outbound number — a 10-digit US number gets its +1."""
         href = sms_href("(407) 555-0148", "Hi Jane, it's Marcus & co.")
-        self.assertTrue(href.startswith("sms:4075550148?body="))
+        self.assertTrue(href.startswith("sms:+14075550148?body="))
         self.assertNotIn(" ", href)
         self.assertIn("%20", href)
         self.assertIn("%26", href)
@@ -463,11 +522,44 @@ class MetricsTests(TestCase):
         self.assertEqual(bulk[self.driver.id][ON_THE_WAY]["pct"], 100)
         self.assertEqual(bulk[mate.id][ON_THE_WAY]["pct"], 0)
 
-    def test_window_ends_yesterday_and_is_clamped_to_tracking_start(self):
+    def test_reassignment_does_not_rewrite_who_gets_credit(self):
+        """LegClientMessage.driver is denormalized specifically so a later
+        reassignment can't rewrite history (see the model's own docstring).
+        The chauffeur who actually tapped the message must keep the credit
+        even after the leg is handed to someone else."""
+        leg = self._completed()
+        LegClientMessage.objects.create(leg=leg, driver=self.driver, kind=ON_THE_WAY)
+        mate = _make_driver("kpi_reassigned_to", first="Lee")
+        leg.driver = mate
+        leg.save(update_fields=["driver"])
+
+        with override_settings(CLIENT_MESSAGE_TRACKING_START=TRACK_FROM):
+            bulk = comms_metrics.comms_stats_bulk(
+                [self.driver.id, mate.id], self.start, self.end
+            )
+        # The original chauffeur still gets credit for the tap he made...
+        self.assertEqual(bulk[self.driver.id][ON_THE_WAY]["sent"], 1)
+        # ...and the new driver, who never touched the button, does not.
+        self.assertEqual(bulk[mate.id][ON_THE_WAY]["sent"], 0)
+
+    def test_window_ends_today_and_is_clamped_to_tracking_start(self):
         with override_settings(CLIENT_MESSAGE_TRACKING_START=TRACK_FROM):
             start, end = comms_metrics.window_bounds(365, today=TRACK_FROM + timedelta(days=10))
-        self.assertEqual(end, TRACK_FROM + timedelta(days=9))
+        self.assertEqual(end, TRACK_FROM + timedelta(days=10))
         self.assertEqual(start, TRACK_FROM)
+
+    def test_todays_completed_trip_counts_toward_todays_rate(self):
+        """A tap on a trip completed earlier today must not wait until
+        tomorrow — it's eligible and counted the same day."""
+        today = TRACK_FROM + timedelta(days=5)
+        leg = _make_leg(self.res, self.driver, pickup_date=today, status="completed")
+        LegClientMessage.objects.create(leg=leg, driver=self.driver, kind=ON_THE_WAY)
+        with override_settings(CLIENT_MESSAGE_TRACKING_START=TRACK_FROM):
+            start, end = comms_metrics.window_bounds(7, today=today)
+            stats = comms_metrics.comms_stats(self.driver, start, end)
+        self.assertEqual(stats[ON_THE_WAY]["eligible"], 1)
+        self.assertEqual(stats[ON_THE_WAY]["sent"], 1)
+        self.assertEqual(stats[ON_THE_WAY]["pct"], 100)
 
     def test_window_resolution_falls_back_to_default(self):
         self.assertEqual(comms_metrics.resolve_window("junk")[0], comms_metrics.WINDOW_DEFAULT)
@@ -521,15 +613,19 @@ class DriverCardTests(TestCase):
         html = self.client.get(reverse("schedule")).content.decode()
         self.assertIn("is-sent", html)
 
-    def test_affiliate_card_shows_no_guest_texts(self):
+    def test_affiliate_chauffeur_card_shows_guest_texts(self):
+        """An affiliate who drives his own jobs (driver_type="affiliate",
+        portal_role="driver", the default) gets the same job card as an
+        in-house chauffeur — including a customer phone number — so he keeps
+        the same texting buttons, same as the single hardcoded "Request
+        Review" link every driver had before this feature existed. Only a
+        true operator (portal_role="operator"), who never reaches this page
+        at all, is excluded."""
         affiliate = _make_driver("card_affiliate", first="Ana", driver_type="affiliate")
         _make_leg(self.res, affiliate, status="on-the-way")
         self.client.force_login(affiliate.profile)
         html = self.client.get(reverse("schedule")).content.decode()
-        # Both bare tokens appear on every page regardless — "gt-guest-msgs" in
-        # the inline CSS, "data-msg-kind" in the shared JS selector. Only the
-        # rendered ATTRIBUTE proves a chip was actually painted onto a card.
-        self.assertNotIn('data-msg-kind="', html)
+        self.assertIn('data-msg-kind="', html)
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")
@@ -560,22 +656,35 @@ class KpiPageTests(TestCase):
         self.assertIn("sent from the driver app", html)
         self.assertNotIn("No rates yet", html)
 
-    def test_profile_says_why_there_are_no_rates_on_launch_day(self):
-        """A grid of dashes reads as 'nobody is doing it'. On launch day it means
-        'no data could exist yet', and the page has to say which."""
+    def test_profile_says_why_there_are_no_rates_before_launch_day(self):
+        """A grid of dashes reads as 'nobody is doing it'. Before tracking begins
+        it means 'no data could exist yet', and the page has to say which."""
         self.client.force_login(self.staff)
         with override_settings(
-            CLIENT_MESSAGE_TRACKING_START=timezone.localdate()
+            CLIENT_MESSAGE_TRACKING_START=timezone.localdate() + timedelta(days=1)
         ):
             html = self.client.get(
                 reverse("driver_profile", args=[self.driver.id])
             ).content.decode()
         self.assertIn("No rates yet", html)
 
-    def test_admin_page_says_why_there_are_no_rates_on_launch_day(self):
+    def test_profile_has_normal_rates_on_launch_day_itself(self):
+        """Launch day is a real, valid window (today counts) — it just starts
+        with zero eligible trips, same as any driver with no completed trips
+        yet. That is the ordinary dash state, not the 'no data could exist'
+        banner."""
+        self.client.force_login(self.staff)
+        with override_settings(CLIENT_MESSAGE_TRACKING_START=timezone.localdate()):
+            html = self.client.get(
+                reverse("driver_profile", args=[self.driver.id])
+            ).content.decode()
+        self.assertNotIn("No rates yet", html)
+        self.assertIn("sent from the driver app", html)
+
+    def test_admin_page_says_why_there_are_no_rates_before_launch_day(self):
         self.client.force_login(self.admin)
         with override_settings(
-            CLIENT_MESSAGE_TRACKING_START=timezone.localdate()
+            CLIENT_MESSAGE_TRACKING_START=timezone.localdate() + timedelta(days=1)
         ):
             html = self.client.get(reverse("driver_comms_kpis")).content.decode()
         self.assertIn("No rates yet", html)

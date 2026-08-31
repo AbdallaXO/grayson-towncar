@@ -109,6 +109,10 @@
         border: 1px solid #bfdbfe; font-size: 0.62rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
     }
     .driver-knowledge .shift-pref-text { color: #6366f1; font-size: 0.62rem; font-weight: 600; }
+    .driver-knowledge .cred-alert-pill {
+        display: inline-flex; align-items: center; gap: 3px; background: #fee2e2; color: #991b1b;
+        border: 1px solid #fecaca; font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+    }
 
     /* Type badges */
     .type-badge {
@@ -331,13 +335,20 @@
                       <span class="badge ms-1" style="background: #fee2e2; color: #991b1b; font-weight: 700; letter-spacing: 0.04em;" title="This driver is marked inactive — hidden from the planner, board, and vehicle assignment. Shown here in the directory only.">INACTIVE</span>
                     {% endif %}
                     <span class="driver-username">@{{ driver.profile.username }}</span>
-                    {% if driver.cert_labels or driver.preferred_vehicle_label or driver.shift_pref_label %}
+                    {% with alerts=driver.credential_alerts %}
+                    {% if driver.cert_labels or driver.preferred_vehicle_label or driver.shift_pref_label or alerts %}
                     <div class="driver-knowledge">
                       {% for c in driver.cert_labels %}<span class="cap-pill" title="Cleared to drive the {{ c }}"><i class="bi bi-patch-check-fill"></i> {{ c }}</span>{% endfor %}
                       {% if driver.preferred_vehicle_label %}<span class="pref-veh-pill" title="Preferred vehicle"><i class="bi bi-car-front-fill"></i> {{ driver.preferred_vehicle_label }}</span>{% endif %}
                       {% if driver.shift_pref_label %}<span class="shift-pref-text">{{ driver.shift_pref_label }}</span>{% endif %}
+                      {% if alerts %}
+                        <span class="cred-alert-pill" title="{% for a in alerts %}{{ a.label }}: {% if a.status == 'expired' %}expired{% elif a.status == 'expiring' %}expires soon{% else %}mismatch{% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}">
+                          <i class="bi bi-exclamation-triangle-fill"></i> {{ alerts|length }} credential{{ alerts|length|pluralize }}
+                        </span>
+                      {% endif %}
                     </div>
                     {% endif %}
+                    {% endwith %}
                   </td>
                   <td data-label="Type">
                     {% if driver.driver_type == 'inhouse' %}

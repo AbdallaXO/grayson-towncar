@@ -2,10 +2,12 @@
 
 Run with: ./manage.py test drivers
 """
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
 
 from drivers.models import Driver, DriverWeeklySchedule, DriverDateOverride, FleetVehicle
 from rates.models import Vehicle
@@ -353,6 +355,71 @@ class VehicleCapabilityTests(TestCase):
         self.assertEqual(format_shift_preference(eff), "")
 
 
+class CredentialAlertTests(TestCase):
+    """Driver.license_status / credential_alerts — the expiring/expired pills
+    on the profile and directory pages."""
+
+    def setUp(self):
+        user = User.objects.create_user(username=f"cred{id(self)}", first_name="Cred")
+        self.driver = Driver.objects.create(profile=user, driver_type="inhouse")
+
+    def test_no_expiration_on_file_is_not_an_alert(self):
+        """A blank date means 'not entered yet', not 'lapsed' — a new field
+        being backfilled over time must not flag every driver on day one."""
+        self.assertIsNone(self.driver.license_status)
+        self.assertEqual(self.driver.credential_alerts(), [])
+        self.assertFalse(self.driver.has_credential_alert)
+
+    def test_expiration_far_out_is_ok_and_not_an_alert(self):
+        self.driver.license_expiration = timezone.localdate() + timedelta(days=90)
+        self.assertEqual(self.driver.license_status, "ok")
+        self.assertEqual(self.driver.credential_alerts(), [])
+
+    def test_expiration_within_warning_window_is_expiring(self):
+        self.driver.license_expiration = timezone.localdate() + timedelta(days=10)
+        self.assertEqual(self.driver.license_status, "expiring")
+        labels = [a["label"] for a in self.driver.credential_alerts()]
+        self.assertIn("Driver's license", labels)
+
+    def test_past_expiration_is_expired(self):
+        self.driver.chauffeur_permit_expiration = timezone.localdate() - timedelta(days=1)
+        self.assertEqual(self.driver.chauffeur_permit_status, "expired")
+        alert = self.driver.credential_alerts()[0]
+        self.assertEqual(alert["status"], "expired")
+        self.assertTrue(self.driver.has_credential_alert)
+
+    def test_multiple_lapsed_credentials_all_appear(self):
+        today = timezone.localdate()
+        self.driver.license_expiration = today - timedelta(days=5)
+        self.driver.chauffeur_permit_expiration = today + timedelta(days=1)
+        self.driver.dot_medical_card_expiration = today + timedelta(days=400)
+        labels = {a["label"] for a in self.driver.credential_alerts()}
+        self.assertEqual(labels, {"Driver's license", "Chauffeur permit"})
+
+    def test_fdl_mismatch_is_false_when_either_side_is_blank(self):
+        """Not compared yet, not a mismatch — same reasoning as a blank
+        expiration not being an alert."""
+        self.driver.license_number = "D123-456-78-901-0"
+        self.assertFalse(self.driver.chauffeur_permit_fdl_mismatch)
+        self.driver.license_number = ""
+        self.driver.chauffeur_permit_fdl_number = "D123-456-78-901-0"
+        self.assertFalse(self.driver.chauffeur_permit_fdl_mismatch)
+
+    def test_fdl_mismatch_true_when_numbers_differ(self):
+        self.driver.license_number = "D123-456-78-901-0"
+        self.driver.chauffeur_permit_fdl_number = "A246-500-84-400-0"
+        self.assertTrue(self.driver.chauffeur_permit_fdl_mismatch)
+        labels = [a["label"] for a in self.driver.credential_alerts()]
+        self.assertIn("Chauffeur permit FDL#", labels)
+        self.assertTrue(self.driver.has_credential_alert)
+
+    def test_fdl_match_is_case_and_whitespace_insensitive(self):
+        self.driver.license_number = "d123-456-78-901-0"
+        self.driver.chauffeur_permit_fdl_number = " D123-456-78-901-0 "
+        self.assertFalse(self.driver.chauffeur_permit_fdl_mismatch)
+        self.assertEqual(self.driver.credential_alerts(), [])
+
+
 class DriverDateOverrideModelTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -388,3 +455,223 @@ class DriverDateOverrideModelTests(TestCase):
         self.assertTrue(ov.applies_on(date(2026, 5, 25)))
         self.assertFalse(ov.applies_on(date(2026, 5, 26)))
         self.assertFalse(ov.applies_on(date(2026, 5, 21)))
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
+class DriverProfileEditTests(TestCase):
+    """The edit-in-place form on the driver profile page — the replacement
+    for hopping to /admin to fix a phone number or log a license."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            "profile_edit_staff", password="x", is_staff=True, is_superuser=True
+        )
+        self.duser = User.objects.create_user("profile_edit_driver", first_name="Edit", last_name="Target")
+        self.driver = Driver.objects.create(profile=self.duser, driver_type="inhouse")
+        self.sprinter = Vehicle.objects.create(
+            vehicle_type="Van(14 Pax)", capacity=14, luggage_capacity=10,
+            requires_certification=True,
+        )
+        self.client.force_login(self.staff)
+
+    def _url(self):
+        return reverse("driver_profile", args=[self.driver.id])
+
+    def test_edit_mode_renders_the_form(self):
+        resp = self.client.get(self._url(), {"edit": "1"})
+        html = resp.content.decode()
+        self.assertIn('name="phone_number"', html)
+        self.assertIn('name="license_number"', html)
+        self.assertIn('name="certified_vehicle_types"', html)
+
+    def test_default_mode_does_not_render_the_form(self):
+        html = self.client.get(self._url()).content.decode()
+        self.assertNotIn('name="phone_number"', html)
+
+    def test_post_updates_everyday_fields_and_credentials(self):
+        resp = self.client.post(self._url(), {
+            "phone_number": "4075551234",
+            "vehicle": "Suburban",
+            "payment_method": "direct deposit",
+            "night_bonus": "10.00",
+            "employment_type": "full_time",
+            "is_active": "on",
+            "notes": "Great driver.",
+            "license_number": "D123-456-78-901-0",
+            "license_state": "FL",
+            "license_class": "E",
+            "license_expiration": (timezone.localdate() - timedelta(days=1)).isoformat(),
+            "chauffeur_permit_number": "CHF-1",
+            "chauffeur_permit_expiration": "",
+            "dot_medical_card_expiration": "",
+            "certified_vehicle_types": [str(self.sprinter.id)],
+        })
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.phone_number, "4075551234")
+        self.assertEqual(self.driver.notes, "Great driver.")
+        self.assertEqual(self.driver.license_number, "D123-456-78-901-0")
+        self.assertEqual(self.driver.license_status, "expired")
+        self.assertTrue(self.driver.can_drive(self.sprinter))
+
+    def test_post_saves_permit_fdl_number_and_flags_a_mismatch(self):
+        resp = self.client.post(self._url(), {
+            "phone_number": "", "vehicle": "", "payment_method": "",
+            "night_bonus": "0", "employment_type": "", "notes": "",
+            "license_number": "D123-456-78-901-0", "license_state": "", "license_class": "",
+            "license_expiration": "",
+            "chauffeur_permit_number": "CHF-1",
+            "chauffeur_permit_fdl_number": "A246-500-84-400-0",
+            "chauffeur_permit_expiration": "",
+            "dot_medical_card_expiration": "",
+        })
+        self.assertRedirects(resp, self._url())
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.chauffeur_permit_fdl_number, "A246-500-84-400-0")
+        self.assertTrue(self.driver.chauffeur_permit_fdl_mismatch)
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn("MISMATCH", html)
+
+    def test_post_updates_name_dob_and_address_from_the_license(self):
+        self.client.post(self._url(), {
+            "phone_number": "", "vehicle": "", "payment_method": "",
+            "night_bonus": "0", "employment_type": "", "notes": "",
+            "license_number": "", "license_state": "", "license_class": "",
+            "license_expiration": "",
+            "license_full_name": "Jane Carter",
+            "license_date_of_birth": "1990-04-17",
+            "license_address": "123 Main St, Orlando, FL 32801",
+            "chauffeur_permit_number": "", "chauffeur_permit_expiration": "",
+            "dot_medical_card_expiration": "",
+        })
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.license_full_name, "Jane Carter")
+        self.assertEqual(self.driver.license_date_of_birth, date(1990, 4, 17))
+        self.assertEqual(self.driver.license_address, "123 Main St, Orlando, FL 32801")
+
+    def test_name_dob_address_show_on_the_view_and_edit_pages(self):
+        self.driver.license_full_name = "Jane Carter"
+        self.driver.license_date_of_birth = date(1990, 4, 17)
+        self.driver.license_address = "123 Main St, Orlando, FL 32801"
+        self.driver.save()
+
+        view_html = self.client.get(self._url()).content.decode()
+        self.assertIn("Jane Carter", view_html)
+        self.assertIn("Apr 17, 1990", view_html)
+        self.assertIn("123 Main St, Orlando, FL 32801", view_html)
+
+        edit_html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        self.assertIn('value="Jane Carter"', edit_html)
+        self.assertIn('value="1990-04-17"', edit_html)
+        self.assertIn('value="123 Main St, Orlando, FL 32801"', edit_html)
+
+    def test_edit_form_never_emits_a_dangling_aria_describedby(self):
+        """Django 5 auto-adds aria-describedby="..._helptext" for any field
+        with model help_text — this form deliberately never renders that
+        caption (unlike the admin, which does), so every one of those ids
+        would be a dangling reference if help_text weren't cleared."""
+        html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        self.assertNotIn("aria-describedby", html)
+
+    def test_success_message_and_alert_pill_show_after_save(self):
+        self.client.post(self._url(), {
+            "phone_number": "", "vehicle": "", "payment_method": "",
+            "night_bonus": "0", "employment_type": "", "notes": "",
+            "license_number": "", "license_state": "", "license_class": "",
+            "license_expiration": (timezone.localdate() - timedelta(days=1)).isoformat(),
+            "chauffeur_permit_number": "", "chauffeur_permit_expiration": "",
+            "dot_medical_card_expiration": "",
+        })
+        html = self.client.get(self._url()).content.decode()
+        self.assertIn("Driver profile updated.", html)
+        self.assertIn("EXPIRED", html)
+
+    def test_non_staff_cannot_submit_edits(self):
+        plain = User.objects.create_user("profile_edit_plain", password="x")
+        self.client.force_login(plain)
+        self.client.post(self._url(), {"phone_number": "9999999999"})
+        self.driver.refresh_from_db()
+        self.assertNotEqual(self.driver.phone_number, "9999999999")
+
+    def test_staff_without_superuser_cannot_submit_edits(self):
+        """A dispatcher-level is_staff login can view the profile, same as
+        before, but editing (payment method, credentials, active status)
+        stays behind the same bar the old admin-only route enforced."""
+        dispatcher = User.objects.create_user(
+            "profile_edit_dispatcher", password="x", is_staff=True
+        )
+        self.client.force_login(dispatcher)
+        resp = self.client.post(self._url(), {"phone_number": "9999999999"})
+        self.assertEqual(resp.status_code, 403)
+        self.driver.refresh_from_db()
+        self.assertNotEqual(self.driver.phone_number, "9999999999")
+
+    def test_staff_without_superuser_does_not_see_edit_affordance(self):
+        dispatcher = User.objects.create_user(
+            "profile_edit_dispatcher2", password="x", is_staff=True
+        )
+        self.client.force_login(dispatcher)
+        html = self.client.get(self._url()).content.decode()
+        self.assertNotIn("Edit Driver", html)
+        # Even a forced ?edit=1, the form itself must not render.
+        edit_html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        self.assertNotIn('name="phone_number"', edit_html)
+
+    def test_a_legacy_certification_survives_an_unrelated_save(self):
+        """If the vehicle a driver is certified for is later un-flagged
+        (ops toggles requires_certification off), the checkbox for it must
+        still render — pre-checked — so a normal save (which submits
+        whatever the form shows as checked) doesn't silently wipe it.
+        Before the fix, the checkbox was hidden entirely and a save of any
+        other field cleared the M2M via .set([])."""
+        self.driver.certified_vehicle_types.add(self.sprinter)
+        self.sprinter.requires_certification = False
+        self.sprinter.save(update_fields=["requires_certification"])
+
+        self.client.post(self._url(), {
+            "phone_number": "4075559999", "vehicle": "", "payment_method": "",
+            "night_bonus": "0", "employment_type": "", "notes": "",
+            "license_number": "", "license_state": "", "license_class": "",
+            "license_expiration": "", "chauffeur_permit_number": "",
+            "chauffeur_permit_expiration": "", "dot_medical_card_expiration": "",
+            "certified_vehicle_types": [str(self.sprinter.id)],
+        })
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.phone_number, "4075559999")
+        self.assertIn(self.sprinter, self.driver.certified_vehicle_types.all())
+
+    def test_invalid_post_does_not_mutate_the_displayed_driver(self):
+        """Django's ModelForm._post_clean applies every valid field straight
+        onto form.instance even when the submission as a whole fails
+        validation. If that instance IS the one the header/hero render,
+        an invalid submit shows unsaved edits as if they were live — here,
+        an unchecked Active box would flip the INACTIVE badge on with
+        nothing actually written."""
+        self.assertTrue(self.driver.is_active)
+        resp = self.client.post(self._url(), {
+            "phone_number": "4075550000", "vehicle": "", "payment_method": "",
+            "night_bonus": "not-a-number", "employment_type": "", "notes": "",
+            # is_active omitted entirely, as an unchecked checkbox would be.
+            "license_number": "", "license_state": "", "license_class": "",
+            "license_expiration": "", "chauffeur_permit_number": "",
+            "chauffeur_permit_expiration": "", "dot_medical_card_expiration": "",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context["driver_form"].is_valid())
+        # The form's OWN instance did absorb the (invalid-overall) edit...
+        self.assertFalse(resp.context["driver_form"].instance.is_active)
+        # ...but the separate `driver` the header/hero render must not have.
+        self.assertTrue(resp.context["driver"].is_active)
+        self.driver.refresh_from_db()
+        self.assertTrue(self.driver.is_active)
+        self.assertNotEqual(self.driver.phone_number, "4075550000")
+
+    def test_unflagged_certification_still_shows_on_the_edit_form(self):
+        self.driver.certified_vehicle_types.add(self.sprinter)
+        self.sprinter.requires_certification = False
+        self.sprinter.save(update_fields=["requires_certification"])
+
+        html = self.client.get(self._url(), {"edit": "1"}).content.decode()
+        self.assertIn('name="certified_vehicle_types"', html)
+        self.assertIn(f'value="{self.sprinter.id}"', html)
+        self.assertIn("checked", html)

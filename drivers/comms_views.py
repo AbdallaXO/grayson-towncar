@@ -55,12 +55,14 @@ def comms_kpis(request):
         trips = max(
             ((row_stats.get(k) or {}).get("eligible", 0) for k in KINDS), default=0
         )
+        overall = comms_metrics.overall_pct(row_stats)
         rows.append(
             {
                 "driver": driver,
                 "trips": trips,
                 "cells": comms_metrics.as_tiles(row_stats),
-                "overall": comms_metrics.overall_pct(row_stats),
+                "overall": overall,
+                "accent": comms_metrics.accent_for(overall),
             }
         )
 
@@ -83,7 +85,7 @@ def comms_kpis(request):
     rated = [r for r in rows if r["trips"] > 0]
     fleet_sent = sum(c["sent"] for r in rated for c in r["cells"])
     fleet_eligible = sum(c["eligible"] for r in rated for c in r["cells"])
-    fleet_pct = round(fleet_sent / fleet_eligible * 100) if fleet_eligible else None
+    fleet_pct = comms_metrics._pct(fleet_sent, fleet_eligible)
 
     return render(
         request,
@@ -99,6 +101,7 @@ def comms_kpis(request):
             "start": start,
             "end": end,
             "fleet_pct": fleet_pct,
+            "fleet_accent": comms_metrics.accent_for(fleet_pct),
             "fleet_sent": fleet_sent,
             "fleet_eligible": fleet_eligible,
             "tracking_start": comms_metrics.tracking_start(),
