@@ -979,3 +979,24 @@ class ReviewNotesAndWordingTests(_PayFixtureMixin, TestCase):
         self.assertIn("Record statement", body)
         self.assertIn("no money moves", body.lower())
         self.assertNotIn(">Pay<", body)
+
+
+class TemplateCommentsDoNotLeakTests(_PayFixtureMixin, TestCase):
+    """Django's {# #} is single-line only — a multi-line one renders as page text.
+
+    One shipped and showed up on the payroll screen as a paragraph explaining
+    why the button is not called "Pay".
+    """
+
+    def test_no_developer_comment_reaches_the_page(self):
+        staff = User.objects.create_user("leakstaff", password="x", is_staff=True)
+        self.client.force_login(staff)
+        drv = _make_driver("leakdrv")
+        self._leg(self._res(), driver=drv, status="completed")
+
+        for params in ({"to_date": "2026-06-30"},
+                       {"to_date": "2026-06-30", "show": "all"}):
+            body = self.client.get(reverse("payroll_run"), params).content.decode()
+            self.assertNotIn("Deliberately NOT", body)
+            self.assertNotIn("{#", body)
+            self.assertNotIn("#}", body)

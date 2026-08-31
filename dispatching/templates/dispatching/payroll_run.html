@@ -292,9 +292,11 @@
         </button>
         {% endif %}
         <a class="btn-look" href="{% url 'driver_payment_management' %}?driver={{ row.driver.id }}&date_to={{ to_date_str }}">Open</a>
-        {# Deliberately NOT "Pay". This writes a statement; no card is charged and
-           no transfer happens — Abdalla pays in Gusto afterwards. Labelling it
-           "Pay" made both people and Cowork hesitate over a bookkeeping action. #}
+        {% comment %}
+          Deliberately NOT "Pay". This writes a statement; no card is charged and
+          no transfer happens - Abdalla pays in Gusto afterwards. Labelling it
+          "Pay" made both people and Cowork hesitate over a bookkeeping action.
+        {% endcomment %}
         <button class="btn-process process-btn"
                 data-driver-id="{{ row.driver.id }}"
                 data-driver-name="{{ row.driver.profile.get_full_name|default:row.driver.profile.username }}"
