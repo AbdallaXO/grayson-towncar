@@ -1,0 +1,205 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}Guest Communication — Grayson Towncar{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  {% include "drivers/_comms_admin_palette.html" %}
+  .comms-page { background: var(--gt-bg); color: var(--gt-text); min-height: 100vh; padding: 1.5rem 0 3rem; }
+  .comms-page h1 { font-size: 1.35rem; font-weight: 700; margin: 0; }
+  .comms-sub { font-size: 0.78rem; color: var(--gt-muted); margin-top: 0.25rem; }
+
+  .panel { background: var(--gt-surface); border: 1px solid var(--gt-border); border-radius: 12px; }
+  .panel-head {
+    padding: 0.85rem 1.1rem; border-bottom: 1px solid var(--gt-border);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; row-gap: 0.5rem;
+  }
+  .panel-head span.title { font-weight: 600; font-size: 0.92rem; }
+
+  .chipbar { display: inline-flex; gap: 0.25rem; flex-wrap: wrap; }
+  .chipbar a {
+    font-size: 0.7rem; padding: 0.2rem 0.55rem; border-radius: 6px; text-decoration: none;
+    color: var(--gt-muted); border: 1px solid transparent;
+  }
+  .chipbar a.on { color: var(--gt-gold); border-color: var(--gt-border); background: var(--gt-surface-2); }
+
+  .headline { padding: 1.1rem; }
+  .headline .big {
+    font-size: 2.1rem; font-weight: 700; line-height: 1;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  .headline .cap { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted); font-weight: 600; }
+
+  table.comms { width: 100%; border-collapse: collapse; }
+  table.comms th {
+    font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted);
+    font-weight: 600; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--gt-border); text-align: left;
+    white-space: nowrap;
+  }
+  table.comms th.num, table.comms td.num { text-align: right; }
+  table.comms td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--gt-border); font-size: 0.84rem; vertical-align: middle; }
+  table.comms tbody tr:last-child td { border-bottom: 0; }
+  table.comms tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  table.comms a.name { color: var(--gt-text); text-decoration: none; font-weight: 600; }
+  table.comms a.name:hover { color: var(--gt-gold); }
+
+  .cell { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; }
+  .cell .bar { flex: 0 0 54px; height: 6px; border-radius: 3px; background: var(--gt-surface-2); overflow: hidden; }
+  .cell .bar span { display: block; height: 100%; border-radius: 3px; }
+  .cell .fig { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.78rem; min-width: 2.6rem; text-align: right; }
+  .cell .frac { color: var(--gt-muted); font-size: 0.68rem; min-width: 3rem; text-align: right; }
+
+  .footnote { font-size: 0.72rem; color: var(--gt-muted); line-height: 1.6; padding: 0.9rem 1.1rem; border-top: 1px solid var(--gt-border); }
+  .table-wrap { overflow-x: auto; }
+  .empty { padding: 2.5rem 1rem; text-align: center; color: var(--gt-muted); font-size: 0.85rem; }
+</style>
+{% endblock %}
+
+{% block navbar %}{% include "dispatching/dispatcher_navbar.html" %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
+
+{% block content %}
+<div class="comms-page">
+  <div class="container-fluid px-3 px-lg-4">
+
+    <div class="d-flex justify-content-between align-items-start flex-wrap mb-3" style="row-gap:0.5rem;">
+      <div>
+        <h1>Guest Communication</h1>
+        <div class="comms-sub">
+          How often each in-house chauffeur sent the standard guest texts.
+          Completed trips {{ start|date:"M j" }}&ndash;{{ end|date:"M j, Y" }}.
+        </div>
+      </div>
+      <div class="chipbar">
+        {% for key, label in windows.items %}
+          <a href="?window={{ key }}&amp;sort={{ sort }}" class="{% if window == key %}on{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if window_empty %}
+    <div class="panel mb-3" style="border-color:#3a4250;">
+      <div style="padding:0.9rem 1.1rem;font-size:0.82rem;line-height:1.6;">
+        <strong style="color:var(--gt-gold);">No rates yet &mdash; and that is expected.</strong><br>
+        Rates count <em>completed</em> trips on days that have already closed, and tracking
+        only began {{ tracking_start|date:"M j, Y" }}. Until a tracked trip is completed and
+        its day ends, every figure below is legitimately unknown rather than zero.
+        Use the counter on the right to confirm texts are being recorded in the meantime.
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-4">
+        <div class="panel headline">
+          <div class="cap">Fleet rate</div>
+          <div class="big pct-{{ fleet_accent }}">
+            {% if fleet_pct is None %}&mdash;{% else %}{{ fleet_pct }}%{% endif %}
+          </div>
+          <div class="comms-sub">
+            {% if window_empty %}
+              Tracking began {{ tracking_start|date:"M j" }}. First rates appear once a
+              tracked trip has been completed and the day has closed.
+            {% elif fleet_pct is None %}
+              No completed trips in this window yet.
+            {% else %}
+              {{ fleet_sent }} of {{ fleet_eligible }} chances taken, across {{ rated_count }} chauffeur{{ rated_count|pluralize }}.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="panel headline">
+          <div class="cap">Texts logged &middot; last 7 days</div>
+          <div class="big {% if activity.window %}pct-green{% else %}pct-muted{% endif %}">{{ activity.window }}</div>
+          <div class="comms-sub">
+            {{ activity.today }} today &middot; {{ activity.total }} all time.
+            {% if activity.latest %}Last one {{ activity.latest|timesince }} ago.{% endif %}
+            <br>Raw count of taps &mdash; ignores every window and completion rule,
+            so it moves the moment a chauffeur sends one.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="title">By chauffeur</span>
+        <span class="chipbar">
+          {% for key, label in sorts.items %}
+            <a href="?window={{ window }}&amp;sort={{ key }}" class="{% if sort == key %}on{% endif %}">{{ label }}</a>
+          {% endfor %}
+        </span>
+      </div>
+
+      {% if rows %}
+      <div class="table-wrap">
+        <table class="comms">
+          <thead>
+            <tr>
+              <th>Chauffeur</th>
+              <th class="num">Trips</th>
+              {% for label in kind_labels %}<th class="num">{{ label }}</th>{% endfor %}
+              <th class="num">Overall</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              <tr>
+                <td>
+                  <a class="name" href="{% url 'driver_profile' row.driver.id %}">
+                    {{ row.driver.profile.get_full_name|default:row.driver.profile.username }}
+                  </a>
+                </td>
+                <td class="num" style="font-family:'JetBrains Mono',ui-monospace,monospace;">{{ row.trips }}</td>
+                {% for c in row.cells %}
+                  <td class="num">
+                    {% if c.pct is None %}
+                      <span class="pct-muted">&mdash;</span>
+                    {% else %}
+                      <span class="cell">
+                        <span class="bar"><span class="fill-{{ c.accent }}" style="width:{{ c.pct }}%;"></span></span>
+                        <span class="fig pct-{{ c.accent }}">{{ c.pct }}%</span>
+                        <span class="frac">{{ c.sent }}/{{ c.eligible }}</span>
+                      </span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+                <td class="num">
+                  {% if row.overall is None %}
+                    <span class="pct-muted">&mdash;</span>
+                  {% else %}
+                    <strong class="pct-{{ row.accent }}">{{ row.overall }}%</strong>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="empty">No in-house chauffeurs on file.</div>
+      {% endif %}
+
+      <div class="footnote">
+        <strong>What these count.</strong> The chauffeur taps a button in the driver app and
+        our text opens in <em>his own</em> Messages app, so the guest can reply to the man
+        driving them. A phone never reports back, so each figure is a message
+        <em>sent from the app</em> &mdash; not a delivery receipt, and he may have edited it
+        before sending. A tap made with no signal isn&rsquo;t recorded, so these under-count
+        rather than over-count.<br>
+        <strong>Denominator.</strong> Completed trips only, cancellations excluded, through
+        today &mdash; a trip counts the moment it&rsquo;s marked completed, so today&rsquo;s
+        rate can still move as more trips finish. Nothing before
+        {{ tracking_start|date:"M j, Y" }} is counted; tracking did not exist. Re-sends to the
+        same guest count once. Affiliates and operators are excluded &mdash; their job cards
+        carry no guest phone number, so they have no chance to take.
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -124,7 +124,7 @@
         {% if request.user.is_superuser %}
         <!-- Analytics dropdown -->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'statistics_page' or request.resolver_match.url_name == 'analytics_dashboard' or request.resolver_match.url_name == 'route_timing_reference' or request.resolver_match.url_name == 'driver_performance' or request.resolver_match.url_name == 'vehicle_profit_report' or request.resolver_match.url_name == 'fleet_list' or request.resolver_match.url_name == 'fleet_detail' or request.resolver_match.url_name == 'accrual_revenue_report' or request.resolver_match.url_name == 'farmout_optimizer' %}active{% endif %}"
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'statistics_page' or request.resolver_match.url_name == 'analytics_dashboard' or request.resolver_match.url_name == 'route_timing_reference' or request.resolver_match.url_name == 'driver_performance' or request.resolver_match.url_name == 'driver_comms_kpis' or request.resolver_match.url_name == 'vehicle_profit_report' or request.resolver_match.url_name == 'fleet_list' or request.resolver_match.url_name == 'fleet_detail' or request.resolver_match.url_name == 'accrual_revenue_report' or request.resolver_match.url_name == 'farmout_optimizer' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
           <ul class="dropdown-menu dropdown-menu-dark">
@@ -147,6 +147,10 @@
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_performance' %}active{% endif %}"
                  href="{% url 'driver_performance' %}"><i class="bi bi-speedometer me-2"></i>Driver Performance</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_comms_kpis' %}active{% endif %}"
+                 href="{% url 'driver_comms_kpis' %}"><i class="bi bi-chat-dots me-2"></i>Guest Communication</a>
             </li>
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'vehicle_profit_report' %}active{% endif %}"
