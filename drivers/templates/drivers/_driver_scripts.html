@@ -182,14 +182,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Status select change handler ──
+    // Production history shows drivers knocking a trip one step BACK through
+    // this dropdown within seconds of moving it forward — a slipped picker
+    // wheel fires `change` instantly. Backward moves stay possible (they are
+    // the fix for a mis-tap) but now require a confirmation first.
+    const STATUS_ORDER = ['in-progress', 'confirmed', 'on-the-way', 'on-location', 'picked-up', 'completed'];
     document.querySelectorAll('.status-select:not([disabled])').forEach(select => {
+        let currentStatus = select.value;
         select.addEventListener('change', (event) => {
             const legId = event.target.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
             const newStatus = event.target.value;
+            const label = s => s.replace(/-/g, ' ');
+
+            if (newStatus === currentStatus) return;
+            const isBackward = STATUS_ORDER.indexOf(newStatus) < STATUS_ORDER.indexOf(currentStatus);
+            if (isBackward && !confirm(`Move this trip BACK from "${label(currentStatus)}" to "${label(newStatus)}"?`)) {
+                event.target.value = currentStatus;
+                return;
+            }
+            if (newStatus === 'completed' && !confirm('Are you sure you want to mark this trip as completed?')) {
+                event.target.value = currentStatus;
+                return;
+            }
 
             sendStatusUpdate(legId, newStatus)
             .then(data => {
                 if (data.success) {
+                    currentStatus = newStatus;
                     showToast(`Status updated to ${newStatus.replace(/-/g, ' ')}`, 'success');
                     setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
                 } else {
