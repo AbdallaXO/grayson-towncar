@@ -1,12 +1,14 @@
 """SMS notification when a driver uploads a permit or DOT-medical-card photo.
 
 The license path self-completes: OCR reads it and the driver confirms the
-details right there. The permit and DOT card have no OCR — my_documents.html
-tells the driver "the office will fill in the details" — so without a signal
-here that promise is never kept. Driver.credential_alerts() stays silent
-until an expiration date exists (a blank date deliberately isn't an alert,
-see models.py), so a photo can sit in S3 untranscribed indefinitely with
-nothing on the staff side ever flagging it. This is the only thing that does.
+details right there. The permit now scans too (drivers.permit_ocr), but its
+scan can fail — or the driver can abandon the confirm step with the photo
+already saved — and the DOT card has no OCR at all. In every one of those
+cases Driver.credential_alerts() stays silent until an expiration date
+exists (a blank date deliberately isn't an alert, see models.py), so a photo
+can sit in S3 untranscribed indefinitely with nothing on the staff side ever
+flagging it. This is the only thing that does — which is why the permit
+upload sends it whether or not its scan succeeded.
 """
 
 import logging
@@ -33,9 +35,11 @@ def notify_staff_of_document_upload(driver, field_name):
         )
         return
     label = DOCUMENT_LABELS.get(field_name, field_name)
+    # "entered or checked": the permit scan may have pre-filled the details
+    # and the driver confirmed them — staff verify rather than transcribe.
     body = (
         f"{driver} uploaded a {label} photo — needs the number/expiration "
-        f"entered on their driver profile."
+        f"entered or checked on their driver profile."
     )
     for phone in phones:
         sms.send(phone, body)

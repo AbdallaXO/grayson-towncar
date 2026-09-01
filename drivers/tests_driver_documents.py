@@ -1,5 +1,6 @@
 """
-Driver self-service licensing documents + the AnalyzeID license scan.
+Driver self-service licensing documents + the AnalyzeID license scan and the
+Textract-Queries permit scan.
 
 Invariants under test:
   * the photo is saved even when OCR is unavailable or misreads — that image
@@ -7,7 +8,7 @@ Invariants under test:
   * a scan NEVER auto-commits: extracted fields come back as a confirm form,
     and only an explicit confirm POST writes to the driver
   * a driver reaches only their OWN row, and can only write scan files plus
-    their own license details
+    their own license and permit details
   * no test ever calls AWS
 
 Run:  ENABLE_DEBUG_TOOLBAR=0 python manage.py test drivers.tests_driver_documents
@@ -27,8 +28,10 @@ from drivers.license_ocr import (
     scan_license, sniff_content_type,
 )
 from drivers.models import Driver
+from drivers.permit_ocr import PermitScanResult, scan_permit
 
 SCAN_PATH = "drivers.views.scan_license"
+PERMIT_SCAN_PATH = "drivers.views.scan_permit"
 
 
 def _photo(name="license.jpg", content_type="image/jpeg"):
@@ -43,6 +46,16 @@ def _ok_scan(**overrides):
     }
     fields.update(overrides)
     return LicenseScanResult(ok=True, fields=fields, confidence={k: 99.0 for k in fields})
+
+
+def _ok_permit_scan(**overrides):
+    fields = {
+        "chauffeur_permit_number": "12345",
+        "chauffeur_permit_fdl_number": "V123-456-78-900-0",
+        "chauffeur_permit_expiration": date(2027, 11, 13),
+    }
+    fields.update(overrides)
+    return PermitScanResult(ok=True, fields=fields, confidence={k: 99.0 for k in fields})
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")
@@ -332,8 +345,9 @@ class LicenseScanFlowTests(TestCase):
 
 @override_settings(GOOGLE_MAPS_API_KEY="")
 class PermitAndDotCardUploadTests(TestCase):
-    """Photo-only: no reliable extractor exists for these, so nothing is
-    parsed and the office fills in the details."""
+    """The permit scans (drivers.permit_ocr) and confirms like the license;
+    the DOT card stays photo-only — no reliable extractor exists for it, so
+    nothing is parsed and the office fills in the details."""
 
     def setUp(self):
         self.user = User.objects.create_user("permit_driver", first_name="Permit")
@@ -341,24 +355,30 @@ class PermitAndDotCardUploadTests(TestCase):
         self.client.force_login(self.user)
         self.url = reverse("driver_my_documents")
 
-    def test_permit_photo_saves_without_calling_ocr(self):
-        with mock.patch(SCAN_PATH) as scanner:
+    def test_permit_photo_saves_and_uses_the_permit_scanner_not_the_license_one(self):
+        with mock.patch(SCAN_PATH) as license_scanner, \
+                mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()) as permit_scanner:
             resp = self.client.post(self.url, {"action": "upload_permit", "scan": _photo("permit.jpg")})
-        self.assertFalse(scanner.called)
-        self.assertRedirects(resp, self.url)
+        self.assertFalse(license_scanner.called)
+        self.assertTrue(permit_scanner.called)
+        self.assertEqual(resp.status_code, 200)
         self.driver.refresh_from_db()
         self.assertTrue(self.driver.chauffeur_permit_scan)
 
-    def test_dot_card_photo_saves_without_calling_ocr(self):
-        with mock.patch(SCAN_PATH) as scanner:
+    def test_dot_card_photo_saves_without_calling_any_ocr(self):
+        with mock.patch(SCAN_PATH) as license_scanner, \
+                mock.patch(PERMIT_SCAN_PATH) as permit_scanner:
             self.client.post(self.url, {"action": "upload_dot_card", "scan": _photo("dot.jpg")})
-        self.assertFalse(scanner.called)
+        self.assertFalse(license_scanner.called)
+        self.assertFalse(permit_scanner.called)
         self.driver.refresh_from_db()
         self.assertTrue(self.driver.dot_medical_card_scan)
 
     def test_uploads_never_touch_expirations(self):
-        """A driver may supply the image; only staff set the date it carries."""
-        self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        """An upload (even one whose scan succeeds) pre-fills a form at most;
+        only an explicit confirm writes a date."""
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
         self.client.post(self.url, {"action": "upload_dot_card", "scan": _photo()})
         self.driver.refresh_from_db()
         self.assertIsNone(self.driver.chauffeur_permit_expiration)
@@ -372,9 +392,10 @@ class PermitAndDotCardUploadTests(TestCase):
         self.assertFalse(self.driver.chauffeur_permit_scan)
 
     @override_settings(DOCUMENT_UPLOAD_NOTIFY_PHONES=["+14075551234"])
-    def test_permit_upload_notifies_staff(self):
-        """The only signal staff get that an untranscribed scan exists —
-        permit/DOT-card expirations have no OCR and no other alert path.
+    def test_permit_upload_notifies_staff_even_when_the_scan_succeeds(self):
+        """The backstop for a driver who uploads and then abandons the
+        confirm step — the photo is already saved, and nothing else ever
+        flags "uploaded, not yet transcribed".
 
         The notify call runs on a background thread (reservations.utils.
         _run_in_background) so the request doesn't block on a Twilio
@@ -383,7 +404,20 @@ class PermitAndDotCardUploadTests(TestCase):
         with mock.patch(
             "reservations.utils._run_in_background",
             side_effect=lambda fn, *a, **k: fn(*a, **k),
-        ), mock.patch("drivers.views.notify_staff_of_document_upload") as notify:
+        ), mock.patch("drivers.views.notify_staff_of_document_upload") as notify, \
+                mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            self.client.post(self.url, {"action": "upload_permit", "scan": _photo("permit.jpg")})
+        self.assertTrue(notify.called)
+        self.assertEqual(notify.call_args.args[1], "chauffeur_permit_scan")
+
+    @override_settings(DOCUMENT_UPLOAD_NOTIFY_PHONES=["+14075551234"])
+    def test_permit_upload_notifies_staff_when_the_scan_fails_too(self):
+        failure = PermitScanResult(ok=False, error="Couldn't read the permit automatically.")
+        with mock.patch(
+            "reservations.utils._run_in_background",
+            side_effect=lambda fn, *a, **k: fn(*a, **k),
+        ), mock.patch("drivers.views.notify_staff_of_document_upload") as notify, \
+                mock.patch(PERMIT_SCAN_PATH, return_value=failure):
             self.client.post(self.url, {"action": "upload_permit", "scan": _photo("permit.jpg")})
         self.assertTrue(notify.called)
         self.assertEqual(notify.call_args.args[1], "chauffeur_permit_scan")
@@ -398,14 +432,17 @@ class PermitAndDotCardUploadTests(TestCase):
         self.assertTrue(notify.called)
         self.assertEqual(notify.call_args.args[1], "dot_medical_card_scan")
 
-    def test_a_spoofed_content_type_is_rejected_before_saving(self):
+    def test_a_spoofed_content_type_is_rejected_before_saving_or_scanning(self):
         """The actual attack this closes: declare image/jpeg, ship HTML. The
         media bucket is a public custom domain that re-serves whatever
-        Content-Type gets stored, so this must never reach storage."""
+        Content-Type gets stored, so this must never reach storage — and
+        never reach Textract either."""
         evil = SimpleUploadedFile(
             "shot.jpg", b"<html><script>alert(1)</script></html>", content_type="image/jpeg",
         )
-        resp = self.client.post(self.url, {"action": "upload_permit", "scan": evil})
+        with mock.patch(PERMIT_SCAN_PATH) as scanner:
+            resp = self.client.post(self.url, {"action": "upload_permit", "scan": evil})
+        self.assertFalse(scanner.called)
         self.assertRedirects(resp, self.url)
         self.driver.refresh_from_db()
         self.assertFalse(self.driver.chauffeur_permit_scan)
@@ -413,9 +450,248 @@ class PermitAndDotCardUploadTests(TestCase):
     def test_uploaded_filename_is_not_the_original_client_supplied_name(self):
         """AWS_S3_FILE_OVERWRITE defaults True project-wide — a predictable
         name means one driver's upload can clobber another's."""
-        self.client.post(self.url, {"action": "upload_permit", "scan": _photo("permit.jpg")})
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            self.client.post(self.url, {"action": "upload_permit", "scan": _photo("permit.jpg")})
         self.driver.refresh_from_db()
         self.assertNotIn("permit.jpg", self.driver.chauffeur_permit_scan.name)
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
+class PermitScanFlowTests(TestCase):
+    """The permit's scan → pre-filled confirm → save flow, mirroring the
+    license's. Same safety property throughout: a scan alone never writes."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("permit_scan_driver", first_name="Permit")
+        self.driver = Driver.objects.create(profile=self.user, driver_type="inhouse")
+        self.client.force_login(self.user)
+        self.url = reverse("driver_my_documents")
+
+    def test_successful_scan_saves_photo_and_offers_a_confirm_form(self):
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()) as scanner:
+            resp = self.client.post(self.url, {"action": "upload_permit", "scan": _photo("permit.jpg")})
+        self.assertTrue(scanner.called)
+        self.assertEqual(resp.status_code, 200)
+
+        self.driver.refresh_from_db()
+        self.assertTrue(self.driver.chauffeur_permit_scan)
+
+        html = resp.content.decode()
+        self.assertIn("Check your permit details", html)
+        self.assertIn("12345", html)
+        self.assertIn("V123-456-78-900-0", html)
+        self.assertIn("2027-11-13", html)
+        self.assertEqual(html.count("read from photo"), 3)
+
+    def test_confirm_step_labels_are_wired_to_their_inputs(self):
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            resp = self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        html = resp.content.decode()
+        for field in ("chauffeur_permit_number", "chauffeur_permit_fdl_number",
+                      "chauffeur_permit_expiration"):
+            self.assertIn(f'for="id_{field}"', html)
+
+    def test_help_text_ids_referenced_by_aria_describedby_actually_exist(self):
+        """Django auto-adds aria-describedby="id_x_helptext" for any field
+        with help_text — a dangling reference if that id is never rendered."""
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            resp = self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        html = resp.content.decode()
+        self.assertIn('aria-describedby="id_chauffeur_permit_number_helptext"', html)
+        self.assertIn('id="id_chauffeur_permit_number_helptext"', html)
+        self.assertIn('aria-describedby="id_chauffeur_permit_fdl_number_helptext"', html)
+        self.assertIn('id="id_chauffeur_permit_fdl_number_helptext"', html)
+
+    def test_a_scan_alone_never_writes_the_permit_details(self):
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.chauffeur_permit_number, "")
+        self.assertEqual(self.driver.chauffeur_permit_fdl_number, "")
+        self.assertIsNone(self.driver.chauffeur_permit_expiration)
+
+    def test_confirming_writes_the_details(self):
+        resp = self.client.post(self.url, {
+            "action": "confirm_permit",
+            "chauffeur_permit_number": "12345",
+            "chauffeur_permit_fdl_number": "V123-456-78-900-0",
+            "chauffeur_permit_expiration": "2027-11-13",
+        })
+        self.assertRedirects(resp, self.url)
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.chauffeur_permit_number, "12345")
+        self.assertEqual(self.driver.chauffeur_permit_fdl_number, "V123-456-78-900-0")
+        self.assertEqual(self.driver.chauffeur_permit_expiration, date(2027, 11, 13))
+
+    def test_driver_can_correct_what_the_scan_read(self):
+        with mock.patch(PERMIT_SCAN_PATH, return_value=_ok_permit_scan()):
+            self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        self.client.post(self.url, {
+            "action": "confirm_permit",
+            "chauffeur_permit_number": "99999",
+            "chauffeur_permit_fdl_number": "V999-999-99-999-9",
+            "chauffeur_permit_expiration": "2028-01-02",
+        })
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.chauffeur_permit_number, "99999")
+        self.assertEqual(self.driver.chauffeur_permit_expiration, date(2028, 1, 2))
+
+    def test_failed_scan_still_keeps_the_photo_and_falls_back_to_typing(self):
+        failure = PermitScanResult(ok=False, error="Couldn't read the permit automatically.")
+        with mock.patch(PERMIT_SCAN_PATH, return_value=failure):
+            resp = self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        self.assertEqual(resp.status_code, 200)
+        self.driver.refresh_from_db()
+        self.assertTrue(self.driver.chauffeur_permit_scan)
+        self.assertIn("Check your permit details", resp.content.decode())
+
+    def test_implausible_expiration_is_flagged_but_still_offered(self):
+        scan = _ok_permit_scan(chauffeur_permit_expiration=date(2010, 1, 1))
+        with mock.patch(PERMIT_SCAN_PATH, return_value=scan):
+            resp = self.client.post(self.url, {"action": "upload_permit", "scan": _photo()})
+        self.assertIn("double-check", resp.content.decode().lower())
+
+    def test_fdl_mismatch_on_confirm_warns_but_still_saves(self):
+        """The cross-check the FDL# exists for: it should equal the license
+        number on file. A mismatch is surfaced to the driver — and the office
+        via the existing profile pill — but never blocks the save; staff sort
+        out which of the two was mistyped."""
+        self.driver.license_number = "V123-456-78-900-0"
+        self.driver.save(update_fields=["license_number"])
+        resp = self.client.post(self.url, {
+            "action": "confirm_permit",
+            "chauffeur_permit_number": "12345",
+            "chauffeur_permit_fdl_number": "V888-888-88-888-8",
+            "chauffeur_permit_expiration": "2027-11-13",
+        }, follow=True)
+        self.driver.refresh_from_db()
+        self.assertEqual(self.driver.chauffeur_permit_fdl_number, "V888-888-88-888-8")
+        html = resp.content.decode()
+        # "doesn't" renders HTML-escaped, so assert on an apostrophe-free part.
+        self.assertIn("match the license number we have on file", html)
+
+    def test_invalid_confirm_does_not_write(self):
+        self.client.post(self.url, {
+            "action": "confirm_permit",
+            "chauffeur_permit_number": "12345",
+            "chauffeur_permit_expiration": "not-a-date",
+        })
+        self.driver.refresh_from_db()
+        self.assertIsNone(self.driver.chauffeur_permit_expiration)
+
+
+class PermitOcrUnitTests(TestCase):
+    """scan_permit itself — the guards that run before any AWS call, and the
+    parsing of the QUERY/QUERY_RESULT blocks. boto3 is mocked throughout."""
+
+    @staticmethod
+    def _response(answers):
+        """{alias: [(text, confidence), ...]} -> an AnalyzeDocument response.
+        An alias mapped to an empty list renders a QUERY with no ANSWER."""
+        blocks = []
+        for i, (alias, results) in enumerate(answers.items()):
+            answer_ids = [f"a{i}_{j}" for j in range(len(results))]
+            query = {"BlockType": "QUERY", "Id": f"q{i}",
+                     "Query": {"Text": "?", "Alias": alias}}
+            if answer_ids:
+                query["Relationships"] = [{"Type": "ANSWER", "Ids": answer_ids}]
+            blocks.append(query)
+            for answer_id, (text, confidence) in zip(answer_ids, results):
+                blocks.append({"BlockType": "QUERY_RESULT", "Id": answer_id,
+                               "Text": text, "Confidence": confidence})
+        return {"Blocks": blocks}
+
+    def test_non_image_upload_is_refused_before_calling_aws(self):
+        pdf = SimpleUploadedFile("permit.pdf", b"%PDF-1.4", content_type="application/pdf")
+        with mock.patch("drivers.permit_ocr._client") as client:
+            result = scan_permit(pdf)
+        self.assertFalse(client.called)
+        self.assertFalse(result.ok)
+        self.assertIn("JPG or PNG", result.error)
+
+    def test_oversized_upload_is_refused_before_calling_aws(self):
+        big = _photo()
+        big.size = 11 * 1024 * 1024
+        with mock.patch("drivers.permit_ocr._client") as client:
+            result = scan_permit(big)
+        self.assertFalse(client.called)
+        self.assertFalse(result.ok)
+
+    def test_aws_failure_is_swallowed_into_a_readable_error(self):
+        with mock.patch("drivers.permit_ocr._client", side_effect=RuntimeError("no creds")):
+            result = scan_permit(_photo())
+        self.assertFalse(result.ok)
+        self.assertIn("type the details in", result.error)
+
+    def test_fields_are_mapped_and_the_date_is_parsed(self):
+        response = self._response({
+            "PERMIT_NUMBER": [("12345", 99.1)],
+            "FDL_NUMBER": [("V123-456-78-900-0", 98.4)],
+            "EXPIRATION_DATE": [("11/13/2027", 97.2)],
+        })
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = response
+            result = scan_permit(_photo())
+        self.assertTrue(result.ok)
+        self.assertEqual(result.fields["chauffeur_permit_number"], "12345")
+        self.assertEqual(result.fields["chauffeur_permit_fdl_number"], "V123-456-78-900-0")
+        self.assertEqual(result.fields["chauffeur_permit_expiration"], date(2027, 11, 13))
+
+    def test_low_confidence_answers_are_dropped(self):
+        response = self._response({"PERMIT_NUMBER": [("MAYBE-8", 41.0)]})
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = response
+            result = scan_permit(_photo())
+        self.assertFalse(result.ok)
+
+    def test_a_query_with_no_answer_is_skipped(self):
+        response = self._response({
+            "PERMIT_NUMBER": [("12345", 99.0)],
+            "EXPIRATION_DATE": [],
+        })
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = response
+            result = scan_permit(_photo())
+        self.assertTrue(result.ok)
+        self.assertEqual(result.fields, {"chauffeur_permit_number": "12345"})
+
+    def test_the_most_confident_of_several_answers_wins(self):
+        response = self._response({
+            "PERMIT_NUMBER": [("12345", 88.0), ("I2345", 96.0)],
+        })
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = response
+            result = scan_permit(_photo())
+        self.assertEqual(result.fields["chauffeur_permit_number"], "I2345")
+
+    def test_an_unparseable_expiration_is_dropped_not_guessed(self):
+        response = self._response({"EXPIRATION_DATE": [("SEE CITY CLERK", 95.0)]})
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = response
+            result = scan_permit(_photo())
+        self.assertFalse(result.ok)
+        self.assertNotIn("chauffeur_permit_expiration", result.fields)
+
+    def test_a_blank_page_reports_cleanly(self):
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = {"Blocks": []}
+            result = scan_permit(_photo())
+        self.assertFalse(result.ok)
+        self.assertIn("make out the details", result.error)
+
+    def test_mislabeled_content_type_is_still_read(self):
+        """Same rule as the license: Android file pickers hand out
+        application/octet-stream for perfectly good JPEGs — sniff the bytes,
+        never trust the declared type."""
+        jpeg = SimpleUploadedFile(
+            "photo", b"\xff\xd8\xff\xe0 fake jpeg bytes", content_type="application/octet-stream",
+        )
+        response = self._response({"PERMIT_NUMBER": [("12345", 99.0)]})
+        with mock.patch("drivers.permit_ocr._client") as client:
+            client.return_value.analyze_document.return_value = response
+            result = scan_permit(jpeg)
+        self.assertTrue(client.return_value.analyze_document.called)
+        self.assertTrue(result.ok)
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")

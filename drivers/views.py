@@ -8,8 +8,9 @@ from .models import (
     DriverPayoutAdjustment,
     DriverDateOverride,
 )
-from .forms import DriverProfileForm, DriverLicenseDetailsForm
+from .forms import DriverProfileForm, DriverLicenseDetailsForm, DriverPermitDetailsForm
 from .license_ocr import scan_license, is_expiration_plausible, is_date_of_birth_plausible
+from .permit_ocr import scan_permit
 from .document_uploads import prepare_document_upload, sniff_and_validate
 from .document_notifications import notify_staff_of_document_upload
 from django.forms.models import model_to_dict
@@ -2063,14 +2064,14 @@ def my_documents(request):
     """Driver self-service for their own licensing documents.
 
     Three separate one-file forms rather than one big one, because a driver
-    photographs one card at a time on a phone. The license upload additionally
-    runs OCR and comes back as a pre-filled confirm step; the permit and DOT
-    card are photo-only (no reliable extractor exists for them) and save
-    straight away.
+    photographs one card at a time on a phone. The license and permit uploads
+    additionally run OCR (drivers.license_ocr / drivers.permit_ocr) and come
+    back as a pre-filled confirm step; the DOT card is photo-only (no reliable
+    extractor exists for it) and saves straight away.
 
     A driver can only ever reach their OWN row — `profile=request.user` — and
-    can only write the scan files plus their own license details. Expirations
-    for the permit/DOT card, and everything else on Driver, stay staff-only.
+    can only write the scan files plus their own license and permit details.
+    The DOT-card expiration, and everything else on Driver, stay staff-only.
     """
     driver = get_object_or_404(Driver, profile=request.user)
 
@@ -2090,6 +2091,29 @@ def my_documents(request):
                 "driver": driver,
                 "details_form": details_form,
                 "confirming_license": True,
+            })
+
+        # Step 2 of the permit flow, mirroring confirm_license above.
+        if action == "confirm_permit":
+            permit_form = DriverPermitDetailsForm(request.POST, instance=driver)
+            if permit_form.is_valid():
+                permit_form.save()
+                # The whole reason the FDL# is collected: it should equal the
+                # license number on file. Warn — never block — the office sees
+                # the same mismatch pill and sorts out which one is mistyped.
+                if driver.chauffeur_permit_fdl_mismatch:
+                    messages.warning(
+                        request,
+                        "Heads up: the FDL# on the permit doesn't match the license "
+                        "number we have on file. The office will double-check it.",
+                    )
+                messages.success(request, "Permit details saved. Thank you!")
+                return redirect("driver_my_documents")
+            messages.error(request, "Please check the permit details below.")
+            return render(request, "drivers/my_documents.html", {
+                "driver": driver,
+                "permit_form": permit_form,
+                "confirming_permit": True,
             })
 
         upload = request.FILES.get("scan")
@@ -2152,7 +2176,63 @@ def my_documents(request):
                 "scanned_fields": sorted(result.fields.keys()),
             })
 
-        if action in ("upload_permit", "upload_dot_card"):
+        if action == "upload_permit":
+            # Same shape as the license flow above: validate BEFORE scanning
+            # (a spoofed upload must never reach Textract), scan on the
+            # ORIGINAL bytes, then store the WebP-recompressed copy. The
+            # photo is saved unconditionally — a failed scan never loses it.
+            _, upload_error = sniff_and_validate(upload)
+            if upload_error:
+                messages.error(request, upload_error)
+                return redirect("driver_my_documents")
+
+            result = scan_permit(upload)
+
+            prepared, upload_error = prepare_document_upload(upload)
+            if upload_error:
+                messages.error(request, upload_error)
+                return redirect("driver_my_documents")
+            driver.chauffeur_permit_scan = prepared
+            driver.save(update_fields=["chauffeur_permit_scan"])
+
+            # Staff still hear about every permit photo, scan or no scan —
+            # the driver can abandon the confirm step, and a photo sitting in
+            # S3 untranscribed has no other flag (a blank expiration is
+            # deliberately not a credential alert; see
+            # Driver.credential_alerts). Backgrounded for the same reason as
+            # the DOT card below.
+            from reservations.utils import _run_in_background
+            _run_in_background(
+                notify_staff_of_document_upload, driver, "chauffeur_permit_scan",
+            )
+
+            if not result.ok:
+                messages.error(request, result.error)
+                return render(request, "drivers/my_documents.html", {
+                    "driver": driver,
+                    "permit_form": DriverPermitDetailsForm(instance=driver),
+                    "confirming_permit": True,
+                })
+
+            # Pre-fill, never auto-commit — same rule as the license: a
+            # misread FDL# would manufacture a false mismatch alert.
+            initial = {**model_to_dict(driver, fields=DriverPermitDetailsForm.Meta.fields),
+                       **result.fields}
+            expiration = result.fields.get("chauffeur_permit_expiration")
+            if expiration and not is_expiration_plausible(expiration):
+                messages.warning(
+                    request,
+                    "That expiration date looks unusual — please double-check it before saving.",
+                )
+            messages.success(request, "Photo saved. Check the details we read, then save.")
+            return render(request, "drivers/my_documents.html", {
+                "driver": driver,
+                "permit_form": DriverPermitDetailsForm(initial=initial, instance=driver),
+                "confirming_permit": True,
+                "scanned_fields": sorted(result.fields.keys()),
+            })
+
+        if action == "upload_dot_card":
             # Sniffs the real file type (never the client-declared one),
             # enforces a size cap, recompresses the photo to WebP, and
             # randomizes the storage name so two drivers uploading
@@ -2161,19 +2241,19 @@ def my_documents(request):
             if upload_error:
                 messages.error(request, upload_error)
                 return redirect("driver_my_documents")
-            field = ("chauffeur_permit_scan" if action == "upload_permit"
-                     else "dot_medical_card_scan")
-            setattr(driver, field, prepared)
-            driver.save(update_fields=[field])
-            # The only signal staff get that this exists — permit/DOT-card
-            # expirations have no OCR, so nothing else ever flags "uploaded,
-            # not yet transcribed" (a blank expiration is deliberately not a
+            driver.dot_medical_card_scan = prepared
+            driver.save(update_fields=["dot_medical_card_scan"])
+            # The only signal staff get that this exists — the DOT card has
+            # no OCR, so nothing else ever flags "uploaded, not yet
+            # transcribed" (a blank expiration is deliberately not a
             # credential alert; see Driver.credential_alerts). Backgrounded —
             # `driver` is already saved, and the SMS loop has no return value
             # the response needs, so there's no reason to hold the request
             # open on a Twilio round-trip per configured staff number.
             from reservations.utils import _run_in_background
-            _run_in_background(notify_staff_of_document_upload, driver, field)
+            _run_in_background(
+                notify_staff_of_document_upload, driver, "dot_medical_card_scan",
+            )
             messages.success(
                 request,
                 "Photo uploaded. The office will fill in the details and confirm.",

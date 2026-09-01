@@ -148,3 +148,36 @@ class DriverLicenseDetailsForm(forms.ModelForm):
             ),
             "license_address": forms.TextInput(attrs={"class": "gt-input"}),
         }
+
+
+class DriverPermitDetailsForm(forms.ModelForm):
+    """Driver self-service: the chauffeur-permit fields, shown pre-filled
+    after a scan (see drivers.permit_ocr) or filled by hand. Same contract as
+    DriverLicenseDetailsForm above — excludes the scan file itself (the view
+    saves that directly, independent of whether these details validate), and
+    the DOT medical card stays photo-only self-service.
+
+    The FDL# saved here is cross-checked against license_number by
+    Driver.chauffeur_permit_fdl_mismatch, which is why it's collected at all.
+    """
+
+    class Meta:
+        model = Driver
+        fields = [
+            "chauffeur_permit_number", "chauffeur_permit_fdl_number",
+            "chauffeur_permit_expiration",
+        ]
+        widgets = {
+            "chauffeur_permit_number": forms.TextInput(attrs={"class": "gt-input"}),
+            "chauffeur_permit_fdl_number": forms.TextInput(attrs={"class": "gt-input"}),
+            "chauffeur_permit_expiration": forms.DateInput(
+                attrs={"class": "gt-input", "type": "date"}, format="%Y-%m-%d"
+            ),
+        }
+        # The model help_texts are written for staff (they reference other
+        # fields by name); these are what a driver sees on the confirm step.
+        help_texts = {
+            "chauffeur_permit_number": "PERMIT# on the card.",
+            "chauffeur_permit_fdl_number": "FDL# on the card — the driver's-license "
+                                           "number printed on the permit.",
+        }

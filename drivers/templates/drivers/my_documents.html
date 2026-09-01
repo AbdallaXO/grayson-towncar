@@ -52,8 +52,8 @@
       <p class="doc-hint">
         Take a photo of your license, permit, or DOT medical card — or upload one you already
         have saved. Your documents are transmitted over a secure, encrypted connection directly
-        to the office team, so there's no need to text or email them. For your license, we'll
-        read the details from the photo so you don't have to type them in.
+        to the office team, so there's no need to text or email them. For your license and
+        permit, we'll read the details from the photo so you don't have to type them in.
       </p>
 
       {% if messages %}
@@ -171,6 +171,56 @@
           </button>
           <a href="{% url 'driver_my_documents' %}" class="gt-btn gt-btn-outline gt-btn-block mt-2">Cancel</a>
         </form>
+      {% elif confirming_permit %}
+        {# Step 2 of the permit flow: confirm what the scan read (or fill in by hand when it couldn't). #}
+        <form method="post" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="confirm_permit">
+          <div class="doc-head">
+            <h2 class="doc-title"><i class="bi bi-patch-check me-2"></i>Check your permit details</h2>
+          </div>
+          <p class="doc-hint">
+            Make sure these match the yellow permit card in your hand, then save. Fix anything we got wrong.
+          </p>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ permit_form.chauffeur_permit_number.id_for_label }}">
+              Permit number
+              {% if "chauffeur_permit_number" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ permit_form.chauffeur_permit_number }}
+            {% if permit_form.chauffeur_permit_number.help_text %}
+              <div class="field-hint" id="{{ permit_form.chauffeur_permit_number.id_for_label }}_helptext">{{ permit_form.chauffeur_permit_number.help_text }}</div>
+            {% endif %}
+            {% for e in permit_form.chauffeur_permit_number.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ permit_form.chauffeur_permit_fdl_number.id_for_label }}">
+              FDL number
+              {% if "chauffeur_permit_fdl_number" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ permit_form.chauffeur_permit_fdl_number }}
+            {% if permit_form.chauffeur_permit_fdl_number.help_text %}
+              <div class="field-hint" id="{{ permit_form.chauffeur_permit_fdl_number.id_for_label }}_helptext">{{ permit_form.chauffeur_permit_fdl_number.help_text }}</div>
+            {% endif %}
+            {% for e in permit_form.chauffeur_permit_fdl_number.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ permit_form.chauffeur_permit_expiration.id_for_label }}">
+              Expiration date
+              {% if "chauffeur_permit_expiration" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ permit_form.chauffeur_permit_expiration }}
+            {% for e in permit_form.chauffeur_permit_expiration.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <button type="submit" class="gt-btn gt-btn-success gt-btn-block">
+            <i class="bi bi-check-lg me-1"></i>Save my permit details
+          </button>
+          <a href="{% url 'driver_my_documents' %}" class="gt-btn gt-btn-outline gt-btn-block mt-2">Cancel</a>
+        </form>
       {% else %}
 
         {# ── Driver's license (photo + OCR) ── #}
@@ -224,7 +274,7 @@
           </p>
         </form>
 
-        {# ── Chauffeur permit (photo only) ── #}
+        {# ── Chauffeur permit (photo + OCR) ── #}
         <form method="post" enctype="multipart/form-data" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
           {% csrf_token %}
           <input type="hidden" name="action" value="upload_permit">
@@ -245,7 +295,7 @@
             {% if driver.chauffeur_permit_expiration %}
               Expires {{ driver.chauffeur_permit_expiration|date:"M j, Y" }}
             {% else %}
-              The office will fill in the number and expiration from your photo.
+              We'll read the number and expiration from your photo — you just confirm them.
             {% endif %}
           </div>
           {% if driver.chauffeur_permit_scan %}
@@ -256,11 +306,16 @@
           <label class="gt-btn gt-btn-outline gt-btn-block scan-btn">
             <i class="bi bi-camera me-1" aria-hidden="true"></i>
             {% if driver.chauffeur_permit_scan %}Replace photo{% else %}Take or upload photo{% endif %}
-            <input type="file" name="scan" accept="image/*,application/pdf"
+            <input type="file" name="scan"
+                   accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
                    class="scan-input" data-autosubmit
                    aria-label="Take or upload a photo of your chauffeur permit">
           </label>
           <div class="scan-chosen" data-chosen hidden></div>
+          <p class="doc-note">
+            A JPG or PNG photo can be read automatically. A PDF or iPhone HEIC file still
+            uploads fine — you'll just type the details in yourself.
+          </p>
         </form>
 
         {# ── DOT medical card (photo only) ── #}

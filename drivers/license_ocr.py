@@ -9,8 +9,10 @@ licenses AND PASSPORTS — which is why ID_TYPE is checked below rather than
 just discarded: a passport reads just as cleanly as a license and would
 otherwise pre-fill a license-number field with a passport number. The
 chauffeur permit and DOT medical card are NOT run through this at all: those
-are issued per-county with no standard layout, so anything "extracted" from
-them would be a guess dressed up as data.
+are issued per-county with no standard layout AnalyzeID knows, so it returns
+nothing for them. The permit has its own scanner (drivers.permit_ocr, built
+on Textract Queries against the labeled Orlando card); the DOT medical card
+remains photo-only.
 
     from drivers.license_ocr import scan_license
     result = scan_license(uploaded_file)
