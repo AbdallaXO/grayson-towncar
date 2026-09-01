@@ -34,17 +34,16 @@ as a VERIFIED set of directions for that specific airport — never invented.
 
 | Airport | Meet point |
 |---|---|
-| Orlando International (MCO) | the baggage claim area on the 2nd floor, right at the bottom of the escalators by the information desk |
+| Orlando International (MCO) — main terminal (airsides A/B) | the baggage claim area on the 2nd floor, right at the bottom of the escalators by the information desk |
+| Orlando International (MCO) — Terminal C (JetBlue and others) | the baggage claim area on level 6, near the escalators and elevators |
 | Sanford International (SFB) | the baggage claim area on level 1, at the bottom of the escalator or elevator by the information desk |
 | Melbourne (MLB), Lakeland (LAL), anything else | the baggage claim area *(no floor or landmark — none verified yet)* |
 
-**Open question, needs your call:** `services/mco-terminal-c-transportation.html`
-(an existing page on the site) describes MCO's Terminal C meet point as
-**"Level 6 near the escalators and elevators… vehicle on Level 1"** — different
-from the "2nd floor" instructions above. MCO has more than one terminal
-building and the trip data has no field to tell them apart. Until this is
-reconciled, every MCO arrival gets the "2nd floor" instructions regardless of
-terminal.
+MCO's terminal is resolved from `Flight.terminal` — real per-flight data
+AeroAPI reports, not a guess from the airline (a carrier can fly out of more
+than one terminal). When no flight is attached to the leg yet, or AeroAPI
+hasn't reported a terminal yet, MCO falls back to the main-terminal
+instructions rather than assuming "C". See `client_messages._meet_point`.
 
 ## Design rules the copy has to keep
 
@@ -90,6 +89,16 @@ I look forward to meeting you shortly!
 > Hello, Jane! This is Marcus with Grayson Towncar. Welcome to Orlando — I hope you had a great flight.
 >
 > Please send me a quick message as soon as you get off the plane. I'll meet you in the baggage claim area on level 1, at the bottom of the escalator or elevator by the information desk. I'll be holding a sign with your name.
+>
+> I look forward to meeting you shortly!
+
+</details>
+
+<details><summary>Reads as (MCO — Terminal C, e.g. JetBlue)</summary>
+
+> Hello, Jane! This is Marcus with Grayson Towncar. Welcome to Orlando — I hope you had a great flight.
+>
+> Please send me a quick message as soon as you get off the plane. I'll meet you in the baggage claim area on level 6, near the escalators and elevators. I'll be holding a sign with your name.
 >
 > I look forward to meeting you shortly!
 

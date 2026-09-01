@@ -189,10 +189,10 @@ def _airport_name_plain(text: str) -> str:
 
 
 #: Verified meet-point instructions, by airport code. Deliberately sparse —
-#: only MCO and SFB are confirmed as of the 2026-08-31 rewrite. An airport
-#: not listed here (Melbourne, Lakeland, or anything unrecognized) falls back
-#: to the plain "baggage claim area" rather than inventing a floor or landmark
-#: nobody has verified.
+#: only MCO (main terminal) and SFB are confirmed as of the 2026-08-31
+#: rewrite. An airport not listed here (Melbourne, Lakeland, or anything
+#: unrecognized) falls back to the plain "baggage claim area" rather than
+#: inventing a floor or landmark nobody has verified.
 _MEET_POINT_BY_AIRPORT_CODE = {
     "MCO": (
         "the baggage claim area on the 2nd floor, right at the bottom of "
@@ -204,14 +204,34 @@ _MEET_POINT_BY_AIRPORT_CODE = {
     ),
 }
 
+#: MCO's newer Terminal C — JetBlue and other international/select carriers —
+#: has a different physical layout from the main terminal (airsides A/B)
+#: above: baggage claim is on Level 6, with the vehicle waiting one floor
+#: down. Matches services/mco-terminal-c-transportation.html. Keyed off
+#: Flight.terminal (reservations/models.py:2703), which AeroAPI populates
+#: per-flight — not guessed from the airline, since a carrier can fly out of
+#: more than one terminal. When terminal data isn't known yet (not fetched,
+#: or no flight on the leg at all), MCO falls back to the main-terminal
+#: meet point above rather than guessing "C".
+_MCO_TERMINAL_C_MEET_POINT = (
+    "the baggage claim area on level 6, near the escalators and elevators"
+)
+
 _DEFAULT_MEET_POINT = "the baggage claim area"
 
 
-def _meet_point(location: str) -> str:
-    """Where to tell an arriving guest to expect the chauffeur, for a pickup
-    at `location`. See _MEET_POINT_BY_AIRPORT_CODE."""
+def _meet_point(leg) -> str:
+    """Where to tell an arriving guest to expect the chauffeur, for `leg`'s
+    pickup location. See _MEET_POINT_BY_AIRPORT_CODE and
+    _MCO_TERMINAL_C_MEET_POINT."""
+    location = getattr(leg, "pickup_location", "") or ""
     name = _airport_name(location)
     code = name.rsplit("(", 1)[-1].rstrip(")") if "(" in name else ""
+    if code == "MCO":
+        flight = _controlling_flight(leg)
+        terminal = (getattr(flight, "terminal", "") or "").strip().upper() if flight else ""
+        if terminal == "C":
+            return _MCO_TERMINAL_C_MEET_POINT
     return _MEET_POINT_BY_AIRPORT_CODE.get(code, _DEFAULT_MEET_POINT)
 
 
@@ -350,7 +370,7 @@ def _on_the_way(leg, situation, *, first, driver, vehicle_clause) -> str:
     at_time = f" {time_str}" if time_str else ""
 
     if situation in _IN_TERMINAL:
-        meet = _meet_point(leg.pickup_location)
+        meet = _meet_point(leg)
         return (
             f"Hello, {first}! {intro} Welcome to Orlando — I hope you had a "
             f"great flight.\n\n"
@@ -409,7 +429,7 @@ def _on_location(leg, situation, *, first, driver, vehicle_clause) -> str:
     sig = _signature(driver)
 
     if situation in _IN_TERMINAL:
-        meet = _meet_point(leg.pickup_location)
+        meet = _meet_point(leg)
         return (
             f"Hi {first}, I'm here at {meet}. I'll be holding a sign with "
             f"your name.\n\n"

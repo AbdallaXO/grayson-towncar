@@ -220,6 +220,36 @@ class CopyTests(TestCase):
             self.assertIn("escalator or elevator", body, body)
             self.assertIn("information desk", body, body)
 
+    def test_mco_terminal_c_gets_its_own_meet_point(self):
+        """Terminal C (JetBlue and others) has a different physical layout
+        from MCO's main terminal — Level 6 baggage claim, vehicle a floor
+        down — keyed off Flight.terminal, which AeroAPI populates per
+        flight, not guessed from the airline."""
+        leg = self._leg("MCO", "Disney")
+        leg.flight_information = Flight.objects.create(
+            airline_display_name="JetBlue", flight_number="670", terminal="C",
+        )
+        leg.save(update_fields=["flight_information"])
+        for kind in (ON_THE_WAY, ON_LOCATION):
+            body = build(leg, kind, driver_name="Marcus").body
+            self.assertIn("level 6", body, body)
+            self.assertIn("escalators and elevators", body, body)
+            self.assertNotIn("2nd floor", body, body)
+
+    def test_mco_without_known_terminal_falls_back_to_the_main_terminal(self):
+        """No flight, or a flight whose terminal AeroAPI hasn't reported yet
+        — never guess "C", fall back to the verified main-terminal point."""
+        leg = self._leg("MCO", "Disney")
+        body = build(leg, ON_THE_WAY, driver_name="Marcus").body
+        self.assertIn("2nd floor", body, body)
+
+        leg.flight_information = Flight.objects.create(
+            airline_display_name="Delta", flight_number="123", terminal="",
+        )
+        leg.save(update_fields=["flight_information"])
+        body = build(leg, ON_THE_WAY, driver_name="Marcus").body
+        self.assertIn("2nd floor", body, body)
+
     def test_unverified_airport_gets_the_plain_baggage_claim_area(self):
         """Melbourne and Lakeland have no verified meet-point instructions on
         file — the copy must not invent a floor or landmark for them."""
