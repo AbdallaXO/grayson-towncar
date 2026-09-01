@@ -463,6 +463,63 @@ class LogEndpointTests(TestCase):
             self.client.post(self._url(), {"kind": ON_THE_WAY})
         self.assertEqual(LegClientMessage.objects.count(), 3)
 
+    # ── The tap carries the status with it ──────────────────────────────
+    # Drivers read the chip's words ("On the way") as the status control and
+    # assume dispatch now sees them en route. The server makes that true:
+    # forward only, capped at the text's own stage, terminal trips untouched.
+
+    def _tap(self, leg, kind):
+        return self.client.post(self._url(leg), {"kind": kind}).json()
+
+    def _leg_at(self, status):
+        return _make_leg(self.res, self.driver, status=status)
+
+    def test_on_the_way_tap_advances_a_confirmed_leg(self):
+        from reservations.models import LegStatus
+
+        leg = self._leg_at("confirmed")
+        data = self._tap(leg, ON_THE_WAY)
+        leg.refresh_from_db()
+        self.assertEqual(data["status_advanced"], "on-the-way")
+        self.assertEqual(leg.status, "on-the-way")
+        history = LegStatus.objects.filter(leg=leg, status="on-the-way").get()
+        self.assertEqual(history.updated_by, self.driver.profile)
+
+    def test_tap_never_moves_a_status_backwards(self):
+        leg = self._leg_at("picked-up")
+        data = self._tap(leg, ON_THE_WAY)
+        leg.refresh_from_db()
+        self.assertEqual(data["status_advanced"], "")
+        self.assertEqual(leg.status, "picked-up")
+
+    def test_review_tap_caps_at_picked_up_and_never_completes(self):
+        leg = self._leg_at("on-location")
+        data = self._tap(leg, REVIEW)
+        leg.refresh_from_db()
+        self.assertEqual(data["status_advanced"], "picked-up")
+        self.assertEqual(leg.status, "picked-up")
+
+        done = self._leg_at("completed")
+        data = self._tap(done, REVIEW)
+        done.refresh_from_db()
+        self.assertEqual(data["status_advanced"], "")
+        self.assertEqual(done.status, "completed")
+
+    def test_tap_leaves_a_cancelled_leg_alone(self):
+        leg = self._leg_at("cancelled")
+        data = self._tap(leg, ON_THE_WAY)
+        leg.refresh_from_db()
+        self.assertEqual(data["status_advanced"], "")
+        self.assertEqual(leg.status, "cancelled")
+
+    def test_tap_at_its_own_stage_does_not_rewrite_history(self):
+        """A re-text at the same stage must not spam LegStatus rows."""
+        from reservations.models import LegStatus
+
+        leg = self._leg_at("on-the-way")
+        self._tap(leg, ON_THE_WAY)
+        self.assertFalse(LegStatus.objects.filter(leg=leg).exists())
+
 
 @override_settings(GOOGLE_MAPS_API_KEY="")
 class MetricsTests(TestCase):

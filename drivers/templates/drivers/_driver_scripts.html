@@ -159,7 +159,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         fetch(url, { method: 'POST', body: payload, keepalive: true })
-            .then((res) => { if (!res.ok) { throw new Error('http ' + res.status); } })
+            .then((res) => {
+                if (!res.ok) { throw new Error('http ' + res.status); }
+                return res.json().catch(() => null);
+            })
+            .then((data) => {
+                // The server may have advanced the trip status to match the
+                // text ("I'm on my way" ⇒ on-the-way). Say so, and refresh the
+                // card — immediately on desktop, or the moment the driver
+                // comes back from the Messages app on a phone.
+                if (!data || !data.status_advanced) return;
+                showToast(`Status updated to ${data.status_advanced.replace(/-/g, ' ')}`, 'success');
+                if (document.visibilityState === 'hidden') {
+                    document.addEventListener('visibilitychange', function onBack() {
+                        if (document.visibilityState === 'visible') {
+                            document.removeEventListener('visibilitychange', onBack);
+                            window.scrollTo(0, 0);
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    setTimeout(() => { window.scrollTo(0, 0); window.location.reload(); }, 800);
+                }
+            })
             .catch(() => {
                 let queued = false;
                 try {

@@ -696,7 +696,50 @@ def log_client_message(request, leg_id):
         body=body,
     )
 
-    return JsonResponse({"success": True})
+    advanced = _advance_status_for_text(leg, kind, request.user)
+    return JsonResponse({"success": True, "status_advanced": advanced})
+
+
+def _advance_status_for_text(leg, kind, user):
+    """Texting the guest IS the status signal — catch the record up to it.
+
+    The chips say the same words as the status steps ("On the way",
+    "On location"), and drivers reasonably assume tapping one tells dispatch
+    where they are. The rate math already treats a tap as proof the moment
+    arrived (drivers/comms_metrics.py, the tap-closure rule); this makes the
+    dispatch board agree instead of showing 'confirmed' for a man who just
+    told his guest "I'm on my way".
+
+    Strictly forward, capped at the stage the text belongs to (a review text
+    advances to picked-up at most — completing a trip stays a deliberate,
+    confirmed act), and terminal trips are never touched. Recorded in
+    LegStatus as the driver's own update, same as a manual tap.
+    Returns the new status, or "" when nothing moved.
+    """
+    from drivers.comms_metrics import KIND_OPENS_AT, STAGE_ORDER
+
+    target = KIND_OPENS_AT.get(kind)
+    current = leg.status or "in-progress"
+    if not target or current in ("completed", "cancelled"):
+        return ""
+    try:
+        if STAGE_ORDER.index(current) >= STAGE_ORDER.index(target):
+            return ""
+    except ValueError:
+        # A status outside the known ladder is not ours to move.
+        return ""
+
+    leg.status = target
+    leg.save(update_fields=["status"])
+    LegStatus.objects.create(
+        leg=leg, status=target, updated_by=user, timestamp=timezone.now()
+    )
+    # Same follow-through a manual picked-up tap gets (update_leg_status):
+    # an honest route-based ETA for dispatch.
+    if settings.GOOGLE_MAPS_API_KEY and target == "picked-up":
+        from reservations.utils import _run_in_background
+        _run_in_background(_compute_fallback_eta, leg, leg.dropoff_location)
+    return target
 
 
 def _parse_duration_to_minutes(duration_text):
