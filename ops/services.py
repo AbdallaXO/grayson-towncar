@@ -13,6 +13,7 @@ from .models import (
     StaffActivity,
     TimeClockShift,
     TimeClockBreak,
+    TimeClockRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -211,18 +212,198 @@ def get_open_shift(user):
     )
 
 
-def clock_in(user, now=None):
-    """Start a new shift. Raises TimeClockError if already clocked in."""
+# A grant (approved request) is good for this long after the decision; past
+# that the staffer has to ask again. Pending requests nobody decides on go
+# stale after a day.
+GRANT_VALID_MIN = 120
+REQUEST_PENDING_EXPIRE_HOURS = 24
+
+
+def clock_in(user, now=None, **flags):
+    """Open a shift, no schedule gate. Raises TimeClockError if already clocked in.
+
+    This is the plain punch — the staff-facing entry point is
+    ``clock_in_or_request``, which enforces the unscheduled-approval flow and
+    calls this once a punch is allowed. ``flags`` are extra shift fields
+    (unscheduled / approval_* stamps for a grant-born shift).
+    """
     now = now or timezone.now()
     if get_open_shift(user):
         raise TimeClockError("You're already clocked in.")
     try:
-        shift = TimeClockShift.objects.create(user=user, clock_in_at=now)
+        shift = TimeClockShift.objects.create(user=user, clock_in_at=now, **flags)
     except IntegrityError:
         # Lost a race against the partial unique constraint.
         raise TimeClockError("You're already clocked in.")
     logger.info(f"Time clock: {user} clocked IN (shift #{shift.id})")
     return shift
+
+
+def _pending_request(user):
+    return TimeClockRequest.objects.filter(
+        user=user, status=TimeClockRequest.Status.PENDING
+    ).first()
+
+
+def _valid_grant(user, now):
+    """The newest approved-and-still-fresh request, or None."""
+    return (
+        TimeClockRequest.objects.filter(
+            user=user,
+            status=TimeClockRequest.Status.APPROVED,
+            decided_at__gte=now - timedelta(minutes=GRANT_VALID_MIN),
+        )
+        .order_by("-decided_at")
+        .first()
+    )
+
+
+def clock_in_or_request(user, now=None):
+    """
+    The staff-facing clock-in. Returns ``(result, obj)``:
+
+    * ``("clocked_in", shift)`` — in schedule, or an approved grant was used.
+      NO shift opens and NO time counts for an unscheduled punch until then.
+    * ``("requested", request)`` — outside the schedule with no grant: a
+      pending request was filed for the admin. The clock did not start.
+    * ``("pending", request)`` — they asked again while still waiting.
+
+    A schedule check that errors fails open (treated as in-schedule) — a
+    resolver bug must never lock the whole roster out of the clock.
+    """
+    now = now or timezone.now()
+    if get_open_shift(user):
+        raise TimeClockError("You're already clocked in.")
+
+    from . import scheduling  # local import — scheduling imports models, not services
+    try:
+        in_schedule, reason = scheduling.clock_in_schedule_check(user, at=now)
+    except Exception:
+        logger.exception(f"Time clock: schedule check failed for {user}; allowing clock-in")
+        in_schedule, reason = True, ""
+
+    if in_schedule:
+        shift = clock_in(user, now=now)
+        # Their window arrived while a request sat waiting — the ask is moot.
+        TimeClockRequest.objects.filter(
+            user=user, status=TimeClockRequest.Status.PENDING
+        ).update(status=TimeClockRequest.Status.CANCELLED, updated_at=now)
+        return "clocked_in", shift
+
+    grant = _valid_grant(user, now)
+    if grant:
+        shift = clock_in(
+            user, now=now,
+            unscheduled=True,
+            approval_status=TimeClockShift.Approval.APPROVED,
+            approval_reason=grant.reason,
+            approved_by=grant.decided_by,
+            approved_at=grant.decided_at,
+        )
+        grant.status = TimeClockRequest.Status.USED
+        grant.shift = shift
+        grant.save(update_fields=["status", "shift", "updated_at"])
+        logger.info(f"Time clock: {user} clocked IN on approved request #{grant.id} (shift #{shift.id})")
+        return "clocked_in", shift
+
+    pending = _pending_request(user)
+    if pending:
+        return "pending", pending
+
+    try:
+        req = TimeClockRequest.objects.create(
+            user=user, requested_at=now, reason=(reason or "")[:200]
+        )
+    except IntegrityError:
+        # Raced another tab; the existing pending request wins.
+        return "pending", _pending_request(user)
+    logger.info(f"Time clock: {user} REQUESTED an unscheduled clock-in — {reason} (req #{req.id})")
+    return "requested", req
+
+
+def cancel_clock_in_request(user, now=None):
+    """The staffer withdraws their own pending request."""
+    now = now or timezone.now()
+    req = _pending_request(user)
+    if not req:
+        raise TimeClockError("You don't have a request waiting.")
+    req.status = TimeClockRequest.Status.CANCELLED
+    req.save(update_fields=["status", "updated_at"])
+    logger.info(f"Time clock: {user} cancelled clock-in request #{req.id}")
+    return req
+
+
+def clock_in_request_state(user, now=None):
+    """
+    What the clock page should say about requests right now:
+    ``(state, request)`` with state one of "pending", "approved" (fresh,
+    unused grant), "denied" (recent, so they see the answer), or ``(None,
+    None)`` when there's nothing to show.
+    """
+    now = now or timezone.now()
+    pending = _pending_request(user)
+    if pending:
+        return "pending", pending
+    grant = _valid_grant(user, now)
+    if grant:
+        return "approved", grant
+    denied = (
+        TimeClockRequest.objects.filter(
+            user=user,
+            status=TimeClockRequest.Status.DENIED,
+            decided_at__gte=now - timedelta(hours=8),
+        )
+        .order_by("-decided_at")
+        .first()
+    )
+    if denied and not TimeClockShift.objects.filter(
+        user=user, clock_in_at__gte=denied.decided_at
+    ).exists():
+        return "denied", denied
+    return None, None
+
+
+def approve_clock_in_request(req, by, now=None):
+    """Grant a pending request. The staffer still has to press Clock In —
+    the clock starts at THEIR punch, never at the approval."""
+    if req.status != TimeClockRequest.Status.PENDING:
+        raise TimeClockError("That request isn't waiting for a decision.")
+    now = now or timezone.now()
+    req.status = TimeClockRequest.Status.APPROVED
+    req.decided_by = by
+    req.decided_at = now
+    req.save(update_fields=["status", "decided_by", "decided_at", "updated_at"])
+    logger.info(f"Time clock: {by} APPROVED clock-in request #{req.id} for {req.user}")
+    return req
+
+
+def deny_clock_in_request(req, by, note="", now=None):
+    """Deny a pending request. Nothing was ever on the clock."""
+    if req.status != TimeClockRequest.Status.PENDING:
+        raise TimeClockError("That request isn't waiting for a decision.")
+    now = now or timezone.now()
+    req.status = TimeClockRequest.Status.DENIED
+    req.decided_by = by
+    req.decided_at = now
+    req.decision_note = (note or "")[:200]
+    req.save(update_fields=["status", "decided_by", "decided_at", "decision_note", "updated_at"])
+    logger.info(f"Time clock: {by} DENIED clock-in request #{req.id} for {req.user}")
+    return req
+
+
+def expire_stale_requests(now=None):
+    """Lazy cleanup (this app has no scheduler): pending asks nobody decided
+    within a day, and grants nobody used, go quietly stale."""
+    now = now or timezone.now()
+    n = TimeClockRequest.objects.filter(
+        status=TimeClockRequest.Status.PENDING,
+        requested_at__lt=now - timedelta(hours=REQUEST_PENDING_EXPIRE_HOURS),
+    ).update(status=TimeClockRequest.Status.EXPIRED, updated_at=now)
+    n += TimeClockRequest.objects.filter(
+        status=TimeClockRequest.Status.APPROVED,
+        decided_at__lt=now - timedelta(minutes=GRANT_VALID_MIN),
+    ).update(status=TimeClockRequest.Status.EXPIRED, updated_at=now)
+    return n
 
 
 def clock_out(user, now=None):
@@ -358,6 +539,10 @@ def admin_punch_in(user, by, now=None, at=None):
     if conflict:
         raise TimeClockError(f"Overlaps an existing shift starting {_fmt_local(conflict.clock_in_at)}.")
     shift = TimeClockShift.objects.create(user=user, clock_in_at=start, edited_by=by, edited_at=now)
+    # An admin punch supersedes any clock-in request still sitting in the queue.
+    TimeClockRequest.objects.filter(
+        user=user, status=TimeClockRequest.Status.PENDING
+    ).update(status=TimeClockRequest.Status.CANCELLED, updated_at=now)
     logger.info(f"Time clock: {by} punched IN {user} at {_fmt_local(start)} (shift #{shift.id})")
     return shift
 

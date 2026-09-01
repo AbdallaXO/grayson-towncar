@@ -17,6 +17,13 @@
 .chip-short, .chip-absent { background:#ffe4e6; color:#9f1239; }
 .chip-over, .chip-extra { background:#e0f2fe; color:#075985; }
 .chip-no_schedule { background:#f1f5f9; color:#94a3b8; }
+.tcm-loc { display:inline-flex; align-items:center; gap:.25rem; font-size:.7rem; font-weight:700; padding:.12rem .5rem; border-radius:999px; white-space:nowrap; letter-spacing:.02em; }
+.tcm-loc.remote { background:#eef2ff; color:#3f4d8f; border:1px solid #dde3fb; }
+.tcm-loc.office { background:#f0faf1; color:#1e6b34; border:1px solid #d7efdb; }
+.tcm-loc.flip { box-shadow:0 0 0 2px #f3e3a3; }
+.tcm-approve-card { border:1px solid #f3d9a4; background:linear-gradient(180deg,#fffdf6,#fff); }
+.tcm-approve-card .card-header { background:#fff8e7; border-bottom:1px solid #f3e3a3; }
+.tcm-why { color:#8a6d1d; font-size:.8rem; }
 .tcm-toast { position:fixed; bottom:1.25rem; left:50%; transform:translateX(-50%); background:#1a1d21; color:#fff; padding:.6rem 1.1rem; border-radius:.5rem; opacity:0; pointer-events:none; transition:opacity .2s; z-index:2000; font-size:.88rem; }
 .tcm-toast.show { opacity:1; }
 .tcm-toast.t-err { background:#b91c1c; }
@@ -28,6 +35,7 @@
   {% include 'dispatching/dispatcher_navbar.html' %}
 
   <div class="container-fluid tcm-wrap">
+    <div id="tcmCsrf" hidden>{% csrf_token %}</div>
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
       <div>
         <h1 class="mb-1 fw-bold"><i class="bi bi-clock-fill me-2"></i>Manage Time Clock</h1>
@@ -36,6 +44,45 @@
       </div>
       <a href="{% url 'timeclock_overview' %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-bar-chart-line me-1"></i>Hours report</a>
     </div>
+
+    {% if pending_requests or open_grants %}
+    <div class="card tcm-approve-card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-bold"><i class="bi bi-hourglass-split me-1"></i>Clock-in requests waiting for your approval</span>
+        <span class="badge text-bg-warning">{{ pending_requests|length }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table tcm-table align-middle mb-0">
+          <tbody>
+            {% for p in pending_requests %}
+            <tr>
+              <td><a class="tcm-name text-decoration-none" href="{% url 'timeclock_staff_detail' p.user_id %}">{{ p.name }}</a></td>
+              <td class="text-muted">asked {{ p.req.requested_at|date:"D, M j" }} · {{ p.req.requested_at|time:"g:i A" }}</td>
+              <td class="tcm-why">{{ p.req.reason }}</td>
+              <td class="text-end text-nowrap">
+                <button class="btn btn-sm btn-success tc-approve" data-request-id="{{ p.req.id }}"><i class="bi bi-check-lg me-1"></i>Approve</button>
+                <button class="btn btn-sm btn-outline-danger tc-deny" data-request-id="{{ p.req.id }}" data-name="{{ p.name }}">Deny</button>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td class="text-muted small py-2">No requests waiting.</td></tr>
+            {% endfor %}
+            {% for g in open_grants %}
+            <tr>
+              <td><a class="tcm-name text-decoration-none" href="{% url 'timeclock_staff_detail' g.user_id %}">{{ g.user.get_full_name|default:g.user.username }}</a></td>
+              <td class="text-muted" colspan="2">approved {{ g.decided_at|time:"g:i A" }} — waiting for them to clock in. The clock starts at their punch, not the approval.</td>
+              <td class="text-end"><span class="badge text-bg-success">approved</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white text-muted small">
+        Nothing is on the clock for a request — approving lets them start it themselves.
+        To put someone straight on the clock, use <b>Punch in</b> below.
+      </div>
+    </div>
+    {% endif %}
 
     <div class="card">
       <div class="table-responsive">
@@ -53,7 +100,14 @@
                 <span class="tcm-dot {{ r.state }}"></span>
                 {% if r.state == 'clocked_in' %}Clocked in{% elif r.state == 'on_break' %}On break{% else %}Out{% endif %}
               </td>
-              <td class="text-muted">{{ r.today_scheduled }}</td>
+              <td class="text-muted">{{ r.today_scheduled }}
+                {% if r.location %}
+                <span class="tcm-loc {{ r.location }}{% if r.location_flipped %} flip{% endif %}"
+                      title="{% if r.location == 'remote' %}Working from home today{% else %}In the office today{% endif %}{% if r.location_flipped %} — one-day change from their usual{% endif %}">
+                  {% if r.location == 'remote' %}<i class="bi bi-house-door"></i>WFH{% else %}<i class="bi bi-building"></i>Office{% endif %}
+                </span>
+                {% endif %}
+              </td>
               <td class="fw-semibold">{{ r.today_actual }}</td>
               <td>{% if r.today_quiet %}<span class="text-muted">—</span>{% else %}<span class="chip chip-{{ r.today_status }}">{{ r.today_status_label }}</span>{% endif %}</td>
               <td class="text-end">
@@ -177,6 +231,8 @@
 <script>
 (function () {
   function csrf() {
+    const el = document.querySelector('#tcmCsrf [name=csrfmiddlewaretoken]');
+    if (el && el.value) return el.value;
     if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
     const m = document.cookie.match(/(^|; )csrftoken=([^;]+)/); return m ? decodeURIComponent(m[2]) : '';
   }
@@ -217,6 +273,25 @@
       else { toast(data.error || 'Could not complete that.', false); e.target.disabled = false; }
     } catch (err) { toast('Network error.', false); e.target.disabled = false; }
   });
+
+  // ── Unscheduled clock-in requests (approve = they may start the clock) ──
+  async function decideRequest(body, btn) {
+    btn.disabled = true;
+    try {
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrf()}, body: JSON.stringify(body) });
+      const data = await resp.json();
+      if (data.success) { location.reload(); }
+      else { toast(data.error || 'Could not save that.', false); btn.disabled = false; }
+    } catch (err) { toast('Network error.', false); btn.disabled = false; }
+  }
+  document.querySelectorAll('.tc-approve').forEach(b => b.addEventListener('click', () => {
+    decideRequest({ action: 'approve_request', request_id: b.dataset.requestId }, b);
+  }));
+  document.querySelectorAll('.tc-deny').forEach(b => b.addEventListener('click', () => {
+    const note = prompt('Deny ' + (b.dataset.name || 'this request') + "? Add a note they'll see (optional):", '');
+    if (note === null) return;
+    decideRequest({ action: 'deny_request', request_id: b.dataset.requestId, note: note }, b);
+  }));
 
   // ── On-call panel ──
   const ocUrl = "{% url 'timeclock_oncall_action' %}";

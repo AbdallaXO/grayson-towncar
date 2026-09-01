@@ -433,14 +433,38 @@ class MyCoverageViewTests(TestCase):
         self.assertContains(resp, "Iris")
 
     def test_day_switch_scaffold_present(self):
-        # Every weekday gets a switchable day-view panel, and each week row is a
-        # clickable target carrying its weekday index.
+        # Every weekday gets a switchable day-detail panel, and each week
+        # overview card is a clickable target carrying its weekday index.
         me = _staff("me", "Me"); _weekly(me, timezone.localdate().weekday(), time(9), time(17))
         self.client.force_login(me)
         html = self.client.get(self.url).content.decode()
         self.assertEqual(html.count('class="mc-dayview"'), 7)
-        self.assertEqual(html.count('data-dow='), 14)     # 7 day-view panels + 7 week rows
-        self.assertIn("tap any day below to switch", html)
+        self.assertEqual(html.count('data-dow='), 14)     # 7 day panels + 7 week cards
+        self.assertIn("tap a day above to switch", html)
+
+    def test_week_overview_is_dated_with_toggle(self):
+        # The overview carries real dates and a This week / Next week switch.
+        today = timezone.localdate()
+        me = _staff("me", "Me"); _weekly(me, today.weekday(), time(9), time(17))
+        self.client.force_login(me)
+        resp = self.client.get(self.url)
+        monday = today - timedelta(days=today.weekday())
+        self.assertContains(resp, coverage.md(monday))       # dated cards
+        self.assertContains(resp, "Next week")
+        self.assertContains(resp, "This week")
+        # Next week renders the following Monday's date.
+        resp2 = self.client.get(self.url + "?week=next")
+        self.assertContains(resp2, coverage.md(monday + timedelta(days=7)))
+
+    def test_week_card_shows_viewer_location(self):
+        today = timezone.localdate()
+        row = _weekly(_staff("wfh", "Wfh Person"), today.weekday(), time(9), time(17))
+        row.location = "remote"; row.save()
+        me = row.user
+        self.client.force_login(me)
+        html = self.client.get(self.url).content.decode()
+        self.assertIn("WFH", html)
+        self.assertIn("Working from home", html)
 
     def test_sick_day_shows_off_note_in_day_view(self):
         # Today's day-view reflects a one-off absence; the week list stays the pattern.

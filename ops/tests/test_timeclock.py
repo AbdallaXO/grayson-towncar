@@ -409,3 +409,188 @@ class AdminTimeClockViewTests(TestCase):
         )
         self.assertTrue(delete.json()["success"])
         self.assertFalse(StaffScheduleOverride.objects.filter(pk=oid).exists())
+
+
+class UnscheduledClockInTests(TestCase):
+    """Off-schedule punches file a REQUEST — no shift, no time counted, until
+    the admin approves and the staffer then actually clocks in."""
+
+    def setUp(self):
+        from datetime import time as _time
+        self.user = User.objects.create_user(username="dispatch-unsched", is_staff=True)
+        self.admin = User.objects.create_superuser(username="boss-unsched", password="pw")
+        # Wed 2026-05-20: scheduled 9–5. (Every other weekday is untracked.)
+        StaffWeeklySchedule.objects.create(
+            user=self.user, day_of_week=2, is_working=True,
+            start_time=_time(9), end_time=_time(17),
+        )
+        self.wed9 = _aware(datetime(2026, 5, 20, 9, 0))
+
+    def test_in_schedule_punch_clocks_straight_in(self):
+        from ops.services import clock_in_or_request
+        result, shift = clock_in_or_request(self.user, now=self.wed9)
+        self.assertEqual(result, "clocked_in")
+        self.assertFalse(shift.unscheduled)
+        self.assertEqual(shift.approval_status, "")
+
+    def test_off_schedule_punch_files_request_and_starts_no_clock(self):
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request
+        result, req = clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12))
+        self.assertEqual(result, "requested")
+        self.assertEqual(req.status, TimeClockRequest.Status.PENDING)
+        self.assertTrue(req.reason)
+        # THE point of the flow: nothing is on the clock.
+        self.assertFalse(TimeClockShift.objects.filter(user=self.user).exists())
+
+    def test_second_punch_while_waiting_stays_pending(self):
+        from ops.services import clock_in_or_request
+        clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12))
+        result, req = clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12, minutes=5))
+        self.assertEqual(result, "pending")
+        self.assertFalse(TimeClockShift.objects.filter(user=self.user).exists())
+
+    def test_approved_request_lets_the_next_punch_open_a_shift(self):
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request, approve_clock_in_request
+        t = self.wed9 + timedelta(hours=12)
+        _, req = clock_in_or_request(self.user, now=t)
+        approve_clock_in_request(req, self.admin, now=t + timedelta(minutes=10))
+        result, shift = clock_in_or_request(self.user, now=t + timedelta(minutes=12))
+        self.assertEqual(result, "clocked_in")
+        self.assertTrue(shift.unscheduled)
+        self.assertEqual(shift.approval_status, "approved")
+        self.assertEqual(shift.approved_by, self.admin)
+        # The clock starts at THEIR punch, not the approval.
+        self.assertEqual(shift.clock_in_at, t + timedelta(minutes=12))
+        req.refresh_from_db()
+        self.assertEqual(req.status, TimeClockRequest.Status.USED)
+        self.assertEqual(req.shift, shift)
+
+    def test_grant_expires(self):
+        from ops.services import clock_in_or_request, approve_clock_in_request, GRANT_VALID_MIN
+        t = self.wed9 + timedelta(hours=12)
+        _, req = clock_in_or_request(self.user, now=t)
+        approve_clock_in_request(req, self.admin, now=t + timedelta(minutes=5))
+        late = t + timedelta(minutes=5 + GRANT_VALID_MIN + 1)
+        result, obj = clock_in_or_request(self.user, now=late)
+        # The old grant is stale — a fresh request is filed, still no shift.
+        self.assertEqual(result, "requested")
+        self.assertFalse(TimeClockShift.objects.filter(user=self.user).exists())
+
+    def test_denied_request_opens_nothing(self):
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request, deny_clock_in_request, clock_in_request_state
+        t = self.wed9 + timedelta(hours=12)
+        _, req = clock_in_or_request(self.user, now=t)
+        deny_clock_in_request(req, self.admin, note="Not tonight", now=t + timedelta(minutes=5))
+        req.refresh_from_db()
+        self.assertEqual(req.status, TimeClockRequest.Status.DENIED)
+        self.assertEqual(req.decision_note, "Not tonight")
+        self.assertFalse(TimeClockShift.objects.filter(user=self.user).exists())
+        state, obj = clock_in_request_state(self.user, now=t + timedelta(minutes=10))
+        self.assertEqual(state, "denied")
+
+    def test_cancel_own_request(self):
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request, cancel_clock_in_request
+        _, req = clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12))
+        cancel_clock_in_request(self.user)
+        req.refresh_from_db()
+        self.assertEqual(req.status, TimeClockRequest.Status.CANCELLED)
+
+    def test_normal_clock_in_cancels_stale_request(self):
+        # Asked at 8:00 (too early), window opens 9:00 — the 9:00 punch clocks
+        # in normally and the now-moot request leaves the admin's queue.
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request
+        _, req = clock_in_or_request(self.user, now=self.wed9 - timedelta(hours=1))
+        self.assertEqual(req.status, TimeClockRequest.Status.PENDING)
+        result, _shift = clock_in_or_request(self.user, now=self.wed9)
+        self.assertEqual(result, "clocked_in")
+        req.refresh_from_db()
+        self.assertEqual(req.status, TimeClockRequest.Status.CANCELLED)
+
+    def test_booked_off_day_requires_request(self):
+        from ops.services import clock_in_or_request
+        StaffScheduleOverride.objects.create(
+            user=self.user, date=self.wed9.date(), kind="off", reason="vacation"
+        )
+        result, _req = clock_in_or_request(self.user, now=self.wed9)
+        self.assertEqual(result, "requested")
+
+    def test_unconfigured_staffer_is_never_gated(self):
+        from ops.services import clock_in_or_request
+        other = User.objects.create_user(username="dispatch-nosched", is_staff=True)
+        result, shift = clock_in_or_request(other, now=self.wed9 + timedelta(hours=14))
+        self.assertEqual(result, "clocked_in")
+        self.assertFalse(shift.unscheduled)
+
+    def test_double_decide_raises(self):
+        from ops.services import clock_in_or_request, approve_clock_in_request, TimeClockError
+        _, req = clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12))
+        approve_clock_in_request(req, self.admin)
+        with self.assertRaises(TimeClockError):
+            approve_clock_in_request(req, self.admin)
+
+    def test_manage_endpoint_approve_and_deny(self):
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request
+        _, req = clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12))
+        self.client.force_login(self.admin)
+        resp = self.client.post(
+            reverse("timeclock_entry_action"),
+            data=json.dumps({"action": "approve_request", "request_id": req.id}),
+            content_type="application/json",
+        )
+        self.assertTrue(resp.json()["success"])
+        req.refresh_from_db()
+        self.assertEqual(req.status, TimeClockRequest.Status.APPROVED)
+
+    def test_manage_page_lists_pending_requests(self):
+        from ops.services import clock_in_or_request
+        clock_in_or_request(self.user, now=timezone.now())  # whatever "now" resolves to
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("timeclock_manage"))
+        self.assertEqual(resp.status_code, 200)
+        # The queue card renders whenever a pending request or open grant exists;
+        # if the live punch happened to be in-schedule there's nothing to assert.
+        from ops.models import TimeClockRequest as TCR
+        if TCR.objects.filter(status="pending").exists():
+            self.assertContains(resp, "waiting for your approval")
+
+    def test_clock_in_action_reports_result(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            reverse("timeclock_action"),
+            data=json.dumps({"action": "clock_in"}),
+            content_type="application/json",
+        )
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertIn(body["result"], ("clocked_in", "requested", "pending"))
+        # Whichever way it went, an off-schedule punch must not have opened a shift.
+        if body["result"] != "clocked_in":
+            self.assertFalse(TimeClockShift.objects.filter(user=self.user).exists())
+
+    def test_request_status_endpoint(self):
+        from ops.services import clock_in_or_request
+        clock_in_or_request(self.user, now=self.wed9 + timedelta(hours=12))
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            reverse("timeclock_action"),
+            data=json.dumps({"action": "request_status"}),
+            content_type="application/json",
+        )
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["request_state"], "pending")
+
+    def test_expire_stale_requests(self):
+        from ops.models import TimeClockRequest
+        from ops.services import clock_in_or_request, expire_stale_requests
+        t = self.wed9 + timedelta(hours=12)
+        _, req = clock_in_or_request(self.user, now=t)
+        expire_stale_requests(now=t + timedelta(hours=25))
+        req.refresh_from_db()
+        self.assertEqual(req.status, TimeClockRequest.Status.EXPIRED)

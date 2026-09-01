@@ -438,6 +438,39 @@ class TimeClockShift(models.Model):
         default=False,
         help_text="Closed automatically because it was left open too long.",
     )
+
+    # ── Unscheduled clock-in approval ──
+    # Set at clock-in time when the punch fell outside the resolved schedule
+    # (day off, or outside the planned window). The shift still opens — staff
+    # are never blocked from working — but it waits for an admin decision.
+    # Blank approval_status = a normal, in-schedule punch (or admin-entered).
+    class Approval(models.TextChoices):
+        PENDING = "pending", "Pending approval"
+        APPROVED = "approved", "Approved"
+        DENIED = "denied", "Denied"
+
+    unscheduled = models.BooleanField(
+        default=False,
+        help_text="Clock-in fell outside this staffer's planned schedule.",
+    )
+    approval_status = models.CharField(
+        max_length=10, choices=Approval.choices, blank=True, default="",
+        help_text="Only set for unscheduled clock-ins. Blank = no approval needed.",
+    )
+    approval_reason = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Why the clock-in was flagged (shown to the admin).",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="decided_timeclock_shifts",
+        help_text="Admin who approved or denied the unscheduled clock-in.",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+
     edited_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -460,6 +493,12 @@ class TimeClockShift(models.Model):
                 name="idx_tcshift_open",
                 condition=models.Q(clock_out_at__isnull=True),
             ),
+            # Partial index for the manage page's approval queue.
+            models.Index(
+                fields=["approval_status"],
+                name="idx_tcshift_pending",
+                condition=models.Q(approval_status="pending"),
+            ),
         ]
         constraints = [
             # DB-level guard: a user can have at most one open shift at a time.
@@ -479,6 +518,10 @@ class TimeClockShift(models.Model):
     @property
     def is_open(self):
         return self.clock_out_at is None
+
+    @property
+    def needs_approval(self):
+        return self.approval_status == self.Approval.PENDING
 
     @property
     def open_break(self):
@@ -523,6 +566,87 @@ class TimeClockShift(models.Model):
     @property
     def worked_minutes(self):
         return int(self.worked_seconds() // 60)
+
+
+class TimeClockRequest(models.Model):
+    """
+    A staffer's ask to clock in OUTSIDE their planned schedule. No shift exists
+    and no time counts until the admin approves AND the staffer then actually
+    clocks in — approval is a grant, not a punch, so a late approval never
+    leaves a timer running for somebody who already went home.
+
+    Lifecycle: pending -> approved (a grant, valid ~2h) -> used (consumed by
+    the clock-in it authorised, linked via ``shift``); or denied / cancelled
+    (staffer withdrew, or clocked in normally once their window arrived) /
+    expired (nobody acted in time). One pending request per user, DB-enforced.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved — not yet used"
+        DENIED = "denied", "Denied"
+        USED = "used", "Used"
+        CANCELLED = "cancelled", "Cancelled"
+        EXPIRED = "expired", "Expired"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="timeclock_requests",
+    )
+    requested_at = models.DateTimeField(db_index=True)
+    reason = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Why the punch was outside the schedule (shown to the admin).",
+    )
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING,
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="decided_timeclock_requests",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Shown to the staffer when a request is denied.",
+    )
+    shift = models.ForeignKey(
+        TimeClockShift,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_requests",
+        help_text="The shift this grant opened, once used.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+        indexes = [
+            models.Index(fields=["user", "-requested_at"], name="idx_tcreq_user_time"),
+            models.Index(
+                fields=["status"],
+                name="idx_tcreq_pending",
+                condition=models.Q(status="pending"),
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(status="pending"),
+                name="uniq_pending_tcrequest_per_user",
+            ),
+        ]
+        verbose_name = "Time Clock Request"
+        verbose_name_plural = "Time Clock Requests"
+
+    def __str__(self):
+        return f"{self.user} — asked {self.requested_at:%m/%d %H:%M} [{self.status}]"
 
 
 class TimeClockBreak(models.Model):
@@ -584,6 +708,20 @@ STAFF_ROLE_CHOICES = [
 ]
 STAFF_ROLE_LABELS = dict(STAFF_ROLE_CHOICES)
 
+# ── Work location ─────────────────────────────────────────────────────
+# WHERE a scheduled shift happens: in the office or from home. Blank means
+# not tracked — a roster that never sets it reads exactly as before. The
+# weekly row carries the recurring answer; an override's location flips a
+# single date (the usual-WFH person coming in for a meeting) without
+# touching the pattern.
+WORK_LOCATION_CHOICES = [
+    ("office", "In office"),
+    ("remote", "Work from home"),
+]
+WORK_LOCATION_LABELS = dict(WORK_LOCATION_CHOICES)
+# Compact labels for chips and badges.
+WORK_LOCATION_SHORT = {"office": "Office", "remote": "WFH"}
+
 
 class StaffWeeklySchedule(models.Model):
     """
@@ -618,6 +756,10 @@ class StaffWeeklySchedule(models.Model):
     role = models.CharField(
         max_length=12, choices=STAFF_ROLE_CHOICES, blank=True, default="",
         help_text="Assigned duty for this shift. Blank = derive from hours.",
+    )
+    location = models.CharField(
+        max_length=10, choices=WORK_LOCATION_CHOICES, blank=True, default="",
+        help_text="Where they work this weekday (office / WFH). Blank = not tracked.",
     )
     note = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -660,8 +802,10 @@ class StaffScheduleOverride(models.Model):
         ("custom_hours", "Custom hours"),
         ("note", "Note only"),
     ]
+    # No "PTO" here on purpose — the company doesn't offer paid time off, so
+    # the reasons mirror drivers.DriverDateOverride (which dropped PTO too).
     REASON_CHOICES = [
-        ("pto", "PTO / vacation"),
+        ("vacation", "Vacation"),
         ("sick", "Sick"),
         ("personal", "Personal"),
         ("appointment", "Appointment"),
@@ -690,6 +834,10 @@ class StaffScheduleOverride(models.Model):
     role = models.CharField(
         max_length=12, choices=STAFF_ROLE_CHOICES, blank=True, default="",
         help_text="One-off assigned duty for these dates. Blank = keep the recurring role.",
+    )
+    location = models.CharField(
+        max_length=10, choices=WORK_LOCATION_CHOICES, blank=True, default="",
+        help_text="One-off work location for these dates (e.g. in office on a usual WFH day). Blank = keep the weekly setting.",
     )
     reason = models.CharField(
         max_length=16, choices=REASON_CHOICES, blank=True, default="",

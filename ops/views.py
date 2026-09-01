@@ -30,11 +30,13 @@ from .models import (
     StaffScheduleOverride,
     StaffOnCall,
     StaffExtraShift,
+    TimeClockRequest,
     STAFF_ROLE_CHOICES,
+    WORK_LOCATION_CHOICES,
+    WORK_LOCATION_SHORT,
 )
 from .services import close_task, cancel_task, log_communication, create_task
 from .services import (
-    clock_in as tc_clock_in,
     clock_out as tc_clock_out,
     start_break as tc_start_break,
     end_break as tc_end_break,
@@ -49,6 +51,13 @@ from .services import (
     admin_add_break,
     admin_update_break,
     admin_delete_break,
+    clock_in_or_request,
+    cancel_clock_in_request,
+    clock_in_request_state,
+    approve_clock_in_request,
+    deny_clock_in_request,
+    expire_stale_requests,
+    GRANT_VALID_MIN,
 )
 from . import scheduling
 from . import coverage
@@ -4529,6 +4538,24 @@ def timeclock_view(request):
     today_schedule = scheduling.resolve_staff_schedule(sched_user, today)
     week_sched = scheduling.week_schedule(sched_user, monday)
 
+    # Request flow: a clock-in outside the schedule doesn't start the clock —
+    # it files a request. Work out what the page should say right now.
+    request_state, request_obj = (None, None)
+    clockin_warning = ""
+    if not shift:
+        request_state, request_obj = clock_in_request_state(sched_user, now=now)
+        # The heads-up under the button — only when a punch would file a
+        # request (an approved grant means the next punch just works).
+        if request_state != "approved":
+            in_sched, _reason = scheduling.clock_in_schedule_check(sched_user, at=now)
+            if not in_sched:
+                if today_schedule["is_working"] and today_schedule["display_label"]:
+                    clockin_warning = f"You're scheduled {today_schedule['display_label']} today."
+                elif today_schedule["is_working"] is False:
+                    clockin_warning = "You're not scheduled to work today."
+                else:
+                    clockin_warning = "You're outside your scheduled hours."
+
     context = {
         "shift": shift,
         "open_break": open_break,
@@ -4538,6 +4565,9 @@ def timeclock_view(request):
         "today_schedule": today_schedule,
         "week_schedule": week_sched,
         "today": today,
+        "clockin_warning": clockin_warning,
+        "request_state": request_state or "",
+        "request_obj": request_obj,
         # Epoch millis drive the live JS timers (no tz ambiguity in the browser).
         "clock_in_ms": int(shift.clock_in_at.timestamp() * 1000) if shift else None,
         "break_start_ms": int(open_break.break_start_at.timestamp() * 1000) if open_break else None,
@@ -4555,18 +4585,27 @@ def timeclock_action(request):
     except (json.JSONDecodeError, AttributeError):
         action = request.POST.get("action")
 
-    handlers = {
-        "clock_in": tc_clock_in,
-        "clock_out": tc_clock_out,
-        "break_start": tc_start_break,
-        "break_end": tc_end_break,
-    }
-    handler = handlers.get(action)
-    if handler is None:
-        return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
-
+    result = ""
     try:
-        handler(request.user)
+        if action == "clock_in":
+            # May open a shift, or (outside the schedule) file a request
+            # instead — in which case the clock has NOT started.
+            result, _obj = clock_in_or_request(request.user)
+        elif action == "clock_out":
+            tc_clock_out(request.user)
+        elif action == "break_start":
+            tc_start_break(request.user)
+        elif action == "break_end":
+            tc_end_break(request.user)
+        elif action == "cancel_request":
+            cancel_clock_in_request(request.user)
+            result = "cancelled"
+        elif action == "request_status":
+            # Polled by the waiting page so approval flips it without a refresh.
+            state, _req = clock_in_request_state(request.user)
+            return JsonResponse({"success": True, "request_state": state or ""})
+        else:
+            return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
     except TimeClockError as e:
         # Soft failure (e.g. a double-click) — never a 500. The page re-syncs.
         return JsonResponse({"success": False, "error": str(e)})
@@ -4575,6 +4614,7 @@ def timeclock_action(request):
     open_break = shift.open_break if shift else None
     return JsonResponse({
         "success": True,
+        "result": result,
         "state": shift.state if shift else TimeClockShift.State.CLOCKED_OUT,
         "clock_in_ms": int(shift.clock_in_at.timestamp() * 1000) if shift else None,
         "break_start_ms": int(open_break.break_start_at.timestamp() * 1000) if open_break else None,
@@ -4652,7 +4692,7 @@ def timeclock_export_csv(request):
 
     fieldnames = [
         "staff", "date", "clock_in", "clock_out",
-        "gross_hours", "break_hours", "net_hours", "open", "auto_closed",
+        "gross_hours", "break_hours", "net_hours", "open", "auto_closed", "approval",
     ]
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
@@ -4672,6 +4712,9 @@ def timeclock_export_csv(request):
             "net_hours": round(gross_h - break_h, 2),
             "open": "yes" if s.is_open else "",
             "auto_closed": "yes" if s.auto_closed else "",
+            # Blank = a normal in-schedule punch; otherwise the decision state
+            # of an unscheduled clock-in (pending / approved / denied).
+            "approval": s.approval_status,
         })
 
     resp = HttpResponse(buf.getvalue().encode("utf-8"), content_type="text/csv; charset=utf-8")
@@ -4739,6 +4782,8 @@ def _serialize_override(o):
         "end_time": o.end_time.strftime("%H:%M") if o.end_time else "",
         "note": o.note,
         "role": o.role,
+        "location": o.location,
+        "location_label": WORK_LOCATION_SHORT.get(o.location, ""),
         "reason": o.reason,
         "reason_label": o.reason_label,
         "status": o.status,
@@ -4784,6 +4829,7 @@ def timeclock_manage(request):
         vs = scheduling.schedule_vs_actual(
             u, today, shifts=today_shifts.get(u.id, []), now=now, tracking_since=first_in_by_user.get(u.id)
         )
+        sched_today = scheduling.resolve_staff_schedule(u, today)
         state = "clocked_out"
         if open_shift:
             state = "on_break" if open_shift.open_break else "clocked_in"
@@ -4798,7 +4844,31 @@ def timeclock_manage(request):
             "today_quiet": vs["status"] in scheduling.QUIET_STATUSES,
             "today_scheduled": vs["scheduled_label"],
             "today_actual": vs["actual_label"],
+            "location": sched_today["location"],
+            "location_label": sched_today["location_label"],
+            "location_flipped": sched_today["location_flipped"],
         })
+
+    # Clock-in requests waiting for a decision. Nothing is on the clock for
+    # these — approving lets the staffer start it, it doesn't start it for them.
+    expire_stale_requests(now=now)
+    pending_requests = [
+        {
+            "req": r,
+            "name": r.user.get_full_name() or r.user.username,
+            "user_id": r.user_id,
+        }
+        for r in TimeClockRequest.objects.filter(status=TimeClockRequest.Status.PENDING)
+        .select_related("user").order_by("requested_at")
+    ]
+    # Grants waiting to be used — so "approved but still not on the clock"
+    # reads as the staffer's move, not a glitch.
+    open_grants = list(
+        TimeClockRequest.objects.filter(
+            status=TimeClockRequest.Status.APPROVED,
+            decided_at__gte=now - timedelta(minutes=GRANT_VALID_MIN),
+        ).select_related("user").order_by("decided_at")
+    )
 
     # On-call panel: staff dropdown + upcoming assignments (today forward).
     oncall_staff = [{"id": u.id, "name": u.get_full_name() or u.username} for u in roster]
@@ -4814,6 +4884,8 @@ def timeclock_manage(request):
         "on_clock_count": len(open_by_user),
         "oncall_staff": oncall_staff,
         "oncall_upcoming": oncall_upcoming,
+        "pending_requests": pending_requests,
+        "open_grants": open_grants,
     })
 
 
@@ -4948,6 +5020,7 @@ def timeclock_staff_detail(request, user_id):
             "start_time": r.start_time.strftime("%H:%M") if (r and r.start_time) else "09:00",
             "end_time": r.end_time.strftime("%H:%M") if (r and r.end_time) else "17:00",
             "role": r.role if r else "",
+            "location": r.location if r else "",
             "note": r.note if r else "",
         })
     overrides = list(
@@ -4992,6 +5065,7 @@ def timeclock_staff_detail(request, user_id):
         "overrides": overrides,
         "vs_rows": vs_rows,
         "role_choices": STAFF_ROLE_CHOICES,
+        "location_choices": WORK_LOCATION_CHOICES,
         "extra_shifts": list(sched_user.extra_shifts.all()),
     })
 
@@ -5033,6 +5107,13 @@ def timeclock_entry_action(request):
             )
         elif action == "delete_shift":
             admin_delete_shift(get_object_or_404(TimeClockShift, id=data.get("shift_id")))
+        elif action == "approve_request":
+            approve_clock_in_request(get_object_or_404(TimeClockRequest, id=data.get("request_id")), by)
+        elif action == "deny_request":
+            deny_clock_in_request(
+                get_object_or_404(TimeClockRequest, id=data.get("request_id")), by,
+                note=(data.get("note") or "")[:200],
+            )
         elif action == "add_break":
             shift = get_object_or_404(TimeClockShift, id=data.get("shift_id"))
             admin_add_break(shift, _tc_parse_et_dt(data.get("break_start_at")), _tc_parse_et_dt(data.get("break_end_at")), by)
@@ -5063,6 +5144,7 @@ def staff_schedule_get(request):
             "start_time": r.start_time.strftime("%H:%M") if r.start_time else "",
             "end_time": r.end_time.strftime("%H:%M") if r.end_time else "",
             "role": r.role,
+            "location": r.location,
             "note": r.note,
         }
     overrides = [
@@ -5103,10 +5185,15 @@ def staff_schedule_action(request):
             role = (row.get("role") or "").strip()
             if role not in dict(STAFF_ROLE_CHOICES):
                 role = ""
+            location = (row.get("location") or "").strip()
+            if location not in dict(WORK_LOCATION_CHOICES):
+                location = ""
             StaffWeeklySchedule.objects.update_or_create(
                 user=u, day_of_week=dow,
                 defaults={"is_working": is_working, "start_time": start_t, "end_time": end_t,
-                          "role": role if is_working else "", "note": (row.get("note") or "")[:200]},
+                          "role": role if is_working else "",
+                          "location": location if is_working else "",
+                          "note": (row.get("note") or "")[:200]},
             )
         return JsonResponse({"success": True})
 
@@ -5126,11 +5213,15 @@ def staff_schedule_action(request):
         role = (data.get("role") or "").strip()
         if role not in dict(STAFF_ROLE_CHOICES):
             role = ""
+        location = (data.get("location") or "").strip()
+        if location not in dict(WORK_LOCATION_CHOICES):
+            location = ""
         reason = (data.get("reason") or "").strip()
         if reason not in dict(StaffScheduleOverride.REASON_CHOICES):
             reason = ""
         fields = dict(date=date_, end_date=end_date, kind=kind, start_time=start_t, end_time=end_t,
-                      role=role, reason=reason if kind == "off" else "",
+                      role=role, location=location if kind != "off" else "",
+                      reason=reason if kind == "off" else "",
                       note=(data.get("note") or "")[:200])
         if action == "add_override":
             o = StaffScheduleOverride.objects.create(user=u, created_by=request.user, **fields)
@@ -5257,6 +5348,9 @@ def staffing_board(request):
         "roles_set": sum(1 for d in days for who in (d["opener"], d["closer"]) if who and who["assigned"]),
         "off_count": sum(len(d["time_off"]) for d in days),
         "unscheduled": sum(1 for r in data["rows"] if r["is_empty"]),
+        # Any location tracked anywhere this scope? Gates the In-office row so
+        # a roster that never sets office/WFH reads exactly as before.
+        "loc_tracked": any(d["loc_any"] for d in days),
     }
 
     return render(request, "dispatching/staffing_board.html", {
@@ -5274,6 +5368,7 @@ def staffing_board(request):
         "nav": nav,
         "summary": summary,
         "role_choices": STAFF_ROLE_CHOICES,
+        "location_choices": WORK_LOCATION_CHOICES,
         "reason_choices": StaffScheduleOverride.REASON_CHOICES,
         "pending_timeoff": timeoff.pending_requests(roster, today=today),
         "upcoming_timeoff": timeoff.upcoming_approved(roster, today=today),
@@ -5323,8 +5418,9 @@ def staffing_action(request):
                     return JsonResponse({"success": True, "role": ""})
                 ov = StaffScheduleOverride(user=u, date=date_, kind="note", created_by=request.user)
             ov.role = role
-            # A note-only row with no role and no note has nothing left to say.
-            if not role and ov.kind == "note" and not ov.note:
+            # A note-only row with no role, no note and no location flip has
+            # nothing left to say.
+            if not role and ov.kind == "note" and not ov.note and not ov.location:
                 ov.delete()
             else:
                 ov.save()
@@ -5342,6 +5438,48 @@ def staffing_action(request):
         row.role = role
         row.save(update_fields=["role", "updated_at"])
         return JsonResponse({"success": True, "role": role, "scope": "weekly"})
+
+    if action == "set_location":
+        # Same shape as set_role: a weekday sets the recurring pattern, a date
+        # flips just that day via an override (the usual-WFH person coming in).
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        location = (data.get("location") or "").strip()
+        if location and location not in dict(WORK_LOCATION_CHOICES):
+            return JsonResponse({"success": False, "error": "Unknown location."}, status=400)
+
+        date_ = _parse_ymd(data.get("date"))
+        if date_:
+            sched_u = User.objects.prefetch_related("weekly_schedule_rows", "schedule_overrides", "extra_shifts").get(pk=u.pk)
+            if not scheduling.resolve_staff_schedule(sched_u, date_)["is_working"]:
+                return JsonResponse({"success": False, "error": "That dispatcher isn't working that day."})
+            ov = (StaffScheduleOverride.objects
+                  .filter(user=u, date=date_, end_date__isnull=True, status="approved")
+                  .exclude(kind="off").first())
+            if ov is None:
+                if not location:
+                    return JsonResponse({"success": True, "location": ""})
+                ov = StaffScheduleOverride(user=u, date=date_, kind="note", created_by=request.user)
+            ov.location = location
+            if not location and ov.kind == "note" and not ov.note and not ov.role:
+                ov.delete()
+            else:
+                ov.save()
+            return JsonResponse({"success": True, "location": location, "scope": "date"})
+
+        try:
+            dow = int(data.get("dow"))
+        except (TypeError, ValueError):
+            return JsonResponse({"success": False, "error": "A weekday or date is required."}, status=400)
+        if not 0 <= dow <= 6:
+            return JsonResponse({"success": False, "error": "A weekday or date is required."}, status=400)
+        row = StaffWeeklySchedule.objects.filter(user=u, day_of_week=dow).first()
+        if row is None or not row.is_working:
+            return JsonResponse({"success": False, "error": "That dispatcher isn't scheduled that day."})
+        row.location = location
+        row.save(update_fields=["location", "updated_at"])
+        return JsonResponse({"success": True, "location": location, "scope": "weekly"})
 
     if action == "add_shift":
         # Somebody covering a day they don't normally work — Joseph taking a Friday
@@ -5517,12 +5655,21 @@ def my_coverage(request):
     roster = list(_office_staff_qs().prefetch_related("weekly_schedule_rows", "schedule_overrides", "extra_shifts"))
     today = timezone.localdate()
     today_dow = today.weekday()
-    monday = today - timedelta(days=today_dow)
-    # "Your week" is the standard recurring pattern (every day, who's on + hours);
-    # the switchable "Day view" is the *actual* date, with one-off sick/off + custom
-    # hours applied, so it reflects what's really happening.
-    week = coverage.my_week(request.user, roster, today_dow=today_dow)
+    this_monday = today - timedelta(days=today_dow)
+
+    # The whole page runs on *actual* dates (one-off sick/off, custom hours and
+    # WFH flips applied): the week overview cards and the day panels are the
+    # same seven ``day_view_actual`` dicts. "This week" or "Next week" only.
+    week_is_next = request.GET.get("week") == "next"
+    monday = this_monday + timedelta(days=7 if week_is_next else 0)
+    week = coverage.my_week(request.user, roster, today_dow=today_dow)  # meta only (on_roster/has_schedule)
     day_views = coverage.my_week_actual(request.user, roster, monday, today)
+
+    # Week-at-a-glance numbers for the viewer, from the dated views.
+    week_days_on = sum(1 for dv in day_views if dv["is_working"])
+    week_hours = coverage._fmt_hours(sum(dv["my_minutes"] for dv in day_views))
+    selected_dow = today_dow if not week_is_next else 0
+    week_range_label = f"{coverage.md(monday)} – {coverage.md(monday + timedelta(days=6))}"
 
     # Who's on-call tonight — date-based, now shown plainly by name (a teammate's
     # coverage is useful to see), with the viewer's own marked "You". Informational.
@@ -5557,9 +5704,12 @@ def my_coverage(request):
     grid_ticks = [round(h / 24 * 100, 3) for h in range(3, 24, 3)]
 
     return render(request, "dispatching/my_coverage.html", {
-        "days": week["days"],
         "day_views": day_views,
-        "working_days": week["working_days"],
+        "week_is_next": week_is_next,
+        "week_days_on": week_days_on,
+        "week_hours": week_hours,
+        "week_range_label": week_range_label,
+        "selected_dow": selected_dow,
         "has_schedule": week["has_schedule"],
         "on_roster": week["on_roster"],
         "me_name": week["me_name"],

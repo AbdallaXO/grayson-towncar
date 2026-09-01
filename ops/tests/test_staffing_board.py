@@ -137,10 +137,10 @@ class PendingRequestIsInertTests(TestCase):
 
     def test_approved_off_does(self):
         StaffScheduleOverride.objects.create(
-            user=self.u, date=MONDAY, kind="off", status="approved", reason="pto")
+            user=self.u, date=MONDAY, kind="off", status="approved", reason="vacation")
         sched = self._resolved()
         self.assertFalse(sched["is_working"])
-        self.assertEqual(sched["time_off"]["reason_label"], "PTO / vacation")
+        self.assertEqual(sched["time_off"]["reason_label"], "Vacation")
 
     def test_denied_off_does_not(self):
         StaffScheduleOverride.objects.create(user=self.u, date=MONDAY, kind="off", status="denied")
@@ -478,7 +478,7 @@ class SplitShiftTests(TestCase):
         """A recurring evening half must not survive a day off."""
         self._extra()
         StaffScheduleOverride.objects.create(
-            user=self.iris, date=self.wed, kind="off", status="approved", reason="pto")
+            user=self.iris, date=self.wed, kind="off", status="approved", reason="vacation")
         day = coverage.dated_range([self.wed], _roster(), today=MONDAY)["weekdays"][0]
         self.assertEqual(day["on_count"], 0)
         self.assertEqual([t["name"] for t in day["time_off"]], ["Iris"])
@@ -591,7 +591,7 @@ class TimeOffModuleTests(TestCase):
         self.today = timezone.localdate()
 
     def test_staff_request_lands_pending(self):
-        ov = timeoff.submit_request(self.u, self.today + timedelta(days=3), reason="pto")
+        ov = timeoff.submit_request(self.u, self.today + timedelta(days=3), reason="vacation")
         self.assertEqual(ov.status, "pending")
         self.assertTrue(ov.requested_by_staff)
 
@@ -734,7 +734,7 @@ class StaffingBoardScopeTests(TestCase):
             self.assertNotIn("#}", html, f"stray comment in {scope} scope")
 
     def test_pending_requests_surface_on_the_board(self):
-        timeoff.submit_request(self.u, timezone.localdate() + timedelta(days=4), reason="pto", note="wedding")
+        timeoff.submit_request(self.u, timezone.localdate() + timedelta(days=4), reason="vacation", note="wedding")
         resp = self.client.get(self.url)
         self.assertEqual(len(resp.context["pending_timeoff"]), 1)
         self.assertContains(resp, "Time off requested")
@@ -858,7 +858,7 @@ class MyTimeOffTests(TestCase):
     def test_dispatcher_can_request(self):
         d = timezone.localdate() + timedelta(days=6)
         resp = self._post({"action": "request", "start": d.strftime("%Y-%m-%d"),
-                           "reason": "pto", "note": "family trip"})
+                           "reason": "vacation", "note": "family trip"})
         self.assertTrue(resp.json()["success"])
         ov = StaffScheduleOverride.objects.get(user=self.me)
         self.assertEqual((ov.status, ov.requested_by_staff, ov.note), ("pending", True, "family trip"))

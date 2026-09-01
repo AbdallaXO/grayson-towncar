@@ -7,6 +7,7 @@ from .models import (
     EmailLog,
     TimeClockShift,
     TimeClockBreak,
+    TimeClockRequest,
     StaffOnCall,
 )
 
@@ -77,9 +78,11 @@ class TimeClockShiftAdmin(admin.ModelAdmin):
     list_display = (
         "id", "user", "clock_in_at", "clock_out_at",
         "worked_minutes", "break_minutes", "is_open", "auto_closed",
+        "approval_status",
     )
     list_filter = (
         "auto_closed",
+        "approval_status",
         ("clock_out_at", admin.EmptyFieldListFilter),  # open vs closed
         "user",
     )
@@ -105,6 +108,17 @@ class TimeClockBreakAdmin(admin.ModelAdmin):
     list_filter = ("auto_closed",)
     raw_id_fields = ("shift",)
     date_hierarchy = "break_start_at"
+
+
+@admin.register(TimeClockRequest)
+class TimeClockRequestAdmin(admin.ModelAdmin):
+    """A staffer's ask to clock in outside their schedule. No time counts until
+    it's approved AND they punch — decisions belong on the Manage Time Clock
+    page; this is for inspection."""
+    list_display = ("id", "user", "requested_at", "status", "decided_by", "decided_at", "shift")
+    list_filter = ("status",)
+    raw_id_fields = ("user", "decided_by", "shift")
+    date_hierarchy = "requested_at"
 
 
 @admin.register(StaffOnCall)

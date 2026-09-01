@@ -38,7 +38,7 @@ from django.utils import timezone
 
 from drivers.availability import fmt_time_long
 from . import scheduling
-from .models import StaffOnCall, StaffScheduleOverride, STAFF_ROLE_LABELS
+from .models import StaffOnCall, StaffScheduleOverride, STAFF_ROLE_LABELS, WORK_LOCATION_SHORT
 
 
 # ── Coverage targets (EDIT THESE to match how you staff) ──────────────
@@ -625,6 +625,9 @@ def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=Fals
                 "label": f'{_fmt_min(s["sm"])}–{_fmt_min(s["em"])}',
                 "role": role,
                 "role_label": STAFF_ROLE_LABELS.get(role, ""),
+                "location": s.get("location") or "",
+                "location_label": WORK_LOCATION_SHORT.get(s.get("location") or "", ""),
+                "location_flipped": s.get("location_flipped", False),
                 "is_opener": is_op,
                 "is_closer": is_cl,
                 "assigned_role": bool(role),
@@ -639,10 +642,17 @@ def _build_day(shifts, *, key, name, full_name, sub, dow, is_today, is_past=Fals
             })
         lanes.append(bars)
 
+    # Who's physically in vs at home that day (distinct people, not windows).
+    # Zero/zero when nobody's location is tracked — the header then stays quiet.
+    loc_office = len({s["uid"] for s in shifts if s.get("location") == "office"})
+    loc_remote = len({s["uid"] for s in shifts if s.get("location") == "remote"})
+
     return {
         "key": key, "dow": dow, "name": name, "full_name": full_name, "sub": sub,
         "is_today": is_today, "is_past": is_past, "is_weekend": is_weekend,
         "on_count": len(shifts), "peak": peak, "cue": cue,
+        "loc_office": loc_office, "loc_remote": loc_remote,
+        "loc_any": (loc_office + loc_remote) > 0,
         "opener": opener, "closer": closer,
         "role_notes": _role_notes(shifts, opener, closer),
         "oncall": list(oncall),
@@ -674,6 +684,9 @@ def _row_cell(shift, *, day, time_off=None, pending=None, extras=()):
             "overnight": shift.get("overnight", False),
             "role": shift.get("role") or "",
             "role_label": STAFF_ROLE_LABELS.get(shift.get("role") or "", ""),
+            "location": shift.get("location") or "",
+            "location_label": WORK_LOCATION_SHORT.get(shift.get("location") or "", ""),
+            "location_flipped": shift.get("location_flipped", False),
             "changed": shift.get("changed", False),
             "covering": shift.get("covering", False),
             "ov_id": shift.get("ov_id"),
@@ -724,6 +737,7 @@ def weekly_pattern(roster, today_dow=None, colors=None):
                 by_dow[r.day_of_week].append({
                     "uid": u.id, "name": name, "sm": sm, "em": em, "overnight": overnight,
                     "role": getattr(r, "role", "") or "", "color": colors.get(u.id),
+                    "location": getattr(r, "location", "") or "",
                 })
             else:
                 off_rows[u.id].add(r.day_of_week)
@@ -874,6 +888,8 @@ def dated_range(dates, roster, *, today=None, colors=None):
                     "covering": one_off and not usual,
                     "ov_id": sched.get("override_id"),
                     "ov_range": sched.get("override_range", ""),
+                    "location": sched.get("location") or "",
+                    "location_flipped": sched.get("location_flipped", False),
                 })
             elif sched.get("time_off"):
                 time_off.append({**sched["time_off"], "uid": u.id, "name": name,
@@ -1217,9 +1233,12 @@ def day_view_actual(user, roster, target_date, today):
     """
     dow = target_date.weekday()
     shifts, exceptions = [], []
+    my_sched = None
     for u in roster:
         name = u.get_full_name() or u.username
         sched = scheduling.resolve_staff_schedule(u, target_date)
+        if u.id == user.id:
+            my_sched = sched
         sh = _resolved_shift(u.id, name, sched)
         if sh:
             shifts.append(sh)
@@ -1242,19 +1261,41 @@ def day_view_actual(user, roster, target_date, today):
     roster_on, opener, closer = _roster_on(shifts, user)
     timeline = _day_timeline(user, shifts)
 
-    mine = next((s for s in shifts if s["uid"] == user.id), None)
+    mine = next((s for s in shifts if s["uid"] == user.id and not s.get("is_extra")), None) \
+        or next((s for s in shifts if s["uid"] == user.id), None)
     beats, label = [], None
+    my_windows = [s for s in shifts if s["uid"] == user.id]
     if mine:
-        label = f'{mine["start_label"]} – {mine["end_label"]}'
+        # A split day names both halves, or the card under-reports the day.
+        label = " + ".join(f'{s["start_label"]} – {s["end_label"]}'
+                           for s in sorted(my_windows, key=lambda s: s["sm"]))
         beats = _story_beats(mine, _overlaps(mine["sm"], mine["em"], shifts, user.id))
 
+    # Coworkers on this day (first names, in start order) — the "who am I on
+    # with" glance for the week overview cards.
+    seen, with_names = set(), []
+    for s in sorted(shifts, key=lambda s: (s["sm"], s["em"])):
+        if s["uid"] == user.id or s["uid"] in seen:
+            continue
+        seen.add(s["uid"])
+        with_names.append(_short_name(s["name"]))
+
+    my_time_off = (my_sched or {}).get("time_off")
     return {
-        "dow": dow, "name": DAY_NAMES[dow], "is_today": target_date == today,
+        "dow": dow, "name": DAY_NAMES[dow], "full_name": DAY_NAMES_FULL[dow],
+        "date": target_date, "date_label": md(target_date),
+        "is_today": target_date == today, "is_past": target_date < today,
         "is_working": mine is not None, "label": label,
         "is_opener": bool(mine and opener and opener["uid"] == user.id),
         "is_closer": bool(mine and closer and closer["uid"] == user.id),
         "beats": beats, "timeline": timeline, "roster_on": roster_on,
         "on_count": len(shifts), "exceptions": exceptions,
+        "with_names": with_names,
+        # The viewer's own day: where they work it, and their own time off.
+        "my_location": (my_sched or {}).get("location", "") if mine else "",
+        "my_location_flipped": bool((my_sched or {}).get("location_flipped")) if mine else False,
+        "my_time_off": my_time_off,
+        "my_minutes": sum(s["em"] - s["sm"] for s in my_windows),
     }
 
 

@@ -29,6 +29,30 @@
   background:#fff8e1; border:1px solid #f3e3a3; color:#7a5d00; border-radius:.6rem;
   padding:.7rem 1rem; font-size:.85rem; margin-bottom:1.25rem;
 }
+.tc-pending {
+  background:#fff4e5; border:1px solid #f5d0a0; color:#8a4b00; border-radius:.6rem;
+  padding:.7rem 1rem; font-size:.85rem; margin-bottom:1.25rem;
+}
+.tc-granted {
+  background:#f0faf1; border:1px solid #bfe5c8; color:#1e6b34; border-radius:.6rem;
+  padding:.7rem 1rem; font-size:.85rem; margin-bottom:1.25rem;
+}
+.tc-denied {
+  background:#fdf0f1; border:1px solid #f0c2c6; color:#8f2430; border-radius:.6rem;
+  padding:.7rem 1rem; font-size:.85rem; margin-bottom:1.25rem;
+}
+.tc-loc {
+  display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:700;
+  padding:.14rem .55rem; border-radius:999px; vertical-align:2px; letter-spacing:.02em;
+}
+.tc-loc.remote { background:#eef2ff; color:#3f4d8f; border:1px solid #dde3fb; }
+.tc-loc.office { background:#f0faf1; color:#1e6b34; border:1px solid #d7efdb; }
+.tc-day-loc { font-size:.62rem; font-weight:700; margin-top:.15rem; color:#94a3b8; letter-spacing:.02em; }
+.tc-day-loc.remote { color:#5b6bb5; }
+.tc-day-loc.office { color:#2f8047; }
+.tc-approve-chip { font-size:.68rem; font-weight:700; padding:.12rem .45rem; border-radius:999px; white-space:nowrap; }
+.tc-approve-chip.pending { background:#fef3c7; color:#92400e; }
+.tc-approve-chip.denied { background:#ffe4e6; color:#9f1239; }
 .tc-today { font-size:.85rem; color:#374151; margin-top:1.1rem; }
 .tc-today b { color:#111827; }
 .tc-recent { margin: 1.75rem auto 0; max-width: 720px; }
@@ -51,13 +75,16 @@
   {% include 'dispatching/dispatcher_navbar.html' %}
 
   <div class="container-fluid py-3">
+    <div id="tcCsrf" hidden>{% csrf_token %}</div>
     <div class="tc-wrap">
       <div class="tc-card"
            id="tc-card"
            data-action-url="{% url 'timeclock_action' %}"
            data-state="{{ state }}"
            data-clockin-ms="{{ clock_in_ms|default:'' }}"
-           data-breakstart-ms="{{ break_start_ms|default:'' }}">
+           data-breakstart-ms="{{ break_start_ms|default:'' }}"
+           data-clockin-warning="{{ clockin_warning }}"
+           data-request-state="{{ request_state }}">
 
         <span id="tc-pill" class="tc-pill out">
           <i class="bi bi-clock"></i><span id="tc-pill-label">Clocked Out</span>
@@ -66,8 +93,29 @@
         <div class="tc-clock" id="tc-elapsed">0:00:00</div>
         <div class="tc-sub" id="tc-sub">Not on the clock</div>
 
+        {% if request_state == 'pending' %}
+        <div class="tc-pending">
+          <i class="bi bi-hourglass-split me-1"></i><b>Waiting for approval.</b>
+          You asked to clock in at {{ request_obj.requested_at|time:"g:i A" }} — the clock hasn't
+          started, and nothing counts until it's approved and you clock in. This page checks for an
+          answer every minute.
+          <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" id="tc-cancel-request">Cancel request</button></div>
+        </div>
+        {% elif request_state == 'approved' %}
+        <div class="tc-granted">
+          <i class="bi bi-check-circle me-1"></i><b>Approved{% if request_obj.decided_by %} by {{ request_obj.decided_by.get_full_name|default:request_obj.decided_by.username }}{% endif %}.</b>
+          You can clock in now — the clock starts when you do.
+        </div>
+        {% elif request_state == 'denied' %}
+        <div class="tc-denied">
+          <i class="bi bi-x-circle me-1"></i><b>Your clock-in request wasn't approved.</b>
+          {% if request_obj.decision_note %}<div class="mt-1">&ldquo;{{ request_obj.decision_note }}&rdquo;</div>{% endif %}
+        </div>
+        {% endif %}
+
         <div class="tc-reminder" id="tc-reminder">
           <i class="bi bi-info-circle me-1"></i>You're clocked out — remember to clock in when your shift starts.
+          {% if clockin_warning %}<div class="mt-1"><i class="bi bi-exclamation-triangle me-1"></i><b>{{ clockin_warning }}</b> Clocking in now sends a request for approval first — the clock won't start until it's approved.</div>{% endif %}
         </div>
 
         <div class="tc-actions">
@@ -84,7 +132,14 @@
         <h6 class="text-muted fw-bold mb-2"><i class="bi bi-calendar-week me-1"></i>Your schedule</h6>
         <div class="tc-sched-today">
           <span class="text-muted small">Today</span>
-          <div class="fw-bold tc-sched-label">{{ today_schedule.display_label }}</div>
+          <div class="fw-bold tc-sched-label">{{ today_schedule.display_label }}
+            {% if today_schedule.location %}
+            <span class="tc-loc {{ today_schedule.location }}">
+              {% if today_schedule.location == 'remote' %}<i class="bi bi-house-door"></i>Working from home{% else %}<i class="bi bi-building"></i>In office{% endif %}
+            </span>
+            {% endif %}
+          </div>
+          {% if today_schedule.location_flipped %}<div class="text-muted small">Different from your usual — set for today.</div>{% endif %}
           {% if today_schedule.note %}<div class="text-muted small">{{ today_schedule.note }}</div>{% endif %}
         </div>
         <div class="tc-weekstrip">
@@ -94,6 +149,9 @@
             <div class="tc-day-label{% if d.is_working is False %} off{% elif d.kind == 'none' %} none{% endif %}">
               {% if d.is_working %}{{ d.display_label }}{% elif d.kind == 'none' %}—{% else %}Off{% endif %}
             </div>
+            {% if d.is_working and d.location %}
+            <div class="tc-day-loc {{ d.location }}">{% if d.location == 'remote' %}<i class="bi bi-house-door"></i> WFH{% else %}<i class="bi bi-building"></i> Office{% endif %}</div>
+            {% endif %}
           </div>
           {% endfor %}
         </div>
@@ -113,7 +171,9 @@
                 <td>{{ s.clock_in_at|time:"g:i A" }}</td>
                 <td>{% if s.clock_out_at %}{{ s.clock_out_at|time:"g:i A" }}{% else %}<span class="badge bg-warning text-dark">open</span>{% endif %}</td>
                 <td>{{ s.break_hm }}</td>
-                <td class="fw-bold">{{ s.net_hm }}{% if s.auto_closed %} <i class="bi bi-exclamation-triangle text-warning" title="Auto-closed — please verify"></i>{% endif %}</td>
+                <td class="fw-bold">{{ s.net_hm }}{% if s.auto_closed %} <i class="bi bi-exclamation-triangle text-warning" title="Auto-closed — please verify"></i>{% endif %}
+                  {% if s.approval_status == 'denied' %}<span class="tc-approve-chip denied" title="This unscheduled clock-in was not approved">not approved</span>
+                  {% elif s.unscheduled and s.approval_status == 'approved' %}<span class="tc-approve-chip pending" title="An off-schedule shift that was approved" style="background:#f0faf1;color:#1e6b34;">approved extra</span>{% endif %}</td>
               </tr>
               {% empty %}
               <tr><td colspan="5" class="text-muted text-center py-3">No shifts yet.</td></tr>
@@ -143,6 +203,10 @@
   let breakStartMs = parseInt(card.dataset.breakstartMs, 10) || null;
 
   function csrf() {
+    // Fetch-only page: the embedded token is the reliable source; the cookie
+    // is the fallback (it can be absent on a fresh session).
+    const el = document.querySelector('#tcCsrf [name=csrfmiddlewaretoken]');
+    if (el && el.value) return el.value;
     if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
     const m = document.cookie.match(/(^|; )csrftoken=([^;]+)/);
     return m ? decodeURIComponent(m[2]) : '';
@@ -168,19 +232,30 @@
     else elapsedEl.textContent = '0:00:00';
   }
 
+  const requestState = card.dataset.requestState || '';
+
   function render() {
     pill.className = 'tc-pill ' + (state === 'clocked_in' ? 'in' : state === 'on_break' ? 'brk' : 'out');
     pillLabel.textContent = state === 'clocked_in' ? 'Clocked In' : state === 'on_break' ? 'On Break' : 'Clocked Out';
-    reminder.style.display = state === 'clocked_out' ? '' : 'none';
+    // The request banners carry the message while one is live — the generic
+    // reminder next to them would just argue with it.
+    reminder.style.display = (state === 'clocked_out' && requestState !== 'pending' && requestState !== 'approved') ? '' : 'none';
     subEl.textContent = state === 'on_break' ? 'On an unpaid break'
                       : state === 'clocked_in' ? 'On the clock'
+                      : requestState === 'pending' ? 'Waiting for approval — not on the clock'
                       : 'Not on the clock';
-    const allowed = VISIBLE[state] || [];
+    let allowed = VISIBLE[state] || [];
+    // No clocking in while the ask is still with the admin.
+    if (state === 'clocked_out' && requestState === 'pending') allowed = [];
     buttons.forEach(b => { b.style.display = allowed.includes(b.dataset.tc) ? '' : 'none'; });
     tick();
   }
 
   async function doAction(action) {
+    // A punch the server will turn into a request deserves a heads-up first.
+    if (action === 'clock_in' && card.dataset.clockinWarning) {
+      if (!confirm(card.dataset.clockinWarning + "\n\nSend a clock-in request for approval? The clock won't start until it's approved and you clock in.")) return;
+    }
     buttons.forEach(b => b.disabled = true);
     try {
       const resp = await fetch(actionUrl, {
@@ -194,6 +269,11 @@
       } else {
         // Clocking out changes the "today" total and recent table — reload to refresh.
         if (action === 'clock_out') { window.location.reload(); return; }
+        // The punch became a request (or one is already waiting) — reload so
+        // the waiting banner (rendered server-side) shows. No clock started.
+        if (action === 'clock_in' && (data.result === 'requested' || data.result === 'pending')) { window.location.reload(); return; }
+        // The server accepted it as in-schedule — the page-load warning is stale.
+        if (action === 'clock_in') card.dataset.clockinWarning = '';
         state = data.state;
         clockInMs = data.clock_in_ms || null;
         breakStartMs = data.break_start_ms || null;
@@ -207,6 +287,41 @@
   }
 
   buttons.forEach(b => b.addEventListener('click', () => doAction(b.dataset.tc)));
+
+  // Withdraw a waiting request.
+  const cancelBtn = document.getElementById('tc-cancel-request');
+  if (cancelBtn) cancelBtn.addEventListener('click', async () => {
+    if (!confirm('Cancel your clock-in request?')) return;
+    cancelBtn.disabled = true;
+    try {
+      const resp = await fetch(actionUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ action: 'cancel_request' }),
+      });
+      const data = await resp.json();
+      if (data.success) { window.location.reload(); return; }
+      alert(data.error || 'Could not cancel the request.');
+    } catch (e) { alert('Network error — please try again.'); }
+    cancelBtn.disabled = false;
+  });
+
+  // While waiting on the admin, check for an answer every minute and flip the
+  // page the moment there is one.
+  if (requestState === 'pending') {
+    setInterval(async () => {
+      try {
+        const resp = await fetch(actionUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+          body: JSON.stringify({ action: 'request_status' }),
+        });
+        const data = await resp.json();
+        if (data.success && data.request_state !== 'pending') window.location.reload();
+      } catch (e) { /* try again next minute */ }
+    }, 60000);
+  }
+
   render();
   setInterval(tick, 1000);
 })();
