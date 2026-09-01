@@ -7,6 +7,10 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
   {% include "drivers/_comms_admin_palette.html" %}
+  /* The dispatcher navbar carries a 1rem bottom margin as a spacer for light
+     pages; on a full-dark page the body must be dark too or that strip
+     reads as a white gap. Same device as driver_pay_rates/gusto_export. */
+  body { background: var(--gt-bg) !important; }
   .comms-page { background: var(--gt-bg); color: var(--gt-text); min-height: 100vh; padding: 1.5rem 0 3rem; }
   .comms-page h1 { font-size: 1.35rem; font-weight: 700; margin: 0; }
   .comms-sub { font-size: 0.78rem; color: var(--gt-muted); margin-top: 0.25rem; }
