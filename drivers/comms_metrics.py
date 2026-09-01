@@ -4,18 +4,43 @@ on-location and review-request texts actually went out.
 
 WHAT THESE NUMBERS MEAN. Every rate here is
 
-    distinct completed trips where the chauffeur opened the message
-    ------------------------------------------------------------------
-    distinct completed trips he could have opened it on
+    distinct trips where the chauffeur opened that message
+    -------------------------------------------------------
+    distinct trips where his chance to open it had already come
 
 The numerator counts a TAP in the driver app, not a delivery receipt. The
 messages leave from the chauffeur's own handset via an `sms:` link (so the guest
 can reply to the man driving them), and a phone never reports back to us. Read
 every figure as "sent from the app". See reservations.LegClientMessage.
 
-DENOMINATOR RULES, and why each one is there:
+LIVE, NOT END-OF-TRIP — this is the load-bearing rule, and the reason each kind
+carries its OWN denominator. The three texts belong to three different moments,
+and a chance only exists once its moment has arrived:
 
-* status="completed", cancelled reservations excluded — the canonical definition
+    on_the_way   opens when the chauffeur sets off      (status on-the-way)
+    on_location  opens when he is standing at the meet  (status on-location)
+    review       opens once the guest is aboard         (status picked-up)
+
+...and a completed trip has passed all three, so it counts everywhere, exactly
+as it always did. No historical rate moves because of this: what changes is that
+a trip in flight now shows up the same minute the chauffeur works it, instead of
+being invisible until somebody marks the job complete. That is what makes a tap
+read as 1/1 straight away.
+
+The consequence to keep hold of: a chance that has NOT opened yet is not a miss
+and must never be counted as one. A trip booked for tonight contributes nothing
+to anybody's rate this morning; a trip whose driver is on the way contributes to
+the on-the-way rate only. A trip that ended without ever being marked past
+'confirmed' contributes nothing either — the same silence it produced before.
+
+One extra rule closes the last gap: a leg with a LOGGED TAP of a given kind is
+always in that kind's denominator, whatever stage the leg shows. Chauffeurs
+routinely text the guest before they touch the status control, and a numerator
+that can outrun its denominator would print rates over 100%.
+
+OTHER DENOMINATOR RULES, and why each one is there:
+
+* cancelled reservations and cancelled legs excluded — the canonical definition
   of work performed (dispatching/load_metrics.py:41, :182-193).
 * pickup_date >= tracking_start() — nothing was recorded before this feature
   shipped, so counting older trips would bury every driver at 0% forever. Same
@@ -41,7 +66,7 @@ from datetime import date, timedelta
 from django.conf import settings
 from django.db.models import Count
 
-from .client_messages import KINDS, KIND_CHOICES
+from .client_messages import KINDS, KIND_CHOICES, ON_LOCATION, ON_THE_WAY, REVIEW
 
 #: Communication tracking went live on this date. Trips before it carry no
 #: records, so they are excluded from the denominator rather than counted as
@@ -55,10 +80,49 @@ def tracking_start():
     return getattr(settings, "CLIENT_MESSAGE_TRACKING_START", _DEFAULT_TRACKING_START)
 
 
+# ── Trip stages ────────────────────────────────────────────────────────────
+#: The driver-app statuses a job moves through, in order. Mirrors
+#: reservations.constants.DRIVER_STATUS and LegStatus.STATUS_CHOICES;
+#: 'cancelled' is deliberately absent because a cancelled leg is never a chance
+#: at anything. 'assigned' appears in LegStatus history but never on Leg.status
+#: itself, and would sit below every opening stage anyway.
+STAGE_ORDER = [
+    "in-progress",   # the model default: assigned, nothing done yet
+    "confirmed",
+    "on-the-way",
+    "on-location",
+    "picked-up",
+    "completed",
+]
+
+#: The stage at which each message's chance OPENS. Before it there is nothing
+#: to score — the moment for that text has not arrived.
+KIND_OPENS_AT = {
+    ON_THE_WAY: "on-the-way",
+    ON_LOCATION: "on-location",
+    REVIEW: "picked-up",
+}
+
+
+def _stages_from(stage):
+    return frozenset(STAGE_ORDER[STAGE_ORDER.index(stage):])
+
+
+#: {kind: frozenset of leg statuses at or past that kind's opening stage}.
+OPEN_STAGES = {kind: _stages_from(stage) for kind, stage in KIND_OPENS_AT.items()}
+
+
+def chance_is_open(kind, leg_status):
+    """Has this trip reached the moment `kind` is supposed to be sent?"""
+    return (leg_status or "") in OPEN_STAGES.get(kind, frozenset())
+
+
 #: Selectable look-back windows, matching the chauffeur pages' vocabulary.
-WINDOWS = {"7": 7, "30": 30, "90": 90, "365": 365}
+#: "Today" exists because the rates are live: the owner's first question after
+#: a shift starts is "who is texting right now", not "how was the month".
+WINDOWS = {"1": 1, "7": 7, "30": 30, "90": 90, "365": 365}
 WINDOW_DEFAULT = "30"
-WINDOW_LABELS = {"7": "7 days", "30": "30 days", "90": "90 days", "365": "12 months"}
+WINDOW_LABELS = {"1": "Today", "7": "7 days", "30": "30 days", "90": "90 days", "365": "12 months"}
 
 
 def resolve_window(raw):
@@ -73,9 +137,8 @@ def window_bounds(days, *, today=None):
     """(start, end) for a look-back window.
 
     Ends TODAY — a tap counts toward a chauffeur's rate the moment it lands,
-    same as recent_activity(). A trip still in progress is excluded anyway,
-    because _eligible_legs() only counts status="completed" trips; today's rate
-    can still move as more trips finish and more texts go out.
+    same as recent_activity(). Today's trips are in scope as soon as they are
+    under way, so a rate can move several times over the course of a shift.
 
     The start is clamped to tracking_start() so a 12-month window never reaches
     back into untracked history.
@@ -102,13 +165,21 @@ def window_is_empty(start, end):
     return start > end
 
 
+def days_live(*, today=None):
+    """How many days this feature has been recording. 1 on launch day."""
+    from django.utils import timezone
+
+    today = today or timezone.localdate()
+    return max((today - tracking_start()).days + 1, 0)
+
+
 def recent_activity(*, days=7, driver=None, today=None):
     """Raw count of texts logged recently, ignoring every rate-window rule.
 
-    Exists so the feature is verifiable on day one. A chauffeur's tap shows up
-    here the moment it lands, long before the trip is completed and long before
-    any rate window can include it. Without this there is no way to tell a
-    working system from a broken one during the first days.
+    The rates themselves are live now, so this is no longer the only proof the
+    system works — but it stays as the one figure with NO eligibility rule
+    behind it at all, which is what you want when the question is "is anything
+    reaching the database".
 
     One query — called on both the driver profile and the KPI dashboard, so
     the four separate .count()/.first() calls this used to make (four round
@@ -134,18 +205,23 @@ def recent_activity(*, days=7, driver=None, today=None):
     return {"days": days, **agg}
 
 
-def _eligible_legs(start, end, *, driver_ids=None):
-    """The denominator queryset: completed, uncancelled, in-window trips."""
+def _base_legs(start, end, *, driver_ids=None):
+    """Every trip in scope, at whatever stage it has reached.
+
+    NOT the denominator on its own — each kind takes the slice of this that has
+    reached its own opening stage (OPEN_STAGES). Cancellations are dropped here,
+    at both levels: a cancelled reservation, and a leg cancelled on its own.
+    """
     from reservations.models import Leg
 
     qs = (
         Leg.objects.filter(
-            status="completed",
             pickup_date__gte=max(start, tracking_start()),
             pickup_date__lte=end,
             driver__isnull=False,
             driver__driver_type="inhouse",
         )
+        .exclude(status="cancelled")
         .exclude(reservation__status="cancelled")
     )
     if driver_ids is not None:
@@ -179,6 +255,40 @@ def accent_for(pct):
     return "red"
 
 
+# ── Row states ─────────────────────────────────────────────────────────────
+# "Has taken none of his chances" and "takes half of them" are two different
+# conversations, and painting the first one red is how you end up with a page
+# nobody trusts. A chauffeur who has never used the buttons is NOT-STARTED:
+# shown neutrally, and said in words. A red percentage is kept for someone who
+# has clearly started and is letting it slide.
+STATE_NO_CHANCES = "no_chances"    # nothing has opened yet — no rate exists
+STATE_NOT_STARTED = "not_started"  # chances opened, none taken
+STATE_RATED = "rated"
+
+STATE_LABELS = {
+    STATE_NO_CHANCES: "No trips yet",
+    STATE_NOT_STARTED: "Not started",
+    STATE_RATED: "",
+}
+
+
+def totals(stats):
+    """(sent, eligible) summed across all three kinds."""
+    sent = sum((stats.get(k) or {}).get("sent", 0) for k in KINDS)
+    eligible = sum((stats.get(k) or {}).get("eligible", 0) for k in KINDS)
+    return sent, eligible
+
+
+def row_state(stats):
+    """Which of the three stories this chauffeur's row is telling."""
+    sent, eligible = totals(stats)
+    if not eligible:
+        return STATE_NO_CHANCES
+    if not sent:
+        return STATE_NOT_STARTED
+    return STATE_RATED
+
+
 def comms_stats_bulk(driver_ids, start, end):
     """{driver_id: {kind: {sent, eligible, pct}}} for many drivers in 2 queries.
 
@@ -188,6 +298,13 @@ def comms_stats_bulk(driver_ids, start, end):
     Deliberately two separate queries: putting the trip count and the message
     count in one annotate() would multiply rows across the join and silently
     inflate both (the trap documented at drivers/views.py:851-853).
+
+    Query 1 buckets a chauffeur's trips by the stage they have reached, which
+    is all three denominators at once. Query 2 fetches the taps carrying enough
+    of the leg (its status, and who it belongs to NOW) to tell whether query 1
+    already counted that leg for this chauffeur — so a tap made before the
+    status control was touched, or one on a leg since reassigned, still lands
+    in a denominator instead of pushing a rate past 100%.
     """
     from reservations.models import LegClientMessage
 
@@ -196,28 +313,47 @@ def comms_stats_bulk(driver_ids, start, end):
     if not ids:
         return out
 
-    eligible = _eligible_legs(start, end, driver_ids=ids)
+    base = _base_legs(start, end, driver_ids=ids)
 
-    trips = eligible.values("driver_id").annotate(n=Count("id", distinct=True))
-    trip_counts = {r["driver_id"]: r["n"] for r in trips}
-
-    sent = (
-        LegClientMessage.objects
-        .filter(leg__in=eligible)
-        .values("driver_id", "kind")
-        .annotate(n=Count("leg_id", distinct=True))
-    )
-    sent_counts = {(r["driver_id"], r["kind"]): r["n"] for r in sent}
+    # Query 1 — how far each chauffeur's trips have got.
+    by_stage = {did: {} for did in ids}
+    for row in base.values("driver_id", "status").annotate(n=Count("id", distinct=True)):
+        by_stage.setdefault(row["driver_id"], {})[row["status"] or ""] = row["n"]
 
     for did in ids:
-        total = trip_counts.get(did, 0)
+        stages = by_stage.get(did) or {}
         for kind in KINDS:
-            n = sent_counts.get((did, kind), 0)
-            out[did][kind] = {
-                "sent": n,
-                "eligible": total,
-                "pct": _pct(n, total),
-            }
+            open_stages = OPEN_STAGES[kind]
+            out[did][kind]["eligible"] = sum(
+                n for status, n in stages.items() if status in open_stages
+            )
+
+    # Query 2 — the taps. driver_id here is the message's OWN chauffeur, not
+    # the leg's current one: LegClientMessage.driver is denormalised precisely
+    # so a later reassignment cannot move the credit.
+    tapped = (
+        LegClientMessage.objects
+        .filter(leg__in=base)
+        .values("driver_id", "kind", "leg__status", "leg__driver_id")
+        .annotate(n=Count("leg_id", distinct=True))
+    )
+    for row in tapped:
+        did, kind = row["driver_id"], row["kind"]
+        if did not in out or kind not in KINDS:
+            continue
+        cell = out[did][kind]
+        cell["sent"] += row["n"]
+        already_counted = (
+            row["leg__driver_id"] == did
+            and chance_is_open(kind, row["leg__status"])
+        )
+        if not already_counted:
+            cell["eligible"] += row["n"]
+
+    for did in ids:
+        for kind in KINDS:
+            cell = out[did][kind]
+            cell["pct"] = _pct(cell["sent"], cell["eligible"])
     return out
 
 
@@ -254,6 +390,5 @@ def as_tiles(stats):
 
 def overall_pct(stats):
     """A single headline rate across all three message kinds, or None."""
-    sent = sum((stats.get(k) or {}).get("sent", 0) for k in KINDS)
-    eligible = sum((stats.get(k) or {}).get("eligible", 0) for k in KINDS)
+    sent, eligible = totals(stats)
     return _pct(sent, eligible)

@@ -321,8 +321,8 @@
           {% endfor %}
           {% if comms_window_empty %}
           <div class="comms-note" style="color:var(--gt-gold);">
-            No rates yet, and that is expected &mdash; rates count <em>completed</em> trips,
-            and tracking only began {{ tracking_start|date:"M j, Y" }}.
+            No rates yet, and that is expected &mdash; tracking only began
+            {{ tracking_start|date:"M j, Y" }}, and this range holds no tracked days.
             {% if comms_activity.total %}
               {{ comms_activity.total }} text{{ comms_activity.total|pluralize }} logged for this
               chauffeur so far{% if comms_activity.today %}, {{ comms_activity.today }} today{% endif %}.
@@ -332,9 +332,9 @@
           </div>
           {% else %}
           <div class="comms-note">
-            Completed trips {{ comms_start|date:"M j" }}&ndash;{{ comms_end|date:"M j, Y" }},
-            cancellations excluded &mdash; a trip counts the moment it&rsquo;s marked completed,
-            so today&rsquo;s rate can still move. Counts a text <em>sent from the driver app</em>
+            Trips {{ comms_start|date:"M j" }}&ndash;{{ comms_end|date:"M j, Y" }},
+            cancellations excluded. Live by trip stage &mdash; a status tap counts the moment
+            it lands, while the trip is still under way. Counts a text <em>sent from the driver app</em>
             &mdash; the message opens in the chauffeur&rsquo;s own Messages app, so delivery
             isn&rsquo;t something we can see. Trips before tracking began are not counted.
           </div>

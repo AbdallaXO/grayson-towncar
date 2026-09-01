@@ -485,7 +485,9 @@ class MetricsTests(TestCase):
         with override_settings(CLIENT_MESSAGE_TRACKING_START=TRACK_FROM):
             return comms_metrics.comms_stats(driver or self.driver, self.start, self.end)
 
-    def test_rate_is_sent_over_completed_trips(self):
+    def test_completed_trips_count_in_every_denominator(self):
+        """A completed trip has passed all three moments, so it counts
+        everywhere — exactly as it did when the rates were end-of-trip."""
         legs = [self._completed(i) for i in range(1, 5)]
         for leg in legs[:3]:
             LegClientMessage.objects.create(leg=leg, driver=self.driver, kind=ON_THE_WAY)
@@ -493,6 +495,8 @@ class MetricsTests(TestCase):
         self.assertEqual(stats[ON_THE_WAY]["sent"], 3)
         self.assertEqual(stats[ON_THE_WAY]["eligible"], 4)
         self.assertEqual(stats[ON_THE_WAY]["pct"], 75)
+        self.assertEqual(stats[ON_LOCATION]["eligible"], 4)
+        self.assertEqual(stats[REVIEW]["eligible"], 4)
 
     def test_resends_count_the_leg_once(self):
         leg = self._completed()
@@ -509,11 +513,49 @@ class MetricsTests(TestCase):
         self.assertEqual(stats[REVIEW]["pct"], 100)
         self.assertEqual(stats[ON_THE_WAY]["pct"], 0)
 
-    def test_uncompleted_trips_are_not_in_the_denominator(self):
+    def test_a_chance_opens_the_moment_its_stage_is_reached(self):
+        """THE live-rates rule — the reason a chauffeur's on-the-way tap shows
+        on the Guest Communication page the same minute, instead of waiting for
+        someone to mark the trip completed. A trip that is on the way is a
+        chance for the on-the-way text only; the later moments haven't come."""
         self._completed()
         _make_leg(self.res, self.driver,
                   pickup_date=TRACK_FROM + timedelta(days=2), status="on-the-way")
-        self.assertEqual(self._stats()[ON_THE_WAY]["eligible"], 1)
+        stats = self._stats()
+        self.assertEqual(stats[ON_THE_WAY]["eligible"], 2)
+        self.assertEqual(stats[ON_LOCATION]["eligible"], 1)
+        self.assertEqual(stats[REVIEW]["eligible"], 1)
+
+    def test_a_trip_not_yet_started_contributes_nothing(self):
+        """A chance that has not opened is not a miss. Tonight's booking must
+        not drag anybody's rate down this morning."""
+        _make_leg(self.res, self.driver,
+                  pickup_date=TRACK_FROM + timedelta(days=2), status="confirmed")
+        stats = self._stats()
+        for kind in KINDS:
+            self.assertEqual(stats[kind]["eligible"], 0)
+            self.assertIsNone(stats[kind]["pct"])
+
+    def test_a_tap_before_the_status_control_reads_one_for_one(self):
+        """Chauffeurs routinely text before touching the status buttons. The
+        tap must show as 1/1, never as a rate over 100%."""
+        leg = _make_leg(self.res, self.driver,
+                        pickup_date=TRACK_FROM + timedelta(days=2), status="confirmed")
+        LegClientMessage.objects.create(leg=leg, driver=self.driver, kind=ON_THE_WAY)
+        stats = self._stats()
+        self.assertEqual(stats[ON_THE_WAY]["sent"], 1)
+        self.assertEqual(stats[ON_THE_WAY]["eligible"], 1)
+        self.assertEqual(stats[ON_THE_WAY]["pct"], 100)
+
+    def test_a_cancelled_leg_is_never_a_chance_even_with_a_tap(self):
+        """Cancellation removes the trip from the rate entirely — including a
+        text sent before the job fell through."""
+        leg = _make_leg(self.res, self.driver,
+                        pickup_date=TRACK_FROM + timedelta(days=2), status="cancelled")
+        LegClientMessage.objects.create(leg=leg, driver=self.driver, kind=ON_THE_WAY)
+        stats = self._stats()
+        self.assertEqual(stats[ON_THE_WAY]["sent"], 0)
+        self.assertEqual(stats[ON_THE_WAY]["eligible"], 0)
 
     def test_cancelled_reservations_are_excluded(self):
         leg = self._completed()
@@ -594,6 +636,16 @@ class MetricsTests(TestCase):
     def test_window_resolution_falls_back_to_default(self):
         self.assertEqual(comms_metrics.resolve_window("junk")[0], comms_metrics.WINDOW_DEFAULT)
         self.assertEqual(comms_metrics.resolve_window("7"), ("7", 7))
+
+    def test_today_is_a_selectable_window(self):
+        """Live rates make a one-day view meaningful — 'who is texting right
+        now' is the owner's first question of a shift."""
+        self.assertEqual(comms_metrics.resolve_window("1"), ("1", 1))
+        self.assertEqual(comms_metrics.WINDOW_LABELS["1"], "Today")
+        today = TRACK_FROM + timedelta(days=10)
+        with override_settings(CLIENT_MESSAGE_TRACKING_START=TRACK_FROM):
+            start, end = comms_metrics.window_bounds(1, today=today)
+        self.assertEqual((start, end), (today, today))
 
     def test_accents_track_the_thresholds(self):
         tiles = {t["kind"]: t for t in comms_metrics.as_tiles({
@@ -764,3 +816,48 @@ class KpiPageTests(TestCase):
         self.client.force_login(self.admin)
         rows = self.client.get(reverse("driver_comms_kpis")).context["rows"]
         self.assertTrue(all(r["driver"].driver_type == "inhouse" for r in rows))
+
+    def test_admin_page_honours_a_hand_picked_date_range(self):
+        self.client.force_login(self.admin)
+        with override_settings(CLIENT_MESSAGE_TRACKING_START=TRACK_FROM):
+            ctx = self.client.get(
+                reverse("driver_comms_kpis"),
+                {"from": "2026-01-05", "to": "2026-01-12"},
+            ).context
+        self.assertEqual(ctx["start"], date(2026, 1, 5))
+        self.assertEqual(ctx["end"], date(2026, 1, 12))
+        self.assertTrue(ctx["custom_range"])
+        self.assertIsNone(ctx["window"])
+
+    def test_a_bad_date_range_falls_back_to_the_preset_window(self):
+        """Half-filled, unparseable, or inverted ranges degrade to the default
+        window — a mangled URL must never 500 the page."""
+        self.client.force_login(self.admin)
+        for params in (
+            {"from": "junk", "to": "2026-01-12"},
+            {"from": "2026-01-12"},
+            {"from": "2026-01-12", "to": "2026-01-05"},
+        ):
+            ctx = self.client.get(reverse("driver_comms_kpis"), params).context
+            self.assertFalse(ctx["custom_range"])
+            self.assertEqual(ctx["window"], comms_metrics.WINDOW_DEFAULT)
+
+    def test_a_range_entirely_before_tracking_says_no_data_could_exist(self):
+        """A hand-picked range from the untracked past must draw the 'no data
+        could exist yet' banner, not a silent grid of zeros."""
+        self.client.force_login(self.admin)
+        with override_settings(CLIENT_MESSAGE_TRACKING_START=date(2026, 6, 1)):
+            html = self.client.get(
+                reverse("driver_comms_kpis"),
+                {"from": "2026-01-05", "to": "2026-01-12"},
+            ).content.decode()
+        self.assertIn("No rates yet", html)
+
+    def test_a_chauffeur_who_never_started_is_said_in_words_not_in_red(self):
+        """An open chance with no taps renders as 'Not started' — a neutral
+        phrase, not a red 0% — per the row-state ladder in comms_metrics."""
+        res = _bootstrap_reservation()
+        _make_leg(res, self.driver, status="on-the-way")
+        self.client.force_login(self.admin)
+        html = self.client.get(reverse("driver_comms_kpis")).content.decode()
+        self.assertIn("Not started", html)

@@ -14,6 +14,8 @@ Read every rate as "opened from the driver app" — see drivers/comms_metrics.py
 
 from __future__ import annotations
 
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
@@ -23,9 +25,30 @@ from .client_messages import KINDS, KIND_CHOICES
 from .models import Driver
 
 #: Weakest first is the actionable order — the page exists to surface who needs
-#: a word, not to congratulate the top of the list.
-SORTS = {"weakest": "Needs a word", "best": "Strongest", "name": "Name", "trips": "Most trips"}
+#: attention, not to congratulate the top of the list.
+SORTS = {"weakest": "Needs attention", "best": "Strongest", "name": "Name", "trips": "Most trips"}
 SORT_DEFAULT = "weakest"
+
+
+def _custom_range(request):
+    """(start, end) from ?from=&to= date inputs, or None.
+
+    Rejects half-filled, unparseable, or inverted ranges by falling back to the
+    preset window — a bad URL should degrade, not error. The start is clamped
+    to tracking_start() exactly as window_bounds() clamps, so a range reaching
+    entirely before tracking still triggers the "no data could exist" banner
+    instead of quietly printing zeros.
+    """
+    from_raw, to_raw = request.GET.get("from"), request.GET.get("to")
+    if not (from_raw and to_raw):
+        return None
+    try:
+        picked_start, picked_end = date.fromisoformat(from_raw), date.fromisoformat(to_raw)
+    except ValueError:
+        return None
+    if picked_start > picked_end:
+        return None
+    return max(picked_start, comms_metrics.tracking_start()), picked_end
 
 
 @login_required(login_url="login")
@@ -34,8 +57,15 @@ def comms_kpis(request):
         messages.error(request, "Permission denied.")
         return redirect("dashboard")
 
-    window, days = comms_metrics.resolve_window(request.GET.get("window"))
-    start, end = comms_metrics.window_bounds(days)
+    picked = _custom_range(request)
+    if picked:
+        start, end = picked
+        # No chip is lit while a hand-picked range is active.
+        window, custom_range = None, True
+    else:
+        window, days = comms_metrics.resolve_window(request.GET.get("window"))
+        start, end = comms_metrics.window_bounds(days)
+        custom_range = False
 
     sort = request.GET.get("sort") or SORT_DEFAULT
     if sort not in SORTS:
@@ -56,6 +86,7 @@ def comms_kpis(request):
             ((row_stats.get(k) or {}).get("eligible", 0) for k in KINDS), default=0
         )
         overall = comms_metrics.overall_pct(row_stats)
+        state = comms_metrics.row_state(row_stats)
         rows.append(
             {
                 "driver": driver,
@@ -63,6 +94,8 @@ def comms_kpis(request):
                 "cells": comms_metrics.as_tiles(row_stats),
                 "overall": overall,
                 "accent": comms_metrics.accent_for(overall),
+                "state": state,
+                "state_label": comms_metrics.STATE_LABELS[state],
             }
         )
 
@@ -96,6 +129,7 @@ def comms_kpis(request):
             "kind_labels": [label for _, label in KIND_CHOICES],
             "window": window,
             "windows": comms_metrics.WINDOW_LABELS,
+            "custom_range": custom_range,
             "sort": sort,
             "sorts": SORTS,
             "start": start,

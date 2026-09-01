@@ -54,6 +54,21 @@
   .footnote { font-size: 0.72rem; color: var(--gt-muted); line-height: 1.6; padding: 0.9rem 1.1rem; border-top: 1px solid var(--gt-border); }
   .table-wrap { overflow-x: auto; }
   .empty { padding: 2.5rem 1rem; text-align: center; color: var(--gt-muted); font-size: 0.85rem; }
+
+  .state-word { font-size: 0.72rem; color: var(--gt-muted); font-weight: 600; }
+
+  .range-form { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .range-form input[type="date"] {
+    background: var(--gt-surface-2); border: 1px solid var(--gt-border); border-radius: 6px;
+    color: var(--gt-text); font-size: 0.72rem; padding: 0.2rem 0.4rem;
+    color-scheme: dark;
+  }
+  .range-form .sep { font-size: 0.7rem; color: var(--gt-muted); }
+  .range-form button {
+    font-size: 0.7rem; padding: 0.2rem 0.55rem; border-radius: 6px; cursor: pointer;
+    color: var(--gt-gold); background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+  }
+  .range-form button:hover { border-color: var(--gt-gold); }
 </style>
 {% endblock %}
 
@@ -69,14 +84,24 @@
       <div>
         <h1>Guest Communication</h1>
         <div class="comms-sub">
-          How often each in-house chauffeur sent the standard guest texts.
-          Completed trips {{ start|date:"M j" }}&ndash;{{ end|date:"M j, Y" }}.
+          How often each in-house chauffeur sends the standard guest texts.
+          Live &mdash; a tap counts the moment it lands, while the trip is under way.
+          {% if start == end %}{{ start|date:"M j, Y" }}.{% else %}{{ start|date:"M j" }}&ndash;{{ end|date:"M j, Y" }}.{% endif %}
         </div>
       </div>
-      <div class="chipbar">
-        {% for key, label in windows.items %}
-          <a href="?window={{ key }}&amp;sort={{ sort }}" class="{% if window == key %}on{% endif %}">{{ label }}</a>
-        {% endfor %}
+      <div class="d-flex align-items-center flex-wrap" style="gap:0.5rem;">
+        <div class="chipbar">
+          {% for key, label in windows.items %}
+            <a href="?window={{ key }}&amp;sort={{ sort }}" class="{% if window == key %}on{% endif %}">{{ label }}</a>
+          {% endfor %}
+        </div>
+        <form method="get" class="range-form" aria-label="Pick a date range">
+          <input type="hidden" name="sort" value="{{ sort }}">
+          <input type="date" name="from" value="{{ start|date:'Y-m-d' }}" aria-label="From date" required>
+          <span class="sep">to</span>
+          <input type="date" name="to" value="{{ end|date:'Y-m-d' }}" aria-label="To date" required>
+          <button type="submit">Go</button>
+        </form>
       </div>
     </div>
 
@@ -84,9 +109,9 @@
     <div class="panel mb-3" style="border-color:#3a4250;">
       <div style="padding:0.9rem 1.1rem;font-size:0.82rem;line-height:1.6;">
         <strong style="color:var(--gt-gold);">No rates yet &mdash; and that is expected.</strong><br>
-        Rates count <em>completed</em> trips on days that have already closed, and tracking
-        only began {{ tracking_start|date:"M j, Y" }}. Until a tracked trip is completed and
-        its day ends, every figure below is legitimately unknown rather than zero.
+        Tracking only began {{ tracking_start|date:"M j, Y" }}, and this date range holds no
+        tracked days &mdash; every figure below is legitimately unknown rather than zero.
+        Rates are live: the first one appears the moment a chauffeur works a tracked trip.
         Use the counter on the right to confirm texts are being recorded in the meantime.
       </div>
     </div>
@@ -101,10 +126,11 @@
           </div>
           <div class="comms-sub">
             {% if window_empty %}
-              Tracking began {{ tracking_start|date:"M j" }}. First rates appear once a
-              tracked trip has been completed and the day has closed.
+              Tracking began {{ tracking_start|date:"M j" }}. Rates appear live from the
+              first tracked trip.
             {% elif fleet_pct is None %}
-              No completed trips in this window yet.
+              No trips in this range yet &mdash; the rate appears the moment a chauffeur
+              starts one.
             {% else %}
               {{ fleet_sent }} of {{ fleet_eligible }} chances taken, across {{ rated_count }} chauffeur{{ rated_count|pluralize }}.
             {% endif %}
@@ -118,8 +144,9 @@
           <div class="comms-sub">
             {{ activity.today }} today &middot; {{ activity.total }} all time.
             {% if activity.latest %}Last one {{ activity.latest|timesince }} ago.{% endif %}
-            <br>Raw count of taps &mdash; ignores every window and completion rule,
-            so it moves the moment a chauffeur sends one.
+            <br>Raw count of taps &mdash; ignores every window and eligibility rule.
+            If this moves and a rate doesn&rsquo;t, the tap was on a trip outside the
+            range shown.
           </div>
         </div>
       </div>
@@ -130,7 +157,7 @@
         <span class="title">By chauffeur</span>
         <span class="chipbar">
           {% for key, label in sorts.items %}
-            <a href="?window={{ window }}&amp;sort={{ key }}" class="{% if sort == key %}on{% endif %}">{{ label }}</a>
+            <a href="?{% if custom_range %}from={{ start|date:'Y-m-d' }}&amp;to={{ end|date:'Y-m-d' }}{% else %}window={{ window }}{% endif %}&amp;sort={{ key }}" class="{% if sort == key %}on{% endif %}">{{ label }}</a>
           {% endfor %}
         </span>
       </div>
@@ -159,6 +186,9 @@
                   <td class="num">
                     {% if c.pct is None %}
                       <span class="pct-muted">&mdash;</span>
+                    {% elif row.state == "not_started" %}
+                      {# Never used the buttons at all — say it in words, not in red. #}
+                      <span class="frac">0/{{ c.eligible }}</span>
                     {% else %}
                       <span class="cell">
                         <span class="bar"><span class="fill-{{ c.accent }}" style="width:{{ c.pct }}%;"></span></span>
@@ -169,7 +199,9 @@
                   </td>
                 {% endfor %}
                 <td class="num">
-                  {% if row.overall is None %}
+                  {% if row.state_label %}
+                    <span class="state-word">{{ row.state_label }}</span>
+                  {% elif row.overall is None %}
                     <span class="pct-muted">&mdash;</span>
                   {% else %}
                     <strong class="pct-{{ row.accent }}">{{ row.overall }}%</strong>
@@ -191,12 +223,15 @@
         <em>sent from the app</em> &mdash; not a delivery receipt, and he may have edited it
         before sending. A tap made with no signal isn&rsquo;t recorded, so these under-count
         rather than over-count.<br>
-        <strong>Denominator.</strong> Completed trips only, cancellations excluded, through
-        today &mdash; a trip counts the moment it&rsquo;s marked completed, so today&rsquo;s
-        rate can still move as more trips finish. Nothing before
-        {{ tracking_start|date:"M j, Y" }} is counted; tracking did not exist. Re-sends to the
-        same guest count once. Affiliates and operators are excluded &mdash; their job cards
-        carry no guest phone number, so they have no chance to take.
+        <strong>Denominator.</strong> Live by trip stage. A trip enters the On the way count
+        the moment the chauffeur marks himself on the way, the On location count when he
+        arrives, and the Review count once the guest is aboard &mdash; nothing waits for the
+        trip to be completed. A text sent before the status was touched still counts, one
+        for one. Cancellations are excluded, and nothing before
+        {{ tracking_start|date:"M j, Y" }} is counted; tracking did not exist. Re-sends to
+        the same guest count once. Affiliates are excluded &mdash; they see the same buttons
+        but are not held to the in-house standard &mdash; and operators never reach a card
+        with a guest number.
       </div>
     </div>
 
