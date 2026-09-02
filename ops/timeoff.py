@@ -141,12 +141,17 @@ def submit_request(user, start, end=None, *, reason="", note="", by=None, approv
         state = "already booked off" if clash.status == "approved" else "already requested off"
         raise TimeOffError(f"{clash.date_range_display} is {state}.")
 
+    # Unknown reasons (e.g. a stale tab still offering a retired one) are
+    # stored blank rather than as a value nothing can label.
+    if reason not in dict(StaffScheduleOverride.REASON_CHOICES):
+        reason = ""
+
     return StaffScheduleOverride.objects.create(
         user=user,
         date=start,
         end_date=None if end == start else end,
         kind="off",
-        reason=(reason or "")[:16],
+        reason=reason,
         note=(note or "")[:200],
         created_by=by or user,
         requested_by_staff=not approved,

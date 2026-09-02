@@ -8,6 +8,7 @@ against existing open tasks, and bulk-creates new ones.
 
 import logging
 from datetime import datetime, timedelta
+from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 
@@ -61,9 +62,12 @@ CHAIN_RECHECK_THRESHOLD = 5
 # SEPARATE from the scheduler's AIRPORT_ARRIVAL_GRACE_MINUTES so the morning
 # safety flag stays conservative even if the deplaning grace is retuned.
 TIGHT_TURN_ENABLED = True
-# Past this many minutes after the raw arrival the driver has missed his meet
-# deadline -> red. Sourced from the one policy constant so the task queue, the
-# board and auto-assign cannot drift apart again.
+# Past this many minutes late the driver has missed the deadline -> red. Used for
+# BOTH turn shapes classify_turn()/detect_driver_conflicts() judge: a flight-arrival
+# meet (measured against the raw arrival) and a booked-pickup-to-booked-pickup
+# overlap — one number so the task queue, the board and auto-assign cannot drift
+# apart, and a hotel-to-hotel turn isn't judged more leniently than an airport one.
+# Sourced from the one policy constant (pickup_policy.ARRIVAL_MEET_GRACE_MIN).
 TIGHT_TURN_RED_AFTER_MIN = pickup_policy.ARRIVAL_MEET_GRACE_MIN
 
 # Priority matrix: (severity_tier, days_until_bucket) → Priority
@@ -259,12 +263,10 @@ def classify_turn(prev_leg, curr_leg, target_date):
     two never disagree at the threshold.
 
     Returns a dict {tier, late, driver_arrives, raw_arrival, end_prev, travel} or None
-    (no flag). `tier` is:
-      * 'red'   — driver reaches an airport arrival >= TIGHT_TURN_RED_AFTER_MIN min
-                  after the RAW flight arrival (won't make it), OR a booked-pickup
-                  overlap on a non-arrival leg.
-      * 'amber' — driver reaches the airport 0..TIGHT_TURN_RED_AFTER_MIN min after the
-                  raw flight arrival (tight, still makes it).
+    (no flag). One threshold for both shapes — TIGHT_TURN_RED_AFTER_MIN (10 min) —
+    so a flight-arrival turn and a booked-pickup turn are judged by the same clock:
+      * 'red'   — driver is > TIGHT_TURN_RED_AFTER_MIN min late (won't make it).
+      * 'amber' — driver is 1..TIGHT_TURN_RED_AFTER_MIN min late (tight, still makes it).
     """
     risk = _turn_late_minutes(prev_leg, curr_leg, target_date)
     if risk is not None:
@@ -287,16 +289,16 @@ def classify_turn(prev_leg, curr_leg, target_date):
     travel = _reposition_minutes(prev_leg.dropoff_location, curr_leg.pickup_location)
     driver_arrives = end_prev + timedelta(minutes=travel)
     late = int((driver_arrives - ready).total_seconds() / 60)
-    if late > 0:
-        return {
-            "tier": "red",
-            "late": late,
-            "driver_arrives": driver_arrives,
-            "raw_arrival": None,
-            "travel": travel,
-            "end_prev": end_prev,
-        }
-    return None
+    if late <= 0:
+        return None  # driver clears the prior job with time to spare — comfortable
+    return {
+        "tier": "red" if late > TIGHT_TURN_RED_AFTER_MIN else "amber",
+        "late": late,
+        "driver_arrives": driver_arrives,
+        "raw_arrival": None,
+        "travel": travel,
+        "end_prev": end_prev,
+    }
 
 
 def _prior_same_driver_leg(leg, target_date):
@@ -342,6 +344,142 @@ def _close_open_tight_turn_tasks(leg, *, note):
     return closed
 
 
+def _raise_conflict_keoi(affected_leg, driver_name, conflict_minutes):
+    """Flag a genuinely red (won't-make-it) driver conflict on the board via the
+    dispatcher watch-flag (KEOI), same precedent as
+    drivers/operator_views.py::_raise_decline_flag — reuse the existing
+    needs-attention surface instead of a new alert channel. One active flag per
+    leg; an existing flag is left alone (it's already shouting). Never raised for
+    amber (tight-but-makes-it) turns — those get a TIGHT_TURN task only."""
+    from reservations.models import LegKeoi
+
+    try:
+        if LegKeoi.objects.filter(leg=affected_leg, closed_at__isnull=True).exists():
+            return
+        LegKeoi.objects.create(
+            leg=affected_leg,
+            category=LegKeoi.Category.DRIVER_CONFLICT,
+            description=(
+                f"{driver_name} projected {conflict_minutes} min late for this "
+                f"pickup — needs coverage."
+            ),
+            operational_status=LegKeoi.OperationalStatus.NEEDS_ATTENTION,
+            # Both NULL is the mark of "system raised it, nobody has worked it" —
+            # the only state reconcile_conflict_keois() is allowed to close.
+            created_by=None,
+            updated_by=None,
+        )
+    except Exception:
+        logger.exception("Could not raise KEOI for driver conflict on leg %s", affected_leg.id)
+
+
+def _legs_backed_by_open_conflict():
+    """Leg ids that an OPEN driver-conflict task points at — the legs whose flag
+    is still earning its place on the board.
+
+    "Points at" is metadata['affected_leg_id'] when present. A same-day flight
+    shift raises its flag on the OTHER leg it delays, not on the leg that moved
+    (see _handle_same_day_mismatch), so the two are genuinely different legs.
+
+    Tasks written before that key existed (every task in the database predating
+    2026-08-27) must credit BOTH legs of the pair, because from the outside there
+    is no telling which one carries the flag. Over-crediting leaves a flag up one
+    tick longer and the next scan re-checks it. Under-crediting takes a flag down
+    while its conflict is live AND its task is open — and create_task's two-hour
+    cooldown then refuses to re-raise it, so the board goes quiet on a real
+    conflict. When in doubt this fails toward red.
+    """
+    backed = set()
+    rows = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+        leg__isnull=False,
+    ).values_list("leg_id", "metadata")
+    for leg_id, meta in rows:
+        meta = meta or {}
+        affected = meta.get("affected_leg_id")
+        if affected:
+            backed.add(affected)
+            continue
+        backed.add(leg_id)
+        if meta.get("conflicting_leg_id"):
+            backed.add(meta["conflicting_leg_id"])
+    return backed
+
+
+def reconcile_conflict_keois(leg_ids=None):
+    """Enforce the one rule that keeps the board's conflict flags honest:
+
+        a SYSTEM-raised driver-conflict flag exists only while an OPEN
+        driver-conflict task points at that leg.
+
+    Nothing used to take these flags down. The task behind a flag auto-closed on
+    schedule while the flag — the part dispatchers actually see — stayed red, so
+    the board filled with conflicts that were no longer true and stopped being
+    worth reading (2026-08-27: 9 flags, 1 real).
+
+    Two callers, one rule, so they can never disagree:
+      * _auto_close_resolved_tasks() passes leg_ids=None to sweep everything on
+        the 30-minute tick — the backstop that catches flags orphaned by write
+        paths no signal can see (a bulk .update() that skips post_save).
+      * ops/signals.py reconciles just the legs a save touched, so a dispatcher
+        reassigning a trip sees the flag go on the next board render instead of
+        up to half an hour later.
+
+    Only flags NO HUMAN HAS TOUCHED are closed — created_by IS NULL (the system
+    raised it) AND updated_by IS NULL (nobody has worked it since). created_by
+    alone is not enough: a dispatcher who ADOPTS a system flag — marks it
+    "Backup Arranged", rewrites the note to say who is covering — edits it
+    through keoi_save(), which sets updated_by and leaves created_by NULL
+    (dispatching/keoi_views.py::_apply_keoi_edit). Closing that would delete a
+    person's work and their note while they were relying on it.
+
+    Returns the number of flags closed.
+    """
+    from reservations.keoi import close_active_keoi
+    from reservations.models import LegKeoi
+
+    flags = LegKeoi.objects.filter(
+        closed_at__isnull=True,
+        category=LegKeoi.Category.DRIVER_CONFLICT,
+        created_by__isnull=True,
+        updated_by__isnull=True,
+    )
+    if leg_ids is not None:
+        leg_ids = {lid for lid in leg_ids if lid}
+        if not leg_ids:
+            return 0
+        flags = flags.filter(leg_id__in=leg_ids)
+    flags = list(flags.select_related("leg"))
+    if not flags:
+        return 0  # nothing flagged — don't pay for the task query
+
+    backed = _legs_backed_by_open_conflict()
+    closed = 0
+    for flag in flags:
+        if flag.leg_id in backed:
+            continue
+        try:
+            # Savepoint per flag so one bad row can't poison the rest of the loop
+            # (or an outer atomic block). keoi_pk pins the close to the row vetted
+            # above — a dispatcher can file their own flag on this leg between the
+            # read and the write, and theirs is never ours to close.
+            with transaction.atomic():
+                close_active_keoi(
+                    flag.leg,
+                    reason=LegKeoi.ClosedReason.CONFLICT_RESOLVED,
+                    keoi_pk=flag.pk,
+                )
+            closed += 1
+            logger.info(
+                "Closed driver-conflict KEOI on leg %s — no open conflict task backs it",
+                flag.leg_id,
+            )
+        except Exception:
+            logger.exception("Could not close conflict KEOI #%s", flag.id)
+    return closed
+
+
 def detect_driver_conflicts(leg, target_date):
     """
     For a given leg with a shifted flight time, check if the assigned in-house
@@ -352,6 +490,9 @@ def detect_driver_conflicts(leg, target_date):
       - driver_clears_at: datetime when driver finishes the prior leg
       - effective_ready: datetime when passenger is ready for the checked leg
       - conflict_minutes: how many minutes late the driver would be
+      - tier: 'red' (won't make it, > TIGHT_TURN_RED_AFTER_MIN min late) or 'amber'
+        (tight but still makes it) — same banding classify_turn uses for the
+        overlap scan, so the two detectors never disagree at the threshold.
 
     Only evaluates in-house drivers. Returns empty list for affiliates or
     unassigned legs.
@@ -410,6 +551,7 @@ def detect_driver_conflicts(leg, target_date):
                     "driver_clears_at": this_end_time,
                     "effective_ready": other_ready_time,
                     "conflict_minutes": conflict_mins,
+                    "tier": "red" if conflict_mins > TIGHT_TURN_RED_AFTER_MIN else "amber",
                     "direction": "this_delays_other",
                 })
 
@@ -425,6 +567,7 @@ def detect_driver_conflicts(leg, target_date):
                     "driver_clears_at": other_end_time,
                     "effective_ready": this_ready_time,
                     "conflict_minutes": conflict_mins,
+                    "tier": "red" if conflict_mins > TIGHT_TURN_RED_AFTER_MIN else "amber",
                     "direction": "other_delays_this",
                 })
 
@@ -595,43 +738,66 @@ def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
     if not conflicts:
         return 0
 
-    # Use the worst conflict for the task description
+    # Use the worst conflict for the task description (tier tracks conflict_minutes
+    # deterministically, so the worst-by-minutes conflict is also the worst tier)
     worst = max(conflicts, key=lambda c: c["conflict_minutes"])
     conflicting = worst["conflicting_leg"]
     driver_name = str(driver)
-
-    title = f"Driver Conflict — {driver_name}"
     clears_str = worst["driver_clears_at"].strftime("%I:%M %p").lstrip("0")
+    # The leg _raise_conflict_keoi() flags — the one that will actually be
+    # late — isn't always this leg: when THIS leg's shift delays the OTHER
+    # leg, the KEOI belongs on the other leg. Stored in metadata so the
+    # auto-close reconciliation can find and clear the right flag later.
+    affected_leg = conflicting if worst["direction"] == "this_delays_other" else leg
 
-    description = (
-        f"Flight {mismatch['label']}. "
-        f"Driver will be {worst['conflict_minutes']} min late — reassign or adjust times."
-    )
+    metadata = {
+        "driver_id": driver.id,
+        "driver_name": driver_name,
+        "flight_ident": flight_label,
+        "mismatch_direction": mismatch["direction"],
+        "mismatch_minutes": mismatch["minutes"],
+        "mismatch_label": mismatch["label"],
+        "conflict_minutes": worst["conflict_minutes"],
+        "conflicting_leg_id": conflicting.id,
+        "conflicting_pickup_time": str(conflicting.pickup_time),
+        "driver_clears_at": clears_str,
+        "pickup_date": str(leg.pickup_date),
+        "pickup_time": str(leg.pickup_time),
+        "affected_leg_id": affected_leg.id,
+    }
+
+    if worst["tier"] == "amber":
+        task = create_task(
+            task_type=OperationalTask.TaskType.TIGHT_TURN,
+            title=f"Tight turn — {driver_name}",
+            due_at=now,
+            priority=OperationalTask.Priority.MEDIUM,
+            description=(
+                f"Flight {mismatch['label']}. Driver will be {worst['conflict_minutes']} "
+                f"min behind — still makes it, but tight. Keep an eye on it."
+            ),
+            leg=leg,
+            reservation=leg.reservation,
+            metadata=metadata,
+        )
+        return 1 if task else 0
 
     task = create_task(
         task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
-        title=title,
+        title=f"Driver Conflict — {driver_name}",
         due_at=now,
         priority=OperationalTask.Priority.CRITICAL,
-        description=description,
+        description=(
+            f"Flight {mismatch['label']}. "
+            f"Driver will be {worst['conflict_minutes']} min late — reassign or adjust times."
+        ),
         leg=leg,
         reservation=leg.reservation,
         escalate_at=now,  # Immediate escalation for same-day conflicts
-        metadata={
-            "driver_id": driver.id,
-            "driver_name": driver_name,
-            "flight_ident": flight_label,
-            "mismatch_direction": mismatch["direction"],
-            "mismatch_minutes": mismatch["minutes"],
-            "mismatch_label": mismatch["label"],
-            "conflict_minutes": worst["conflict_minutes"],
-            "conflicting_leg_id": conflicting.id,
-            "conflicting_pickup_time": str(conflicting.pickup_time),
-            "driver_clears_at": clears_str,
-            "pickup_date": str(leg.pickup_date),
-            "pickup_time": str(leg.pickup_time),
-        },
+        metadata=metadata,
     )
+    if task:
+        _raise_conflict_keoi(affected_leg, driver_name, worst["conflict_minutes"])
     return 1 if task else 0
 
 
@@ -668,6 +834,42 @@ def _handle_future_driver_conflict(leg, mismatch, flight_label, days_until, now)
     other_str = conflicting.pickup_time.strftime("%I:%M %p").lstrip("0")
     day_str = leg.pickup_date.strftime("%a %b %d")
 
+    metadata = {
+        "driver_id": driver.id,
+        "driver_name": driver_name,
+        "flight_ident": flight_label,
+        "mismatch_direction": mismatch["direction"],
+        "mismatch_minutes": mismatch["minutes"],
+        "mismatch_label": mismatch["label"],
+        "conflict_minutes": worst["conflict_minutes"],
+        "conflicting_leg_id": conflicting.id,
+        "conflicting_pickup_time": str(conflicting.pickup_time),
+        "driver_clears_at": clears_str,
+        "pickup_date": str(leg.pickup_date),
+        "pickup_time": str(leg.pickup_time),
+        "days_until": days_until,
+        "future_board": True,
+    }
+
+    if worst["tier"] == "amber":
+        task = create_task(
+            task_type=OperationalTask.TaskType.TIGHT_TURN,
+            title=f"Tight turn — {driver_name} ({day_str})",
+            due_at=now + _DUE_DELAYS.get(OperationalTask.Priority.LOW, timedelta(hours=24)),
+            priority=OperationalTask.Priority.LOW,
+            description=(
+                f"{day_str}: flight {mismatch['label']}, so {driver_name} now clears "
+                f"~{clears_str} and is {worst['conflict_minutes']} min behind the {other_str} "
+                f"job — still makes it, but tight. Worth a glance before the day arrives."
+            ),
+            leg=leg,
+            reservation=leg.reservation,
+            metadata=metadata,
+        )
+        return 1 if task else 0
+
+    # Red — genuinely won't make it. Priority is one step below the same-day
+    # equivalent: real work but not a fire until it's inside 48 hours.
     priority = (OperationalTask.Priority.CRITICAL if days_until <= 2
                 else OperationalTask.Priority.HIGH)
     due_delay = _DUE_DELAYS.get(priority, timedelta(hours=4))
@@ -689,22 +891,7 @@ def _handle_future_driver_conflict(leg, mismatch, flight_label, days_until, now)
         leg=leg,
         reservation=leg.reservation,
         escalate_at=now + escalate_delay,
-        metadata={
-            "driver_id": driver.id,
-            "driver_name": driver_name,
-            "flight_ident": flight_label,
-            "mismatch_direction": mismatch["direction"],
-            "mismatch_minutes": mismatch["minutes"],
-            "mismatch_label": mismatch["label"],
-            "conflict_minutes": worst["conflict_minutes"],
-            "conflicting_leg_id": conflicting.id,
-            "conflicting_pickup_time": str(conflicting.pickup_time),
-            "driver_clears_at": clears_str,
-            "pickup_date": str(leg.pickup_date),
-            "pickup_time": str(leg.pickup_time),
-            "days_until": days_until,
-            "future_board": True,
-        },
+        metadata=metadata,
     )
     return 1 if task else 0
 
@@ -966,10 +1153,12 @@ def _scan_driver_overlaps():
                     "driver_clears_at": clears_str,
                     "pickup_date": str(today),
                     "pickup_time": str(leg_b.pickup_time),
+                    "affected_leg_id": leg_b.id,
                 },
             )
             if task:
                 created += 1
+                _raise_conflict_keoi(leg_b, driver_name, conflict_minutes)
 
     if created:
         logger.info(f"Driver overlap scan: created {created} driver/tight-turn tasks")
@@ -1376,7 +1565,8 @@ def _auto_close_resolved_tasks():
                         closed += 1
                 elif leg.driver_id:
                     conflicts = detect_driver_conflicts(leg, leg.pickup_date)
-                    if not conflicts:
+                    still_red = any(c["tier"] == "red" for c in conflicts)
+                    if not still_red:
                         if not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
                             close_task(task, resolution_notes="Auto-closed: flight matched and conflict resolved")
                         else:
@@ -1386,6 +1576,17 @@ def _auto_close_resolved_tasks():
                 logger.error(f"Error checking conflict task #{task.id}: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Auto-close conflict tasks error: {e}", exc_info=True)
+
+    # ── 2a. Take down conflict flags whose conflict is gone ──────────────────
+    # Runs AFTER section 2, so a task that just resolved is already closed and
+    # its flag falls out here. ops/signals.py runs the same rule on the legs a
+    # save touches, which is what makes a reassignment clear the flag instantly;
+    # this full sweep is the backstop for flags orphaned by write paths no signal
+    # can see (a bulk .update() that skips post_save).
+    try:
+        reconcile_conflict_keois()
+    except Exception as e:
+        logger.error(f"Conflict KEOI reconciliation error: {e}", exc_info=True)
 
     # ── 2b. Tight-turn (amber) tasks: close when no longer tight ─────────────
     try:

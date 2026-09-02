@@ -269,15 +269,6 @@ TURNSTILE_SITE_KEY = os.environ.get(
 )
 TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "")
 
-# NTFY Settings
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "grayson-leads")
-NTFY_DRIVER_TOPIC = os.environ.get("NTFY_DRIVER_TOPIC", "grayson-driver-noti")
-NTFY_DISPATCH_ALERT_TOPIC = os.environ.get("NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
-NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
-# ntfy removed 2026-07-18 — senders in reservations/utils.py are hard no-ops now;
-# this stays False so nothing re-enables it via env. (Kept for reference only.)
-NTFY_ENABLED = False
-
 # AeroAPI Settings
 AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
@@ -362,6 +353,15 @@ WAKEUP_NOTIFY_PHONES = [
     p.strip() for p in os.environ.get("WAKEUP_NOTIFY_PHONES", "").split(",") if p.strip()
 ] or TIMEOFF_NOTIFY_PHONES
 
+# Who gets a text when a driver uploads a permit/DOT-card photo through the
+# self-service My Documents page. Those two have no OCR, so this is the ONLY
+# signal that a scan is sitting in S3 waiting for staff to transcribe it —
+# without it the driver-facing "the office will fill in the details" promise
+# has nothing behind it. Defaults to the time-off founder list.
+DOCUMENT_UPLOAD_NOTIFY_PHONES = [
+    p.strip() for p in os.environ.get("DOCUMENT_UPLOAD_NOTIFY_PHONES", "").split(",") if p.strip()
+] or TIMEOFF_NOTIFY_PHONES
+
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
 GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
@@ -439,6 +439,14 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
+
+# .env is loaded above, so real AWS credentials are live during `manage.py test`
+# too. Without this, ANY test that saves a FileField — a driver's licence scan,
+# a vehicle photo — uploads its fixture into the production media bucket and
+# leaves it there. Keep test files in memory instead.
+if TESTING:
+    STORAGES["default"] = {"BACKEND": "django.core.files.storage.InMemoryStorage"}
+
 DATE_FORMAT = "Y-m-d"
 TIME_FORMAT = "g:i A"  # 12-hour format with AM/PM
 DATETIME_FORMAT = "Y-m-d g:i A"

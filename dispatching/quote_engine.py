@@ -168,6 +168,24 @@ OUTBOUND_MAX_DISCOUNT = Decimal("0.20")
 # area to START the job — that is an INBOUND, and it carries no discount.
 SERVICE_AREA_RADIUS_MI = Decimal("60")
 
+# ── Local / chainable radius ────────────────────────────────────────────────
+# How far a TRIP can run and still get the "local custom" treatment below — no
+# empty return, half the per-mile rate, because drivers chain nearby jobs.
+# Deliberately separate from SERVICE_AREA_RADIUS_MI above: that one measures
+# how far the PICKUP sits from base to classify direction on a >100 mi trip,
+# a different question from "is this trip itself short enough to be chainable."
+#
+# Bug found 2026-08-25: reusing the 60 mi constant for both meant 164 Monterey
+# Cypress Blvd, Winter Haven (43 mi / 58 min from a Disney-area pickup) was
+# priced as chainable local work — $130/$135/$150 for towncar/mini van/SUV —
+# because 43 <= 60. It isn't chainable: it ties up a car for the better part of
+# two hours round trip, same as Tampa or Port Canaveral. The founder's own
+# calibration example for "no empty return" was 21.8 mi (Carrickton Cir); 25 mi
+# gives headroom above that without reaching a trip like Winter Haven, which
+# now correctly falls through to the out-of-area formula + time floor
+# (~$205/$215/$230 for towncar/mini van/SUV).
+LOCAL_CHAINABLE_RADIUS_MI = Decimal("25")
+
 # ── Local custom trips (in-area, off-card) ─────────────────────────────────
 # Founder calibration, 2026-07-29. Grand Floridian -> 2596 Carrickton Cir
 # (21.8 mi, 33 min) — a residential address a few miles from MCO:
@@ -896,14 +914,14 @@ def quote(
 
     # ── 2. Local: in-area work, which never carries an empty return ──
     # In-area means an end resolves to a card zone (by name or by snapping) and
-    # the trip is short enough to be inside the service area. Everything here is
-    # priced WITHOUT the out-and-back doubling, because local jobs chain.
+    # the trip is short enough to be chainable. Everything here is priced
+    # WITHOUT the out-and-back doubling, because local jobs chain.
     local_pickup = snapped_pickup or pickup_location
     local_dropoff = snapped_dropoff or dropoff_location
     is_local = bool(
         (local_pickup or local_dropoff)
         and miles is not None
-        and Decimal(miles) <= SERVICE_AREA_RADIUS_MI
+        and Decimal(miles) <= LOCAL_CHAINABLE_RADIUS_MI
     )
 
     # 2a. A comparable card route exists → card price + custom premium.

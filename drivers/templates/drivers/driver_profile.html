@@ -4,15 +4,7 @@
 {% block extra_css %}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    :root {
-      --gt-gold: #C9A227;
-      --gt-bg: #0d1117;
-      --gt-surface: #161b22;
-      --gt-surface-2: #1c2128;
-      --gt-border: #2a313a;
-      --gt-text: #e6edf3;
-      --gt-muted: #8b949e;
-    }
+    {% include "drivers/_comms_admin_palette.html" %}
     body { background: var(--gt-bg) !important; }
     .profile-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
     .profile-page .container-fluid { max-width: 1400px; }
@@ -45,6 +37,17 @@
     }
     .availability-pill.available { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
     .availability-pill.busy { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.35); }
+    .type-badge.alert { background: rgba(248,113,113,0.18); color: #f87171; border: 1px solid rgba(248,113,113,0.4); }
+
+    /* Licensing & credentials */
+    .cred-pill {
+      display: inline-flex; align-items: center; font-size: 0.65rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 999px; margin-left: 0.4rem; letter-spacing: 0.02em;
+    }
+    .cred-pill.expired { background: rgba(248,113,113,0.18); color: #f87171; border: 1px solid rgba(248,113,113,0.4); }
+    .cred-pill.expiring { background: rgba(251,191,36,0.18); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4); }
+    .info-row .scan-link { color: var(--gt-muted); margin-left: 0.5rem; }
+    .info-row .scan-link:hover { color: var(--gt-gold); }
 
     /* Stat tiles */
     .stat-tile {
@@ -59,15 +62,34 @@
     .stat-tile.accent-green .stat-value { color: #4ade80; }
     .stat-tile.accent-blue .stat-value { color: #60a5fa; }
 
-    /* Action buttons in hero */
-    .hero-actions .btn {
+    /* ─── Guest communication rates ─── */
+    /* A proportion bar plus the raw n/N, matching the Tracking column on Driver
+       Performance. The bar carries the comparison the number alone can't. */
+    .comms-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; }
+    .comms-row + .comms-row { border-top: 1px solid var(--gt-border); }
+    .comms-name { flex: 0 0 8.5rem; font-size: 0.82rem; font-weight: 600; }
+    .comms-bar { flex: 1 1 auto; height: 7px; border-radius: 4px; background: var(--gt-surface-2); overflow: hidden; }
+    .comms-bar .fill { display: block; height: 100%; border-radius: 4px; }
+    .comms-fig { flex: 0 0 6.5rem; text-align: right; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.8rem; }
+    .comms-fig .pct { font-weight: 700; }
+    .comms-fig .frac { color: var(--gt-muted); font-size: 0.72rem; margin-left: 0.3rem; }
+    .comms-note { font-size: 0.7rem; color: var(--gt-muted); margin-top: 0.6rem; line-height: 1.5; }
+    .comms-win { display: inline-flex; gap: 0.25rem; }
+    .comms-win a {
+      font-size: 0.68rem; padding: 0.15rem 0.45rem; border-radius: 5px;
+      color: var(--gt-muted); text-decoration: none; border: 1px solid transparent;
+    }
+    .comms-win a.on { color: var(--gt-gold); border-color: var(--gt-border); background: var(--gt-surface-2); }
+
+    /* Action buttons (hero + edit form) */
+    .profile-page .btn {
       background: var(--gt-surface-2); color: var(--gt-text);
       border: 1px solid var(--gt-border); font-weight: 500;
       padding: 0.4rem 0.85rem; font-size: 0.85rem; border-radius: 6px;
     }
-    .hero-actions .btn:hover { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
-    .hero-actions .btn-primary-action { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
-    .hero-actions .btn-primary-action:hover { background: #b48a1c; border-color: #b48a1c; color: #0d1117; }
+    .profile-page .btn:hover { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+    .profile-page .btn-primary-action { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+    .profile-page .btn-primary-action:hover { background: #b48a1c; border-color: #b48a1c; color: #0d1117; }
 
     /* Generic info rows */
     .info-row { display: flex; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--gt-border); }
@@ -124,6 +146,37 @@
     .empty-state .small-cta { font-size: 0.8rem; margin-top: 0.4rem; }
 
     .text-muted-dark { color: var(--gt-muted) !important; }
+    .type-badge.inactive { background: rgba(107,114,128,0.18); color: #9ca3af; border: 1px solid rgba(107,114,128,0.4); }
+
+    /* ── Edit-in-place form ── */
+    .field-group { margin-bottom: 0.9rem; }
+    .field-label {
+      display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--gt-muted); font-weight: 600; margin-bottom: 0.3rem;
+    }
+    .gt-field {
+      width: 100%; background: var(--gt-surface-2); border: 1px solid var(--gt-border);
+      color: var(--gt-text); border-radius: 6px; padding: 0.45rem 0.6rem; font-size: 0.85rem;
+    }
+    .gt-field:focus { outline: none; border-color: var(--gt-gold); }
+    select.gt-field { appearance: auto; }
+    textarea.gt-field { min-height: 90px; resize: vertical; }
+    .gt-file { color: var(--gt-muted); font-size: 0.78rem; }
+    .gt-file a { color: #60a5fa; }
+    .gt-checkbox { width: 1.05rem; height: 1.05rem; vertical-align: middle; accent-color: var(--gt-gold); }
+    .form-check-inline { display: flex; align-items: center; gap: 0.5rem; height: 100%; }
+    .form-check-inline label { color: var(--gt-text); font-size: 0.85rem; font-weight: 500; margin: 0; }
+    .cert-checks label {
+      color: var(--gt-text); font-size: 0.85rem; margin-right: 1.25rem;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+    }
+    .cert-checks input[type="checkbox"] { accent-color: var(--gt-gold); width: 1.05rem; height: 1.05rem; }
+    .field-error { color: #f87171; font-size: 0.72rem; margin-top: 0.25rem; }
+    .form-error-banner {
+      background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.4);
+      color: #f87171; border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 1rem; font-size: 0.85rem;
+    }
+    .edit-toggle-btn.btn-cancel:hover { background: var(--gt-border); color: var(--gt-text); border-color: var(--gt-border); }
   </style>
 {% endblock extra_css %}
 
@@ -152,11 +205,21 @@
             {% else %}
               <span class="type-badge affiliate"><i class="bi bi-person-badge me-1"></i>AFFILIATE</span>
             {% endif %}
+            {% if not driver.is_active %}
+              <span class="type-badge inactive ms-2"><i class="bi bi-slash-circle me-1"></i>INACTIVE</span>
+            {% endif %}
             {% if is_available_today %}
               <span class="availability-pill available ms-2"><i class="bi bi-check-circle-fill"></i>Available today</span>
             {% else %}
               <span class="availability-pill busy ms-2"><i class="bi bi-clock-fill"></i>{{ todays_legs|length }} trip{{ todays_legs|length|pluralize }} today</span>
             {% endif %}
+            {% with alerts=driver.credential_alerts %}
+              {% if alerts %}
+                <span class="type-badge alert ms-2" title="{% for a in alerts %}{{ a.label }}: {% if a.status == 'expired' %}expired{% elif a.status == 'expiring' %}expires soon{% else %}mismatch{% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ alerts|length }} CREDENTIAL ALERT{{ alerts|length|pluralize }}
+                </span>
+              {% endif %}
+            {% endwith %}
           </h1>
           <div class="subtitle">
             {% if driver.profile.username %}@{{ driver.profile.username }} &middot; {% endif %}
@@ -174,10 +237,16 @@
           <a href="{% url 'dashboard' %}?driver={{ driver.id }}" class="btn">
             <i class="bi bi-calendar-event me-1"></i>Today's Schedule
           </a>
-          {% if request.user.is_superuser %}
-            <a href="/admin/drivers/driver/{{ driver.id }}/change/" class="btn">
-              <i class="bi bi-pencil me-1"></i>Edit
-            </a>
+          {% if can_edit %}
+            {% if edit_mode %}
+              <a href="{% url 'driver_profile' driver.id %}" class="btn">
+                <i class="bi bi-x-lg me-1"></i>Cancel Edit
+              </a>
+            {% else %}
+              <a href="?edit=1" class="btn btn-primary-action">
+                <i class="bi bi-pencil me-1"></i>Edit Driver
+              </a>
+            {% endif %}
           {% endif %}
         </div>
       </div>
@@ -218,9 +287,256 @@
         </div>
       </div>
 
+      {# ── Guest communication ── #}
+      {% comment %}
+        Backward-looking, so it carries its own window selector. Shown only for
+        in-house chauffeurs: affiliates never get a card with these buttons.
+      {% endcomment %}
+      {% if comms_tiles %}
+      <div class="profile-card mb-3">
+        <div class="card-header">
+          <span><i class="bi bi-chat-dots me-2"></i>Guest Communication</span>
+          <span class="comms-win">
+            {% for key, label in comms_windows.items %}
+              <a href="?comms={{ key }}" class="{% if comms_window == key %}on{% endif %}">{{ label }}</a>
+            {% endfor %}
+          </span>
+        </div>
+        <div class="card-body">
+          {% for t in comms_tiles %}
+            <div class="comms-row">
+              <span class="comms-name">{{ t.label }}</span>
+              <span class="comms-bar">
+                <span class="fill fill-{{ t.accent }}" style="width:{% if t.pct %}{{ t.pct }}{% else %}0{% endif %}%;"></span>
+              </span>
+              <span class="comms-fig">
+                {% if t.pct is None %}
+                  <span class="pct pct-muted">—</span>
+                {% else %}
+                  <span class="pct pct-{{ t.accent }}">{{ t.pct }}%</span>
+                  <span class="frac">{{ t.sent }}/{{ t.eligible }}</span>
+                {% endif %}
+              </span>
+            </div>
+          {% endfor %}
+          {% if comms_window_empty %}
+          <div class="comms-note" style="color:var(--gt-gold);">
+            No rates yet, and that is expected &mdash; tracking only began
+            {{ tracking_start|date:"M j, Y" }}, and this range holds no tracked days.
+            {% if comms_activity.total %}
+              {{ comms_activity.total }} text{{ comms_activity.total|pluralize }} logged for this
+              chauffeur so far{% if comms_activity.today %}, {{ comms_activity.today }} today{% endif %}.
+            {% else %}
+              Nothing logged for this chauffeur yet.
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="comms-note">
+            Trips {{ comms_start|date:"M j" }}&ndash;{{ comms_end|date:"M j, Y" }},
+            cancellations excluded. Live by trip stage &mdash; a status tap counts the moment
+            it lands, while the trip is still under way. Counts a text <em>sent from the driver app</em>
+            &mdash; the message opens in the chauffeur&rsquo;s own Messages app, so delivery
+            isn&rsquo;t something we can see. Trips before tracking began are not counted.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="row g-3">
         {# ── Left column: Contact + Vehicle + Schedule ── #}
         <div class="col-lg-5">
+
+          {% if edit_mode %}
+          {# Edit-in-place: Contact & Vehicle + Licensing & Credentials + Notes become one form. #}
+          <form method="post" enctype="multipart/form-data" action="{% url 'driver_profile' driver.id %}">
+            {% csrf_token %}
+            {% if driver_form.errors %}
+              <div class="form-error-banner">
+                <strong>Please fix the following:</strong>
+                <ul class="mb-0 mt-1 ps-3">
+                  {% for field in driver_form %}
+                    {% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}
+                  {% endfor %}
+                  {% for error in driver_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+
+            <div class="profile-card mb-3">
+              <div class="card-header">
+                <span><i class="bi bi-person-vcard me-2"></i>Contact &amp; Vehicle</span>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.phone_number.id_for_label }}">Phone</label>
+                      {{ driver_form.phone_number }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.vehicle.id_for_label }}">Vehicle</label>
+                      {{ driver_form.vehicle }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.payment_method.id_for_label }}">Payment Method</label>
+                      {{ driver_form.payment_method }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.night_bonus.id_for_label }}">Night Bonus ($)</label>
+                      {{ driver_form.night_bonus }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.employment_type.id_for_label }}">Employment Type</label>
+                      {{ driver_form.employment_type }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group form-check-inline">
+                      {{ driver_form.is_active }}
+                      <label for="{{ driver_form.is_active.id_for_label }}">Active</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-card mb-3">
+              <div class="card-header">
+                <span><i class="bi bi-card-checklist me-2"></i>Licensing &amp; Credentials</span>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-sm-5">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_number.id_for_label }}">License Number</label>
+                      {{ driver_form.license_number }}
+                    </div>
+                  </div>
+                  <div class="col-sm-3">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_state.id_for_label }}">State</label>
+                      {{ driver_form.license_state }}
+                    </div>
+                  </div>
+                  <div class="col-sm-4">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_class.id_for_label }}">Class</label>
+                      {{ driver_form.license_class }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_expiration.id_for_label }}">License Expires</label>
+                      {{ driver_form.license_expiration }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_scan.id_for_label }}">License Scan</label>
+                      {{ driver_form.license_scan }}
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="field-group mb-1" style="text-transform:uppercase; font-size:0.68rem; letter-spacing:0.04em; color: var(--gt-muted); font-weight:600; border-top:1px solid var(--gt-border); padding-top:0.75rem;">
+                      Personal details, as printed on the license
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_full_name.id_for_label }}">Name on License</label>
+                      {{ driver_form.license_full_name }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_date_of_birth.id_for_label }}">Date of Birth</label>
+                      {{ driver_form.license_date_of_birth }}
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.license_address.id_for_label }}">Address on License</label>
+                      {{ driver_form.license_address }}
+                    </div>
+                  </div>
+
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.chauffeur_permit_number.id_for_label }}">Chauffeur Permit #</label>
+                      {{ driver_form.chauffeur_permit_number }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.chauffeur_permit_expiration.id_for_label }}">Permit Expires</label>
+                      {{ driver_form.chauffeur_permit_expiration }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.chauffeur_permit_fdl_number.id_for_label }}">Permit FDL# <span class="text-muted-dark">(license # printed on the card)</span></label>
+                      {{ driver_form.chauffeur_permit_fdl_number }}
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.chauffeur_permit_scan.id_for_label }}">Permit Scan</label>
+                      {{ driver_form.chauffeur_permit_scan }}
+                    </div>
+                  </div>
+
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.dot_medical_card_expiration.id_for_label }}">DOT Medical Card Expires</label>
+                      {{ driver_form.dot_medical_card_expiration }}
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="field-group">
+                      <label class="field-label" for="{{ driver_form.dot_medical_card_scan.id_for_label }}">DOT Card Scan</label>
+                      {{ driver_form.dot_medical_card_scan }}
+                    </div>
+                  </div>
+
+                  {% if driver_form.certified_vehicle_types.field.queryset %}
+                    <div class="col-12">
+                      <div class="field-group mb-0">
+                        <label class="field-label">Cleared to Drive</label>
+                        <div class="cert-checks">{{ driver_form.certified_vehicle_types }}</div>
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="profile-card mb-3">
+              <div class="card-header">
+                <span><i class="bi bi-sticky me-2"></i>Dispatcher Notes</span>
+              </div>
+              <div class="card-body">
+                {{ driver_form.notes }}
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+              <button type="submit" class="btn btn-primary-action">
+                <i class="bi bi-check-lg me-1"></i>Save Changes
+              </button>
+              <a href="{% url 'driver_profile' driver.id %}" class="btn">Cancel</a>
+            </div>
+          </form>
+          {% else %}
 
           {# Contact + Vehicle #}
           <div class="profile-card mb-3">
@@ -258,8 +574,88 @@
                   <span class="info-value">${{ driver.night_bonus|floatformat:2 }}</span>
                 </div>
               {% endif %}
+              <div class="info-row">
+                <span class="info-label">Employment</span>
+                <span class="info-value">{{ driver.get_employment_type_display|default:"—" }}</span>
+              </div>
             </div>
           </div>
+
+          {# Licensing & credentials #}
+          <div class="profile-card mb-3">
+            <div class="card-header">
+              <span><i class="bi bi-card-checklist me-2"></i>Licensing &amp; Credentials</span>
+            </div>
+            <div class="card-body">
+              <div class="info-row">
+                <span class="info-label">Driver's License</span>
+                <span class="info-value">
+                  {% if driver.license_number %}
+                    {{ driver.license_number }}{% if driver.license_state %} ({{ driver.license_state }}{% if driver.license_class %}, Class {{ driver.license_class }}{% endif %}){% endif %}
+                  {% else %}<span class="text-muted-dark">—</span>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">License Expires</span>
+                <span class="info-value">
+                  {% if driver.license_expiration %}{{ driver.license_expiration|date:"M j, Y" }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+                  {% if driver.license_status == "expired" %}<span class="cred-pill expired">EXPIRED</span>
+                  {% elif driver.license_status == "expiring" %}<span class="cred-pill expiring">EXPIRES SOON</span>{% endif %}
+                  {% if driver.license_scan %}<a href="{{ driver.license_scan.url }}" target="_blank" rel="noopener" class="scan-link" title="View scan" aria-label="View license scan"><i class="bi bi-paperclip"></i></a>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Name on License</span>
+                <span class="info-value">{{ driver.license_full_name|default:"—" }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Date of Birth</span>
+                <span class="info-value">
+                  {% if driver.license_date_of_birth %}{{ driver.license_date_of_birth|date:"M j, Y" }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Address on License</span>
+                <span class="info-value">{{ driver.license_address|default:"—" }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Chauffeur Permit</span>
+                <span class="info-value">
+                  {% if driver.chauffeur_permit_number %}{{ driver.chauffeur_permit_number }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Permit Expires</span>
+                <span class="info-value">
+                  {% if driver.chauffeur_permit_expiration %}{{ driver.chauffeur_permit_expiration|date:"M j, Y" }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+                  {% if driver.chauffeur_permit_status == "expired" %}<span class="cred-pill expired">EXPIRED</span>
+                  {% elif driver.chauffeur_permit_status == "expiring" %}<span class="cred-pill expiring">EXPIRES SOON</span>{% endif %}
+                  {% if driver.chauffeur_permit_scan %}<a href="{{ driver.chauffeur_permit_scan.url }}" target="_blank" rel="noopener" class="scan-link" title="View scan" aria-label="View permit scan"><i class="bi bi-paperclip"></i></a>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Permit FDL#</span>
+                <span class="info-value">
+                  {% if driver.chauffeur_permit_fdl_number %}{{ driver.chauffeur_permit_fdl_number }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+                  {% if driver.chauffeur_permit_fdl_mismatch %}<span class="cred-pill expired" title="Doesn't match the driver's license number on file">MISMATCH</span>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">DOT Medical Card Expires</span>
+                <span class="info-value">
+                  {% if driver.dot_medical_card_expiration %}{{ driver.dot_medical_card_expiration|date:"M j, Y" }}{% else %}<span class="text-muted-dark">—</span>{% endif %}
+                  {% if driver.dot_medical_card_status == "expired" %}<span class="cred-pill expired">EXPIRED</span>
+                  {% elif driver.dot_medical_card_status == "expiring" %}<span class="cred-pill expiring">EXPIRES SOON</span>{% endif %}
+                  {% if driver.dot_medical_card_scan %}<a href="{{ driver.dot_medical_card_scan.url }}" target="_blank" rel="noopener" class="scan-link" title="View scan" aria-label="View DOT card scan"><i class="bi bi-paperclip"></i></a>{% endif %}
+                </span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Cleared to Drive</span>
+                <span class="info-value">{{ driver.cert_labels|join:", "|default:"—" }}</span>
+              </div>
+            </div>
+          </div>
+          {% endif %}
 
           {# Weekly schedule #}
           <div class="profile-card mb-3">
@@ -310,8 +706,8 @@
             </div>
           </div>
 
-          {# Notes #}
-          {% if driver.notes %}
+          {# Notes (edit mode has its own copy inside the form above) #}
+          {% if not edit_mode and driver.notes %}
             <div class="profile-card mb-3">
               <div class="card-header">
                 <span><i class="bi bi-sticky me-2"></i>Dispatcher Notes</span>

@@ -23,7 +23,13 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 
 from drivers.availability import fmt_time_long
-from .models import StaffScheduleOverride, StaffExtraShift, TimeClockShift  # noqa: F401 (StaffScheduleOverride for type clarity)
+from .models import (  # noqa: F401 (StaffScheduleOverride for type clarity)
+    StaffScheduleOverride,
+    StaffExtraShift,
+    TimeClockShift,
+    WORK_LOCATION_LABELS,
+    WORK_LOCATION_SHORT,
+)
 
 
 # Comparison thresholds (minutes)
@@ -31,6 +37,9 @@ LATE_GRACE_MIN = 5
 EARLY_GRACE_MIN = 5
 SHORT_THRESHOLD_MIN = 15
 NO_SHOW_AFTER_MIN = 30  # working + nothing clocked this long past start -> no-show flag
+# How early someone may clock in ahead of their window without it counting
+# as an unscheduled punch that needs approval.
+EARLY_CLOCKIN_GRACE_MIN = 30
 
 STATUS_LABELS = {
     "on_time": "On time",
@@ -112,13 +121,19 @@ def resolve_staff_schedule(user, date):
         "display_label": "No schedule",
         "tooltip": "No schedule set for this day.",
         "role": "",
+        "location": "",
+        "location_label": "",
+        "location_flipped": False,
         "time_off": None,
         "override_id": None,
     }
 
     weekly = _weekly_row(user, date)
+    weekly_location = ""
     if weekly is not None:
         result["role"] = getattr(weekly, "role", "") or ""
+        weekly_location = getattr(weekly, "location", "") or ""
+        result["location"] = weekly_location
         if weekly.is_working:
             label = _window_label(weekly.start_time, weekly.end_time)
             result.update(
@@ -149,6 +164,11 @@ def resolve_staff_schedule(user, date):
         # A one-off role assignment wins over the recurring one; blank keeps it.
         if getattr(override, "role", ""):
             result["role"] = override.role
+        # Same for the work location — this is the "usually WFH, in office
+        # this Tuesday" flip. Flag it so the boards can call it out.
+        if getattr(override, "location", ""):
+            result["location"] = override.location
+            result["location_flipped"] = override.location != weekly_location
         if override.kind == "off":
             reason = getattr(override, "reason_label", "") or ""
             result.update(
@@ -176,6 +196,12 @@ def resolve_staff_schedule(user, date):
         elif override.kind == "note" and override.note:
             result["tooltip"] = override.note
 
+    # Location only means something on a working day.
+    if result["is_working"] is not True:
+        result["location"] = ""
+        result["location_flipped"] = False
+    result["location_label"] = WORK_LOCATION_SHORT.get(result["location"], "")
+
     return result
 
 
@@ -199,6 +225,69 @@ def extra_shifts_on(user, date, *, only_if_working=True, primary=None):
         if primary["is_working"] is False and primary["has_exception"]:
             return []
     return sorted(rows, key=lambda e: (e.start_time, e.end_time))
+
+
+def clock_in_schedule_check(user, at=None):
+    """
+    Is a clock-in at ``at`` inside this staffer's planned schedule?
+    Returns ``(in_schedule, reason)`` — reason is a short human sentence
+    explaining the flag when ``in_schedule`` is False, else "".
+
+    Rules:
+    * Inside any planned window that day (primary or split-shift half),
+      including up to ``EARLY_CLOCKIN_GRACE_MIN`` before it starts -> fine.
+    * A window from *yesterday* that crosses midnight still counts (the
+      overnight closer clocking in at 12:30 AM is on schedule).
+    * No schedule configured at all (kind "none") -> fine. An unconfigured
+      roster must never start demanding approvals.
+    * A day off, or a punch outside every window -> unscheduled.
+    """
+    at = at or timezone.now()
+    tz = timezone.get_current_timezone()
+    local = timezone.localtime(at)
+    d = local.date()
+
+    def _windows(date_):
+        sched = resolve_staff_schedule(user, date_)
+        wins = []
+        if sched["is_working"] and sched["start_time"] and sched["end_time"]:
+            wins.append((sched["start_time"], sched["end_time"]))
+        for e in extra_shifts_on(user, date_, primary=sched):
+            wins.append((e.start_time, e.end_time))
+        return sched, wins
+
+    def _span(date_, start_t, end_t):
+        a = timezone.make_aware(datetime.combine(date_, start_t), tz)
+        b = timezone.make_aware(datetime.combine(date_, end_t), tz)
+        crosses = b <= a
+        if crosses:
+            b += timedelta(days=1)
+        return a, b, crosses
+
+    sched_today, wins_today = _windows(d)
+    _, wins_prev = _windows(d - timedelta(days=1))
+
+    grace = timedelta(minutes=EARLY_CLOCKIN_GRACE_MIN)
+    spans = [_span(d, s, e) for s, e in wins_today]
+    # Yesterday's windows only matter if they spill past midnight into today.
+    spans += [sp for sp in (_span(d - timedelta(days=1), s, e) for s, e in wins_prev) if sp[2]]
+    for a, b, _crosses in spans:
+        if a - grace <= at <= b:
+            return True, ""
+
+    if sched_today["kind"] == "none":
+        return True, ""  # today is unconfigured — nothing to be outside of
+
+    when = fmt_time_long(local.time())
+    if sched_today["is_working"] is False:
+        off = sched_today.get("time_off")
+        if off and off.get("reason_label"):
+            return False, f"Clocked in at {when} while booked off ({off['reason_label']})."
+        return False, f"Clocked in at {when} — not scheduled to work {local.strftime('%A')}."
+    if wins_today:
+        planned = " + ".join(_window_label(s, e) for s, e in wins_today)
+        return False, f"Clocked in at {when}, outside the scheduled {planned}."
+    return False, f"Clocked in at {when}, outside the scheduled hours."
 
 
 def week_schedule(user, monday_date):

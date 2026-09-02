@@ -38,6 +38,8 @@ from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
 from . import quote_engine
 from . import pickup_policy
+from . import booking_flags
+from .payment_display import board_pay_state
 from django.templatetags.static import static
 from drivers.models import (
     Driver,
@@ -64,7 +66,6 @@ from .forms import (
     DispatcherLegFormSet,
     DispatcherFlightFormSet,
     DispatcherPricingForm,
-    TripTypeForm,
 )
 
 # django-simple-history helpers for history views
@@ -1556,6 +1557,7 @@ def schedule_board(request):
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
             'is_paid': (leg.reservation.payment_status == 'paid') if leg.reservation else True,
+            'pay_state': board_pay_state(leg.reservation),
             'passengers': int(leg.effective_passenger_count or 1),
             'luggage': int(leg.effective_luggage_count or 0),
             'luggage_type': leg.effective_luggage_type or '',
@@ -1884,9 +1886,22 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         status_filter = self.request.GET.get("status")
         if status_filter:
             if status_filter == "need_payment":
+                # "no payment row of ANY kind" — deliberately not the complement of
+                # card_saved below. A reservation whose only row is 'pending' sits in
+                # neither bucket; the two do not partition the unpaid world.
                 queryset = queryset.filter(payments__isnull=True)
             elif status_filter == "card_saved":
-                queryset = queryset.filter(payments__status="card_saved").distinct()
+                # "Still owes us, but we hold a card" — NOT "was ever booked with a
+                # card". Charging a saved card INSERTs a second Payment row keyed on a
+                # fresh PaymentIntent rather than mutating the booking-time card_saved
+                # row, so a has-any-row test returned every already-collected trip too.
+                # exclude() compiles to a row-level NOT EXISTS over the whole payment
+                # set, so a second join row cannot defeat it. This is the ORM
+                # transcription of Reservation.payment_status's paid-beats-card_saved
+                # precedence — the property itself stays the source of truth.
+                queryset = (queryset.filter(payments__status="card_saved")
+                                    .exclude(payments__status="paid")
+                                    .distinct())
             else:
                 queryset = queryset.filter(status=status_filter)
 
@@ -1902,23 +1917,35 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         context = super().get_context_data(**kwargs)
         queryset = self._get_filtered_queryset(include_related=False)
 
-        # Annotate counts in a single query
+        # Annotate counts in a single query.
+        # distinct=True throughout: the sibling filter=Q(payments__...) clauses force
+        # the payments join onto the whole aggregate, so a reservation with several
+        # payment rows was being counted once per row.
         stats = queryset.aggregate(
-            total_count=Count("id"),
-            pending_count=Count("id", filter=Q(status="pending")),
-            confirmed_count=Count("id", filter=Q(status="confirmed")),
-            need_payment_count=Count("id", filter=Q(payments__isnull=True)),
-            card_saved_count=Count("id", filter=Q(payments__status="card_saved"), distinct=True),
+            total_count=Count("id", distinct=True),
+            pending_count=Count("id", filter=Q(status="pending"), distinct=True),
+            confirmed_count=Count("id", filter=Q(status="confirmed"), distinct=True),
+            need_payment_count=Count("id", filter=Q(payments__isnull=True), distinct=True),
         )
+
+        # The card-on-file figures can't be an aggregate filter: the predicate is a
+        # NOT EXISTS, and Sum() has no distinct= that survives the payments join.
+        # Computed off their own de-duplicated queryset so the headline number always
+        # equals the number of rows the filter actually shows.
+        _card_qs = (queryset.filter(payments__status="card_saved")
+                            .exclude(payments__status="paid")
+                            .distinct())
+        card_saved_count = _card_qs.count()
 
         # Only calculate revenue for admins
         if can_view_revenue(self.request.user):
-            revenue_stats = queryset.aggregate(
-                total_revenue=Sum("total_price", filter=Q(payments__status="paid")),
-                card_saved_total=Sum("total_price", filter=Q(payments__status="card_saved")),
-            )
-            total_revenue = revenue_stats["total_revenue"] or 0
-            card_saved_total = revenue_stats["card_saved_total"] or 0
+            # .distinct() makes Django wrap the aggregate in a subquery, which is what
+            # stops total_price being added once per joined payment row — a
+            # reservation paid in two instalments was counting its full price twice.
+            total_revenue = (queryset.filter(payments__status="paid")
+                                     .distinct()
+                                     .aggregate(t=Sum("total_price"))["t"] or 0)
+            card_saved_total = _card_qs.aggregate(t=Sum("total_price"))["t"] or 0
         else:
             total_revenue = None
             card_saved_total = None
@@ -1930,7 +1957,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 "pending_reservations": stats["pending_count"],
                 "confirmed_reservations": stats["confirmed_count"],
                 "need_payment_count": stats["need_payment_count"],
-                "card_saved_count": stats["card_saved_count"],
+                "card_saved_count": card_saved_count,
                 "card_saved_total": card_saved_total,
                 "total_revenue": total_revenue,
                 "can_view_revenue": can_view_revenue(self.request.user),
@@ -2398,6 +2425,11 @@ def modify_reservation(request, id):
         Reservation.objects.prefetch_related("legs"), uuid=id
     )
 
+    # Read the tip BEFORE the form binds. ModelForm._post_clean mutates the
+    # instance during is_valid(), so after that point reservation.gratuity_amount
+    # is already the new number and the change is invisible.
+    _gratuity_before = reservation.gratuity_amount or Decimal("0.00")
+
     if request.method == "POST":
         customer_form = CustomerForm(request.POST, instance=reservation.customer)
         reservation_form = ReservationAdminForm(request.POST, instance=reservation)
@@ -2462,6 +2494,33 @@ def modify_reservation(request, id):
                         leg_errors.append(
                             f"Leg {i} — {field_label}: {'; '.join(errs)}"
                         )
+
+            # A tip typed into this form used to stop at the reservation. The legs
+            # are what payroll reads, and Leg.save() only splits a tip while all
+            # four pay fields are still NULL — on an assigned leg that guard is
+            # shut, so the driver never saw the money. Push the DIFFERENCE through
+            # the same helper the saved-card charge uses; it conserves the total
+            # and leaves any tip already pinned to one leg alone.
+            #
+            # After the leg loop on purpose: the loop holds leg instances fetched
+            # before this point and would write their stale gratuity back over it.
+            _gratuity_after = updated_reservation.gratuity_amount or Decimal("0.00")
+            _gratuity_delta = _gratuity_after - _gratuity_before
+            if _gratuity_delta:
+                try:
+                    _apply_gratuity_to_legs(
+                        Reservation.objects.prefetch_related("legs").get(
+                            pk=updated_reservation.pk
+                        ),
+                        _gratuity_delta,
+                        "whole",
+                        payable_only=True,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Could not push gratuity change to legs on reservation %s: %s",
+                        updated_reservation.pk, e,
+                    )
 
             if leg_errors:
                 for err in leg_errors:
@@ -4397,7 +4456,12 @@ def _add_leg_gratuity(leg, portion):
     convention as booking-time extra_charges). Setting driver_gratuity keeps the
     Leg.save() equal-split from later overwriting this attribution."""
     portion = Decimal(str(portion)).quantize(Decimal("0.01"))
-    leg.driver_gratuity = (leg.driver_gratuity or Decimal("0.00")) + portion
+    # Floor at zero. A leg can hold no share of a tip; it can never hold a
+    # negative one, which would read as the chauffeur owing money on a trip he
+    # drove and would drag total_driver_pay below his base rate.
+    leg.driver_gratuity = max(
+        (leg.driver_gratuity or Decimal("0.00")) + portion, Decimal("0.00")
+    )
     leg.driver_pay_amount = (
         (leg.driver_base_pay or Decimal("0.00"))
         + leg.driver_gratuity
@@ -4411,12 +4475,26 @@ def _add_leg_gratuity(leg, portion):
     leg.save(update_fields=update_fields)
 
 
-def _apply_gratuity_to_legs(reservation, amount, target):
+def _apply_gratuity_to_legs(reservation, amount, target, payable_only=False):
     """Attribute a charged customer gratuity to per-leg driver_gratuity so payroll
     pays the right driver. target='whole' splits evenly across legs (rounding
     remainder on the last leg); otherwise `target` is a leg id and the whole tip
-    goes to that one leg's driver."""
+    goes to that one leg's driver.
+
+    ``payable_only`` restricts the split to legs that can still receive money.
+    A charge coming off a card is attributed to whatever legs the booking has,
+    which is right for a charge. A dispatcher CORRECTING a tip is a different
+    act: a share parked on a cancelled leg is money no chauffeur ever sees
+    (payroll reads completed + unpaid), and a paid leg sits behind a statement
+    that is a frozen snapshot — rewriting the leg desyncs the two.
+    """
     legs = list(reservation.legs.all())
+    if payable_only:
+        legs = [
+            leg for leg in legs
+            if leg.payment_status == "unpaid"
+            and (leg.status or "").lower() not in ("cancelled", "canceled")
+        ]
     if not legs:
         return
     amount = Decimal(str(amount)).quantize(Decimal("0.01"))
@@ -4431,6 +4509,29 @@ def _apply_gratuity_to_legs(reservation, amount, target):
             _add_leg_gratuity(chosen, amount)
             return
         # Unknown leg id → fall through to an even split (never drop the money).
+
+    if amount < 0:
+        # Taking a tip back is not the mirror image of giving one. An even split
+        # of a reduction overdraws any leg holding less than its share — a $100
+        # tip pinned to one leg of two, reduced to $0, leaves the other leg at
+        # −$50. Take it back in proportion to what each leg is actually holding
+        # instead: that can never overdraw, and a leg holding nothing gives up
+        # nothing.
+        held = [(leg, leg.driver_gratuity or Decimal("0.00")) for leg in legs]
+        pool = sum((amount_held for _, amount_held in held), Decimal("0.00"))
+        if pool <= 0:
+            return
+        take = min(-amount, pool)
+        removed = Decimal("0.00")
+        for i, (leg, amount_held) in enumerate(held):
+            if i < len(held) - 1:
+                portion = min((take * amount_held / pool).quantize(Decimal("0.01")), amount_held)
+            else:
+                portion = min(take - removed, amount_held)
+            if portion > 0:
+                _add_leg_gratuity(leg, -portion)
+                removed += portion
+        return
 
     # Whole reservation → split evenly; put any rounding remainder on the last leg.
     share = (amount / Decimal(len(legs))).quantize(Decimal("0.01"))
@@ -4852,7 +4953,17 @@ def dispatcher_payment_portal(request, reservation_id):
                         else:
                             # Additional charge (existing behavior): add to total only
                             # if nothing was owed (else it's a payment toward a balance).
-                            should_add_to_total = amount_owed_before <= Decimal("0.01")
+                            #
+                            # 'trip_fare' is the same money movement stated outright:
+                            # collecting what is already owed, so it NEVER adds to the
+                            # total. It existed as behaviour before it existed as an
+                            # option — a dispatcher charging a fare on a saved card had
+                            # to pick "Additional Charge → Extra Stop" and rely on this
+                            # heuristic, which put "Extra Stop" on the guest's receipt.
+                            should_add_to_total = (
+                                charge_type != "trip_fare"
+                                and amount_owed_before <= Decimal("0.01")
+                            )
                             if should_add_to_total:
                                 reservation.total_price += final_amount
                                 logger.info(
@@ -5812,7 +5923,11 @@ def match_leg_time_to_flight(request):
         for task in dc_tasks:
             if remaining is None:
                 continue
-            if not remaining:
+            still_red = [c for c in remaining if c.get("tier") == "red"]
+            if not still_red:
+                # Empty, or cooled to amber (tight but makes it) — either way this
+                # is no longer a CRITICAL emergency; the 30-min scan will raise a
+                # fresh TIGHT_TURN task if an amber conflict is still open.
                 close_task(task, resolved_by=request.user, resolution_notes=match_note)
                 StaffActivity.objects.create(
                     user=request.user,
@@ -5820,8 +5935,8 @@ def match_leg_time_to_flight(request):
                     task=task,
                 )
             else:
-                # Conflict persists — update the task description but keep it open
-                worst = max(remaining, key=lambda c: c["conflict_minutes"])
+                # Genuinely still won't make it — update the task description but keep it open
+                worst = max(still_red, key=lambda c: c["conflict_minutes"])
                 task.description = (
                     f"Flight matched but conflict remains: driver will be "
                     f"{worst['conflict_minutes']} min late — reassign or adjust times."
@@ -7195,6 +7310,55 @@ def _apply_leg_override_fields(leg, leg_data):
     return modified, None
 
 
+def _booking_leg_vehicle(leg_data, default_vehicle):
+    """The Vehicle that actually applies to one wizard leg: its own
+    per-leg override if the dispatcher set one, else the reservation-level
+    vehicle chosen back in Step 2."""
+    override_id = (leg_data.get('overrides') or {}).get('vehicle')
+    if override_id:
+        try:
+            return Vehicle.objects.get(id=int(override_id))
+        except (Vehicle.DoesNotExist, ValueError, TypeError):
+            pass
+    return default_vehicle
+
+
+def _booking_is_round_trip(legs_data, default_vehicle, locations):
+    """True only when leg 2 is genuinely the return half of leg 1 — same
+    vehicle, and its pickup/dropoff are leg 1's dropoff/pickup reversed.
+
+    Two one-way legs that both happen to number two (e.g. MCO -> Disney,
+    then Disney -> Port) are NOT a round trip just because there are two of
+    them; mislabeling them as one caused a real reservation to be priced off
+    a single round-trip rate for leg 1's route/vehicle only, silently
+    dropping leg 2 from the price entirely.
+    """
+    if len(legs_data) != 2:
+        return False
+    leg0, leg1 = legs_data
+    if _booking_leg_vehicle(leg0, default_vehicle) != _booking_leg_vehicle(leg1, default_vehicle):
+        return False
+    p0, _ = quote_engine.match_location(leg0.get('pickup_location'), locations)
+    d0, _ = quote_engine.match_location(leg0.get('dropoff_location'), locations)
+    p1, _ = quote_engine.match_location(leg1.get('pickup_location'), locations)
+    d1, _ = quote_engine.match_location(leg1.get('dropoff_location'), locations)
+    if not (p0 and d0 and p1 and d1):
+        return False
+    return p1.pk == d0.pk and d1.pk == p0.pk
+
+
+def _booking_lookup_rate(vehicle, origin, destination):
+    """Published Rate for a vehicle + location pair, either direction."""
+    rate = Rate.objects.filter(
+        vehicle=vehicle, route__origin=origin, route__destination=destination
+    ).select_related('route', 'route__origin', 'route__destination').first()
+    if not rate:
+        rate = Rate.objects.filter(
+            vehicle=vehicle, route__origin=destination, route__destination=origin
+        ).select_related('route', 'route__origin', 'route__destination').first()
+    return rate
+
+
 @login_required
 @require_POST
 def update_leg_info(request):
@@ -7314,6 +7478,11 @@ def update_leg_info(request):
 
         # Save the leg if any fields were updated
         if update_fields:
+            # Leg.save() re-anchors these as it runs, so a failed save leaves the
+            # instance believing the pickup never moved. The retry below would then
+            # compute a night-bonus change of zero and silently drop the money.
+            _pre_save_time = getattr(leg, '_original_pickup_time', None)
+            _pre_save_date = getattr(leg, '_original_pickup_date', None)
             try:
                 leg.save(update_fields=update_fields)
             except Exception as e:
@@ -7324,6 +7493,8 @@ def update_leg_info(request):
                     # Re-apply the cruise_information change if needed
                     if 'cruise_information' in update_fields and cruise_to_delete:
                         leg.cruise_information = None
+                    leg._original_pickup_time = _pre_save_time
+                    leg._original_pickup_date = _pre_save_date
                     leg.save()
                 except Exception as save_error:
                     logger.error(f"Error saving leg {leg.id} without update_fields: {save_error}")
@@ -7711,42 +7882,23 @@ def delete_leg_flight(request, leg_id, legflight_id):
 @login_required(login_url="login")
 def dispatcher_booking_start(request):
     """
-    Step 1: Trip type selection for dispatcher booking
+    Entry point: start a fresh booking and go straight to the customer step.
+
+    How many legs the trip has is no longer asked up front — the dispatcher
+    adds and removes legs on the trip-details step as the call unfolds, and
+    trip_type is derived from the final leg count there.
     """
     if not request.user.is_staff:
         return redirect("home")
-    
-    if request.method == "POST":
-        form = TripTypeForm(request.POST)
-        if form.is_valid():
-            trip_type = form.cleaned_data['trip_type']
-            num_legs = form.cleaned_data.get('num_legs', 1)
-            
-            # Store in session for next steps
-            request.session['dispatcher_booking'] = {
-                'trip_type': trip_type,
-                'num_legs': num_legs if trip_type == 'multi_leg' else (2 if trip_type == 'round_trip' else 1),
-                'step': 1
-            }
-            
-            return redirect('dispatcher_booking_customer')
-    else:
-        form = TripTypeForm()
-    
-    context = {
-        'form': form,
-        'step': 1,
-        'step_title': 'Select Trip Type',
-        'step_description': 'Choose the type of trip for this reservation'
-    }
-    
-    return render(request, 'dispatching/booking/step_trip_type.html', context)
+
+    request.session['dispatcher_booking'] = {'step': 1}
+    return redirect('dispatcher_booking_customer')
 
 
 @login_required(login_url="login")
 def dispatcher_booking_customer(request):
     """
-    Step 2: Customer information collection
+    Step 1: Customer information collection
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7764,7 +7916,21 @@ def dispatcher_booking_customer(request):
             
             # Update session with customer ID
             booking_data['customer_id'] = customer.id
-            booking_data['step'] = 2
+            booking_data['step'] = 1
+
+            # "Book This Route Again" is pressed on step 1 but lands on step 3,
+            # so the chosen route rides along in the session.
+            repeat_from = (request.POST.get('repeat_from') or '').strip()
+            repeat_to = (request.POST.get('repeat_to') or '').strip()
+            if repeat_from and repeat_to:
+                booking_data['repeat_route'] = {
+                    'from': repeat_from,
+                    'to': repeat_to,
+                    'airline': (request.POST.get('repeat_airline') or '').strip(),
+                }
+            else:
+                booking_data.pop('repeat_route', None)
+
             request.session['dispatcher_booking'] = booking_data
             
             messages.success(request, f"Customer {customer.get_full_name()} saved successfully.")
@@ -7788,7 +7954,7 @@ def dispatcher_booking_customer(request):
 
     context = {
         'form': form,
-        'step': 2,
+        'step': 1,
         'step_title': 'Customer Information',
         'step_description': 'Enter customer contact details',
         'booking_data': booking_data
@@ -7800,7 +7966,7 @@ def dispatcher_booking_customer(request):
 @login_required(login_url="login")
 def dispatcher_booking_reservation(request):
     """
-    Step 3: Reservation details (pricing, vehicle, passengers, etc.)
+    Step 2: Reservation details (pricing, vehicle, passengers, etc.)
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7825,7 +7991,7 @@ def dispatcher_booking_reservation(request):
                     reservation_data[field] = str(value) if value is not None else None
             
             booking_data['reservation_data'] = reservation_data
-            booking_data['step'] = 3
+            booking_data['step'] = 2
             request.session['dispatcher_booking'] = booking_data
             
             return redirect('dispatcher_booking_legs')
@@ -7853,12 +8019,23 @@ def dispatcher_booking_reservation(request):
         initial_data = booking_data.get('reservation_data', {})
         form = DispatcherReservationForm(initial=initial_data)
 
+    # The summary rail names the vehicle on every step, so resolve it here too
+    # rather than showing "Not set" on a step the dispatcher walked back into.
+    saved_vehicle = None
+    saved_vehicle_id = (booking_data.get('reservation_data') or {}).get('manual_vehicle')
+    if saved_vehicle_id:
+        try:
+            saved_vehicle = Vehicle.objects.get(id=saved_vehicle_id)
+        except (Vehicle.DoesNotExist, ValueError, TypeError):
+            saved_vehicle = None
+
     context = {
         'form': form,
         'customer': customer,
-        'step': 3,
+        'vehicle': saved_vehicle,
+        'step': 2,
         'step_title': 'Reservation Details',
-        'step_description': 'Set pricing, vehicle type, and passenger details',
+        'step_description': 'Passengers, car seats, vehicle, and extras',
         'booking_data': booking_data
     }
     
@@ -7868,7 +8045,10 @@ def dispatcher_booking_reservation(request):
 @login_required(login_url="login")
 def dispatcher_booking_legs(request):
     """
-    Step 4: Trip legs and flight information
+    Step 3: Trip legs and flight information
+
+    The dispatcher adds and removes legs here, so the leg count comes from the
+    formset itself, never from a value chosen earlier in the flow.
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -7879,7 +8059,6 @@ def dispatcher_booking_legs(request):
         return redirect('dispatcher_booking_reservation')
 
     customer = get_object_or_404(Customer, id=booking_data['customer_id'])
-    num_legs = booking_data.get('num_legs', 1)
     reservation_data = booking_data.get('reservation_data', {})
 
     # Resolve the reservation-level vehicle (used as override default placeholder)
@@ -7999,13 +8178,25 @@ def dispatcher_booking_legs(request):
                         ),
                     }
                 else:
+                    n = len(legs_data)
+                    if n == 1:
+                        booking_data['trip_type'] = 'one_way'
+                    elif n == 2 and _booking_is_round_trip(
+                        legs_data, vehicle, Location.objects.all()
+                    ):
+                        booking_data['trip_type'] = 'round_trip'
+                    else:
+                        # Two (or more) legs that aren't a verified return trip
+                        # are independent one-way legs, priced separately.
+                        booking_data['trip_type'] = 'multi_leg'
+                    booking_data['num_legs'] = n
                     booking_data['legs_data'] = legs_data
                     booking_data['flights_data'] = flights_data
                     # Carried to the review step so acknowledged warnings and
                     # verified-flight confirmations stay visible at confirm time.
                     booking_data['sanity_results'] = sanity_warnings
                     booking_data['sanity_acknowledged'] = bool(blocking)
-                    booking_data['step'] = 4
+                    booking_data['step'] = 3
                     request.session['dispatcher_booking'] = booking_data
 
                     return redirect('dispatcher_booking_pricing')
@@ -8049,16 +8240,29 @@ def dispatcher_booking_legs(request):
                     error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
                 messages.error(request, error_msg)
     else:
-        # Pre-populate from session if data exists (back-button support)
-        legs_initial = booking_data.get('legs_data', [{} for _ in range(num_legs)])
-        flights_initial = booking_data.get('flights_data', [{} for _ in range(num_legs)])
-        # Pad with empty dicts if fewer than num_legs
-        while len(legs_initial) < num_legs:
-            legs_initial.append({})
-        while len(flights_initial) < num_legs:
+        # Pre-populate from session if data exists (back-button support).
+        # A fresh booking starts with a single leg; the dispatcher adds more.
+        legs_initial = booking_data.get('legs_data') or [{}]
+        flights_initial = booking_data.get('flights_data') or []
+        # First visit after "Book This Route Again": leg 1 starts on the route
+        # this guest took last time. Anything already typed wins.
+        repeat_route = booking_data.get('repeat_route')
+        if repeat_route and not booking_data.get('legs_data'):
+            legs_initial[0].setdefault('pickup_location', repeat_route.get('from', ''))
+            legs_initial[0].setdefault('dropoff_location', repeat_route.get('to', ''))
+            if repeat_route.get('airline'):
+                if not flights_initial:
+                    flights_initial.append({})
+                flights_initial[0].setdefault('airline', repeat_route['airline'])
+        while len(flights_initial) < len(legs_initial):
             flights_initial.append({})
         leg_formset = DispatcherLegFormSet(prefix='legs', initial=legs_initial)
         flight_formset = DispatcherFlightFormSet(prefix='flights', initial=flights_initial)
+
+    # The formset is the single source of truth for how many legs are on screen:
+    # on a validation-error or sanity-panel re-render the dispatcher may have
+    # added or removed legs client-side, so the session count would be stale.
+    num_legs = leg_formset.total_form_count()
 
     # Build per-leg override list for template (used to repopulate fields on
     # back-nav and to keep the override panel expanded when overrides are set).
@@ -8078,9 +8282,9 @@ def dispatcher_booking_legs(request):
         'flight_formset': flight_formset,
         'customer': customer,
         'num_legs': num_legs,
-        'step': 4,
+        'step': 3,
         'step_title': 'Trip Details',
-        'step_description': f'Enter details for {num_legs} trip leg(s)',
+        'step_description': 'Add each leg of the trip — one for a one-way, two for a round trip, or as many as the guest needs',
         'booking_data': booking_data,
         'reservation_data': reservation_data,
         'vehicle': vehicle,
@@ -8095,7 +8299,7 @@ def dispatcher_booking_legs(request):
 @login_required(login_url="login")
 def dispatcher_booking_pricing(request):
     """
-    Step 5: Pricing and final details
+    Step 4: Pricing and final details
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -8133,7 +8337,7 @@ def dispatcher_booking_pricing(request):
                 }
                 
                 booking_data['pricing_data'] = pricing_data
-                booking_data['step'] = 5
+                booking_data['step'] = 4
                 request.session['dispatcher_booking'] = booking_data
                 
                 return redirect('dispatcher_booking_review')
@@ -8168,50 +8372,74 @@ def dispatcher_booking_pricing(request):
         vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
 
     # --- Suggested rate lookup ---
-    suggested_rate = None
+    # A verified round trip (see _booking_is_round_trip in Step 3) prices as
+    # one bundled round-trip rate off leg 1's route/vehicle, same as before.
+    # Anything else -- one leg, or several legs that are NOT a matched return
+    # trip -- prices each leg independently on ITS OWN route and vehicle and
+    # sums them, so a leg using a different vehicle (e.g. a Van return after
+    # an SUV outbound) is never silently priced (or dropped) as if it shared
+    # leg 1's vehicle/route.
     suggested_price = None
     suggested_route_label = None
-    if vehicle and booking_data.get('legs_data'):
-        first_leg = booking_data['legs_data'][0]
-        pickup_text = (first_leg.get('pickup_location') or '').lower()
-        dropoff_text = (first_leg.get('dropoff_location') or '').lower()
-        if pickup_text and dropoff_text:
-            locations = Location.objects.all()
-            pickup_match = None
-            dropoff_match = None
-            for loc in locations:
-                keywords = [loc.name.lower()]
-                if loc.aliases:
-                    keywords += [a.strip().lower() for a in loc.aliases.split(',')]
-                for kw in keywords:
-                    if kw and kw in pickup_text:
-                        pickup_match = loc
-                        break
-                for kw in keywords:
-                    if kw and kw in dropoff_text:
-                        dropoff_match = loc
-                        break
-            if pickup_match and dropoff_match:
-                trip_type = booking_data.get('trip_type', 'one_way')
-                rate = Rate.objects.filter(
-                    vehicle=vehicle,
-                    route__origin=pickup_match,
-                    route__destination=dropoff_match,
-                ).select_related('route', 'route__origin', 'route__destination').first()
-                # Try reverse direction if not found
-                if not rate:
-                    rate = Rate.objects.filter(
-                        vehicle=vehicle,
-                        route__origin=dropoff_match,
-                        route__destination=pickup_match,
-                    ).select_related('route', 'route__origin', 'route__destination').first()
+    suggested_priced_legs = 0
+    legs_data = booking_data.get('legs_data', [])
+    trip_type = booking_data.get('trip_type', 'one_way')
+    if legs_data:
+        locations = list(Location.objects.all())
+
+        if trip_type == 'round_trip' and len(legs_data) == 2:
+            first_leg = legs_data[0]
+            leg_vehicle = _booking_leg_vehicle(first_leg, vehicle)
+            pickup_match, _ = quote_engine.match_location(first_leg.get('pickup_location'), locations)
+            dropoff_match, _ = quote_engine.match_location(first_leg.get('dropoff_location'), locations)
+            if leg_vehicle and pickup_match and dropoff_match:
+                rate = _booking_lookup_rate(leg_vehicle, pickup_match, dropoff_match)
                 if rate:
-                    suggested_rate = rate
-                    if trip_type == 'round_trip':
-                        suggested_price = rate.round_trip_price
-                    else:
-                        suggested_price = rate.oneway_price
-                    suggested_route_label = f"{rate.route.origin.name} to {rate.route.destination.name}"
+                    suggested_price = rate.round_trip_price
+                    suggested_priced_legs = len(legs_data)
+                    suggested_route_label = (
+                        f"{leg_vehicle.get_vehicle_type_display()} · "
+                        f"{rate.route.origin.name} to {rate.route.destination.name} · Round Trip"
+                    )
+        else:
+            leg_labels = []
+            total = Decimal('0.00')
+            priced_count = 0
+            for leg_data in legs_data:
+                leg_vehicle = _booking_leg_vehicle(leg_data, vehicle)
+                pickup_match, _ = quote_engine.match_location(leg_data.get('pickup_location'), locations)
+                dropoff_match, _ = quote_engine.match_location(leg_data.get('dropoff_location'), locations)
+                if not (leg_vehicle and pickup_match and dropoff_match):
+                    continue
+                rate = _booking_lookup_rate(leg_vehicle, pickup_match, dropoff_match)
+                if not rate:
+                    continue
+                total += rate.oneway_price
+                priced_count += 1
+                leg_labels.append(
+                    f"{rate.route.origin.name} to {rate.route.destination.name} "
+                    f"({leg_vehicle.get_vehicle_type_display()})"
+                )
+            if priced_count:
+                suggested_price = total
+                suggested_priced_legs = priced_count
+                suggested_route_label = " + ".join(leg_labels)
+                if priced_count < len(legs_data):
+                    unpriced = len(legs_data) - priced_count
+                    suggested_route_label += f" (+{unpriced} leg{'s' if unpriced != 1 else ''} not priced)"
+
+    # After-hours surcharge: a flat fee per leg picked up between 10 PM and 6 AM.
+    # The guest booking form has always applied this; a dispatcher had to know
+    # the rule and type it in by hand, so it quietly went uncollected. The
+    # suggested rate now carries it, named, instead of hiding inside one number.
+    from reservations.utils import AFTERHOURS_FEE_AMOUNT, is_afterhours_time
+    from .booking_flags import parse_clock
+
+    afterhours_legs = [
+        i + 1 for i, leg in enumerate(legs_data)
+        if is_afterhours_time(parse_clock(leg.get('pickup_time')))
+    ]
+    suggested_afterhours = AFTERHOURS_FEE_AMOUNT * len(afterhours_legs)
 
     context = {
         'form': form,
@@ -8219,13 +8447,24 @@ def dispatcher_booking_pricing(request):
         'vehicle': vehicle,
         'legs_data': booking_data.get('legs_data', []),
         'flights_data': booking_data.get('flights_data', []),
-        'step': 5,
+        'afterhours_legs': afterhours_legs,
+        'afterhours_fee': suggested_afterhours,
+        'afterhours_unit_fee': AFTERHOURS_FEE_AMOUNT,
+        'suggested_total': (
+            (suggested_price + suggested_afterhours) if suggested_price is not None else None
+        ),
+        'step': 4,
         'step_title': 'Pricing & Notes',
         'step_description': 'Set pricing and add any final notes',
         'booking_data': booking_data,
         'suggested_price': suggested_price,
         'suggested_route_label': suggested_route_label,
-        'suggested_trip_type': 'Round Trip' if booking_data.get('trip_type') == 'round_trip' else 'One Way',
+        # Drives the partial-rate card: a rate that covered only some of the
+        # legs must say so, or the rest quietly ride along at $0.
+        'suggested_priced_legs': suggested_priced_legs,
+        'suggested_unpriced_legs': (
+            max(len(legs_data) - suggested_priced_legs, 0) if suggested_price else 0
+        ),
     }
 
     return render(request, 'dispatching/booking/step_pricing.html', context)
@@ -8234,7 +8473,7 @@ def dispatcher_booking_pricing(request):
 @login_required(login_url="login")
 def dispatcher_booking_review(request):
     """
-    Step 6: Review and confirm reservation
+    Step 5: Review and confirm reservation
     """
     if not request.user.is_staff:
         return redirect("home")
@@ -8291,12 +8530,59 @@ def dispatcher_booking_review(request):
     vehicle = None
     if reservation_data.get('manual_vehicle'):
         vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
-    
+
+    # The read-back sentence quotes the flight's SCHEDULED time, which comes
+    # from the schedule lookup run at step 3 — never from the pickup time. The
+    # two are different facts, and reading one as the other tells the guest
+    # something untrue. With no verified schedule the clause simply omits it.
+    sanity_results = booking_data.get('sanity_results') or []
+    flight_times = {
+        w['leg']: w['sched_time']
+        for w in sanity_results
+        if w.get('sched_time') and w.get('leg')
+    }
+    for idx, combined_leg in enumerate(combined_legs):
+        combined_leg['flight_sched'] = flight_times.get(idx + 1)
+
+    # Step 5 is the audit: re-check the whole booking, because a trip that was
+    # clean at step 2 can stop being clean by step 4.
+    review_flags = booking_flags.review_flags(
+        customer=customer,
+        reservation_data=reservation_data,
+        vehicle=vehicle,
+        legs_data=legs_data,
+        flights_data=flights_data,
+        pricing_data=pricing_data,
+    )
+    for w in sanity_results:
+        if w.get('severity') == 'warning':
+            review_flags.append({'tone': 'warn', 'text': w['message'], 'step': 3})
+        elif w.get('severity') == 'error':
+            review_flags.append({'tone': 'crit', 'text': w['message'], 'step': 3})
+
+    blocking_flags = [f for f in review_flags if f['tone'] == 'crit']
+    warning_flags = [f for f in review_flags if f['tone'] == 'warn']
+
     if request.method == "POST":
         if 'confirm' in request.POST:
             try:
                 # Validate required data before creating reservation
-                if not booking_data.get('legs_data'):
+                if blocking_flags:
+                    messages.error(request, (
+                        "This reservation can't be created yet:<br>• "
+                        + "<br>• ".join(f['text'] for f in blocking_flags[:5])
+                    ))
+                elif not request.POST.get('read_back'):
+                    messages.error(
+                        request,
+                        "Read the trip back to the guest and tick the box before creating it.",
+                    )
+                elif warning_flags and not request.POST.get('ack_flags'):
+                    messages.error(
+                        request,
+                        "Confirm you checked the warnings before creating this reservation.",
+                    )
+                elif not booking_data.get('legs_data'):
                     messages.error(request, "Cannot create reservation: No trip legs found. Please go back and add leg details.")
                 elif not booking_data.get('pricing_data'):
                     messages.error(request, "Cannot create reservation: Pricing information is missing. Please go back and set pricing.")
@@ -8348,15 +8634,17 @@ def dispatcher_booking_review(request):
         if hasattr(pd, 'toordinal'):
             combined_leg['days_until'] = (pd - today).days
 
-    sanity_results = booking_data.get('sanity_results') or []
     context = {
         'customer': customer,
+        'review_flags': review_flags,
+        'blocking_count': len(blocking_flags),
+        'warning_count': len(warning_flags),
         'reservation_data': reservation_data,
         'pricing_data': pricing_data,
         'legs_data': combined_legs,  # Use combined legs data
         'flights_data': flights_data,
         'vehicle': vehicle,
-        'step': 6,
+        'step': 5,
         'step_title': 'Review & Confirm',
         'step_description': 'Review all details and create the reservation',
         'booking_data': booking_data,
@@ -8522,6 +8810,13 @@ def create_dispatcher_reservation(booking_data):
         # Create legs
         if not legs_data:
             raise ValueError("Cannot create reservation: No trip legs provided")
+
+        from reservations.utils import AFTERHOURS_FEE_AMOUNT as _AH_FEE
+        from .booking_flags import parse_clock as _parse_clock
+        from reservations.utils import is_afterhours_time as _is_afterhours
+        afterhours_total = _AH_FEE * sum(
+            1 for l in legs_data if _is_afterhours(_parse_clock(l.get('pickup_time')))
+        )
         
         for i, leg_data in enumerate(legs_data):
             # Validate required leg fields
@@ -8569,6 +8864,16 @@ def create_dispatcher_reservation(booking_data):
                 gratuity_note = f"${gratuity_per_leg:.2f} Gratuity Included"
                 private_notes = f"{private_notes}\n{gratuity_note}".strip() if private_notes else gratuity_note
 
+            # Mark the after-hours fee as collected only when the additional
+            # charges on this booking actually cover it. The marker is what
+            # stops a later flight-delay pass from asking for the same $20
+            # twice — and leaving it unset when nobody charged the fee is what
+            # lets that pass still catch it.
+            from reservations.utils import AFTERHOURS_FEE_AMOUNT, afterhours_fee_owed
+            leg_afterhours = afterhours_fee_owed(pickup_time)
+            if leg_afterhours and additional_charges < afterhours_total:
+                leg_afterhours = Decimal('0.00')
+
             leg = Leg.objects.create(
                 reservation=reservation,
                 flight_information=flight,
@@ -8577,6 +8882,7 @@ def create_dispatcher_reservation(booking_data):
                 pickup_location=leg_data.get('pickup_location', ''),
                 dropoff_location=leg_data.get('dropoff_location', ''),
                 private_notes=private_notes,
+                afterhours_fee=leg_afterhours,
             )
             if flight is not None:
                 _sync_legacy_flight_information(leg)
@@ -8622,6 +8928,179 @@ def dispatcher_booking_cancel(request):
 
 
 @login_required
+def booking_flight_lookup(request):
+    """Live schedule lookup for the trip step.
+
+    The wizard used to say nothing when a flight checked out, so a dispatcher
+    could not tell the difference between "verified" and "never looked". This
+    puts the flight's real scheduled time on screen while they are still typing,
+    which is also what answers the AM/PM question without anyone having to
+    reason about it.
+
+    Read-only, and cached by the same helper the submit-time guards use.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"ok": False, "error": "Permission denied"}, status=403)
+
+    from datetime import datetime as _dt
+    from .booking_guards import build_flight_ident, _fetch_flight, _naive_eastern
+
+    direction = (request.GET.get("direction") or "").strip().lower()
+    ident = build_flight_ident(
+        request.GET.get("airline", ""), request.GET.get("flight_number", "")
+    )
+    if not ident:
+        return JsonResponse({"ok": False, "reason": "no_ident"})
+
+    try:
+        flight_date = _dt.strptime(request.GET.get("date", ""), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "reason": "no_date"})
+
+    trip_type = {"arrival": "arrival", "departure": "return"}.get(direction)
+    try:
+        from .aeroapi_service import AeroAPIService
+        result = _fetch_flight(AeroAPIService(), ident, flight_date, trip_type)
+    except Exception:
+        logger.exception("Booking flight lookup failed for %s", ident)
+        return JsonResponse({"ok": False, "reason": "unavailable", "ident": ident})
+
+    status = result.get("status")
+    if status == "not_found":
+        return JsonResponse({"ok": False, "reason": "not_found", "ident": ident})
+    if status == "not_orlando":
+        return JsonResponse({
+            "ok": False, "reason": "not_orlando", "ident": ident,
+            "detail": result.get("error") or "",
+        })
+    if status != "success":
+        return JsonResponse({"ok": False, "reason": "unavailable", "ident": ident})
+
+    departure = _naive_eastern(result.get("scheduled_departure_local"))
+    arrival = _naive_eastern(
+        result.get("scheduled_gate_arrival_local")
+        or result.get("scheduled_arrival_local")
+    )
+
+    # The addresses may not be filled in yet, and they are not the only thing
+    # that knows: the flight's own route says which end is Orlando. Asking the
+    # schedule beats making the dispatcher type an address to unlock a field.
+    if direction not in ("arrival", "departure"):
+        from .aeroapi_service import ORLANDO_AIRPORT_CODES
+
+        def _code(place):
+            return (place or "").split(" - ")[0].strip().upper()
+
+        if _code(result.get("destination")) in ORLANDO_AIRPORT_CODES:
+            direction = "arrival"
+        elif _code(result.get("origin")) in ORLANDO_AIRPORT_CODES:
+            direction = "departure"
+
+    when, verb = (departure, "departs") if direction == "departure" else (arrival, "lands")
+    if when is None:
+        return JsonResponse({"ok": False, "reason": "no_time", "ident": ident})
+
+    def _stamp(dt):
+        if dt is None:
+            return None
+        return {
+            "time": dt.strftime("%I:%M %p").lstrip("0"),
+            "date": dt.date().isoformat(),
+            "date_label": f"{dt.strftime('%A, %B')} {dt.day}",
+            "minutes": dt.hour * 60 + dt.minute,
+        }
+
+    # What "Match" fills in. An arrival pickup IS the landing time (the driver is
+    # due at the meet point ten minutes later); a departure pickup is the house
+    # lead before takeoff. Working it out here keeps the rule in one place
+    # instead of half in Python and half in the page.
+    from .booking_guards import (
+        DEPARTURE_GUEST_AT_AIRPORT_MIN,
+        DEPARTURE_RECOMMENDED_LEAD_MIN,
+        DEPARTURE_ROUND_DOWN_MIN,
+    )
+
+    # The 2h30 rule is a RESORT rule. A cruise-port run is timed off the ship:
+    # the guest cannot leave before they disembark, so the flight has nothing to
+    # say about when the car should be there, and the drive is far longer than
+    # the half hour the rule budgets.
+    from .analytics import is_cruise_port_location
+
+    from_port = is_cruise_port_location(request.GET.get("pickup", ""))
+
+    recommended = None
+    recommendation_note = ""
+    if verb == "departs" and from_port:
+        recommendation_note = (
+            "Set this pickup from the ship's disembarkation time \u2014 a "
+            "cruise-port run is not timed off the flight."
+        )
+    elif verb == "lands":
+        # An arrival is NOT rounded: the pickup IS the landing time, and the
+        # whole board reads it that way. Rounding it down would put the driver
+        # at the meet point before the plane is on the ground.
+        recommended = {
+            "time": when.strftime("%I:%M %p").lstrip("0"),
+            "minutes": when.hour * 60 + when.minute,
+            "day_offset": 0,
+            "lead_min": 0,
+            "why": "the landing time",
+        }
+    elif verb == "departs":
+        takeoff = when.hour * 60 + when.minute
+        raw = takeoff - DEPARTURE_RECOMMENDED_LEAD_MIN
+        raw -= raw % DEPARTURE_ROUND_DOWN_MIN   # down to the quarter hour
+        day_offset = 0
+        if raw < 0:
+            raw += 24 * 60
+            day_offset = -1
+        hour, minute = divmod(raw, 60)
+        stamp = when.replace(hour=hour, minute=minute)
+        # Describe the lead the rounded time actually gives, not the rule's.
+        lead = takeoff - raw if day_offset == 0 else takeoff + (24 * 60) - raw
+        hours, minutes = divmod(lead, 60)
+        recommended = {
+            "time": stamp.strftime("%I:%M %p").lstrip("0"),
+            "minutes": raw,
+            "day_offset": day_offset,
+            "lead_min": lead,
+            "why": (
+                f"{hours}h {minutes:02d}m before takeoff" if hours
+                else f"{minutes}m before takeoff"
+            ),
+        }
+
+    return JsonResponse({
+        "ok": True,
+        "ident": result.get("flight_iata") or ident,
+        "verb": verb,
+        # Resolved from the route when the caller could not say.
+        "direction": direction or "arrival",
+        "recommended_pickup": recommended,
+        "recommendation_note": recommendation_note,
+        "from_cruise_port": from_port,
+        "guest_at_airport_min": DEPARTURE_GUEST_AT_AIRPORT_MIN,
+        "recommended_lead_min": DEPARTURE_RECOMMENDED_LEAD_MIN,
+        "time": when.strftime("%I:%M %p").lstrip("0"),
+        "date": when.date().isoformat(),
+        "date_label": f"{when.strftime('%a, %b')} {when.day}",
+        # Minutes past midnight, so the page can say how far the pickup sits
+        # from the flight without re-parsing anything.
+        "minutes": when.hour * 60 + when.minute,
+        # Everything the details panel shows. Schedule-only lookups carry no
+        # gate or terminal, which is why the panel never promises one.
+        "origin": result.get("origin") or "",
+        "destination": result.get("destination") or "",
+        "status": result.get("flight_status") or "",
+        "cancelled": bool(result.get("cancelled")),
+        "diverted": bool(result.get("diverted")),
+        "schedule_only": result.get("data_source") == "schedules",
+        "departure": _stamp(departure),
+        "arrival": _stamp(arrival),
+    })
+
+
+@login_required
 def customer_search_api(request):
     """
     AJAX endpoint to search for existing customers
@@ -8663,7 +9142,7 @@ def customer_search_api(request):
     
     results = []
     for customer in customers:
-        results.append({
+        row = {
             'id': customer.id,
             'first_name': customer.first_name,
             'last_name': customer.last_name,
@@ -8673,7 +9152,41 @@ def customer_search_api(request):
             'full_name': customer.get_full_name(),
             'reservation_count': customer.reservation_count,
             'is_returning': customer.is_returning,
-        })
+            'last_trip': '',
+            'last_route': None,
+        }
+
+        # Most repeat guests take the same trip again, so the last one on file
+        # is offered as a one-click starting point for the new booking.
+        last_leg = (
+            Leg.objects
+            .filter(reservation__customer=customer)
+            .select_related('reservation__vehicle', 'flight_information')
+            .order_by('-pickup_date', '-pickup_time', '-id')
+            .first()
+        )
+        if last_leg and last_leg.pickup_location and last_leg.dropoff_location:
+            def _short(place):
+                return (place or '').replace(
+                    'Orlando International Airport (MCO)', 'MCO'
+                )
+            bits = [last_leg.pickup_date.strftime('%b %d') if last_leg.pickup_date else '']
+            bits.append(f"{_short(last_leg.pickup_location)} → {_short(last_leg.dropoff_location)}")
+            vehicle = getattr(last_leg.reservation, 'vehicle', None)
+            if vehicle:
+                bits.append(vehicle.get_vehicle_type_display())
+            row['last_trip'] = ' · '.join(b for b in bits if b)
+            flight = last_leg.flight_information
+            row['last_route'] = {
+                'from': last_leg.pickup_location,
+                'to': last_leg.dropoff_location,
+                'airline': (
+                    getattr(flight, 'airline_display_name', '') or
+                    getattr(flight, 'airline', '') or ''
+                ) if flight else '',
+            }
+
+        results.append(row)
     
     return JsonResponse({
         "success": True,
@@ -8806,6 +9319,7 @@ def driver_payment_management(request):
     completed_leg_count = 0
     zero_pay_count = 0
     review_count = 0
+    needs_pricing_count = 0
 
     # ── Build annotated driver list (used for both overview + dropdown) ──
     today = timezone.localdate()
@@ -8817,6 +9331,12 @@ def driver_payment_management(request):
     drivers_with_unpaid = (
         Driver.objects.filter(legs__payment_status='unpaid')
         .exclude(legs__status='cancelled', legs__payment_status='unpaid')
+        # Owner/founder and placeholder accounts run trips but are never paid
+        # through payroll. This page used to filter on nothing but "has unpaid
+        # legs", so they surfaced in every run with a year of legs behind them.
+        # is_active does not help here — that gates the directory and the
+        # assignment pickers, not this page.
+        .exclude(exclude_from_payroll=True)
         .select_related('profile')
         .annotate(
             unpaid_count=Count('legs', filter=_unpaid_not_cancelled),
@@ -8925,6 +9445,11 @@ def driver_payment_management(request):
                 )
                 .prefetch_related(
                     Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+                    # __location too: LegStop.display_location reads location.name,
+                    # so the bare prefetch would still N+1 on rates_location.
+                    "legstop_set__location",
+                    # Sibling legs, for the over-attributed-tip check below.
+                    "reservation__legs",
                 )
                 .filter(driver=selected_driver, payment_status='unpaid')
             )
@@ -8944,19 +9469,14 @@ def driver_payment_management(request):
             total_pay_completed = sum(leg.total_driver_pay for leg in completed_legs)
             completed_leg_count = len(completed_legs)
 
-            # Flag legs that need rate review
-            SANFORD_KEYWORDS = ["sfb", "sanford", "orlando sanford"]
-            CRUISE_PORT_KEYWORDS = ["port canaveral", "canaveral", "cruise port", "cruise terminal", "cruise ship"]
-            for leg in legs:
-                loc = f"{leg.pickup_location} {leg.dropoff_location}".lower()
-                leg.is_cruise = bool(leg.cruise_information_id) or any(kw in loc for kw in CRUISE_PORT_KEYWORDS)
-                leg.is_sanford = any(kw in loc for kw in SANFORD_KEYWORDS)
-                leg.is_zero_pay = not leg.driver_base_pay or leg.driver_base_pay == 0
-                leg.needs_review = leg.is_zero_pay or leg.is_cruise or leg.is_sanford
-                if leg.is_zero_pay:
-                    zero_pay_count += 1
-                if leg.needs_review:
-                    review_count += 1
+            # Flag legs that need a look. Shared with the payroll run screen so
+            # a flag cannot mean two different things on two pages.
+            from dispatching.pay_flags import annotate_pay_flags
+
+            _flag_counts = annotate_pay_flags(legs)
+            zero_pay_count = _flag_counts["zero_pay"]
+            needs_pricing_count = _flag_counts["needs_pricing"]
+            review_count = _flag_counts["total_flagged"]
 
             # Detect stale legs: past pickup date but not completed (likely forgotten status update)
             stale_cutoff = today - timedelta(days=3)
@@ -9001,6 +9521,7 @@ def driver_payment_management(request):
         "completed_leg_count": completed_leg_count,
         "zero_pay_count": zero_pay_count,
         "review_count": review_count,
+        "needs_pricing_count": needs_pricing_count,
         "recent_payments": recent_payments if selected_driver_id and selected_driver else [],
         "stale_legs_count": stale_legs_count if selected_driver_id and selected_driver else 0,
     }
@@ -9070,8 +9591,13 @@ def update_driver_pay_amount(request):
                 
                 # Update total for backward compatibility
                 leg.driver_pay_amount = (base_pay + gratuity + additional).quantize(Decimal("0.01"))
-                
-                leg.save(update_fields=['driver_base_pay', 'driver_gratuity', 'driver_additional', 'driver_pay_amount', 'profit_estimate'])
+
+                # A person typed this. Mark it so no automatic recalculation
+                # (a pickup time move, an address edit, a recalc sweep) can
+                # quietly replace it with a computed number later.
+                leg.pay_manually_set = True
+
+                leg.save(update_fields=['driver_base_pay', 'driver_gratuity', 'driver_additional', 'driver_pay_amount', 'profit_estimate', 'pay_manually_set'])
 
                 logger.info(f"Updated driver pay for leg {leg_id}: Base=${base_pay}, Gratuity=${gratuity}, Additional=${additional}, Total=${leg.driver_pay_amount}")
 
@@ -9104,7 +9630,8 @@ def update_driver_pay_amount(request):
                 
                 # Update the driver pay amount (legacy field)
                 leg.driver_pay_amount = amount_decimal
-                leg.save(update_fields=['driver_pay_amount', 'profit_estimate'])
+                leg.pay_manually_set = True
+                leg.save(update_fields=['driver_pay_amount', 'profit_estimate', 'pay_manually_set'])
 
                 logger.info(f"Updated driver pay amount for leg {leg_id} to {amount_decimal}")
 
@@ -9161,67 +9688,105 @@ def recalculate_driver_pay(request):
     from reservations.models import Leg
     from django.db.models import Q
 
-    zero_pay_q = Q(
-        Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0),
-        Q(driver_gratuity__isnull=True) | Q(driver_gratuity=0),
-        Q(driver_additional__isnull=True) | Q(driver_additional=0),
-        Q(driver_pay_amount__isnull=True) | Q(driver_pay_amount=0),
-    )
+    # "Not priced yet" is a statement about the RATE, nothing else. Requiring all
+    # four fields to be empty meant a leg that picked up a tip before it had a
+    # rate could never be recalculated either — the same shut gate that left
+    # neuma's Sanford run reading "needs a price" with $57.00 of tip on it.
+    zero_pay_q = Q(Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0))
 
-    # Build queryset
+    # Build queryset. payment_status='unpaid' on BOTH branches: the leg_ids
+    # branch used to have no such filter, so a paid leg's id posted here was
+    # cleared and refilled, routing straight around the guard in
+    # update_driver_pay_amount that tells staff to use the statement page.
     if leg_ids:
-        legs_qs = Leg.objects.filter(id__in=leg_ids, driver__isnull=False)
-        if not force:
-            legs_qs = legs_qs.filter(zero_pay_q)
+        legs_qs = Leg.objects.filter(
+            id__in=leg_ids, driver__isnull=False, payment_status='unpaid',
+        )
     else:
         legs_qs = Leg.objects.filter(
             driver_id=driver_id,
             payment_status='unpaid',
             driver__isnull=False,
         )
-        if not force:
-            legs_qs = legs_qs.filter(zero_pay_q)
+    if not force:
+        legs_qs = legs_qs.filter(zero_pay_q)
+    # Never stomp an amount a person typed, even on a forced run — that is
+    # exactly what force=true is banned for during a payroll audit.
+    legs_qs = legs_qs.exclude(pay_manually_set=True)
 
     legs = list(
         legs_qs
         .select_related('driver', 'reservation', 'reservation__vehicle', 'route')
         .only(
             'id', 'driver', 'driver_id', 'route', 'route_id',
-            'pickup_location', 'dropoff_location', 'pickup_time',
+            'pickup_location', 'dropoff_location', 'pickup_time', 'pickup_date',
             'driver_base_pay', 'driver_gratuity', 'driver_additional',
             'driver_pay_amount', 'profit_estimate', 'revenue_share',
+            'payment_status', 'pay_manually_set',
             'reservation__vehicle_id', 'reservation__gratuity_amount',
             'reservation__gratuity_percentage', 'reservation__base_price',
         )[:200]  # cap batch size
     )
 
+    from drivers.pay_calc import calculate_driver_pay
+
     recalculated = 0
     filled = 0
+    needs_pricing = []
     for leg in legs:
-        # Clear route so it re-matches from pickup/dropoff text
-        leg.route = None
-        # Clear all pay fields to trigger auto-fill in save()
+        # TWO-PHASE. Resolve the route into a local FIRST and only write when it
+        # actually resolves. The old code nulled route + all four pay fields and
+        # trusted save() to re-derive them; with no booking-rate fallback left to
+        # catch it, that permanently zeroed every leg whose addresses match no
+        # route — and it already silently dropped routes a dispatcher had linked
+        # by hand. A leg we cannot price is reported, not emptied.
+        resolved = leg.route if leg.route_id else leg._resolve_route_from_locations()
+        if resolved is not None:
+            # A Route is an OVERRIDE, so link it when the addresses match one.
+            leg.route = resolved
+
+        # A missing Route is NOT a reason to give up. Most trips have no Route
+        # row and price perfectly well from their zones — refusing them here
+        # meant Recalculate could not price exactly the legs zones exist for.
+        # Ask what this trip is actually worth, and only report the ones nothing
+        # can answer for.
+        if calculate_driver_pay(leg) is None:
+            needs_pricing.append(leg.id)
+            continue
+
+        # Clear the AUTOMATIC parts so save() re-derives them. driver_gratuity is
+        # deliberately left alone: it is the guest's money already attributed to
+        # this leg, not something this function computed, and nulling it re-smears
+        # a tip that was pinned to one leg across the whole booking.
         leg.driver_base_pay = None
-        leg.driver_gratuity = None
         leg.driver_additional = None
         leg.driver_pay_amount = None
+        leg.pay_manually_set = False
         leg.save(update_fields=[
-            'route', 'driver_base_pay', 'driver_gratuity', 'driver_additional',
-            'driver_pay_amount', 'profit_estimate',
+            'route', 'driver_base_pay', 'driver_additional',
+            'driver_pay_amount', 'profit_estimate', 'pay_manually_set',
         ])
         recalculated += 1
         if leg.driver_base_pay and leg.driver_base_pay > 0:
             filled += 1
+
+    message = (
+        f"Recalculated {recalculated} legs: {filled} got pay values, "
+        f"{recalculated - filled} still need manual entry (no matching rate)."
+    )
+    if needs_pricing:
+        message += (
+            f" {len(needs_pricing)} left untouched — no route matches those "
+            f"addresses, so they need a price set by hand."
+        )
 
     return JsonResponse({
         "success": True,
         "recalculated": recalculated,
         "filled": filled,
         "still_zero": recalculated - filled,
-        "message": (
-            f"Recalculated {recalculated} legs: {filled} got pay values, "
-            f"{recalculated - filled} still need manual entry (no matching rate)."
-        ),
+        "needs_pricing": needs_pricing,
+        "message": message,
     })
 
 
@@ -9333,7 +9898,14 @@ def process_driver_payment(request):
         if leg_ids:
             unpaid_legs = unpaid_legs.filter(id__in=leg_ids)
         
-        # Only process legs that have driver pay > 0
+        # Only process legs that have driver pay > 0 — UNLESS the legs were named
+        # explicitly. A blank leg must never be swept into a statement by the
+        # "everything for this driver" path, but a $0 leg that someone deliberately
+        # ticked has to be processable: that is the only way to close out work
+        # nobody is being paid for (owner-driven trips, comped runs) with a real
+        # LegPayment line behind it. Flipping payment_status in the admin instead
+        # leaves no line, and every guard that asks leg_is_paid_to_driver() then
+        # disagrees with the page.
         # Use new fields (driver_base_pay + driver_gratuity + driver_additional)
         # with fallback to legacy driver_pay_amount for backward compatibility
         from django.db.models import Case, When, Value, DecimalField as DjDecimalField
@@ -9352,7 +9924,9 @@ def process_driver_payment(request):
                 default=Coalesce('driver_pay_amount', Value(0, output_field=DjDecimalField())),
                 output_field=DjDecimalField(),
             )
-        ).filter(_total_pay__gt=0)
+        )
+        if not leg_ids:
+            unpaid_legs = unpaid_legs.filter(_total_pay__gt=0)
 
         if not unpaid_legs.exists():
             return JsonResponse({
@@ -9635,7 +10209,7 @@ def driver_pay_rates(request):
         return redirect("home")
 
     from drivers.models import Driver, DriverPayRate
-    from rates.models import Route, Vehicle
+    from rates.models import Location, Route, Vehicle, Zone, ZoneRate
 
     selected_driver_id = request.GET.get("driver")
     selected_driver = None
@@ -9680,6 +10254,79 @@ def driver_pay_rates(request):
             }
         grouped_rates[route_key]["rates"].append(rate)
 
+    # ── Zones ──
+    # A zone is a price tier. Every trip between two zones pays the same, so this
+    # grid is the price of nearly every trip the company runs — the Route rows
+    # further down exist only for the handful of pairs that genuinely differ.
+    zones = list(Zone.objects.all())
+    zone_pay = {}
+    for zr in ZoneRate.objects.all():
+        zone_pay[(zr.zone_a_id, zr.zone_b_id)] = zr.inhouse_base_pay
+
+    def _zone_pay(a_id, b_id):
+        if not (a_id and b_id):
+            return None
+        lo, hi = sorted((a_id, b_id))
+        return zone_pay.get((lo, hi))
+
+    # Upper triangle only: each unordered pair appears once, so nobody can set
+    # two different prices for the same trip by filling in both halves.
+    zone_matrix = []
+    for i, za in enumerate(zones):
+        row = {"zone": za, "cells": []}
+        for j, zb in enumerate(zones):
+            row["cells"].append({
+                "zone_a": za,
+                "zone_b": zb,
+                "editable": j >= i,
+                "pay": _zone_pay(za.id, zb.id),
+            })
+        zone_matrix.append(row)
+
+    locations = list(
+        Location.objects.select_related("pay_zone").order_by("pay_zone__sort_order", "name")
+    )
+    # Named, not just counted. Zones are assigned by exact name match on deploy,
+    # so a place whose name shifted by an apostrophe is skipped in silence and
+    # every trip through it stops pricing. A number in a pill is easy to walk
+    # past; a list of the actual places is not.
+    unzoned_places = [loc for loc in locations if loc.pay_zone_id is None]
+    unzoned_count = len(unzoned_places)
+
+    # ── Route overrides ──
+    # Split the routes into the ones that genuinely override their zone and the
+    # ones that only restate it. The second group is noise on this page — it is
+    # what made the route list look like the source of truth when it is not.
+    route_overrides, route_matching_zone = [], []
+    for route in routes:
+        zp = _zone_pay(route.origin.pay_zone_id, route.destination.pay_zone_id)
+        item = {"route": route, "zone_pay": zp}
+        if (
+            route.inhouse_base_pay is not None
+            and zp is not None
+            and route.inhouse_base_pay == zp
+        ):
+            route_matching_zone.append(item)
+        else:
+            route_overrides.append(item)
+
+    # A place can sit in a zone and still not pay that zone's price for every
+    # trip: Championsgate is Local, but the airport run is $35 rather than $25.
+    # Showing only the zone made the table read as one flat price, so each place
+    # carries its exceptions with it.
+    location_exceptions = {}
+    for item in route_overrides:
+        route = item["route"]
+        if route.inhouse_base_pay is None:
+            continue
+        for here, there in ((route.origin, route.destination), (route.destination, route.origin)):
+            location_exceptions.setdefault(here.id, []).append({
+                "other": there.name,
+                "pay": route.inhouse_base_pay,
+            })
+    for loc in locations:
+        loc.exceptions = location_exceptions.get(loc.id, [])
+
     context = {
         "drivers": drivers,
         "selected_driver": selected_driver,
@@ -9689,8 +10336,458 @@ def driver_pay_rates(request):
         "routes": routes,
         "vehicles": vehicles,
         "existing_rates_json": json.dumps(existing_rates_map),
+        "zones": zones,
+        "zone_matrix": zone_matrix,
+        "locations": locations,
+        "unzoned_count": unzoned_count,
+        "unzoned_places": unzoned_places,
+        "route_overrides": route_overrides,
+        "route_matching_zone": route_matching_zone,
     }
     return render(request, "dispatching/driver_pay_rates.html", context)
+
+
+@login_required(login_url="login")
+def payroll_run(request):
+    """One screen for a whole in-house payroll run.
+
+    The Driver Payments page is built around one driver at a time, which is the
+    right shape for looking into a problem and the wrong shape for a Sunday run:
+    seventeen drivers meant seventeen page loads, and by the twelfth nobody is
+    really reading. This puts every driver on one page with the legs that need a
+    decision already pulled out, and processes each one in place.
+
+    Deliberately no pay-everyone button. Approving each driver on purpose is what
+    keeps mistakes out, and it is not what makes the run slow.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from datetime import timedelta
+
+    from dispatching.pay_flags import (
+        annotate_pay_flags, context_labels, flag_labels,
+    )
+    from drivers.models import Driver
+    from rates.models import Zone
+
+    zones = list(Zone.objects.all())
+
+    # Default to the most recently finished Sunday: a run covers whole weeks, and
+    # reaching into the current one strands a Monday on its own.
+    today = timezone.localdate()
+    default_to = today - timedelta(days=(today.weekday() + 1) % 7 or 7)
+    to_date = default_to
+    raw_to = request.GET.get("to_date")
+    if raw_to:
+        try:
+            to_date = datetime.strptime(raw_to, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    legs = list(
+        Leg.objects.filter(
+            status="completed",
+            payment_status="unpaid",
+            pickup_date__lte=to_date,
+            driver__driver_type="inhouse",
+            driver__exclude_from_payroll=False,
+        )
+        .select_related(
+            "driver", "driver__profile", "reservation", "reservation__customer", "route"
+        )
+        .prefetch_related("legstop_set__location", "reservation__legs")
+        .order_by("driver_id", "pickup_date", "pickup_time")
+    )
+    flag_counts = annotate_pay_flags(legs)
+
+    by_driver = {}
+    for leg in legs:
+        # Context goes on every row, flagged or not. A row that says "address not
+        # listed yet, price looks normal" is the difference between a dispatcher
+        # trusting the page and a dispatcher checking the page.
+        leg.context_labels = context_labels(leg)
+        row = by_driver.setdefault(leg.driver_id, {
+            "driver": leg.driver,
+            "legs": [],
+            "flagged": [],
+            "total": Decimal("0.00"),
+            "oldest": leg.pickup_date,
+        })
+        row["legs"].append(leg)
+        row["total"] += leg.total_driver_pay or Decimal("0.00")
+        if leg.pickup_date and leg.pickup_date < row["oldest"]:
+            row["oldest"] = leg.pickup_date
+        if leg.needs_review:
+            leg.flag_labels = flag_labels(leg)
+            row["flagged"].append(leg)
+
+    rows = []
+    for row in by_driver.values():
+        row["leg_count"] = len(row["legs"])
+        row["flag_count"] = len(row["flagged"])
+        # A leg with nothing in it cannot go on a statement unless it is picked
+        # out by hand, so say plainly how much of the run is actually payable.
+        row["payable_count"] = sum(
+            1 for l in row["legs"] if (l.total_driver_pay or 0) > 0
+        )
+        row["stale"] = (to_date - row["oldest"]).days > 14
+        rows.append(row)
+    rows.sort(key=lambda r: (-r["flag_count"], r["driver"].profile.get_full_name() or ""))
+
+    # Review-everything mode. The flag list is only as good as the checks behind
+    # it, and "ready" is a claim about what was checked, not proof the trip is
+    # right. So there has to be a way to read every trip in one pass — for a
+    # person, and for Cowork, which can then take the whole run in one request.
+    show_all = request.GET.get("show") == "all"
+
+    ready_rows = [r for r in rows if r["flag_count"] == 0]
+    return render(request, "dispatching/payroll_run.html", {
+        "show_all": show_all,
+        "to_date": to_date,
+        "to_date_str": to_date.isoformat(),
+        "is_default_to_date": to_date == default_to,
+        "rows": rows,
+        "driver_count": len(rows),
+        "ready_count": len(ready_rows),
+        "needs_look_count": len(rows) - len(ready_rows),
+        "leg_total": sum(r["leg_count"] for r in rows),
+        "money_total": sum(r["total"] for r in rows),
+        "oldest_overall": min((r["oldest"] for r in rows), default=None),
+        "flag_counts": flag_counts,
+        # Legs the system can price but has never been asked to. One button for
+        # the whole run — pay is written by a save, and reading a page saves
+        # nothing, so these need one write and not a decision each.
+        "priceable_ids": [l.id for l in legs if getattr(l, "priceable_now", False)],
+        "priceable_count": flag_counts.get("priceable_now", 0),
+        # For the "make this stick" control: a price is only an answer if it can
+        # be saved somewhere it will be found again.
+        "zones": zones,
+        # Places worth listing so they stop coming up. Counted here rather than
+        # left to a person to notice across seventeen rows.
+        "unlisted_count": flag_counts.get("address_unlisted", 0),
+    })
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def update_zone_rate(request):
+    """Set or clear the price between two zones.
+
+    Clearing is meaningful, not a delete-by-accident: a pair with no price is
+    never guessed at, it is flagged on the driver pay page as needing one.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from rates.models import Zone, ZoneRate
+
+    try:
+        data = json.loads(request.body)
+        zone_a_id = int(data.get("zone_a"))
+        zone_b_id = int(data.get("zone_b"))
+        raw = data.get("base_pay")
+
+        lo, hi = sorted((zone_a_id, zone_b_id))
+        wanted = 1 if lo == hi else 2
+        if Zone.objects.filter(id__in=(lo, hi)).count() != wanted:
+            return JsonResponse({"success": False, "error": "Zone not found"}, status=404)
+
+        if raw in (None, ""):
+            ZoneRate.objects.filter(zone_a_id=lo, zone_b_id=hi).delete()
+            return JsonResponse({"success": True, "base_pay": None})
+
+        pay = Decimal(str(raw))
+        if pay < 0:
+            return JsonResponse(
+                {"success": False, "error": "Price cannot be negative"}, status=400
+            )
+        ZoneRate.objects.update_or_create(
+            zone_a_id=lo, zone_b_id=hi, defaults={"inhouse_base_pay": pay}
+        )
+        return JsonResponse({"success": True, "base_pay": float(pay)})
+    except (TypeError, ValueError, InvalidOperation):
+        return JsonResponse({"success": False, "error": "Enter a number"}, status=400)
+    except Exception as e:
+        logger.error("update_zone_rate failed: %s", e)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def save_zone(request):
+    """Create a zone, or rename one."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from rates.models import Zone
+
+    try:
+        data = json.loads(request.body)
+        name = (data.get("name") or "").strip()
+        if not name:
+            return JsonResponse(
+                {"success": False, "error": "Give the zone a name"}, status=400
+            )
+
+        zone_id = data.get("zone_id")
+        if zone_id:
+            zone = Zone.objects.filter(id=zone_id).first()
+            if zone is None:
+                return JsonResponse({"success": False, "error": "Zone not found"}, status=404)
+            if Zone.objects.filter(name__iexact=name).exclude(id=zone.id).exists():
+                return JsonResponse(
+                    {"success": False, "error": "A zone already has that name"}, status=400
+                )
+            zone.name = name
+            if "description" in data:
+                zone.description = (data.get("description") or "").strip()
+            zone.save()
+        else:
+            if Zone.objects.filter(name__iexact=name).exists():
+                return JsonResponse(
+                    {"success": False, "error": "A zone already has that name"}, status=400
+                )
+            last = Zone.objects.order_by("-sort_order").first()
+            zone = Zone.objects.create(
+                name=name,
+                description=(data.get("description") or "").strip(),
+                sort_order=(last.sort_order + 10) if last else 10,
+            )
+        return JsonResponse({"success": True, "zone_id": zone.id, "name": zone.name})
+    except Exception as e:
+        logger.error("save_zone failed: %s", e)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def delete_zone(request):
+    """Remove a zone. Refused while places still sit in it, because emptying it
+    silently un-prices every trip to those places."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from rates.models import Zone
+
+    try:
+        data = json.loads(request.body)
+        zone = Zone.objects.filter(id=data.get("zone_id")).first()
+        if zone is None:
+            return JsonResponse({"success": False, "error": "Zone not found"}, status=404)
+        in_use = zone.locations.count()
+        if in_use:
+            plural = "s" if in_use != 1 else ""
+            return JsonResponse({
+                "success": False,
+                "error": (
+                    "%d place%s still in this zone. Move them somewhere else first "
+                    "— otherwise their trips stop pricing." % (in_use, plural)
+                ),
+            }, status=400)
+        zone.delete()
+        return JsonResponse({"success": True})
+    except Exception as e:
+        logger.error("delete_zone failed: %s", e)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def save_leg_rate(request):
+    """Set a leg's pay AND make that answer stick, in one action.
+
+    The whole reason the same handful of trips came back every Sunday is that
+    answering one was a dead end: the number went onto the leg and nowhere else,
+    so the identical trip next week asked again. A price Abdalla gives once has
+    to become a rate, or the review list never shrinks.
+
+    Two shapes, because there are two reasons a trip needs an answer:
+
+      * an address we have never listed  -> place it. Give the place a name and a
+        zone and the zone rate covers this trip and every future one through it.
+        This is the common case and the one that compounds.
+      * both ends known, but this pair genuinely costs something else -> write a
+        Route exception for the pair, the same way Championsgate has one.
+
+    Body: leg_id, base_pay, and EITHER
+          {"place": {"name": ..., "zone_id": ..., "aliases": ..., "from": "pickup"|"dropoff"}}
+          or {"as_exception": true}
+    Either may be omitted to only set the leg, which is still allowed — some
+    trips really are one-offs.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from decimal import InvalidOperation as _InvalidOperation
+
+    from rates.models import Location, Route, Zone
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    leg = Leg.objects.filter(id=data.get("leg_id")).select_related("driver").first()
+    if leg is None:
+        return JsonResponse({"success": False, "error": "Trip not found"}, status=404)
+    if leg.payment_status != "unpaid":
+        return JsonResponse(
+            {"success": False,
+             "error": "That trip is already on a statement. Void the line first."},
+            status=400,
+        )
+
+    try:
+        base_pay = Decimal(str(data.get("base_pay"))).quantize(Decimal("0.01"))
+    except (TypeError, ValueError, _InvalidOperation):
+        return JsonResponse({"success": False, "error": "Give it a price"}, status=400)
+    if base_pay < 0:
+        return JsonResponse({"success": False, "error": "A price cannot be negative"}, status=400)
+
+    did = []
+
+    # ── 1. The leg itself. Marked as typed by a person, so no later
+    #       recalculation quietly replaces it with a rate-table answer.
+    leg.driver_base_pay = base_pay
+    leg.pay_manually_set = True
+    leg.driver_pay_amount = (
+        base_pay
+        + (leg.driver_gratuity or Decimal("0.00"))
+        + (leg.driver_additional or Decimal("0.00"))
+    ).quantize(Decimal("0.01"))
+    leg.save(update_fields=[
+        "driver_base_pay", "driver_pay_amount", "pay_manually_set", "profit_estimate",
+    ])
+    did.append(f"this trip now pays ${base_pay}")
+
+    # ── 2. Make it stick.
+    place = data.get("place") or {}
+    if place.get("name") and place.get("zone_id"):
+        zone = Zone.objects.filter(id=place["zone_id"]).first()
+        if zone is None:
+            return JsonResponse(
+                {"success": False, "error": "That zone no longer exists",
+                 "leg_saved": True, "did": did}, status=404,
+            )
+        name = str(place["name"]).strip()
+        if not name:
+            return JsonResponse(
+                {"success": False, "error": "Give the place a name",
+                 "leg_saved": True, "did": did}, status=400,
+            )
+        existing = Location.objects.filter(name__iexact=name).first()
+        if existing is not None:
+            existing.pay_zone = zone
+            if place.get("aliases"):
+                existing.aliases = str(place["aliases"]).strip()
+            existing.save(update_fields=["pay_zone", "aliases"])
+            did.append(f"{existing.name} is now in {zone.name}")
+        else:
+            created = Location.objects.create(
+                name=name, pay_zone=zone,
+                aliases=str(place.get("aliases") or "").strip(),
+            )
+            did.append(f"added {created.name} to {zone.name}")
+
+    elif data.get("as_exception"):
+        origin, dest = leg._resolve_location_endpoints()
+        if not (origin and dest):
+            return JsonResponse(
+                {"success": False,
+                 "error": "Both ends have to be known places before this pair can "
+                          "have its own price. Place the address first.",
+                 "leg_saved": True, "did": did},
+                status=400,
+            )
+        route = (
+            Route.objects.filter(origin=origin, destination=dest).first()
+            or Route.objects.filter(origin=dest, destination=origin).first()
+        )
+        if route is None:
+            route = Route.objects.create(
+                origin=origin, destination=dest, inhouse_base_pay=base_pay,
+                description="Priced by hand during a payroll run.",
+            )
+        else:
+            route.inhouse_base_pay = base_pay
+            route.save(update_fields=["inhouse_base_pay"])
+        did.append(
+            f"{origin.name} to {dest.name} is now ${base_pay} for everyone, "
+            f"both directions"
+        )
+
+    logger.info(
+        "save_leg_rate by %s on leg %s: %s", request.user, leg.id, "; ".join(did)
+    )
+    return JsonResponse({
+        "success": True,
+        "leg_id": leg.id,
+        "base_pay": str(base_pay),
+        "total": str(leg.driver_pay_amount),
+        "did": did,
+        "message": " \u00b7 ".join(did),
+    })
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def save_place(request):
+    """Create a place, or change the zone / alternate names of one.
+
+    Alternate names are how an address on a booking gets recognised: a trip to
+    "Waldorf Astoria Orlando" only starts pricing once "Waldorf Astoria" is
+    listed here.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from rates.models import Location, Zone
+
+    try:
+        data = json.loads(request.body)
+        location_id = data.get("location_id")
+
+        zone = None
+        if data.get("zone_id"):
+            zone = Zone.objects.filter(id=data["zone_id"]).first()
+            if zone is None:
+                return JsonResponse({"success": False, "error": "Zone not found"}, status=404)
+
+        if location_id:
+            loc = Location.objects.filter(id=location_id).first()
+            if loc is None:
+                return JsonResponse({"success": False, "error": "Place not found"}, status=404)
+            if "zone_id" in data:
+                loc.pay_zone = zone
+            if "aliases" in data:
+                loc.aliases = (data.get("aliases") or "").strip()
+            if data.get("name"):
+                loc.name = data["name"].strip()
+            loc.save()
+        else:
+            name = (data.get("name") or "").strip()
+            if not name:
+                return JsonResponse(
+                    {"success": False, "error": "Give the place a name"}, status=400
+                )
+            if Location.objects.filter(name__iexact=name).exists():
+                return JsonResponse(
+                    {"success": False, "error": "That place already exists"}, status=400
+                )
+            loc = Location.objects.create(
+                name=name, pay_zone=zone, aliases=(data.get("aliases") or "").strip()
+            )
+        return JsonResponse({
+            "success": True,
+            "location_id": loc.id,
+            "name": loc.name,
+            "zone_id": loc.pay_zone_id,
+            "aliases": loc.aliases,
+        })
+    except Exception as e:
+        logger.error("save_place failed: %s", e)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
 @login_required(login_url="login")
@@ -12696,6 +13793,7 @@ def auto_assign_drivers(request):
             "pickup_minutes": leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0,
             "store_stop": has_store_stop,
             "is_paid": (leg.reservation.payment_status == 'paid') if leg.reservation else True,
+            "pay_state": board_pay_state(leg.reservation),
         })
 
     # Driver list for manual assignment dropdown
@@ -12893,6 +13991,34 @@ def reset_schedule(request):
     # queryset before the second .update() forces 'in-progress' on the rest;
     # cancelled legs are already excluded above. So the KEOI auto-reactivate
     # signal (which only fires via instance .save()) is correctly not needed here.
+    #
+    # PAY: these bulk updates bypass Leg.save(), so the pay fields have to be
+    # cleared here. Leaving them meant the next assignment was a None -> driver
+    # transition, which save()'s driver-change clear deliberately skips (a
+    # restore-from-snapshot is also None -> driver and must NOT lose its pay), so
+    # the incoming driver silently inherited the previous driver's rate, night
+    # bonus and gratuity share. Only ever on unpaid legs — a completed leg that
+    # has already been paid keeps its payroll record.
+    # ...but ONLY where the number is the system's own. Two things a person put
+    # there must survive a reset, because nothing rebuilds them:
+    #   * a hand-typed amount (pay_manually_set) — clearing it re-prices the leg
+    #     off the rate table on the next assignment and the typed figure is gone;
+    #   * an attributed gratuity — the auto-fill splits only the UNattributed
+    #     remainder of a tip, so nulling every leg's share erases the record of
+    #     which leg a tip was pinned to and re-smears it evenly across the trip.
+    # A leg skipped here keeps the previous driver's rate, which the payroll
+    # screen flags as disagreeing with the rate table rather than paying quietly.
+    # NULL *or* zero means "no tip attributed here". Auto-fill writes 0.00 rather
+    # than NULL when a booking carries no tip, so testing isnull alone matches
+    # nothing at all: every leg would be skipped and the reset would quietly stop
+    # working. (In the 2026-08-27 snapshot: 0 legs NULL, 194 at 0.00, 90 with a
+    # real share.)
+    legs.filter(
+        Q(driver_gratuity__isnull=True) | Q(driver_gratuity=Decimal("0.00")),
+        payment_status="unpaid", pay_manually_set=False,
+    ).update(
+        driver_base_pay=None, driver_additional=None, driver_pay_amount=None,
+    )
     legs.filter(status="completed").update(
         driver=None, driver_assigned_by=None, driver_assigned_at=None
     )
@@ -13240,10 +14366,12 @@ def smart_schedule_builder(request):
                 if res.booster_seats: cs_parts.append(f"{res.booster_seats} b")
             slot_data['carseats'] = ", ".join(cs_parts)
             slot_data['is_paid'] = res.payment_status == 'paid'
+            slot_data['pay_state'] = board_pay_state(res)
             slot_data['reservation_uuid'] = str(res.uuid) if res.uuid else ''
             slot_data['store_stop'] = leg_obj.shows_store_stop
         else:
             slot_data['is_paid'] = True
+            slot_data['pay_state'] = board_pay_state(None)
             slot_data['reservation_uuid'] = ''
             slot_data['store_stop'] = False
         # Add timing details for new slots
@@ -13301,6 +14429,7 @@ def smart_schedule_builder(request):
             'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
             'store_stop': leg_alt.shows_store_stop,
             'is_paid': (res.payment_status == 'paid') if res else True,
+            'pay_state': board_pay_state(res),
         })
 
     response = {
@@ -19148,7 +20277,7 @@ def quote_calculator_api(request):
     # founder prices these by hand. Only worth measuring for trips short enough
     # to be in-area; get_drive_time caches, so repeat addresses are free.
     def _snap(address):
-        if miles > quote_engine.SERVICE_AREA_RADIUS_MI:
+        if miles > quote_engine.LOCAL_CHAINABLE_RADIUS_MI:
             return None, None
 
         def measure(zone_address):

@@ -17,6 +17,7 @@
     --close:#3A4C87; --close-soft:rgba(58,76,135,0.17); --close-line:rgba(58,76,135,0.55);
     --oncall:#5A4A94; --oncall-soft:rgba(90,74,148,0.18); --oncall-line:rgba(90,74,148,0.5);
     --absent:#B4530A; --absent-soft:rgba(180,83,10,0.13); --absent-line:rgba(180,83,10,0.45);
+    --wfh:#4E5FA8; --wfh-soft:rgba(78,95,168,0.13); --wfh-line:rgba(78,95,168,0.4);
     --bar:#ECE6DB; --bar-line:rgba(28,24,16,0.16);
     --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,monospace;
     --sans:"Montserrat",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -116,34 +117,52 @@
   .mc-beat .mono { color:var(--ink); font-family:var(--mono); font-size:.86rem; }
   .mc-beat .dim { color:var(--faint); }
 
-  /* ── Your week ── */
-  .mc-week { display:flex; flex-direction:column; gap:.7rem; }
-  .mc-day { border:1px solid var(--line2); border-radius:16px; background:var(--surface); overflow:hidden;
-    display:grid; grid-template-columns:132px 1fr; cursor:pointer; animation:mc-in .5s ease backwards;
+  /* ── Week overview — seven dated cards, tap one to open its day below ── */
+  .mc-weekbar { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem 1rem; margin:2rem .2rem .85rem; }
+  .mc-weekbar .mc-sec { margin:0; }
+  .mc-wsum { font-size:.8rem; color:var(--muted); font-weight:600; }
+  .mc-wsum b { color:var(--ink); }
+  .mc-wtoggle { margin-left:auto; display:inline-flex; border:1px solid var(--line2); border-radius:999px;
+    overflow:hidden; background:var(--surface); box-shadow:0 1px 2px rgba(20,16,8,0.04); }
+  .mc-wtoggle a { padding:.36rem .9rem; font-size:.78rem; font-weight:650; color:var(--muted);
+    text-decoration:none; transition:color .12s ease, background .12s ease; }
+  .mc-wtoggle a.on { background:var(--gold-soft); color:var(--gold); }
+  .mc-wtoggle a:hover { color:var(--gold); }
+
+  .mc-stripscroll { overflow-x:auto; padding-bottom:.4rem; scrollbar-width:thin;
+    scrollbar-color:var(--line2) transparent; }
+  .mc-stripscroll::-webkit-scrollbar { height:8px; }
+  .mc-stripscroll::-webkit-scrollbar-thumb { background:var(--line2); border-radius:4px; }
+  .mc-strip { display:grid; grid-template-columns:repeat(7, minmax(122px, 1fr)); gap:.65rem; min-width:880px; }
+  .mc-dcard { position:relative; text-align:left; font:inherit; cursor:pointer; border-radius:16px;
+    border:1px solid var(--line2); background:var(--surface); padding:.85rem .9rem .8rem;
+    display:flex; flex-direction:column; gap:.5rem; animation:mc-in .5s ease backwards;
+    box-shadow:0 1px 2px rgba(20,16,8,0.04);
     transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
-  .mc-day:hover { transform:translateY(-2px); border-color:var(--gold-line);
-    box-shadow:0 6px 20px rgba(20,16,8,0.09); }
-  .mc-day.mc-today-row { border-color:var(--gold-line); }
-  .mc-day.selected { border-color:var(--gold-line); box-shadow:0 0 0 2px var(--gold-line), 0 6px 20px rgba(20,16,8,0.08); }
-  .mc-day.mc-off { background:var(--surface2); }
-  .mc-dname { padding:1rem 1.1rem; border-right:1px solid var(--line); display:flex; flex-direction:column;
-    gap:.35rem; justify-content:center; align-items:flex-start; }
-  .mc-dname .d { font-weight:700; font-size:1.05rem; letter-spacing:-.01em; }
-  .mc-day.selected .mc-dname .d { color:var(--gold); }
-  .mc-dname .t { font-size:.58rem; text-transform:uppercase; letter-spacing:.1em; font-weight:700; color:var(--gold); }
-  .mc-dname .tag { font-size:.6rem; text-transform:uppercase; letter-spacing:.07em; font-weight:700;
-    padding:.18rem .5rem; border-radius:999px; }
-  .mc-dname .tag-on { color:var(--gold); background:var(--gold-soft); }
-  .mc-dname .tag-off { color:var(--faint); background:rgba(28,24,16,0.06); }
-  .mc-body { padding:1rem 1.15rem; display:flex; align-items:center; min-width:0; }
-  .mc-roster { display:flex; flex-wrap:wrap; gap:.55rem 1.3rem; align-items:center; }
-  .mc-person { display:inline-flex; align-items:center; gap:.36rem; font-size:.9rem; white-space:nowrap; }
-  .mc-person .pn { font-weight:600; }
-  .mc-person .pw { color:var(--muted); font-size:.8rem; }
-  .mc-person.me .pn { color:var(--gold); font-weight:700; }
-  .mc-person.op .pn { color:var(--open); } .mc-person.cl .pn { color:var(--close); }
-  .mc-person .mc-ic { width:12px; height:12px; }
-  .mc-offlabel { color:var(--faint); font-size:.9rem; }
+  .mc-dcard:hover { transform:translateY(-2px); border-color:var(--gold-line);
+    box-shadow:0 6px 18px rgba(20,16,8,0.09); }
+  .mc-dcard.off { background:var(--surface2); box-shadow:none; }
+  .mc-dcard.selected { border-color:var(--gold-line);
+    box-shadow:0 0 0 2px var(--gold-line), 0 6px 18px rgba(20,16,8,0.08); }
+  .mc-dcard .dc-top { display:flex; align-items:baseline; flex-wrap:wrap; gap:.2rem .45rem; }
+  .mc-dcard .dc-dow { font-size:.62rem; text-transform:uppercase; letter-spacing:.11em; font-weight:750; color:var(--faint); }
+  .mc-dcard.today .dc-dow, .mc-dcard.selected .dc-dow { color:var(--gold); }
+  .mc-dcard .dc-date { font-weight:700; font-size:.92rem; letter-spacing:-.01em; white-space:nowrap; }
+  .mc-dcard .dc-tdy { margin-left:auto; font-size:.56rem; text-transform:uppercase; letter-spacing:.09em;
+    font-weight:750; color:var(--gold); background:var(--gold-soft); padding:.16rem .48rem; border-radius:999px; }
+  .mc-dcard .dc-hours { font-family:var(--mono); font-size:.79rem; font-weight:600; color:var(--ink); line-height:1.4; }
+  .mc-dcard.off .dc-hours { font-family:var(--sans); color:var(--faint); }
+  .mc-dcard .dc-toff { color:var(--absent); font-weight:650; font-size:.79rem; line-height:1.35; }
+  .mc-dcard .dc-meta { display:flex; align-items:center; flex-wrap:wrap; gap:.3rem; min-height:19px; }
+  .mc-dcard .dc-meta .mc-ic { width:13px; height:13px; }
+  .mc-dcard .dc-with { font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:auto; }
+  .mc-loc { display:inline-flex; align-items:center; gap:.26rem; font-size:.6rem; font-weight:750;
+    text-transform:uppercase; letter-spacing:.05em; padding:.15rem .48rem; border-radius:999px; }
+  .mc-loc.remote { color:var(--wfh); background:var(--wfh-soft); border:1px solid var(--wfh-line); }
+  .mc-loc.office { color:var(--open); background:var(--open-soft); border:1px solid var(--open-line); }
+  .mc-loc .mc-ic { width:10px !important; height:10px !important; color:currentColor; }
+  .mc-loc.lg { font-size:.66rem; padding:.22rem .6rem; vertical-align:3px; }
+  .mc-loc.lg .mc-ic { width:12px !important; height:12px !important; }
 
   /* ── Time off ── */
   .mc-off-wrap { padding:1.2rem 1.4rem 1.3rem; }
@@ -187,9 +206,8 @@
   .mc-foot { margin-top:1rem; padding:0 .2rem; font-size:.8rem; color:var(--faint); line-height:1.55; max-width:74ch; }
 
   @media (max-width:600px) {
-    .mc-day { grid-template-columns:1fr; }
-    .mc-dname { border-right:none; border-bottom:1px solid var(--line); flex-direction:row; align-items:center; gap:.7rem; padding:.7rem 1.1rem; }
     .mc-title { font-size:1.5rem; }
+    .mc-wtoggle { margin-left:0; }
   }
 </style>
 {% endblock %}
@@ -223,13 +241,21 @@
     <symbol id="mc-absent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0"/><line x1="16.5" y1="11" x2="22" y2="11"/>
     </symbol>
+    <!-- Work from home / in the office. -->
+    <symbol id="mc-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/><path d="M10 21v-6h4v6"/>
+    </symbol>
+    <symbol id="mc-bldg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="3" width="14" height="18" rx="1.5"/><line x1="9" y1="7.5" x2="9" y2="7.5"/><line x1="15" y1="7.5" x2="15" y2="7.5"/>
+      <line x1="9" y1="11.5" x2="9" y2="11.5"/><line x1="15" y1="11.5" x2="15" y2="11.5"/><path d="M10 21v-4h4v4"/>
+    </symbol>
   </svg>
 
   <div class="container-fluid mc">
     <div class="mc-wrap">
       <div class="mc-head">
         <h1 class="mc-title"><svg class="mc-ic"><use href="#mc-cal"/></svg>My Schedule</h1>
-        <p class="mc-sub">The days you work and who you&rsquo;re on with each shift &mdash; your standard week.</p>
+        <p class="mc-sub">Your days, hours and who you&rsquo;re on with &mdash; this week and next, with any time off, hour changes and office/home days already applied.</p>
       </div>
 
       {% if oncall_today %}
@@ -252,22 +278,73 @@
       </div>
       {% else %}
 
-      {# ── Day view (switchable, actual date with overrides) ── #}
-      <div class="mc-sec">Day view <span class="mc-sec-hint">&mdash; tap any day below to switch</span></div>
+      {# ── Week overview — the seven real dates, your actual hours ── #}
+      <div class="mc-weekbar">
+        <div class="mc-sec">{% if week_is_next %}Next week{% else %}This week{% endif %} &middot; {{ week_range_label }}</div>
+        <span class="mc-wsum">You&rsquo;re on <b>{{ week_days_on }} day{{ week_days_on|pluralize }}</b>{% if week_days_on %} &middot; <b>{{ week_hours }}</b> scheduled{% endif %}</span>
+        <nav class="mc-wtoggle" aria-label="Week">
+          <a href="{% url 'my_coverage' %}" class="{% if not week_is_next %}on{% endif %}">This week</a>
+          <a href="{% url 'my_coverage' %}?week=next" class="{% if week_is_next %}on{% endif %}">Next week</a>
+        </nav>
+      </div>
+      <div class="mc-stripscroll"><div class="mc-strip">
+        {% for dv in day_views %}
+        <button type="button" class="mc-dcard{% if dv.dow == selected_dow %} selected{% endif %}{% if dv.is_today %} today{% endif %}{% if not dv.is_working %} off{% endif %}"
+                data-dow="{{ dv.dow }}" aria-label="Show {{ dv.full_name }} {{ dv.date_label }} below"
+                style="animation-delay:calc({{ forloop.counter0 }} * 40ms)">
+          <span class="dc-top">
+            <span class="dc-dow">{{ dv.name }}</span>
+            <span class="dc-date">{{ dv.date_label }}</span>
+            {% if dv.is_today %}<span class="dc-tdy">Today</span>{% endif %}
+          </span>
+          {% if dv.is_working %}
+            <span class="dc-hours">{{ dv.label }}</span>
+          {% elif dv.my_time_off %}
+            <span class="dc-toff">Time off{% if dv.my_time_off.reason_label %} &middot; {{ dv.my_time_off.reason_label }}{% endif %}</span>
+          {% else %}
+            <span class="dc-hours">Off</span>
+          {% endif %}
+          <span class="dc-meta">
+            {% if dv.is_opener %}<svg class="mc-ic ic-open" title="You open up"><use href="#mc-open"/></svg>{% endif %}
+            {% if dv.is_closer %}<svg class="mc-ic ic-close" title="You lock up"><use href="#mc-close"/></svg>{% endif %}
+            {% if dv.is_working and dv.my_location %}
+            <span class="mc-loc {{ dv.my_location }}" title="{% if dv.my_location == 'remote' %}Working from home{% else %}In the office{% endif %}{% if dv.my_location_flipped %} — different from your usual, set for this day{% endif %}">
+              {% if dv.my_location == 'remote' %}<svg class="mc-ic"><use href="#mc-home"/></svg>WFH{% else %}<svg class="mc-ic"><use href="#mc-bldg"/></svg>Office{% endif %}
+            </span>
+            {% endif %}
+          </span>
+          <span class="dc-with">
+            {% if dv.is_working %}
+              {% if dv.with_names %}with {{ dv.with_names|slice:":2"|join:", " }}{% if dv.with_names|length > 2 %} +{{ dv.with_names|length|add:"-2" }}{% endif %}{% else %}just you{% endif %}
+            {% else %}
+              {% if dv.with_names %}{{ dv.with_names|slice:":2"|join:", " }}{% if dv.with_names|length > 2 %} +{{ dv.with_names|length|add:"-2" }}{% endif %} on{% else %}no one scheduled{% endif %}
+            {% endif %}
+          </span>
+        </button>
+        {% endfor %}
+      </div></div>
+
+      {# ── Day detail (the selected date, with one-off changes applied) ── #}
+      <div class="mc-sec">Day detail <span class="mc-sec-hint">&mdash; tap a day above to switch</span></div>
       <div class="mc-panel mc-today">
         {% for dv in day_views %}
-        <div class="mc-dayview" data-dow="{{ dv.dow }}"{% if not dv.is_today %} hidden{% endif %}>
+        <div class="mc-dayview" data-dow="{{ dv.dow }}"{% if dv.dow != selected_dow %} hidden{% endif %}>
           <div class="mc-today-line">
-            <span class="mc-today-tag">{{ dv.name }}{% if dv.is_today %} &middot; Today{% endif %}</span>
+            <span class="mc-today-tag">{{ dv.full_name }} &middot; {{ dv.date_label }}{% if dv.is_today %} &middot; Today{% endif %}</span>
             {% if dv.is_working %}
               <span class="mc-today-what">
                 You&rsquo;re on
                 {% if dv.is_opener %}<svg class="mc-ic ic-open"><use href="#mc-open"/></svg>{% endif %}
                 <span class="mono">{{ dv.label }}</span>
                 {% if dv.is_closer %}<svg class="mc-ic ic-close"><use href="#mc-close"/></svg>{% endif %}
+                {% if dv.my_location %}
+                <span class="mc-loc lg {{ dv.my_location }}" title="{% if dv.my_location_flipped %}Different from your usual — set for this day{% endif %}">
+                  {% if dv.my_location == 'remote' %}<svg class="mc-ic"><use href="#mc-home"/></svg>From home{% else %}<svg class="mc-ic"><use href="#mc-bldg"/></svg>In office{% endif %}
+                </span>
+                {% endif %}
               </span>
             {% else %}
-              <span class="mc-today-what mc-today-off">You&rsquo;re off{% if dv.is_today %} today{% endif %}{% if dv.on_count %} &mdash; here&rsquo;s who&rsquo;s on{% endif %}</span>
+              <span class="mc-today-what mc-today-off">You&rsquo;re off{% if dv.is_today %} today{% endif %}{% if dv.my_time_off.reason_label %} &mdash; {{ dv.my_time_off.reason_label|lower }}{% endif %}{% if dv.on_count %} &mdash; here&rsquo;s who&rsquo;s on{% endif %}</span>
             {% endif %}
           </div>
 
@@ -332,44 +409,15 @@
         {% endfor %}
       </div>
 
-      {# ── Your week — every day, who's on & their hours ── #}
-      <div class="mc-sec">Your week &middot; {{ working_days }} day{{ working_days|pluralize }} on <span class="mc-sec-hint">&mdash; every day, who&rsquo;s working</span></div>
-      <div class="mc-week">
-        {% for d in days %}
-        <div class="mc-day {% if d.is_today %}mc-today-row selected{% endif %} {% if not d.is_working %}mc-off{% endif %}"
-             data-dow="{{ d.dow }}" role="button" tabindex="0" aria-label="Show {{ d.name }} in the day view"
-             style="animation-delay:calc({{ forloop.counter0 }} * 45ms)">
-          <div class="mc-dname">
-            <span class="d">{{ d.name }}</span>
-            {% if d.is_today %}<span class="t">Today</span>{% endif %}
-            {% if d.is_working %}<span class="tag tag-on">You&rsquo;re on</span>{% else %}<span class="tag tag-off">You&rsquo;re off</span>{% endif %}
-          </div>
-          <div class="mc-body">
-            {% if d.roster_on %}
-            <div class="mc-roster">
-              {% for p in d.roster_on %}
-              <span class="mc-person{% if p.is_me %} me{% elif p.is_opener %} op{% elif p.is_closer %} cl{% endif %}">
-                {% if p.is_opener %}<svg class="mc-ic ic-open"><use href="#mc-open"/></svg>{% elif p.is_closer %}<svg class="mc-ic ic-close"><use href="#mc-close"/></svg>{% endif %}
-                <span class="pn">{{ p.name }}</span>
-                <span class="pw mono">{{ p.window }}</span>
-              </span>
-              {% endfor %}
-            </div>
-            {% else %}
-            <span class="mc-offlabel">No one scheduled.</span>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-
       <div class="mc-legend">
         <span><svg class="mc-ic ic-open"><use href="#mc-open"/></svg> Opener &mdash; opens up, first in</span>
         <span><svg class="mc-ic ic-close"><use href="#mc-close"/></svg> Closer &mdash; locks up, last out</span>
+        <span><svg class="mc-ic" style="color:var(--wfh)"><use href="#mc-home"/></svg> WFH &mdash; working from home</span>
+        <span><svg class="mc-ic" style="color:var(--open)"><use href="#mc-bldg"/></svg> Office &mdash; in that day</span>
         <span><svg class="mc-ic" style="color:var(--oncall)"><use href="#mc-moon"/></svg> On-call &mdash; overnight watch</span>
         <span><svg class="mc-ic" style="color:var(--absent)"><use href="#mc-absent"/></svg> Off today &mdash; out for the day</span>
       </div>
-      <p class="mc-foot">Your week is your standard weekly hours; the day view up top shows the actual day, including anyone out or on changed hours. Overnight (12&ndash;6&nbsp;AM) is covered by the on-call person. If something looks off, your manager can adjust it.</p>
+      <p class="mc-foot">These are your real dates &mdash; time off, one-off hour changes and office/home days are already reflected, and Next week shows the week ahead. Overnight (12&ndash;6&nbsp;AM) is covered by the on-call person. If something looks off, your manager can adjust it.</p>
       {% endif %}
 
       {% comment %}
@@ -429,8 +477,8 @@
 <script>
 (function () {
   var views = [].slice.call(document.querySelectorAll('.mc-dayview'));
-  var rows = [].slice.call(document.querySelectorAll('.mc-day[data-dow]'));
-  if (!views.length || !rows.length) return;
+  var cards = [].slice.call(document.querySelectorAll('.mc-dcard[data-dow]'));
+  if (!views.length || !cards.length) return;
 
   function select(dow) {
     dow = String(dow);
@@ -439,14 +487,11 @@
       v.hidden = !show;
       if (show) { v.style.animation = 'none'; void v.offsetWidth; v.style.animation = ''; }
     });
-    rows.forEach(function (r) { r.classList.toggle('selected', r.dataset.dow === dow); });
+    cards.forEach(function (c) { c.classList.toggle('selected', c.dataset.dow === dow); });
   }
 
-  rows.forEach(function (r) {
-    r.addEventListener('click', function () { select(r.dataset.dow); });
-    r.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(r.dataset.dow); }
-    });
+  cards.forEach(function (c) {
+    c.addEventListener('click', function () { select(c.dataset.dow); });
   });
 })();
 

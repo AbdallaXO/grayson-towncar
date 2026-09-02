@@ -1,426 +1,316 @@
 {% extends "dispatching/booking/base_booking.html" %}
+{% load static %}
 
 {% block step_content %}
   <style>
-      /* ----- Modern number stepper (passengers, bags, car seats) ----- */
-      .gtc-stepper {
-          display: inline-flex;
-          align-items: stretch;
-          width: 100%;
-          max-width: 200px;
-          border: 1px solid var(--booking-border, #e2e8f0);
-          border-radius: 12px;
-          overflow: hidden;
-          background: #fff;
-          box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
-          transition: border-color .15s ease, box-shadow .15s ease;
+      .rw-pax-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); gap:18px; align-items:start; }
+      .rw-seat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+      .rw-seat-hint { display:block; margin-top:5px; font-size:11px; color:var(--muted); }
+
+      /* Pills backed by a real radio, so the value posts with no JS. */
+      .rw-pill-wrap { position:relative; display:inline-flex; margin:0; }
+      .rw-pill-wrap input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+      .rw-pill-wrap input:checked + .rw-pill {
+          background:var(--blue-soft); border-color:var(--blue); color:var(--blue); font-weight:600;
       }
-      .gtc-stepper:focus-within {
-          border-color: var(--booking-primary, #2563eb);
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, .14);
+      .rw-pill-wrap input:focus-visible + .rw-pill { outline:2px solid var(--blue); outline-offset:1px; }
+
+      /* Vehicle picker */
+      /* The fleet is not a fixed four — auto-fit so a fifth vehicle joins the
+         row instead of dangling on one of its own. */
+      .rw-veh-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+      .rw-veh { position:relative; margin:0; }
+      .rw-veh input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+      .rw-veh-card {
+          display:block; padding:12px 13px 13px; background:var(--card);
+          border:1px solid var(--line-2); border-radius:8px; cursor:pointer;
+          transition:border-color .2s ease, box-shadow .2s ease;
       }
-      .gtc-stepper-btn {
-          border: 0;
-          background: #f8fafc;
-          width: 44px;
-          flex: 0 0 44px;
-          font-size: 1.25rem;
-          line-height: 1;
-          font-weight: 500;
-          color: #475569;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          user-select: none;
-          transition: background-color .12s ease, color .12s ease;
+      .rw-veh input:checked + .rw-veh-card {
+          border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.12);
       }
-      .gtc-stepper-btn:hover  { background: #eef2f7; color: var(--booking-primary, #2563eb); }
-      .gtc-stepper-btn:active { background: #e2e8f0; }
-      .gtc-stepper-btn:disabled { opacity: .4; cursor: not-allowed; color: #94a3b8; background: #f8fafc; }
-      .gtc-stepper-btn.minus { border-right: 1px solid var(--booking-border, #e2e8f0); }
-      .gtc-stepper-btn.plus  { border-left:  1px solid var(--booking-border, #e2e8f0); }
-      .gtc-stepper > input.form-control,
-      .gtc-stepper > input.form-control-lg {
-          border: 0 !important;
-          border-radius: 0 !important;
-          box-shadow: none !important;
-          background: transparent !important;
-          text-align: center;
-          font-weight: 600;
-          font-size: 1.05rem;
-          flex: 1 1 auto;
-          min-width: 0;
-          padding: .5rem .25rem;
-          -moz-appearance: textfield;
+      .rw-veh-photo { display:block; position:relative; height:62px; margin-bottom:8px; }
+      .rw-veh-photo img {
+          display:block; width:100%; height:100%;
+          object-fit:contain; mix-blend-mode:multiply;
       }
-      .gtc-stepper > input::-webkit-outer-spin-button,
-      .gtc-stepper > input::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
+      .rw-veh-check {
+          position:absolute; top:-2px; right:-2px;
+          width:20px; height:20px; border-radius:50%;
+          display:none; align-items:center; justify-content:center;
+          background:var(--blue); color:#fff; font-size:11px;
+      }
+      .rw-veh input:checked + .rw-veh-card .rw-veh-check { display:inline-flex; }
+      .rw-veh-name { display:block; font-size:13.5px; font-weight:600; line-height:1.25; color:var(--ink); }
+      .rw-veh-cap { display:block; margin-top:2px; font-size:11.5px; color:var(--muted); }
+
+      /* Grocery stop — one of only two gold touches in the whole wizard. */
+      .rw-toggle { position:relative; display:block; margin:0; }
+      .rw-toggle input { position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+      .rw-toggle-face {
+          display:flex; align-items:center; gap:12px;
+          padding:13px 14px; border:1px solid var(--line-2); border-radius:8px;
+          background:var(--card); cursor:pointer;
+      }
+      .rw-toggle input:checked + .rw-toggle-face {
+          border-color:#C9A227; background:rgba(201,162,39,.07);
+      }
+      .rw-toggle-icon {
+          flex:0 0 38px; width:38px; height:38px; border-radius:50%;
+          display:inline-flex; align-items:center; justify-content:center;
+          background:var(--bg); color:var(--muted); font-size:16px;
+      }
+      .rw-toggle input:checked + .rw-toggle-face .rw-toggle-icon {
+          background:linear-gradient(135deg,#C9A227,#D4AF37); color:#fff;
+      }
+      .rw-toggle-text { display:flex; flex-direction:column; gap:2px; min-width:0; }
+      .rw-toggle-text b { font-size:13.5px; font-weight:600; color:var(--ink); }
+      .rw-toggle-text span { font-size:11.5px; color:var(--muted); }
+      .rw-toggle-check {
+          margin-left:auto; flex:0 0 22px; width:22px; height:22px; border-radius:50%;
+          display:inline-flex; align-items:center; justify-content:center;
+          border:1px solid var(--line-2); background:var(--card); color:transparent; font-size:12px;
+      }
+      .rw-toggle input:checked + .rw-toggle-face .rw-toggle-check {
+          background:#C9A227; border-color:#C9A227; color:#fff;
       }
 
-      /* ----- Card-style radio group (luggage type) ----- */
-      .gtc-radio-cards {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: .5rem;
-          margin-top: .5rem;
-      }
-      .gtc-radio-cards .form-check {
-          position: relative;
-          margin: 0;
-          padding: 0;
-          min-height: 0;
-      }
-      .gtc-radio-cards input[type="radio"] {
-          position: absolute;
-          inset: 0;
-          opacity: 0;
-          pointer-events: none;
-      }
-      .gtc-radio-cards .form-check-label {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: .4rem;
-          padding: .7rem .5rem;
-          border: 1.5px solid var(--booking-border, #e2e8f0);
-          border-radius: 10px;
-          text-align: center;
-          cursor: pointer;
-          font-weight: 500;
-          font-size: .88rem;
-          color: var(--booking-text, #0f172a);
-          background: #fff;
-          margin: 0;
-          line-height: 1.2;
-          min-height: 50px;
-          transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease, color .15s ease;
-      }
-      .gtc-radio-cards .form-check-label:hover {
-          border-color: var(--booking-primary, #2563eb);
-          background: #f8fafc;
-      }
-      .gtc-radio-cards input[type="radio"]:checked + .form-check-label {
-          border-color: var(--booking-primary, #2563eb);
-          background: rgba(37, 99, 235, .08);
-          color: var(--booking-primary-dark, #1d4ed8);
-          font-weight: 600;
-          box-shadow: 0 0 0 1px var(--booking-primary, #2563eb) inset;
-      }
-      .gtc-radio-cards input[type="radio"]:focus-visible + .form-check-label {
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
-      }
-      @media (max-width: 540px) {
-          .gtc-radio-cards { grid-template-columns: 1fr; }
+      @media (max-width: 860px) {
+          .rw-pax-grid, .rw-seat-grid { grid-template-columns:1fr; }
+          .rw-veh-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
       }
   </style>
 
-  <form method="post" class="needs-validation" novalidate>
+  <form method="post" id="rw-form" novalidate>
     {% csrf_token %}
 
-    <!-- Form Errors Summary -->
     {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <strong>Form Errors:</strong>
-        <ul class="mb-0 mt-2">
-          {% for error in form.non_field_errors %}
-            <li>{{ error }}</li>
-          {% endfor %}
-        </ul>
+      <div class="rw-flag crit" style="margin-top:16px">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <span>{{ form.non_field_errors.0 }}</span>
       </div>
     {% endif %}
 
-    <!-- Passenger Details Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-users me-2"></i>
-          Passenger Details
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-6">
-            <div class="mb-3">
-              <label for="{{ form.passenger_count.id_for_label }}"
-                     class="form-label fw-bold">
-                {{ form.passenger_count.label }} <span class="text-danger">*</span>
-              </label>
-              {{ form.passenger_count }}
-              {% if form.passenger_count.errors %}<div class="invalid-feedback">{{ form.passenger_count.errors.0 }}</div>{% endif %}
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="mb-3">
-              <label for="{{ form.luggage_count.id_for_label }}"
-                     class="form-label fw-bold">{{ form.luggage_count.label }}</label>
+    <div class="rw-stack">
+
+      {# ── Passenger details ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-people-fill"></i>
+          <h3>Passenger Details</h3>
+        </div>
+        <div class="rw-sec-body rw-pax-grid">
+          <label class="rw-field">
+            <span class="rw-label">{{ form.passenger_count.label }} <span class="rw-req">*</span></span>
+            {{ form.passenger_count }}
+            {% if form.passenger_count.errors %}<div class="rw-field-error">{{ form.passenger_count.errors.0 }}</div>{% endif %}
+          </label>
+          <div style="min-width:0">
+            <label class="rw-field">
+              <span class="rw-label">{{ form.luggage_count.label }}</span>
               {{ form.luggage_count }}
-              {% if form.luggage_count.errors %}<div class="invalid-feedback">{{ form.luggage_count.errors.0 }}</div>{% endif %}
-              <div class="mt-2">
-                <span class="form-label fw-bold">{{ form.luggage_type.label }}</span>
-                <div class="gtc-radio-cards">
-                  {% for radio in form.luggage_type %}
-                    <div class="form-check">
-                      {{ radio.tag }}
-                      <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
-                    </div>
-                  {% endfor %}
-                </div>
+              {% if form.luggage_count.errors %}<div class="rw-field-error">{{ form.luggage_count.errors.0 }}</div>{% endif %}
+            </label>
+            <div style="margin-top:12px">
+              <span class="rw-label">{{ form.luggage_type.label }}</span>
+              <div class="rw-pills">
+                {% for radio in form.luggage_type %}
+                  <label class="rw-pill-wrap">
+                    {{ radio.tag }}
+                    <span class="rw-pill">{{ radio.choice_label }}</span>
+                  </label>
+                {% endfor %}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Car Seats Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-baby me-2"></i>
-          Car Seats
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="form-check">
-            {{ form.need_carseats }}
-            <label class="form-check-label fw-bold"
-                   for="{{ form.need_carseats.id_for_label }}">{{ form.need_carseats.label }}</label>
-          </div>
-          {% if form.need_carseats.errors %}
-            <div class="invalid-feedback d-block">{{ form.need_carseats.errors.0 }}</div>
-          {% endif %}
+      {# ── Car seats ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-person-arms-up"></i>
+          <h3>Car Seats</h3>
+          <span class="hint">Included free · no limit for dispatchers</span>
         </div>
-
-        <div id="carseat-details" style="display: none;">
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Dispatcher Note:</strong> You can add as many car seats as needed for any vehicle type.
+        <div class="rw-sec-body rw-seat-grid">
+          <div style="min-width:0">
+            <span class="rw-label">{{ form.rf_carseats.label }}</span>
+            {{ form.rf_carseats }}
+            <span class="rw-seat-hint">Infant seats</span>
           </div>
-          <div class="row">
-            <div class="col-md-4">
-              <div class="mb-3">
-                <label for="{{ form.rf_carseats.id_for_label }}" class="form-label">{{ form.rf_carseats.label }}</label>
-                {{ form.rf_carseats }}
-                <div class="form-text">No limit for dispatchers</div>
-                {% if form.rf_carseats.errors %}<div class="invalid-feedback">{{ form.rf_carseats.errors.0 }}</div>{% endif %}
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="mb-3">
-                <label for="{{ form.ff_carseats.id_for_label }}" class="form-label">{{ form.ff_carseats.label }}</label>
-                {{ form.ff_carseats }}
-                <div class="form-text">No limit for dispatchers</div>
-                {% if form.ff_carseats.errors %}<div class="invalid-feedback">{{ form.ff_carseats.errors.0 }}</div>{% endif %}
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="mb-3">
-                <label for="{{ form.booster_seats.id_for_label }}" class="form-label">{{ form.booster_seats.label }}</label>
-                {{ form.booster_seats }}
-                <div class="form-text">No limit for dispatchers</div>
-                {% if form.booster_seats.errors %}<div class="invalid-feedback">{{ form.booster_seats.errors.0 }}</div>{% endif %}
-              </div>
-            </div>
+          <div style="min-width:0">
+            <span class="rw-label">{{ form.ff_carseats.label }}</span>
+            {{ form.ff_carseats }}
+            <span class="rw-seat-hint">Toddler seats</span>
+          </div>
+          <div style="min-width:0">
+            <span class="rw-label">{{ form.booster_seats.label }}</span>
+            {{ form.booster_seats }}
+            <span class="rw-seat-hint">Ages 4+</span>
           </div>
         </div>
+        {# Derived, never asked: the box is ticked whenever a seat count is set. #}
+        <div style="display:none">{{ form.need_carseats }}</div>
       </div>
-    </div>
 
-    <!-- Vehicle Selection Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-car me-2"></i>
-          Vehicle Selection
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-8">
-            <div class="mb-3">
-              <label for="{{ form.manual_vehicle.id_for_label }}"
-                     class="form-label fw-bold">
-                {{ form.manual_vehicle.label }} <span class="text-danger">*</span>
+      {# ── Vehicle ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-car-front-fill"></i>
+          <h3>Vehicle Selection</h3>
+        </div>
+        <div class="rw-sec-body">
+          <span class="rw-label">{{ form.manual_vehicle.label }} <span class="rw-req">*</span></span>
+          <div class="rw-veh-grid">
+            {% for v in form.manual_vehicle.field.queryset %}
+              <label class="rw-veh">
+                <input type="radio" name="manual_vehicle" value="{{ v.id }}"
+                       data-cap="{{ v.capacity }}" data-bags="{{ v.luggage_capacity }}"
+                       data-name="{{ v.get_vehicle_type_display }}"
+                       {% if form.manual_vehicle.value|stringformat:"s" == v.id|stringformat:"s" %}checked{% endif %}>
+                <span class="rw-veh-card">
+                  <span class="rw-veh-photo">
+                    {% if v.vehicle_type == 'towncar' %}
+                      <img src="{% static 'images/towncar.webp' %}" alt="Towncar">
+                    {% elif v.vehicle_type == 'suv' %}
+                      <img src="{% static 'images/suv.webp' %}" alt="SUV">
+                    {% elif v.vehicle_type == 'mini_van' %}
+                      <img src="{% static 'images/minivan.webp' %}" alt="Minivan">
+                    {% else %}
+                      <img src="{% static 'images/van.webp' %}" alt="Van">
+                    {% endif %}
+                    <span class="rw-veh-check"><i class="bi bi-check-lg"></i></span>
+                  </span>
+                  <span class="rw-veh-name">{{ v.get_vehicle_type_display }}</span>
+                  <span class="rw-veh-cap">{{ v.capacity }} passengers · {{ v.luggage_capacity }} bags</span>
+                </span>
               </label>
-              {{ form.manual_vehicle }}
-              <div class="form-text">{{ form.manual_vehicle.help_text }}</div>
-              {% if form.manual_vehicle.errors %}<div class="invalid-feedback">{{ form.manual_vehicle.errors.0 }}</div>{% endif %}
-            </div>
+            {% endfor %}
           </div>
-          <div class="col-md-4">
-            <div class="alert alert-dark h-100 d-flex align-items-center">
-              <div>
-                <i class="fas fa-info-circle me-2"></i>
-                <strong>Note:</strong> Pricing will be set in the next step after adding trip details.
-              </div>
-            </div>
+          {% if form.manual_vehicle.errors %}<div class="rw-field-error">{{ form.manual_vehicle.errors.0 }}</div>{% endif %}
+
+          <div class="rw-flags" id="rw-flags" style="margin-top:12px"></div>
+
+          <div class="rw-note" style="margin-top:12px">
+            <i class="bi bi-info-circle-fill"></i>
+            <strong>Note:</strong> Pricing is set in step 4, after the trip legs are in.
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Additional Options Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-plus-circle me-2"></i>
-          Additional Options
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="form-check">
+      {# ── Additional options ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-plus-circle-fill"></i>
+          <h3>Additional Options</h3>
+        </div>
+        <div class="rw-sec-body" style="display:flex; flex-direction:column; gap:14px">
+          <label class="rw-toggle">
             {{ form.store_stop }}
-            <label class="form-check-label" for="{{ form.store_stop.id_for_label }}">{{ form.store_stop.label }}</label>
-          </div>
-          {% if form.store_stop.errors %}<div class="invalid-feedback d-block">{{ form.store_stop.errors.0 }}</div>{% endif %}
+            <span class="rw-toggle-face">
+              <span class="rw-toggle-icon"><i class="bi bi-cart-check-fill"></i></span>
+              <span class="rw-toggle-text">
+                <b>Free Grocery Stop</b>
+                <span>Complimentary 20-minute Publix stop on the way</span>
+              </span>
+              <span class="rw-toggle-check"><i class="bi bi-check-lg"></i></span>
+            </span>
+          </label>
+
+          <label class="rw-field">
+            <span class="rw-label">{{ form.special_requests.label }}</span>
+            {{ form.special_requests }}
+            <span class="rw-help">Shown to the driver and on the guest confirmation.</span>
+          </label>
         </div>
-
-        <div class="mb-3">
-          <label for="{{ form.special_requests.id_for_label }}"
-                 class="form-label fw-bold">{{ form.special_requests.label }}</label>
-          {{ form.special_requests }}
-          <div class="form-text">{{ form.special_requests.help_text }}</div>
-          {% if form.special_requests.errors %}
-            <div class="invalid-feedback">{{ form.special_requests.errors.0 }}</div>
-          {% endif %}
-        </div>
-
-
       </div>
+
     </div>
 
-    <div class="d-flex justify-content-between mt-4">
-      <a href="{% url 'dispatcher_booking_customer' %}"
-         class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Back
+    <div class="rw-actions">
+      <a href="{% url 'dispatcher_booking_customer' %}" class="rw-back">
+        <i class="bi bi-arrow-left"></i> Back
       </a>
-      <button type="submit" class="btn btn-primary">
-        Next: Trip Details
-        <i class="fas fa-arrow-right ms-2"></i>
-      </button>
+      <div class="rw-actions-right">
+        <span class="rw-gate-note" id="rw-note"></span>
+        <button type="submit" class="rw-next" id="rw-next">
+          Next: Trip Details <i class="bi bi-arrow-right"></i>
+        </button>
+      </div>
     </div>
   </form>
 
   <script>
-      // Wrap a <input type="number"> with a modern −/+ stepper. Respects min/max/step.
-      function buildGtcStepper(input) {
-          if (!input || input.dataset.gtcStepper === '1') return;
-          input.dataset.gtcStepper = '1';
-
-          const wrapper = document.createElement('div');
-          wrapper.className = 'gtc-stepper';
-
-          const minus = document.createElement('button');
-          minus.type = 'button';
-          minus.className = 'gtc-stepper-btn minus';
-          minus.setAttribute('aria-label', 'Decrease');
-          minus.textContent = '−'; // −
-
-          const plus = document.createElement('button');
-          plus.type = 'button';
-          plus.className = 'gtc-stepper-btn plus';
-          plus.setAttribute('aria-label', 'Increase');
-          plus.textContent = '+';
-
-          input.parentNode.insertBefore(wrapper, input);
-          wrapper.appendChild(minus);
-          wrapper.appendChild(input);
-          wrapper.appendChild(plus);
-
-          const minAttr = parseFloat(input.getAttribute('min'));
-          const maxAttr = parseFloat(input.getAttribute('max'));
-          const stepAttr = parseFloat(input.getAttribute('step'));
-          const minVal = isFinite(minAttr) ? minAttr : -Infinity;
-          const maxVal = isFinite(maxAttr) ? maxAttr : Infinity;
-          const stepVal = (isFinite(stepAttr) && stepAttr > 0) ? stepAttr : 1;
-
-          function refreshDisabled() {
-              const v = parseFloat(input.value);
-              minus.disabled = isFinite(v) && v <= minVal;
-              plus.disabled  = isFinite(v) && v >= maxVal;
-          }
-          function bump(delta) {
-              let v = parseFloat(input.value);
-              if (!isFinite(v)) v = (minVal === -Infinity) ? 0 : minVal;
-              v = Math.max(minVal, Math.min(maxVal, v + delta * stepVal));
-              input.value = v;
-              input.dispatchEvent(new Event('input',  { bubbles: true }));
-              input.dispatchEvent(new Event('change', { bubbles: true }));
-              refreshDisabled();
-          }
-          minus.addEventListener('click', function() { bump(-1); });
-          plus.addEventListener('click',  function() { bump(1); });
-          input.addEventListener('input',  refreshDisabled);
-          input.addEventListener('change', refreshDisabled);
-          refreshDisabled();
-      }
-
       document.addEventListener('DOMContentLoaded', function() {
-          // Wrap all numeric reservation fields with the modern stepper.
-          ['{{ form.passenger_count.id_for_label }}',
-           '{{ form.luggage_count.id_for_label }}',
-           '{{ form.rf_carseats.id_for_label }}',
-           '{{ form.ff_carseats.id_for_label }}',
-           '{{ form.booster_seats.id_for_label }}'].forEach(function(id) {
-              const el = document.getElementById(id);
-              if (el) buildGtcStepper(el);
+          var form = document.getElementById('rw-form');
+          var pax  = document.getElementById('{{ form.passenger_count.id_for_label }}');
+          var bags = document.getElementById('{{ form.luggage_count.id_for_label }}');
+          var rf   = document.getElementById('{{ form.rf_carseats.id_for_label }}');
+          var ff   = document.getElementById('{{ form.ff_carseats.id_for_label }}');
+          var bs   = document.getElementById('{{ form.booster_seats.id_for_label }}');
+          var need = document.getElementById('{{ form.need_carseats.id_for_label }}');
+
+          [[pax, false], [bags, false], [rf, true], [ff, true], [bs, true]].forEach(function(pair) {
+              window.rwStepper(pair[0], pair[1]);
           });
 
-          const needCarseatsCheckbox = document.getElementById('{{ form.need_carseats.id_for_label }}');
-          const carseatDetails = document.getElementById('carseat-details');
+          function n(el) { var v = parseInt(el && el.value, 10); return isFinite(v) ? v : 0; }
 
-          // Toggle car seat details
-          function toggleCarseatDetails() {
-              if (needCarseatsCheckbox.checked) {
-                  carseatDetails.style.display = 'block';
-              } else {
-                  carseatDetails.style.display = 'none';
-                  // Reset car seat values
-                  document.getElementById('{{ form.rf_carseats.id_for_label }}').value = '0';
-                  document.getElementById('{{ form.ff_carseats.id_for_label }}').value = '0';
-                  document.getElementById('{{ form.booster_seats.id_for_label }}').value = '0';
-              }
+          // need_carseats is not a question the dispatcher answers — it is
+          // simply whether any seat was counted.
+          function syncNeedCarseats() {
+              if (need) need.checked = (n(rf) + n(ff) + n(bs)) > 0;
+          }
+          form.addEventListener('input', syncNeedCarseats);
+          form.addEventListener('change', syncNeedCarseats);
+          syncNeedCarseats();
+
+          function chosenVehicle() {
+              return form.querySelector('input[name="manual_vehicle"]:checked');
           }
 
-          // Event listeners
-          needCarseatsCheckbox.addEventListener('change', toggleCarseatDetails);
-
-          // Initialize
-          toggleCarseatDetails();
-
-          // Form validation
-          const form = document.querySelector('form');
-          form.addEventListener('submit', function(e) {
-              const requiredFields = form.querySelectorAll('input[required], select[required]');
-              let isValid = true;
-
-              requiredFields.forEach(field => {
-                  if (!field.value.trim()) {
-                      field.classList.add('is-invalid');
-                      isValid = false;
-                  } else {
-                      field.classList.remove('is-invalid');
-                  }
-              });
-
-              if (!isValid) {
-                  e.preventDefault();
-                  // Scroll to first invalid field
-                  const firstInvalid = form.querySelector('.is-invalid');
-                  if (firstInvalid) {
-                      firstInvalid.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'center'
+          function rideFlags() {
+              var out = [];
+              var v = chosenVehicle();
+              var seats = n(rf) + n(ff) + n(bs);
+              if (n(pax) < 1) out.push({tone:'crit', text:'Passenger count is 0.'});
+              if (!v) {
+                  out.push({tone:'crit', text:'Pick the vehicle for this reservation.'});
+              } else {
+                  var cap  = parseInt(v.dataset.cap, 10) || 0;
+                  var hold = parseInt(v.dataset.bags, 10) || 0;
+                  var name = v.dataset.name;
+                  if (n(pax) > cap) {
+                      // Offer the smallest vehicle that actually fits the party.
+                      var fit = null;
+                      form.querySelectorAll('input[name="manual_vehicle"]').forEach(function(o) {
+                          var c = parseInt(o.dataset.cap, 10) || 0;
+                          if (c >= n(pax) && (!fit || c < (parseInt(fit.dataset.cap, 10) || 0))) fit = o;
+                      });
+                      out.push({
+                          tone:'crit',
+                          text: name + ' seats ' + cap + '. ' + n(pax) + ' passengers will not fit.',
+                          fix: fit ? {
+                              label: 'Switch to ' + fit.dataset.name,
+                              run: function() { fit.checked = true; form.dispatchEvent(new Event('change', {bubbles:true})); }
+                          } : null
                       });
                   }
+                  if (n(bags) > hold)
+                      out.push({tone:'warn', text: name + ' holds about ' + hold + ' bags — ' + n(bags) + ' may not fit with passengers aboard.'});
               }
+              if (seats > n(pax) && n(pax) > 0)
+                  out.push({tone:'warn', text: seats + ' car seats for ' + n(pax) + ' passengers — confirm the count.'});
+              return out;
+          }
+
+          window.rwGate({
+              form: form,
+              button: document.getElementById('rw-next'),
+              note: document.getElementById('rw-note'),
+              flagBox: document.getElementById('rw-flags'),
+              compute: rideFlags
           });
       });
   </script>

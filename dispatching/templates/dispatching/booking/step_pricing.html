@@ -1,404 +1,398 @@
 {% extends "dispatching/booking/base_booking.html" %}
 
 {% block step_content %}
-  <form method="post" class="needs-validation" novalidate>
+  <style>
+      .rw-recap { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px 20px; }
+      .rw-recap .rw-row { display:flex; align-items:baseline; gap:8px; min-width:0; }
+      .rw-recap .k { font-size:12.5px; color:var(--muted); flex:0 0 auto; }
+      .rw-recap .v { font-size:12.5px; font-weight:600; color:var(--ink); overflow-wrap:anywhere; }
+
+      .rw-rate {
+          border-radius:10px; padding:18px 20px;
+          background:var(--blue-soft); border:1px solid var(--blue-line);
+      }
+      .rw-rate.partial { background:var(--warn-tint); border-color:var(--warn-tint-line); }
+      .rw-rate.none    { background:var(--bg); border-color:var(--line-2); }
+      .rw-rate-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+      .rw-rate-icon {
+          flex:0 0 38px; width:38px; height:38px; border-radius:50%;
+          display:inline-flex; align-items:center; justify-content:center;
+          background:linear-gradient(135deg,#C9A227,#D4AF37); color:#fff; font-size:17px;
+      }
+      .rw-rate.none .rw-rate-icon { background:var(--line-2); color:var(--muted); }
+      .rw-rate-main { flex:1 1 240px; min-width:0; }
+      .rw-rate-label {
+          font-size:11px; font-weight:700; letter-spacing:.08em;
+          text-transform:uppercase; color:var(--muted);
+      }
+      .rw-rate-amt {
+          font-size:28px; font-weight:700; line-height:1.15; color:var(--blue);
+          letter-spacing:-.01em; margin-top:1px;
+      }
+      .rw-rate.partial .rw-rate-amt { color:var(--warn-deep); }
+      .rw-rate.none .rw-rate-amt { font-size:17px; font-weight:600; color:var(--ink); }
+      .rw-rate-route { margin-top:5px; font-size:12.5px; color:var(--ink-2); line-height:1.5; }
+      .rw-rate-apply {
+          flex:0 0 auto; display:inline-flex; align-items:center; gap:7px;
+          padding:12px 20px; border:0; border-radius:8px;
+          background:var(--blue); color:#fff;
+          font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
+          box-shadow:0 1px 3px rgba(37,99,235,.25);
+      }
+      .rw-rate-apply:hover { background:var(--blue-dark); }
+      .rw-rate-apply.is-applied {
+          background:var(--green-soft); border:1px solid var(--green-line);
+          color:var(--green-ink); box-shadow:none; cursor:default;
+      }
+      /* The fee is spelled out rather than folded into one number. */
+      .rw-rate-break {
+          display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+          margin-top:14px; padding-top:12px; border-top:1px solid var(--blue-line);
+          font-size:12.5px; color:var(--ink-2);
+      }
+      .rw-rate.partial .rw-rate-break { border-top-color:var(--warn-tint-line); }
+      .rw-rate.none .rw-rate-break { border-top-color:var(--line-2); }
+      .rw-rate-break b { font-weight:600; color:var(--ink); }
+      .rw-rate-break .fee { color:#7a6216; font-weight:600; }
+      .rw-rate-break .why { color:var(--muted); }
+
+      .rw-money-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+      .rw-money {
+          display:flex; align-items:stretch;
+          border:1px solid var(--line-2); border-radius:6px; overflow:hidden; background:var(--card);
+      }
+      .rw-money:focus-within { border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+      .rw-money .pre {
+          flex:0 0 auto; display:inline-flex; align-items:center;
+          padding:0 4px 0 12px; color:var(--muted); font-size:14px;
+      }
+      /* min-width:0 is load-bearing: without it the intrinsic input width
+         overflows the card. */
+      .rw-money input {
+          flex:1 1 auto; min-width:0;
+          border:0 !important; border-radius:0 !important; box-shadow:none !important;
+          font-size:15px !important; font-weight:600; padding:10px 12px 10px 4px !important;
+      }
+
+      .rw-total-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; }
+      .rw-total {
+          border:2px solid var(--green); background:var(--green-soft);
+          border-radius:8px; padding:16px 18px;
+      }
+      .rw-total .lbl { font-size:12.5px; font-weight:600; color:var(--green-ink); }
+      .rw-total .amt { font-size:30px; font-weight:700; color:var(--green-ink); line-height:1.1; margin-top:2px; }
+      .rw-total .breakdown { margin-top:12px; display:flex; flex-direction:column; gap:4px; }
+      .rw-total .breakdown div { display:flex; justify-content:space-between; font-size:12px; color:var(--green-ink); }
+
+      @media (max-width: 860px) {
+          .rw-recap { grid-template-columns:repeat(2,minmax(0,1fr)); }
+          .rw-money-grid, .rw-total-grid { grid-template-columns:1fr; }
+      }
+  </style>
+
+  <form method="post" id="rw-form" novalidate>
     {% csrf_token %}
 
-    <!-- Form Errors Summary -->
     {% if form.non_field_errors %}
-      <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <strong>Form Errors:</strong>
-        <ul class="mb-0 mt-2">
-          {% for error in form.non_field_errors %}
-            <li>{{ error }}</li>
-          {% endfor %}
-        </ul>
+      <div class="rw-flag crit" style="margin-top:16px">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <span>{{ form.non_field_errors.0 }}</span>
       </div>
     {% endif %}
 
-    <!-- Summary Section -->
-    <div class="card mb-4 bg-light">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-info-circle me-2"></i>
-          Reservation Summary
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-6">
-            <p>
-              <strong>Customer:</strong> {{ customer.get_full_name }}
-            </p>
-            <p>
-              <strong>Vehicle:</strong> {{ vehicle.get_vehicle_type_display|default:"Not selected" }}
-            </p>
-            <p>
-              <strong>Passengers:</strong> {{ booking_data.reservation_data.passenger_count|default:"1" }}
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p>
-              <strong>Trip Legs:</strong> {{ legs_data|length }}
-            </p>
-            {% if booking_data.reservation_data.need_carseats == 'True' %}
-              <p>
-                <strong>Car Seats:</strong>
-                RF: {{ booking_data.reservation_data.rf_carseats|default:"0" }},
-                FF: {{ booking_data.reservation_data.ff_carseats|default:"0" }},
-                Booster: {{ booking_data.reservation_data.booster_seats|default:"0" }}
-              </p>
-            {% endif %}
-            {% if booking_data.reservation_data.store_stop == 'True' %}
-              <p>
-                <strong>Store Stop:</strong> Yes
-              </p>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="rw-stack">
 
-    <!-- Suggested Rate -->
-    {% if suggested_price %}
-    <div class="card mb-4 border-warning" id="suggested-rate-card">
-      <div class="card-body py-3">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <div>
-            <i class="fas fa-lightbulb text-warning me-2"></i>
-            <strong>Suggested Rate:</strong>
-            <span class="fs-5 fw-bold text-success ms-1">${{ suggested_price }}</span>
-            <span class="text-muted ms-2">
-              {{ vehicle.get_vehicle_type_display }} &middot; {{ suggested_route_label }} &middot; {{ suggested_trip_type }}
-            </span>
-          </div>
-          <button type="button" class="btn btn-warning btn-sm fw-bold" id="use-suggested-btn">
-            <i class="fas fa-check me-1"></i> Use Suggested
-          </button>
+      {# ── Read-only recap ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-info-circle-fill"></i>
+          <h3>Reservation Summary</h3>
         </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- Pricing Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-dollar-sign me-2"></i>
-          Pricing & Charges
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-6">
-            <div class="mb-3">
-              <label for="{{ form.manual_base_price.id_for_label }}"
-                     class="form-label fw-bold">
-                {{ form.manual_base_price.label }} <span class="text-danger">*</span>
-              </label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                {{ form.manual_base_price }}
+        <div class="rw-sec-body">
+          {% with rd=booking_data.reservation_data %}
+            <div class="rw-recap">
+              <div class="rw-row"><span class="k">Customer</span><span class="v">{{ customer.get_full_name }}</span></div>
+              <div class="rw-row"><span class="k">Vehicle</span><span class="v">{{ vehicle.get_vehicle_type_display|default:"Not selected" }}</span></div>
+              <div class="rw-row"><span class="k">Passengers</span><span class="v">{{ rd.passenger_count|default:"1" }}</span></div>
+              <div class="rw-row"><span class="k">Trip Legs</span><span class="v">{{ legs_data|length }}</span></div>
+              <div class="rw-row">
+                <span class="k">Car Seats</span>
+                <span class="v">
+                  {% with rf=rd.rf_carseats|default:"0" ff=rd.ff_carseats|default:"0" bs=rd.booster_seats|default:"0" %}
+                    {% if rf != "0" or ff != "0" or bs != "0" %}RF {{ rf }} · FF {{ ff }} · BS {{ bs }}{% else %}None{% endif %}
+                  {% endwith %}
+                </span>
               </div>
-              <div class="form-text">{{ form.manual_base_price.help_text }}</div>
-              {% if form.manual_base_price.errors %}
-                <div class="invalid-feedback d-block">{{ form.manual_base_price.errors.0 }}</div>
-              {% endif %}
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="mb-3">
-              <label for="{{ form.additional_charges.id_for_label }}"
-                     class="form-label fw-bold">{{ form.additional_charges.label }}</label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                {{ form.additional_charges }}
-              </div>
-              <div class="form-text">{{ form.additional_charges.help_text }}</div>
-              {% if form.additional_charges.errors %}
-                <div class="invalid-feedback d-block">{{ form.additional_charges.errors.0 }}</div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Gratuity Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-hand-holding-usd me-2"></i>
-          Gratuity
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-md-6">
-            <label class="form-label fw-bold mb-3">Select Gratuity</label>
-            <div class="d-flex gap-2 flex-wrap" id="gratuity-options">
-              <button type="button" class="btn btn-outline-secondary gratuity-btn active" data-value="none">
-                No Gratuity
-              </button>
-              <button type="button" class="btn btn-outline-warning gratuity-btn" data-value="20">
-                <i class="fas fa-plus me-1"></i>20%
-              </button>
-              <button type="button" class="btn btn-outline-secondary gratuity-btn" data-value="custom">
-                Custom
-              </button>
-            </div>
-            <!-- Hidden radio inputs for form submission -->
-            {% for radio in form.gratuity_option %}
-              <div class="d-none">{{ radio }}</div>
-            {% endfor %}
-            {% if form.gratuity_option.errors %}
-              <div class="invalid-feedback d-block">{{ form.gratuity_option.errors.0 }}</div>
-            {% endif %}
-          </div>
-          <div class="col-md-6">
-            <div id="gratuity-amount-wrapper" style="display: none;">
-              <label for="{{ form.gratuity_amount.id_for_label }}"
-                     class="form-label fw-bold">{{ form.gratuity_amount.label }}</label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                {{ form.gratuity_amount }}
-              </div>
-              <div class="form-text" id="gratuity-help-text">{{ form.gratuity_amount.help_text }}</div>
-              {% if form.gratuity_amount.errors %}
-                <div class="invalid-feedback d-block">{{ form.gratuity_amount.errors.0 }}</div>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Total Section -->
-    <div class="card mb-4 border-success">
-      <div class="card-body">
-        <div class="row align-items-center">
-          <div class="col-md-6">
-            <label class="form-label fw-bold fs-5 mb-0">Total Price</label>
-            <div class="input-group input-group-lg mt-2">
-              <span class="input-group-text">$</span>
-              <input type="text"
-                     class="form-control form-control-lg fw-bold"
-                     id="total-price"
-                     readonly>
-            </div>
-            <div class="form-text">Base + Additional Charges + Gratuity</div>
-          </div>
-          <div class="col-md-6">
-            <div class="alert alert-info h-100 d-flex align-items-center mb-0">
-              <div>
-                <i class="fas fa-info-circle me-2"></i>
-                <strong>Dispatcher Privilege:</strong> You can set any price regardless of standard rates.
+              <div class="rw-row">
+                <span class="k">Grocery Stop</span>
+                <span class="v">{% if rd.store_stop == 'True' %}Yes{% else %}No{% endif %}</span>
               </div>
             </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      {# ── Suggested rate — applying it is always a deliberate click. ── #}
+      {% if suggested_price %}
+        <div class="rw-rate {% if suggested_unpriced_legs %}partial{% endif %}" id="rw-rate-card">
+          <div class="rw-rate-top">
+            <span class="rw-rate-icon"><i class="bi bi-lightbulb-fill"></i></span>
+            <div class="rw-rate-main">
+              <div class="rw-rate-label">
+                {% if suggested_unpriced_legs %}
+                  Partial rate — {{ suggested_priced_legs }} of {{ legs_data|length }} legs priced
+                {% else %}Suggested rate{% endif %}
+              </div>
+              <div class="rw-rate-amt">${{ suggested_total }}</div>
+              <div class="rw-rate-route">
+                {{ suggested_route_label }}
+                {% if suggested_unpriced_legs %}
+                  <br>The remaining {{ suggested_unpriced_legs }} leg{{ suggested_unpriced_legs|pluralize }}
+                  {{ suggested_unpriced_legs|pluralize:"has,have" }} no standard rate and must be
+                  added to the price by hand.
+                {% endif %}
+              </div>
+            </div>
+            <button type="button" class="rw-rate-apply" id="rw-apply-rate"
+                    data-amount="{{ suggested_price }}" data-extra="{{ afterhours_fee }}">
+              <i class="bi bi-check-lg"></i> Use This Rate
+            </button>
+          </div>
+          {% if afterhours_legs %}
+            <div class="rw-rate-break">
+              <span><b>${{ suggested_price }}</b> route</span>
+              <span>+</span>
+              <span class="fee">${{ afterhours_fee }} after-hours fee</span>
+              <span class="why">
+                — {% if afterhours_legs|length == 1 %}leg {{ afterhours_legs.0 }} picks{% else %}legs
+                {{ afterhours_legs|join:", " }} pick{% endif %} up between 10 PM and 6 AM
+              </span>
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="rw-rate none">
+          <div class="rw-rate-top">
+            <span class="rw-rate-icon"><i class="bi bi-lightbulb-fill"></i></span>
+            <div class="rw-rate-main">
+              <div class="rw-rate-label">Suggested rate</div>
+              <div class="rw-rate-amt">No standard rate for this route</div>
+              <div class="rw-rate-route">Set the price manually and note why in the private notes.</div>
+            </div>
+          </div>
+          {% if afterhours_legs %}
+            <div class="rw-rate-break">
+              <span class="fee">${{ afterhours_fee }} after-hours fee still applies</span>
+              <span class="why">
+                — {% if afterhours_legs|length == 1 %}leg {{ afterhours_legs.0 }} picks{% else %}legs
+                {{ afterhours_legs|join:", " }} pick{% endif %} up between 10 PM and 6 AM
+              </span>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {# ── Money ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-cash-stack"></i>
+          <h3>Pricing &amp; Charges</h3>
+        </div>
+        <div class="rw-sec-body">
+          <div class="rw-money-grid">
+            <div class="rw-field">
+              <span class="rw-label">Base Price <span class="rw-req">*</span></span>
+              <div class="rw-money"><span class="pre">$</span>{{ form.manual_base_price }}</div>
+              <div class="rw-help">Set the base price for this reservation</div>
+              {% if form.manual_base_price.errors %}<div class="rw-field-error">{{ form.manual_base_price.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="rw-field">
+              <span class="rw-label">Additional Charges</span>
+              <div class="rw-money"><span class="pre">$</span>{{ form.additional_charges }}</div>
+              <div class="rw-help">Anything beyond the base price</div>
+              {% if form.additional_charges.errors %}<div class="rw-field-error">{{ form.additional_charges.errors.0 }}</div>{% endif %}
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Notes Section -->
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">
-          <i class="fas fa-sticky-note me-2"></i>
-          Private Notes
-        </h5>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label for="{{ form.private_notes.id_for_label }}"
-                 class="form-label fw-bold">{{ form.private_notes.label }}</label>
-          {{ form.private_notes }}
-          <div class="form-text">{{ form.private_notes.help_text }}</div>
-          {% if form.private_notes.errors %}<div class="invalid-feedback d-block">{{ form.private_notes.errors.0 }}</div>{% endif %}
+      {# ── Gratuity: a percentage of the base price, never of the extras. ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-hand-thumbs-up-fill"></i>
+          <h3>Gratuity</h3>
+          <span class="hint">Calculated on the base price</span>
+        </div>
+        <div class="rw-sec-body">
+          <div class="rw-pills" id="rw-tips">
+            <button type="button" class="rw-pill" data-tip="none">No Gratuity</button>
+            <button type="button" class="rw-pill" data-tip="15">+ 15%</button>
+            <button type="button" class="rw-pill" data-tip="18">+ 18%</button>
+            <button type="button" class="rw-pill" data-tip="20">+ 20%</button>
+            <button type="button" class="rw-pill" data-tip="25">+ 25%</button>
+          </div>
+          <div style="display:none">
+            {% for radio in form.gratuity_option %}{{ radio }}{% endfor %}
+            {{ form.gratuity_amount }}
+          </div>
+          {% if form.gratuity_amount.errors %}<div class="rw-field-error">{{ form.gratuity_amount.errors.0 }}</div>{% endif %}
         </div>
       </div>
+
+      <div class="rw-flags" id="rw-flags"></div>
+
+      {# ── Total + private notes ── #}
+      <div class="rw-total-grid">
+        <div class="rw-total">
+          <div class="lbl">Total Price</div>
+          <div class="amt" id="rw-total-amt">$0.00</div>
+          <div class="breakdown">
+            <div><span>Base price</span><span id="rw-bd-base">$0.00</span></div>
+            <div><span>Additional charges</span><span id="rw-bd-extra">$0.00</span></div>
+            <div><span id="rw-bd-tip-label">Gratuity</span><span id="rw-bd-tip">$0.00</span></div>
+          </div>
+        </div>
+
+        <div class="rw-sec">
+          <div class="rw-sec-head">
+            <i class="bi bi-lock-fill"></i>
+            <h3>Private Notes</h3>
+          </div>
+          <div class="rw-sec-body">
+            {{ form.private_notes }}
+            <div class="rw-help">Internal only — never shown to the customer.</div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <div class="d-flex justify-content-between mt-4">
-      <a href="{% url 'dispatcher_booking_legs' %}" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Back to Trip Details
+    <div class="rw-actions">
+      <a href="{% url 'dispatcher_booking_legs' %}" class="rw-back">
+        <i class="bi bi-arrow-left"></i> Back
       </a>
-      <button type="submit" class="btn btn-primary">
-        Next: Review & Confirm
-        <i class="fas fa-arrow-right ms-2"></i>
-      </button>
+      <div class="rw-actions-right">
+        <span class="rw-gate-note" id="rw-note"></span>
+        <button type="submit" class="rw-next" id="rw-next">
+          Next: Review &amp; Confirm <i class="bi bi-arrow-right"></i>
+        </button>
+      </div>
     </div>
   </form>
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          const basePriceInput = document.getElementById('{{ form.manual_base_price.id_for_label }}');
-          const additionalChargesInput = document.getElementById('{{ form.additional_charges.id_for_label }}');
-          const gratuityAmountInput = document.getElementById('{{ form.gratuity_amount.id_for_label }}');
-          const totalPriceInput = document.getElementById('total-price');
-          const gratuityWrapper = document.getElementById('gratuity-amount-wrapper');
-          const gratuityHelpText = document.getElementById('gratuity-help-text');
-          const gratuityBtns = document.querySelectorAll('.gratuity-btn');
+          var form  = document.getElementById('rw-form');
+          var base  = document.getElementById('{{ form.manual_base_price.id_for_label }}');
+          var extra = document.getElementById('{{ form.additional_charges.id_for_label }}');
+          var tipAmt = document.getElementById('{{ form.gratuity_amount.id_for_label }}');
+          var pills = Array.prototype.slice.call(document.querySelectorAll('#rw-tips .rw-pill'));
+          var applyBtn = document.getElementById('rw-apply-rate');
 
-          // Find the hidden radio inputs
-          const radioNone = document.querySelector('input[name="gratuity_option"][value="none"]');
-          const radio20 = document.querySelector('input[name="gratuity_option"][value="20"]');
-          const radioCustom = document.querySelector('input[name="gratuity_option"][value="custom"]');
+          var suggested = {% if suggested_price %}{{ suggested_price }}{% else %}null{% endif %};
+          var afterHoursFee = {{ afterhours_fee|default:0 }};
+          var afterHoursLegs = {{ afterhours_legs|length|default:0 }};
+          var unpriced  = {% if suggested_unpriced_legs %}{{ suggested_unpriced_legs }}{% else %}0{% endif %};
+          var pricedLegs = {% if suggested_priced_legs %}{{ suggested_priced_legs }}{% else %}0{% endif %};
+          var legCount = {{ legs_data|length }};
 
-          let currentOption = '{{ form.gratuity_option.value|default:"none" }}';
+          function num(v) {
+              var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+              return isFinite(n) ? n : 0;
+          }
+          function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
 
-          // Calculate total price
-          function updateTotalPrice() {
-              const basePrice = parseFloat(basePriceInput.value) || 0;
-              const additionalCharges = parseFloat(additionalChargesInput.value) || 0;
-              const gratuity = parseFloat(gratuityAmountInput.value) || 0;
-              const total = basePrice + additionalCharges + gratuity;
-              // Snap to whole cents to avoid float drift (e.g. 194.999999 -> 195.00)
-              totalPriceInput.value = (Math.round(total * 100) / 100).toFixed(2);
+          function currentTip() {
+              var checked = form.querySelector('input[name="gratuity_option"]:checked');
+              return checked ? checked.value : 'none';
           }
 
-          // Calculate 20% gratuity from base price
-          function calculate20Percent() {
-              const basePrice = parseFloat(basePriceInput.value) || 0;
-              // Round to whole cents so the submitted gratuity is exact
-              // (raw *0.20 + .toFixed can drop a penny, e.g. 1.005 -> "1.00").
-              return Math.round(basePrice * 20) / 100;
-          }
-
-          // Set gratuity option
-          function setGratuityOption(option) {
-              currentOption = option;
-
-              // Update button active states
-              gratuityBtns.forEach(btn => {
-                  btn.classList.remove('active');
-                  if (btn.dataset.value === option) {
-                      btn.classList.add('active');
-                  }
+          function setTip(value) {
+              form.querySelectorAll('input[name="gratuity_option"]').forEach(function(r) {
+                  r.checked = (r.value === value);
               });
-
-              // Update hidden radio
-              if (option === 'none') {
-                  radioNone.checked = true;
-                  gratuityWrapper.style.display = 'none';
-                  gratuityAmountInput.value = '0';
-                  gratuityAmountInput.readOnly = false;
-              } else if (option === '20') {
-                  radio20.checked = true;
-                  gratuityWrapper.style.display = 'block';
-                  const amount = calculate20Percent();
-                  gratuityAmountInput.value = amount.toFixed(2);
-                  gratuityAmountInput.readOnly = true;
-                  gratuityHelpText.textContent = '20% of base price (auto-calculated)';
-              } else if (option === 'custom') {
-                  radioCustom.checked = true;
-                  gratuityWrapper.style.display = 'block';
-                  gratuityAmountInput.readOnly = false;
-                  // Only clear if switching from a non-custom option
-                  if (gratuityAmountInput.value === '0' || gratuityAmountInput.value === '0.00') {
-                      gratuityAmountInput.value = '';
-                  }
-                  gratuityAmountInput.focus();
-                  gratuityHelpText.textContent = 'Enter a custom gratuity amount';
-              }
-
-              updateTotalPrice();
+              pills.forEach(function(p) { p.classList.toggle('is-on', p.dataset.tip === value); });
+              recalc();
           }
 
-          // Button click handlers
-          gratuityBtns.forEach(btn => {
-              btn.addEventListener('click', function() {
-                  setGratuityOption(this.dataset.value);
-              });
+          function recalc() {
+              var b = num(base.value);
+              var e = num(extra.value);
+              var opt = currentTip();
+              var pct = /^\d+$/.test(opt) ? parseInt(opt, 10) : 0;
+              // A hand-entered gratuity carried over from an older session is
+              // left alone rather than being silently zeroed.
+              var tip = opt === 'custom' ? num(tipAmt.value) : Math.round(b * pct) / 100;
+              if (opt !== 'custom') tipAmt.value = tip.toFixed(2);
+
+              var total = b + e + tip;
+              document.getElementById('rw-total-amt').textContent = money(total);
+              document.getElementById('rw-bd-base').textContent = money(b);
+              document.getElementById('rw-bd-extra').textContent = money(e);
+              document.getElementById('rw-bd-tip').textContent = money(tip);
+              document.getElementById('rw-bd-tip-label').textContent =
+                  pct ? 'Gratuity ' + pct + '%' : 'Gratuity';
+              return total;
+          }
+
+          pills.forEach(function(p) {
+              p.addEventListener('click', function(){ setTip(p.dataset.tip); });
           });
 
-          // Event listeners for price inputs
-          basePriceInput.addEventListener('input', function() {
-              if (currentOption === '20') {
-                  gratuityAmountInput.value = calculate20Percent().toFixed(2);
-              }
-              updateTotalPrice();
-          });
-          additionalChargesInput.addEventListener('input', updateTotalPrice);
-          gratuityAmountInput.addEventListener('input', updateTotalPrice);
-
-          // Initialize state from form value (handles back-button pre-population)
-          setGratuityOption(currentOption);
-
-          // Suggested rate auto-fill
-          const suggestedBtn = document.getElementById('use-suggested-btn');
-          if (suggestedBtn) {
-              suggestedBtn.addEventListener('click', function() {
-                  basePriceInput.value = '{{ suggested_price|default:"" }}';
-                  basePriceInput.dispatchEvent(new Event('input'));
-                  basePriceInput.focus();
-                  // Visual feedback
-                  const card = document.getElementById('suggested-rate-card');
-                  card.classList.remove('border-warning');
-                  card.classList.add('border-success');
-                  this.innerHTML = '<i class="fas fa-check me-1"></i> Applied!';
-                  this.classList.remove('btn-warning');
-                  this.classList.add('btn-success');
-                  this.disabled = true;
+          // A rate the sheet can already answer is a button, not a question —
+          // but pressing it stays deliberate, and editing the base undoes it.
+          if (applyBtn) {
+              applyBtn.addEventListener('click', function() {
+                  base.value = applyBtn.dataset.amount;
+                  // The after-hours fee rides in Additional Charges, where the
+                  // rest of the system already expects to find it, rather than
+                  // disappearing into one round number.
+                  var fee = parseFloat(applyBtn.dataset.extra || '0');
+                  if (isFinite(fee) && fee > 0) extra.value = fee.toFixed(2);
+                  applyBtn.classList.add('is-applied');
+                  applyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Applied';
+                  form.dispatchEvent(new Event('input', {bubbles:true}));
+              });
+              base.addEventListener('input', function() {
+                  if (num(base.value) !== num(applyBtn.dataset.amount)) {
+                      applyBtn.classList.remove('is-applied');
+                      applyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Use This Rate';
+                  }
               });
           }
 
-          // Form validation
-          const form = document.querySelector('form');
-          form.addEventListener('submit', function(e) {
-              const requiredFields = form.querySelectorAll('input[required], select[required]');
-              let isValid = true;
-
-              requiredFields.forEach(field => {
-                  if (!field.value.trim()) {
-                      field.classList.add('is-invalid');
-                      isValid = false;
-                  } else {
-                      field.classList.remove('is-invalid');
-                  }
-              });
-
-              if (!isValid) {
-                  e.preventDefault();
-                  const firstInvalid = form.querySelector('.is-invalid');
-                  if (firstInvalid) {
-                      firstInvalid.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'center'
-                      });
-                  }
+          function priceFlags() {
+              var out = [];
+              var total = recalc();
+              if (total <= 0) out.push({tone:'crit', text:'No price has been set.'});
+              if (afterHoursLegs && num(base.value) > 0 && num(extra.value) < afterHoursFee) {
+                  out.push({
+                      tone:'warn',
+                      text:'After-hours pickup — the $' + afterHoursFee.toFixed(2) +
+                           ' fee for the 10 PM–6 AM pickup is not in this price yet.'
+                  });
               }
+              if (unpriced && suggested !== null && num(base.value) === num(suggested)) {
+                  out.push({
+                      tone:'warn',
+                      text:'The rate sheet only covered ' + pricedLegs + ' of ' + legCount +
+                           ' legs. The rest are currently charged at $0.'
+                  });
+              }
+              return out;
+          }
+
+          window.rwGate({
+              form: form,
+              button: document.getElementById('rw-next'),
+              note: document.getElementById('rw-note'),
+              flagBox: document.getElementById('rw-flags'),
+              compute: priceFlags
           });
+
+          // Restore whatever was chosen before; a fresh booking still starts at
+          // no gratuity, so nothing is ever added to a price by default.
+          setTip(currentTip());
       });
   </script>
-
-  <style>
-    .gratuity-btn {
-      padding: 0.5rem 1.25rem;
-      font-weight: 500;
-      border-radius: 0.5rem;
-      transition: all 0.2s ease;
-    }
-    .gratuity-btn.active {
-      transform: scale(1.02);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    .gratuity-btn[data-value="none"].active {
-      background-color: var(--bs-secondary);
-      color: #fff;
-      border-color: var(--bs-secondary);
-    }
-    .gratuity-btn[data-value="20"].active {
-      background-color: #c8a84e;
-      color: #fff;
-      border-color: #c8a84e;
-    }
-    .gratuity-btn[data-value="custom"].active {
-      background-color: var(--bs-secondary);
-      color: #fff;
-      border-color: var(--bs-secondary);
-    }
-  </style>
 {% endblock %}

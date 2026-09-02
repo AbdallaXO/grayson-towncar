@@ -5,6 +5,7 @@ from django.utils import timezone
 from decimal import Decimal, ROUND_HALF_UP
 from reservations.models import Customer, Reservation, Leg, Flight
 from rates.models import Vehicle, Rate
+from reservations.place_names import tidy_address
 
 
 class DispatcherCustomerForm(forms.ModelForm):
@@ -17,7 +18,7 @@ class DispatcherCustomerForm(forms.ModelForm):
             "first_name": forms.TextInput(
                 attrs={
                     "class": "form-control form-control-lg",
-                    "placeholder": "First Name",
+                    "placeholder": "Amelia",
                     "autocomplete": "given-name",
                     "autofocus": True,
                     "required": True,
@@ -26,7 +27,7 @@ class DispatcherCustomerForm(forms.ModelForm):
             "last_name": forms.TextInput(
                 attrs={
                     "class": "form-control form-control-lg",
-                    "placeholder": "Last Name",
+                    "placeholder": "Hartley",
                     "autocomplete": "family-name",
                     "required": True,
                 }
@@ -34,7 +35,7 @@ class DispatcherCustomerForm(forms.ModelForm):
             "email": forms.EmailInput(
                 attrs={
                     "class": "form-control form-control-lg",
-                    "placeholder": "customer@example.com",
+                    "placeholder": "name@example.com",
                     "type": "email",
                     "autocomplete": "email",
                     "required": True,
@@ -43,7 +44,7 @@ class DispatcherCustomerForm(forms.ModelForm):
             "phone_number": forms.TextInput(
                 attrs={
                     "class": "form-control form-control-lg",
-                    "placeholder": "(555) 123-4567",
+                    "placeholder": "(407) 000-0000",
                     "required": True,
                     "type": "tel",
                     "autocomplete": "tel",
@@ -152,7 +153,7 @@ class DispatcherReservationForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 3,
-                    "placeholder": "Any special requests, car seat needs, or notes...",
+                    "placeholder": "Anything the guest asked for…",
                 }
             ),
             "need_carseats": forms.CheckboxInput(
@@ -209,6 +210,19 @@ class DispatcherReservationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["luggage_type"].choices = Reservation.LUGGAGE_TYPE_CHOICES
+        # A pill row with nothing lit reads as a question the dispatcher still
+        # owes an answer to, so an unset trip starts on "Mixed / Not Sure".
+        if not self.initial.get("luggage_type"):
+            self.initial["luggage_type"] = "mixed"
+
+        # The wizard stores its in-progress trip in the session as strings, so a
+        # box that was never ticked comes back as the string "False" — which a
+        # checkbox reads as ticked. Walking back to this step would then show a
+        # grocery stop nobody asked for, and read it back to the guest.
+        for name in ("need_carseats", "store_stop"):
+            value = self.initial.get(name)
+            if isinstance(value, str):
+                self.initial[name] = value.strip().lower() in ("true", "on", "1", "yes")
 
     def clean(self):
         cleaned_data = super().clean()
@@ -309,7 +323,7 @@ class DispatcherLegForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 2,
-                    "placeholder": "Special instructions for this leg..."
+                    "placeholder": "Special instructions for this leg…"
                 }
             ),
         }
@@ -320,6 +334,12 @@ class DispatcherLegForm(forms.ModelForm):
             "dropoff_location": "Full drop-off address",
             "private_notes": "Special instructions for driver",
         }
+
+    def clean_pickup_location(self):
+        return tidy_address(self.cleaned_data.get("pickup_location"))
+
+    def clean_dropoff_location(self):
+        return tidy_address(self.cleaned_data.get("dropoff_location"))
 
     def clean_pickup_date(self):
         date = self.cleaned_data["pickup_date"]
@@ -338,14 +358,14 @@ class DispatcherFlightForm(forms.ModelForm):
             "airline": forms.TextInput(
                 attrs={
                     "class": "form-control form-control-lg",
-                    "placeholder": "e.g., Southwest, Delta, JetBlue",
+                    "placeholder": "e.g., Southwest, Delta",
                     "list": "airlines"
                 }
             ),
             "flight_number": forms.TextInput(
                 attrs={
                     "class": "form-control form-control-lg",
-                    "placeholder": "e.g., SW1234, DL567"
+                    "placeholder": "1204"
                 }
             ),
             "flight_type": forms.Select(
@@ -367,18 +387,21 @@ class DispatcherFlightForm(forms.ModelForm):
 # Formset for multiple legs
 from django.forms import formset_factory
 
+# extra=0: the dispatcher adds legs explicitly on the trip-details step, so the
+# formset renders exactly the legs that exist — never a spare blank card.
 DispatcherLegFormSet = formset_factory(
     DispatcherLegForm,
-    extra=1,
+    extra=0,
     max_num=5,
     min_num=1,
     can_delete=True,
-    validate_min=True
+    validate_min=True,
+    validate_max=True
 )
 
 DispatcherFlightFormSet = formset_factory(
     DispatcherFlightForm,
-    extra=1,
+    extra=0,
     max_num=5,
     min_num=0,
     can_delete=True
@@ -422,7 +445,16 @@ class DispatcherPricingForm(forms.Form):
     )
     
     gratuity_option = forms.ChoiceField(
-        choices=[('none', 'No Gratuity'), ('20', '20%'), ('custom', 'Custom')],
+        # 'custom' is kept so a part-finished booking from before the pill row
+        # shipped still validates; the wizard no longer offers it.
+        choices=[
+            ('none', 'No Gratuity'),
+            ('15', '15%'),
+            ('18', '18%'),
+            ('20', '20%'),
+            ('25', '25%'),
+            ('custom', 'Custom'),
+        ],
         initial='none',
         required=False,
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
@@ -451,7 +483,7 @@ class DispatcherPricingForm(forms.Form):
             attrs={
                 "class": "form-control",
                 "rows": 3,
-                "placeholder": "Private dispatcher notes (not visible to customer)...",
+                "placeholder": "Private dispatcher notes (not visible to customer)…",
             }
         ),
         required=False,
@@ -473,39 +505,3 @@ class DispatcherPricingForm(forms.Form):
                 base_price + additional_charges + gratuity
             ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         return cleaned_data
-
-
-class TripTypeForm(forms.Form):
-    """Form to select trip type for dispatcher booking"""
-    
-    TRIP_CHOICES = [
-        ('one_way', 'One Way'),
-        ('round_trip', 'Round Trip'),
-        ('multi_leg', 'Multiple Legs'),
-    ]
-    
-    trip_type = forms.ChoiceField(
-        choices=TRIP_CHOICES,
-        widget=forms.RadioSelect(
-            attrs={"class": "form-check-input"}
-        ),
-        label="Trip Type",
-        initial='one_way'
-    )
-    
-    num_legs = forms.IntegerField(
-        min_value=1,
-        max_value=5,
-        initial=1,
-        widget=forms.NumberInput(
-            attrs={
-                "class": "form-control form-control-lg",
-                "min": "1",
-                "max": "5",
-                # Removed inline style - visibility controlled by JavaScript
-            }
-        ),
-        label="Number of Legs",
-        help_text="How many separate trips for this reservation?",
-        required=False
-    )

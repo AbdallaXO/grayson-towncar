@@ -1,0 +1,213 @@
+{% comment %}
+One trip leg: when/where, the flight when either end is MCO, notes, and the
+per-leg override panel.
+
+Rendered twice — once per real leg, and once hidden with leg_index="__prefix__"
+as the blueprint the "Add another leg" button clones. Every index in here must
+come from `leg_index` so that clone can swap it for a real number.
+
+  leg_form, flight_form : formset forms (or the formsets' empty_form)
+  leg_index             : 0-based index, or "__prefix__" in the blueprint
+  leg_number            : human "Leg N" label
+  override_data         : saved per-leg overrides, for repopulating on back-nav
+  vehicle, vehicles, reservation_data : reservation-level defaults to show
+{% endcomment %}
+<div class="rw-leg" data-leg-card data-leg-index="{{ leg_index }}">
+  <div class="rw-leg-head">
+    <i class="bi bi-signpost-split-fill"></i>
+    <span class="rw-leg-title">Leg <span data-leg-number>{{ leg_number }}</span></span>
+    <span class="rw-leg-route" data-leg-route></span>
+    <button type="button" class="rw-leg-del" data-remove-leg title="Remove this leg" aria-label="Remove this leg">
+      <i class="bi bi-trash3"></i>
+    </button>
+  </div>
+
+  <div class="rw-leg-body">
+    {% for hidden in leg_form.hidden_fields %}{{ hidden }}{% endfor %}
+
+    {# ── WHEN ── #}
+    <div class="rw-leg-group">
+      <div class="rw-group-label">When</div>
+
+      <label class="rw-field rw-date-field">
+        <span class="rw-label">Pickup Date <span class="rw-req">*</span></span>
+        {{ leg_form.pickup_date }}
+        {% if leg_form.pickup_date.errors %}<div class="rw-field-error">{{ leg_form.pickup_date.errors.0 }}</div>{% endif %}
+      </label>
+
+      {% comment %} The flight sits between the date and the time because on an
+         airport leg it is the flight that decides the time. Nothing is filled
+         in automatically — "Match" is a button the dispatcher presses. {% endcomment %}
+      <div class="rw-flight" data-flight>
+        <div class="rw-flight-head">
+          <i class="bi bi-airplane-fill"></i>
+          <span>Flight Information</span>
+          <span class="hint" data-flight-dir></span>
+          <button type="button" class="rw-flight-details" data-flight-details hidden>
+            <i class="bi bi-info-circle"></i> Flight details
+          </button>
+        </div>
+        {% for hidden in flight_form.hidden_fields %}{{ hidden }}{% endfor %}
+        <div class="rw-flight-fields">
+          <label class="rw-field">
+            <span class="rw-label">Airline</span>
+            {{ flight_form.airline }}
+          </label>
+          <label class="rw-field">
+            <span class="rw-label">Flight Number</span>
+            {{ flight_form.flight_number }}
+          </label>
+        </div>
+        {% comment %} Direction is derived from which end of the leg is the airport,
+           so the dispatcher never has to answer it twice. {% endcomment %}
+        <div style="display:none">{{ flight_form.flight_type }}</div>
+        <div class="rw-flight-foot">
+          <div class="rw-flight-status" data-flight-status></div>
+          <button type="button" class="rw-match" data-match hidden>
+            <i class="bi bi-check2-circle"></i> <span data-match-label>Use suggested time</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="rw-field rw-time-field">
+        <span class="rw-label">Pickup Time <span class="rw-req">*</span></span>
+        <div class="rw-time" data-time-host>{{ leg_form.pickup_time }}</div>
+        {% if leg_form.pickup_time.errors %}<div class="rw-field-error">{{ leg_form.pickup_time.errors.0 }}</div>{% endif %}
+      </div>
+
+      {% comment %} The single most important error-catching element on the screen: a
+         typo'd date or a flipped meridiem is legible here in a way it never
+         is inside the inputs. {% endcomment %}
+      <div class="rw-echo" data-echo></div>
+    </div>
+
+    {# ── WHERE ── #}
+    <div class="rw-leg-group">
+      <div class="rw-group-row">
+        <div class="rw-group-label">Where</div>
+        <button type="button" class="rw-mirror" data-mirror>
+          <i class="bi bi-arrow-left-right"></i> Fill Reverse Of Leg 1
+        </button>
+      </div>
+      <div class="rw-where">
+        <label class="rw-field">
+          <span class="rw-label">Pickup Address <span class="rw-req">*</span></span>
+          {{ leg_form.pickup_location }}
+          {% if leg_form.pickup_location.errors %}<div class="rw-field-error">{{ leg_form.pickup_location.errors.0 }}</div>{% endif %}
+        </label>
+        <button type="button" class="rw-swap" data-swap title="Swap pickup and drop-off" aria-label="Swap pickup and drop-off">
+          <i class="bi bi-arrow-left-right"></i>
+        </button>
+        <label class="rw-field">
+          <span class="rw-label">Drop-off Address <span class="rw-req">*</span></span>
+          {{ leg_form.dropoff_location }}
+          {% if leg_form.dropoff_location.errors %}<div class="rw-field-error">{{ leg_form.dropoff_location.errors.0 }}</div>{% endif %}
+        </label>
+      </div>
+      {% comment %} MCO is the only chip: every hotel and residence differs, so a resort
+         list would be noise. {% endcomment %}
+      <div style="margin-top:8px">
+        <button type="button" class="rw-chip" data-place="Orlando International Airport (MCO)">
+          <i class="bi bi-airplane-fill"></i> Orlando International Airport (MCO)
+        </button>
+      </div>
+    </div>
+
+    {# ── Notes ── #}
+    <label class="rw-field">
+      <span class="rw-label">Trip Notes</span>
+      {{ leg_form.private_notes }}
+      <span class="rw-help">Special instructions for the driver.</span>
+    </label>
+
+    {# ── Per-leg overrides (optional, collapsed by default) ── #}
+    {% with has_override=override_data.has_any %}
+      <div>
+        <button type="button" class="rw-ovr-toggle" data-ovr-toggle
+                aria-expanded="{% if has_override %}true{% else %}false{% endif %}">
+          <span><i class="bi bi-sliders"></i> This leg is different from the rest <span class="opt">(optional)</span></span>
+          <span style="display:flex;align-items:center;gap:8px">
+            {% if has_override %}<span class="rw-ovr-active">Active</span>{% endif %}
+            <i class="bi bi-chevron-down chev"></i>
+          </span>
+        </button>
+
+        <div class="rw-ovr-panel" data-ovr-panel {% if not has_override %}hidden{% endif %}>
+          <div class="rw-ovr-hint">
+            <i class="bi bi-info-circle"></i>
+            Use this only if this leg has a different passenger count, needs car seats,
+            or uses a different vehicle than the rest of the trip.
+          </div>
+
+          <div style="margin-bottom:12px">
+            <span class="rw-ovr-label">Vehicle</span>
+            <select name="legs-{{ leg_index }}-override-vehicle">
+              <option value="">Use reservation default{% if vehicle %} — {{ vehicle.get_vehicle_type_display }}{% endif %}</option>
+              {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if override_data.vehicle == v.id|stringformat:"s" %}selected{% endif %}>
+                  {{ v.get_vehicle_type_display }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="rw-ovr-grid">
+            <div>
+              <span class="rw-ovr-label">Passengers</span>
+              <input type="number" min="0" name="legs-{{ leg_index }}-override-passenger_count"
+                     value="{{ override_data.passenger_count|default:'' }}"
+                     placeholder="{{ reservation_data.passenger_count|default:1 }}">
+              <div class="rw-ovr-default">Default: {{ reservation_data.passenger_count|default:1 }}</div>
+            </div>
+            <div>
+              <span class="rw-ovr-label">Suitcases</span>
+              <input type="number" min="0" name="legs-{{ leg_index }}-override-luggage_count"
+                     value="{{ override_data.luggage_count|default:'' }}"
+                     placeholder="{{ reservation_data.luggage_count|default:1 }}">
+              <div class="rw-ovr-default">Default: {{ reservation_data.luggage_count|default:1 }}</div>
+            </div>
+            <div>
+              <span class="rw-ovr-label">Luggage Type</span>
+              <select name="legs-{{ leg_index }}-override-luggage_type">
+                <option value="">Use default</option>
+                <option value="carry_on" {% if override_data.luggage_type == 'carry_on' %}selected{% endif %}>Carry-On</option>
+                <option value="checked" {% if override_data.luggage_type == 'checked' %}selected{% endif %}>Checked</option>
+              </select>
+              <div class="rw-ovr-default">Default: {{ reservation_data.luggage_type|default:"—" }}</div>
+            </div>
+          </div>
+
+          <hr class="rw-ovr-divider">
+
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+            <span class="rw-ovr-label" style="margin:0"><i class="bi bi-person-arms-up"></i> Car Seats</span>
+            <div style="min-width:220px">
+              <select name="legs-{{ leg_index }}-override-need_carseats">
+                <option value="">Use default ({% if reservation_data.need_carseats == 'True' %}Yes{% else %}No{% endif %})</option>
+                <option value="true" {% if override_data.need_carseats == 'true' %}selected{% endif %}>Yes, needed</option>
+                <option value="false" {% if override_data.need_carseats == 'false' %}selected{% endif %}>Not needed</option>
+              </select>
+            </div>
+          </div>
+          <div class="rw-ovr-grid">
+            <div>
+              <span class="rw-ovr-label">Rear-Facing</span>
+              <input type="number" min="0" name="legs-{{ leg_index }}-override-rf_carseats"
+                     value="{{ override_data.rf_carseats|default:'' }}" placeholder="0">
+            </div>
+            <div>
+              <span class="rw-ovr-label">Forward-Facing</span>
+              <input type="number" min="0" name="legs-{{ leg_index }}-override-ff_carseats"
+                     value="{{ override_data.ff_carseats|default:'' }}" placeholder="0">
+            </div>
+            <div>
+              <span class="rw-ovr-label">Boosters</span>
+              <input type="number" min="0" name="legs-{{ leg_index }}-override-booster_seats"
+                     value="{{ override_data.booster_seats|default:'' }}" placeholder="0">
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endwith %}
+  </div>
+</div>

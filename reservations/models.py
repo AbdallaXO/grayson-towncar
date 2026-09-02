@@ -939,6 +939,11 @@ class Leg(models.Model):
         # query here.
         self._original_pickup_time = self.__dict__.get("pickup_time")
         self._original_pickup_date = self.__dict__.get("pickup_date")
+        # Same idiom for the addresses: save() re-matches the route only when
+        # one of them actually changed, so an already-routed leg whose pickup
+        # moved across town stops being priced off the old route.
+        self._original_pickup_location = self.__dict__.get("pickup_location")
+        self._original_dropoff_location = self.__dict__.get("dropoff_location")
 
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
@@ -1205,6 +1210,15 @@ class Leg(models.Model):
         null=True,
         blank=True,
         help_text="Additional pay amount (e.g., wait time, early morning bonus, etc.)",
+    )
+    pay_manually_set = models.BooleanField(
+        default=False,
+        help_text=(
+            "True when a person typed this leg's pay instead of the system computing it. "
+            "Automatic recalculation (a pickup time move, an address edit) leaves these "
+            "legs alone. Cleared when the driver changes, since the typed amount belonged "
+            "to the previous driver."
+        ),
     )
     revenue_share = models.DecimalField(
         max_digits=10,
@@ -1612,33 +1626,79 @@ class Leg(models.Model):
 
         return best_match
 
+    def _resolve_location_endpoints(self, locations=None):
+        """Return (origin Location, destination Location) for this leg's addresses.
+
+        Either may be None when the text matches nothing we know. Cached per
+        instance against the address pair, because both the route lookup and the
+        zone lookup want the same answer within a single save.
+
+        ``locations`` lets a caller checking many legs at once hand in the list
+        rather than have every leg re-read the table. The Locations table is a
+        dozen rows and rarely changes, so a page-lifetime list is safe; passing
+        nothing keeps the original per-leg behaviour.
+        """
+        key = (self.pickup_location or "", self.dropoff_location or "")
+        cached = getattr(self, "_loc_endpoints_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        if not (self.pickup_location and self.dropoff_location):
+            result = (None, None)
+        else:
+            if locations is None:
+                locations = list(Location.objects.all())
+            result = (
+                self._match_location(self.pickup_location, locations),
+                self._match_location(self.dropoff_location, locations),
+            )
+        self._loc_endpoints_cache = (key, result)
+        return result
+
+    def _resolve_route_from_locations(self, locations=None, routes=None):
+        """Return the explicit Route this leg's addresses text-match, or None.
+
+        There is deliberately NO fallback to the reservation's booking rate.
+        That fallback used to fire whenever the addresses matched nothing, and
+        it wrote a confident wrong number: a Clermont → Port Canaveral run was
+        priced off the booking's MCO → Disney rate at $25. A wrong number reads
+        as correct on every future audit, which is worse than no number.
+
+        Returning None here is not the end of pricing — a leg whose endpoints
+        are both in a known pay zone is still priced from the zone rate (see
+        drivers.pay_calc). A Route exists only to override its zone.
+
+        ``locations`` and ``routes`` let a caller checking a page full of legs
+        hand in both tables once. Both are a couple of dozen rows and change
+        rarely; passing nothing keeps the original per-leg queries.
+        """
+        key = (self.pickup_location or "", self.dropoff_location or "")
+        cached = getattr(self, "_route_match_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+
+        origin, destination = self._resolve_location_endpoints(locations=locations)
+        if not (origin and destination):
+            match = None
+        elif routes is not None:
+            pair = {origin.id, destination.id}
+            match = next(
+                (r for r in routes if {r.origin_id, r.destination_id} == pair), None
+            )
+        else:
+            match = (
+                Route.objects.filter(origin=origin, destination=destination).first()
+                # Reverse direction (return trips match origin↔destination)
+                or Route.objects.filter(origin=destination, destination=origin).first()
+            )
+        self._route_match_cache = (key, match)
+        return match
+
     def _assign_route_from_locations(self):
         if self.route:
             return
-
-        # 1. Try text matching from actual pickup/dropoff locations (most accurate)
-        if self.pickup_location and self.dropoff_location:
-            locations = list(Location.objects.all())
-            origin = self._match_location(self.pickup_location, locations)
-            destination = self._match_location(self.dropoff_location, locations)
-            if origin and destination:
-                route = Route.objects.filter(origin=origin, destination=destination).first()
-                if not route:
-                    # Check reverse direction (return trips match origin↔destination)
-                    route = Route.objects.filter(origin=destination, destination=origin).first()
-                if route:
-                    self.route = route
-                    return
-
-        # 2. Fall back to reservation's rate route (may be a default from booking)
-        if self.reservation_id:
-            try:
-                res = self.reservation
-                if res and res.rate_id and res.rate.route_id:
-                    self.route = res.rate.route
-                    return
-            except Exception:
-                pass
+        route = self._resolve_route_from_locations()
+        if route:
+            self.route = route
 
     # Fields that require expensive calculations (route, pay, profit).
     # When save(update_fields=...) is called with only fields NOT in this set,
@@ -1660,9 +1720,31 @@ class Leg(models.Model):
         change onto that save.
         """
         super().refresh_from_db(*args, **kwargs)
-        self._original_pickup_time = self.pickup_time
-        self._original_pickup_date = self.pickup_date
-        self._original_driver_id = self.driver_id
+        # Read through __dict__, exactly as __init__ does, and re-anchor only
+        # what is actually loaded.
+        #
+        # These used to be plain attribute reads, which is fine until the
+        # instance came from a .only() queryset missing one of them: reading a
+        # deferred field makes Django call refresh_from_db to fetch it, which
+        # re-enters this method, which reads the still-deferred field again.
+        # It recurses until the stack gives out. Nothing hit it while the only
+        # callers loaded every field; pricing a leg from the payroll screen's
+        # .only() queryset did, instantly.
+        #
+        # A field that is not loaded keeps whatever anchor it had. That is the
+        # honest answer — there is no fresh value to anchor to — and it is safer
+        # than blanking it, which would disarm the driver-change clear and the
+        # pickup-moved badge for the rest of that instance's life.
+        loaded = self.__dict__
+        for attr, field in (
+            ("_original_pickup_time", "pickup_time"),
+            ("_original_pickup_date", "pickup_date"),
+            ("_original_driver_id", "driver_id"),
+            ("_original_pickup_location", "pickup_location"),
+            ("_original_dropoff_location", "dropoff_location"),
+        ):
+            if field in loaded:
+                setattr(self, attr, loaded[field])
 
     def save(self, *args, **kwargs):
         # PERF TEMP START
@@ -1682,6 +1764,31 @@ class Leg(models.Model):
         _orig_date = getattr(self, '_original_pickup_date', None)
         _time_moved = _orig_time is not None and _orig_time != self.pickup_time
         _date_moved = _orig_date is not None and _orig_date != self.pickup_date
+
+        # Capture how much the night bonus MOVED, right here, while _orig_time is
+        # still the old value — the re-sync a few lines below overwrites it, and a
+        # delta re-derived after that point is always exactly zero: a silent no-op
+        # that looks like it works.
+        #
+        # Gated on _time_moved so the common save never pays for this: a retime is
+        # rare, everything else skips straight past. Deferred fields are read out of
+        # __dict__ so touching them cannot trigger refresh_from_db(), which would
+        # re-anchor the change-tracking attributes mid-save and disarm the
+        # driver-change clear below.
+        self._night_delta = None
+        if (
+            _time_moved
+            and self.pk
+            and self.driver_id
+            and self.__dict__.get('payment_status') == 'unpaid'
+            and not self.__dict__.get('pay_manually_set')
+        ):
+            from drivers.pay_calc import calculate_night_bonus as _calc_night
+            _was_night = _calc_night(self.driver, _orig_time)
+            _now_night = _calc_night(self.driver, self.pickup_time)
+            if _was_night != _now_night:
+                self._night_delta = _now_night - _was_night
+
         if self.pk and (_time_moved or _date_moved):
             _back_to_start = (
                 self.has_unacked_time_change
@@ -1723,7 +1830,14 @@ class Leg(models.Model):
 
         # Fast path: if update_fields is specified and contains only simple
         # fields (e.g. driver assignment, status), skip expensive calculations.
-        if _uf is not None and not (set(_uf) & self._EXPENSIVE_FIELDS):
+        # pickup_time deliberately stays OUT of _EXPENSIVE_FIELDS — widening it
+        # would make every retime redo route matching and profit. Instead only a
+        # retime that actually changes the night bonus is pulled onto the slow path.
+        if (
+            _uf is not None
+            and not (set(_uf) & self._EXPENSIVE_FIELDS)
+            and self._night_delta is None
+        ):
             super().save(*args, **kwargs)
             # PERF TEMP START
             import logging as _logging
@@ -1733,6 +1847,57 @@ class Leg(models.Model):
 
         # Attempt to match a route from pickup/dropoff when not set
         self._assign_route_from_locations()
+
+        # An address edit on an ALREADY-routed leg used to keep the old route
+        # forever (_assign_route_from_locations returns early when route is set),
+        # so a pickup that moved from Sanford to MCO kept being paid the Sanford
+        # rate. Re-match — but into a local first, and only take the answer when
+        # it resolves. Nulling the route and hoping is what makes the Recalculate
+        # button destructive; a failed re-match must leave the leg exactly as it
+        # was, not strip a route a dispatcher linked by hand.
+        _addr_moved = (
+            self.pk
+            and (
+                (getattr(self, '_original_pickup_location', None) or '') != (self.pickup_location or '')
+                or (getattr(self, '_original_dropoff_location', None) or '') != (self.dropoff_location or '')
+            )
+        )
+        if _addr_moved and not self.__dict__.get('pay_manually_set'):
+            _origin, _dest = self._resolve_location_endpoints()
+            _rematched = self._resolve_route_from_locations()
+            if _rematched is not None:
+                if _rematched.pk != self.route_id:
+                    self.route = _rematched
+            elif self.route_id and _origin and _dest:
+                # The addresses now resolve to a pair with no Route row of its
+                # own. The old route describes a trip this leg no longer is, and
+                # the zone can price the new one, so drop it. Only when both
+                # endpoints actually resolve — a leg we cannot place keeps
+                # whatever it had rather than losing a hand-linked route.
+                self.route = None
+
+            # Re-price the base directly rather than nulling the pay fields and
+            # hoping the auto-fill below picks it up — that guard needs all four
+            # NULL, and a leg that already has pay has a gratuity of 0.00 in the
+            # way. Gratuity and the additional bucket are not route-derived, so
+            # they stay. Runs whether the price came from a Route or a zone.
+            if (
+                self.driver_base_pay is not None
+                and self.driver_id
+                and self.__dict__.get('payment_status') == 'unpaid'
+            ):
+                from drivers.pay_calc import calculate_driver_pay as _calc_base
+                _new_base = _calc_base(self)
+                if _new_base is not None and _new_base != self.driver_base_pay:
+                    self.driver_base_pay = _new_base.quantize(Decimal("0.01"))
+                    self.driver_pay_amount = (
+                        self.driver_base_pay
+                        + (self.driver_gratuity or Decimal("0.00"))
+                        + (self.driver_additional or Decimal("0.00"))
+                    ).quantize(Decimal("0.01"))
+                    self.__dict__.pop('total_driver_pay', None)
+        self._original_pickup_location = self.pickup_location
+        self._original_dropoff_location = self.dropoff_location
 
         # Calculate and store revenue share if not set
         if self.revenue_share is None:
@@ -1749,6 +1914,8 @@ class Leg(models.Model):
             self.driver_gratuity = None
             self.driver_additional = None
             self.driver_pay_amount = None
+            # The typed amount belonged to the previous driver.
+            self.pay_manually_set = False
 
         # Reset leg status whenever the DRIVER CHANGES — unassign, reassign,
         # or fresh assign (founder rule 2026-06-11): progressed states like
@@ -1793,13 +1960,24 @@ class Leg(models.Model):
                     'operator_driver_name', 'operator_driver_phone', 'operator_accepted_at'
                 }
 
-        # Auto-fill driver pay when not set (inhouse and affiliate)
+        # Auto-fill driver pay when not set (inhouse and affiliate).
+        #
+        # The gate is BASE PAY ALONE. It used to require all four pay fields to be
+        # NULL, which quietly created a class of permanently unpriceable legs: any
+        # leg that got a gratuity before it got a rate — a tip charged to one leg
+        # through the payment portal, a dispatcher's tip correction — had the gate
+        # shut on it forever. Base pay could never be filled, so the trip read as
+        # "needs a price" on every payroll run for the rest of its life, even on a
+        # route the system prices hundreds of times a week. neuma's Sanford → Beach
+        # Club leg (#26497) is one: $57.00 of tip, no rate, both endpoints known.
+        #
+        # Each field is now filled only if it is individually unset, so this can
+        # add what is missing and can never overwrite what is already there.
+        _autofill_set_bonus = False
         if (
             self.driver_base_pay is None
-            and self.driver_gratuity is None
-            and self.driver_additional is None
-            and self.driver_pay_amount is None
             and self.driver
+            and not self.pay_manually_set
         ):
             from drivers.pay_calc import calculate_driver_pay, calculate_night_bonus
 
@@ -1854,17 +2032,68 @@ class Leg(models.Model):
 
                 # Set base pay and gratuity separately
                 self.driver_base_pay = base_pay.quantize(Decimal("0.01"))
-                self.driver_gratuity = gratuity_share.quantize(Decimal("0.01"))
+                # Only when nothing is attributed yet. A share already sitting on
+                # this leg was put there on purpose and the split above has
+                # already excluded it from what the siblings divide.
+                if self.driver_gratuity is None:
+                    self.driver_gratuity = gratuity_share.quantize(Decimal("0.01"))
 
-                # Night pickup bonus goes in additional (early/late fee)
-                night_bonus = calculate_night_bonus(self.driver, self.pickup_time)
+                # Night pickup bonus goes in additional (early/late fee). Only
+                # into an EMPTY box: driver_additional is a mixed bucket, and
+                # something already in it may or may not already be the bonus.
+                # A night pickup whose box is occupied is left for the
+                # night-bonus flag to raise rather than guessed at here.
                 additional = self.driver_additional or Decimal("0.00")
-                if night_bonus > 0:
-                    additional = (additional + night_bonus).quantize(Decimal("0.01"))
-                    self.driver_additional = additional
-                self.driver_pay_amount = (self.driver_base_pay + self.driver_gratuity + additional).quantize(
-                    Decimal("0.01")
+                if self.driver_additional is None:
+                    night_bonus = calculate_night_bonus(self.driver, self.pickup_time)
+                    if night_bonus > 0:
+                        additional = night_bonus.quantize(Decimal("0.01"))
+                        self.driver_additional = additional
+                        _autofill_set_bonus = True
+                self.driver_pay_amount = (
+                    self.driver_base_pay
+                    + (self.driver_gratuity or Decimal("0.00"))
+                    + additional
+                ).quantize(Decimal("0.01"))
+
+        # The pickup moved across the night-bonus boundary AFTER pay was already
+        # computed. Apply the DIFFERENCE, never an overwrite: driver_additional is a
+        # mixed bucket (night bonus + wait time + whatever a dispatcher typed for an
+        # extra stop) and overwriting it would silently delete the rest.
+        #
+        # Skipped when the auto-fill just wrote the bonus itself (it used the new
+        # time — adding the delta on top would double it), when the driver
+        # changed in the same save (the delta is the NEW driver's rate applied to the
+        # OLD driver's money), and when there is no computed pay to adjust (writing a
+        # bonus onto an all-NULL leg leaves base pay NULL and shuts the guard above
+        # forever, so payroll would pay the bonus alone).
+        _night_delta = getattr(self, '_night_delta', None)
+        if (
+            _night_delta
+            and not _autofill_set_bonus
+            and not _driver_changed
+            and self.driver_base_pay is not None
+        ):
+            _additional = (self.driver_additional or Decimal("0.00")) + _night_delta
+            if _additional < 0:
+                # Driver.night_bonus was edited between assignment and this move, so
+                # we would claw back more than was ever paid. Never write negative pay.
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "Leg #%s: night-bonus delta %s would make driver_additional "
+                    "negative (was %s); floored at 0 — check this leg by hand.",
+                    self.pk, _night_delta, self.driver_additional,
                 )
+                _additional = Decimal("0.00")
+            self.driver_additional = _additional.quantize(Decimal("0.01"))
+            self.driver_pay_amount = (
+                (self.driver_base_pay or Decimal("0.00"))
+                + (self.driver_gratuity or Decimal("0.00"))
+                + self.driver_additional
+            ).quantize(Decimal("0.01"))
+            # total_driver_pay is a cached_property and calculate_profit() reads it.
+            self.__dict__.pop('total_driver_pay', None)
+        self._night_delta = None
 
         # Calculate and store profit estimate if driver payment is set
         if self.driver_base_pay is not None or self.driver_gratuity is not None or self.driver_additional is not None or self.driver_pay_amount is not None:
@@ -1876,6 +2105,7 @@ class Leg(models.Model):
             _pay_fields = {
                 'driver_base_pay', 'driver_gratuity', 'driver_additional',
                 'driver_pay_amount', 'profit_estimate', 'route', 'revenue_share',
+                'pay_manually_set',
             }
             _uf_set = set(_uf)
             if not _uf_set.issuperset(_pay_fields):
@@ -3420,6 +3650,7 @@ class LegKeoi(models.Model):
         LEG_COMPLETED = "leg_completed", "Leg Completed"
         LEG_CANCELLED = "leg_cancelled", "Leg Cancelled"
         ADMIN_REMOVED = "admin_removed", "Removed by Admin"
+        CONFLICT_RESOLVED = "conflict_resolved", "Conflict Resolved"
 
     leg = models.ForeignKey("Leg", on_delete=models.CASCADE, related_name="keoi_flags")
     category = models.CharField(max_length=30, choices=Category.choices)
@@ -4108,3 +4339,78 @@ class DemandPattern(models.Model):
 
     def __str__(self):
         return f"{self.date} {self.hour}:00 - {self.total_legs} legs ({self.total_drivers_needed or '?'} drivers needed)"
+
+
+class LegClientMessage(models.Model):
+    """One standard client-facing text a chauffeur opened from the driver app.
+
+    HONEST SEMANTICS — read before building anything on this table. The driver
+    app hands the message to the chauffeur's OWN Messages app via an `sms:` deep
+    link, so the guest can reply to the person actually driving them. That is a
+    client-side handoff: the phone never reports back. A row here therefore means
+
+        "the chauffeur tapped the button and we handed his composer our text"
+
+    and NOT "the guest received a text". He can still edit or discard it in the
+    composer. Every label on top of this data must say *sent from the app* or
+    *opened*, never *delivered*. `body` is what we handed over, not necessarily
+    what went out.
+
+    Re-sends are allowed and each one writes a row — a chauffeur legitimately
+    re-texts a guest who did not answer. Rate KPIs therefore count DISTINCT legs,
+    never rows (see drivers/comms_metrics.py).
+
+    Nothing before this model shipped is recorded, so rates are only meaningful
+    from TRACKING_START onward; the KPI denominator is gated on it the same way
+    driver_performance gates on status_history existing.
+    """
+
+    KIND_CHOICES = [
+        ("on_the_way", "On the way"),
+        ("on_location", "On location"),
+        ("review", "Review request"),
+    ]
+
+    leg = models.ForeignKey(
+        "Leg", on_delete=models.CASCADE, related_name="client_messages",
+    )
+    driver = models.ForeignKey(
+        "drivers.Driver", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="client_messages",
+        help_text="Chauffeur credited with the message. Denormalised from the leg "
+                  "at tap time so a later reassignment can't rewrite history.",
+    )
+    sent_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="client_messages_sent",
+        help_text="User account that tapped. Normally the driver's own login.",
+    )
+    kind = models.CharField(
+        max_length=20, choices=KIND_CHOICES,
+        help_text="Which of the three standard moments this message covers.",
+    )
+    situation = models.CharField(
+        max_length=30, blank=True, default="",
+        help_text="Trip situation the copy was chosen for (arrival_tracked, "
+                  "departure, cruise_from_port, ...). Stored so reworded "
+                  "templates don't retroactively change what we think was sent.",
+    )
+    body = models.TextField(
+        blank=True, default="",
+        help_text="The text handed to the composer. The chauffeur may have "
+                  "edited it before sending — this is our side of the handoff.",
+    )
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["leg", "kind"]),
+            models.Index(fields=["driver", "-created_at"]),
+            models.Index(fields=["kind", "-created_at"]),
+        ]
+        verbose_name = "Client Message Sent"
+        verbose_name_plural = "Client Messages Sent"
+
+    def __str__(self):
+        return f"Leg #{self.leg_id} — {self.get_kind_display()} ({self.created_at:%Y-%m-%d %H:%M})"

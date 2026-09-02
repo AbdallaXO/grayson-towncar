@@ -97,6 +97,28 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             },
         ),
         (
+            "Licensing & Credentials",
+            {
+                "fields": (
+                    "license_number",
+                    "license_state",
+                    "license_class",
+                    "license_expiration",
+                    "license_scan",
+                    "chauffeur_permit_number",
+                    "chauffeur_permit_fdl_number",
+                    "chauffeur_permit_expiration",
+                    "chauffeur_permit_scan",
+                    "dot_medical_card_expiration",
+                    "dot_medical_card_scan",
+                ),
+                "description": "All optional. The driver profile and directory pages flag anything "
+                               f"expired or expiring within {Driver.CREDENTIAL_WARNING_DAYS} days — "
+                               "leave an expiration blank if it isn't known yet rather than guessing; "
+                               "a blank date never triggers an alert.",
+            },
+        ),
+        (
             "Gusto Payroll (optional)",
             {
                 "fields": (

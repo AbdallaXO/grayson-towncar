@@ -12,6 +12,8 @@ from decimal import Decimal
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
 
+from dispatching.payment_display import board_pay_state
+
 logger = logging.getLogger(__name__)
 
 
@@ -488,6 +490,11 @@ class ScheduleSlot:
     revenue: Optional[Decimal] = None
     vehicle_type: Optional[str] = None
     is_paid: bool = True
+    # Three-way payment read for the board: 'paid' | 'card_saved' | 'unpaid'.
+    # is_paid stays alongside it because the scheduler's own "skip unpaid" logic
+    # reads that flag — widening it would change what auto-assign produces as a
+    # side effect of a rendering change. See dispatching/payment_display.py.
+    pay_state: str = "paid"
     passengers: int = 1
     luggage: int = 0
     luggage_type: str = ""
@@ -1464,6 +1471,7 @@ def build_driver_schedules(legs, drivers, target_date: date, dva_rows=None) -> D
             revenue=leg.revenue_share,
             vehicle_type=str(leg_vtype) if leg_vtype else None,
             is_paid=(leg.reservation.payment_status == 'paid') if leg.reservation else True,
+            pay_state=board_pay_state(leg.reservation),
             passengers=int(leg.effective_passenger_count or 1),
             luggage=int(leg.effective_luggage_count or 0),
             luggage_type=leg.effective_luggage_type or "",

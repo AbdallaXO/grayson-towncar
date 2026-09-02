@@ -15,9 +15,15 @@
 .chip-short, .chip-absent { background:#ffe4e6; color:#9f1239; }
 .chip-over, .chip-extra { background:#e0f2fe; color:#075985; }
 .chip-no_schedule { background:#f1f5f9; color:#94a3b8; }
-.wk-row { display:grid; grid-template-columns: 90px 70px 1fr 1fr 1.4fr; gap:.5rem; align-items:center; padding:.35rem 0; border-bottom:1px solid #f1f1f1; }
+.wk-row { display:grid; grid-template-columns: 78px 44px 1fr 1fr 1.15fr 1.15fr; gap:.45rem; align-items:center; padding:.35rem 0; border-bottom:1px solid #f1f1f1; }
 .wk-row:last-child { border-bottom:0; }
 .wk-day { font-weight:700; color:#374151; font-size:.85rem; }
+.wk-note { grid-column: 1 / -1; }
+.tcd-loc { display:inline-flex; align-items:center; gap:.25rem; font-size:.7rem; font-weight:700; padding:.1rem .45rem; border-radius:999px; white-space:nowrap; }
+.tcd-loc.remote { background:#eef2ff; color:#3f4d8f; border:1px solid #dde3fb; }
+.tcd-loc.office { background:#f0faf1; color:#1e6b34; border:1px solid #d7efdb; }
+.chip-pending { background:#fef3c7; color:#92400e; }
+.chip-denied { background:#ffe4e6; color:#9f1239; }
 .tcd-toast { position:fixed; bottom:1.25rem; left:50%; transform:translateX(-50%); background:#1a1d21; color:#fff; padding:.6rem 1.1rem; border-radius:.5rem; opacity:0; pointer-events:none; transition:opacity .2s; z-index:2000; font-size:.88rem; }
 .tcd-toast.show { opacity:1; }
 .tcd-toast.t-err { background:#b91c1c; }
@@ -29,6 +35,7 @@
   {% include 'dispatching/dispatcher_navbar.html' %}
 
   <div class="container-fluid tcd-wrap">
+    <div id="tcdCsrf" hidden>{% csrf_token %}</div>
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
       <div>
         <a href="{% url 'timeclock_manage' %}" class="text-muted text-decoration-none small"><i class="bi bi-arrow-left me-1"></i>All staff</a>
@@ -70,6 +77,8 @@
                   <td>
                     {% if s.auto_closed %}<i class="bi bi-exclamation-triangle text-warning" title="Auto-closed — verify"></i>{% endif %}
                     {% if s.edited %}<i class="bi bi-pencil-fill text-info" title="Edited by {{ s.edited_by }}"></i>{% endif %}
+                    {% if s.approval_status == 'denied' %}<span class="chip chip-denied" title="{{ s.approval_reason }}">denied</span>
+                    {% elif s.approval_status == 'approved' %}<span class="chip chip-on_time" title="Off-schedule clock-in, approved{% if s.approved_by %} by {{ s.approved_by }}{% endif %}">approved extra</span>{% endif %}
                   </td>
                   <td class="text-end">
                     <button class="btn btn-sm btn-outline-secondary edit-shift" data-id="{{ s.id }}" data-in="{{ s.in_local }}" data-out="{{ s.out_local }}" data-note="{{ s.note }}"><i class="bi bi-pencil"></i></button>
@@ -139,6 +148,11 @@
                 <option value="" {% if not w.role %}selected{% endif %}>role —</option>
                 {% for val, lbl in role_choices %}<option value="{{ val }}" {% if w.role == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
               </select>
+              <select class="form-select form-select-sm wk-location" title="Where they work this day (office / from home)" {% if not w.is_working %}disabled{% endif %}>
+                <option value="" {% if not w.location %}selected{% endif %}>where —</option>
+                <option value="office" {% if w.location == 'office' %}selected{% endif %}>Office</option>
+                <option value="remote" {% if w.location == 'remote' %}selected{% endif %}>WFH</option>
+              </select>
               <input type="text" class="form-control form-control-sm wk-note" placeholder="note" value="{{ w.note }}">
             </div>
             {% endfor %}
@@ -192,13 +206,14 @@
               <span>
                 <span class="fw-semibold">{{ o.date_range_display }}</span>
                 <span class="text-muted small">· {{ o.get_kind_display }}{% if o.kind == 'custom_hours' %} {{ o.start_time|time:"g:i A" }}–{{ o.end_time|time:"g:i A" }}{% endif %}{% if o.reason_label %} · {{ o.reason_label }}{% endif %}{% if o.role %} · {{ o.get_role_display }}{% endif %}</span>
+                {% if o.location %}<span class="tcd-loc {{ o.location }}">{% if o.location == 'remote' %}<i class="bi bi-house-door"></i>WFH{% else %}<i class="bi bi-building"></i>In office{% endif %}</span>{% endif %}
                 {% if o.status != 'approved' %}<span class="badge rounded-pill small {% if o.status == 'pending' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ o.status_label }}</span>{% endif %}
                 {% if o.note %}<span class="text-muted small d-block">{{ o.note }}</span>{% endif %}
               </span>
               <span class="text-nowrap">
                 <button class="btn btn-sm btn-outline-secondary edit-override"
                         data-id="{{ o.id }}" data-date="{{ o.date|date:'Y-m-d' }}" data-end="{{ o.end_date|date:'Y-m-d' }}"
-                        data-kind="{{ o.kind }}" data-start-time="{{ o.start_time|time:'H:i' }}" data-end-time="{{ o.end_time|time:'H:i' }}" data-note="{{ o.note }}"><i class="bi bi-pencil"></i></button>
+                        data-kind="{{ o.kind }}" data-start-time="{{ o.start_time|time:'H:i' }}" data-end-time="{{ o.end_time|time:'H:i' }}" data-location="{{ o.location }}" data-note="{{ o.note }}"><i class="bi bi-pencil"></i></button>
                 <button class="btn btn-sm btn-outline-danger del-override" data-id="{{ o.id }}"><i class="bi bi-trash"></i></button>
               </span>
             </li>
@@ -263,6 +278,14 @@
           <div class="col"><label class="form-label small">Start</label><input type="time" class="form-control form-control-sm" id="ovStart"></div>
           <div class="col"><label class="form-label small">End</label><input type="time" class="form-control form-control-sm" id="ovEndTime"></div>
         </div>
+        <div id="ovLocWrap">
+          <label class="form-label small mt-2">Where they work these dates</label>
+          <select class="form-select form-select-sm" id="ovLocation">
+            <option value="">Keep their usual</option>
+            {% for val, lbl in location_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+          <div class="form-text">Use this to flip a usual work-from-home day to in-office (or the reverse) for just these dates.</div>
+        </div>
         <label class="form-label small mt-2">Note</label>
         <input type="text" class="form-control form-control-sm" id="ovNote">
       </div>
@@ -296,6 +319,8 @@
   const STAFFING_URL = "{% url 'staffing_action' %}";
 
   function csrf() {
+    const el = document.querySelector('#tcdCsrf [name=csrfmiddlewaretoken]');
+    if (el && el.value) return el.value;
     if (window.getCookie) { const c = window.getCookie('csrftoken'); if (c) return c; }
     const m = document.cookie.match(/(^|; )csrftoken=([^;]+)/); return m ? decodeURIComponent(m[2]) : '';
   }
@@ -405,6 +430,7 @@
     row.querySelector('.wk-start').disabled = !cb.checked;
     row.querySelector('.wk-end').disabled = !cb.checked;
     row.querySelector('.wk-role').disabled = !cb.checked;
+    row.querySelector('.wk-location').disabled = !cb.checked;
   }));
   document.getElementById('saveWeeklyBtn').addEventListener('click', (e) => {
     const weekly = {};
@@ -414,6 +440,7 @@
         start_time: row.querySelector('.wk-start').value,
         end_time: row.querySelector('.wk-end').value,
         role: row.querySelector('.wk-role').value,
+        location: row.querySelector('.wk-location').value,
         note: row.querySelector('.wk-note').value,
       };
     });
@@ -439,7 +466,10 @@
 
   // Overrides
   function ovTimesToggle() {
-    document.getElementById('ovTimes').style.display = document.getElementById('ovKind').value === 'custom_hours' ? '' : 'none';
+    const kind = document.getElementById('ovKind').value;
+    document.getElementById('ovTimes').style.display = kind === 'custom_hours' ? '' : 'none';
+    // A location flip only makes sense on a day they're working.
+    document.getElementById('ovLocWrap').style.display = kind === 'off' ? 'none' : '';
   }
   document.getElementById('ovKind').addEventListener('change', ovTimesToggle);
   document.getElementById('addOverrideBtn').addEventListener('click', () => {
@@ -450,6 +480,7 @@
     document.getElementById('ovKind').value = 'off';
     document.getElementById('ovStart').value = '';
     document.getElementById('ovEndTime').value = '';
+    document.getElementById('ovLocation').value = '';
     document.getElementById('ovNote').value = '';
     ovTimesToggle();
     modal('overrideModal').show();
@@ -462,6 +493,7 @@
     document.getElementById('ovKind').value = b.dataset.kind;
     document.getElementById('ovStart').value = b.dataset.startTime;
     document.getElementById('ovEndTime').value = b.dataset.endTime;
+    document.getElementById('ovLocation').value = b.dataset.location || '';
     document.getElementById('ovNote').value = b.dataset.note || '';
     ovTimesToggle();
     modal('overrideModal').show();
@@ -476,6 +508,7 @@
       kind: document.getElementById('ovKind').value,
       start_time: document.getElementById('ovStart').value,
       end_time: document.getElementById('ovEndTime').value,
+      location: document.getElementById('ovLocation').value,
       note: document.getElementById('ovNote').value,
     };
     doAndReload(SCHED_URL, body, e.target);

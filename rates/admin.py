@@ -1,5 +1,5 @@
 from django.contrib import admin
-from rates.models import Vehicle, Route, Rate, Location, LocationGroup
+from rates.models import Vehicle, Route, Rate, Location, LocationGroup, Zone, ZoneRate
 
 # Register your models here.
 
@@ -49,12 +49,42 @@ class LocationGroupAdmin(admin.ModelAdmin):
     location_count.short_description = "# Locations"
 
 
+@admin.register(Zone)
+class ZoneAdmin(admin.ModelAdmin):
+    """Pay zones. Add one here, put places in it on the Locations page, then
+    price it against the other zones under Zone rates."""
+
+    list_display = ("name", "sort_order", "location_count", "description")
+    list_editable = ("sort_order",)
+    search_fields = ("name", "description")
+
+    def location_count(self, obj):
+        return obj.locations.count()
+    location_count.short_description = "# Places"
+
+
+@admin.register(ZoneRate)
+class ZoneRateAdmin(admin.ModelAdmin):
+    """What a driver is paid between two zones. These set the price for every
+    trip that has no Route row of its own — which is most of them. Change a
+    number here and every future trip between those zones follows it.
+
+    A pair with no row here is not priced at all: those trips show up on the
+    driver pay page as needing a price, rather than being guessed at."""
+
+    list_display = ("__str__", "zone_a", "zone_b", "inhouse_base_pay")
+    list_editable = ("inhouse_base_pay",)
+    list_filter = ("zone_a", "zone_b")
+    autocomplete_fields = ("zone_a", "zone_b")
+
+
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
-    list_display = ("name", "group", "aliases")
-    list_filter = ("group",)
+    list_display = ("name", "pay_zone", "group", "aliases")
+    list_filter = ("pay_zone", "group")
+    autocomplete_fields = ("group", "pay_zone")
+    list_editable = ("pay_zone",)
     search_fields = ("name", "aliases")
-    autocomplete_fields = ("group",)
 
 
 @admin.register(Route)

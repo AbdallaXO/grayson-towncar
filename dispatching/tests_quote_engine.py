@@ -581,17 +581,33 @@ class LocalCustomPricingTests(RateCardFixtureMixin, TestCase):
         self.assertTrue(result.gratuity_suggested)
 
     def test_in_area_trip_is_priced_on_one_direction_of_driving(self):
-        """No empty return locally, so a 40 mi in-area run prices off 40 miles of
-        driving, not 80."""
+        """No empty return locally, so a 20 mi in-area run prices off 20 miles of
+        driving, not 40."""
         local = qe.quote(
-            vehicle_type="towncar", miles=Decimal("40"), minutes=45,
+            vehicle_type="towncar", miles=Decimal("20"), minutes=25,
             pickup_location=self.mco, snapped_pickup=self.mco,
             snapped_dropoff=self.mco,
         )
-        out_of_area, _bd, _n = qe.formula_oneway("towncar", Decimal("40"), 45)
+        out_of_area, _bd, _n = qe.formula_oneway("towncar", Decimal("20"), 25)
         self.assertEqual(local.source, qe.SOURCE_LOCAL_CUSTOM)
         self.assertLess(local.price, out_of_area)
         self.assertEqual(local.breakdown["per_driven_mile"], Decimal("1.68"))
+
+    def test_a_43_mile_run_is_not_chainable_local_work(self):
+        """Regression, 2026-08-25: 164 Monterey Cypress Blvd, Winter Haven (43
+        mi / 58 min from a Disney-area pickup) was quoted as chainable local
+        work — $130 towncar — because it landed inside the old 60 mi radius
+        shared with direction classification. It isn't chainable: round trip it
+        ties up a car for the better part of two hours, same as Tampa. It must
+        fall through to the out-of-area formula, empty return and all."""
+        result = qe.quote(
+            vehicle_type="towncar", miles=Decimal("43"), minutes=58,
+            pickup_location=self.disney, snapped_pickup=self.disney,
+            snapped_dropoff=None,
+        )
+        self.assertEqual(result.source, qe.SOURCE_FORMULA)
+        self.assertIn("empty_return_share", result.breakdown)
+        self.assertEqual(result.price, Decimal("205"))
 
     def test_long_trip_from_a_known_zone_is_still_out_of_area(self):
         """Disney -> Tampa starts at a real zone but is far past the service

@@ -243,6 +243,9 @@ def eligible_payments_qs(from_date: date, to_date: date):
     staff void a wrong-period leg via the statement detail page, the
     payment automatically becomes eligible for the prior period's CSV.
 
+    Drivers flagged ``exclude_from_payroll`` never appear: owner/founder and
+    placeholder accounts run trips but are not paid through Gusto.
+
     Returns a queryset annotated with `_min_pickup` and `_max_pickup`
     (over active lines only) for use by `build_row`.
     """
@@ -252,6 +255,7 @@ def eligible_payments_qs(from_date: date, to_date: date):
     return (
         DriverPayment.objects
         .select_related("driver", "driver__profile", "created_by")
+        .exclude(driver__exclude_from_payroll=True)
         .filter(
             driver__driver_type="inhouse",
             amount__gt=0,

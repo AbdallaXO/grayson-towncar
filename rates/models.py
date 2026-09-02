@@ -99,11 +99,51 @@ class LocationGroup(models.Model):
         return self.name
 
 
+class Zone(models.Model):
+    """A driver-pay zone — a PRICE TIER, not a place.
+
+    Every trip between two Local places pays the same, whichever two they are.
+    That is how the rate table already behaved: 16 of the 19 hand-built Route
+    rows fall out of this rule exactly. Routes remain the override for the pairs
+    that genuinely differ (Championsgate, Flamingo Crossings).
+
+    Zones are rows, not code, so new ones (a Tampa run, a Miami run) can be
+    added and priced without a developer.
+    """
+
+    name = models.CharField(max_length=60, unique=True)
+    description = models.TextField(
+        blank=True,
+        help_text="What belongs in this zone, in your own words. Shown nowhere "
+                  "but the admin — it is for whoever picks the zone next.",
+    )
+    sort_order = models.PositiveSmallIntegerField(
+        default=100,
+        help_text="Display order. Lower comes first.",
+    )
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Location(models.Model):
     name = models.CharField(max_length=70)
     aliases = models.TextField(
         blank=True,
         help_text="Comma-separated alternate names (e.g., MCO, Orlando Airport, Disney)",
+    )
+    pay_zone = models.ForeignKey(
+        "Zone",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="locations",
+        help_text="Which pay zone this place is in. Leave blank for somewhere with no "
+                  "agreed price yet: trips there stay unpriced and are flagged on the "
+                  "driver pay page instead of being guessed at.",
     )
     group = models.ForeignKey(
         "LocationGroup",
@@ -118,9 +158,62 @@ class Location(models.Model):
         return self.name
 
 
+class ZoneRate(models.Model):
+    """What a driver is paid for a trip between two pay zones.
+
+    This is the default that applies when no explicit Route row exists for the
+    pair — which is most pairs, because the Route table only ever enumerated
+    the handful anyone got round to entering. Everything else used to fall back
+    to the price on the customer's booking, which produced confident wrong
+    numbers (a Clermont run to the cruise port paid as an airport transfer).
+
+    Zone pairs are unordered: (1, 2) and (2, 1) are the same trip, so the rows
+    are stored with the lower zone first and looked up the same way.
+    """
+
+    zone_a = models.ForeignKey(
+        "Zone", on_delete=models.CASCADE, related_name="rates_as_a"
+    )
+    zone_b = models.ForeignKey(
+        "Zone", on_delete=models.CASCADE, related_name="rates_as_b"
+    )
+    inhouse_base_pay = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="Base pay for an in-house driver on any trip between these two zones.",
+    )
+
+    class Meta:
+        unique_together = (("zone_a", "zone_b"),)
+        ordering = ["zone_a__sort_order", "zone_b__sort_order"]
+        verbose_name = "Zone rate"
+
+    def save(self, *args, **kwargs):
+        # Stored with the lower id first so (A,B) and (B,A) cannot both exist.
+        if self.zone_a_id and self.zone_b_id and self.zone_a_id > self.zone_b_id:
+            self.zone_a_id, self.zone_b_id = self.zone_b_id, self.zone_a_id
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def pay_for(cls, zone_a_id, zone_b_id):
+        """Base pay for a trip between two zones, or None if either has no zone
+        or nobody has priced that pairing yet."""
+        if not zone_a_id or not zone_b_id:
+            return None
+        lo, hi = sorted((zone_a_id, zone_b_id))
+        row = cls.objects.filter(zone_a_id=lo, zone_b_id=hi).first()
+        return row.inhouse_base_pay if row else None
+
+    def __str__(self):
+        return f"{self.zone_a} ↔ {self.zone_b}: ${self.inhouse_base_pay}"
+
+
 class Route(models.Model):
     """
     Defines a specific route (e.g., 'Disney Property <--> MCO').
+
+    A Route is an OVERRIDE on top of the zone rate: it exists for pairs that
+    genuinely price differently from their zone (Championsgate, Flamingo
+    Crossings). Pairs that follow the zone rule need no row at all.
     """
 
     origin = models.ForeignKey(

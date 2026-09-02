@@ -744,11 +744,19 @@ def store_leg_old_values(sender, instance, **kwargs):
     """Store old values before save to compare in post_save.
     Skips the DB fetch when update_fields is specified and neither 'status' nor 'driver'
     are being updated, avoiding one extra SELECT per save (e.g. confirmation_sms_sent_at saves).
+
+    Matches the FK by BOTH names: Django takes 'driver' and 'driver_id' equally in
+    update_fields and normalises neither, and saving a deferred instance (loaded via
+    .only()/.defer()) makes Django build update_fields from the attname itself. A
+    name-only test therefore dropped the old values on those saves and log_leg_changes
+    below logged nothing — the assignment rows this leaves missing are the same class
+    of gap as the phantom-auditlog problem this guard is already known for.
     """
     if not instance.pk:
         return
     update_fields = kwargs.get('update_fields')
-    if update_fields is not None and 'status' not in update_fields and 'driver' not in update_fields:
+    if update_fields is not None and 'status' not in update_fields \
+            and not ({'driver', 'driver_id'} & set(update_fields)):
         return
     try:
         old_vals = Leg.objects.filter(pk=instance.pk).values('status', 'driver_id').first()

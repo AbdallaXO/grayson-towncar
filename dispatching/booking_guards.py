@@ -56,6 +56,22 @@ FLIGHT_CHECK_MAX_DAYS = 360    # /schedules/ only covers ~1 year; skip beyond
 ARRIVAL_EARLY_TOLERANCE_MIN = 45     # pickup earlier than landing−45m → flag
 ARRIVAL_LATE_TOLERANCE_HOURS = 4     # pickup later than landing+4h → flag
 # Departure legs: pickup should sit a sane lead ahead of takeoff.
+# House rule for a departure run (founder, 2026-09-01): the guest should be
+# standing in the terminal two hours before takeoff, and the drive is budgeted
+# at half an hour, so the recommended pickup is two and a half hours before the
+# flight. A 3:00 PM departure means a 12:30 PM pickup and the guest at the
+# airport by 1:00 PM. It is a recommendation the dispatcher fills in with one
+# click and can overwrite freely — nothing ever writes it on its own.
+DEPARTURE_GUEST_AT_AIRPORT_MIN = 120
+DEPARTURE_DRIVE_ALLOWANCE_MIN = 30
+DEPARTURE_RECOMMENDED_LEAD_MIN = (
+    DEPARTURE_GUEST_AT_AIRPORT_MIN + DEPARTURE_DRIVE_ALLOWANCE_MIN
+)
+# Nobody tells a guest "we'll collect you at 6:25". The suggestion rounds DOWN
+# to the quarter hour so it is a time a dispatcher would actually say, and down
+# rather than up because a few minutes early never hurt anyone.
+DEPARTURE_ROUND_DOWN_MIN = 15
+
 DEPARTURE_MIN_LEAD_MIN = 60          # under 1h before takeoff → too tight
 DEPARTURE_MAX_LEAD_HOURS = 8         # over 8h before takeoff → probable AM/PM flip
 
@@ -328,6 +344,11 @@ def _check_flight(aeroapi, ident: str, trip_type: Optional[str],
                 f"Leg {leg_no}: flight {label} verified — lands "
                 f"{_fmt_dt(flight_dt)}, pickup {_fmt_time(pickup_dt)}."
             ),
+            # Read back to the guest on step 5. It is the schedule's time, not
+            # the pickup time — conflating the two states something false.
+            "sched_time": _fmt_time(flight_dt),
+            "direction": "arrival",
+            "flight_label": label,
         }]
         # After-midnight landing: verification proves the flight EXISTS, not
         # which night the guest is on — the same number lands every night.
@@ -423,6 +444,9 @@ def _check_flight(aeroapi, ident: str, trip_type: Optional[str],
             f"Leg {leg_no}: flight {label} verified — departs "
             f"{_fmt_dt(dep_dt)}, pickup {_fmt_time(pickup_dt)}."
         ),
+        "sched_time": _fmt_time(dep_dt),
+        "direction": "departure",
+        "flight_label": label,
     }]
 
 

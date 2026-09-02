@@ -1,0 +1,765 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  :root {
+    --gt-gold: #C9A227;
+    --gt-bg: #0d1117;
+    --gt-surface: #161b22;
+    --gt-surface-2: #1c2128;
+    --gt-border: #2a313a;
+    --gt-text: #e6edf3;
+    --gt-muted: #8b949e;
+  }
+  body { background: var(--gt-bg) !important; }
+  .run-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; }
+  .run-page .container-fluid { max-width: 1200px; }
+  .run-page h1 { color: var(--gt-text); font-size: 1.6rem; font-weight: 700; margin: 0; }
+  .run-page h1 i { color: var(--gt-gold); margin-right: 0.5rem; }
+  .run-page small, .run-page .text-muted { color: var(--gt-muted) !important; }
+
+  .run-header {
+    background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+    border: 1px solid var(--gt-border); border-radius: 12px;
+    padding: 1.1rem 1.4rem; margin-bottom: 1.25rem;
+    display: flex; flex-wrap: wrap; gap: 0.75rem;
+    justify-content: space-between; align-items: center;
+  }
+  .header-action-btn {
+    background-color: #0d1117; color: #fff; border: 1px solid var(--gt-border);
+    padding: 0.5rem 1.05rem; border-radius: 6px; font-weight: 600;
+    font-size: 0.85rem; text-decoration: none;
+    transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+  }
+  .header-action-btn:hover { background-color: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+  .header-action-btn i { color: var(--gt-gold); }
+  .header-action-btn:hover i { color: #0d1117; }
+
+  /* Summary strip */
+  .run-summary {
+    display: flex; flex-wrap: wrap; gap: 0.9rem;
+    background: var(--gt-surface); border: 1px solid var(--gt-border);
+    border-radius: 10px; padding: 0.95rem 1.15rem; margin-bottom: 1.25rem;
+  }
+  .run-stat { min-width: 120px; }
+  .run-stat .v { font-size: 1.45rem; font-weight: 700; color: var(--gt-text); line-height: 1.1; }
+  .run-stat .v.gold { color: var(--gt-gold); }
+  .run-stat .v.warn { color: #ffc14d; }
+  .run-stat .k {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--gt-muted); font-weight: 600; margin-top: 0.15rem;
+  }
+  .to-date-form { display: flex; align-items: end; gap: 0.5rem; }
+  .to-date-form input {
+    background: var(--gt-bg); border: 1px solid var(--gt-border); color: var(--gt-text);
+    border-radius: 6px; padding: 0.34rem 0.5rem; font-size: 0.86rem;
+  }
+  .to-date-form input:focus { outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 2px rgba(201,162,39,.16); }
+
+  /* Driver rows */
+  .driver-card {
+    background: var(--gt-surface); border: 1px solid var(--gt-border);
+    border-radius: 10px; margin-bottom: 0.7rem; overflow: hidden;
+    transition: border-color .18s ease, opacity .25s ease;
+  }
+  .driver-card.needs-look { border-left: 3px solid #ffc14d; }
+  .driver-card.ready { border-left: 3px solid rgba(201,162,39,.55); }
+  .driver-card.done { opacity: .5; border-left-color: #3fb950; }
+  .driver-top {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;
+    padding: 0.85rem 1.1rem;
+  }
+  .driver-name { font-weight: 600; font-size: 1rem; min-width: 170px; }
+  .driver-meta { color: var(--gt-muted); font-size: 0.8rem; }
+  .driver-total { font-size: 1.2rem; font-weight: 700; color: var(--gt-gold); min-width: 100px; text-align: right; }
+  .pill {
+    display: inline-block; font-size: 0.68rem; font-weight: 700; letter-spacing: .03em;
+    padding: .14rem .55rem; border-radius: 999px; white-space: nowrap;
+  }
+  .pill.ready { background: rgba(63,185,80,.14); color: #7ee787; border: 1px solid rgba(63,185,80,.3); }
+  .pill.look  { background: rgba(255,193,77,.14); color: #ffc14d; border: 1px solid rgba(255,193,77,.32); }
+  .pill.stale { background: rgba(220,53,69,.14); color: #ff8a95; border: 1px solid rgba(220,53,69,.32); }
+  .pill.paid  { background: rgba(63,185,80,.2); color: #7ee787; border: 1px solid rgba(63,185,80,.4); }
+
+  .btn-process {
+    background: var(--gt-gold); color: #0d1117; border: 1px solid var(--gt-gold);
+    font-weight: 700; font-size: 0.82rem; border-radius: 6px; padding: .38rem 1rem;
+    transition: filter .18s ease;
+  }
+  .btn-process:hover { filter: brightness(1.1); color: #0d1117; }
+  .btn-process:disabled { opacity: .45; cursor: not-allowed; }
+  /* Two-click confirm in place of a browser dialog. A native confirm() is slow
+     to dismiss, looks nothing like the rest of the page, and is one more thing
+     for an assistant driving this to trip over. */
+  .confirm-wrap { display: inline-flex; align-items: center; gap: .3rem; }
+  .btn-process.armed {
+    background: #d13b3b; border-color: #d13b3b; color: #fff;
+    animation: armpulse 1.1s ease-in-out infinite;
+  }
+  @keyframes armpulse { 50% { filter: brightness(1.18); } }
+  .btn-cancel {
+    display: none; background: transparent; color: var(--gt-muted);
+    border: 1px solid var(--gt-border); border-radius: 6px;
+    font-size: .95rem; line-height: 1; padding: .3rem .5rem;
+  }
+  .btn-cancel:hover { color: var(--gt-text); border-color: var(--gt-gold); }
+  .confirm-wrap.is-armed .btn-cancel { display: inline-block; }
+  .btn-look {
+    background: transparent; color: var(--gt-muted); border: 1px solid var(--gt-border);
+    font-size: .78rem; border-radius: 6px; padding: .3rem .7rem;
+  }
+  .btn-look:hover { color: var(--gt-text); border-color: var(--gt-gold); }
+
+  .flag-list { border-top: 1px solid var(--gt-border); background: rgba(0,0,0,.18); padding: .7rem 1.1rem; }
+  .flag-leg { padding: .45rem 0; border-bottom: 1px dashed rgba(255,255,255,.06); font-size: .84rem; }
+  .flag-leg:last-child { border-bottom: 0; }
+  .flag-leg .where { color: var(--gt-text); }
+  .flag-leg .why { color: #ffc14d; font-size: .76rem; }
+  .flag-leg a { color: var(--gt-gold); text-decoration: none; font-size: .76rem; }
+  .flag-leg a:hover { text-decoration: underline; }
+
+  /* What the green pill is actually claiming. Left implicit it reads as
+     "verified correct", which is more than the checks can support. */
+  .ready-meaning {
+    display: flex; gap: .6rem; align-items: flex-start;
+    background: var(--gt-surface); border: 1px solid var(--gt-border);
+    border-radius: 8px; padding: .6rem .85rem; margin-bottom: .9rem;
+    font-size: .76rem; color: var(--gt-muted); line-height: 1.5;
+  }
+  .ready-meaning .pill { flex: 0 0 auto; margin-top: .1rem; }
+  .ready-meaning strong { color: var(--gt-text); }
+
+  /* Review-everything table */
+  .header-action-btn.is-on { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
+  .header-action-btn.is-on i { color: #0d1117; }
+  .trip-scroll { overflow-x: auto; }
+  .trip-table { width: 100%; min-width: 860px; border-collapse: collapse; font-size: .82rem; }
+  .trip-table th {
+    text-align: left; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--gt-muted); font-weight: 700; padding: .35rem .5rem;
+    border-bottom: 1px solid var(--gt-border);
+  }
+  .trip-table th.num, .trip-table td.num { text-align: right; }
+  .trip-table td { padding: .4rem .5rem; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
+  .trip-table tr:last-child td { border-bottom: 0; }
+  .trip-table tr.row-flagged td { background: rgba(255,193,77,.05); }
+  .trip-table .sub { color: var(--gt-muted); font-size: .72rem; margin-top: .12rem; }
+  .trip-table .sub.warn { color: #ffc14d; }
+  .trip-table .nowrap { white-space: nowrap; }
+  .trip-table .total-cell { font-weight: 700; color: var(--gt-gold); white-space: nowrap; }
+  .cell-input {
+    width: 78px; background: var(--gt-bg); border: 1px solid var(--gt-border);
+    color: var(--gt-text); border-radius: 5px; padding: .18rem .35rem;
+    font-size: .8rem; text-align: right;
+  }
+  .cell-input:focus { outline: none; border-color: var(--gt-gold); box-shadow: 0 0 0 2px rgba(201,162,39,.16); }
+  .cell-input::placeholder { color: #5a636e; }
+  .trip-table .notes { font-size: .72rem; color: var(--gt-muted); max-width: 340px; }
+  /* The notes are why an amount is what it is more often than the flags are,
+     so they belong in the review pass rather than one click away. */
+  .note-line {
+    margin-top: .2rem; line-height: 1.4; color: var(--gt-muted);
+    display: flex; gap: .3rem; align-items: baseline;
+  }
+  .note-tag {
+    flex: 0 0 auto; font-size: .6rem; text-transform: uppercase; letter-spacing: .04em;
+    font-weight: 700; color: #6e7681; border: 1px solid var(--gt-border);
+    border-radius: 3px; padding: 0 .25rem;
+  }
+  .note-tag.drv { color: #7ee787; border-color: rgba(63,185,80,.3); }
+  /* A shop stop and an unlisted address are things to KNOW, not things to do.
+     They read quieter than a flag on purpose — a page where everything shouts
+     is a page nobody reads. */
+  .tag.shop, .tag.ctx { opacity: .62; font-style: italic; }
+
+  /* Answering a price and recording it are the same act. Splitting them across
+     two pages is exactly why the same trips came back every week. */
+  .stick-btn {
+    background: none; border: 1px dashed var(--gt-gold); color: var(--gt-gold);
+    border-radius: 6px; font-size: .72rem; padding: .12rem .5rem; margin-top: .3rem;
+  }
+  .stick-btn:hover { background: rgba(212,160,23,.12); }
+  .stick-panel {
+    margin-top: .45rem; padding: .55rem .65rem; border-radius: 8px;
+    background: rgba(212,160,23,.07); border: 1px solid rgba(212,160,23,.25);
+  }
+  .stick-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+  .stick-row label { font-size: .72rem; color: var(--gt-muted); min-width: 3rem; }
+  .stick-panel input[type=text], .stick-panel input[type=number], .stick-panel select {
+    background: var(--gt-panel, #14161a); border: 1px solid var(--gt-border, #2a2e35);
+    color: var(--gt-text, #e6e6e6); border-radius: 6px; padding: .2rem .4rem;
+    font-size: .76rem;
+  }
+  .stick-panel input[type=number] { width: 5.5rem; }
+  .stick-panel input[type=text] { flex: 1 1 8rem; min-width: 6rem; }
+  .stick-check { min-width: 0; font-size: .74rem; color: var(--gt-text); }
+  .stick-hint { font-size: .68rem; color: var(--gt-muted); margin-bottom: .35rem; }
+  .stick-save {
+    background: var(--gt-gold); border: none; color: #1a1a1a; font-weight: 600;
+    border-radius: 6px; font-size: .74rem; padding: .22rem .7rem;
+  }
+  .stick-msg { font-size: .7rem; color: #7ee787; }
+  .stick-msg.bad { color: #ff8a95; }
+  /* What the chauffeur wrote is the note most likely to change what he is owed,
+     so it reads at full strength rather than as muted metadata. */
+  .note-line.drv-note { color: var(--gt-text); }
+  .note-tag.guest { color: #79c0ff; border-color: rgba(56,139,253,.3); }
+  .note-foot { margin-top: .25rem; }
+  .trip-table .notes .why { color: #ffc14d; display: block; }
+  .trip-table .notes a { color: var(--gt-gold); text-decoration: none; }
+  .trip-table .notes a:hover { text-decoration: underline; }
+  .tag {
+    display: inline-block; font-size: .64rem; padding: .05rem .4rem; border-radius: 999px;
+    border: 1px solid var(--gt-border); color: var(--gt-muted); margin-right: .25rem;
+  }
+  .tag.stop { border-color: rgba(201,162,39,.4); color: var(--gt-gold); }
+  .save-ok { display: none; color: #7ee787; font-size: .68rem; margin-left: .3rem; }
+  .cell-input.save-failed { border-color: #d13b3b; }
+
+  .review-note {
+    background: rgba(201,162,39,.07); border: 1px solid rgba(201,162,39,.25);
+    border-radius: 8px; padding: .55rem .85rem; margin-bottom: .9rem;
+    font-size: .76rem; color: var(--gt-muted); line-height: 1.5;
+  }
+  .review-note i { color: var(--gt-gold); }
+
+  .row-error-bar {
+    background: rgba(220,53,69,.12); border-top: 1px solid rgba(220,53,69,.3);
+    color: #ff8a95; font-size: .78rem; padding: .5rem 1.1rem;
+  }
+
+  .priceable-bar {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    background: rgba(212,160,23,.09); border: 1px solid rgba(212,160,23,.3);
+    border-radius: 10px; padding: .7rem 1rem; margin-bottom: 1.1rem;
+    font-size: .84rem;
+  }
+  #price-them {
+    background: var(--gt-gold); border: none; color: #1a1a1a; font-weight: 600;
+    border-radius: 6px; font-size: .78rem; padding: .3rem .85rem;
+  }
+  #price-them:disabled { opacity: .5; }
+  .priceable-msg { font-size: .78rem; color: #7ee787; }
+  .priceable-msg.bad { color: #ff8a95; }
+
+  .run-empty { text-align: center; padding: 3rem 1rem; color: var(--gt-muted); }
+  .run-empty i { font-size: 2.4rem; color: var(--gt-gold); display: block; margin-bottom: .6rem; }
+
+  @media (max-width: 767px) {
+    .driver-total { text-align: left; min-width: 0; }
+    .driver-top { gap: .5rem; }
+  }
+</style>
+{% endblock extra_css %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="run-page">
+<div class="container-fluid">
+
+  <div class="run-header">
+    <div>
+      <h1><i class="bi bi-check2-square"></i>Payroll Run</h1>
+      <div class="driver-meta mt-1">
+        In-house drivers, completed trips with no statement yet, through {{ to_date|date:"D j M Y" }}.
+        Recording a statement is bookkeeping &mdash; no money moves, you still pay in Gusto.
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-end">
+      <form method="get" class="to-date-form">
+        <div>
+          <label class="d-block" style="font-size:.7rem;color:var(--gt-muted);">Through</label>
+          <input type="date" name="to_date" value="{{ to_date_str }}" onchange="this.form.submit()">
+        </div>
+      </form>
+      <a href="?to_date={{ to_date_str }}{% if not show_all %}&show=all{% endif %}"
+         class="header-action-btn{% if show_all %} is-on{% endif %}">
+        <i class="bi bi-list-check me-1"></i>{% if show_all %}Just the flagged{% else %}Review every trip{% endif %}
+      </a>
+      <a href="{% url 'driver_payment_management' %}" class="header-action-btn"><i class="bi bi-credit-card-2-back me-1"></i>Driver Pay</a>
+      <a href="{% url 'gusto_export' %}" class="header-action-btn"><i class="bi bi-filetype-csv me-1"></i>Gusto CSV</a>
+    </div>
+  </div>
+
+  {% if priceable_count %}
+  <div class="priceable-bar">
+    <span>
+      <strong>{{ priceable_count }} trip{{ priceable_count|pluralize }}</strong>
+      {{ priceable_count|pluralize:"has,have" }} a rate the system already knows
+      but has never been asked to write down. Nothing to decide.
+    </span>
+    <button type="button" id="price-them">Price {{ priceable_count|pluralize:"it,them" }}</button>
+    <span class="priceable-msg" id="price-them-msg"></span>
+  </div>
+  {% endif %}
+
+  {% if rows %}
+  <div class="run-summary">
+    <div class="run-stat">
+      <div class="v">{{ driver_count }}</div>
+      <div class="k">Drivers</div>
+    </div>
+    <div class="run-stat">
+      <div class="v">{{ leg_total }}</div>
+      <div class="k">Trips</div>
+    </div>
+    <div class="run-stat">
+      <div class="v gold">${{ money_total|floatformat:2 }}</div>
+      <div class="k">To pay</div>
+    </div>
+    <div class="run-stat">
+      <div class="v {% if needs_look_count %}warn{% endif %}">{{ needs_look_count }}</div>
+      <div class="k">Need a look</div>
+    </div>
+    <div class="run-stat">
+      <div class="v">{{ ready_count }}</div>
+      <div class="k">Ready to pay</div>
+    </div>
+    {% if oldest_overall %}
+    <div class="run-stat">
+      <div class="v" style="font-size:1.05rem;padding-top:.3rem;">{{ oldest_overall|date:"j M Y" }}</div>
+      <div class="k">Oldest trip</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="ready-meaning">
+    <span class="pill ready">ready</span>
+    <span>means every trip is priced, the amount matches the rates, a night pickup has its
+    bonus, any extra stop has been paid for, and no trip is holding more than its share of a
+    tip. It does <strong>not</strong> check that the trip happened, or that an amount someone
+    typed by hand is the right one.</span>
+  </div>
+
+  {% if show_all %}
+  <div class="review-note">
+    <i class="bi bi-pencil-square me-1"></i>
+    Type over any amount to correct it &mdash; it saves as you type, and an amount you typed is
+    then left alone by any automatic recalculation. Paying still only picks up trips that have
+    an amount on them.
+  </div>
+  {% endif %}
+
+  {% if needs_look_count %}
+  <div class="driver-meta mb-2">
+    <i class="bi bi-arrow-down me-1" style="color:#ffc14d;"></i>Anything needing a decision is at the top.
+  </div>
+  {% endif %}
+
+  {% for row in rows %}
+  <div class="driver-card {% if row.flag_count %}needs-look{% else %}ready{% endif %}" id="driver-card-{{ row.driver.id }}">
+    <div class="driver-top">
+      <div class="driver-name">
+        {{ row.driver.profile.get_full_name|default:row.driver.profile.username }}
+        {% if row.stale %}<span class="pill stale ms-1" title="Has trips more than two weeks old">old trips</span>{% endif %}
+      </div>
+      <div class="driver-meta flex-grow-1">
+        {{ row.leg_count }} trip{{ row.leg_count|pluralize }}
+        {% if row.payable_count != row.leg_count %}
+          &middot; {{ row.payable_count }} with an amount
+        {% endif %}
+        &middot; oldest {{ row.oldest|date:"j M" }}
+      </div>
+      {% if row.flag_count %}
+        <span class="pill look">{{ row.flag_count }} to look at</span>
+      {% else %}
+        <span class="pill ready">ready</span>
+      {% endif %}
+      <div class="driver-total">${{ row.total|floatformat:2 }}</div>
+      <div class="d-flex gap-2">
+        {% if row.flag_count %}
+        <button class="btn-look" type="button" data-bs-toggle="collapse" data-bs-target="#flags-{{ row.driver.id }}">
+          <i class="bi bi-chevron-down me-1"></i>Show
+        </button>
+        {% endif %}
+        <a class="btn-look" href="{% url 'driver_payment_management' %}?driver={{ row.driver.id }}&date_to={{ to_date_str }}">Open</a>
+        {% comment %}
+          Deliberately NOT "Pay". This writes a statement; no card is charged and
+          no transfer happens - Abdalla pays in Gusto afterwards. Labelling it
+          "Pay" made both people and Cowork hesitate over a bookkeeping action.
+        {% endcomment %}
+        <span class="confirm-wrap">
+          <button class="btn-process process-btn"
+                  data-driver-id="{{ row.driver.id }}"
+                  data-driver-name="{{ row.driver.profile.get_full_name|default:row.driver.profile.username }}"
+                  data-total="{{ row.total|floatformat:2 }}"
+                  data-count="{{ row.payable_count }}"
+                  title="Writes this driver's statement. No money moves.">
+            Record statement
+          </button>
+          <button class="btn-cancel" type="button" title="Cancel">&times;</button>
+        </span>
+      </div>
+    </div>
+
+    {% if show_all %}
+    <div class="flag-list">
+      <div class="trip-scroll">
+      <table class="trip-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Trip</th>
+            <th class="num">Base</th><th class="num">Tip</th><th class="num">Extra</th>
+            <th class="num">Total</th><th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for leg in row.legs %}
+          <tr class="{% if leg.needs_review %}row-flagged{% endif %}"
+              data-gratuity="{% if leg.driver_gratuity is not None %}{{ leg.driver_gratuity }}{% else %}0{% endif %}">
+            <td class="nowrap">{{ leg.pickup_date|date:"j M" }}<div class="sub">{{ leg.pickup_time|time:"g:i A" }}</div></td>
+            <td>
+              {{ leg.pickup_location|truncatechars:38 }}
+              <div class="sub">&rarr; {{ leg.dropoff_location|truncatechars:38 }}</div>
+            </td>
+            <td class="num">
+              <input type="number" step="0.01" min="0" class="cell-input pay-base"
+                     data-leg-id="{{ leg.id }}" data-field="base"
+                     value="{% if leg.driver_base_pay is not None %}{{ leg.driver_base_pay }}{% endif %}"
+                     placeholder="none">
+              {% if leg.pay_mismatch %}<div class="sub warn">rates: ${{ leg.expected_base_pay }}</div>{% endif %}
+            </td>
+            <td class="num">{% if leg.driver_gratuity %}${{ leg.driver_gratuity }}{% else %}&mdash;{% endif %}</td>
+            <td class="num">
+              <input type="number" step="0.01" min="0" class="cell-input pay-extra"
+                     data-leg-id="{{ leg.id }}" data-field="extra"
+                     value="{% if leg.driver_additional is not None %}{{ leg.driver_additional }}{% endif %}"
+                     placeholder="0.00">
+            </td>
+            <td class="num total-cell" id="row-total-{{ leg.id }}">
+              {% if leg.total_driver_pay %}${{ leg.total_driver_pay|floatformat:2 }}{% else %}&mdash;{% endif %}
+            </td>
+            <td class="notes">
+              {% if leg.needs_review %}
+                <span class="why">{% for label in leg.flag_labels %}{{ label }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}</span>
+              {% endif %}
+              {% if leg.driver_notes %}
+                <div class="note-line drv-note" title="{{ leg.driver_notes }}">
+                  <span class="note-tag drv">driver</span>{{ leg.driver_notes|truncatechars:140 }}
+                </div>
+              {% endif %}
+              {% if leg.private_notes %}
+                <div class="note-line" title="{{ leg.private_notes }}">
+                  <span class="note-tag">leg</span>{{ leg.private_notes|truncatechars:140 }}
+                </div>
+              {% endif %}
+              {% if leg.reservation.special_requests %}
+                <div class="note-line" title="{{ leg.reservation.special_requests }}">
+                  <span class="note-tag guest">guest</span>{{ leg.reservation.special_requests|truncatechars:140 }}
+                </div>
+              {% endif %}
+              {% if leg.needs_pricing or leg.below_zone_floor or leg.distance_mismatch or leg.address_unlisted %}
+                <button type="button" class="stick-btn" data-leg-id="{{ leg.id }}">make this price stick</button>
+                <div class="stick-panel" id="stick-{{ leg.id }}" hidden
+                     data-unlisted-name="{{ leg.unlisted_name }}">
+                  <div class="stick-row">
+                    <label>Price</label>
+                    <input type="number" step="0.01" min="0" class="stick-pay" placeholder="0.00"
+                           value="{% if leg.driver_base_pay is not None %}{{ leg.driver_base_pay }}{% endif %}">
+                  </div>
+                  {% if leg.unlisted_name %}
+                    <div class="stick-row">
+                      <label>Place</label>
+                      <input type="text" class="stick-name" value="{{ leg.unlisted_name }}">
+                      <select class="stick-zone">
+                        <option value="">&mdash; which zone? &mdash;</option>
+                        {% for z in zones %}<option value="{{ z.id }}">{{ z.name }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="stick-hint">Placing it prices this trip and every future one through it.</div>
+                  {% else %}
+                    <label class="stick-row stick-check">
+                      <input type="checkbox" class="stick-exception">
+                      <span>this pair always costs this, for everyone</span>
+                    </label>
+                  {% endif %}
+                  <div class="stick-row">
+                    <button type="button" class="stick-save" data-leg-id="{{ leg.id }}">Save</button>
+                    <span class="stick-msg"></span>
+                  </div>
+                </div>
+              {% endif %}
+              <div class="note-foot">
+                {% if leg.pay_manually_set %}<span class="tag">typed by hand</span>{% endif %}
+                {% for stop in leg.destination_stops %}<span class="tag stop">extra drop: {{ stop.display_location|truncatechars:22 }}</span>{% endfor %}
+                {% for stop in leg.store_stops %}<span class="tag shop">shop: {{ stop.display_location|truncatechars:22 }}</span>{% endfor %}
+                {% for label in leg.context_labels %}<span class="tag ctx">{{ label }}</span>{% endfor %}
+                <a href="{% url 'reservation_details' leg.reservation.uuid %}" target="_blank">#{{ leg.reservation.id }}</a>
+                <span class="save-ok" id="cell-save-{{ leg.id }}">saved</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    {% elif row.flag_count %}
+    <div class="collapse flag-list" id="flags-{{ row.driver.id }}">
+      {% for leg in row.flagged %}
+      <div class="flag-leg">
+        <div class="where">
+          {{ leg.pickup_date|date:"j M" }} &middot; {{ leg.pickup_location|truncatechars:44 }} &rarr; {{ leg.dropoff_location|truncatechars:44 }}
+        </div>
+        <div class="why">
+          {% for label in leg.flag_labels %}{{ label }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+        </div>
+        <a href="{% url 'reservation_details' leg.reservation.uuid %}" target="_blank">
+          Reservation #{{ leg.reservation.id }} <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+      </div>
+      {% endfor %}
+      <div class="driver-meta mt-2" style="font-size:.74rem;">
+        Paying now still pays every trip with an amount on it. A trip with nothing on it is left for next time.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="run-empty">
+    <i class="bi bi-check2-circle"></i>
+    Nothing outstanding through {{ to_date|date:"D j M Y" }}.
+    {% if is_default_to_date %}<div class="mt-2" style="font-size:.85rem;">That is everyone paid up to last Sunday.</div>{% endif %}
+  </div>
+  {% endif %}
+
+</div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+const toDate = '{{ to_date_str }}';
+
+// One write for every trip the rate table can already answer. These are not
+// decisions and must never sit in a list of decisions.
+const priceableIds = {{ priceable_ids|safe }};
+const priceThemBtn = document.getElementById('price-them');
+if (priceThemBtn) {
+  priceThemBtn.addEventListener('click', function () {
+    const msg = document.getElementById('price-them-msg');
+    this.disabled = true;
+    msg.className = 'priceable-msg';
+    msg.textContent = 'Pricing...';
+    fetch('/dispatching/recalculate-driver-pay/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ leg_ids: priceableIds, force: false }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          msg.textContent = 'Done. Reloading...';
+          window.location.reload();
+        } else {
+          this.disabled = false;
+          msg.className = 'priceable-msg bad';
+          msg.textContent = data.error || 'Could not price those.';
+        }
+      })
+      .catch(() => {
+        this.disabled = false;
+        msg.className = 'priceable-msg bad';
+        msg.textContent = 'Could not reach the server. Nothing changed.';
+      });
+  });
+}
+
+// "Make this price stick": set the trip AND record the rate in one action, so
+// the same trip does not come back next Sunday asking the same question.
+document.querySelectorAll('.stick-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const panel = document.getElementById('stick-' + this.dataset.legId);
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) { const f = panel.querySelector('.stick-pay'); if (f) f.focus(); }
+  });
+});
+
+document.querySelectorAll('.stick-save').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const legId = this.dataset.legId;
+    const panel = document.getElementById('stick-' + legId);
+    const msg = panel.querySelector('.stick-msg');
+    const pay = panel.querySelector('.stick-pay').value;
+    if (!pay) { msg.className = 'stick-msg bad'; msg.textContent = 'Give it a price first.'; return; }
+
+    const body = { leg_id: parseInt(legId, 10), base_pay: pay };
+    const nameEl = panel.querySelector('.stick-name');
+    const zoneEl = panel.querySelector('.stick-zone');
+    const excEl = panel.querySelector('.stick-exception');
+    if (nameEl && zoneEl) {
+      if (!zoneEl.value) { msg.className = 'stick-msg bad'; msg.textContent = 'Pick a zone.'; return; }
+      body.place = { name: nameEl.value, zone_id: parseInt(zoneEl.value, 10) };
+    } else if (excEl && excEl.checked) {
+      body.as_exception = true;
+    }
+
+    this.disabled = true;
+    msg.className = 'stick-msg';
+    msg.textContent = 'Saving...';
+    fetch('/dispatching/save-leg-rate/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(body),
+    })
+      .then(r => r.json())
+      .then(data => {
+        this.disabled = false;
+        if (data.success) {
+          msg.className = 'stick-msg';
+          msg.textContent = data.message;
+          const baseInput = document.querySelector('.pay-base[data-leg-id="' + legId + '"]');
+          if (baseInput) { baseInput.value = data.base_pay; }
+          const totalCell = document.getElementById('row-total-' + legId);
+          if (totalCell) { totalCell.textContent = '$' + data.total; }
+        } else {
+          msg.className = 'stick-msg bad';
+          msg.textContent = data.error || 'Could not save that.';
+        }
+      })
+      .catch(() => {
+        this.disabled = false;
+        msg.className = 'stick-msg bad';
+        msg.textContent = 'Could not reach the server. Nothing was saved.';
+      });
+  });
+});
+
+// Errors belong on the row that failed, not in a dialog that hides which one.
+function showRowError(card, message) {
+  if (!card) { return; }
+  let bar = card.querySelector('.row-error-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'row-error-bar';
+    card.appendChild(bar);
+  }
+  bar.textContent = message;
+}
+
+// Inline corrections while reviewing every trip. Saving through the same
+// endpoint the Driver Pay page uses, which also marks the amount as typed by a
+// person so no later recalculation quietly replaces it.
+document.querySelectorAll('.cell-input').forEach(input => {
+  let timer;
+  input.addEventListener('input', function () {
+    clearTimeout(timer);
+    const el = this;
+    const legId = el.dataset.legId;
+    timer = setTimeout(() => {
+      const row = el.closest('tr');
+      const base = row.querySelector('.pay-base');
+      const extra = row.querySelector('.pay-extra');
+      fetch('{% url "update_driver_pay_amount" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({
+          leg_id: legId,
+          driver_base_pay: base && base.value !== '' ? base.value : 0,
+          // The endpoint rewrites all three fields, so the tip has to be sent
+          // back as-is. Sending null here would quietly zero the guest's tip.
+          driver_gratuity: row.dataset.gratuity || 0,
+          driver_additional: extra && extra.value !== '' ? extra.value : 0
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const totalCell = document.getElementById('row-total-' + legId);
+          if (totalCell) totalCell.textContent = '$' + Number(data.total).toFixed(2);
+          el.classList.remove('save-failed');
+          const ok = document.getElementById('cell-save-' + legId);
+          if (ok) { ok.style.display = 'inline'; setTimeout(() => { ok.style.display = 'none'; }, 1800); }
+        } else {
+          // Same rule as the statement errors: say it on the row, not in a dialog.
+          el.classList.add('save-failed');
+          showRowError(
+            el.closest('.driver-card'),
+            data.error || 'Could not save that amount.'
+          );
+        }
+      });
+    }, 700);
+  });
+});
+
+function disarm(el) {
+  const wrap = el.closest('.confirm-wrap');
+  clearTimeout(el._armTimer);
+  el.dataset.armed = '';
+  el.textContent = 'Record statement';
+  el.classList.remove('armed');
+  if (wrap) wrap.classList.remove('is-armed');
+}
+
+document.querySelectorAll('.btn-cancel').forEach(x => {
+  x.addEventListener('click', function () {
+    disarm(this.closest('.confirm-wrap').querySelector('.process-btn'));
+  });
+});
+
+document.querySelectorAll('.process-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const el = this;
+    const total = el.dataset.total;
+    const count = el.dataset.count;
+
+    // First click arms, second commits. Anything already armed elsewhere goes
+    // back to normal, so only one row is ever primed at a time.
+    if (el.dataset.armed !== '1') {
+      document.querySelectorAll('.process-btn[data-armed="1"]').forEach(other => {
+        if (other !== el) disarm(other);
+      });
+      el.dataset.armed = '1';
+      el.classList.add('armed');
+      el.closest('.confirm-wrap').classList.add('is-armed');
+      el.textContent = 'Confirm $' + total + ' · ' + count + ' trip' + (count === '1' ? '' : 's');
+      el._armTimer = setTimeout(() => disarm(el), 8000);
+      return;
+    }
+
+    clearTimeout(el._armTimer);
+    el.closest('.confirm-wrap').classList.remove('is-armed');
+    el.classList.remove('armed');
+    el.disabled = true;
+    el.textContent = 'Recording…';
+    fetch('{% url "process_driver_payment" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      // send_email stays off: drivers get nothing from a payroll run.
+      body: JSON.stringify({driver_id: el.dataset.driverId, date_to: toDate, send_email: false})
+    })
+    .then(r => r.json())
+    .then(data => {
+      const card = document.getElementById('driver-card-' + el.dataset.driverId);
+      if (data.success) {
+        card.classList.add('done');
+        card.classList.remove('needs-look', 'ready');
+        el.textContent = 'Recorded';
+        const pill = card.querySelector('.pill.ready, .pill.look');
+        if (pill) { pill.className = 'pill paid'; pill.textContent = 'recorded'; }
+      } else {
+        el.disabled = false;
+        disarm(el);
+        showRowError(card, data.error || 'Could not record that statement.');
+      }
+    })
+    .catch(() => {
+      el.disabled = false;
+      disarm(el);
+      showRowError(
+        document.getElementById('driver-card-' + el.dataset.driverId),
+        'Could not reach the server. Nothing was recorded.'
+      );
+    });
+  });
+});
+</script>
+{% endblock extra_js %}

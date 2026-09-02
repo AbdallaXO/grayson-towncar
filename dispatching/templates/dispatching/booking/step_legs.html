@@ -3,264 +3,312 @@
 
 {% block step_content %}
   <style>
-      .leg-card {
-          border: 1px solid var(--booking-border, #e2e8f0);
-          border-radius: 12px;
-          background: #fff;
-          margin-bottom: 1.5rem;
-          overflow: hidden;
+      /* ── Leg card ── */
+      .rw-leg { border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+      .rw-leg-head {
+          display:flex; align-items:center; gap:9px;
+          padding:11px 14px; background:var(--bg); border-bottom:1px solid var(--line);
       }
-      .leg-card-head {
-          padding: .75rem 1rem;
-          background: linear-gradient(180deg, #f8fafc, #fff);
-          border-bottom: 1px solid #eef2f7;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: .5rem;
+      .rw-leg-head > i { color:var(--blue); font-size:13px; }
+      .rw-leg-title { font-size:13.5px; font-weight:600; color:var(--ink); white-space:nowrap; }
+      .rw-leg-route {
+          font-size:11.5px; color:var(--muted); min-width:0;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
       }
-      .leg-card-head h5 {
-          margin: 0;
-          font-size: 1rem;
-          font-weight: 700;
-          color: #0f172a;
-          display: flex;
-          align-items: center;
-          gap: .5rem;
+      .rw-leg-del {
+          margin-left:auto; flex:0 0 auto; border:0; background:none;
+          color:var(--muted); font-size:13px; cursor:pointer; padding:2px 4px;
       }
-      .leg-card-head .leg-pill {
-          background: #eef2ff;
-          color: #4f46e5;
-          padding: .15rem .55rem;
-          border-radius: 999px;
-          font-size: .72rem;
-          font-weight: 600;
-          letter-spacing: .02em;
-      }
-      .leg-card-head .leg-pill.return { background: #ecfdf5; color: #059669; }
-      .leg-card-body { padding: 1.25rem; }
+      .rw-leg-del:hover { color:var(--red); }
+      .rw-leg-body { padding:16px; display:flex; flex-direction:column; gap:16px; }
+      .rw-leg-group { display:flex; flex-direction:column; gap:8px; }
+      .rw-group-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 
-      .form-section-label {
-          font-size: .72rem;
-          text-transform: uppercase;
-          letter-spacing: .06em;
-          color: #64748b;
-          font-weight: 700;
-          margin-bottom: .35rem;
+      /* ── When ── */
+      .rw-when { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+      .rw-time { display:flex; align-items:center; gap:12px; }
+      .rw-clock {
+          flex:0 0 84px; width:84px !important;
+          text-align:center; font-size:15px !important; font-weight:600;
       }
-      .form-section-divider {
-          border: 0;
-          border-top: 1px dashed #e2e8f0;
-          margin: 1.25rem 0 1rem;
+      /* AM/PM is an explicit choice, never a default. The two buttons are
+         separated so a mis-click cannot silently move a pickup twelve hours. */
+      .rw-ampm { display:flex; gap:10px; }
+      .rw-ampm button {
+          flex:0 0 52px; width:52px; padding:9px 0;
+          border:1px solid var(--line-2); border-radius:6px; background:var(--card);
+          color:var(--ink-2); font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
       }
+      .rw-ampm button:hover { border-color:var(--blue); color:var(--blue); }
+      .rw-ampm button.is-on {
+          background:var(--blue); border-color:var(--blue); color:#fff; font-weight:700;
+      }
+      .rw-echo {
+          display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+          padding:11px 13px; border-radius:7px;
+          background:var(--blue-soft); border:1px solid var(--blue-line);
+          font-size:14px; font-weight:600; color:var(--ink);
+      }
+      .rw-echo > i { color:var(--blue); }
+      .rw-echo .rel { font-size:12px; font-weight:500; color:var(--muted); }
+      .rw-echo.is-bad { background:var(--warn); border-color:var(--warn); color:#fff; }
+      .rw-echo.is-bad > i, .rw-echo.is-bad .rel { color:#fff; }
+      /* The calm resting state of the echo, before anything has been entered. */
+      .rw-echo.is-idle {
+          background:var(--bg); border-color:var(--line); color:var(--muted);
+          font-size:12.5px; font-weight:500;
+      }
+      .rw-echo.is-idle > i { color:var(--muted-2); }
 
-      .flight-card {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          padding: 1rem;
-          margin-top: .25rem;
-      }
-      .flight-card .head {
-          font-size: .8rem;
-          font-weight: 700;
-          color: #475569;
-          text-transform: uppercase;
-          letter-spacing: .04em;
-          margin-bottom: .65rem;
-          display: flex;
-          align-items: center;
-          gap: .35rem;
-      }
-      .flight-card .head .opt {
-          font-weight: 500;
-          font-size: .7rem;
-          color: #94a3b8;
-          text-transform: none;
-          letter-spacing: 0;
-      }
 
-      /* Per-leg override panel */
-      .override-toggle {
-          width: 100%;
-          background: #fffdf5;
-          border: 1px solid #e6d6a3;
-          color: #7c5e16;
-          padding: .65rem .9rem;
-          border-radius: 10px;
-          font-weight: 600;
-          font-size: .9rem;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: .5rem;
-          transition: background .15s ease;
+      .rw-date-field, .rw-time-field { max-width:270px; }
+      .rw-flight-head .rw-flight-details {
+          margin-left:auto; display:inline-flex; align-items:center; gap:5px;
+          padding:4px 9px; border:1px solid var(--line-2); border-radius:6px;
+          background:var(--card); color:var(--blue);
+          font-family:inherit; font-size:11.5px; font-weight:600; cursor:pointer;
       }
-      .override-toggle:hover { background: #fef9e7; }
-      .override-toggle .badge-active {
-          background: #f59e0b;
-          color: #fff;
-          padding: .15rem .55rem;
-          border-radius: 999px;
-          font-size: .68rem;
-          font-weight: 700;
-          letter-spacing: .03em;
+      .rw-flight-head .rw-flight-details:hover { border-color:var(--blue); background:var(--blue-soft); }
+      .rw-flight-head .rw-flight-details[hidden] { display:none; }
+      .rw-flight-foot {
+          display:flex; align-items:center; justify-content:space-between;
+          gap:12px; flex-wrap:wrap; margin-top:10px;
       }
-      .override-toggle .chev { transition: transform .2s ease; }
-      .override-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
-      .override-panel {
-          margin-top: .5rem;
-          border: 1px solid #e6d6a3;
-          background: #fffdf5;
-          border-radius: 12px;
-          padding: 1.1rem 1.1rem .9rem;
+      .rw-match {
+          flex:0 0 auto; display:inline-flex; align-items:center; gap:6px;
+          padding:8px 14px; border:0; border-radius:6px;
+          background:var(--blue); color:#fff;
+          font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+          box-shadow:0 1px 3px rgba(37,99,235,.25);
       }
-      .override-panel .hint {
-          font-size: .82rem;
-          color: #7c5e16;
-          margin-bottom: .9rem;
-          display: flex;
-          align-items: center;
-          gap: .35rem;
-      }
-      .override-panel .ovr-label {
-          font-size: .7rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: .06em;
-          color: #7c5e16;
-          margin-bottom: .25rem;
-          display: block;
-      }
-      .override-panel .ovr-default {
-          font-size: .72rem;
-          color: #a18033;
-          margin-top: .2rem;
-      }
-      .override-panel .ovr-divider {
-          border: 0;
-          border-top: 1px solid #efe4c0;
-          margin: 1rem 0 .85rem;
+      .rw-match:hover { background:var(--blue-dark); }
+      .rw-match[hidden] { display:none; }
+      .rw-match.is-matched {
+          background:var(--green-soft); color:var(--green-ink);
+          border:1px solid var(--green-line); box-shadow:none; cursor:default;
       }
 
-      .leg-actions {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-top: 2rem;
+      /* ── Flight details panel ── */
+      .rw-fd-head { display:flex; align-items:center; gap:12px; }
+      .rw-fd-ident { font-size:22px; font-weight:700; letter-spacing:-.01em; }
+      .rw-fd-status {
+          margin-left:auto; padding:3px 10px; border-radius:50px;
+          background:var(--green-soft); border:1px solid var(--green-line);
+          color:var(--green-ink); font-size:11px; font-weight:700;
+          text-transform:uppercase; letter-spacing:.05em;
+      }
+      .rw-fd-status.bad { background:var(--red); border-color:var(--red); color:#fff; }
+      .rw-fd-route {
+          display:flex; align-items:center; gap:14px; margin-top:18px;
+          padding:16px 18px; background:var(--bg); border-radius:8px;
+      }
+      .rw-fd-end { min-width:0; max-width:44%; }
+      .rw-fd-code { font-size:20px; font-weight:700; color:var(--ink); line-height:1.1; }
+      .rw-fd-name { font-size:11.5px; color:var(--muted); line-height:1.35; margin-top:2px; }
+      .rw-fd-when { font-size:12.5px; font-weight:600; color:var(--ink-2); margin-top:3px; }
+      .rw-fd-when.is-unset { font-weight:500; color:var(--muted-2); }
+      .rw-fd-day { font-size:11.5px; color:var(--muted); }
+      .rw-fd-track {
+          flex:1; position:relative; height:16px; min-width:40px;
+          border-bottom:2px dotted var(--line-2);
+      }
+      .rw-fd-track .bi {
+          position:absolute; left:50%; top:35%; transform:translate(-50%,-30%);
+          background:var(--bg); padding:0 6px; color:var(--blue); font-size:13px;
+      }
+      .rw-fd-rows { margin-top:16px; display:flex; flex-direction:column; gap:8px; }
+      .rw-fd-row {
+          display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+          font-size:12.5px; padding-bottom:8px; border-bottom:1px solid var(--line);
+      }
+      .rw-fd-row:last-child { border-bottom:0; padding-bottom:0; }
+      .rw-fd-row .k { color:var(--muted); }
+      .rw-fd-row .v { font-weight:600; color:var(--ink); text-align:right; }
+      .rw-fd-note { margin-top:14px; font-size:11.5px; color:var(--muted); line-height:1.5; }
+
+      /* ── Where ── */
+      .rw-where { display:grid; grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr); gap:8px; align-items:end; }
+      .rw-swap {
+          height:40px; width:40px; border:1px solid var(--line-2); border-radius:6px;
+          background:var(--bg); color:var(--ink-2); cursor:pointer; font-size:13px;
+      }
+      .rw-swap:hover { border-color:var(--blue); color:var(--blue); }
+      .rw-mirror {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:7px 12px; border:0; border-radius:6px;
+          background:var(--blue); color:#fff;
+          font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+          box-shadow:0 1px 3px rgba(37,99,235,.25);
+      }
+      .rw-mirror:hover { background:var(--blue-dark); }
+      .rw-chip {
+          display:inline-flex; align-items:center; gap:6px;
+          padding:6px 12px; border:1px solid var(--line-2); border-radius:50px;
+          background:var(--card); color:var(--ink-2);
+          font-family:inherit; font-size:11.5px; font-weight:500; cursor:pointer;
+      }
+      .rw-chip:hover { border-color:var(--blue); color:var(--blue); }
+
+      /* ── Flight ── */
+      .rw-flight { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px; }
+      .rw-flight[hidden] { display:none; }
+      .rw-flight-head {
+          display:flex; align-items:center; gap:7px; margin-bottom:12px;
+          font-size:12.5px; font-weight:600; color:var(--ink-2);
+      }
+      .rw-flight-head > i { color:var(--blue); font-size:12px; }
+      .rw-flight-head .hint { font-weight:500; color:var(--muted); }
+      .rw-flight-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+      .rw-flight-status {
+          display:flex; align-items:flex-start; gap:8px; min-width:0;
+          font-size:14px; color:var(--ink-2);
+      }
+      .rw-flight-status > i { margin-top:3px; font-size:13px; }
+      .rw-fs-body { display:flex; flex-direction:column; gap:2px; min-width:0; }
+      .rw-fs-head { font-size:14px; font-weight:600; line-height:1.35; }
+      .rw-fs-detail { font-size:12px; font-weight:500; line-height:1.4; color:var(--muted); }
+      .rw-flight-status.ok { color:var(--green-ink); }
+      .rw-flight-status.ok .rw-fs-detail { color:var(--ink-2); }
+      .rw-flight-status.warn { color:var(--warn-deep); }
+      .rw-flight-status.warn .rw-fs-detail { color:var(--warn-deep); font-weight:600; }
+
+      /* ── Per-leg overrides ── */
+      .rw-ovr-toggle {
+          width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
+          padding:9px 12px; border:1px solid var(--line-2); border-radius:7px;
+          background:var(--card); color:var(--ink-2);
+          font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+      }
+      .rw-ovr-toggle:hover { border-color:var(--blue); }
+      .rw-ovr-toggle .opt { color:var(--muted); font-weight:500; }
+      .rw-ovr-toggle .chev { transition:transform .2s ease; font-size:11px; }
+      .rw-ovr-toggle[aria-expanded="true"] .chev { transform:rotate(180deg); }
+      .rw-ovr-active {
+          background:var(--blue-soft); color:var(--blue); border:1px solid var(--blue-line);
+          padding:2px 8px; border-radius:50px; font-size:10px; font-weight:700;
+      }
+      .rw-ovr-panel {
+          margin-top:8px; padding:14px; border:1px solid var(--line); border-radius:8px; background:var(--bg);
+      }
+      .rw-ovr-panel[hidden] { display:none; }
+      .rw-ovr-hint { font-size:11.5px; color:var(--muted); margin-bottom:12px; line-height:1.5; }
+      .rw-ovr-label {
+          display:block; margin-bottom:5px;
+          font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+      }
+      .rw-ovr-default { font-size:11px; color:var(--muted-2); margin-top:4px; }
+      .rw-ovr-divider { border:0; border-top:1px solid var(--line); margin:14px 0 12px; }
+      .rw-ovr-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+
+      /* ── Add another leg ── */
+      .rw-add-wrap { text-align:center; }
+      .rw-add {
+          display:inline-flex; align-items:center; gap:7px;
+          padding:9px 18px; border:1px solid var(--blue); border-radius:50px;
+          background:var(--card); color:var(--blue);
+          font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+      }
+      .rw-add:hover { background:var(--blue-soft); }
+      .rw-add:disabled { border-color:var(--line-2); color:var(--muted-2); cursor:not-allowed; background:var(--card); }
+      .rw-add-hint { margin-top:7px; font-size:11.5px; color:var(--muted); }
+
+      /* New leg slides in rather than snapping into place. */
+      @media (prefers-reduced-motion: no-preference) {
+          .rw-leg { transition:opacity .28s ease, transform .28s ease; }
+          .rw-leg.is-entering { opacity:0; transform:translateY(-8px); }
       }
 
-      /* Live human-readable echo under the date/time inputs */
-      .date-echo, .time-echo { margin-top: .35rem; font-size: .85rem; color: #475569; min-height: 1.1em; }
-      .date-echo strong, .time-echo strong { color: #0f172a; }
-      .date-echo .rel, .time-echo .rel { color: #64748b; font-weight: 500; }
-      .date-echo .rel.urgent, .time-echo .rel.urgent { color: #b45309; font-weight: 700; }
-
-      /* Sanity-check panel (soft-confirm) */
+      /* ── Server-side sanity panel (the authority — kept, restyled) ── */
       .sanity-panel {
-          border: 2px solid #f59e0b;
-          background: #fffbeb;
-          border-radius: 12px;
-          padding: 1rem 1.15rem;
-          margin-bottom: 1.25rem;
+          border:1px solid var(--warn-tint-line); background:var(--warn-tint);
+          border-radius:8px; padding:14px 16px; margin-top:16px;
       }
-      .sanity-panel.shake { animation: sanity-shake .4s; }
-      @keyframes sanity-shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
-      .sanity-panel .sanity-head {
-          font-weight: 800; color: #92400e; font-size: 1rem;
-          display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;
+      .sanity-panel.shake { animation:rwShake .4s; }
+      @keyframes rwShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+      .sanity-head {
+          display:flex; align-items:center; gap:8px;
+          font-size:13.5px; font-weight:600; color:var(--warn-deep); margin-bottom:4px;
       }
-      .sanity-panel .sanity-sub { font-size: .85rem; color: #a16207; margin-bottom: .75rem; }
-      .sanity-list { list-style: none; margin: 0 0 .9rem; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+      .sanity-sub { font-size:12px; color:var(--warn-deep); margin-bottom:12px; line-height:1.5; }
+      .sanity-list { list-style:none; margin:0 0 12px; padding:0; display:flex; flex-direction:column; gap:8px; }
       .sanity-list li {
-          display: flex; gap: .55rem; align-items: flex-start;
-          font-size: .9rem; color: #1f2937;
-          background: #fff; border: 1px solid #fde68a; border-radius: 8px;
-          padding: .55rem .7rem;
+          display:flex; gap:9px; align-items:flex-start;
+          padding:10px 13px; border-radius:7px;
+          background:var(--card); border:1px solid var(--warn-tint-line);
+          font-size:12.5px; line-height:1.5; color:var(--ink-2);
       }
-      .sanity-list li i { margin-top: .15rem; }
-      .sanity-list li.sev-error { border-color: #fca5a5; background: #fef2f2; color: #7f1d1d; font-weight: 600; }
-      .sanity-list li.sev-error i { color: #dc2626; }
-      .sanity-list li.sev-warning i { color: #d97706; }
-      .sanity-list li.sev-ok { border-color: #bbf7d0; }
-      .sanity-list li.sev-ok i { color: #059669; }
-      .sanity-list li.sev-info { border-color: #e2e8f0; color: #475569; }
-      .sanity-list li.sev-info i { color: #64748b; }
-      /* Routine early-departure runs: calm blue quick-check, not an amber alarm */
-      .sanity-list li.routine { border-color: #bfdbfe; background: #eff6ff; }
-      .sanity-list li.routine i { color: #2563eb; }
-      .sanity-ack.light { border-style: solid; border-color: #bfdbfe; color: #1e40af; }
-      /* Overnight flight-path card (mirrors the guest booking form's visual).
-         Deliberately DARK inside the amber panel — a night-sky card for a
-         night-flight question; founder: the faded yellow was too easy to ignore. */
-      .sanity-list li.has-visual { align-items: flex-start; border: 1.5px solid #f59e0b; }
-      .son-wrap { flex: 1; min-width: 0; }
-      .son-lead { font-size: .85rem; margin-bottom: .5rem; }
-      .son-chip { display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: .14rem .6rem; margin-left: .35rem; vertical-align: 1px; white-space: nowrap; }
-      .son-chip-ok { background: #10b981; color: #fff; }
-      .son-chip-ex { background: #f59e0b; color: #431407; }
-      .son-card { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: .8rem 1rem .65rem; box-shadow: 0 4px 14px rgba(15, 23, 42, .28); }
-      .son-path { display: flex; align-items: center; gap: .8rem; }
-      .son-end { min-width: 0; }
-      .son-label { font-size: .6rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #94a3b8; }
-      .son-date { font-size: 1.05rem; font-weight: 700; color: #fff; white-space: nowrap; }
-      .son-time { font-size: .72rem; color: #cbd5e1; white-space: nowrap; }
-      .son-track { flex: 1; position: relative; border-bottom: 2px dotted #f59e0b; height: 1.1rem; margin-bottom: .8rem; min-width: 3rem; }
-      .son-track .fa-plane { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -30%); color: #fbbf24; background: #0f172a; padding: 0 .25rem; font-size: .8rem; }
-      .son-track span { position: absolute; left: 50%; bottom: -1rem; transform: translateX(-50%); font-size: .56rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #fbbf24; white-space: nowrap; }
-      .son-verdicts { border-top: 1px dashed #475569; margin-top: .85rem; padding-top: .55rem; display: flex; flex-direction: column; gap: .3rem; }
-      .son-verdict { font-size: .78rem; font-weight: 600; }
-      .son-verdict.ok { color: #6ee7b7; }
-      .son-verdict.warn { color: #fcd34d; }
-      .sanity-list li .son-verdict.ok i { color: #34d399; }
-      .sanity-list li .son-verdict.warn i { color: #fbbf24; }
-      .son-footnote { font-size: .72rem; color: #92400e; margin-top: .4rem; }
-      @media (max-width: 520px) {
-        .son-track span { display: none; }
-        .son-date { font-size: .9rem; }
-      }
+      .sanity-list li i { margin-top:2px; }
+      .sanity-list li.sev-error { background:var(--red); border-color:var(--red); color:#fff; font-weight:500; }
+      .sanity-list li.sev-error i { color:#fff; }
+      .sanity-list li.sev-warning i { color:var(--warn); }
+      .sanity-list li.sev-ok { border-color:var(--green-line); background:var(--green-soft); color:var(--green-ink); }
+      .sanity-list li.sev-ok i { color:var(--green); }
+      .sanity-list li.sev-info { border-color:var(--line-2); }
+      .sanity-list li.sev-info i { color:var(--muted); }
+      .sanity-list li.routine { border-color:var(--blue-line); background:var(--blue-soft); }
+      .sanity-list li.routine i { color:var(--blue); }
       .sanity-ack {
-          display: flex; gap: .6rem; align-items: flex-start;
-          background: #fff; border: 1px dashed #f59e0b; border-radius: 8px;
-          padding: .65rem .8rem; cursor: pointer;
-          font-weight: 600; color: #92400e; font-size: .9rem;
+          display:flex; gap:9px; align-items:flex-start;
+          background:var(--card); border:1px solid var(--warn-tint-line); border-radius:7px;
+          padding:10px 13px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--warn-deep);
       }
-      .sanity-ack input { margin-top: .2rem; }
+      .sanity-ack.light { border-color:var(--blue-line); color:var(--blue-dark); }
+      .sanity-ack input { margin-top:2px; accent-color:var(--blue); }
+
+      /* Overnight flight-path card — deliberately dark: a night-sky card for a
+         night-flight question, because the faded panel was too easy to ignore. */
+      .sanity-list li.has-visual { align-items:flex-start; }
+      .son-wrap { flex:1; min-width:0; }
+      .son-lead { font-size:12.5px; margin-bottom:8px; line-height:1.5; }
+      .son-chip { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; border-radius:50px; padding:2px 9px; margin-left:5px; white-space:nowrap; }
+      .son-chip-ok { background:var(--green); color:#fff; }
+      .son-chip-ex { background:var(--warn); color:#fff; }
+      .son-card { background:#0f172a; border:1px solid #334155; border-radius:8px; padding:13px 16px 10px; }
+      .son-path { display:flex; align-items:center; gap:13px; }
+      .son-end { min-width:0; }
+      .son-label { font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#94a3b8; }
+      .son-date { font-size:16px; font-weight:700; color:#fff; white-space:nowrap; }
+      .son-time { font-size:11.5px; color:#cbd5e1; white-space:nowrap; }
+      .son-track { flex:1; position:relative; border-bottom:2px dotted #C9A227; height:18px; margin-bottom:13px; min-width:48px; }
+      .son-track .bi { position:absolute; left:50%; top:40%; transform:translate(-50%,-30%); color:#D4AF37; background:#0f172a; padding:0 4px; font-size:12px; }
+      .son-track span { position:absolute; left:50%; bottom:-16px; transform:translateX(-50%); font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#D4AF37; white-space:nowrap; }
+      .son-verdicts { border-top:1px dashed #475569; margin-top:13px; padding-top:9px; display:flex; flex-direction:column; gap:5px; }
+      .son-verdict { font-size:12px; font-weight:600; }
+      .son-verdict.ok { color:#6ee7b7; }
+      .son-verdict.warn { color:#fcd34d; }
+      .son-footnote { font-size:11.5px; color:var(--warn-deep); margin-top:7px; }
+
+      @media (max-width: 860px) {
+          .rw-when, .rw-flight-fields { grid-template-columns:1fr; }
+          .rw-where { grid-template-columns:1fr; }
+          .rw-swap { width:100%; }
+          .rw-ovr-grid { grid-template-columns:1fr; }
+      }
   </style>
 
-  <form method="post" class="needs-validation" novalidate>
+  <form method="post" id="rw-form" novalidate>
     {% csrf_token %}
 
-    {# Formset Errors Summary #}
     {% if leg_formset.non_form_errors %}
-      <div class="booking-flash error mb-3">
-        <span class="icon"><i class="fas fa-exclamation"></i></span>
-        <div class="body">
-          <div class="title">Form errors</div>
-          <ul class="mb-0 mt-1">
-            {% for error in leg_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
-          </ul>
-        </div>
+      <div class="rw-flag crit" style="margin-top:16px">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <span>{{ leg_formset.non_form_errors.0 }}</span>
       </div>
     {% endif %}
     {% if flight_formset.non_form_errors %}
-      <div class="booking-flash error mb-3">
-        <span class="icon"><i class="fas fa-exclamation"></i></span>
-        <div class="body">
-          <div class="title">Flight form errors</div>
-          <ul class="mb-0 mt-1">
-            {% for error in flight_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
-          </ul>
-        </div>
+      <div class="rw-flag crit" style="margin-top:16px">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <span>{{ flight_formset.non_form_errors.0 }}</span>
       </div>
     {% endif %}
 
-    {# Sanity-check panel: 'warning' items soft-confirm via the acknowledge box; #}
-    {# 'error' items (Publix stop while the store is closed) hard-block until fixed #}
+    {% comment %} Server-side sanity checks: 'warning' items soft-confirm via the acknowledge
+       box, 'error' items hard-block until fixed. This is the authority — the
+       client-side flags below only save the dispatcher a round trip. {% endcomment %}
     {% if sanity_panel %}
       <div class="sanity-panel" id="sanityPanel">
         <div class="sanity-head">
-          <i class="fas fa-exclamation-triangle"></i>
+          <i class="bi bi-exclamation-triangle-fill"></i>
           {% if sanity_panel.error_count %}This booking can't proceed as entered{% else %}Double-check before continuing{% endif %}
         </div>
         <div class="sanity-sub">
@@ -278,19 +326,19 @@
         <ul class="sanity-list">
           {% for w in sanity_panel.warnings %}
             <li class="sev-{{ w.severity }}{% if w.visual %} has-visual{% endif %}{% if w.code == 'early_morning_departure' %} routine{% endif %}">
-              {% if w.severity == 'ok' %}<i class="fas fa-check-circle"></i>
-              {% elif w.severity == 'info' %}<i class="fas fa-info-circle"></i>
-              {% elif w.severity == 'error' %}<i class="fas fa-ban"></i>
-              {% elif w.code == 'early_morning_departure' %}<i class="fas fa-clock"></i>
-              {% elif w.visual %}<i class="fas fa-moon"></i>
-              {% else %}<i class="fas fa-exclamation-triangle"></i>{% endif %}
+              {% if w.severity == 'ok' %}<i class="bi bi-check-circle-fill"></i>
+              {% elif w.severity == 'info' %}<i class="bi bi-info-circle"></i>
+              {% elif w.severity == 'error' %}<i class="bi bi-exclamation-octagon-fill"></i>
+              {% elif w.code == 'early_morning_departure' %}<i class="bi bi-clock"></i>
+              {% elif w.visual %}<i class="bi bi-moon-stars-fill"></i>
+              {% else %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
               {% if w.visual.kind == 'overnight' %}
                 <div class="son-wrap">
                   <div class="son-lead">
                     <strong>Leg {{ w.leg }} — overnight arrival:</strong>
                     the flight takes off the day <strong>before</strong> it lands.
                     {% if w.visual.verified %}
-                      <span class="son-chip son-chip-ok"><i class="fas fa-check"></i> Schedule verified</span>
+                      <span class="son-chip son-chip-ok"><i class="bi bi-check-lg"></i> Schedule verified</span>
                     {% else %}
                       <span class="son-chip son-chip-ex">Check the guest's ticket</span>
                     {% endif %}
@@ -303,7 +351,7 @@
                         <div class="son-time">{% if w.visual.origin %}{{ w.visual.origin }} · {% endif %}{{ w.visual.takeoff_time }}</div>
                       </div>
                       <div class="son-track" aria-hidden="true">
-                        <i class="fas fa-plane"></i>
+                        <i class="bi bi-airplane-fill"></i>
                         <span>past midnight</span>
                       </div>
                       <div class="son-end">
@@ -314,11 +362,11 @@
                     </div>
                     <div class="son-verdicts">
                       <div class="son-verdict ok">
-                        <i class="fas fa-check-circle"></i>
+                        <i class="bi bi-check-circle-fill"></i>
                         Ticket departs {{ w.visual.takeoff_date }} → this pickup ({{ w.visual.land_date }}) is correct
                       </div>
                       <div class="son-verdict warn">
-                        <i class="fas fa-arrow-right"></i>
+                        <i class="bi bi-arrow-right"></i>
                         Ticket departs {{ w.visual.wrong_depart_date }} → guest lands {{ w.visual.wrong_land_date }} — pickup would be a day early
                       </div>
                     </div>
@@ -345,365 +393,71 @@
       </div>
     {% endif %}
 
-    <div class="booking-flash info mb-4">
-      <span class="icon"><i class="fas fa-info"></i></span>
-      <div class="body">
-        <strong>Trip Legs.</strong>
-        Enter details for each segment of the trip.
-        {% if num_legs == 1 %}This is a one-way trip.
-        {% elif num_legs == 2 %}This is a round trip (2 legs).
-        {% else %}This trip has {{ num_legs }} legs.{% endif %}
-      </div>
-    </div>
-
     {{ leg_formset.management_form }}
     {{ flight_formset.management_form }}
 
-    <div id="legs-container">
-      {% for leg_form in leg_formset %}
-        {% with forloop.counter0 as leg_index %}
-          {% with override_data=leg_overrides|index:leg_index %}
-            <div class="leg-card">
-              <div class="leg-card-head">
-                <h5>
-                  <i class="fas fa-route text-primary"></i>
-                  Leg {{ forloop.counter }}
-                  {% if leg_index == 0 and num_legs == 2 %}
-                    <span class="leg-pill">Outbound</span>
-                  {% elif leg_index == 1 and num_legs == 2 %}
-                    <span class="leg-pill return">Return</span>
-                  {% endif %}
-                </h5>
-                {% if num_legs > 2 and forloop.counter > 1 %}
-                  <button type="button"
-                          class="btn btn-sm btn-outline-danger remove-leg"
-                          data-leg-index="{{ leg_index }}">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                {% endif %}
-              </div>
-              <div class="leg-card-body">
-                {% for hidden in leg_form.hidden_fields %}{{ hidden }}{% endfor %}
+    <div class="rw-stack">
+      <div id="legs-container" data-max-legs="{{ leg_formset.max_num }}"
+           style="display:flex; flex-direction:column; gap:16px">
+        {% for leg_form in leg_formset %}
+          {% include "dispatching/booking/_leg_card.html" with leg_form=leg_form flight_form=flight_formset.forms|index:forloop.counter0 leg_index=forloop.counter0 leg_number=forloop.counter override_data=leg_overrides|index:forloop.counter0 %}
+        {% endfor %}
+      </div>
 
-                {# When + Where #}
-                <div class="form-section-label">When</div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.pickup_date.id_for_label }}" class="form-label fw-semibold">
-                      Pickup Date <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.pickup_date }}
-                    {% if leg_form.pickup_date.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.pickup_date.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.pickup_time.id_for_label }}" class="form-label fw-semibold">
-                      Pickup Time <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.pickup_time }}
-                    {% if leg_form.pickup_time.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.pickup_time.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                </div>
+      {# Blueprint for "Add another leg" — cloned by JS with __prefix__ swapped for the new index #}
+      <template id="leg-blueprint">
+        {% include "dispatching/booking/_leg_card.html" with leg_form=leg_formset.empty_form flight_form=flight_formset.empty_form leg_index="__prefix__" leg_number="" override_data=empty_overrides %}
+      </template>
 
-                <hr class="form-section-divider">
+      <div class="rw-add-wrap">
+        <button type="button" class="rw-add" id="add-leg-btn">
+          <i class="bi bi-plus-lg"></i> Add Another Leg
+        </button>
+        <div class="rw-add-hint" id="add-leg-hint"></div>
+      </div>
 
-                <div class="form-section-label">Where</div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.pickup_location.id_for_label }}" class="form-label fw-semibold">
-                      Pickup Address <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.pickup_location }}
-                    {% if leg_form.pickup_location.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.pickup_location.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                  <div class="col-md-6">
-                    <label for="{{ leg_form.dropoff_location.id_for_label }}" class="form-label fw-semibold">
-                      Drop-off Address <span class="text-danger">*</span>
-                    </label>
-                    {{ leg_form.dropoff_location }}
-                    {% if leg_form.dropoff_location.errors %}
-                      <div class="invalid-feedback d-block">{{ leg_form.dropoff_location.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <hr class="form-section-divider">
-
-                {# Flight info #}
-                {% for flight_form in flight_formset.forms %}
-                  {% if forloop.counter0 == leg_index %}
-                    <div class="flight-card">
-                      <div class="head">
-                        <i class="fas fa-plane"></i> Flight Information
-                        <span class="opt">— optional</span>
-                      </div>
-                      {% for hidden in flight_form.hidden_fields %}{{ hidden }}{% endfor %}
-                      <div class="row g-3">
-                        <div class="col-md-4">
-                          <label for="{{ flight_form.airline.id_for_label }}" class="form-label small">Airline</label>
-                          {{ flight_form.airline }}
-                          {% if flight_form.airline.errors %}<div class="invalid-feedback d-block">{{ flight_form.airline.errors.0 }}</div>{% endif %}
-                        </div>
-                        <div class="col-md-4">
-                          <label for="{{ flight_form.flight_number.id_for_label }}" class="form-label small">Flight Number</label>
-                          {{ flight_form.flight_number }}
-                          {% if flight_form.flight_number.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_number.errors.0 }}</div>{% endif %}
-                        </div>
-                        <div class="col-md-4">
-                          <label for="{{ flight_form.flight_type.id_for_label }}" class="form-label small">Type</label>
-                          {{ flight_form.flight_type }}
-                          {% if flight_form.flight_type.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_type.errors.0 }}</div>{% endif %}
-                        </div>
-                      </div>
-                    </div>
-                  {% endif %}
-                {% endfor %}
-
-                {# Trip notes — full width #}
-                <div class="row g-3 mt-1">
-                  <div class="col-12">
-                    <label for="{{ leg_form.private_notes.id_for_label }}" class="form-label fw-semibold">Trip Notes</label>
-                    {{ leg_form.private_notes }}
-                    <div class="form-text">Special instructions for the driver.</div>
-                  </div>
-                </div>
-
-                {# Override trip details (optional, collapsed by default) #}
-                <div class="mt-4">
-                  {% with has_override=override_data.has_any %}
-                    <button type="button"
-                            class="override-toggle"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#legOverrides_{{ leg_index }}"
-                            aria-expanded="{% if has_override %}true{% else %}false{% endif %}"
-                            aria-controls="legOverrides_{{ leg_index }}">
-                      <span><i class="fas fa-sliders-h me-2"></i>This leg is different from the rest <span class="text-muted small fw-normal">(optional)</span></span>
-                      <span class="d-flex align-items-center gap-2">
-                        {% if has_override %}<span class="badge-active">Active</span>{% endif %}
-                        <i class="fas fa-chevron-down chev"></i>
-                      </span>
-                    </button>
-
-                    <div class="collapse {% if has_override %}show{% endif %}" id="legOverrides_{{ leg_index }}">
-                      <div class="override-panel">
-                        <div class="hint"><i class="fas fa-info-circle"></i> Use this only if this leg has a different passenger count, needs car seats, or uses a different vehicle than the rest of the trip.</div>
-
-                        {# Vehicle #}
-                        <div class="mb-3">
-                          <label class="ovr-label">Vehicle</label>
-                          <select class="form-select form-select-sm"
-                                  name="legs-{{ leg_index }}-override-vehicle">
-                            <option value="">Use reservation default{% if vehicle %} — {{ vehicle.get_vehicle_type_display }}{% endif %}</option>
-                            {% for v in vehicles %}
-                              <option value="{{ v.id }}" {% if override_data.vehicle == v.id|stringformat:"s" %}selected{% endif %}>
-                                {{ v.get_vehicle_type_display }}
-                              </option>
-                            {% endfor %}
-                          </select>
-                        </div>
-
-                        {# Passengers / Suitcases / Luggage Type #}
-                        <div class="row g-3 mb-2">
-                          <div class="col-sm-4">
-                            <label class="ovr-label">Passengers</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-passenger_count"
-                                   value="{{ override_data.passenger_count|default:'' }}"
-                                   placeholder="{{ reservation_data.passenger_count|default:1 }}">
-                            <div class="ovr-default">Default: {{ reservation_data.passenger_count|default:1 }}</div>
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="ovr-label">Suitcases</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-luggage_count"
-                                   value="{{ override_data.luggage_count|default:'' }}"
-                                   placeholder="{{ reservation_data.luggage_count|default:1 }}">
-                            <div class="ovr-default">Default: {{ reservation_data.luggage_count|default:1 }}</div>
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="ovr-label">Luggage Type</label>
-                            <select class="form-select form-select-sm"
-                                    name="legs-{{ leg_index }}-override-luggage_type">
-                              <option value="">Use default</option>
-                              <option value="carry_on" {% if override_data.luggage_type == 'carry_on' %}selected{% endif %}>Carry-On</option>
-                              <option value="checked"  {% if override_data.luggage_type == 'checked' %}selected{% endif %}>Checked</option>
-                            </select>
-                            <div class="ovr-default">Default: {{ reservation_data.luggage_type|default:"—" }}</div>
-                          </div>
-                        </div>
-
-                        <hr class="ovr-divider">
-
-                        {# Car seats #}
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                          <span class="ovr-label mb-0"><i class="fas fa-baby me-1"></i> Car Seats</span>
-                          <div style="min-width:220px;">
-                            <select class="form-select form-select-sm"
-                                    name="legs-{{ leg_index }}-override-need_carseats">
-                              <option value="">Use default ({% if reservation_data.need_carseats == 'True' %}Yes{% else %}No{% endif %})</option>
-                              <option value="true"  {% if override_data.need_carseats == 'true' %}selected{% endif %}>Yes, needed</option>
-                              <option value="false" {% if override_data.need_carseats == 'false' %}selected{% endif %}>Not needed</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div class="row g-3">
-                          <div class="col-sm-4">
-                            <label class="form-label small text-muted mb-1">Rear-Facing</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-rf_carseats"
-                                   value="{{ override_data.rf_carseats|default:'' }}"
-                                   placeholder="0">
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="form-label small text-muted mb-1">Forward-Facing</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-ff_carseats"
-                                   value="{{ override_data.ff_carseats|default:'' }}"
-                                   placeholder="0">
-                          </div>
-                          <div class="col-sm-4">
-                            <label class="form-label small text-muted mb-1">Boosters</label>
-                            <input type="number" min="0"
-                                   class="form-control form-control-sm"
-                                   name="legs-{{ leg_index }}-override-booster_seats"
-                                   value="{{ override_data.booster_seats|default:'' }}"
-                                   placeholder="0">
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  {% endwith %}
-                </div>
-              </div>
-            </div>
-          {% endwith %}
-        {% endwith %}
-      {% endfor %}
+      <div class="rw-flags" id="rw-flags"></div>
     </div>
 
-    {% if num_legs > 2 %}
-      <div class="text-center mb-4">
-        <button type="button" class="btn btn-outline-primary" id="add-leg-btn">
-          <i class="fas fa-plus me-2"></i> Add Another Leg
+    <div class="rw-actions">
+      <a href="{% url 'dispatcher_booking_reservation' %}" class="rw-back">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+      <div class="rw-actions-right">
+        <span class="rw-gate-note" id="rw-note"></span>
+        <button type="submit" class="rw-next" id="rw-next">
+          Next: Pricing &amp; Notes <i class="bi bi-arrow-right"></i>
         </button>
       </div>
-    {% endif %}
-
-    <div class="leg-actions">
-      <a href="{% url 'dispatcher_booking_reservation' %}" class="btn btn-booking-secondary">
-        <i class="fas fa-arrow-left me-2"></i> Back
-      </a>
-      <button type="submit" class="btn btn-booking-primary">
-        Next: Pricing &amp; Notes <i class="fas fa-arrow-right ms-2"></i>
-      </button>
     </div>
   </form>
 
+  {# Flight details — the whole schedule in one clean panel, on demand #}
+  <div class="rw-backdrop" id="rw-flight-modal" style="display:none">
+    <div class="rw-dialog" role="dialog" aria-modal="true" aria-labelledby="rw-fd-title">
+      <div id="rw-fd-body"></div>
+      <div class="rw-dialog-actions">
+        <button type="button" class="rw-dialog-keep" id="rw-fd-close">Close</button>
+        <button type="button" class="rw-next" id="rw-fd-match" hidden>
+          <i class="bi bi-check2-circle"></i> Use suggested time
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          // Min date = today
-          const today = new Date().toISOString().split('T')[0];
-          document.querySelectorAll('input[type="date"]').forEach(i => i.min = today);
+          var form = document.getElementById('rw-form');
+          var legsContainer = document.getElementById('legs-container');
+          var blueprint = document.getElementById('leg-blueprint');
+          var addBtn = document.getElementById('add-leg-btn');
+          var addHint = document.getElementById('add-leg-hint');
+          var legTotal = document.querySelector('input[name="legs-TOTAL_FORMS"]');
+          var flightTotal = document.querySelector('input[name="flights-TOTAL_FORMS"]');
+          var maxLegs = parseInt(legsContainer.dataset.maxLegs, 10) || 5;
+          var todayISO = new Date().toISOString().split('T')[0];
 
-          // Inline validation
-          const form = document.querySelector('form');
-          form.addEventListener('submit', function(e) {
-              let valid = true;
-              form.querySelectorAll('input[required], select[required]').forEach(field => {
-                  if (!field.value.trim()) { field.classList.add('is-invalid'); valid = false; }
-                  else field.classList.remove('is-invalid');
-              });
-              if (!valid) {
-                  e.preventDefault();
-                  const first = form.querySelector('.is-invalid');
-                  if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
-              }
-          });
-
-          // Sanity panel: acknowledgment required before resubmitting (server re-checks too)
-          const sanityPanel = document.getElementById('sanityPanel');
-          if (sanityPanel) {
-              sanityPanel.scrollIntoView({behavior:'smooth', block:'center'});
-              form.addEventListener('submit', function(e) {
-                  const ack = document.getElementById('sanityAck');
-                  if (ack && !ack.checked) {
-                      e.preventDefault();
-                      sanityPanel.classList.add('shake');
-                      setTimeout(() => sanityPanel.classList.remove('shake'), 500);
-                      sanityPanel.scrollIntoView({behavior:'smooth', block:'center'});
-                  }
-              });
-          }
-
-          // Live human-readable echo: weekday + relative day under each date,
-          // 12-hour time (with an after-midnight nudge) under each time.
-          function two(n) { return String(n).padStart(2, '0'); }
-          function ensureEcho(input, cls) {
-              let echo = input.parentElement.querySelector('.' + cls);
-              if (!echo) {
-                  echo = document.createElement('div');
-                  echo.className = cls;
-                  input.insertAdjacentElement('afterend', echo);
-              }
-              return echo;
-          }
-          function updateDateEcho(input) {
-              const echo = ensureEcho(input, 'date-echo');
-              const parts = (input.value || '').split('-').map(Number);
-              if (parts.length !== 3 || parts.some(isNaN)) { echo.textContent = ''; return; }
-              const dt = new Date(parts[0], parts[1] - 1, parts[2]);
-              const now = new Date();
-              const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const diffDays = Math.round((dt - todayMid) / 86400000);
-              const weekday = dt.toLocaleDateString('en-US', {weekday: 'long'});
-              const nice = dt.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
-              let rel, urgent = false;
-              if (diffDays === 0) { rel = 'TODAY'; urgent = true; }
-              else if (diffDays === 1) { rel = 'tomorrow'; }
-              else if (diffDays > 365) { rel = 'in ' + diffDays + ' days — check the year!'; urgent = true; }
-              else if (diffDays < 0) { rel = diffDays + ' days (past!)'; urgent = true; }
-              else { rel = 'in ' + diffDays + ' days'; }
-              echo.innerHTML = '<strong>' + weekday + '</strong>, ' + nice +
-                  ' <span class="rel' + (urgent ? ' urgent' : '') + '">· ' + rel + '</span>';
-          }
-          function updateTimeEcho(input) {
-              const echo = ensureEcho(input, 'time-echo');
-              const parts = (input.value || '').split(':').map(Number);
-              if (parts.length < 2 || parts.some(isNaN)) { echo.textContent = ''; return; }
-              const hh = parts[0], mm = parts[1];
-              const h12 = ((hh + 11) % 12) + 1;
-              const ampm = hh < 12 ? 'AM' : 'PM';
-              let html = '<strong>' + h12 + ':' + two(mm) + ' ' + ampm + '</strong>';
-              if (hh < 5) {
-                  html += ' <span class="rel urgent">· after midnight — not ' +
-                          h12 + ':' + two(mm) + ' PM?</span>';
-              }
-              echo.innerHTML = html;
-          }
-          function refreshEchoes(root) {
-              root.querySelectorAll('input[name$="pickup_date"]').forEach(updateDateEcho);
-              root.querySelectorAll('input[name$="pickup_time"]').forEach(updateTimeEcho);
-          }
-          ['input', 'change'].forEach(evt => form.addEventListener(evt, function(e) {
-              if (e.target.matches && e.target.matches('input[name$="pickup_date"]')) updateDateEcho(e.target);
-              if (e.target.matches && e.target.matches('input[name$="pickup_time"]')) updateTimeEcho(e.target);
-          }));
-          refreshEchoes(form);
-          form.querySelectorAll('input,select,textarea').forEach(el => {
-              el.addEventListener('input', () => el.classList.remove('is-invalid'));
-          });
-
-          // Common locations autocomplete
-          const commonLocations = [
+          var COMMON_PLACES = [
               "Orlando International Airport (MCO)",
               "Disney's Grand Floridian Resort & Spa",
               "Disney's Polynesian Village Resort",
@@ -715,9 +469,6 @@
               "Disney's BoardWalk Inn",
               "Disney's Port Orleans Resort",
               "Disney's Caribbean Beach Resort",
-              "Disney's All-Star Sports Resort",
-              "Disney's All-Star Music Resort",
-              "Disney's All-Star Movies Resort",
               "Disney's Pop Century Resort",
               "Disney's Art of Animation Resort",
               "Universal Studios Orlando",
@@ -726,22 +477,803 @@
               "Orange County Convention Center",
               "International Drive",
               "Disney Springs",
-              "Universal CityWalk"
+              "Port Canaveral"
           ];
-          document.querySelectorAll('input[name*="pickup_location"], input[name*="dropoff_location"]').forEach(input => {
-              const datalistId = input.id + '_datalist';
-              if (!document.getElementById(datalistId)) {
-                  const dl = document.createElement('datalist');
-                  dl.id = datalistId;
-                  commonLocations.forEach(loc => {
-                      const o = document.createElement('option');
-                      o.value = loc;
+
+          function legCards() { return Array.from(legsContainer.querySelectorAll('[data-leg-card]')); }
+          function q(card, sel) { return card.querySelector(sel); }
+          function pickupEl(card)  { return q(card, 'input[name$="pickup_location"]'); }
+          function dropoffEl(card) { return q(card, 'input[name$="dropoff_location"]'); }
+          function dateEl(card)    { return q(card, 'input[name$="pickup_date"]'); }
+          function timeEl(card)    { return q(card, 'input[name$="pickup_time"]'); }
+          function airlineEl(card) { return q(card, 'input[name$="-airline"]'); }
+          function flightNoEl(card){ return q(card, 'input[name$="flight_number"]'); }
+          function typeEl(card)    { return q(card, 'select[name$="flight_type"]'); }
+
+          /* ── Time: an 84px clock field plus an explicit AM/PM toggle. ──────
+             The native <input type="time"> stays in the DOM as the field that
+             actually posts, so a browser with no JS still submits a valid
+             time; JS hides it and drives it from the split control. */
+          function two(n) { return String(n).padStart(2, '0'); }
+
+          function parseClock(raw) {
+              var m = /^\s*(\d{1,2})\s*:?\s*(\d{1,2})?\s*$/.exec(raw || '');
+              if (!m) return null;
+              var h = parseInt(m[1], 10);
+              var mi = m[2] === undefined ? 0 : parseInt(m[2], 10);
+              if (h < 1 || h > 12 || mi > 59) return null;
+              return {h: h, mi: mi};
+          }
+
+          function buildTime(card) {
+              var host = q(card, '[data-time-host]');
+              var native = timeEl(card);
+              if (!host || !native || host.dataset.built === '1') return;
+              host.dataset.built = '1';
+              native.style.display = 'none';
+
+              var clock = document.createElement('input');
+              clock.type = 'text';
+              clock.className = 'rw-clock';
+              clock.placeholder = '10:30';
+              clock.setAttribute('inputmode', 'numeric');
+              clock.setAttribute('aria-label', 'Pickup time');
+
+              var toggle = document.createElement('div');
+              toggle.className = 'rw-ampm';
+              var am = document.createElement('button');
+              am.type = 'button'; am.textContent = 'AM';
+              var pm = document.createElement('button');
+              pm.type = 'button'; pm.textContent = 'PM';
+              toggle.appendChild(am); toggle.appendChild(pm);
+
+              host.appendChild(clock);
+              host.appendChild(toggle);
+
+              // Seed the split control from a time that already exists. A blank
+              // leg starts with NEITHER half lit — AM is not a safe default when
+              // guessing wrong moves the pickup by twelve hours.
+              var seeded = (native.value || '').split(':');
+              var meridiem = '';
+              if (seeded.length >= 2) {
+                  var hh = parseInt(seeded[0], 10);
+                  var mm = parseInt(seeded[1], 10);
+                  if (isFinite(hh) && isFinite(mm)) {
+                      meridiem = hh < 12 ? 'AM' : 'PM';
+                      clock.value = (((hh + 11) % 12) + 1) + ':' + two(mm);
+                  }
+              }
+              card.dataset.ampm = meridiem;
+
+              function paint() {
+                  am.classList.toggle('is-on', card.dataset.ampm === 'AM');
+                  pm.classList.toggle('is-on', card.dataset.ampm === 'PM');
+              }
+
+              function push() {
+                  var t = parseClock(clock.value);
+                  // Half a time is not a time: without AM or PM there is nothing
+                  // to post, and the gate says which half is missing.
+                  if (!t || !card.dataset.ampm) { native.value = ''; }
+                  else {
+                      var h = t.h;
+                      if (card.dataset.ampm === 'PM' && h !== 12) h += 12;
+                      if (card.dataset.ampm === 'AM' && h === 12) h = 0;
+                      native.value = two(h) + ':' + two(t.mi);
+                  }
+                  native.dispatchEvent(new Event('change', {bubbles:true}));
+                  refreshCard(card);
+              }
+
+              clock.addEventListener('input', push);
+              clock.addEventListener('blur', function() {
+                  var t = parseClock(clock.value);
+                  if (t) clock.value = t.h + ':' + two(t.mi);
+              });
+              am.addEventListener('click', function(){ card.dataset.ampm = 'AM'; paint(); push(); });
+              pm.addEventListener('click', function(){ card.dataset.ampm = 'PM'; paint(); push(); });
+
+              // How "Match" writes a time in: same path a dispatcher's own
+              // typing takes, so nothing can drift between the two.
+              card.setTimeFromMinutes = function(mins) {
+                  var h24 = Math.floor(mins / 60), mi = mins % 60;
+                  card.dataset.ampm = h24 < 12 ? 'AM' : 'PM';
+                  clock.value = (((h24 + 11) % 12) + 1) + ':' + two(mi);
+                  paint();
+                  push();
+              };
+              paint();
+          }
+
+          function legTime(card) {
+              var native = timeEl(card);
+              var parts = (native.value || '').split(':');
+              if (parts.length < 2) return null;
+              var h = parseInt(parts[0], 10), mi = parseInt(parts[1], 10);
+              if (!isFinite(h) || !isFinite(mi)) return null;
+              return {h: h, mi: mi};
+          }
+
+          function legDate(card) {
+              var parts = (dateEl(card).value || '').split('-').map(Number);
+              if (parts.length !== 3 || parts.some(isNaN)) return null;
+              return new Date(parts[0], parts[1] - 1, parts[2]);
+          }
+
+          function timeLabel(t) {
+              if (!t) return '';
+              var h12 = ((t.h + 11) % 12) + 1;
+              return h12 + ':' + two(t.mi) + ' ' + (t.h < 12 ? 'AM' : 'PM');
+          }
+
+          function dateLong(d) {
+              return d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+          }
+
+          function dateShort(d) {
+              return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+          }
+
+          function relLabel(d) {
+              var todayMid = new Date(new Date().toDateString());
+              var days = Math.round((d - todayMid) / 86400000);
+              if (days === 0) return '· today';
+              if (days === 1) return '· tomorrow';
+              if (days > 365) return '· in ' + days + ' days — check the year';
+              return days > 0 ? '· in ' + days + ' days' : '· ' + Math.abs(days) + ' days ago';
+          }
+
+          function shortPlace(s) {
+              return (s || '').replace('Orlando International Airport (MCO)', 'MCO');
+          }
+
+          function isAirport(card) {
+              var a = (pickupEl(card).value || '').toLowerCase();
+              var b = (dropoffEl(card).value || '').toLowerCase();
+              return a.indexOf('mco') > -1 || b.indexOf('mco') > -1;
+          }
+
+          /* ── Per-card refresh: echo, route summary, flight panel ── */
+          function refreshCard(card) {
+              var echo = q(card, '[data-echo]');
+              var d = legDate(card);
+              var t = legTime(card);
+              var clockEl = q(card, '.rw-clock');
+              var typed = clockEl ? clockEl.value.trim() : '';
+              // The echo only turns orange about something the dispatcher has
+              // actually reached: half a time they typed, or anything still
+              // missing once they have tried to move on. Filling the address
+              // first is not a mistake, and must not be shouted at.
+              if (!t) {
+                  if (typed && parseClock(typed) && !card.dataset.ampm) {
+                      echo.className = 'rw-echo is-bad';
+                      echo.innerHTML = '<i class="bi bi-calendar-check"></i><span>Choose AM or PM</span>';
+                  } else if (typed && !parseClock(typed)) {
+                      echo.className = 'rw-echo is-bad';
+                      echo.innerHTML = '<i class="bi bi-calendar-check"></i>' +
+                          '<span>That is not a clock time — try 10:30</span>';
+                  } else if (gate && gate.tried) {
+                      echo.className = 'rw-echo is-bad';
+                      echo.innerHTML = '<i class="bi bi-calendar-check"></i><span>Enter a time</span>';
+                  } else if (d) {
+                      echo.className = 'rw-echo is-idle';
+                      echo.innerHTML = '<i class="bi bi-calendar-check"></i>' +
+                          '<span>' + dateLong(d) + '</span>' +
+                          '<span class="rel">· time not set yet</span>';
+                  } else {
+                      echo.className = 'rw-echo is-idle';
+                      echo.innerHTML = '<i class="bi bi-calendar-check"></i>' +
+                          '<span>Pick a date and time — it reads back here in full.</span>';
+                  }
+              } else {
+                  echo.className = 'rw-echo';
+                  echo.innerHTML = '<i class="bi bi-calendar-check"></i>' +
+                      '<span>' + (d ? dateLong(d) : 'No date set') + ' at ' + timeLabel(t) + '</span>' +
+                      (d ? '<span class="rel">' + relLabel(d) + '</span>' : '');
+              }
+
+              var route = q(card, '[data-leg-route]');
+              var from = shortPlace(pickupEl(card).value);
+              var to = shortPlace(dropoffEl(card).value);
+              route.textContent = (from || to) ? (from || '—') + ' → ' + (to || '—') : '';
+
+              // The flight block is always on screen. Which end of the leg is
+              // the airport is a hint for the lookup, not a gate on the fields:
+              // plenty of dispatchers have the flight before the address.
+              var dir = '';
+              if (isAirport(card)) {
+                  dir = (pickupEl(card).value || '').toLowerCase().indexOf('mco') > -1
+                      ? 'arrival' : 'departure';
+              }
+              lookupFlight(card, dir);
+          }
+
+          /* -- Live flight schedule ---------------------------------
+             A check that passes silently is indistinguishable from no check
+             at all. The flight's real scheduled time goes on screen while the
+             dispatcher is still typing, which is also what settles AM/PM:
+             the landing time is right there next to the pickup. */
+          function setStatus(card, tone, icon, headline, detail) {
+              var el = q(card, '[data-flight-status]');
+              el.className = 'rw-flight-status' + (tone ? ' ' + tone : '');
+              el.innerHTML = '<i class="bi ' + icon + '"></i>' +
+                  '<span class="rw-fs-body"><span class="rw-fs-head"></span>' +
+                  (detail ? '<span class="rw-fs-detail"></span>' : '') + '</span>';
+              el.querySelector('.rw-fs-head').textContent = headline;
+              if (detail) el.querySelector('.rw-fs-detail').textContent = detail;
+          }
+
+          function hm(mins) {
+              mins = Math.abs(Math.round(mins));
+              var h = Math.floor(mins / 60), m = mins % 60;
+              if (!h) return m + 'm';
+              return m ? h + 'h ' + m + 'm' : h + 'h';
+          }
+
+          function showMatch(card, data) {
+              var btn = q(card, '[data-match]');
+              var details = q(card, '[data-flight-details]');
+              if (details) details.hidden = !(data && data.ok);
+              if (!btn) return;
+
+              // The house rule answers both directions: an arrival pickup IS the
+              // landing time, a departure pickup is the lead before takeoff. A
+              // recommendation that lands on the previous evening is NOT offered
+              // as one click — moving a date silently is how a trip goes missing.
+              var rec = data && data.ok ? data.recommended_pickup : null;
+              if (!rec || rec.day_offset !== 0) { btn.hidden = true; return; }
+              btn.hidden = false;
+              var t = legTime(card);
+              var matched = t && (t.h * 60 + t.mi) === rec.minutes;
+              btn.classList.toggle('is-matched', !!matched);
+              q(card, '[data-match-label]').textContent = matched
+                  ? 'Using the suggested time'
+                  : 'Use suggested time — ' + rec.time;
+          }
+
+          function setDirection(card, dir) {
+              var sel = typeEl(card);
+              if (sel && dir) sel.value = dir;
+              q(card, '[data-flight-dir]').textContent =
+                  dir === 'arrival' ? '— arriving flight'
+                  : dir === 'departure' ? '— departing flight'
+                  : '— if they are flying';
+          }
+
+          function renderFlight(card, data) {
+              card.flightData = data;
+              showMatch(card, data);
+              if (data && data.ok && data.direction) setDirection(card, data.direction);
+
+              var label = data.ident || 'that flight';
+              if (!data.ok) {
+                  if (data.reason === 'not_found')
+                      return setStatus(card, 'warn', 'bi-exclamation-triangle-fill',
+                          'No flight ' + label + ' found on that date',
+                          'Check the number or the date.');
+                  if (data.reason === 'not_orlando')
+                      return setStatus(card, 'warn', 'bi-exclamation-triangle-fill',
+                          label + ' does not touch Orlando',
+                          data.detail || '');
+                  return setStatus(card, '', 'bi-info-circle',
+                      'Checked against the airline schedule when you continue.', '');
+              }
+
+              var head = label + ' ' + data.verb + ' ' + data.time;
+              var rec = data.recommended_pickup;
+
+              var legDateStr = dateEl(card).value;
+              if (legDateStr && data.date && data.date !== legDateStr)
+                  return setStatus(card, 'warn', 'bi-exclamation-triangle-fill',
+                      head + ' on ' + data.date_label,
+                      'This pickup is dated a different day.');
+
+              var t = legTime(card);
+
+              // Nothing entered yet: lead with the suggestion, which is the
+              // whole reason the flight goes in before the time.
+              if (!t) {
+                  if (data.from_cruise_port)
+                      return setStatus(card, 'ok', 'bi-check-circle-fill', head,
+                          'Time this off the ship, not the flight.');
+                  if (rec && rec.day_offset === 0)
+                      return setStatus(card, 'ok', 'bi-check-circle-fill', head,
+                          'Suggested pickup ' + rec.time + ' — ' + rec.why + '.');
+                  if (rec && rec.day_offset !== 0)
+                      return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                          'A ' + rec.why + ' pickup lands at ' + rec.time +
+                          ' the evening before — set the date and time by hand.');
+                  return setStatus(card, 'ok', 'bi-check-circle-fill', head, '');
+              }
+
+              var pickupMins = t.h * 60 + t.mi;
+
+              if (data.verb === 'lands') {
+                  var after = pickupMins - data.minutes;
+                  if (after < -45)
+                      return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                          'This pickup is ' + hm(after) + ' before it — AM/PM mix-up?');
+                  if (after > 240)
+                      return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                          'This pickup is ' + hm(after) + ' after it — AM/PM mix-up?');
+                  if (after === 0)
+                      return setStatus(card, 'ok', 'bi-check-circle-fill', head,
+                          'Pickup set to the landing time.');
+                  return setStatus(card, 'ok', 'bi-check-circle-fill', head,
+                      'Pickup ' + hm(after) + ' ' + (after < 0 ? 'before' : 'after') + ' it.');
+              }
+
+              var lead = data.minutes - pickupMins;
+              var drive = (data.recommended_lead_min || 150) - (data.guest_at_airport_min || 120);
+              var target = data.guest_at_airport_min || 120;
+              var margin = lead - drive;   // how early the guest actually gets there
+
+              if (lead <= 0)
+                  return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                      'That is before this pickup — the guest would miss it.');
+              if (lead > 480)
+                  return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                      hm(lead) + ' after this pickup. AM/PM mix-up?');
+              if (data.from_cruise_port)
+                  return setStatus(card, 'ok', 'bi-check-circle-fill', head,
+                      'Pickup ' + hm(lead) + ' before it. Time this off the ship, not the flight.');
+              if (margin <= 0)
+                  return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                      'This pickup gets the guest to the airport at takeoff. Too late.');
+              if (margin < target)
+                  return setStatus(card, 'warn', 'bi-exclamation-triangle-fill', head,
+                      'This pickup puts the guest there ' + hm(margin) +
+                      ' before takeoff. The house rule is ' + hm(target) + '.');
+              return setStatus(card, 'ok', 'bi-check-circle-fill', head,
+                  'Pickup ' + hm(lead) + ' before it — guest at the airport ' +
+                  hm(margin) + ' early.');
+          }
+
+          /* ── Flight details panel ────────────────────────────────── */
+          var fdModal = document.getElementById('rw-flight-modal');
+          var fdBody = document.getElementById('rw-fd-body');
+          var fdMatch = document.getElementById('rw-fd-match');
+          var fdCard = null;
+
+          function esc(v) {
+              return String(v == null ? '' : v).replace(/[&<>"']/g, function(m) {
+                  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+              });
+          }
+
+          function fdEnd(place, stamp, align) {
+              // AeroAPI hands back either a bare code ("MCO") or
+              // "MCO - Orlando Intl". Show the code big and the name quietly.
+              var parts = String(place || '').split(' - ');
+              var code = parts[0] || '—';
+              var name = parts.slice(1).join(' - ');
+              return '<div class="rw-fd-end" style="text-align:' + align + '">' +
+                  '<div class="rw-fd-code">' + esc(code) + '</div>' +
+                  (name ? '<div class="rw-fd-name">' + esc(name) + '</div>' : '') +
+                  '<div class="rw-fd-when' + (stamp ? '' : ' is-unset') + '">' +
+                      esc(stamp ? stamp.time : 'Not published') + '</div>' +
+                  '<div class="rw-fd-day">' + esc(stamp ? stamp.date_label : '') + '</div>' +
+              '</div>';
+          }
+
+          function openFlightDetails(card) {
+              var d = card.flightData;
+              if (!d || !d.ok) return;
+              fdCard = card;
+
+              var bad = d.cancelled || d.diverted;
+              var status = d.cancelled ? 'Cancelled' : (d.diverted ? 'Diverted' : (d.status || 'Scheduled'));
+
+              var rows = '';
+              var t = legTime(card);
+              if (t) {
+                  var mins = t.h * 60 + t.mi;
+                  var delta = d.verb === 'lands' ? mins - d.minutes : d.minutes - mins;
+                  var gap;
+                  if (delta === 0) {
+                      gap = d.verb === 'lands' ? 'the landing time' : 'the departure time';
+                  } else {
+                      var word = d.verb === 'lands'
+                          ? (delta < 0 ? 'before it lands' : 'after it lands')
+                          : (delta < 0 ? 'after it departs' : 'before it departs');
+                      gap = hm(delta) + ' ' + word;
+                  }
+                  rows += '<div class="rw-fd-row"><span class="k">This pickup</span>' +
+                      '<span class="v">' + esc(timeLabel(t)) + ' — ' + esc(gap) + '</span></div>';
+              } else {
+                  rows += '<div class="rw-fd-row"><span class="k">This pickup</span>' +
+                      '<span class="v">Not set yet</span></div>';
+              }
+
+              if (d.verb === 'departs' && d.from_cruise_port) {
+                  rows += '<div class="rw-fd-row"><span class="k">Pickup time</span>' +
+                      '<span class="v">From the ship\'s disembarkation</span></div>';
+              } else if (d.verb === 'departs' && d.recommended_pickup) {
+                  var tgt = d.guest_at_airport_min || 120;
+                  rows += '<div class="rw-fd-row"><span class="k">Recommended pickup</span>' +
+                      '<span class="v">' + esc(d.recommended_pickup.time) + ' — ' +
+                      esc(d.recommended_pickup.why) +
+                      (d.recommended_pickup.day_offset ? ', the evening before' : '') +
+                      '</span></div>';
+                  if (t) {
+                      var gm = (d.minutes - (t.h * 60 + t.mi)) -
+                               ((d.recommended_lead_min || 150) - tgt);
+                      rows += '<div class="rw-fd-row"><span class="k">Guest at the airport</span>' +
+                          '<span class="v">' +
+                          (gm > 0 ? esc(hm(gm)) + ' before takeoff' : 'after takeoff') +
+                          ' — house rule is ' + esc(hm(tgt)) + '</span></div>';
+                  }
+              }
+
+              if (d.verb === 'lands' && d.arrival) {
+                  // House rule: the driver walks in and waits at the terminal
+                  // meet point ten minutes after the gate. Never the curb.
+                  var due = d.arrival.minutes + 10;
+                  var dh = Math.floor(due / 60) % 24, dm = due % 60;
+                  rows += '<div class="rw-fd-row"><span class="k">Driver due at the meet point</span>' +
+                      '<span class="v">' + esc(timeLabel({h: dh, mi: dm})) + ', inside the terminal</span></div>';
+              }
+
+              fdBody.innerHTML =
+                  '<div class="rw-fd-head">' +
+                      '<span class="rw-fd-ident" id="rw-fd-title">' + esc(d.ident) + '</span>' +
+                      '<span class="rw-fd-status' + (bad ? ' bad' : '') + '">' + esc(status) + '</span>' +
+                  '</div>' +
+                  '<div class="rw-fd-route">' +
+                      fdEnd(d.origin, d.departure, 'left') +
+                      '<div class="rw-fd-track" aria-hidden="true"><i class="bi bi-airplane-fill"></i></div>' +
+                      fdEnd(d.destination, d.arrival, 'right') +
+                  '</div>' +
+                  '<div class="rw-fd-rows">' + rows + '</div>' +
+                  '<div class="rw-fd-note">' +
+                      (d.recommendation_note ? esc(d.recommendation_note) + ' ' : '') +
+                      (d.schedule_only
+                          ? 'Published airline schedule. Gate and terminal are not in it, and the day-of tracker will pick up any delay.'
+                          : 'Live flight data. The day-of tracker keeps watching this flight for delays.') +
+                  '</div>';
+
+              fdMatch.hidden = !(d.recommended_pickup && d.recommended_pickup.day_offset === 0);
+              fdModal.style.display = 'flex';
+          }
+
+          function closeFlightDetails() {
+              fdModal.style.display = 'none';
+              fdCard = null;
+          }
+
+          document.getElementById('rw-fd-close').addEventListener('click', closeFlightDetails);
+          fdModal.addEventListener('click', function(e) {
+              if (e.target === fdModal) closeFlightDetails();
+          });
+          document.addEventListener('keydown', function(e) {
+              if (e.key === 'Escape' && fdModal.style.display === 'flex') closeFlightDetails();
+          });
+          fdMatch.addEventListener('click', function() {
+              var rec = fdCard && fdCard.flightData && fdCard.flightData.ok
+                  ? fdCard.flightData.recommended_pickup : null;
+              if (rec && rec.day_offset === 0 && fdCard.setTimeFromMinutes)
+                  fdCard.setTimeFromMinutes(rec.minutes);
+              closeFlightDetails();
+          });
+
+          var lookupTimers = {};
+          var LOOKUP_URL = '{% url "booking_flight_lookup" %}';
+
+          function lookupFlight(card, dir) {
+              var no = (flightNoEl(card).value || '').trim();
+              var airline = (airlineEl(card).value || '').trim();
+              var when = dateEl(card).value;
+              // Where the car starts decides whether the flight can answer the
+              // pickup time at all — a cruise-port run is timed off the ship.
+              var from = (pickupEl(card).value || '').trim();
+
+              setDirection(card, dir);
+              if (!no) {
+                  card.dataset.flightKey = '';
+                  card.flightData = null;
+                  showMatch(card, null);
+                  return setStatus(card, '', 'bi-info-circle',
+                      'Add it and the driver tracks the delay');
+              }
+              if (!when) {
+                  card.dataset.flightKey = '';
+                  return setStatus(card, '', 'bi-info-circle',
+                      'Set the pickup date and the schedule is checked here.');
+              }
+
+              var key = [airline, no, when, dir, from].join('|');
+              if (card.dataset.flightKey === key) {
+                  // Same flight, but the pickup time may have moved — repaint
+                  // the gap from what we already fetched rather than re-billing.
+                  if (card.flightData) renderFlight(card, card.flightData);
+                  return;
+              }
+              card.dataset.flightKey = key;
+              card.flightData = null;
+              showMatch(card, null);
+
+              var idx = card.dataset.legIndex;
+              clearTimeout(lookupTimers[idx]);
+              setStatus(card, '', 'bi-arrow-repeat', 'Checking the schedule...');
+              lookupTimers[idx] = setTimeout(function() {
+                  fetch(LOOKUP_URL + '?airline=' + encodeURIComponent(airline) +
+                        '&flight_number=' + encodeURIComponent(no) +
+                        '&date=' + encodeURIComponent(when) +
+                        '&direction=' + encodeURIComponent(dir) +
+                        '&pickup=' + encodeURIComponent(from))
+                      .then(function(r){ return r.json(); })
+                      .then(function(data) {
+                          if (card.dataset.flightKey !== key) return;  // superseded
+                          renderFlight(card, data);
+                      })
+                      .catch(function() {
+                          setStatus(card, '', 'bi-info-circle',
+                              'Checked against the airline schedule when you continue.');
+                      });
+              }, 550);
+          }
+
+          /* ── Validation ───────────────────────────────────────────── */
+          function legFlags(card, i) {
+              var out = [];
+              var label = 'Leg ' + (i + 1);
+              var t = legTime(card);
+              var d = legDate(card);
+              if (!pickupEl(card).value.trim() || !dropoffEl(card).value.trim())
+                  out.push({tone:'crit', text: label + ': pickup and drop-off addresses are both required.'});
+              var clockEl = q(card, '.rw-clock');
+              var typed = clockEl ? clockEl.value.trim() : '';
+              if (!t) {
+                  if (typed && parseClock(typed) && !card.dataset.ampm)
+                      out.push({tone:'crit', text: label + ': choose AM or PM for the pickup time.'});
+                  else
+                      out.push({tone:'crit', text: label + ': the pickup time is not a valid clock time.'});
+              }
+              if (!d)
+                  out.push({tone:'crit', text: label + ': a pickup date is required.'});
+              if (d && d < new Date(new Date().toDateString()))
+                  out.push({tone:'crit', text: label + ': the pickup date is in the past — ' + dateLong(d) + '.'});
+              if (t && t.h < 5)
+                  out.push({tone:'warn', text: label + ': ' + timeLabel(t) + ' is the middle of the night. Confirm the guest did not mean PM.'});
+              var fd = card.flightData;
+              if (fd && fd.ok && fd.verb === 'departs' && t) {
+                  var fdLead = fd.minutes - (t.h * 60 + t.mi);
+                  var fdDrive = (fd.recommended_lead_min || 150) - (fd.guest_at_airport_min || 120);
+                  var fdTarget = fd.guest_at_airport_min || 120;
+                  var fdMargin = fdLead - fdDrive;
+                  if (fdLead > 0 && fdMargin < fdTarget && !fd.from_cruise_port)
+                      out.push({
+                          tone: 'warn',
+                          text: label + ': this pickup gets the guest to the airport ' +
+                              (fdMargin > 0 ? hm(fdMargin) + ' before ' : 'after ') +
+                              fd.ident + ' departs. The house rule is ' + hm(fdTarget) + ' before takeoff.'
+                      });
+              }
+              var legFilledIn = !!(d && t &&
+                  pickupEl(card).value.trim() && dropoffEl(card).value.trim());
+              if (legFilledIn && isAirport(card) && !(flightNoEl(card).value || '').trim())
+                  out.push({
+                      tone:'warn',
+                      text: label + ': airport leg with no flight number — the driver cannot track a delay.'
+                  });
+              return out;
+          }
+
+          function crossFlags() {
+              var out = [];
+              var cards = legCards();
+              for (var i = 1; i < cards.length; i++) {
+                  var da = legDate(cards[i-1]), db = legDate(cards[i]);
+                  var ta = legTime(cards[i-1]), tb = legTime(cards[i]);
+                  if (!da || !db || !ta || !tb) continue;
+                  var va = da.getTime() + ta.h * 3600000 + ta.mi * 60000;
+                  var vb = db.getTime() + tb.h * 3600000 + tb.mi * 60000;
+                  if (vb < va)
+                      out.push({tone:'crit', text:'Leg ' + (i + 1) + ' is scheduled before leg ' + i + '. Check the dates.'});
+                  else if (vb - va < 5400000)
+                      out.push({tone:'warn', text:'Only ' + Math.round((vb - va) / 60000) + ' minutes between leg ' + i + ' and leg ' + (i + 1) + '.'});
+              }
+              return out;
+          }
+
+          function allFlags() {
+              var out = [];
+              legCards().forEach(function(card, i) { out = out.concat(legFlags(card, i)); });
+              return out.concat(crossFlags());
+          }
+
+          /* ── Wiring ── */
+          function attachDatalist(input) {
+              if (!input || input.dataset.rwList === '1') return;
+              input.dataset.rwList = '1';
+              var id = 'rw-places';
+              if (!document.getElementById(id)) {
+                  var dl = document.createElement('datalist');
+                  dl.id = id;
+                  COMMON_PLACES.forEach(function(p) {
+                      var o = document.createElement('option');
+                      o.value = p;
                       dl.appendChild(o);
                   });
                   document.body.appendChild(dl);
               }
-              input.setAttribute('list', datalistId);
+              input.setAttribute('list', id);
+          }
+
+          function wireCard(card) {
+              buildTime(card);
+              var d = dateEl(card);
+              if (d) d.min = todayISO;
+              attachDatalist(pickupEl(card));
+              attachDatalist(dropoffEl(card));
+
+              var swap = q(card, '[data-swap]');
+              if (swap && !swap.dataset.wired) {
+                  swap.dataset.wired = '1';
+                  swap.addEventListener('click', function() {
+                      var a = pickupEl(card), b = dropoffEl(card);
+                      var tmp = a.value; a.value = b.value; b.value = tmp;
+                      form.dispatchEvent(new Event('change', {bubbles:true}));
+                  });
+              }
+
+              var chip = q(card, '.rw-chip');
+              if (chip && !chip.dataset.wired) {
+                  chip.dataset.wired = '1';
+                  chip.addEventListener('click', function() {
+                      var a = pickupEl(card), b = dropoffEl(card);
+                      if (!a.value.trim()) a.value = chip.dataset.place;
+                      else b.value = chip.dataset.place;
+                      form.dispatchEvent(new Event('change', {bubbles:true}));
+                  });
+              }
+
+              var mirror = q(card, '[data-mirror]');
+              if (mirror && !mirror.dataset.wired) {
+                  mirror.dataset.wired = '1';
+                  mirror.addEventListener('click', function() {
+                      var first = legCards()[0];
+                      if (!first || first === card) return;
+                      pickupEl(card).value = dropoffEl(first).value;
+                      dropoffEl(card).value = pickupEl(first).value;
+                      var a1 = airlineEl(first), a2 = airlineEl(card);
+                      if (a1 && a2) a2.value = a1.value;
+                      form.dispatchEvent(new Event('change', {bubbles:true}));
+                  });
+              }
+
+              var match = q(card, '[data-match]');
+              if (match && !match.dataset.wired) {
+                  match.dataset.wired = '1';
+                  match.addEventListener('click', function() {
+                      var rec = card.flightData && card.flightData.ok
+                          ? card.flightData.recommended_pickup : null;
+                      if (!rec || rec.day_offset !== 0) return;
+                      if (card.setTimeFromMinutes) card.setTimeFromMinutes(rec.minutes);
+                  });
+              }
+
+              var details = q(card, '[data-flight-details]');
+              if (details && !details.dataset.wired) {
+                  details.dataset.wired = '1';
+                  details.addEventListener('click', function(){ openFlightDetails(card); });
+              }
+
+              var ovr = q(card, '[data-ovr-toggle]');
+              if (ovr && !ovr.dataset.wired) {
+                  ovr.dataset.wired = '1';
+                  ovr.addEventListener('click', function() {
+                      var panel = q(card, '[data-ovr-panel]');
+                      var open = ovr.getAttribute('aria-expanded') === 'true';
+                      ovr.setAttribute('aria-expanded', open ? 'false' : 'true');
+                      panel.hidden = open;
+                  });
+              }
+
+              refreshCard(card);
+          }
+
+          function reindex() {
+              var cards = legCards();
+              cards.forEach(function(card, i) {
+                  card.dataset.legIndex = i;
+                  var num = q(card, '[data-leg-number]');
+                  if (num) num.textContent = i + 1;
+                  ['name', 'id', 'for'].forEach(function(attr) {
+                      card.querySelectorAll('[' + attr + ']').forEach(function(el) {
+                          el.setAttribute(attr, el.getAttribute(attr)
+                              .replace(/(legs|flights)-\d+-/, '$1-' + i + '-'));
+                      });
+                  });
+                  var del = q(card, '[data-remove-leg]');
+                  if (del) del.style.display = cards.length > 1 ? '' : 'none';
+                  // Reversing leg 1 only means something on a later leg.
+                  var mirror = q(card, '[data-mirror]');
+                  if (mirror) mirror.style.display = i === 0 ? 'none' : '';
+              });
+
+              var n = cards.length;
+              if (legTotal) legTotal.value = n;
+              if (flightTotal) flightTotal.value = n;
+              addBtn.disabled = n >= maxLegs;
+              addHint.textContent = n >= maxLegs
+                  ? 'That is the most legs one reservation can hold.'
+                  : (n === 1
+                      ? 'Round trip? Add a second leg for the return.'
+                      : 'Add as many legs as the guest needs.');
+          }
+
+          function addLeg() {
+              var cards = legCards();
+              if (cards.length >= maxLegs) return;
+              var wrap = document.createElement('div');
+              wrap.innerHTML = blueprint.innerHTML.replace(/__prefix__/g, String(cards.length)).trim();
+              var card = wrap.firstElementChild;
+              card.classList.add('is-entering');
+              legsContainer.appendChild(card);
+              reindex();
+              wireCard(card);
+
+              // A new leg starts empty — no guessed date, no guessed route.
+              // "Fill Reverse Of Leg 1" is right there when the dispatcher
+              // wants it, and that click is the dispatcher saying so.
+              refreshCard(card);
+              gate.refresh();
+              requestAnimationFrame(function(){ card.classList.remove('is-entering'); });
+              card.scrollIntoView({behavior:'smooth', block:'center'});
+          }
+
+          addBtn.addEventListener('click', addLeg);
+
+          legsContainer.addEventListener('click', function(e) {
+              var btn = e.target.closest('[data-remove-leg]');
+              if (!btn) return;
+              if (legCards().length <= 1) return;
+              var card = btn.closest('[data-leg-card]');
+              card.classList.add('is-entering');
+              setTimeout(function() { card.remove(); reindex(); gate.refresh(); }, 180);
           });
+
+          // Any edit re-renders that leg's echo, route summary and flight block.
+          ['input', 'change'].forEach(function(evt) {
+              form.addEventListener(evt, function(e) {
+                  var card = e.target.closest && e.target.closest('[data-leg-card]');
+                  if (card) { card.dataset.touched = '1'; refreshCard(card); }
+              });
+          });
+
+          legCards().forEach(wireCard);
+          reindex();
+
+          var gate = window.rwGate({
+              form: form,
+              button: document.getElementById('rw-next'),
+              note: document.getElementById('rw-note'),
+              flagBox: document.getElementById('rw-flags'),
+              compute: allFlags
+          });
+
+          // Once the dispatcher has tried to move on, every echo drops its
+          // resting state and says what it is still waiting for.
+          document.getElementById('rw-next').addEventListener('click', function() {
+              setTimeout(function(){ legCards().forEach(refreshCard); }, 0);
+          });
+
+          // The server's sanity panel needs its acknowledgement before it will
+          // take the same set of warnings a second time.
+          var sanityPanel = document.getElementById('sanityPanel');
+          if (sanityPanel) {
+              sanityPanel.scrollIntoView({behavior:'smooth', block:'center'});
+              form.addEventListener('submit', function(e) {
+                  var ack = document.getElementById('sanityAck');
+                  if (ack && !ack.checked) {
+                      e.preventDefault();
+                      sanityPanel.classList.add('shake');
+                      setTimeout(function(){ sanityPanel.classList.remove('shake'); }, 500);
+                      sanityPanel.scrollIntoView({behavior:'smooth', block:'center'});
+                  }
+              });
+          }
       });
   </script>
 {% endblock %}

@@ -211,12 +211,21 @@
               <div class="mb-3 field-hidden" id="charge_type_field_group">
                 <label for="charge_type" class="field-label">Charge Type</label>
                 <select name="charge_type" id="charge_type" class="form-select form-select-lg">
+                  {% if reservation.amount_owed > 0 %}
+                    <option value="trip_fare" selected>Trip Fare — balance due</option>
+                  {% endif %}
                   <option value="additional">Additional Charge</option>
                   <option value="gratuity">Gratuity (tip)</option>
                 </select>
                 <div class="note">
-                  <i class="bi bi-info-circle-fill me-1"></i>“Gratuity” records the amount as a tip automatically and
-                  routes it to the right driver’s pay — no second edit of the reservation needed.
+                  {% if reservation.amount_owed > 0 %}
+                    <i class="bi bi-info-circle-fill me-1"></i>“Trip Fare” collects what is already owed on this
+                    reservation — it does not add anything to the total. Use “Additional Charge” only for new money
+                    on top of the fare.
+                  {% else %}
+                    <i class="bi bi-info-circle-fill me-1"></i>“Gratuity” records the amount as a tip automatically and
+                    routes it to the right driver’s pay — no second edit of the reservation needed.
+                  {% endif %}
                 </div>
               </div>
 
@@ -345,6 +354,9 @@
                              || parseFloat("{{ reservation.total_price|stringformat:'.2f' }}") || 0;
           const LEG_COUNT = parseInt("{{ reservation.legs.count }}", 10) || 1;
           const TOTAL_DEFAULT = "{{ reservation.total_price|stringformat:'.2f' }}";
+          // What is still owed, for collecting the fare on a saved card. Falls back to
+          // the total so a reservation with no payments behaves as before.
+          const OWED_DEFAULT = "{{ reservation.amount_owed|stringformat:'.2f' }}" || TOTAL_DEFAULT;
           const gratSuggest = document.getElementById('gratuity_suggest');
           const gratNote = document.getElementById('grat_note');
           const gratChips = Array.prototype.slice.call(document.querySelectorAll('.grat-chip'));
@@ -370,6 +382,7 @@
           function setAmount(value) { amountInput.value = value; amountAuto = true; }
 
           function isGratuity() { return chargeTypeSelect && chargeTypeSelect.value === 'gratuity'; }
+          function isTripFare() { return chargeTypeSelect && chargeTypeSelect.value === 'trip_fare'; }
           function money(n) { return '$' + (Math.round(n * 100) / 100).toFixed(2); }
 
           // Base the tip % on the fare; a specific leg gets an even share of it.
@@ -445,15 +458,28 @@
 
           function toggleChargeType() {
               const grat = isGratuity();
+              const fare = isTripFare();
               amountAuto = true;  // a fresh charge-type pick re-arms the suggestion
               if (gratuityTargetFieldGroup) gratuityTargetFieldGroup.classList.toggle('field-hidden', !grat);
               if (gratSuggest) gratSuggest.classList.toggle('field-hidden', !grat);
-              if (additionalSubtypeFieldGroup) additionalSubtypeFieldGroup.classList.toggle('field-hidden', grat);
-              if (amountLabel) amountLabel.textContent = grat ? 'Gratuity Amount' : 'Payment Amount';
+              // "What is this charge for?" only makes sense for NEW money. Collecting the
+              // fare already owed isn't an extra stop or a wait-time fee, and leaving that
+              // dropdown up is what put "Extra Stop" on a guest's receipt for their fare.
+              if (additionalSubtypeFieldGroup) additionalSubtypeFieldGroup.classList.toggle('field-hidden', grat || fare);
+              if (amountLabel) {
+                  amountLabel.textContent = grat ? 'Gratuity Amount'
+                                          : fare ? 'Amount to Collect'
+                                          : 'Payment Amount';
+              }
               if (grat) {
                   setAutoDescription(GRATUITY_DESC);
                   if (gratPct === 'custom') gratPct = 20;
                   recomputeGrat();
+              } else if (fare) {
+                  // Prefill the balance, not the total — a part-paid reservation should
+                  // offer what is still owed.
+                  setAmount(OWED_DEFAULT);
+                  setAutoDescription(TRIP_DESC);
               } else {
                   applyAdditionalSubtype();
               }

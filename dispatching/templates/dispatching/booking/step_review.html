@@ -1,334 +1,456 @@
 {% extends "dispatching/booking/base_booking.html" %}
+{% load booking_filters %}
 
 {% block step_content %}
   <style>
-      .review-card {
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          background: #fff;
-          margin-bottom: 1.25rem;
-          overflow: hidden;
+      .rw-verdict {
+          display:flex; align-items:flex-start; gap:9px;
+          padding:14px 16px; border-radius:8px;
+          font-size:13.5px; font-weight:600; line-height:1.5;
       }
-      .review-card .head {
-          padding: .75rem 1rem;
-          background: linear-gradient(180deg, #f8fafc, #fff);
-          border-bottom: 1px solid #eef2f7;
-          display: flex;
-          align-items: center;
-          gap: .5rem;
-      }
-      .review-card .head h5 {
-          margin: 0;
-          font-size: .95rem;
-          font-weight: 700;
-          color: #0f172a;
-      }
-      .review-card .body { padding: 1rem 1.15rem; }
+      .rw-verdict.crit { background:var(--red); color:#fff; }
+      .rw-verdict.warn { background:var(--warn); color:#fff; }
+      .rw-verdict.ok   { background:var(--green-soft); border:1px solid var(--green-line); color:var(--green-ink); }
 
-      .kv-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: .35rem 1rem;
+      .rw-flaglist { border:1px solid var(--red); border-radius:8px; overflow:hidden; }
+      .rw-flaglist.warn-only { border-color:var(--warn); }
+      .rw-flaglist .bar {
+          padding:11px 14px; background:var(--red); color:#fff;
+          font-size:13.5px; font-weight:600;
       }
-      @media (max-width: 575px) { .kv-grid { grid-template-columns: 1fr; } }
-      .kv {
-          display: flex; align-items: baseline; gap: .5rem;
-          font-size: .9rem;
-          padding: .25rem 0;
+      .rw-flaglist.warn-only .bar { background:var(--warn); }
+      .rw-flaglist .rows { padding:12px; display:flex; flex-direction:column; gap:8px; background:var(--card); }
+      .rw-flaglist .rw-row {
+          display:flex; align-items:flex-start; gap:10px;
+          padding:10px 13px; border:1px solid var(--line); border-radius:7px;
+          font-size:12.5px; color:var(--ink-2); line-height:1.5;
       }
-      .kv .k { color: #64748b; font-weight: 500; min-width: 110px; }
-      .kv .v { color: #0f172a; font-weight: 600; }
+      .rw-flaglist .rw-row i { margin-top:2px; }
+      .rw-flaglist .rw-row.crit i { color:var(--red); }
+      .rw-flaglist .rw-row.warn i { color:var(--warn); }
+      .rw-flaglist .rw-row a { margin-left:auto; white-space:nowrap; font-size:12px; font-weight:600; color:var(--blue); }
 
-      .leg-block {
-          padding: .85rem 0;
-          border-bottom: 1px dashed #e2e8f0;
+      /* ── Read-back ── */
+      .rw-readback { border:1px solid var(--blue-line); border-radius:8px; overflow:hidden; }
+      .rw-readback .head {
+          display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+          padding:11px 14px; background:var(--blue-soft); border-bottom:1px solid var(--blue-line);
       }
-      .leg-block:last-child { border-bottom: 0; }
-      .leg-block .leg-header {
-          display: flex; align-items: center; gap: .5rem;
-          margin-bottom: .5rem;
+      .rw-readback .head > i { color:var(--blue); font-size:13px; }
+      .rw-readback .head h3 { margin:0; font-size:13.5px; font-weight:600; }
+      .rw-readback .head .hint { font-size:11.5px; color:var(--muted); }
+      .rw-readback .body { padding:18px 20px 20px; background:var(--card); }
+      .rw-open { font-size:15px; color:var(--ink); margin-bottom:16px; }
+      .rw-say { display:flex; gap:12px; padding:14px 0; border-top:1px solid var(--line); }
+      .rw-say:first-of-type { border-top:0; padding-top:0; }
+      .rw-say-num {
+          flex:0 0 26px; width:26px; height:26px; border-radius:50%;
+          display:inline-flex; align-items:center; justify-content:center;
+          background:var(--blue); color:#fff; font-size:12px; font-weight:600; margin-top:3px;
       }
-      .leg-block .leg-header .num {
-          background: #eef2ff; color: #4f46e5;
-          width: 26px; height: 26px;
-          border-radius: 50%;
-          display: inline-flex; align-items: center; justify-content: center;
-          font-weight: 700; font-size: .8rem;
+      .rw-say-num.car { background:var(--bg); color:var(--ink-2); }
+      .rw-say-body { min-width:0; }
+      .rw-say-label {
+          font-size:11px; font-weight:700; letter-spacing:.08em;
+          text-transform:uppercase; color:var(--blue); margin-bottom:5px;
       }
-      .leg-block .leg-title {
-          font-weight: 700; color: #0f172a; font-size: .95rem;
+      .rw-say-num.car + .rw-say-body .rw-say-label { color:var(--muted); }
+      .rw-say-line { font-size:16.5px; line-height:1.65; color:var(--ink-2); }
+      .rw-say-line b { color:var(--ink); font-weight:600; }
+      .rw-say-line .missing { color:var(--red); font-weight:600; }
+      .rw-say-line .gold { color:#7a6216; }
+      .rw-say-note {
+          margin-top:8px; padding-left:12px; border-left:2px solid var(--line-2);
+          font-size:13.5px; color:var(--muted); line-height:1.5;
       }
-      .override-chip {
-          background: #fef3c7;
-          color: #92400e;
-          padding: .15rem .45rem;
-          border-radius: 999px;
-          font-size: .68rem;
-          font-weight: 700;
-          letter-spacing: .03em;
+      .rw-readback .foot {
+          display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+          margin-top:16px; padding-top:14px; border-top:1px solid var(--line);
       }
+      .rw-readback .foot .lbl { font-size:12.5px; font-weight:600; color:var(--ink); }
+      .rw-readback .foot .sub { font-size:12px; color:var(--muted); margin-top:2px; }
+      .rw-readback .foot .amt { font-size:26px; font-weight:700; color:var(--green-ink); line-height:1; }
 
-      .total-banner {
-          display: flex; justify-content: space-between; align-items: center;
-          background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
-          border: 1px solid #bbf7d0;
-          border-radius: 12px;
-          padding: 1rem 1.25rem;
-          margin: .25rem 0 1.25rem;
+      /* ── Trip legs list ── */
+      .rw-legrow {
+          display:grid; grid-template-columns:22px minmax(0,1fr) auto auto;
+          align-items:center; gap:12px;
+          padding:11px 0; border-top:1px solid var(--line);
       }
-      .total-banner .lbl {
-          color: #065f46; font-weight: 600; font-size: .95rem;
-          text-transform: uppercase; letter-spacing: .04em;
+      .rw-legrow:first-of-type { border-top:0; }
+      .rw-legrow .num {
+          width:22px; height:22px; border-radius:50%;
+          display:inline-flex; align-items:center; justify-content:center;
+          background:var(--blue-soft); color:var(--blue); font-size:11px; font-weight:700;
       }
-      .total-banner .val {
-          color: #065f46; font-weight: 800; font-size: 1.55rem;
-      }
+      .rw-legrow .route { font-size:12.5px; font-weight:600; color:var(--ink); overflow-wrap:anywhere; }
+      .rw-legrow .detail { font-size:11.5px; color:var(--muted); margin-top:2px; overflow-wrap:anywhere; }
+      .rw-legrow .stamp { font-size:12.5px; font-weight:600; color:var(--ink-2); white-space:nowrap; }
+      .rw-legrow .stamp.bad { color:var(--red); }
+      .rw-legrow a { font-size:12px; font-weight:600; color:var(--blue); }
 
-      .confirm-actions {
-          display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-          margin-top: 1.5rem;
-      }
+      /* ── Recap cards ── */
+      .rw-recap-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+      .rw-kv { display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:12px; padding:3px 0; }
+      .rw-kv .k { color:var(--muted); flex:0 0 auto; }
+      .rw-kv .v { color:var(--ink); font-weight:600; text-align:right; overflow-wrap:anywhere; }
+      .rw-kv .v.empty { color:var(--muted-2); font-weight:500; }
 
-      .quick-after {
-          background: #f8fafc;
-          border: 1px dashed #cbd5e1;
-          border-radius: 12px;
-          padding: 1rem 1.15rem;
+      .rw-checks {
+          background:var(--bg); border:1px solid var(--line); border-radius:8px;
+          padding:14px 16px; display:flex; flex-direction:column; gap:11px;
       }
-      .quick-after h6 {
-          font-size: .8rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: .05em;
-          color: #475569;
-          margin-bottom: .35rem;
+      .rw-check { display:flex; gap:10px; align-items:flex-start; font-size:12.5px; color:var(--ink-2); line-height:1.5; cursor:pointer; }
+      .rw-check input { margin-top:2px; accent-color:var(--blue); width:15px; height:15px; flex:0 0 auto; }
+
+      @media (max-width: 860px) {
+          .rw-recap-grid { grid-template-columns:1fr; }
+          .rw-legrow { grid-template-columns:22px minmax(0,1fr); }
       }
-      .quick-after ul { margin: 0; padding-left: 1.1rem; color: #64748b; font-size: .85rem; }
   </style>
 
-  <div class="booking-flash success is-persistent mb-3">
-    <span class="icon"><i class="fas fa-check"></i></span>
-    <div class="body"><strong>Almost done.</strong> Review the details below and confirm to create the reservation.</div>
-  </div>
+  {% with rd=reservation_data pd=pricing_data legcount=legs_data|length %}
+  <div class="rw-stack">
 
-  {% if sanity_acknowledged_warnings %}
-    <div class="booking-flash warning is-persistent mb-3">
-      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+    {# ── Verdict ── #}
+    {% if blocking_count %}
+      <div class="rw-verdict crit">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <span>{{ blocking_count }} item{{ blocking_count|pluralize }} must be fixed before this can be booked.</span>
+      </div>
+    {% elif warning_count %}
+      <div class="rw-verdict warn">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>{{ warning_count }} item{{ warning_count|pluralize }} worth confirming with the guest before you book.</span>
+      </div>
+    {% else %}
+      <div class="rw-verdict ok">
+        <i class="bi bi-check-circle-fill"></i>
+        <span>Almost done. Read the trip back to the guest, then create the reservation.</span>
+      </div>
+    {% endif %}
+
+    {# ── Everything the audit found ── #}
+    {% if review_flags %}
+      <div class="rw-flaglist {% if not blocking_count %}warn-only{% endif %}">
+        <div class="bar">{% if blocking_count %}Fix These Before Booking{% else %}Double-Check These{% endif %}</div>
+        <div class="rows">
+          {% for f in review_flags %}
+            <div class="rw-row {{ f.tone }}">
+              <i class="bi {% if f.tone == 'crit' %}bi-exclamation-octagon-fill{% else %}bi-exclamation-triangle-fill{% endif %}"></i>
+              <span>{{ f.text }}</span>
+              {% if f.step == 1 %}<a href="{% url 'dispatcher_booking_customer' %}">Go to step 1</a>
+              {% elif f.step == 2 %}<a href="{% url 'dispatcher_booking_reservation' %}">Go to step 2</a>
+              {% elif f.step == 3 %}<a href="{% url 'dispatcher_booking_legs' %}">Go to step 3</a>
+              {% elif f.step == 4 %}<a href="{% url 'dispatcher_booking_pricing' %}">Go to step 4</a>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    {# ── Read it back, word for word ── #}
+    <div class="rw-readback">
+      <div class="head">
+        <i class="bi bi-telephone-fill"></i>
+        <h3>Read This Back To The Guest</h3>
+        <span class="hint">Word for word — this is what gets booked</span>
+      </div>
       <div class="body">
-        <div class="title">Acknowledged warnings</div>
-        These were flagged at the Trip Details step and acknowledged as correct — give them one last look:
-        <ul class="mb-0 mt-1">
-          {% for w in sanity_acknowledged_warnings %}<li>{{ w.message }}</li>{% endfor %}
-        </ul>
-      </div>
-    </div>
-  {% endif %}
-
-  {% if sanity_ok_results %}
-    <div class="booking-flash success is-persistent mb-3">
-      <span class="icon"><i class="fas fa-plane"></i></span>
-      <div class="body">
-        <div class="title">Flight schedule verified</div>
-        <ul class="mb-0 mt-1">
-          {% for w in sanity_ok_results %}<li>{{ w.message }}</li>{% endfor %}
-        </ul>
-      </div>
-    </div>
-  {% endif %}
-
-  {# Total banner up top so it's the focal point #}
-  <div class="total-banner">
-    <div class="lbl">Total Price</div>
-    <div class="val">${{ pricing_data.total_price|default:"0.00" }}</div>
-  </div>
-
-  {# Customer #}
-  <div class="review-card">
-    <div class="head"><i class="fas fa-user text-primary"></i><h5>Customer</h5></div>
-    <div class="body">
-      <div class="kv-grid">
-        <div class="kv"><span class="k">Name</span><span class="v">{{ customer.get_full_name }}</span></div>
-        <div class="kv"><span class="k">Phone</span><span class="v">{{ customer.phone_number }}</span></div>
-        <div class="kv"><span class="k">Email</span><span class="v">{{ customer.email|default:"—" }}</span></div>
-        <div class="kv"><span class="k">Zip</span><span class="v">{{ customer.zipcode|default:"—" }}</span></div>
-      </div>
-    </div>
-  </div>
-
-  {# Reservation #}
-  <div class="review-card">
-    <div class="head"><i class="fas fa-car text-primary"></i><h5>Reservation Details</h5></div>
-    <div class="body">
-      <div class="kv-grid">
-        <div class="kv"><span class="k">Vehicle</span><span class="v">{{ vehicle.vehicle_type|title }}</span></div>
-        <div class="kv"><span class="k">Passengers</span><span class="v">{{ reservation_data.passenger_count }}</span></div>
-        <div class="kv"><span class="k">Luggage</span><span class="v">{{ reservation_data.luggage_count }}</span></div>
-        <div class="kv">
-          <span class="k">Car Seats</span>
-          <span class="v">
-            {% if reservation_data.need_carseats == 'True' %}
-              {% with rf=reservation_data.rf_carseats|default:'0' ff=reservation_data.ff_carseats|default:'0' booster=reservation_data.booster_seats|default:'0' %}
-                {% if rf != '0' or ff != '0' or booster != '0' %}
-                  {% if rf != '0' %}<span class="badge bg-info me-1">{{ rf }} RF</span>{% endif %}
-                  {% if ff != '0' %}<span class="badge bg-info me-1">{{ ff }} FF</span>{% endif %}
-                  {% if booster != '0' %}<span class="badge bg-info me-1">{{ booster }} Booster{{ booster|pluralize }}</span>{% endif %}
-                {% else %}<span class="text-muted">None</span>{% endif %}
-              {% endwith %}
-            {% else %}<span class="text-muted">None</span>{% endif %}
-          </span>
+        <div class="rw-open">
+          {% if customer.first_name %}Okay {{ customer.first_name }}, let me read this back to you.
+          {% else %}Let me read this back to you.{% endif %}
         </div>
-        <div class="kv"><span class="k">Base Price</span><span class="v">${{ pricing_data.manual_base_price }}</span></div>
-        {% if pricing_data.additional_charges and pricing_data.additional_charges != '0' and pricing_data.additional_charges != '0.00' %}
-          <div class="kv"><span class="k">Additional</span><span class="v">${{ pricing_data.additional_charges }}</span></div>
-        {% endif %}
-        {% if pricing_data.gratuity_amount and pricing_data.gratuity_amount != '0' and pricing_data.gratuity_amount != '0.00' %}
-          <div class="kv">
-            <span class="k">Gratuity</span>
-            <span class="v">${{ pricing_data.gratuity_amount }}
-              {% if pricing_data.gratuity_option == '20' %}<span class="badge bg-warning text-dark ms-1">20%</span>
-              {% else %}<span class="badge bg-secondary ms-1">Custom</span>{% endif %}
-            </span>
-          </div>
-        {% endif %}
-        {% if reservation_data.store_stop == 'True' %}
-          <div class="kv"><span class="k">Grocery Stop</span><span class="v"><span class="badge bg-info">Yes</span></span></div>
-        {% endif %}
-      </div>
 
-      {% if reservation_data.special_requests %}
-        <hr class="my-3">
-        <div class="kv" style="display:block;">
-          <div class="k mb-1">Special Requests</div>
-          <div class="v" style="font-weight:500;background:#f8fafc;border:1px solid #e2e8f0;padding:.6rem .8rem;border-radius:8px;">
-            {{ reservation_data.special_requests|linebreaks }}
-          </div>
-        </div>
-      {% endif %}
-
-      {% if pricing_data.private_notes %}
-        <hr class="my-3">
-        <div class="kv" style="display:block;">
-          <div class="k mb-1">Private Notes</div>
-          <div class="v" style="font-weight:500;background:#fffbeb;border:1px solid #fde68a;padding:.6rem .8rem;border-radius:8px;border-left:3px solid #f59e0b;">
-            {{ pricing_data.private_notes|linebreaks }}
-          </div>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-  {# Trip Legs #}
-  <div class="review-card">
-    <div class="head"><i class="fas fa-route text-primary"></i><h5>Trip Details ({{ legs_data|length }} leg{{ legs_data|length|pluralize }})</h5></div>
-    <div class="body">
-      {% for leg_data in legs_data %}
-        {% with overrides=leg_data.overrides %}
-          <div class="leg-block">
-            <div class="leg-header">
-              <span class="num">{{ forloop.counter }}</span>
-              <span class="leg-title">Leg {{ forloop.counter }}</span>
-              {% if overrides and overrides.has_any %}
-                <span class="override-chip"><i class="fas fa-sliders-h me-1"></i>Overrides Active</span>
+        {% for leg in legs_data %}
+          <div class="rw-say">
+            <span class="rw-say-num">{{ forloop.counter }}</span>
+            <div class="rw-say-body">
+              <div class="rw-say-label">
+                {% if legcount == 1 %}The Trip
+                {% elif legcount == 2 %}{% if forloop.first %}First Pickup{% else %}Return Pickup{% endif %}
+                {% else %}Pickup {{ forloop.counter }}{% endif %}
+              </div>
+              <div class="rw-say-line">
+                {% if forloop.first %}
+                  {% if legcount == 1 %}we are picking you up from{% else %}we are first picking you up from{% endif %}
+                {% else %}then later we are picking you up from{% endif %}
+                {% if leg.pickup_location %}<b>{{ leg.pickup_location }}</b>{% else %}<span class="missing">a location not set yet</span>{% endif %}
+                on
+                {% if leg.pickup_date %}<b>{{ leg.pickup_date|date:"l, F j, Y" }}{% if leg.pickup_time %} at {{ leg.pickup_time|time:"g:i A" }}{% endif %}</b>{% else %}<span class="missing">a date not set yet</span>{% endif %}{% if leg.flight_info.flight_number %},
+                  with your
+                  {{ leg.flight_info.airline_display_name|default:leg.flight_info.airline|airline_spoken }}
+                  {{ leg.flight_info.flight_number }}
+                  {% comment %} The flight time comes from the schedule lookup, never from the
+                     pickup time — they are different facts, and reading one as the
+                     other says something false to the guest. {% endcomment %}
+                  arriving{% if leg.flight_sched %} at <b>{{ leg.flight_sched }}</b>{% endif %},{% endif %}
+                and taking you to
+                {% if leg.dropoff_location %}<b>{{ leg.dropoff_location }}</b>{% else %}<span class="missing">a location not set yet</span>{% endif %}.
+              </div>
+              {% if leg.private_notes %}
+                <div class="rw-say-note">{{ leg.private_notes }}</div>
               {% endif %}
             </div>
-            <div class="kv-grid">
-              <div class="kv"><span class="k">Date</span><span class="v">{{ leg_data.pickup_date|date:"l F d, Y" }}
-                {% if leg_data.days_until == 0 %}<span class="badge bg-danger ms-1">TODAY</span>
-                {% elif leg_data.days_until == 1 %}<span class="badge bg-warning text-dark ms-1">tomorrow</span>
-                {% elif leg_data.days_until > 365 %}<span class="badge bg-danger ms-1">in {{ leg_data.days_until }} days — check the year</span>
-                {% elif leg_data.days_until %}<span class="badge bg-light text-secondary border ms-1">in {{ leg_data.days_until }} days</span>
-                {% endif %}
-              </span></div>
-              <div class="kv"><span class="k">Time</span><span class="v">{{ leg_data.pickup_time|time:"g:i A" }}</span></div>
-              <div class="kv"><span class="k">Pickup</span><span class="v">{{ leg_data.pickup_location }}</span></div>
-              <div class="kv"><span class="k">Drop-off</span><span class="v">{{ leg_data.dropoff_location }}</span></div>
+          </div>
+        {% endfor %}
+
+        <div class="rw-say">
+          <span class="rw-say-num car"><i class="bi bi-car-front-fill"></i></span>
+          <div class="rw-say-body">
+            <div class="rw-say-label">In The Car</div>
+            <div class="rw-say-line">
+              It is going to be <b>{{ rd.passenger_count|default:"1" }} passenger{{ rd.passenger_count|default:"1"|pluralize }}</b>
+              with <b>{{ rd|luggage_phrase }}</b>, in <b>{{ vehicle.get_vehicle_type_display|indef_article|default:"a vehicle" }}</b>.
+              {% with seats=rd|carseat_phrase %}
+                {% if seats %}<br>We will have <b>{{ seats }}</b> car seats installed for you.{% endif %}
+              {% endwith %}
+              {% if rd.store_stop == 'True' %}
+                <br><span class="gold">We will also make the complimentary 20-minute grocery stop on the way.</span>
+              {% endif %}
             </div>
-
-            {% if leg_data.flight_info and leg_data.flight_info.airline %}
-              <div class="mt-2 small" style="background:#f0f9ff;border:1px solid #bae6fd;padding:.5rem .7rem;border-radius:8px;">
-                <i class="fas fa-plane me-1 text-info"></i>
-                <strong>{{ leg_data.flight_info.airline_display_name|default:leg_data.flight_info.airline }}</strong>
-                {% if leg_data.flight_info.flight_number %} {{ leg_data.flight_info.flight_number }}{% endif %}
-                {% if leg_data.flight_info.flight_type %}
-                  <span class="text-muted">— {{ leg_data.flight_info.flight_type|title }}</span>
-                {% endif %}
-              </div>
-            {% endif %}
-
-            {% if overrides and overrides.has_any %}
-              <div class="mt-2 small" style="background:#fffdf5;border:1px solid #e6d6a3;padding:.5rem .7rem;border-radius:8px;">
-                <strong style="color:#7c5e16;"><i class="fas fa-sliders-h me-1"></i>Per-leg overrides:</strong>
-                {% if overrides.vehicle_display %}<span class="ms-2">Vehicle: <strong>{{ overrides.vehicle_display }}</strong></span>{% endif %}
-                {% if overrides.passenger_count %}<span class="ms-2">Passengers: <strong>{{ overrides.passenger_count }}</strong></span>{% endif %}
-                {% if overrides.luggage_count %}<span class="ms-2">Suitcases: <strong>{{ overrides.luggage_count }}</strong></span>{% endif %}
-                {% if overrides.luggage_type %}<span class="ms-2">Luggage: <strong>{{ overrides.luggage_type|title }}</strong></span>{% endif %}
-                {% if overrides.need_carseats %}<span class="ms-2">Car seats: <strong>{{ overrides.need_carseats|title }}</strong></span>{% endif %}
-                {% if overrides.rf_carseats %}<span class="ms-2">RF: <strong>{{ overrides.rf_carseats }}</strong></span>{% endif %}
-                {% if overrides.ff_carseats %}<span class="ms-2">FF: <strong>{{ overrides.ff_carseats }}</strong></span>{% endif %}
-                {% if overrides.booster_seats %}<span class="ms-2">Boosters: <strong>{{ overrides.booster_seats }}</strong></span>{% endif %}
-              </div>
-            {% endif %}
-
-            {% if leg_data.private_notes %}
-              <div class="mt-2 small text-muted" style="background:#f8fafc;padding:.5rem .7rem;border-radius:8px;">
-                <strong>Trip Notes:</strong> {{ leg_data.private_notes|linebreaks }}
-              </div>
+            {% if rd.special_requests %}
+              <div class="rw-say-note">{{ rd.special_requests }}</div>
             {% endif %}
           </div>
-        {% endwith %}
-      {% endfor %}
-    </div>
-  </div>
+        </div>
 
-  {# Confirmation form #}
-  <form method="post" id="confirmReservationForm">
-    {% csrf_token %}
-
-    <div class="booking-flash warning is-persistent mb-3">
-      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
-      <div class="body">
-        <strong>Heads up.</strong>
-        The customer will <strong>not</strong> receive an email confirmation until payment is finalized.
-        Please review all the details carefully before finalizing.
+        <div class="foot">
+          <div>
+            <div class="lbl">Total for all {{ legcount }} leg{{ legcount|pluralize }}</div>
+            <div class="sub">
+              ${{ pd.manual_base_price|default:"0.00" }} base
+              {% if pd.additional_charges and pd.additional_charges != '0' and pd.additional_charges != '0.00' %}
+                + ${{ pd.additional_charges }} additional
+              {% endif %}
+              {% if pd.gratuity_option and pd.gratuity_option != 'none' and pd.gratuity_option != 'custom' %}
+                + {{ pd.gratuity_option }}% gratuity
+              {% elif pd.gratuity_amount and pd.gratuity_amount != '0' and pd.gratuity_amount != '0.00' %}
+                + ${{ pd.gratuity_amount }} gratuity
+              {% endif %}
+            </div>
+          </div>
+          <div class="amt">${{ pd.total_price|default:"0.00" }}</div>
+        </div>
       </div>
     </div>
 
-    <div class="confirm-actions">
-      <button type="submit" name="back" class="btn btn-booking-secondary">
-        <i class="fas fa-arrow-left me-2"></i> Back to Pricing
-      </button>
-      <button type="submit" name="confirm" id="confirmCreateBtn" class="btn btn-booking-primary" style="background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 14px rgba(16,185,129,.3);">
-        <i class="fas fa-check me-2"></i> Create Reservation
-      </button>
+    {# ── Trip legs, editable ── #}
+    <div class="rw-sec">
+      <div class="rw-sec-head">
+        <i class="bi bi-signpost-split-fill"></i>
+        <h3>Trip Legs</h3>
+        <span class="spacer"></span>
+        <a href="{% url 'dispatcher_booking_legs' %}" style="font-size:12px;font-weight:600">Edit All Legs</a>
+      </div>
+      <div class="rw-sec-body">
+        {% for leg in legs_data %}
+          <div class="rw-legrow">
+            <span class="num">{{ forloop.counter }}</span>
+            <div style="min-width:0">
+              <div class="route">
+                {% if leg.pickup_location %}{{ leg.pickup_location }}{% else %}No pickup address{% endif %}
+                → {% if leg.dropoff_location %}{{ leg.dropoff_location }}{% else %}No drop-off address{% endif %}
+              </div>
+              <div class="detail">
+                {% if leg.flight_info.flight_number %}
+                  {{ leg.flight_info.airline_display_name|default:leg.flight_info.airline }} {{ leg.flight_info.flight_number }}
+                  {% if leg.private_notes %} · {{ leg.private_notes }}{% endif %}
+                {% elif leg.private_notes %}{{ leg.private_notes }}
+                {% else %}No flight or notes on this leg{% endif %}
+              </div>
+            </div>
+            <span class="stamp {% if leg.days_until < 0 %}bad{% endif %}">
+              {% if leg.pickup_date %}{{ leg.pickup_date|date:"D, M j" }}{% else %}No date{% endif %}
+              {% if leg.pickup_time %} · {{ leg.pickup_time|time:"g:i A" }}{% endif %}
+            </span>
+            <a href="{% url 'dispatcher_booking_legs' %}">Edit</a>
+          </div>
+        {% endfor %}
+      </div>
     </div>
-  </form>
 
-  <div class="quick-after mt-4">
-    <h6><i class="fas fa-bolt me-1"></i> Quick actions after creation</h6>
-    <ul>
-      <li>If the trip is coming up soon and the schedule is already made, make sure to assign a driver.</li>
-      <li>Update the trip details if you spot any errors while reviewing.</li>
-      <li>Finalize the payment — the customer will get an email confirmation once payment goes through.</li>
-    </ul>
+    {# ── Recap ── #}
+    <div class="rw-recap-grid">
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-person-check-fill"></i><h3>Customer</h3>
+          <span class="spacer"></span>
+          <a href="{% url 'dispatcher_booking_customer' %}" style="font-size:12px;font-weight:600">Edit</a>
+        </div>
+        <div class="rw-sec-body">
+          <div class="rw-kv"><span class="k">Name</span><span class="v">{{ customer.get_full_name }}</span></div>
+          <div class="rw-kv"><span class="k">Phone</span><span class="v {% if not customer.phone_number %}empty{% endif %}">{{ customer.phone_number|default:"Not set" }}</span></div>
+          <div class="rw-kv"><span class="k">Email</span><span class="v {% if not customer.email %}empty{% endif %}">{{ customer.email|default:"Not set" }}</span></div>
+          <div class="rw-kv"><span class="k">Zip</span><span class="v {% if not customer.zipcode %}empty{% endif %}">{{ customer.zipcode|default:"Not set" }}</span></div>
+        </div>
+      </div>
+
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-car-front-fill"></i><h3>Reservation Details</h3>
+          <span class="spacer"></span>
+          <a href="{% url 'dispatcher_booking_reservation' %}" style="font-size:12px;font-weight:600">Edit</a>
+        </div>
+        <div class="rw-sec-body">
+          <div class="rw-kv"><span class="k">Vehicle</span><span class="v {% if not vehicle %}empty{% endif %}">{{ vehicle.get_vehicle_type_display|default:"Not set" }}</span></div>
+          <div class="rw-kv"><span class="k">Passengers</span><span class="v">{{ rd.passenger_count|default:"1" }}</span></div>
+          <div class="rw-kv"><span class="k">Bags</span><span class="v">{{ rd.luggage_count|default:"0" }}</span></div>
+          <div class="rw-kv">
+            <span class="k">Car Seats</span>
+            <span class="v {% if not rd|carseat_phrase %}empty{% endif %}">{{ rd|carseat_phrase|default:"None" }}</span>
+          </div>
+          <div class="rw-kv"><span class="k">Grocery Stop</span><span class="v">{% if rd.store_stop == 'True' %}Yes{% else %}No{% endif %}</span></div>
+        </div>
+      </div>
+
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-cash-stack"></i><h3>Pricing</h3>
+          <span class="spacer"></span>
+          <a href="{% url 'dispatcher_booking_pricing' %}" style="font-size:12px;font-weight:600">Edit</a>
+        </div>
+        <div class="rw-sec-body">
+          <div class="rw-kv"><span class="k">Base</span><span class="v">${{ pd.manual_base_price|default:"0.00" }}</span></div>
+          <div class="rw-kv"><span class="k">Additional</span><span class="v">${{ pd.additional_charges|default:"0.00" }}</span></div>
+          <div class="rw-kv"><span class="k">Gratuity</span><span class="v">${{ pd.gratuity_amount|default:"0.00" }}</span></div>
+          <div class="rw-kv"><span class="k">Total</span><span class="v">${{ pd.total_price|default:"0.00" }}</span></div>
+          {% if pd.private_notes %}
+            <div class="rw-kv" style="display:block">
+              <div class="k" style="margin-bottom:4px">Private Notes</div>
+              <div class="v" style="text-align:left;font-weight:500">{{ pd.private_notes }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Confirm ── #}
+    <form method="post" id="rw-form">
+      {% csrf_token %}
+
+      <div class="rw-checks">
+        <label class="rw-check">
+          <input type="checkbox" name="read_back" id="rw-readback-box">
+          <span>I read the trip back to the guest and they confirmed the dates, times, and price.</span>
+        </label>
+        {% if warning_count %}
+          <label class="rw-check">
+            <input type="checkbox" name="ack_flags" id="rw-ack-box">
+            <span>
+              {% if warning_count == 1 %}I checked the warning above — it is correct as entered.
+              {% else %}I checked the {{ warning_count }} warnings above — they are correct as entered.{% endif %}
+            </span>
+          </label>
+        {% endif %}
+      </div>
+
+      <div class="rw-note neutral" style="margin-top:14px">
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>Heads up.</strong> The customer will <strong>not</strong> receive an email
+        confirmation until payment is finalized.
+      </div>
+
+      <div class="rw-actions">
+        <button type="submit" name="back" class="rw-back">
+          <i class="bi bi-arrow-left"></i> Back
+        </button>
+        <div class="rw-actions-right">
+          <span class="rw-gate-note" id="rw-note"></span>
+          <button type="button" class="rw-next create" id="rw-create">
+            <i class="bi bi-check-lg"></i> Create Reservation
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" name="confirm" id="rw-confirm-submit" style="display:none"></button>
+    </form>
+
   </div>
+
+  {# ── Confirmation dialog: the last look at the three things guests call about ── #}
+  <div class="rw-backdrop" id="rw-dialog" style="display:none">
+    <div class="rw-dialog" role="dialog" aria-modal="true" aria-labelledby="rw-dialog-title">
+      <h3 id="rw-dialog-title">Create This Reservation?</h3>
+      <p>One last look at the three things guests call about.</p>
+      <div class="rw-dialog-recap">
+        <div class="rw-kv"><span class="k">Customer</span><span class="v">{{ customer.get_full_name }}</span></div>
+        {% for leg in legs_data %}
+          {% if forloop.first %}
+            <div class="rw-kv">
+              <span class="k">{% if legcount == 1 %}Pickup{% else %}First pickup{% endif %}</span>
+              <span class="v">{{ leg.pickup_date|date:"D, M j" }} · {{ leg.pickup_time|time:"g:i A" }}</span>
+            </div>
+          {% elif forloop.counter == 2 %}
+            <div class="rw-kv">
+              <span class="k">Return</span>
+              <span class="v">{{ leg.pickup_date|date:"D, M j" }} · {{ leg.pickup_time|time:"g:i A" }}</span>
+            </div>
+          {% endif %}
+        {% endfor %}
+        <div class="rw-kv"><span class="k">Total price</span><span class="v">${{ pd.total_price|default:"0.00" }}</span></div>
+        <div class="rw-kv"><span class="k">Legs</span><span class="v">{{ legcount }}</span></div>
+      </div>
+      <div class="rw-dialog-actions">
+        <button type="button" class="rw-dialog-keep" id="rw-keep">Keep Editing</button>
+        <button type="button" class="rw-next create" id="rw-really-create">
+          <i class="bi bi-check-lg"></i> Create Reservation
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          const confirmBtn = document.getElementById('confirmCreateBtn');
-          const customerName = '{{ customer.get_full_name|escapejs }}';
-          const totalPriceStr = '{{ pricing_data.total_price|default:"0.00" }}';
-          const legsCount = {{ legs_data|length }};
+          var blocking = {{ blocking_count|default:0 }};
+          var warnings = {{ warning_count|default:0 }};
+          var readBox = document.getElementById('rw-readback-box');
+          var ackBox  = document.getElementById('rw-ack-box');
+          var createBtn = document.getElementById('rw-create');
+          var note = document.getElementById('rw-note');
+          var dialog = document.getElementById('rw-dialog');
 
-          confirmBtn.addEventListener('click', function(e) {
-              const ok = confirm(
-                  'Are you sure you want to create this reservation?\n\n' +
-                  'Customer: ' + customerName + '\n' +
-                  'Total Price: $' + totalPriceStr + '\n' +
-                  'Legs: ' + legsCount + '\n\n' +
-                  'This action cannot be undone.'
-              );
-              if (!ok) e.preventDefault();
+          function state() {
+              if (blocking) return {ok:false, msg: blocking + ' item' + (blocking === 1 ? '' : 's') + ' must be fixed first'};
+              if (!readBox.checked) return {ok:false, msg:'Read the trip back and tick the box'};
+              if (ackBox && !ackBox.checked) return {ok:false, msg:'Confirm you checked the warning' + (warnings === 1 ? '' : 's')};
+              return {ok:true, msg:''};
+          }
+
+          function paint() {
+              var s = state();
+              note.className = 'rw-gate-note' + (s.ok ? '' : (blocking ? ' crit' : ' warn'));
+              note.textContent = s.msg;
+              if (s.ok) createBtn.removeAttribute('aria-disabled');
+              else createBtn.setAttribute('aria-disabled', 'true');
+          }
+
+          [readBox, ackBox].forEach(function(box) {
+              if (box) box.addEventListener('change', paint);
           });
+          paint();
+
+          createBtn.addEventListener('click', function() {
+              if (!state().ok) { paint(); return; }
+              dialog.style.display = 'flex';
+          });
+          document.getElementById('rw-keep').addEventListener('click', function() {
+              dialog.style.display = 'none';
+          });
+          dialog.addEventListener('click', function(e) {
+              if (e.target === dialog) dialog.style.display = 'none';
+          });
+          document.addEventListener('keydown', function(e) {
+              if (e.key === 'Escape' && dialog.style.display === 'flex') dialog.style.display = 'none';
+          });
+          document.getElementById('rw-really-create').addEventListener('click', function() {
+              document.getElementById('rw-confirm-submit').click();
+          });
+
+          // Warnings raised at the trip step and already acknowledged there stay
+          // visible in this list, so nothing gets acknowledged twice and forgotten.
+          window.rwRailFlags(blocking, warnings, true);
       });
   </script>
 {% endblock step_content %}

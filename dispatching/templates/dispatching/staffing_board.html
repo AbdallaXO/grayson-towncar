@@ -22,6 +22,8 @@
        the one thing on this board you must never skim past. */
     --toff:#B0302A; --toff-soft:rgba(176,48,42,0.11); --toff-line:rgba(176,48,42,0.45);
     --toff-hatch:rgba(176,48,42,0.10);
+    /* Work-from-home — a calm slate blue, informational rather than alarming. */
+    --wfh:#4E5FA8; --wfh-soft:rgba(78,95,168,0.11); --wfh-line:rgba(78,95,168,0.38);
     --bar:#EFEBE3; --bar-line:rgba(30,26,18,0.16); --oc-hatch:rgba(120,110,90,0.16);
     --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,monospace;
     background:var(--bg); color:var(--ink); padding:1.2rem 0 3rem;
@@ -159,6 +161,16 @@
   .sp-cell.sp-timeoff .sp-chip .sp-ic { color:var(--toff); }
   .sp-pendmark { font-size:.72rem; font-weight:700; color:var(--warn); letter-spacing:.01em; }
   .sp-oc { font-size:.7rem; color:var(--oncall); font-family:var(--mono); font-weight:650; }
+  .sp-locmark { display:inline-flex; align-items:center; gap:.22rem; font-size:.66rem; font-weight:750;
+    letter-spacing:.045em; text-transform:uppercase; color:var(--wfh);
+    padding:.06rem .4rem; border-radius:999px; background:var(--wfh-soft); border:1px solid var(--wfh-line); }
+  .sp-locmark.office { color:var(--open); background:var(--ok-soft); border-color:rgba(44,122,76,0.35); }
+  .sp-locmark .sp-ic { width:11px; height:11px; color:currentColor; }
+  .sp-loccell { padding:.45rem .3rem; text-align:center; display:flex; flex-direction:column; gap:.22rem;
+    align-items:center; justify-content:center; font-size:.78rem; }
+  .sp-loccell .in { font-weight:750; color:var(--open); white-space:nowrap; }
+  .sp-loccell .home { font-weight:650; color:var(--wfh); white-space:nowrap; font-size:.72rem; }
+  .sp-loccell .none { color:var(--faint); }
   .sp-ic { width:14px; height:14px; color:var(--gold); flex:none; }
   .sp-rolebtn { border:none; background:none; padding:0; margin:0; cursor:pointer; font:inherit; color:inherit; display:inline-flex; }
   .sp-rolebtn:hover .sp-chip { border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-soft); }
@@ -347,6 +359,13 @@
       <circle cx="12" cy="12" r="9"/><polyline points="12 6.5 12 12 16 14"/>
     </symbol>
     <symbol id="sp-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></symbol>
+    <symbol id="sp-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/><path d="M10 21v-6h4v6"/>
+    </symbol>
+    <symbol id="sp-bldg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5" y="3" width="14" height="18" rx="1.5"/><line x1="9" y1="7.5" x2="9" y2="7.5"/><line x1="15" y1="7.5" x2="15" y2="7.5"/>
+      <line x1="9" y1="11.5" x2="9" y2="11.5"/><line x1="15" y1="11.5" x2="15" y2="11.5"/><path d="M10 21v-4h4v4"/>
+    </symbol>
   </svg>
 
   <div class="container-fluid sp"
@@ -455,6 +474,19 @@
           </div>
           {% endfor %}
 
+          {% if summary.loc_tracked %}
+          <div class="sp-lab">In office</div>
+          {% for wd in weekdays %}
+          <div class="sp-loccell {% if wd.is_today %}sp-today{% endif %} {% if wd.is_past %}sp-past{% endif %}"
+               title="{% if wd.loc_any %}{{ wd.loc_office }} in the office, {{ wd.loc_remote }} working from home{% if wd.on_count > wd.loc_office|add:wd.loc_remote %} — the rest aren't tracked{% endif %}{% else %}Nobody's office/WFH days are tracked this day{% endif %}">
+            {% if wd.loc_any %}
+            <span class="in"><svg class="sp-ic" style="color:var(--open)"><use href="#sp-bldg"/></svg> {{ wd.loc_office }}</span>
+            {% if wd.loc_remote %}<span class="home"><svg class="sp-ic" style="width:11px;height:11px;color:var(--wfh)"><use href="#sp-home"/></svg> {{ wd.loc_remote }} wfh</span>{% endif %}
+            {% else %}<span class="none">&mdash;</span>{% endif %}
+          </div>
+          {% endfor %}
+          {% endif %}
+
           {% if is_dated %}
           <div class="sp-lab">On-call <span class="sp-labsub">12&ndash;6a</span></div>
           {% for wd in weekdays %}
@@ -483,9 +515,10 @@
             {% if c.is_working %}
               <button type="button" class="sp-rolebtn" data-role-btn
                       data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ c.role }}"
+                      data-location="{{ c.location }}"
                       {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
                       {% if c.covering %}data-cover-id="{{ c.ov_id }}" data-cover-range="{{ c.ov_range }}"{% endif %}
-                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %} — click for role{% if c.covering %} or to remove the cover{% endif %}">
+                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.location == 'remote' %} · working from home{% elif c.location == 'office' %} · in the office{% endif %}{% if c.location_flipped %} (one-day change){% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %} — click for role or work location{% if c.covering %}, or to remove the cover{% endif %}">
                 <span class="sp-chip{% if c.covering %} sp-cover{% endif %}" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
                   {% if c.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
                   {{ c.label }}
@@ -505,6 +538,8 @@
                 </span>
               </button>
               {% endfor %}
+              {% if c.location == 'remote' %}<span class="sp-locmark" title="{{ row.name }} works from home this day"><svg class="sp-ic"><use href="#sp-home"/></svg>wfh</span>
+              {% elif c.location == 'office' and c.location_flipped %}<span class="sp-locmark office" title="{{ row.name }} is in the office this day — a one-day change from their usual"><svg class="sp-ic"><use href="#sp-bldg"/></svg>in office</span>{% endif %}
               {% if c.covering %}<span class="sp-covmark">covering</span>{% elif c.changed %}<span class="sp-chgmark">hours changed</span>{% endif %}
               {% if c.oncall_label %}<span class="sp-oc">on-call {{ c.oncall_label }}</span>{% endif %}
             {% elif c.kind == 'timeoff' %}
@@ -577,8 +612,9 @@
               {% for b in lane %}
               <div class="sp-bar{% if b.is_opener %} sp-open{% endif %}{% if b.is_closer %} sp-close{% endif %}{% if b.tight %} sp-tight{% endif %}{% if b.changed or b.covering %} sp-changed{% endif %}"
                    style="left:{{ b.left }}%;width:{{ b.width }}%;--c-fill:{{ b.color.fill }};--c-line:{{ b.color.line }};--c-ink:{{ b.color.ink }};--c-glow:{{ b.color.glow }}"
-                   title="{{ b.name }} · {{ b.label }}{% if b.role_label %} · {{ b.role_label }}{% endif %}{% if b.covering %} · covering, not their usual day{% elif b.changed %} · changed hours for this date{% endif %}">
+                   title="{{ b.name }} · {{ b.label }}{% if b.role_label %} · {{ b.role_label }}{% endif %}{% if b.location == 'remote' %} · working from home{% elif b.location == 'office' %} · in the office{% endif %}{% if b.location_flipped %} (one-day change){% endif %}{% if b.covering %} · covering, not their usual day{% elif b.changed %} · changed hours for this date{% endif %}">
                 {% if b.is_opener %}<svg class="sp-ic op"><use href="#sp-sun"/></svg>{% endif %}
+                {% if b.location == 'remote' %}<svg class="sp-ic" style="color:var(--wfh)"><use href="#sp-home"/></svg>{% elif b.location == 'office' and b.location_flipped %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-bldg"/></svg>{% endif %}
                 <span class="sp-nm">{% if b.tight %}{{ b.short }}{% else %}{{ b.name }}{% endif %}</span>{% if not b.tight %} {{ b.label }}{% endif %}
                 {% if b.covering and not b.tight %}<span class="sp-barcov">covering</span>{% endif %}
                 {% if b.is_closer %}<svg class="sp-ic cl"><use href="#sp-moon"/></svg>{% endif %}
@@ -662,6 +698,7 @@
       <span><span class="sp-dot warn"></span> Runs thin</span>
       <span><span class="sp-dot crit"></span> Coverage gap</span>
       <span><span class="sp-legoff"></span> Time off</span>
+      <span><svg class="sp-ic" style="color:var(--wfh)"><use href="#sp-home"/></svg> Working from home &mdash; click a shift to set it</span>
     </div>
 
     {% if rows %}
@@ -687,6 +724,10 @@
         {% elif val == 'mid' %}<svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>
         {% else %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}{{ lbl }}</button>
       {% endfor %}
+      <div class="sp-popsep" data-loc-sep></div>
+      <button type="button" data-loc="office"><svg class="sp-ic" style="color:var(--open)"><use href="#sp-bldg"/></svg>In office</button>
+      <button type="button" data-loc="remote"><svg class="sp-ic" style="color:var(--wfh)"><use href="#sp-home"/></svg>Work from home</button>
+      <button type="button" data-loc=""><svg class="sp-ic" style="color:var(--faint)"><use href="#sp-dash"/></svg>Clear &mdash; not tracked</button>
       <div class="sp-popsep" data-extras-sep hidden></div>
       <button type="button" data-add-second hidden>
         <svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>Add a second shift this day</button>
@@ -828,6 +869,13 @@
       // Removable only if this window is a one-off: a cover override, or the
       // second half of a split day. A plain recurring shift is edited elsewhere.
       var isCover = !!roleBtn.dataset.coverId, isExtra = !!roleBtn.dataset.extraId;
+      // Work location is a day-level fact, so it rides on the primary shift —
+      // hide the section when the second half of a split day was clicked.
+      [].forEach.call(pop.querySelectorAll('button[data-loc]'), function (b) {
+        b.hidden = isExtra;
+        b.classList.toggle('on', !isExtra && b.dataset.loc === (roleBtn.dataset.location || ''));
+      });
+      pop.querySelector('[data-loc-sep]').hidden = isExtra;
       var del = pop.querySelector('[data-remove-cover]');
       del.hidden = !(isCover || isExtra);
       del.querySelector('[data-remove-label]').textContent =
@@ -899,6 +947,18 @@
           : { action: 'remove_shift', id: target.dataset.coverId };
         post(body).then(function (d) {
           if (!d.success) { toast(d.error || 'Could not remove that.', true); return; }
+          window.location.reload();
+        }).catch(function () { toast('Network error.', true); });
+        return;
+      }
+
+      var locBtn = e.target.closest('button[data-loc]');
+      if (locBtn) {
+        var locPayload = { action: 'set_location', user_id: target.dataset.user, location: locBtn.dataset.loc };
+        if (target.dataset.date) locPayload.date = target.dataset.date; else locPayload.dow = target.dataset.dow;
+        closePop();
+        post(locPayload).then(function (d) {
+          if (!d.success) { toast(d.error || 'Could not save that.', true); return; }
           window.location.reload();
         }).catch(function () { toast('Network error.', true); });
         return;

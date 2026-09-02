@@ -144,6 +144,10 @@
   .cf-draft{ margin-top:11px; }
   .cf-draft-text{ width:100%; border:1px solid var(--line-2); border-radius:var(--radius-sm); background:var(--card-2);
     padding:11px 13px; font-family:'Hanken Grotesk'; font-size:12.5px; color:var(--ink); resize:vertical; line-height:1.5; }
+  /* Stage direction, not speech — reads as an instruction, never as a line to say */
+  .cf-cue{ margin-top:7px; display:flex; align-items:center; gap:6px; font-family:'Hanken Grotesk';
+    font-style:italic; font-size:11.5px; color:var(--ink-soft); }
+  .cf-cue i{ font-style:normal; color:var(--gold-deep); }
 
   /* ── log communication form ── */
   .cf-form{ display:flex; flex-direction:column; gap:11px; }
@@ -227,6 +231,7 @@
             <option value="{{ s.id }}" {% if task.assigned_to_id == s.id %}selected{% endif %}>{{ s.first_name|default:s.username }}</option>
             {% endfor %}
           </select>
+          <a class="cf-btn cf-btn-ghost" href="{% url 'reservation_details' pc_reservation_uuid %}" target="_blank" rel="noopener"><i class="bi bi-file-text"></i> Open reservation</a>
           {% if task.is_open %}
           <button class="cf-btn cf-btn-ghost" id="cfComplete"><i class="bi bi-check2-circle"></i> Complete</button>
           <a class="cf-btn cf-btn-gold" href="{{ ladder_ctx.portal_url }}" target="_blank" rel="noopener"><i class="bi bi-credit-card"></i> Take payment</a>
@@ -518,6 +523,12 @@
       if(act === 'draft-sms'){
         var box = step.querySelector('[data-draft-box]');
         if(box){ box.hidden = !box.hidden; }
+        return;
+      }
+
+      if(act === 'show-script'){
+        var scriptBox = step.querySelector('[data-script-box]');
+        if(scriptBox){ scriptBox.hidden = !scriptBox.hidden; }
         return;
       }
 

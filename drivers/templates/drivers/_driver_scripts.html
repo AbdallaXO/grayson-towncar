@@ -111,6 +111,86 @@ document.addEventListener('DOMContentLoaded', () => {
         setFlightStatusBadge(badge, badge.dataset.flightStatus || badge.textContent);
     });
 
+    // ── Guest message tap-log ──
+    // These chips are plain sms: links, so on a PHONE the Messages app replaces
+    // the page the instant one is tapped. The log therefore has to survive page
+    // teardown: fetch(keepalive) is specified to do exactly that, and unlike
+    // navigator.sendBeacon it tells us whether the server actually took it.
+    // sendBeacon is kept as a fallback for browsers that refuse keepalive.
+    //
+    // On a DESKTOP nothing navigates at all (Windows often has no sms: handler),
+    // so the request completes normally and a failure is visible immediately.
+    //
+    // The token rides in the FormData body as csrfmiddlewaretoken because a
+    // beacon cannot set an X-CSRFToken header; Django checks the body first.
+    // Only the kind goes over the wire — the server re-renders the text itself.
+    //
+    // Known limit: sw.js only intercepts GET, so a tap made with no signal is
+    // not recorded. The chip reverts and says so rather than lying.
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('[data-msg-kind]');
+        if (!link) return;
+
+        const legId = link.dataset.legId;
+        const kind = link.dataset.msgKind;
+        if (!legId || !kind) return;
+
+        const url = `${window.location.origin}/drivers/api/client-message/${legId}/`;
+        const payload = new FormData();
+        payload.append('csrfmiddlewaretoken', csrfToken);
+        payload.append('kind', kind);
+
+        // Flip the chip straight away so the driver gets feedback on the tap,
+        // then undo it if the log never landed — silence must mean success.
+        const icon = link.querySelector('i');
+        const hadNext = link.classList.contains('is-next');
+        const hadSent = link.classList.contains('is-sent');
+        const oldIcon = icon ? icon.className : null;
+        link.classList.remove('is-next');
+        link.classList.add('is-sent');
+        if (icon) { icon.className = 'bi bi-check-circle-fill'; }
+
+        const revert = () => {
+            if (hadSent) return;              // already logged earlier, leave it
+            link.classList.remove('is-sent');
+            if (hadNext) { link.classList.add('is-next'); }
+            if (icon && oldIcon) { icon.className = oldIcon; }
+            showToast('Could not log that text. Send it anyway.', 'danger');
+        };
+
+        fetch(url, { method: 'POST', body: payload, keepalive: true })
+            .then((res) => {
+                if (!res.ok) { throw new Error('http ' + res.status); }
+                return res.json().catch(() => null);
+            })
+            .then((data) => {
+                // The server may have advanced the trip status to match the
+                // text ("I'm on my way" ⇒ on-the-way). Say so, and refresh the
+                // card — immediately on desktop, or the moment the driver
+                // comes back from the Messages app on a phone.
+                if (!data || !data.status_advanced) return;
+                showToast(`Status updated to ${data.status_advanced.replace(/-/g, ' ')}`, 'success');
+                if (document.visibilityState === 'hidden') {
+                    document.addEventListener('visibilitychange', function onBack() {
+                        if (document.visibilityState === 'visible') {
+                            document.removeEventListener('visibilitychange', onBack);
+                            window.scrollTo(0, 0);
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    setTimeout(() => { window.scrollTo(0, 0); window.location.reload(); }, 800);
+                }
+            })
+            .catch(() => {
+                let queued = false;
+                try {
+                    queued = !!(navigator.sendBeacon && navigator.sendBeacon(url, payload));
+                } catch (e) { queued = false; }
+                if (!queued) { revert(); }
+            });
+    });
+
     // ── Status update helper ──
     function sendStatusUpdate(legId, newStatus, extraData = {}) {
         return fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
@@ -124,14 +204,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Status select change handler ──
+    // Production history shows drivers knocking a trip one step BACK through
+    // this dropdown within seconds of moving it forward — a slipped picker
+    // wheel fires `change` instantly. Backward moves stay possible (they are
+    // the fix for a mis-tap) but now require a confirmation first.
+    const STATUS_ORDER = ['in-progress', 'confirmed', 'on-the-way', 'on-location', 'picked-up', 'completed'];
     document.querySelectorAll('.status-select:not([disabled])').forEach(select => {
+        let currentStatus = select.value;
         select.addEventListener('change', (event) => {
             const legId = event.target.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
             const newStatus = event.target.value;
+            const label = s => s.replace(/-/g, ' ');
+
+            if (newStatus === currentStatus) return;
+            const isBackward = STATUS_ORDER.indexOf(newStatus) < STATUS_ORDER.indexOf(currentStatus);
+            if (isBackward && !confirm(`Move this trip BACK from "${label(currentStatus)}" to "${label(newStatus)}"?`)) {
+                event.target.value = currentStatus;
+                return;
+            }
+            if (newStatus === 'completed' && !confirm('Are you sure you want to mark this trip as completed?')) {
+                event.target.value = currentStatus;
+                return;
+            }
 
             sendStatusUpdate(legId, newStatus)
             .then(data => {
                 if (data.success) {
+                    currentStatus = newStatus;
                     showToast(`Status updated to ${newStatus.replace(/-/g, ' ')}`, 'success');
                     setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
                 } else {

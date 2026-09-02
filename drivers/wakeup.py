@@ -33,7 +33,7 @@ from xml.sax.saxutils import escape
 from django.conf import settings
 from django.utils import timezone
 
-from drivers.timeoff_notifications import _normalize_e164, _send, _twilio_client
+from drivers import sms
 
 logger = logging.getLogger(__name__)
 
@@ -95,19 +95,19 @@ def _sms_lead(check):
 
 
 def _send_sms(to_number, body):
-    return _send(to_number, body)
+    return sms.send(to_number, body)
 
 
 def _place_call(to_number, twiml):
     """Outbound Twilio voice call. Returns (ok, error)."""
-    client, from_number = _twilio_client()
-    if client is None:
+    twilio_client, from_number = sms.client()
+    if twilio_client is None:
         return False, "twilio not configured"
-    to = _normalize_e164(to_number)
+    to = sms.normalize_e164(to_number)
     if not to:
         return False, "missing recipient"
     try:
-        client.calls.create(to=to, from_=from_number, twiml=twiml)
+        twilio_client.calls.create(to=to, from_=from_number, twiml=twiml)
         return True, None
     except Exception as e:
         logger.exception("Wake-up call to %s failed", to)

@@ -53,7 +53,24 @@ The including page owns the action JS (it reads the data-* attributes below).
           <button type="button" class="cf-act" data-act="branch" data-branch="advance">
             <i class="bi bi-telephone-x"></i> No answer
           </button>
+          {% if ladder_ctx.call_script %}
+          <button type="button" class="cf-act" data-act="show-script">
+            <i class="bi bi-chat-square-text"></i> What to say
+          </button>
+          {% endif %}
         </div>
+
+        {% if ladder_ctx.call_script %}
+        <div class="cf-draft" data-script-box hidden>
+          <textarea class="cf-draft-text" readonly rows="8">{{ ladder_ctx.call_script }}</textarea>
+          {# A direction to the dispatcher, not words to read out — kept out of the #}
+          {# textarea so it can't be said aloud or land in the copied text. #}
+          <div class="cf-cue"><i class="bi bi-pause-circle"></i> Then stop and let them answer.</div>
+          <div class="cf-step-actions">
+            <button type="button" class="cf-act" data-act="copy"><i class="bi bi-clipboard"></i> Copy</button>
+          </div>
+        </div>
+        {% endif %}
 
         {# Answered → resolve actions (pay / cancel) #}
         {% if step.answered_actions %}

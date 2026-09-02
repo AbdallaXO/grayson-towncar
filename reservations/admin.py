@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry, RouteDistanceCache
+from .models import Customer, Reservation, Leg, LegStop, LegFlight, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry, RouteDistanceCache, LegClientMessage
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 from simple_history.admin import SimpleHistoryAdmin
@@ -1454,9 +1454,24 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
     actions = [
         "assign_driver",
         "mark_as_completed",
-        "set_payment_status_paid",
-        "set_payment_status_unpaid",
+        "resync_payment_status",
     ]
+
+    _PAY_FIELDS = {
+        "driver_base_pay", "driver_gratuity", "driver_additional", "driver_pay_amount",
+    }
+
+    def save_model(self, request, obj, form, change):
+        """Typing a pay amount here counts as a person setting it.
+
+        `list_editable` exposes all four pay fields straight on the changelist,
+        so this is a real hand-entry path alongside the Driver Payments page. If
+        it does not mark the leg, a later pickup-time move or recalc sweep will
+        quietly overwrite what was typed.
+        """
+        if change and self._PAY_FIELDS & set(getattr(form, "changed_data", ())):
+            obj.pay_manually_set = True
+        super().save_model(request, obj, form, change)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "driver":
@@ -1620,15 +1635,43 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
 
         return format_html('<span style="color: {};">${}</span>', color, profit)
 
-    @admin.action(description="Mark selected legs as paid")
-    def set_payment_status_paid(self, request, queryset):
-        updated = queryset.update(payment_status="paid")
-        self.message_user(request, f"Payment status updated for {updated} legs.")
+    @admin.action(description="Re-sync paid status from the driver's statements")
+    def resync_payment_status(self, request, queryset):
+        """Rebuild payment_status from the payout lines that actually exist.
 
-    @admin.action(description="Mark selected legs as unpaid")
-    def set_payment_status_unpaid(self, request, queryset):
-        updated = queryset.update(payment_status="unpaid")
-        self.message_user(request, f"Payment status updated for {updated} legs.")
+        This used to be two actions that wrote payment_status directly. Writing
+        it directly is what caused the damage: the flag is a denormalized cache,
+        and the real answer is "does an active LegPayment line exist for this
+        leg". Flipping the cache to "paid" with no line behind it hid legs from
+        payroll that had never been paid, while every guard that asks
+        payout_adjustments.leg_is_paid_to_driver still read them as unpaid.
+
+        So this repairs rather than asserts. To actually pay a leg, process a
+        statement on the Driver Payments page; to un-pay one, void its line.
+        """
+        from drivers.models import LegPayment
+
+        ids = list(queryset.values_list("id", flat=True))
+        paid_ids = set(
+            LegPayment.objects.filter(
+                leg_id__in=ids, status=LegPayment.STATUS_ACTIVE
+            ).values_list("leg_id", flat=True)
+        )
+        to_paid = [i for i in ids if i in paid_ids]
+        to_unpaid = [i for i in ids if i not in paid_ids]
+
+        # Never touch a cancelled leg: 'canceled' is a third state, not the
+        # absence of a payment.
+        base = self.model.objects.exclude(payment_status="canceled")
+        fixed_paid = base.filter(id__in=to_paid).exclude(payment_status="paid").update(payment_status="paid")
+        fixed_unpaid = base.filter(id__in=to_unpaid).exclude(payment_status="unpaid").update(payment_status="unpaid")
+
+        self.message_user(
+            request,
+            f"Checked {len(ids)} legs against their statements: "
+            f"{fixed_paid} corrected to paid, {fixed_unpaid} corrected to unpaid, "
+            f"{len(ids) - fixed_paid - fixed_unpaid} already correct.",
+        )
 
     @admin.display(description="Driver Notes")
     def driver_notes_display(self, obj):
@@ -3100,4 +3143,36 @@ class RouteDistanceCacheAdmin(admin.ModelAdmin):
     ordering = ['-updated_at']
 
     def has_add_permission(self, request):
+        return False
+
+
+@admin.register(LegClientMessage)
+class LegClientMessageAdmin(admin.ModelAdmin):
+    """Audit trail of the standard guest texts opened from the driver app.
+
+    Read-only on purpose. These rows are the evidence behind the communication
+    KPIs — editing one would rewrite history, and there is no legitimate reason
+    to. Delete stays available for scrubbing a test row.
+    """
+
+    list_display = ("created_at", "leg", "driver", "kind", "situation")
+    list_filter = ("kind", "situation", "created_at")
+    search_fields = (
+        "leg__id",
+        "leg__reservation__customer__first_name",
+        "leg__reservation__customer__last_name",
+        "driver__profile__first_name",
+        "driver__profile__last_name",
+    )
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    list_select_related = ("leg", "driver", "driver__profile")
+    readonly_fields = (
+        "leg", "driver", "sent_by", "kind", "situation", "body", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False

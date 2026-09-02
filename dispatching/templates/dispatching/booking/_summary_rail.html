@@ -1,0 +1,112 @@
+{% load booking_filters %}
+{% comment %}
+The booking summary rail: sticky on every step, filling in as the call goes on.
+
+Everything here is read straight off the session, so it stays truthful when the
+dispatcher jumps backwards to fix something. Unset values print grey rather
+than being hidden — the dispatcher needs to see what is still missing.
+{% endcomment %}
+{% with rd=booking_data.reservation_data pd=booking_data.pricing_data legs=booking_data.legs_data %}
+<aside class="rw-rail">
+  <div class="rw-rail-head">
+    <i class="bi bi-clipboard-check-fill"></i>
+    <h4>Booking Summary</h4>
+    <span class="rw-rail-trip">
+      {% if legs|length == 1 %}One Way
+      {% elif legs|length == 2 %}Round Trip
+      {% elif legs %}{{ legs|length }} Legs{% endif %}
+    </span>
+  </div>
+
+  <div class="rw-rail-group">
+    <h5>Customer</h5>
+    <div class="rw-rail-row">
+      <span class="k">Name</span>
+      <span class="v {% if not customer %}unset{% endif %}">{{ customer.get_full_name|default:"Not set" }}</span>
+    </div>
+    <div class="rw-rail-row">
+      <span class="k">Phone</span>
+      <span class="v {% if not customer.phone_number %}unset{% endif %}">{{ customer.phone_number|default:"Not set" }}</span>
+    </div>
+    <div class="rw-rail-row">
+      <span class="k">Email</span>
+      <span class="v {% if not customer.email %}unset{% endif %}">{{ customer.email|default:"Not set" }}</span>
+    </div>
+  </div>
+
+  {% if legs %}
+    <div class="rw-rail-group">
+      <h5>{% if legs|length == 1 %}Trip{% else %}{{ legs|length }} Legs{% endif %}</h5>
+      {% for leg in legs %}
+        <div class="rw-rail-row">
+          <span class="k">Leg {{ forloop.counter }}</span>
+          <span class="v">
+            {% with d=leg.pickup_date|iso_date t=leg.pickup_time|iso_time %}
+              {% if d %}{{ d|date:"D, M j" }}{% else %}No date{% endif %}
+              {% if t %} · {{ t|time:"g:i A" }}{% endif %}
+            {% endwith %}
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if rd %}
+    <div class="rw-rail-group">
+      <h5>Ride</h5>
+      <div class="rw-rail-row">
+        <span class="k">Vehicle</span>
+        <span class="v {% if not vehicle %}unset{% endif %}">{{ vehicle.get_vehicle_type_display|default:"Not set" }}</span>
+      </div>
+      <div class="rw-rail-row">
+        <span class="k">Passengers</span>
+        <span class="v">{{ rd.passenger_count|default:"1" }}</span>
+      </div>
+      <div class="rw-rail-row">
+        <span class="k">Bags</span>
+        <span class="v">{{ rd.luggage_count|default:"0" }}</span>
+      </div>
+      <div class="rw-rail-row">
+        <span class="k">Car Seats</span>
+        <span class="v">
+          {% with rf=rd.rf_carseats|default:"0" ff=rd.ff_carseats|default:"0" bs=rd.booster_seats|default:"0" %}
+            {% if rf != "0" or ff != "0" or bs != "0" %}RF {{ rf }} · FF {{ ff }} · BS {{ bs }}{% else %}None{% endif %}
+          {% endwith %}
+        </span>
+      </div>
+      <div class="rw-rail-row">
+        <span class="k">Grocery Stop</span>
+        <span class="v">{% if rd.store_stop == 'True' %}Yes{% else %}No{% endif %}</span>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if pd.total_price %}
+    <div class="rw-rail-group">
+      <h5>Price</h5>
+      <div class="rw-rail-row">
+        <span class="k">Base</span>
+        <span class="v">${{ pd.manual_base_price|default:"0.00" }}</span>
+      </div>
+      {% if pd.additional_charges and pd.additional_charges != '0' and pd.additional_charges != '0.00' %}
+        <div class="rw-rail-row">
+          <span class="k">Additional</span>
+          <span class="v">${{ pd.additional_charges }}</span>
+        </div>
+      {% endif %}
+      {% if pd.gratuity_amount and pd.gratuity_amount != '0' and pd.gratuity_amount != '0.00' %}
+        <div class="rw-rail-row">
+          <span class="k">Gratuity</span>
+          <span class="v">${{ pd.gratuity_amount }}</span>
+        </div>
+      {% endif %}
+      <div class="rw-rail-row total">
+        <span class="k">Total</span>
+        <span class="v">${{ pd.total_price }}</span>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="rw-rail-strip" id="rw-rail-strip" style="display:none"></div>
+</aside>
+{% endwith %}

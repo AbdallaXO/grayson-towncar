@@ -288,6 +288,12 @@ urlpatterns = [
         views.dispatcher_booking_cancel,
         name="dispatcher_booking_cancel",
     ),
+    # Live flight schedule lookup for the booking wizard's trip step
+    path(
+        "api/booking-flight-lookup/",
+        views.booking_flight_lookup,
+        name="booking_flight_lookup",
+    ),
     # Customer Search API
     path(
         "api/customer-search/",
@@ -360,6 +366,13 @@ urlpatterns = [
         views.update_night_bonus,
         name="update_night_bonus",
     ),
+    path("payroll-run/", views.payroll_run, name="payroll_run"),
+    # Pay zones, managed from the Pay Rates page rather than the Django admin.
+    path("update-zone-rate/", views.update_zone_rate, name="update_zone_rate"),
+    path("save-zone/", views.save_zone, name="save_zone"),
+    path("delete-zone/", views.delete_zone, name="delete_zone"),
+    path("save-place/", views.save_place, name="save_place"),
+    path("save-leg-rate/", views.save_leg_rate, name="save_leg_rate"),
     path(
         "delete-leg/",
         views.delete_leg,

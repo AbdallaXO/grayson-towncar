@@ -484,6 +484,15 @@
               </div>
             </div>
           {% endif %}
+          {% if needs_pricing_count %}
+            <div class="col-auto">
+              <div class="alert alert-danger d-flex align-items-center py-2 px-3 mb-0">
+                <i class="bi bi-tag-fill me-2 fs-5"></i>
+                <strong>{{ needs_pricing_count }} leg{{ needs_pricing_count|pluralize }} needs a price</strong>
+                <span class="ms-2 text-muted">- no route in the rate table matches the addresses</span>
+              </div>
+            </div>
+          {% endif %}
           {% if review_count > zero_pay_count %}
             <div class="col-auto">
               <div class="alert alert-warning d-flex align-items-center py-2 px-3 mb-0">
@@ -598,6 +607,8 @@
                           {% if leg.needs_review %}
                             <div class="mb-1">
                               {% if leg.is_zero_pay %}<span class="badge bg-danger me-1" title="$0 base pay">$0 PAY</span>{% endif %}
+                              {% if leg.needs_pricing %}<span class="badge bg-danger me-1" title="No route matches these addresses — the rate table has no price for this trip">NEEDS PRICE</span>{% endif %}
+                              {% if leg.gratuity_over_split %}<span class="badge bg-warning text-dark me-1" title="This leg holds more of the guest tip than its share — another leg on the booking is sitting at $0">CHECK TIP</span>{% endif %}
                               {% if leg.is_cruise %}<span class="badge bg-info text-dark me-1" title="Cruise route - verify rate">🚢 CRUISE</span>{% endif %}
                               {% if leg.is_sanford %}<span class="badge bg-warning text-dark me-1" title="Sanford route - verify rate"><i class="bi bi-airplane me-1"></i>SFB</span>{% endif %}
                             </div>
@@ -733,6 +744,11 @@
                                 </span>
                               </div>
                             {% endif %}
+                            {% if leg.pay_stops %}
+                              <div class="border-top my-1"></div>
+                              <div class="fw-bold small">Extra stops:</div>
+                              {% include "dispatching/includes/_leg_stops_inline.html" with stops=leg.pay_stops show_fee=1 %}
+                            {% endif %}
                           </div>
                         </div>
                       </td>
@@ -861,6 +877,8 @@
                         {% if leg.needs_review %}
                           <div class="mb-1">
                             {% if leg.is_zero_pay %}<span class="badge bg-danger me-1">$0 PAY</span>{% endif %}
+                            {% if leg.needs_pricing %}<span class="badge bg-danger me-1">NEEDS PRICE</span>{% endif %}
+                            {% if leg.gratuity_over_split %}<span class="badge bg-warning text-dark me-1">CHECK TIP</span>{% endif %}
                             {% if leg.is_cruise %}<span class="badge bg-info text-dark me-1">🚢 CRUISE</span>{% endif %}
                             {% if leg.is_sanford %}<span class="badge bg-warning text-dark me-1"><i class="bi bi-airplane me-1"></i>SFB</span>{% endif %}
                           </div>
@@ -991,6 +1009,10 @@
                                   <span class="badge bg-success text-white">
                                     <i class="bi bi-shop me-1"></i>Publix Stop
                                   </span>
+                                {% endif %}
+                                {% if leg.pay_stops %}
+                                  <div><strong>Extra stops:</strong></div>
+                                  {% include "dispatching/includes/_leg_stops_inline.html" with stops=leg.pay_stops show_fee=1 %}
                                 {% endif %}
                               </div>
                             </div>

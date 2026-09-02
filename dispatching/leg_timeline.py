@@ -57,6 +57,8 @@ DERIVED_FIELDS = {
     "profit_estimate", "revenue_share", "total_driver_payments",
     "pickup_time_changed_at", "pickup_time_was", "pickup_date_was",
     "pickup_change_ack_at",
+    # Consequence of a pay edit or a driver change, never a decision on its own.
+    "pay_manually_set",
 }
 
 PICKUP_FIELDS = {"pickup_time", "pickup_date"}

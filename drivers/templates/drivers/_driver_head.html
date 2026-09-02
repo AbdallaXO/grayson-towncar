@@ -77,6 +77,10 @@
         background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(124,58,237,0.08) 100%);
         border-color: rgba(59,130,246,0.2);
     }
+    [data-theme="dark"] .gt-guest-msgs { background: var(--gt-surface); border-color: var(--gt-border); }
+    [data-theme="dark"] .gt-msg-chip { background: var(--gt-bg); border-color: var(--gt-border); color: var(--gt-text-secondary); }
+    [data-theme="dark"] .gt-msg-chip.is-next { border-color: #60a5fa; background: rgba(59,130,246,0.15); color: #93c5fd; }
+    [data-theme="dark"] .gt-msg-chip.is-sent { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.15); color: #34d399; }
     [data-theme="dark"] .gt-review-reminder {
         background: linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(245,158,11,0.05) 100%);
         border-color: rgba(245,158,11,0.3);
@@ -402,6 +406,59 @@
 
     .flight-landing, .flight-gate-arrival {
         font-weight: 700;
+    }
+
+    /* ─── Guest message chips ─── */
+    /* One row of standard texts per job card. Deliberately quiet: the chauffeur's
+       eye should still land on the progression button, so only the chip for the
+       CURRENT stage (.is-next) is tinted, and a sent one goes flat green. */
+    .gt-guest-msgs {
+        border: 1px solid var(--gt-border);
+        border-radius: var(--gt-radius-sm);
+        padding: 10px 12px 12px;
+        background: var(--gt-surface);
+    }
+    .gt-guest-msgs-label {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--gt-text-secondary);
+        margin-bottom: 8px;
+    }
+    .gt-guest-msgs-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .gt-msg-chip {
+        flex: 1 1 auto;
+        min-width: 96px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        padding: 9px 10px;
+        border-radius: var(--gt-radius-sm);
+        border: 1px solid var(--gt-border);
+        background: var(--gt-bg);
+        color: var(--gt-text-secondary);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        line-height: 1.1;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .gt-msg-chip:active { transform: scale(0.97); }
+    .gt-msg-chip.is-next {
+        border-color: var(--gt-blue);
+        background: rgba(59,130,246,0.08);
+        color: var(--gt-blue);
+    }
+    .gt-msg-chip.is-sent {
+        border-color: rgba(16,185,129,0.35);
+        background: rgba(16,185,129,0.08);
+        color: var(--gt-green);
     }
 
     /* ─── Review Reminder ─── */

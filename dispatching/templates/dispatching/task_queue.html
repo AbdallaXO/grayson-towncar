@@ -1361,6 +1361,7 @@ body {
   white-space: nowrap;
 }
 .ops-res-chip:hover { background: #e0e7ff; color: #3730a3; }
+.ops-res-chip .bi-box-arrow-up-right { font-size: .56rem; opacity: .6; }
 
 /* ── Completed today rows ── */
 .completed-row {
@@ -1572,14 +1573,14 @@ body {
       <div class="nu-meta">
         {% if task.leg %}
           {% with res=task.leg.reservation %}
-          <span><i class="bi bi-person-fill"></i> <a href="{% url 'reservation_details' res.uuid %}">{{ res.customer.get_full_name }}</a></span>
+          <span><i class="bi bi-person-fill"></i> <a href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener">{{ res.customer.get_full_name }}</a></span>
           <span><i class="bi bi-calendar-event"></i> {{ task.leg.pickup_date|date:"D, M j" }} {{ task.leg.pickup_time|time:"g:iA"|lower }}</span>
           <span><i class="bi bi-geo-alt"></i> {{ task.leg.pickup_location|truncatewords:5 }} → {{ task.leg.dropoff_location|truncatewords:5 }}</span>
-          <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}">R{{ res.id }} · L{{ task.leg.id }}</a>
+          <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">R{{ res.id }} · L{{ task.leg.id }} <i class="bi bi-box-arrow-up-right"></i></a>
           {% endwith %}
         {% elif task.reservation %}
-          <span><i class="bi bi-person-fill"></i> <a href="{% url 'reservation_details' task.reservation.uuid %}">{{ task.reservation.customer.get_full_name }}</a></span>
-          <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}">R{{ task.reservation.id }}</a>
+          <span><i class="bi bi-person-fill"></i> <a href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener">{{ task.reservation.customer.get_full_name }}</a></span>
+          <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">R{{ task.reservation.id }} <i class="bi bi-box-arrow-up-right"></i></a>
         {% elif task.lead %}
           <span><i class="bi bi-person-lines-fill"></i> {{ task.lead.first_name }} {{ task.lead.last_name }}</span>
         {% elif task.contact_form %}
@@ -1634,8 +1635,8 @@ body {
             <strong>{{ task.get_task_type_display }}</strong>
             {% if task.resolved_by %} · {{ task.resolved_by.first_name|default:task.resolved_by.username }}{% endif %}
             · {{ task.resolved_at|date:"g:iA"|lower }}
-            {% if task.leg %} · L{{ task.leg.id }} {{ task.leg.reservation.customer.get_full_name }}
-            {% elif task.reservation %} · R{{ task.reservation.id }} {{ task.reservation.customer.get_full_name }}
+            {% if task.leg %} · <a href="{% url 'reservation_details' task.leg.reservation.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">L{{ task.leg.id }} {{ task.leg.reservation.customer.get_full_name }}</a>
+            {% elif task.reservation %} · <a href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">R{{ task.reservation.id }} {{ task.reservation.customer.get_full_name }}</a>
             {% endif %}
           </div>
         </div>
@@ -1690,20 +1691,22 @@ body {
                   {% with res=task.leg.reservation %}
                   <span class="ops-meta">
                     <i class="bi bi-person-fill"></i>
-                    <a href="{% url 'reservation_details' res.uuid %}">{{ res.customer.get_full_name|truncatewords:3 }}</a>
+                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener">{{ res.customer.get_full_name|truncatewords:3 }}</a>
                   </span>
-                  <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}" title="Open reservation">
+                  <a class="ops-res-chip" href="{% url 'reservation_details' res.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">
                     <i class="bi bi-link-45deg"></i>R{{ res.id }} · L{{ task.leg.id }}
+                    <i class="bi bi-box-arrow-up-right"></i>
                   </a>
                   <span class="ops-meta meta-mono">{{ task.leg.pickup_date|date:"M j" }} {{ task.leg.pickup_time|time:"g:iA"|lower }}</span>
                   {% endwith %}
                 {% elif task.reservation %}
                   <span class="ops-meta">
                     <i class="bi bi-person-fill"></i>
-                    <a href="{% url 'reservation_details' task.reservation.uuid %}">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
+                    <a href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
                   </span>
-                  <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}" title="Open reservation">
+                  <a class="ops-res-chip" href="{% url 'reservation_details' task.reservation.uuid %}" target="_blank" rel="noopener" title="Open reservation in a new tab">
                     <i class="bi bi-link-45deg"></i>R{{ task.reservation.id }}
+                    <i class="bi bi-box-arrow-up-right"></i>
                   </a>
                 {% elif task.lead %}
                   <span class="ops-meta">

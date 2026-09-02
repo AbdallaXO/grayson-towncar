@@ -1,0 +1,439 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    {% include "drivers/_driver_head.html" %}
+    <title>My Documents — Grayson Towncar</title>
+    <style>
+      .doc-card { padding: 16px; margin-bottom: 14px; }
+      .doc-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+      .doc-title { font-weight:700; font-size:1rem; margin:0; }
+      .doc-status { font-size:0.75rem; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+      .doc-status.on-file { background:rgba(16,185,129,0.12); color:#047857; }
+      .doc-status.missing { background:rgba(107,114,128,0.12); color:var(--gt-text-secondary); }
+      .doc-status.expired { background:rgba(239,68,68,0.12); color:#b91c1c; }
+      .doc-status.expiring { background:rgba(245,158,11,0.14); color:#b45309; }
+      [data-theme="dark"] .doc-status.on-file { background:rgba(16,185,129,0.2); color:#34d399; }
+      [data-theme="dark"] .doc-status.expired { background:rgba(239,68,68,0.2); color:#f87171; }
+      [data-theme="dark"] .doc-status.expiring { background:rgba(245,158,11,0.2); color:#fbbf24; }
+      .doc-meta { font-size:0.8125rem; color:var(--gt-text-secondary); line-height:1.5; }
+      .doc-hint { font-size:0.8125rem; color:var(--gt-text-secondary); line-height:1.5; margin:0 0 12px; }
+      /* The camera button is a styled <label> wrapping a hidden file input —
+         a bare file input can't be restyled and reads as a system control. */
+      .scan-btn { width:100%; cursor:pointer; margin:0; position:relative; }
+      .scan-btn:focus-within { outline:2px solid var(--gt-blue); outline-offset:2px; }
+      .scan-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+      .scan-chosen { font-size:0.8125rem; color:var(--gt-text-secondary); margin-top:8px; word-break:break-all; }
+      .doc-note { font-size:0.75rem; color:var(--gt-text-secondary); line-height:1.45; margin:8px 0 0; }
+      .scanned-flag { font-size:0.6875rem; font-weight:700; color:var(--gt-green); text-transform:uppercase; letter-spacing:0.04em; }
+      .field-wrap { margin-bottom:12px; }
+      .field-wrap .gt-input { width:100%; }
+      .field-err { color:var(--gt-red); font-size:0.75rem; margin-top:4px; }
+      .field-hint { font-size:0.72rem; color:var(--gt-text-secondary); margin-top:4px; }
+      .section-divider {
+        font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;
+        color:var(--gt-text-secondary); border-top:1px solid var(--gt-border);
+        padding-top:14px; margin:18px 0 4px;
+      }
+      .doc-view-link {
+        display:inline-flex; align-items:center; gap:5px; font-size:0.8125rem;
+        color:var(--gt-blue); text-decoration:none; margin-bottom:10px;
+      }
+      .doc-view-link:hover { text-decoration:underline; }
+    </style>
+  </head>
+
+  <body>
+    {% include "drivers/navbar.html" %}
+
+    <div class="container-fluid" style="max-width:720px; padding:16px 12px;">
+
+      <h1 style="font-size:1.375rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;">My Documents</h1>
+      <p class="doc-hint">
+        Take a photo of your license, permit, or DOT medical card — or upload one you already
+        have saved. Your documents are transmitted over a secure, encrypted connection directly
+        to the office team, so there's no need to text or email them. For your license and
+        permit, we'll read the details from the photo so you don't have to type them in.
+      </p>
+
+      {% if messages %}
+        {% for m in messages %}
+          <div class="gt-card mb-2" style="padding:10px 14px;border-left:3px solid {% if m.tags == 'error' %}var(--gt-red){% elif m.tags == 'warning' %}var(--gt-yellow){% else %}var(--gt-green){% endif %};font-size:0.875rem;">
+            {{ m }}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      {% if confirming_license %}
+        {# Step 2: confirm what the scan read (or fill in by hand when it couldn't). #}
+        <form method="post" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="confirm_license">
+          <div class="doc-head">
+            <h2 class="doc-title"><i class="bi bi-card-heading me-2"></i>Check your license details</h2>
+          </div>
+          <p class="doc-hint">
+            Make sure these match the card in your hand, then save. Fix anything we got wrong.
+          </p>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ details_form.license_number.id_for_label }}">
+              License number
+              {% if "license_number" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ details_form.license_number }}
+            {% for e in details_form.license_number.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="row g-2">
+            <div class="col-6">
+              <div class="field-wrap">
+                <label class="gt-label" for="{{ details_form.license_state.id_for_label }}">
+                  State
+                  {% if "license_state" in scanned_fields %}<span class="scanned-flag ms-1">read</span>{% endif %}
+                </label>
+                {{ details_form.license_state }}
+                {% if details_form.license_state.help_text %}
+                  <div class="field-hint" id="{{ details_form.license_state.id_for_label }}_helptext">{{ details_form.license_state.help_text }}</div>
+                {% endif %}
+                {% for e in details_form.license_state.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="field-wrap">
+                <label class="gt-label" for="{{ details_form.license_class.id_for_label }}">
+                  Class
+                  {% if "license_class" in scanned_fields %}<span class="scanned-flag ms-1">read</span>{% endif %}
+                </label>
+                {{ details_form.license_class }}
+                {% if details_form.license_class.help_text %}
+                  <div class="field-hint" id="{{ details_form.license_class.id_for_label }}_helptext">{{ details_form.license_class.help_text }}</div>
+                {% endif %}
+                {% for e in details_form.license_class.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ details_form.license_expiration.id_for_label }}">
+              Expiration date
+              {% if "license_expiration" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ details_form.license_expiration }}
+            {% for e in details_form.license_expiration.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="section-divider">Personal details, as printed on the license</div>
+          <p class="doc-hint">
+            Kept separately from your account name — this is just for the office to match
+            your license against your account, so it's fine if it's a maiden name, a legal
+            name that differs from your account nickname, and so on.
+          </p>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ details_form.license_full_name.id_for_label }}">
+              Name on license
+              {% if "license_full_name" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ details_form.license_full_name }}
+            {% if details_form.license_full_name.help_text %}
+              <div class="field-hint" id="{{ details_form.license_full_name.id_for_label }}_helptext">{{ details_form.license_full_name.help_text }}</div>
+            {% endif %}
+            {% for e in details_form.license_full_name.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ details_form.license_date_of_birth.id_for_label }}">
+              Date of birth
+              {% if "license_date_of_birth" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ details_form.license_date_of_birth }}
+            {% if details_form.license_date_of_birth.help_text %}
+              <div class="field-hint" id="{{ details_form.license_date_of_birth.id_for_label }}_helptext">{{ details_form.license_date_of_birth.help_text }}</div>
+            {% endif %}
+            {% for e in details_form.license_date_of_birth.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ details_form.license_address.id_for_label }}">
+              Address on license
+              {% if "license_address" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ details_form.license_address }}
+            {% if details_form.license_address.help_text %}
+              <div class="field-hint" id="{{ details_form.license_address.id_for_label }}_helptext">{{ details_form.license_address.help_text }}</div>
+            {% endif %}
+            {% for e in details_form.license_address.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <button type="submit" class="gt-btn gt-btn-success gt-btn-block">
+            <i class="bi bi-check-lg me-1"></i>Save my license details
+          </button>
+          <a href="{% url 'driver_my_documents' %}" class="gt-btn gt-btn-outline gt-btn-block mt-2">Cancel</a>
+        </form>
+      {% elif confirming_permit %}
+        {# Step 2 of the permit flow: confirm what the scan read (or fill in by hand when it couldn't). #}
+        <form method="post" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="confirm_permit">
+          <div class="doc-head">
+            <h2 class="doc-title"><i class="bi bi-patch-check me-2"></i>Check your permit details</h2>
+          </div>
+          <p class="doc-hint">
+            Make sure these match the yellow permit card in your hand, then save. Fix anything we got wrong.
+          </p>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ permit_form.chauffeur_permit_number.id_for_label }}">
+              Permit number
+              {% if "chauffeur_permit_number" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ permit_form.chauffeur_permit_number }}
+            {% if permit_form.chauffeur_permit_number.help_text %}
+              <div class="field-hint" id="{{ permit_form.chauffeur_permit_number.id_for_label }}_helptext">{{ permit_form.chauffeur_permit_number.help_text }}</div>
+            {% endif %}
+            {% for e in permit_form.chauffeur_permit_number.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ permit_form.chauffeur_permit_fdl_number.id_for_label }}">
+              FDL number
+              {% if "chauffeur_permit_fdl_number" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ permit_form.chauffeur_permit_fdl_number }}
+            {% if permit_form.chauffeur_permit_fdl_number.help_text %}
+              <div class="field-hint" id="{{ permit_form.chauffeur_permit_fdl_number.id_for_label }}_helptext">{{ permit_form.chauffeur_permit_fdl_number.help_text }}</div>
+            {% endif %}
+            {% for e in permit_form.chauffeur_permit_fdl_number.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="field-wrap">
+            <label class="gt-label" for="{{ permit_form.chauffeur_permit_expiration.id_for_label }}">
+              Expiration date
+              {% if "chauffeur_permit_expiration" in scanned_fields %}<span class="scanned-flag ms-1">read from photo</span>{% endif %}
+            </label>
+            {{ permit_form.chauffeur_permit_expiration }}
+            {% for e in permit_form.chauffeur_permit_expiration.errors %}<div class="field-err">{{ e }}</div>{% endfor %}
+          </div>
+
+          <button type="submit" class="gt-btn gt-btn-success gt-btn-block">
+            <i class="bi bi-check-lg me-1"></i>Save my permit details
+          </button>
+          <a href="{% url 'driver_my_documents' %}" class="gt-btn gt-btn-outline gt-btn-block mt-2">Cancel</a>
+        </form>
+      {% else %}
+
+        {# ── Driver's license (photo + OCR) ── #}
+        <form method="post" enctype="multipart/form-data" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload_license">
+          <div class="doc-head">
+            <h2 class="doc-title"><i class="bi bi-person-vcard me-2"></i>Driver's License</h2>
+            {% if driver.license_status == "expired" %}
+              <span class="doc-status expired">EXPIRED</span>
+            {% elif driver.license_status == "expiring" %}
+              <span class="doc-status expiring">EXPIRES SOON</span>
+            {% elif driver.license_scan or driver.license_number %}
+              <span class="doc-status on-file">ON FILE</span>
+            {% else %}
+              <span class="doc-status missing">NOT ON FILE</span>
+            {% endif %}
+          </div>
+          <div class="doc-meta mb-3">
+            {% if driver.license_number %}
+              {{ driver.license_number }}{% if driver.license_state %} · {{ driver.license_state }}{% endif %}{% if driver.license_class %} · Class {{ driver.license_class }}{% endif %}<br>
+            {% endif %}
+            {% if driver.license_expiration %}
+              Expires {{ driver.license_expiration|date:"M j, Y" }}
+            {% else %}
+              No expiration on file yet.
+            {% endif %}
+          </div>
+          {% if driver.license_scan %}
+            <a href="{{ driver.license_scan.url }}" target="_blank" rel="noopener" class="doc-view-link">
+              <i class="bi bi-image" aria-hidden="true"></i>View photo on file
+            </a>
+          {% endif %}
+          <label class="gt-btn gt-btn-primary gt-btn-block scan-btn">
+            <i class="bi bi-camera-fill me-1" aria-hidden="true"></i>
+            {% if driver.license_scan %}Replace photo{% else %}Take or upload photo{% endif %}
+            {% comment %}
+              No capture= attribute here on purpose: capture FORCES the camera
+              and hides the photo library and file browser. Without it the
+              phone's own sheet offers all three.
+            {% endcomment %}
+            <input type="file" name="scan"
+                   accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                   class="scan-input" data-autosubmit
+                   aria-label="Take or upload a photo of your driver's license">
+          </label>
+          <div class="scan-chosen" data-chosen hidden></div>
+          <p class="doc-note">
+            A JPG or PNG photo can be read automatically. A PDF or iPhone HEIC file still
+            uploads fine — you'll just type the details in yourself.
+          </p>
+        </form>
+
+        {# ── Chauffeur permit (photo + OCR) ── #}
+        <form method="post" enctype="multipart/form-data" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload_permit">
+          <div class="doc-head">
+            <h2 class="doc-title"><i class="bi bi-patch-check me-2"></i>Chauffeur Permit</h2>
+            {% if driver.chauffeur_permit_status == "expired" %}
+              <span class="doc-status expired">EXPIRED</span>
+            {% elif driver.chauffeur_permit_status == "expiring" %}
+              <span class="doc-status expiring">EXPIRES SOON</span>
+            {% elif driver.chauffeur_permit_scan or driver.chauffeur_permit_number %}
+              <span class="doc-status on-file">ON FILE</span>
+            {% else %}
+              <span class="doc-status missing">NOT ON FILE</span>
+            {% endif %}
+          </div>
+          <div class="doc-meta mb-3">
+            {% if driver.chauffeur_permit_number %}{{ driver.chauffeur_permit_number }}<br>{% endif %}
+            {% if driver.chauffeur_permit_expiration %}
+              Expires {{ driver.chauffeur_permit_expiration|date:"M j, Y" }}
+            {% else %}
+              We'll read the number and expiration from your photo — you just confirm them.
+            {% endif %}
+          </div>
+          {% if driver.chauffeur_permit_scan %}
+            <a href="{{ driver.chauffeur_permit_scan.url }}" target="_blank" rel="noopener" class="doc-view-link">
+              <i class="bi bi-image" aria-hidden="true"></i>View photo on file
+            </a>
+          {% endif %}
+          <label class="gt-btn gt-btn-outline gt-btn-block scan-btn">
+            <i class="bi bi-camera me-1" aria-hidden="true"></i>
+            {% if driver.chauffeur_permit_scan %}Replace photo{% else %}Take or upload photo{% endif %}
+            <input type="file" name="scan"
+                   accept="image/jpeg,image/png,image/heic,image/heif,application/pdf"
+                   class="scan-input" data-autosubmit
+                   aria-label="Take or upload a photo of your chauffeur permit">
+          </label>
+          <div class="scan-chosen" data-chosen hidden></div>
+          <p class="doc-note">
+            A JPG or PNG photo can be read automatically. A PDF or iPhone HEIC file still
+            uploads fine — you'll just type the details in yourself.
+          </p>
+        </form>
+
+        {# ── DOT medical card (photo only) ── #}
+        <form method="post" enctype="multipart/form-data" class="gt-card doc-card" action="{% url 'driver_my_documents' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="upload_dot_card">
+          <div class="doc-head">
+            <h2 class="doc-title"><i class="bi bi-heart-pulse me-2"></i>DOT Medical Card</h2>
+            {% if driver.dot_medical_card_status == "expired" %}
+              <span class="doc-status expired">EXPIRED</span>
+            {% elif driver.dot_medical_card_status == "expiring" %}
+              <span class="doc-status expiring">EXPIRES SOON</span>
+            {% elif driver.dot_medical_card_scan %}
+              <span class="doc-status on-file">ON FILE</span>
+            {% else %}
+              <span class="doc-status missing">NOT ON FILE</span>
+            {% endif %}
+          </div>
+          <div class="doc-meta mb-3">
+            {% if driver.dot_medical_card_expiration %}
+              Expires {{ driver.dot_medical_card_expiration|date:"M j, Y" }}
+            {% else %}
+              The office will fill in the expiration from your photo.
+            {% endif %}
+          </div>
+          {% if driver.dot_medical_card_scan %}
+            <a href="{{ driver.dot_medical_card_scan.url }}" target="_blank" rel="noopener" class="doc-view-link">
+              <i class="bi bi-image" aria-hidden="true"></i>View photo on file
+            </a>
+          {% endif %}
+          <label class="gt-btn gt-btn-outline gt-btn-block scan-btn">
+            <i class="bi bi-camera me-1" aria-hidden="true"></i>
+            {% if driver.dot_medical_card_scan %}Replace photo{% else %}Take or upload photo{% endif %}
+            <input type="file" name="scan" accept="image/*,application/pdf"
+                   class="scan-input" data-autosubmit
+                   aria-label="Take or upload a photo of your DOT medical card">
+          </label>
+          <div class="scan-chosen" data-chosen hidden></div>
+        </form>
+
+        <p class="doc-hint">
+          Your documents are stored securely and used only to keep your driver file current.
+          Questions about any of these? Contact the office — we're glad to help.
+        </p>
+      {% endif %}
+    </div>
+
+    {% include "drivers/_driver_scripts.html" %}
+    <script>
+      // Picking a photo submits its own form straight away — on a phone the
+      // extra "now press Upload" tap is the step people forget.
+      //
+      // Uploads go through a REAL page submit (not fetch), and the license
+      // upload in particular does an S3 write plus a blocking Textract call
+      // server-side — several seconds on a real photo. Two things follow:
+      //   * every scan button on the page (not just the one just tapped) has
+      //     to freeze, or a driver queuing up all three documents can fire a
+      //     second navigation that aborts the first upload mid-flight.
+      //   * on an iOS/Android back-navigation the browser can restore this
+      //     exact "mid-upload" DOM from bfcache, so the frozen state has to
+      //     be reset on pageshow or the page looks permanently stuck.
+      var submitting = false;
+
+      function resetScanButtons() {
+        submitting = false;
+        document.querySelectorAll('label.scan-btn').forEach(function (btn) {
+          btn.style.pointerEvents = '';
+          btn.style.opacity = '';
+          if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+          }
+        });
+        document.querySelectorAll('[data-chosen]').forEach(function (note) {
+          note.hidden = true;
+        });
+        document.querySelectorAll('.scan-input').forEach(function (input) {
+          input.value = '';
+        });
+      }
+
+      document.querySelectorAll('[data-autosubmit]').forEach(function (input) {
+        input.addEventListener('change', function () {
+          if (submitting || !input.files || !input.files.length) return;
+          submitting = true;
+
+          var form = input.closest('form');
+          var currentLabel = input.closest('label.scan-btn');
+          var note = form.querySelector('[data-chosen]');
+          if (note) {
+            note.textContent = 'Uploading ' + input.files[0].name + '… this can take a few '
+              + 'seconds while we read the photo.';
+            note.hidden = false;
+          }
+          // ALL scan buttons freeze, on every card, not just this form's —
+          // otherwise a second tap elsewhere aborts this upload mid-flight.
+          // EXCEPT this input's own label: rewriting its innerHTML would
+          // destroy the <input> (and the file just picked) that lives inside
+          // it, right before form.submit() reads it — dim it instead.
+          document.querySelectorAll('label.scan-btn').forEach(function (btn) {
+            if (btn === currentLabel) {
+              btn.style.opacity = '0.6';
+              return;
+            }
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.6';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading…';
+          });
+          form.submit();
+        });
+      });
+
+      // bfcache (Safari/Chrome back-navigation) restores the page exactly as
+      // it was left — including "mid-upload" — with no submit ever re-firing.
+      window.addEventListener('pageshow', function (event) {
+        if (event.persisted) resetScanButtons();
+      });
+    </script>
+  </body>
+</html>

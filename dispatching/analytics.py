@@ -163,6 +163,17 @@ _LOCAL_IDRIVE_UNIVERSAL_KEYWORDS = [   # ~20-25 min from MCO; priced via 'Univer
 
 
 @lru_cache(maxsize=512)
+def is_cruise_port_location(location_text: str) -> bool:
+    """True for a cruise-port pickup or drop-off (Port Canaveral and around).
+
+    Same keyword list is_airport_location() already uses to rule ports OUT of
+    being terminals, so the two can never drift into disagreeing about a place.
+    """
+    if not location_text:
+        return False
+    return any(k in location_text.lower() for k in _PORT_KEYWORDS)
+
+
 def is_airport_location(location_text: str) -> bool:
     """Return True if the location is an airport TERMINAL (passenger pickup/dropoff).
 
