@@ -286,6 +286,12 @@ urlpatterns = [
         views.dispatcher_booking_cancel,
         name="dispatcher_booking_cancel",
     ),
+    # Live flight schedule lookup for the booking wizard's trip step
+    path(
+        "api/booking-flight-lookup/",
+        views.booking_flight_lookup,
+        name="booking_flight_lookup",
+    ),
     # Customer Search API
     path(
         "api/customer-search/",

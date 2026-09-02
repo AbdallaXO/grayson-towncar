@@ -1,303 +1,268 @@
 {% extends "dispatching/booking/base_booking.html" %}
 
-{% block extra_css %}
-  {{ block.super }}
-  <style>
-      .customer-result-card:hover {
-          background-color: #f8f9fa;
-          border-color: #0d6efd;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          transition: all 0.2s ease;
-      }
-
-      .customer-result-card {
-          transition: all 0.2s ease;
-          border: 1px solid #dee2e6;
-      }
-
-      #search-results .alert {
-          border-radius: 8px;
-      }
-
-      .spinner-border-sm {
-          width: 1rem;
-          height: 1rem;
-      }
-  </style>
-{% endblock %}
-
 {% block step_content %}
-  <form method="post" class="needs-validation" novalidate>
+  <style>
+      .rw-lookup-row {
+          display:grid; grid-template-columns:minmax(0,1fr) auto 14px;
+          align-items:center; gap:10px;
+          width:100%; text-align:left;
+          padding:10px 13px; margin-bottom:8px;
+          border:1px solid var(--line-2); border-radius:7px;
+          background:var(--card); font-family:inherit; cursor:pointer;
+      }
+      .rw-lookup-row:hover { border-color:var(--blue); background:var(--blue-soft); }
+      .rw-lookup-row .nm { font-size:13.5px; font-weight:600; color:var(--ink); }
+      .rw-lookup-row .ct { font-size:11.5px; color:var(--muted); margin-top:2px; overflow-wrap:anywhere; }
+      .rw-lookup-row .rides { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+      .rw-lookup-row .bi-chevron-right { color:var(--muted-2); font-size:12px; }
+      .rw-status {
+          display:inline-block; margin-left:7px; padding:2px 8px; border-radius:50px;
+          font-size:10px; font-weight:600; vertical-align:1px;
+      }
+      .rw-status.returning { background:var(--green); color:#fff; }
+      .rw-status.repeat { background:var(--blue-soft); color:var(--blue); border:1px solid var(--blue-line); }
+      .rw-status.lead { background:var(--bg); color:var(--muted); border:1px solid var(--line-2); }
+
+      .rw-inline { display:flex; gap:8px; align-items:stretch; }
+      .rw-inline > input { flex:1 1 auto; min-width:0; }
+      .rw-btn-soft {
+          flex:0 0 auto; white-space:nowrap;
+          padding:10px 15px; border:1px solid var(--blue); border-radius:6px;
+          background:var(--blue-soft); color:var(--blue);
+          font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+      }
+      .rw-btn-soft:hover { background:#dbeafe; }
+      .rw-lasttrip {
+          display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+          padding:12px 14px; border:1px solid var(--line-2); border-radius:8px; background:var(--card);
+      }
+      .rw-lasttrip .lbl { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+      .rw-lasttrip .trip { font-size:13px; font-weight:600; color:var(--ink); }
+  </style>
+
+  <form method="post" id="rw-form" novalidate>
     {% csrf_token %}
 
-    <div class="row">
-      <div class="col-md-6">
-        <div class="mb-3">
-          <label for="{{ form.first_name.id_for_label }}" class="form-label fw-bold">
-            {{ form.first_name.label }} <span class="text-danger">*</span>
-          </label>
+    {% comment %} "Book This Route Again" has to survive the hop to step 3, so the chosen
+       route rides along with the customer post and is stashed in the session. {% endcomment %}
+    <input type="hidden" name="repeat_from" id="rw-repeat-from" value="">
+    <input type="hidden" name="repeat_to" id="rw-repeat-to" value="">
+    <input type="hidden" name="repeat_airline" id="rw-repeat-airline" value="">
+
+    <div class="rw-stack">
+
+      <div class="rw-fields">
+        <label class="rw-field">
+          <span class="rw-label">{{ form.first_name.label }} <span class="rw-req">*</span></span>
           {{ form.first_name }}
-          {% if form.first_name.errors %}<div class="invalid-feedback">{{ form.first_name.errors.0 }}</div>{% endif %}
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="mb-3">
-          <label for="{{ form.last_name.id_for_label }}" class="form-label fw-bold">
-            {{ form.last_name.label }} <span class="text-danger">*</span>
-          </label>
+          {% if form.first_name.errors %}<div class="rw-field-error">{{ form.first_name.errors.0 }}</div>{% endif %}
+        </label>
+        <label class="rw-field">
+          <span class="rw-label">{{ form.last_name.label }} <span class="rw-req">*</span></span>
           {{ form.last_name }}
-          {% if form.last_name.errors %}<div class="invalid-feedback">{{ form.last_name.errors.0 }}</div>{% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col-md-6">
-        <div class="mb-3">
-          <label for="{{ form.email.id_for_label }}" class="form-label fw-bold">
-            {{ form.email.label }} <span class="text-danger">*</span>
-          </label>
+          {% if form.last_name.errors %}<div class="rw-field-error">{{ form.last_name.errors.0 }}</div>{% endif %}
+        </label>
+        <label class="rw-field">
+          <span class="rw-label">{{ form.email.label }} <span class="rw-req">*</span></span>
           {{ form.email }}
-          {% if form.email.errors %}<div class="invalid-feedback">{{ form.email.errors.0 }}</div>{% endif %}
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="mb-3">
-          <label for="{{ form.phone_number.id_for_label }}" class="form-label fw-bold">
-            {{ form.phone_number.label }} <span class="text-danger">*</span>
-          </label>
+          {% if form.email.errors %}<div class="rw-field-error">{{ form.email.errors.0 }}</div>{% endif %}
+        </label>
+        <label class="rw-field">
+          <span class="rw-label">{{ form.phone_number.label }} <span class="rw-req">*</span></span>
           {{ form.phone_number }}
-          {% if form.phone_number.errors %}<div class="invalid-feedback">{{ form.phone_number.errors.0 }}</div>{% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col-md-6">
-        <div class="mb-3">
-          <label for="{{ form.zipcode.id_for_label }}" class="form-label fw-bold">{{ form.zipcode.label }}</label>
+          {% if form.phone_number.errors %}<div class="rw-field-error">{{ form.phone_number.errors.0 }}</div>{% endif %}
+        </label>
+        <label class="rw-field">
+          <span class="rw-label">{{ form.zipcode.label }}</span>
           {{ form.zipcode }}
-          {% if form.zipcode.errors %}<div class="invalid-feedback">{{ form.zipcode.errors.0 }}</div>{% endif %}
-        </div>
+          {% if form.zipcode.errors %}<div class="rw-field-error">{{ form.zipcode.errors.0 }}</div>{% endif %}
+        </label>
       </div>
-    </div>
 
-    <!-- Customer Search/Lookup Feature -->
-    <div class="card bg-light mt-4">
-      <div class="card-body">
-        <h6 class="card-title">
-          <i class="fas fa-search me-2"></i>
-          Quick Customer Lookup
-        </h6>
-        <p class="card-text small text-muted">
-          Search for existing customers by name, email, or phone number to auto-fill information
-        </p>
-        <div class="row">
-          <div class="col-md-8">
-            <input type="text"
-                   class="form-control"
-                   id="customer-search"
-                   placeholder="Enter first name, last name, email, or phone number..."
-                   autocomplete="off">
-          </div>
-          <div class="col-md-4">
-            <button type="button" class="btn btn-outline-primary w-100" id="search-btn">
-              <i class="fas fa-search me-1"></i>
-              Search
+      <div class="rw-flags" id="rw-flags"></div>
+
+      <div id="rw-lasttrip-slot"></div>
+
+      {# ── Quick Customer Lookup ── #}
+      <div class="rw-sec">
+        <div class="rw-sec-head">
+          <i class="bi bi-search"></i>
+          <h3>Quick Customer Lookup</h3>
+          <span class="hint">Search by name, email, or phone to auto-fill</span>
+        </div>
+        <div class="rw-sec-body">
+          <div class="rw-inline">
+            <input type="text" id="rw-search" autocomplete="off"
+                   placeholder="Enter first name, last name, email, or phone number…">
+            <button type="button" class="rw-btn-soft" id="rw-search-btn">
+              <i class="bi bi-search"></i> Search
             </button>
           </div>
-        </div>
-        <div id="search-results" class="mt-3" style="display: none;"></div>
-        <div id="search-loading" class="mt-3 text-center" style="display: none;">
-          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-          <span class="text-muted">Searching customers...</span>
+          <div id="rw-search-results" style="margin-top:12px"></div>
         </div>
       </div>
+
     </div>
 
-    <div class="d-flex justify-content-between mt-4">
-      <a href="{% url 'dashboard' %}" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Back to Dashboard
+    <div class="rw-actions">
+      <a href="{% url 'dashboard' %}" class="rw-back">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
       </a>
-      <button type="submit" class="btn btn-primary">
-        Next: Reservation Details
-        <i class="fas fa-arrow-right ms-2"></i>
-      </button>
+      <div class="rw-actions-right">
+        <span class="rw-gate-note" id="rw-note"></span>
+        <button type="submit" class="rw-next" id="rw-next">
+          Next: Reservation Details <i class="bi bi-arrow-right"></i>
+        </button>
+      </div>
     </div>
   </form>
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          const searchInput = document.getElementById('customer-search');
-          const searchBtn = document.getElementById('search-btn');
-          const searchResults = document.getElementById('search-results');
+          var form  = document.getElementById('rw-form');
+          var first = document.getElementById('{{ form.first_name.id_for_label }}');
+          var last  = document.getElementById('{{ form.last_name.id_for_label }}');
+          var email = document.getElementById('{{ form.email.id_for_label }}');
+          var phone = document.getElementById('{{ form.phone_number.id_for_label }}');
+          var zip   = document.getElementById('{{ form.zipcode.id_for_label }}');
 
-          // Phone number formatting removed - caused issues with customer search
+          /* ── Validation ─────────────────────────────────────────────
+             Blocking: the driver cannot run the trip without these.
+             Warning: something was typed but does not look right. Warnings
+             never block — they only ask the dispatcher to look. ── */
+          function custFlags() {
+              var out = [];
+              var e = (email.value || '').trim();
+              var digits = (phone.value || '').replace(/\D/g, '');
+              if (!first.value.trim() || !last.value.trim())
+                  out.push({tone:'crit', text:'First and last name are required.'});
+              if (!phone.value.trim())
+                  out.push({tone:'crit', text:'A phone number is required — the driver texts the guest on arrival.'});
+              else if (digits.length < 10 || digits.length > 11)
+                  out.push({tone:'warn', text:'That phone number has ' + digits.length + ' digits — US numbers have 10.'});
+              if (!e)
+                  out.push({tone:'crit', text:'An email address is required for the confirmation.'});
+              else if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(e))
+                  out.push({tone:'warn', text:'That email address does not look complete.'});
+              return out;
+          }
 
-          // Customer search functionality
-          function searchCustomers() {
-              const query = searchInput.value.trim();
-              if (query.length < 2) {
-                  searchResults.style.display = 'none';
+          window.rwGate({
+              form: form,
+              button: document.getElementById('rw-next'),
+              note: document.getElementById('rw-note'),
+              flagBox: document.getElementById('rw-flags'),
+              compute: custFlags
+          });
+
+          /* ── Quick Customer Lookup ── */
+          var search = document.getElementById('rw-search');
+          var results = document.getElementById('rw-search-results');
+          var lastTripSlot = document.getElementById('rw-lasttrip-slot');
+
+          function statusPill(c) {
+              if (c.reservation_count > 4) return '<span class="rw-status returning">Returning Customer</span>';
+              if (c.reservation_count > 0) return '<span class="rw-status repeat">Repeat</span>';
+              return '<span class="rw-status lead">Lead</span>';
+          }
+
+          function esc(s) {
+              return String(s == null ? '' : s).replace(/[&<>"']/g, function(m) {
+                  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+              });
+          }
+
+          function renderResults(customers) {
+              if (!customers.length) {
+                  results.innerHTML = '<div class="rw-note neutral"><i class="bi bi-info-circle"></i>' +
+                      'No existing customer matched that. Keep typing the details to create a new record.</div>';
                   return;
               }
+              results.innerHTML = '';
+              customers.slice(0, 6).forEach(function(c) {
+                  var row = document.createElement('button');
+                  row.type = 'button';
+                  row.className = 'rw-lookup-row';
+                  row.innerHTML =
+                      '<span style="min-width:0">' +
+                        '<span class="nm">' + esc(c.full_name) + '</span>' + statusPill(c) +
+                        '<span class="ct" style="display:block">' + esc(c.email) + ' · ' + esc(c.phone_number) + '</span>' +
+                      '</span>' +
+                      '<span class="rides">' + (c.reservation_count || 0) +
+                        (c.reservation_count === 1 ? ' ride' : ' rides') + '</span>' +
+                      '<i class="bi bi-chevron-right"></i>';
+                  row.addEventListener('click', function(){ selectCustomer(c); });
+                  results.appendChild(row);
+              });
+          }
 
-              // Show loading indicator
-              document.getElementById('search-loading').style.display = 'block';
-              searchResults.style.display = 'none';
+          function renderLastTrip(c) {
+              lastTripSlot.innerHTML = '';
+              document.getElementById('rw-repeat-from').value = '';
+              document.getElementById('rw-repeat-to').value = '';
+              document.getElementById('rw-repeat-airline').value = '';
+              if (!c || !c.last_trip || !c.last_route) return;
 
-              // Make AJAX call to search API
-              fetch(`{% url 'customer_search_api' %}?q=${encodeURIComponent(query)}`)
-                  .then(response => response.json())
-                  .then(data => {
-                      document.getElementById('search-loading').style.display = 'none';
+              var box = document.createElement('div');
+              box.className = 'rw-lasttrip';
+              box.innerHTML =
+                  '<span class="lbl">Last Trip On File</span>' +
+                  '<span class="trip">' + esc(c.last_trip) + '</span>';
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'rw-btn-soft';
+              btn.style.marginLeft = 'auto';
+              btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Book This Route Again';
+              btn.addEventListener('click', function() {
+                  document.getElementById('rw-repeat-from').value = c.last_route.from || '';
+                  document.getElementById('rw-repeat-to').value = c.last_route.to || '';
+                  document.getElementById('rw-repeat-airline').value = c.last_route.airline || '';
+                  btn.innerHTML = '<i class="bi bi-check-lg"></i> Will pre-fill leg 1';
+                  btn.disabled = true;
+                  btn.style.opacity = '.75';
+              });
+              box.appendChild(btn);
+              lastTripSlot.appendChild(box);
+          }
 
-                      if (data.success && data.customers.length > 0) {
-                          displaySearchResults(data.customers);
-                      } else {
-                          searchResults.innerHTML = `
-                        <div class="alert alert-info mb-0">
-                            <i class="fas fa-info-circle me-2"></i>
-                            <strong>No existing customers found for "${query}"</strong><br>
-                            <small>Continue filling out the form to create a new customer record.</small>
-                        </div>
-                    `;
-                          searchResults.style.display = 'block';
-                      }
+          function selectCustomer(c) {
+              first.value = c.first_name || '';
+              last.value  = c.last_name || '';
+              email.value = c.email || '';
+              phone.value = c.phone_number || '';
+              zip.value   = c.zipcode || '';
+              results.innerHTML = '';
+              search.value = '';
+              renderLastTrip(c);
+              form.dispatchEvent(new Event('input', {bubbles:true}));
+          }
+
+          function runSearch() {
+              var q = search.value.trim();
+              if (q.length < 2) { results.innerHTML = ''; return; }
+              fetch('{% url "customer_search_api" %}?q=' + encodeURIComponent(q))
+                  .then(function(r){ return r.json(); })
+                  .then(function(data) {
+                      renderResults((data && data.customers) || []);
                   })
-                  .catch(error => {
-                      document.getElementById('search-loading').style.display = 'none';
-                      console.error('Search error:', error);
-                      searchResults.innerHTML = `
-                    <div class="alert alert-warning mb-0">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Search temporarily unavailable. Please enter customer information manually.
-                    </div>
-                `;
-                      searchResults.style.display = 'block';
+                  .catch(function() {
+                      results.innerHTML = '<div class="rw-flag warn">' +
+                          '<i class="bi bi-exclamation-triangle-fill"></i>' +
+                          '<span>Lookup is unavailable right now — enter the details by hand.</span></div>';
                   });
           }
 
-          // Display search results with clickable customer cards
-          function displaySearchResults(customers) {
-              let html = '<div class="mb-2"><strong>Found ' + customers.length + ' customer(s):</strong></div>';
-
-              customers.forEach(customer => {
-                  const returnBadge = customer.is_returning ?
-                      '<span class="badge bg-success ms-2">Returning Customer</span>' : '';
-
-                  html += `
-                <div class="card mb-2 customer-result-card" style="cursor: pointer;" data-customer='${JSON.stringify(customer)}'>
-                    <div class="card-body py-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>${customer.full_name}</strong>${returnBadge}
-                                <br>
-                                <small class="text-muted">
-                                    ${customer.email} • ${customer.phone_number}
-                                    ${customer.reservation_count > 0 ? ' • ' + customer.reservation_count + ' reservations' : ''}
-                                </small>
-                            </div>
-                            <div>
-                                <i class="fas fa-chevron-right text-muted"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-              });
-
-              searchResults.innerHTML = html;
-              searchResults.style.display = 'block';
-
-              // Add click handlers for customer selection
-              document.querySelectorAll('.customer-result-card').forEach(card => {
-                  card.addEventListener('click', function() {
-                      const customer = JSON.parse(this.dataset.customer);
-                      selectCustomer(customer);
-                  });
-              });
-          }
-
-          // Fill form with selected customer data
-          function selectCustomer(customer) {
-              document.getElementById('{{ form.first_name.id_for_label }}').value = customer.first_name;
-              document.getElementById('{{ form.last_name.id_for_label }}').value = customer.last_name;
-              document.getElementById('{{ form.email.id_for_label }}').value = customer.email;
-              document.getElementById('{{ form.phone_number.id_for_label }}').value = customer.phone_number;
-              document.getElementById('{{ form.zipcode.id_for_label }}').value = customer.zipcode || '';
-
-              // Hide search results
-              searchResults.style.display = 'none';
-              searchInput.value = '';
-
-              // Reuse a single banner so repeated selections don't stack alerts.
-              let banner = document.getElementById('customer-loaded-banner');
-              if (!banner) {
-                  banner = document.createElement('div');
-                  banner.id = 'customer-loaded-banner';
-                  banner.className = 'booking-flash success is-persistent mt-3';
-                  banner.setAttribute('role', 'status');
-                  banner.innerHTML =
-                      '<span class="icon"><i class="fas fa-check"></i></span>' +
-                      '<div class="body"><strong>Customer loaded.</strong> <span class="cust-name"></span></div>' +
-                      '<button type="button" class="close" aria-label="Close" ' +
-                      'onclick="this.closest(\'.booking-flash\').remove();">' +
-                      '<i class="fas fa-times"></i></button>';
-                  document.querySelector('.card.bg-light').insertAdjacentElement('afterend', banner);
-              }
-              banner.querySelector('.cust-name').textContent =
-                  customer.full_name + ' (' + (customer.is_returning ? 'Returning customer' : 'New customer') + ')';
-              // No auto-removal — banner stays until the user dismisses it or navigates away.
-          }
-
-          searchBtn.addEventListener('click', searchCustomers);
-          searchInput.addEventListener('keypress', function(e) {
-              if (e.key === 'Enter') {
-                  e.preventDefault();
-                  searchCustomers();
-              }
+          var searchTimer;
+          search.addEventListener('input', function() {
+              clearTimeout(searchTimer);
+              if (search.value.trim().length < 2) { results.innerHTML = ''; return; }
+              searchTimer = setTimeout(runSearch, 350);
           });
-
-          // Live search as user types (with debounce)
-          let searchTimeout;
-          searchInput.addEventListener('input', function(e) {
-              clearTimeout(searchTimeout);
-              const query = e.target.value.trim();
-
-              if (query.length < 2) {
-                  searchResults.style.display = 'none';
-                  document.getElementById('search-loading').style.display = 'none';
-                  return;
-              }
-
-              // Debounce search to avoid too many API calls
-              searchTimeout = setTimeout(() => {
-                  searchCustomers();
-              }, 500); // Wait 500ms after user stops typing
+          search.addEventListener('keypress', function(e) {
+              if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
           });
+          document.getElementById('rw-search-btn').addEventListener('click', runSearch);
 
-          // Form validation
-          const form = document.querySelector('form');
-          form.addEventListener('submit', function(e) {
-              const requiredFields = form.querySelectorAll('input[required]');
-              let isValid = true;
-
-              requiredFields.forEach(field => {
-                  if (!field.value.trim()) {
-                      field.classList.add('is-invalid');
-                      isValid = false;
-                  } else {
-                      field.classList.remove('is-invalid');
-                  }
-              });
-
-              if (!isValid) {
-                  e.preventDefault();
-              }
-          });
       });
   </script>
 {% endblock %}

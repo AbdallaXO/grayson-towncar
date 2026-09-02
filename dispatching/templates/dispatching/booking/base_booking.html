@@ -1,552 +1,582 @@
 {% extends "main.html" %}
-{% load static %}
+{% load static booking_filters %}
 
 {% block title %}Dispatcher Booking - Step {{ step }} - Grayson Towncar{% endblock %}
 
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <style>
-      :root {
-          --booking-primary: #2563eb;
-          --booking-primary-dark: #1d4ed8;
-          --booking-accent: #1d4ed8;
-          --booking-success: #10b981;
-          --booking-text: #0f172a;
-          --booking-muted: #64748b;
-          --booking-border: #e2e8f0;
-          --booking-bg: #f8fafc;
-          --booking-card-shadow: 0 1px 3px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.04);
-      }
+      /* ══════════════════════════════════════════════════════════════
+         Dispatcher reservation wizard.
 
-      .booking-shell {
-          background: var(--booking-bg);
-          padding: 1.75rem 0 4rem;
-          min-height: calc(100vh - 80px);
+         A dense internal tool, not the marketing site: Montserrat only,
+         white/blue chrome, gold reserved for exactly two brand touches
+         (the grocery stop and the suggested-rate lightbulb).
+         ══════════════════════════════════════════════════════════════ */
+      .rw {
+          --bg:#f8f9fa; --card:#ffffff; --line:#e9ecef; --line-2:#dee2e6;
+          --ink:#212529; --ink-2:#495057; --muted:#6c757d; --muted-2:#adb5bd;
+          --blue:#2563eb; --blue-dark:#1d4ed8; --blue-soft:#eff6ff; --blue-line:#bfdbfe;
+          --green:#10b981; --green-soft:#ecfdf5; --green-line:#a7f3d0; --green-ink:#065f46;
+          --warn:#ea580c; --warn-deep:#c2410c; --warn-tint:#fff7ed; --warn-tint-line:#fdba74;
+          --red:#dc3545;
+          --gold:#C9A227;
+          /* kept so older step markup reading these keeps working */
+          --booking-primary:#2563eb; --booking-primary-dark:#1d4ed8;
+          --booking-border:#dee2e6; --booking-muted:#6c757d; --booking-text:#212529;
+          font-family:'Montserrat',-apple-system,BlinkMacSystemFont,sans-serif;
+          color:var(--ink);
+          background:var(--bg);
       }
+      .rw *, .rw *::before, .rw *::after { box-sizing:border-box; }
+      .rw-shell { max-width:1240px; margin:0 auto; padding:26px 32px 90px; min-height:100vh; }
 
-      .booking-page-title {
-          font-size: 1.05rem;
-          font-weight: 600;
-          color: var(--booking-muted);
-          letter-spacing: .04em;
-          text-transform: uppercase;
-          margin-bottom: .25rem;
+      /* ── Header ── */
+      .rw-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
+      .rw-eyebrow {
+          font-size:11.5px; font-weight:600; letter-spacing:.09em;
+          text-transform:uppercase; color:var(--muted);
       }
-      .booking-page-title h1 {
-          font-size: 1.75rem;
-          color: var(--booking-text);
-          font-weight: 700;
-          letter-spacing: -.01em;
-          margin: 0;
-          text-transform: none;
+      .rw-title {
+          margin:4px 0 0; font-size:32px; font-weight:600; line-height:1.15;
+          letter-spacing:-.01em; color:var(--ink);
       }
+      .rw-cancel {
+          display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+          padding:7px 13px; border:1px solid var(--red); border-radius:6px;
+          background:var(--card); color:var(--red);
+          font-size:12.5px; font-weight:500; text-decoration:none;
+      }
+      .rw-cancel:hover { background:#fff5f5; color:var(--red); text-decoration:none; }
+      .rw-cancel i { font-size:10px; }
 
-      /* Step indicator — clean numbered nodes */
-      .step-rail {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: .25rem;
-          margin: 1.25rem 0 .75rem;
-          flex-wrap: nowrap;
-          overflow-x: auto;
+      /* ── Stepper ── */
+      .rw-stepper { margin-top:20px; }
+      .rw-steps { display:flex; align-items:flex-start; }
+      .rw-step {
+          display:flex; flex-direction:column; align-items:center; gap:6px;
+          flex:0 0 auto; padding:0; border:0; background:none; text-decoration:none;
       }
-      .step-node {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          flex: 0 0 auto;
-          min-width: 0;
-          gap: .35rem;
+      .rw-step.is-locked { cursor:not-allowed; }
+      a.rw-step:hover { text-decoration:none; }
+      .rw-circle {
+          width:30px; height:30px; border-radius:50%;
+          display:inline-flex; align-items:center; justify-content:center;
+          font-size:13px; font-weight:600;
+          background:var(--card); color:var(--muted); border:1px solid var(--line-2);
       }
-      .step-node .step-num {
-          width: 34px; height: 34px;
-          border-radius: 50%;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 600;
-          font-size: .9rem;
-          background: #fff;
-          color: var(--booking-muted);
-          border: 2px solid var(--booking-border);
-          transition: all .15s ease;
+      .rw-step.is-complete .rw-circle { background:var(--green); color:#fff; border:0; }
+      .rw-step.is-active   .rw-circle { background:var(--blue);  color:#fff; border:0; }
+      .rw-step.is-locked   .rw-circle {
+          background:var(--bg); color:var(--muted-2); border:1px dashed var(--line-2);
       }
-      .step-node .step-label {
-          font-size: .72rem;
-          color: var(--booking-muted);
-          font-weight: 500;
-          letter-spacing: .02em;
-          white-space: nowrap;
-      }
-      .step-node.is-active .step-num {
-          background: var(--booking-primary);
-          border-color: var(--booking-primary);
-          color: #fff;
-          box-shadow: 0 0 0 4px rgba(37,99,235,.15);
-      }
-      .step-node.is-active .step-label {
-          color: var(--booking-primary);
-          font-weight: 600;
-      }
-      .step-node.is-done .step-num {
-          background: var(--booking-success);
-          border-color: var(--booking-success);
-          color: #fff;
-      }
-      .step-node.is-done .step-num::before {
-          content: "\f00c";
-          font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", FontAwesome;
-          font-weight: 900;
-      }
-      .step-node.is-done .step-num span { display: none; }
-      .step-node.is-done .step-label { color: var(--booking-text); }
-      .step-bar {
-          flex: 1 1 auto;
-          height: 2px;
-          background: var(--booking-border);
-          margin: 0 .25rem;
-          align-self: flex-start;
-          margin-top: 17px;
-          min-width: 12px;
-      }
-      .step-bar.is-done { background: var(--booking-success); }
+      .rw-step.is-locked .rw-circle i { font-size:11px; }
+      .rw-step-label { font-size:11.5px; font-weight:600; color:var(--muted); }
+      .rw-step.is-active   .rw-step-label { color:var(--blue); }
+      .rw-step.is-complete .rw-step-label { color:var(--ink-2); }
+      .rw-step.is-locked   .rw-step-label { color:var(--muted-2); }
+      .rw-conn { flex:1 1 0; height:2px; background:var(--line-2); margin:14px 8px 20px; min-width:10px; }
+      .rw-conn.is-done { background:var(--green); }
+      .rw-progress { margin-top:10px; height:4px; background:var(--line); border-radius:2px; overflow:hidden; }
+      .rw-progress > span { display:block; height:100%; background:var(--blue); border-radius:2px; transition:width .3s ease; }
 
-      /* Progress bar (gradient) */
-      .booking-progress {
-          height: 6px;
-          background: #eef2f7;
-          border-radius: 999px;
-          overflow: hidden;
+      /* ── Layout ── */
+      .rw-grid { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:22px; margin-top:22px; align-items:start; }
+      .rw-main { min-width:0; }
+      .rw-card {
+          background:var(--card); border:1px solid var(--line); border-radius:10px;
+          box-shadow:0 1px 3px rgba(0,0,0,.04); padding:24px;
       }
-      .booking-progress > .bar {
-          height: 100%;
-          background: linear-gradient(90deg, var(--booking-primary), var(--booking-accent));
-          border-radius: 999px;
-          transition: width .35s ease;
-      }
+      .rw-card-title { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+      .rw-card-sub { margin:4px 0 0; font-size:12.5px; color:var(--muted); }
+      .rw-stack { display:flex; flex-direction:column; gap:18px; margin-top:20px; }
 
-      /* Card container */
-      .booking-card {
-          background: #fff;
-          border-radius: 14px;
-          box-shadow: var(--booking-card-shadow);
-          padding: 1.75rem;
-          margin-bottom: 1.5rem;
-          border: 1px solid var(--booking-border);
+      /* ── Section blocks ── */
+      .rw-sec { border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+      .rw-sec-head {
+          display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+          padding:11px 14px; background:var(--bg); border-bottom:1px solid var(--line);
       }
-      .booking-card .step-heading h2 {
-          font-size: 1.4rem;
-          font-weight: 700;
-          color: var(--booking-text);
-          margin-bottom: .15rem;
-      }
-      .booking-card .step-heading p {
-          color: var(--booking-muted);
-          font-size: .9rem;
-          margin-bottom: 0;
-      }
+      .rw-sec-head > i { font-size:13px; color:var(--ink-2); }
+      .rw-sec-head h3 { margin:0; font-size:13.5px; font-weight:600; color:var(--ink); }
+      .rw-sec-head .hint { font-size:11.5px; color:var(--muted); font-weight:500; }
+      .rw-sec-head .spacer { margin-left:auto; }
+      .rw-sec-body { padding:16px; }
 
-      /* Sidebar */
-      .booking-summary {
-          background: #fff;
-          border: 1px solid var(--booking-border);
-          border-radius: 14px;
-          padding: 1.25rem;
-          box-shadow: var(--booking-card-shadow);
-          position: sticky;
-          top: 1rem;
-      }
-      .booking-summary h5 {
-          font-size: .92rem;
-          font-weight: 700;
-          color: var(--booking-text);
-          margin-bottom: .85rem;
-          text-transform: uppercase;
-          letter-spacing: .04em;
-      }
-      .booking-summary .summary-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          font-size: .9rem;
-          padding: .35rem 0;
-          border-bottom: 1px dashed #eef2f7;
-          gap: .75rem;
-      }
-      .booking-summary .summary-row:last-child { border-bottom: 0; }
-      .booking-summary .summary-row .lbl {
-          color: var(--booking-muted);
-          font-weight: 500;
-          flex: 0 0 auto;
-      }
-      .booking-summary .summary-row .val {
-          color: var(--booking-text);
-          font-weight: 600;
-          text-align: right;
-          word-break: break-word;
-      }
-      .booking-summary .summary-row.total {
-          margin-top: .35rem;
-          padding-top: .65rem;
-          border-top: 1px solid var(--booking-border);
-          border-bottom: 0;
-      }
-      .booking-summary .summary-row.total .val {
-          color: var(--booking-success);
-          font-size: 1.05rem;
-      }
+      /* ── Fields ── */
+      .rw-fields { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+      .rw-field { display:block; min-width:0; }
+      .rw-label { display:block; font-size:12.5px; font-weight:600; margin-bottom:6px; color:var(--ink); }
+      .rw-req { color:var(--red); }
+      .rw-help { font-size:11.5px; color:var(--muted); margin-top:5px; }
+      .rw-group-label { font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
 
-      /* Flash messages — compact toast inside the page flow */
-      .booking-flash-stack {
-          display: flex;
-          flex-direction: column;
-          gap: .5rem;
-          margin-bottom: 1rem;
+      .rw input[type="text"], .rw input[type="email"], .rw input[type="tel"],
+      .rw input[type="number"], .rw input[type="date"], .rw input[type="time"],
+      .rw input[type="search"], .rw select, .rw textarea {
+          width:100%; padding:10px 12px; background:var(--card);
+          border:1px solid var(--line-2); border-radius:6px;
+          color:var(--ink); font-family:inherit; font-size:14px; line-height:1.4;
+          font-feature-settings:'tnum' 1; box-shadow:none;
       }
+      .rw textarea { line-height:1.5; resize:vertical; }
+      .rw select {
+          appearance:none; -webkit-appearance:none;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236c757d'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+          background-repeat:no-repeat; background-position:right 10px center; background-size:14px;
+          padding-right:30px;
+      }
+      .rw input:focus, .rw select:focus, .rw textarea:focus {
+          outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.12);
+      }
+      .rw input::placeholder, .rw textarea::placeholder { color:var(--muted-2); }
+      .rw button:focus-visible, .rw a:focus-visible, .rw input:focus-visible {
+          outline:2px solid var(--blue); outline-offset:1px;
+      }
+      .rw .is-invalid { border-color:var(--red) !important; }
+      .rw-field-error { font-size:11.5px; color:var(--red); margin-top:5px; font-weight:500; }
+
+      /* ── Flags: white on a solid fill. Tints do not register at this density. ── */
+      .rw-flags { display:flex; flex-direction:column; gap:8px; }
+      .rw-flags:empty { display:none; }
+      .rw-flag {
+          display:flex; align-items:flex-start; gap:8px;
+          padding:10px 13px; border:0; border-radius:7px;
+          font-size:12.5px; font-weight:500; line-height:1.5; color:#fff;
+      }
+      .rw-flag.crit { background:var(--red); }
+      .rw-flag.warn { background:var(--warn); }
+      .rw-flag > i { margin-top:2px; flex:0 0 auto; }
+      .rw-flag-fix {
+          margin-left:auto; flex:0 0 auto;
+          background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.5);
+          color:#fff; font-family:inherit; font-size:11.5px; font-weight:600;
+          border-radius:5px; padding:3px 9px; cursor:pointer; white-space:nowrap;
+      }
+      .rw-flag-fix:hover { background:rgba(255,255,255,.28); }
+      .rw-flag-link { color:#fff; text-decoration:underline; font-weight:600; white-space:nowrap; margin-left:auto; }
+      .rw-flag-link:hover { color:#fff; }
+
+      /* ── Notes ── */
+      .rw-note {
+          padding:11px 13px; border-radius:7px; font-size:12.5px; line-height:1.5;
+          background:var(--blue-soft); border:1px solid var(--blue-line); color:var(--ink-2);
+      }
+      .rw-note.neutral { background:var(--bg); border-color:var(--line-2); }
+      .rw-note > i { color:var(--blue); margin-right:6px; }
+      .rw-note.neutral > i { color:var(--ink-2); }
+
+      /* ── Pills ── */
+      .rw-pills { display:flex; flex-wrap:wrap; gap:8px; }
+      .rw-pill {
+          padding:8px 14px; border:1px solid var(--line-2); border-radius:50px;
+          background:var(--card); color:var(--ink-2);
+          font-family:inherit; font-size:12.5px; font-weight:500;
+          cursor:pointer; white-space:nowrap;
+          transition:border-color .15s ease, background-color .15s ease, color .15s ease;
+      }
+      .rw-pill:hover { border-color:var(--blue); }
+      .rw-pill.is-on { background:var(--blue-soft); border-color:var(--blue); color:var(--blue); font-weight:600; }
+
+      /* ── Number stepper ── */
+      .rw-num {
+          display:flex; align-items:stretch; max-width:150px;
+          border:1px solid var(--line-2); border-radius:6px; overflow:hidden; background:var(--card);
+      }
+      .rw-num.sm { max-width:132px; }
+      .rw-num button {
+          flex:0 0 36px; width:36px; height:38px; border:0; background:var(--bg);
+          color:var(--ink-2); font-size:16px; line-height:1; cursor:pointer;
+          display:inline-flex; align-items:center; justify-content:center;
+      }
+      .rw-num.sm button { flex-basis:34px; width:34px; height:36px; }
+      .rw-num button:hover { background:#eef0f2; color:var(--blue); }
+      .rw-num button:disabled { color:var(--muted-2); cursor:not-allowed; }
+      .rw-num button.minus { border-right:1px solid var(--line); }
+      .rw-num button.plus  { border-left:1px solid var(--line); }
+      .rw-num input {
+          flex:1 1 auto; min-width:0; width:100%;
+          border:0 !important; border-radius:0 !important; box-shadow:none !important;
+          text-align:center; font-size:15px !important; font-weight:600;
+          padding:8px 2px !important; background:transparent !important;
+          -moz-appearance:textfield;
+      }
+      .rw-num input::-webkit-outer-spin-button,
+      .rw-num input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+
+      /* ── Footer action bar ── */
+      .rw-actions {
+          display:flex; align-items:center; justify-content:space-between; gap:16px;
+          margin-top:24px; padding-top:20px; border-top:1px solid var(--line);
+      }
+      .rw-actions-right { display:flex; align-items:center; gap:14px; margin-left:auto; }
+      .rw-gate-note { font-size:12.5px; font-weight:600; text-align:right; }
+      .rw-gate-note.crit { color:var(--red); }
+      .rw-gate-note.warn { color:var(--warn-deep); }
+      .rw-gate-note.ok   { color:var(--green-ink); }
+      .rw-back, .btn-booking-secondary {
+          display:inline-flex; align-items:center; gap:7px;
+          background:var(--ink-2); color:#fff; border:0; border-radius:6px;
+          padding:10px 16px; font-family:inherit; font-size:13px; font-weight:600;
+          text-decoration:none; cursor:pointer;
+      }
+      .rw-back:hover, .btn-booking-secondary:hover { background:#3d444b; color:#fff; text-decoration:none; }
+      .rw-next, .btn-booking-primary {
+          display:inline-flex; align-items:center; gap:7px;
+          background:var(--blue); color:#fff; border:0; border-radius:6px;
+          padding:11px 20px; font-family:inherit; font-size:13px; font-weight:600;
+          cursor:pointer; text-decoration:none;
+      }
+      .rw-next:hover, .btn-booking-primary:hover { background:var(--blue-dark); color:#fff; text-decoration:none; }
+      .rw-next.create { background:var(--green); }
+      .rw-next.create:hover { background:#0e9f70; }
+      /* Looks disabled, still presses: the press is what reveals what is missing. */
+      .rw-next[aria-disabled="true"] { background:var(--line-2); color:var(--muted); cursor:not-allowed; }
+      .rw-next[aria-disabled="true"]:hover { background:var(--line-2); color:var(--muted); }
+
+      /* ── Booking summary rail ── */
+      .rw-rail {
+          position:sticky; top:22px;
+          background:var(--card); border:1px solid var(--line); border-radius:10px;
+          box-shadow:0 1px 3px rgba(0,0,0,.04); overflow:hidden;
+      }
+      .rw-rail-head { display:flex; align-items:center; gap:7px; padding:14px 15px; border-bottom:1px solid var(--line); }
+      .rw-rail-head i { color:var(--blue); font-size:13px; }
+      .rw-rail-head h4 {
+          margin:0; font-size:11.5px; font-weight:700;
+          letter-spacing:.07em; text-transform:uppercase; color:var(--ink);
+      }
+      .rw-rail-trip { margin-left:auto; font-size:11px; font-weight:600; color:var(--muted); }
+      .rw-rail-group { padding:12px 15px; border-bottom:1px solid var(--line); }
+      .rw-rail-group:last-of-type { border-bottom:0; }
+      .rw-rail-group h5 {
+          margin:0 0 8px; font-size:10.5px; font-weight:700;
+          letter-spacing:.07em; text-transform:uppercase; color:var(--muted-2);
+      }
+      .rw-rail-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:12px; padding:3px 0; }
+      .rw-rail-row .k { color:var(--muted); flex:0 0 auto; }
+      .rw-rail-row .v { color:var(--ink); font-weight:600; text-align:right; overflow-wrap:anywhere; min-width:0; }
+      .rw-rail-row .v.unset { color:var(--muted-2); font-weight:500; }
+      .rw-rail-row.total { padding-top:7px; margin-top:4px; border-top:1px solid var(--line); }
+      .rw-rail-row.total .v { font-size:13.5px; font-weight:700; color:var(--green-ink); }
+      .rw-rail-strip { padding:10px 15px; color:#fff; font-size:12px; font-weight:600; display:flex; align-items:center; gap:7px; }
+      .rw-rail-strip.crit { background:var(--red); }
+      .rw-rail-strip.warn { background:var(--warn); }
+
+      /* ── Flash messages ── */
+      .booking-flash-stack { display:flex; flex-direction:column; gap:8px; margin-top:18px; }
       .booking-flash {
-          display: flex;
-          align-items: flex-start;
-          gap: .75rem;
-          padding: .75rem 1rem;
-          border-radius: 10px;
-          border: 1px solid transparent;
-          background: #fff;
-          font-size: .92rem;
-          box-shadow: 0 4px 12px rgba(15,23,42,.06);
-          position: relative;
+          display:flex; align-items:flex-start; gap:10px;
+          padding:11px 13px; border-radius:7px; border:1px solid var(--line-2);
+          background:var(--card); font-size:12.5px; line-height:1.5; color:var(--ink-2);
       }
       .booking-flash .icon {
-          width: 28px; height: 28px;
-          border-radius: 50%;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          flex: 0 0 auto;
-          font-size: .85rem;
+          width:22px; height:22px; border-radius:50%; flex:0 0 auto;
+          display:inline-flex; align-items:center; justify-content:center;
+          font-size:10px; color:#fff; background:var(--muted);
       }
-      .booking-flash .body { flex: 1 1 auto; line-height: 1.4; color: var(--booking-text); }
-      .booking-flash .title { font-weight: 600; }
-      .booking-flash .close {
-          background: none; border: 0; color: var(--booking-muted);
-          font-size: 1rem; padding: 0 .25rem; cursor: pointer; line-height: 1;
-      }
-      .booking-flash.success { border-color: #bbf7d0; background: #f0fdf4; }
-      .booking-flash.success .icon { background: #10b981; color: #fff; }
-      .booking-flash.error   { border-color: #fecaca; background: #fef2f2; }
-      .booking-flash.error .icon { background: #ef4444; color: #fff; }
-      .booking-flash.warning { border-color: #fde68a; background: #fffbeb; }
-      .booking-flash.warning .icon { background: #f59e0b; color: #fff; }
-      .booking-flash.info    { border-color: #bae6fd; background: #f0f9ff; }
-      .booking-flash.info .icon { background: #0ea5e9; color: #fff; }
+      .booking-flash .body { flex:1 1 auto; min-width:0; }
+      .booking-flash .body ul { margin:4px 0 0; padding-left:18px; }
+      .booking-flash .title { font-weight:600; color:var(--ink); }
+      .booking-flash .close { background:none; border:0; color:var(--muted); font-size:12px; padding:0 2px; cursor:pointer; line-height:1; }
+      .booking-flash.success { background:var(--green-soft); border-color:var(--green-line); color:var(--green-ink); }
+      .booking-flash.success .icon { background:var(--green); }
+      .booking-flash.success .title { color:var(--green-ink); }
+      .booking-flash.error { background:var(--red); border-color:var(--red); color:#fff; }
+      .booking-flash.error .icon { background:rgba(255,255,255,.25); }
+      .booking-flash.error .title, .booking-flash.error a { color:#fff; }
+      .booking-flash.warning { background:var(--warn); border-color:var(--warn); color:#fff; }
+      .booking-flash.warning .icon { background:rgba(255,255,255,.25); }
+      .booking-flash.warning .title { color:#fff; }
+      .booking-flash.info { background:var(--blue-soft); border-color:var(--blue-line); color:var(--ink-2); }
+      .booking-flash.info .icon { background:var(--blue); }
+      .booking-flash.info .title { color:var(--ink); }
+      .booking-flash.is-fading { transition:opacity .35s ease; opacity:0; }
 
-      .booking-flash {
-          animation: flashIn .25s ease;
+      @keyframes rwFadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+      /* ── Modal dialog ── */
+      .rw-backdrop {
+          position:fixed; inset:0; z-index:1080;
+          background:rgba(33,37,41,.5); backdrop-filter:blur(2px);
+          display:flex; align-items:center; justify-content:center; padding:24px;
       }
-      .booking-flash.is-fading { transition: opacity .35s ease, transform .35s ease; opacity: 0; transform: translateY(-4px); }
-      @keyframes flashIn {
-          from { opacity: 0; transform: translateY(-6px); }
-          to   { opacity: 1; transform: translateY(0); }
+      .rw-dialog {
+          width:480px; max-width:100%; background:var(--card); border-radius:12px;
+          box-shadow:0 20px 60px rgba(0,0,0,.22); padding:24px;
+          animation:rwFadeInUp .25s ease-out;
+      }
+      .rw-dialog h3 { margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+      .rw-dialog p { margin:6px 0 0; font-size:12.5px; color:var(--muted); }
+      .rw-dialog-recap { margin-top:16px; background:var(--bg); border-radius:8px; padding:13px 15px; display:flex; flex-direction:column; gap:6px; }
+      .rw-dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+      .rw-dialog-keep {
+          background:var(--card); border:1px solid var(--line-2); border-radius:6px;
+          padding:10px 16px; font-family:inherit; font-size:13px; font-weight:600;
+          color:var(--ink-2); cursor:pointer;
       }
 
-      /* Buttons */
-      .btn-booking-primary {
-          background: var(--booking-primary);
-          color: #fff;
-          border: 0;
-          padding: .65rem 1.5rem;
-          border-radius: 10px;
-          font-weight: 600;
-          font-size: .95rem;
-          box-shadow: 0 4px 14px rgba(37,99,235,.25);
-          transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease, background-color .12s ease;
+      @media (max-width: 1080px) {
+          .rw-grid { grid-template-columns:minmax(0,1fr); }
+          .rw-rail { position:static; }
       }
-      .btn-booking-primary:hover {
-          background: var(--booking-primary-dark);
-          transform: translateY(-1px);
-          box-shadow: 0 6px 18px rgba(37,99,235,.32);
-          color: #fff;
-      }
-      .btn-booking-secondary {
-          background: #fff;
-          color: var(--booking-text);
-          border: 1px solid var(--booking-border);
-          padding: .65rem 1.25rem;
-          border-radius: 10px;
-          font-weight: 500;
-      }
-      .btn-booking-secondary:hover { background: #f8fafc; }
-
-      /* Step indicator — small screens */
-      @media (max-width: 575px) {
-          .step-node .step-label { display: none; }
-          .step-bar { margin-top: 16px; }
+      @media (max-width: 720px) {
+          .rw-shell { padding:20px 16px 70px; }
+          .rw-title { font-size:24px; }
+          .rw-fields { grid-template-columns:1fr; }
+          .rw-step-label { display:none; }
       }
   </style>
 {% endblock %}
 
 {% block content %}
-  <div class="booking-shell">
-    <div class="container">
+{% comment %}
+Reachability: a step opens only once every step before it has been filled in.
+The session keys ARE the completion record — customer_id after step 1,
+reservation_data after 2, legs_data after 3, pricing_data after 4.
+{% endcomment %}
+{% with c1=booking_data.customer_id c2=booking_data.reservation_data c3=booking_data.legs_data c4=booking_data.pricing_data cur=step|default:1 %}
+<div class="rw">
+  <div class="rw-shell">
 
-      {# ---------------- Header & step rail ---------------- #}
-      <div class="d-flex flex-wrap align-items-end justify-content-between mb-3 gap-3">
-        <div>
-          <div class="booking-page-title">Dispatcher Booking</div>
-          <h1>{{ step_title|default:"New Reservation" }}</h1>
-        </div>
-        <a href="{% url 'dispatcher_booking_cancel' %}" class="btn btn-outline-danger btn-sm">
-          <i class="fas fa-times me-1"></i> Cancel Booking
-        </a>
+    <div class="rw-head">
+      <div>
+        <div class="rw-eyebrow">Dispatcher Booking</div>
+        <h1 class="rw-title">{{ step_title|default:"New Reservation" }}</h1>
       </div>
-
-      {# step indicator: 5 nodes — Customer, Details, Trips, Pricing, Review #}
-      {% with current=step|default:1 %}
-      <div class="step-rail">
-        <div class="step-node {% if current == 1 %}is-active{% elif current > 1 %}is-done{% endif %}">
-          <div class="step-num"><span>1</span></div><div class="step-label">Customer</div>
-        </div>
-        <div class="step-bar {% if current > 1 %}is-done{% endif %}"></div>
-        <div class="step-node {% if current == 2 %}is-active{% elif current > 2 %}is-done{% endif %}">
-          <div class="step-num"><span>2</span></div><div class="step-label">Details</div>
-        </div>
-        <div class="step-bar {% if current > 2 %}is-done{% endif %}"></div>
-        <div class="step-node {% if current == 3 %}is-active{% elif current > 3 %}is-done{% endif %}">
-          <div class="step-num"><span>3</span></div><div class="step-label">Trips</div>
-        </div>
-        <div class="step-bar {% if current > 3 %}is-done{% endif %}"></div>
-        <div class="step-node {% if current == 4 %}is-active{% elif current > 4 %}is-done{% endif %}">
-          <div class="step-num"><span>4</span></div><div class="step-label">Pricing</div>
-        </div>
-        <div class="step-bar {% if current > 4 %}is-done{% endif %}"></div>
-        <div class="step-node {% if current == 5 %}is-active{% elif current > 5 %}is-done{% endif %}">
-          <div class="step-num"><span>5</span></div><div class="step-label">Review</div>
-        </div>
-      </div>
-      {% endwith %}
-
-      {# Progress bar #}
-      <div class="booking-progress mb-4">
-        {% if step == 1 %}<div class="bar" style="width: 20%"></div>
-        {% elif step == 2 %}<div class="bar" style="width: 40%"></div>
-        {% elif step == 3 %}<div class="bar" style="width: 60%"></div>
-        {% elif step == 4 %}<div class="bar" style="width: 80%"></div>
-        {% else %}<div class="bar" style="width: 100%"></div>{% endif %}
-      </div>
-
-      {# ---------------- Flash messages (clean toast style) ---------------- #}
-      {% if messages %}
-        <div class="booking-flash-stack">
-          {% for message in messages %}
-            {% with kind=message.tags %}
-              <div class="booking-flash {% if kind == 'error' %}error{% elif kind == 'warning' %}warning{% elif kind == 'success' %}success{% else %}info{% endif %}" role="alert">
-                <span class="icon">
-                  {% if kind == 'error' %}<i class="fas fa-exclamation"></i>
-                  {% elif kind == 'warning' %}<i class="fas fa-exclamation-triangle"></i>
-                  {% elif kind == 'success' %}<i class="fas fa-check"></i>
-                  {% else %}<i class="fas fa-info"></i>{% endif %}
-                </span>
-                <div class="body">
-                  {% if kind == 'error' %}{{ message|safe }}
-                  {% else %}{{ message }}{% endif %}
-                </div>
-                <button type="button" class="close" aria-label="Close"
-                        onclick="this.closest('.booking-flash').classList.add('is-fading'); setTimeout(()=>this.closest('.booking-flash')?.remove(), 350);">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            {% endwith %}
-          {% endfor %}
-        </div>
-      {% endif %}
-
-      {# ---------------- Step content + sidebar ---------------- #}
-      <div class="row g-4">
-        <div class="{% if booking_data %}col-lg-8{% else %}col-12{% endif %}">
-          <div class="booking-card">
-            <div class="step-heading mb-4">
-              <h2>{{ step_title }}</h2>
-              {% if step_description %}<p>{{ step_description }}</p>{% endif %}
-            </div>
-
-            {% block step_content %}{% endblock %}
-          </div>
-        </div>
-
-        {% if booking_data %}
-          <div class="col-lg-4">
-            <div class="booking-summary">
-              <h5><i class="fas fa-clipboard-list me-2 text-primary"></i> Booking Summary</h5>
-
-              {% if booking_data.trip_type %}
-                <div class="summary-row">
-                  <span class="lbl">Trip Type</span>
-                  <span class="val">
-                    {% if booking_data.trip_type == 'one_way' %}One Way
-                    {% elif booking_data.trip_type == 'round_trip' %}Round Trip
-                    {% else %}Multi-Leg{% endif %}
-                  </span>
-                </div>
-              {% endif %}
-
-              {% if booking_data.num_legs %}
-                <div class="summary-row">
-                  <span class="lbl">Legs</span>
-                  <span class="val">{{ booking_data.num_legs }}</span>
-                </div>
-              {% endif %}
-
-              {% if customer %}
-                <div class="summary-row">
-                  <span class="lbl">Customer</span>
-                  <span class="val">{{ customer.get_full_name }}</span>
-                </div>
-                <div class="summary-row">
-                  <span class="lbl">Phone</span>
-                  <span class="val">{{ customer.phone_number }}</span>
-                </div>
-                {% if customer.email %}
-                  <div class="summary-row">
-                    <span class="lbl">Email</span>
-                    <span class="val" style="font-size:.82rem;">{{ customer.email }}</span>
-                  </div>
-                {% endif %}
-              {% endif %}
-
-              {% if reservation_data and vehicle %}
-                <div class="summary-row">
-                  <span class="lbl">Vehicle</span>
-                  <span class="val">{{ vehicle.vehicle_type|title }}</span>
-                </div>
-                <div class="summary-row">
-                  <span class="lbl">Passengers</span>
-                  <span class="val">{{ reservation_data.passenger_count }}</span>
-                </div>
-              {% endif %}
-
-              {% if pricing_data %}
-                {% if pricing_data.manual_base_price %}
-                  <div class="summary-row">
-                    <span class="lbl">Base Price</span>
-                    <span class="val">${{ pricing_data.manual_base_price }}</span>
-                  </div>
-                {% endif %}
-                {% if pricing_data.additional_charges and pricing_data.additional_charges != '0' and pricing_data.additional_charges != '0.00' %}
-                  <div class="summary-row">
-                    <span class="lbl">Additional</span>
-                    <span class="val">${{ pricing_data.additional_charges }}</span>
-                  </div>
-                {% endif %}
-                {% if pricing_data.gratuity_amount and pricing_data.gratuity_amount != '0' and pricing_data.gratuity_amount != '0.00' %}
-                  <div class="summary-row">
-                    <span class="lbl">Gratuity</span>
-                    <span class="val">${{ pricing_data.gratuity_amount }}</span>
-                  </div>
-                {% endif %}
-                {% if pricing_data.total_price %}
-                  <div class="summary-row total">
-                    <span class="lbl">Total</span>
-                    <span class="val">${{ pricing_data.total_price }}</span>
-                  </div>
-                {% endif %}
-              {% endif %}
-            </div>
-          </div>
-        {% endif %}
-      </div>
-
+      <a href="{% url 'dispatcher_booking_cancel' %}" class="rw-cancel">
+        <i class="bi bi-x-lg"></i> Cancel Booking
+      </a>
     </div>
+
+    {% url 'dispatcher_booking_customer' as customer_step_url %}
+    {% url 'dispatcher_booking_reservation' as reservation_step_url %}
+    {% url 'dispatcher_booking_legs' as legs_step_url %}
+    {% url 'dispatcher_booking_pricing' as pricing_step_url %}
+    {% url 'dispatcher_booking_review' as review_step_url %}
+    <div class="rw-stepper">
+      <div class="rw-steps">
+        {% include "dispatching/booking/_step_node.html" with n=1 label="Customer" url=customer_step_url reach=True done=c1 cur=cur %}
+        <div class="rw-conn {% if c1 %}is-done{% endif %}"></div>
+        {% include "dispatching/booking/_step_node.html" with n=2 label="Details" url=reservation_step_url reach=c1 done=c2 cur=cur %}
+        <div class="rw-conn {% if c2 %}is-done{% endif %}"></div>
+        {% include "dispatching/booking/_step_node.html" with n=3 label="Trips" url=legs_step_url reach=c2 done=c3 cur=cur %}
+        <div class="rw-conn {% if c3 %}is-done{% endif %}"></div>
+        {% include "dispatching/booking/_step_node.html" with n=4 label="Pricing" url=pricing_step_url reach=c3 done=c4 cur=cur %}
+        <div class="rw-conn {% if c4 %}is-done{% endif %}"></div>
+        {% include "dispatching/booking/_step_node.html" with n=5 label="Review" url=review_step_url reach=c4 done=False cur=cur %}
+      </div>
+      <div class="rw-progress"><span style="width:{% widthratio cur 5 100 %}%"></span></div>
+    </div>
+
+    {% if messages %}
+      <div class="booking-flash-stack">
+        {% for message in messages %}
+          {% with kind=message.tags %}
+            <div class="booking-flash {% if kind == 'error' %}error{% elif kind == 'warning' %}warning{% elif kind == 'success' %}success{% else %}info{% endif %}" role="alert">
+              <span class="icon">
+                {% if kind == 'error' %}<i class="bi bi-exclamation-octagon-fill"></i>
+                {% elif kind == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>
+                {% elif kind == 'success' %}<i class="bi bi-check-lg"></i>
+                {% else %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+              </span>
+              <div class="body">
+                {% if kind == 'error' %}{{ message|safe }}{% else %}{{ message }}{% endif %}
+              </div>
+              <button type="button" class="close" aria-label="Close"
+                      onclick="this.closest('.booking-flash').classList.add('is-fading'); setTimeout(()=>this.closest('.booking-flash')?.remove(), 350);">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          {% endwith %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="rw-grid">
+      <div class="rw-main">
+        <div class="rw-card">
+          <h2 class="rw-card-title">{{ step_title }}</h2>
+          {% if step_description %}<p class="rw-card-sub">{{ step_description }}</p>{% endif %}
+          {% block step_content %}{% endblock %}
+        </div>
+      </div>
+
+      {% include "dispatching/booking/_summary_rail.html" %}
+    </div>
+
   </div>
+</div>
+{% endwith %}
 
-  {% block extra_js %}
-    <script>
-        // Auto-fade only success and info flashes. Warnings & errors stay until dismissed.
-        setTimeout(function() {
-            document.querySelectorAll('.booking-flash.success, .booking-flash.info').forEach(function(el) {
-                if (el.classList.contains('is-persistent')) return;
-                el.classList.add('is-fading');
-                setTimeout(function(){ el.remove(); }, 350);
-            });
-        }, 6000);
+{% block extra_js %}
+  <script>
+      // Success and info flashes fade; warnings and errors stay until dismissed.
+      setTimeout(function() {
+          document.querySelectorAll('.booking-flash.success, .booking-flash.info').forEach(function(el) {
+              if (el.classList.contains('is-persistent')) return;
+              el.classList.add('is-fading');
+              setTimeout(function(){ el.remove(); }, 350);
+          });
+      }, 6000);
 
-        // Friendly label lookup for required fields that fail client-side validation.
-        function _labelForField(field) {
-            if (field.id) {
-                const lbl = document.querySelector('label[for="' + field.id + '"]');
-                if (lbl) return lbl.textContent.replace(/\*+/g,'').trim();
-            }
-            return (field.getAttribute('name') || 'this field').replace(/_/g,' ');
-        }
+      /* ────────────────────────────────────────────────────────────────
+         Shared wizard behaviour.
 
-        function showFormValidationBanner(form, missing) {
-            // Reuse banner if already present so we don't stack duplicates.
-            let banner = form.querySelector('.client-validation-banner');
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.className = 'booking-flash error client-validation-banner mb-3';
-                banner.setAttribute('role', 'alert');
-                banner.innerHTML =
-                    '<span class="icon"><i class="fas fa-exclamation"></i></span>' +
-                    '<div class="body"><div class="title">Please fill in the required fields below.</div>' +
-                    '<ul class="mb-0 mt-1 small" style="padding-left:1.1rem"></ul></div>' +
-                    '<button type="button" class="close" aria-label="Close" ' +
-                    'onclick="this.closest(\'.booking-flash\').remove();">' +
-                    '<i class="fas fa-times"></i></button>';
-                form.insertBefore(banner, form.firstChild);
-            }
-            const ul = banner.querySelector('ul');
-            ul.innerHTML = '';
-            missing.forEach(function(name) {
-                const li = document.createElement('li');
-                li.textContent = name;
-                ul.appendChild(li);
-            });
-        }
+         rwGate() wires one step's primary button to that step's blocking
+         checks. The button takes the disabled LOOK but stays pressable — a
+         press reveals the flags instead of doing nothing, because a dead
+         button tells the dispatcher nothing about what is missing.
 
-        function clearFormValidationBanner(form) {
-            const banner = form.querySelector('.client-validation-banner');
-            if (banner) banner.remove();
-        }
+         These checks are a convenience, never the authority: every rule
+         here is also enforced server-side.
+         ──────────────────────────────────────────────────────────────── */
+      window.rwGate = function(opts) {
+          var form    = opts.form;
+          var btn     = opts.button;
+          var note    = opts.note;
+          var flagBox = opts.flagBox;
+          var compute = opts.compute;            // () -> [{tone, text, fix}]
+          var alwaysShow = !!opts.alwaysShow;    // step 5 is the audit: show everything
+          var tried = alwaysShow;
+          var api = {};
 
-        // Field-level validation polish
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('form').forEach(function(form) {
-                form.addEventListener('submit', function(e) {
-                    let valid = true;
-                    const missing = [];
-                    form.querySelectorAll('input[required], select[required], textarea[required]').forEach(function(field) {
-                        const v = field.value;
-                        const empty = v === null || v === undefined || !String(v).trim();
-                        if (empty) {
-                            field.classList.add('is-invalid');
-                            field.setAttribute('aria-invalid', 'true');
-                            missing.push(_labelForField(field));
-                            valid = false;
-                        } else {
-                            field.classList.remove('is-invalid');
-                            field.removeAttribute('aria-invalid');
-                        }
-                    });
-                    if (!valid) {
-                        e.preventDefault();
-                        showFormValidationBanner(form, missing);
-                        const first = form.querySelector('.is-invalid');
-                        if (first) {
-                            first.scrollIntoView({behavior:'smooth', block:'center'});
-                            try { first.focus({preventScroll:true}); } catch(_) {}
-                        }
-                    } else {
-                        clearFormValidationBanner(form);
-                    }
-                });
-            });
-            document.querySelectorAll('input, select, textarea').forEach(function(el) {
-                el.addEventListener('input',  function() { this.classList.remove('is-invalid'); this.removeAttribute('aria-invalid'); });
-                el.addEventListener('change', function() { this.classList.remove('is-invalid'); this.removeAttribute('aria-invalid'); });
-            });
-        });
-    </script>
-  {% endblock %}
+          function render() {
+              var flags = compute() || [];
+              var blockers = flags.filter(function(f){ return f.tone === 'crit'; });
+              var warns    = flags.filter(function(f){ return f.tone === 'warn'; });
+
+              // Blocking flags stay hidden until a blocked press. "This field is
+              // empty" is not yet a mistake, and a form that greets the
+              // dispatcher covered in red reads as broken. Warnings are always
+              // shown — each one decides for itself whether it is warranted yet.
+              var shown = tried ? flags : warns;
+              var shownWarns = warns;
+              if (flagBox) {
+                  flagBox.innerHTML = '';
+                  shown.forEach(function(f) {
+                      var el = document.createElement('div');
+                      el.className = 'rw-flag ' + (f.tone === 'crit' ? 'crit' : 'warn');
+                      var icon = f.tone === 'crit' ? 'bi-exclamation-octagon-fill' : 'bi-exclamation-triangle-fill';
+                      el.innerHTML = '<i class="bi ' + icon + '"></i><span></span>';
+                      el.querySelector('span').textContent = f.text;
+                      if (f.fix) {
+                          var b = document.createElement('button');
+                          b.type = 'button';
+                          b.className = 'rw-flag-fix';
+                          b.textContent = f.fix.label;
+                          b.addEventListener('click', f.fix.run);
+                          el.appendChild(b);
+                      }
+                      flagBox.appendChild(el);
+                  });
+              }
+
+              if (btn) {
+                  if (blockers.length) btn.setAttribute('aria-disabled', 'true');
+                  else btn.removeAttribute('aria-disabled');
+              }
+              if (note) {
+                  note.className = 'rw-gate-note';
+                  // Arriving on a step is not a mistake. The note stays quiet
+                  // until the dispatcher tries to move on — then it says
+                  // exactly what is in the way.
+                  if (!tried && blockers.length) {
+                      note.textContent = '';
+                  } else if (blockers.length === 1) {
+                      note.classList.add('crit');
+                      note.textContent = blockers[0].text;
+                  } else if (blockers.length > 1) {
+                      note.classList.add('crit');
+                      note.textContent = blockers.length + ' required fields still missing on this step';
+                  } else if (shownWarns.length) {
+                      note.classList.add('warn');
+                      note.textContent = shownWarns.length +
+                          (shownWarns.length === 1 ? ' thing worth confirming' : ' things worth confirming');
+                  } else {
+                      note.textContent = '';
+                  }
+              }
+              if (window.rwRailFlags) window.rwRailFlags(blockers.length, shownWarns.length, tried);
+              // Steps read this to decide whether an empty field is still just
+              // empty, or has become a mistake the dispatcher needs to see.
+              api.tried = tried;
+              return blockers;
+          }
+
+          if (btn) {
+              btn.addEventListener('click', function(e) {
+                  if (btn.getAttribute('aria-disabled') === 'true') {
+                      e.preventDefault();
+                      tried = true;
+                      render();
+                      var first = flagBox && flagBox.querySelector('.rw-flag');
+                      if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
+                  }
+              });
+          }
+          if (form) {
+              ['input', 'change'].forEach(function(evt) {
+                  form.addEventListener(evt, function(){ render(); });
+              });
+          }
+          api.refresh = render;
+          api.markTried = function(){ tried = true; render(); };
+          render();
+          return api;
+      };
+
+      // Wrap a plain <input type="number"> in −/+ controls.
+      window.rwStepper = function(input, small) {
+          if (!input || input.dataset.rwStepper === '1') return;
+          input.dataset.rwStepper = '1';
+          var wrap = document.createElement('div');
+          wrap.className = 'rw-num' + (small ? ' sm' : '');
+          var minus = document.createElement('button');
+          minus.type = 'button'; minus.className = 'minus'; minus.textContent = '−';
+          minus.setAttribute('aria-label', 'Decrease');
+          var plus = document.createElement('button');
+          plus.type = 'button'; plus.className = 'plus'; plus.textContent = '+';
+          plus.setAttribute('aria-label', 'Increase');
+          input.parentNode.insertBefore(wrap, input);
+          wrap.appendChild(minus); wrap.appendChild(input); wrap.appendChild(plus);
+
+          var lo = parseFloat(input.getAttribute('min'));
+          var hi = parseFloat(input.getAttribute('max'));
+          lo = isFinite(lo) ? lo : 0;
+          hi = isFinite(hi) ? hi : Infinity;
+          function sync() {
+              var v = parseFloat(input.value);
+              minus.disabled = isFinite(v) && v <= lo;
+              plus.disabled  = isFinite(v) && v >= hi;
+          }
+          function bump(d) {
+              var v = parseFloat(input.value);
+              if (!isFinite(v)) v = lo;
+              input.value = Math.max(lo, Math.min(hi, v + d));
+              input.dispatchEvent(new Event('input',  {bubbles:true}));
+              input.dispatchEvent(new Event('change', {bubbles:true}));
+              sync();
+          }
+          minus.addEventListener('click', function(){ bump(-1); });
+          plus.addEventListener('click',  function(){ bump(1); });
+          input.addEventListener('input', sync);
+          sync();
+      };
+
+      // "N things to check" strip at the foot of the summary rail.
+      window.rwRailFlags = function(critCount, warnCount, tried) {
+          var strip = document.getElementById('rw-rail-strip');
+          if (!strip) return;
+          var shown = tried ? (critCount + warnCount) : warnCount;
+          if (!shown) { strip.style.display = 'none'; return; }
+          strip.style.display = 'flex';
+          strip.className = 'rw-rail-strip ' + (tried && critCount ? 'crit' : 'warn');
+          strip.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>' +
+              shown + (shown === 1 ? ' thing to check' : ' things to check');
+      };
+  </script>
+{% endblock %}
 {% endblock content %}
 
 {% block footer %}{% endblock footer %}

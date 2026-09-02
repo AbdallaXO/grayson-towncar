@@ -211,13 +211,184 @@ class BookingWizardFlowTests(TestCase):
         )
 
         before = Reservation.objects.count()
-        resp = self.client.post(reverse("dispatcher_booking_review"), {"confirm": "1"})
+        # The read-back box is part of the create gate now, and an airport leg
+        # with no flight number is a warning that has to be acknowledged.
+        resp = self.client.post(
+            reverse("dispatcher_booking_review"),
+            {"confirm": "1", "read_back": "on", "ack_flags": "on"},
+        )
         self.assertEqual(Reservation.objects.count(), before + 1)
 
         reservation = Reservation.objects.order_by("-id").first()
         self.assertEqual(reservation.trip_type, "round_trip")
         self.assertEqual(reservation.legs.count(), 2)
         self.assertNotIn("dispatcher_booking", self.client.session)
+
+    def test_walking_back_does_not_switch_the_grocery_stop_on(self):
+        """A box never ticked comes back out of the session as the string
+        "False" — which a checkbox would read as ticked."""
+        self._walk_to_legs()
+        resp = self.client.get(reverse("dispatcher_booking_reservation"))
+        form = resp.context["form"]
+        self.assertIs(form["store_stop"].value(), False)
+        self.assertIs(form["need_carseats"].value(), False)
+        self.assertNotIn('name="store_stop" checked', resp.content.decode())
+
+    def _late_leg(self, day_offset=0):
+        return self._leg(time="23:30", day_offset=day_offset)
+
+    def test_after_hours_pickup_is_priced_not_remembered(self):
+        """A 10 PM-6 AM pickup carries a flat fee. The suggested rate names it
+        instead of leaving the dispatcher to know the rule."""
+        from reservations.utils import AFTERHOURS_FEE_AMOUNT
+
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"),
+                         self._legs_payload([self._late_leg()]))
+
+        resp = self.client.get(reverse("dispatcher_booking_pricing"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["afterhours_legs"], [1])
+        self.assertEqual(resp.context["afterhours_fee"], AFTERHOURS_FEE_AMOUNT)
+        self.assertEqual(
+            resp.context["suggested_total"],
+            resp.context["suggested_price"] + AFTERHOURS_FEE_AMOUNT,
+        )
+        self.assertIn("after-hours fee", resp.content.decode())
+
+    def test_after_hours_fee_left_out_is_flagged_at_review(self):
+        """Pricing the route and forgetting the fee is exactly how it goes
+        uncollected, so the audit says so."""
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"),
+                         self._legs_payload([self._late_leg()]))
+        self.client.post(reverse("dispatcher_booking_pricing"), {
+            "manual_base_price": "150.00", "additional_charges": "0",
+            "gratuity_option": "none", "gratuity_amount": "0",
+            "total_price": "150.00", "private_notes": "",
+        })
+
+        resp = self.client.get(reverse("dispatcher_booking_review"))
+        texts = [f["text"] for f in resp.context["review_flags"]]
+        self.assertTrue(any("after-hours fee is not" in t for t in texts), texts)
+
+    def test_after_hours_marker_only_set_when_the_fee_was_charged(self):
+        """The marker is what stops a later delay pass asking for the same $20
+        twice — so it must never claim money nobody collected."""
+        from reservations.utils import AFTERHOURS_FEE_AMOUNT
+
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"),
+                         self._legs_payload([self._late_leg()]))
+        self.client.post(reverse("dispatcher_booking_pricing"), {
+            "manual_base_price": "150.00", "additional_charges": "0",
+            "gratuity_option": "none", "gratuity_amount": "0",
+            "total_price": "150.00", "private_notes": "",
+        })
+        self.client.post(reverse("dispatcher_booking_review"),
+                         {"confirm": "1", "read_back": "on", "ack_flags": "on"})
+        leg = Reservation.objects.order_by("-id").first().legs.first()
+        self.assertEqual(leg.afterhours_fee, Decimal("0.00"))
+
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"),
+                         self._legs_payload([self._late_leg()]))
+        self.client.post(reverse("dispatcher_booking_pricing"), {
+            "manual_base_price": "150.00", "additional_charges": "20.00",
+            "gratuity_option": "none", "gratuity_amount": "0",
+            "total_price": "170.00", "private_notes": "",
+        })
+        self.client.post(reverse("dispatcher_booking_review"),
+                         {"confirm": "1", "read_back": "on", "ack_flags": "on"})
+        leg = Reservation.objects.order_by("-id").first().legs.first()
+        self.assertEqual(leg.afterhours_fee, AFTERHOURS_FEE_AMOUNT)
+
+    def test_every_step_renders(self):
+        """Each screen of the wizard renders, with the pieces that catch errors."""
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"), self._legs_payload([
+            self._leg(),
+            self._return_leg(),
+        ]))
+        self.client.post(reverse("dispatcher_booking_pricing"), {
+            "manual_base_price": "250.00", "additional_charges": "0",
+            "gratuity_option": "20", "gratuity_amount": "50.00",
+            "total_price": "300.00", "private_notes": "",
+        })
+
+        expected = {
+            "dispatcher_booking_customer": ["Quick Customer Lookup"],
+            "dispatcher_booking_reservation": ["Vehicle Selection", "Free Grocery Stop"],
+            "dispatcher_booking_legs": ["Fill Reverse Of Leg 1", "Add Another Leg"],
+            "dispatcher_booking_pricing": ["Use This Rate", "Total Price"],
+            "dispatcher_booking_review": [
+                "Read This Back To The Guest",
+                "let me read this back to you",
+                "Create Reservation",
+            ],
+        }
+        for name, needles in expected.items():
+            resp = self.client.get(reverse(name))
+            self.assertEqual(resp.status_code, 200, name)
+            body = resp.content.decode()
+            self.assertIn("Booking Summary", body, name)
+            for needle in needles:
+                self.assertIn(needle, body, f"{name}: {needle}")
+
+    def test_read_back_carries_no_flight_time_it_cannot_vouch_for(self):
+        """With no verified schedule the sentence omits the time entirely —
+        it never falls back to the pickup time, which is a different fact."""
+        self._walk_to_legs()
+        payload = self._legs_payload([self._leg()])
+        payload["flights-0-airline"] = "Delta"
+        payload["flights-0-flight_number"] = "1204"
+
+        resp = self.client.post(reverse("dispatcher_booking_legs"), payload)
+        # A flight the schedule service can't vouch for stops at the sanity
+        # panel first; acknowledge it and carry on.
+        if resp.status_code == 200 and resp.context.get("sanity_panel"):
+            payload["sanity_ack"] = "1"
+            payload["sanity_ack_token"] = resp.context["sanity_panel"]["token"]
+            resp = self.client.post(reverse("dispatcher_booking_legs"), payload)
+
+        self.client.post(reverse("dispatcher_booking_pricing"), {
+            "manual_base_price": "150.00", "additional_charges": "0",
+            "gratuity_option": "none", "gratuity_amount": "0",
+            "total_price": "150.00", "private_notes": "",
+        })
+
+        resp = self.client.get(reverse("dispatcher_booking_review"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context["legs_data"][0]["flight_sched"])
+        body = resp.content.decode()
+        self.assertIn("arriving", body)
+        self.assertNotIn("arriving at <b>2:30 PM</b>", body)
+
+    def test_create_is_refused_until_the_trip_is_read_back(self):
+        """The read-back tick is enforced here, not only in the browser."""
+        self._walk_to_legs()
+        self.client.post(reverse("dispatcher_booking_legs"), self._legs_payload([
+            self._leg(),
+        ]))
+        self.client.post(reverse("dispatcher_booking_pricing"), {
+            "manual_base_price": "150.00", "additional_charges": "0",
+            "gratuity_option": "none", "gratuity_amount": "0",
+            "total_price": "150.00", "private_notes": "",
+        })
+
+        before = Reservation.objects.count()
+        self.client.post(
+            reverse("dispatcher_booking_review"), {"confirm": "1", "ack_flags": "on"}
+        )
+        self.assertEqual(Reservation.objects.count(), before)
+        # The booking is still in play, not thrown away.
+        self.assertIn("dispatcher_booking", self.client.session)
+
+        self.client.post(
+            reverse("dispatcher_booking_review"),
+            {"confirm": "1", "read_back": "on", "ack_flags": "on"},
+        )
+        self.assertEqual(Reservation.objects.count(), before + 1)
 
     def test_max_legs_is_enforced_server_side(self):
         """A hand-rolled POST past the cap is rejected, not silently truncated."""

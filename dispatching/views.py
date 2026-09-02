@@ -38,6 +38,7 @@ from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
 from . import quote_engine
 from . import pickup_policy
+from . import booking_flags
 from .payment_display import board_pay_state
 from django.templatetags.static import static
 from drivers.models import (
@@ -7741,6 +7742,20 @@ def dispatcher_booking_customer(request):
             # Update session with customer ID
             booking_data['customer_id'] = customer.id
             booking_data['step'] = 1
+
+            # "Book This Route Again" is pressed on step 1 but lands on step 3,
+            # so the chosen route rides along in the session.
+            repeat_from = (request.POST.get('repeat_from') or '').strip()
+            repeat_to = (request.POST.get('repeat_to') or '').strip()
+            if repeat_from and repeat_to:
+                booking_data['repeat_route'] = {
+                    'from': repeat_from,
+                    'to': repeat_to,
+                    'airline': (request.POST.get('repeat_airline') or '').strip(),
+                }
+            else:
+                booking_data.pop('repeat_route', None)
+
             request.session['dispatcher_booking'] = booking_data
             
             messages.success(request, f"Customer {customer.get_full_name()} saved successfully.")
@@ -7829,12 +7844,23 @@ def dispatcher_booking_reservation(request):
         initial_data = booking_data.get('reservation_data', {})
         form = DispatcherReservationForm(initial=initial_data)
 
+    # The summary rail names the vehicle on every step, so resolve it here too
+    # rather than showing "Not set" on a step the dispatcher walked back into.
+    saved_vehicle = None
+    saved_vehicle_id = (booking_data.get('reservation_data') or {}).get('manual_vehicle')
+    if saved_vehicle_id:
+        try:
+            saved_vehicle = Vehicle.objects.get(id=saved_vehicle_id)
+        except (Vehicle.DoesNotExist, ValueError, TypeError):
+            saved_vehicle = None
+
     context = {
         'form': form,
         'customer': customer,
+        'vehicle': saved_vehicle,
         'step': 2,
         'step_title': 'Reservation Details',
-        'step_description': 'Set pricing, vehicle type, and passenger details',
+        'step_description': 'Passengers, car seats, vehicle, and extras',
         'booking_data': booking_data
     }
     
@@ -8043,6 +8069,16 @@ def dispatcher_booking_legs(request):
         # A fresh booking starts with a single leg; the dispatcher adds more.
         legs_initial = booking_data.get('legs_data') or [{}]
         flights_initial = booking_data.get('flights_data') or []
+        # First visit after "Book This Route Again": leg 1 starts on the route
+        # this guest took last time. Anything already typed wins.
+        repeat_route = booking_data.get('repeat_route')
+        if repeat_route and not booking_data.get('legs_data'):
+            legs_initial[0].setdefault('pickup_location', repeat_route.get('from', ''))
+            legs_initial[0].setdefault('dropoff_location', repeat_route.get('to', ''))
+            if repeat_route.get('airline'):
+                if not flights_initial:
+                    flights_initial.append({})
+                flights_initial[0].setdefault('airline', repeat_route['airline'])
         while len(flights_initial) < len(legs_initial):
             flights_initial.append({})
         leg_formset = DispatcherLegFormSet(prefix='legs', initial=legs_initial)
@@ -8170,6 +8206,7 @@ def dispatcher_booking_pricing(request):
     # leg 1's vehicle/route.
     suggested_price = None
     suggested_route_label = None
+    suggested_priced_legs = 0
     legs_data = booking_data.get('legs_data', [])
     trip_type = booking_data.get('trip_type', 'one_way')
     if legs_data:
@@ -8184,6 +8221,7 @@ def dispatcher_booking_pricing(request):
                 rate = _booking_lookup_rate(leg_vehicle, pickup_match, dropoff_match)
                 if rate:
                     suggested_price = rate.round_trip_price
+                    suggested_priced_legs = len(legs_data)
                     suggested_route_label = (
                         f"{leg_vehicle.get_vehicle_type_display()} · "
                         f"{rate.route.origin.name} to {rate.route.destination.name} · Round Trip"
@@ -8209,10 +8247,24 @@ def dispatcher_booking_pricing(request):
                 )
             if priced_count:
                 suggested_price = total
+                suggested_priced_legs = priced_count
                 suggested_route_label = " + ".join(leg_labels)
                 if priced_count < len(legs_data):
                     unpriced = len(legs_data) - priced_count
                     suggested_route_label += f" (+{unpriced} leg{'s' if unpriced != 1 else ''} not priced)"
+
+    # After-hours surcharge: a flat fee per leg picked up between 10 PM and 6 AM.
+    # The guest booking form has always applied this; a dispatcher had to know
+    # the rule and type it in by hand, so it quietly went uncollected. The
+    # suggested rate now carries it, named, instead of hiding inside one number.
+    from reservations.utils import AFTERHOURS_FEE_AMOUNT, is_afterhours_time
+    from .booking_flags import parse_clock
+
+    afterhours_legs = [
+        i + 1 for i, leg in enumerate(legs_data)
+        if is_afterhours_time(parse_clock(leg.get('pickup_time')))
+    ]
+    suggested_afterhours = AFTERHOURS_FEE_AMOUNT * len(afterhours_legs)
 
     context = {
         'form': form,
@@ -8220,12 +8272,24 @@ def dispatcher_booking_pricing(request):
         'vehicle': vehicle,
         'legs_data': booking_data.get('legs_data', []),
         'flights_data': booking_data.get('flights_data', []),
+        'afterhours_legs': afterhours_legs,
+        'afterhours_fee': suggested_afterhours,
+        'afterhours_unit_fee': AFTERHOURS_FEE_AMOUNT,
+        'suggested_total': (
+            (suggested_price + suggested_afterhours) if suggested_price is not None else None
+        ),
         'step': 4,
         'step_title': 'Pricing & Notes',
         'step_description': 'Set pricing and add any final notes',
         'booking_data': booking_data,
         'suggested_price': suggested_price,
         'suggested_route_label': suggested_route_label,
+        # Drives the partial-rate card: a rate that covered only some of the
+        # legs must say so, or the rest quietly ride along at $0.
+        'suggested_priced_legs': suggested_priced_legs,
+        'suggested_unpriced_legs': (
+            max(len(legs_data) - suggested_priced_legs, 0) if suggested_price else 0
+        ),
     }
 
     return render(request, 'dispatching/booking/step_pricing.html', context)
@@ -8291,12 +8355,59 @@ def dispatcher_booking_review(request):
     vehicle = None
     if reservation_data.get('manual_vehicle'):
         vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
-    
+
+    # The read-back sentence quotes the flight's SCHEDULED time, which comes
+    # from the schedule lookup run at step 3 — never from the pickup time. The
+    # two are different facts, and reading one as the other tells the guest
+    # something untrue. With no verified schedule the clause simply omits it.
+    sanity_results = booking_data.get('sanity_results') or []
+    flight_times = {
+        w['leg']: w['sched_time']
+        for w in sanity_results
+        if w.get('sched_time') and w.get('leg')
+    }
+    for idx, combined_leg in enumerate(combined_legs):
+        combined_leg['flight_sched'] = flight_times.get(idx + 1)
+
+    # Step 5 is the audit: re-check the whole booking, because a trip that was
+    # clean at step 2 can stop being clean by step 4.
+    review_flags = booking_flags.review_flags(
+        customer=customer,
+        reservation_data=reservation_data,
+        vehicle=vehicle,
+        legs_data=legs_data,
+        flights_data=flights_data,
+        pricing_data=pricing_data,
+    )
+    for w in sanity_results:
+        if w.get('severity') == 'warning':
+            review_flags.append({'tone': 'warn', 'text': w['message'], 'step': 3})
+        elif w.get('severity') == 'error':
+            review_flags.append({'tone': 'crit', 'text': w['message'], 'step': 3})
+
+    blocking_flags = [f for f in review_flags if f['tone'] == 'crit']
+    warning_flags = [f for f in review_flags if f['tone'] == 'warn']
+
     if request.method == "POST":
         if 'confirm' in request.POST:
             try:
                 # Validate required data before creating reservation
-                if not booking_data.get('legs_data'):
+                if blocking_flags:
+                    messages.error(request, (
+                        "This reservation can't be created yet:<br>• "
+                        + "<br>• ".join(f['text'] for f in blocking_flags[:5])
+                    ))
+                elif not request.POST.get('read_back'):
+                    messages.error(
+                        request,
+                        "Read the trip back to the guest and tick the box before creating it.",
+                    )
+                elif warning_flags and not request.POST.get('ack_flags'):
+                    messages.error(
+                        request,
+                        "Confirm you checked the warnings before creating this reservation.",
+                    )
+                elif not booking_data.get('legs_data'):
                     messages.error(request, "Cannot create reservation: No trip legs found. Please go back and add leg details.")
                 elif not booking_data.get('pricing_data'):
                     messages.error(request, "Cannot create reservation: Pricing information is missing. Please go back and set pricing.")
@@ -8348,9 +8459,11 @@ def dispatcher_booking_review(request):
         if hasattr(pd, 'toordinal'):
             combined_leg['days_until'] = (pd - today).days
 
-    sanity_results = booking_data.get('sanity_results') or []
     context = {
         'customer': customer,
+        'review_flags': review_flags,
+        'blocking_count': len(blocking_flags),
+        'warning_count': len(warning_flags),
         'reservation_data': reservation_data,
         'pricing_data': pricing_data,
         'legs_data': combined_legs,  # Use combined legs data
@@ -8522,6 +8635,13 @@ def create_dispatcher_reservation(booking_data):
         # Create legs
         if not legs_data:
             raise ValueError("Cannot create reservation: No trip legs provided")
+
+        from reservations.utils import AFTERHOURS_FEE_AMOUNT as _AH_FEE
+        from .booking_flags import parse_clock as _parse_clock
+        from reservations.utils import is_afterhours_time as _is_afterhours
+        afterhours_total = _AH_FEE * sum(
+            1 for l in legs_data if _is_afterhours(_parse_clock(l.get('pickup_time')))
+        )
         
         for i, leg_data in enumerate(legs_data):
             # Validate required leg fields
@@ -8569,6 +8689,16 @@ def create_dispatcher_reservation(booking_data):
                 gratuity_note = f"${gratuity_per_leg:.2f} Gratuity Included"
                 private_notes = f"{private_notes}\n{gratuity_note}".strip() if private_notes else gratuity_note
 
+            # Mark the after-hours fee as collected only when the additional
+            # charges on this booking actually cover it. The marker is what
+            # stops a later flight-delay pass from asking for the same $20
+            # twice — and leaving it unset when nobody charged the fee is what
+            # lets that pass still catch it.
+            from reservations.utils import AFTERHOURS_FEE_AMOUNT, afterhours_fee_owed
+            leg_afterhours = afterhours_fee_owed(pickup_time)
+            if leg_afterhours and additional_charges < afterhours_total:
+                leg_afterhours = Decimal('0.00')
+
             leg = Leg.objects.create(
                 reservation=reservation,
                 flight_information=flight,
@@ -8577,6 +8707,7 @@ def create_dispatcher_reservation(booking_data):
                 pickup_location=leg_data.get('pickup_location', ''),
                 dropoff_location=leg_data.get('dropoff_location', ''),
                 private_notes=private_notes,
+                afterhours_fee=leg_afterhours,
             )
             if flight is not None:
                 _sync_legacy_flight_information(leg)
@@ -8622,6 +8753,179 @@ def dispatcher_booking_cancel(request):
 
 
 @login_required
+def booking_flight_lookup(request):
+    """Live schedule lookup for the trip step.
+
+    The wizard used to say nothing when a flight checked out, so a dispatcher
+    could not tell the difference between "verified" and "never looked". This
+    puts the flight's real scheduled time on screen while they are still typing,
+    which is also what answers the AM/PM question without anyone having to
+    reason about it.
+
+    Read-only, and cached by the same helper the submit-time guards use.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"ok": False, "error": "Permission denied"}, status=403)
+
+    from datetime import datetime as _dt
+    from .booking_guards import build_flight_ident, _fetch_flight, _naive_eastern
+
+    direction = (request.GET.get("direction") or "").strip().lower()
+    ident = build_flight_ident(
+        request.GET.get("airline", ""), request.GET.get("flight_number", "")
+    )
+    if not ident:
+        return JsonResponse({"ok": False, "reason": "no_ident"})
+
+    try:
+        flight_date = _dt.strptime(request.GET.get("date", ""), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "reason": "no_date"})
+
+    trip_type = {"arrival": "arrival", "departure": "return"}.get(direction)
+    try:
+        from .aeroapi_service import AeroAPIService
+        result = _fetch_flight(AeroAPIService(), ident, flight_date, trip_type)
+    except Exception:
+        logger.exception("Booking flight lookup failed for %s", ident)
+        return JsonResponse({"ok": False, "reason": "unavailable", "ident": ident})
+
+    status = result.get("status")
+    if status == "not_found":
+        return JsonResponse({"ok": False, "reason": "not_found", "ident": ident})
+    if status == "not_orlando":
+        return JsonResponse({
+            "ok": False, "reason": "not_orlando", "ident": ident,
+            "detail": result.get("error") or "",
+        })
+    if status != "success":
+        return JsonResponse({"ok": False, "reason": "unavailable", "ident": ident})
+
+    departure = _naive_eastern(result.get("scheduled_departure_local"))
+    arrival = _naive_eastern(
+        result.get("scheduled_gate_arrival_local")
+        or result.get("scheduled_arrival_local")
+    )
+
+    # The addresses may not be filled in yet, and they are not the only thing
+    # that knows: the flight's own route says which end is Orlando. Asking the
+    # schedule beats making the dispatcher type an address to unlock a field.
+    if direction not in ("arrival", "departure"):
+        from .aeroapi_service import ORLANDO_AIRPORT_CODES
+
+        def _code(place):
+            return (place or "").split(" - ")[0].strip().upper()
+
+        if _code(result.get("destination")) in ORLANDO_AIRPORT_CODES:
+            direction = "arrival"
+        elif _code(result.get("origin")) in ORLANDO_AIRPORT_CODES:
+            direction = "departure"
+
+    when, verb = (departure, "departs") if direction == "departure" else (arrival, "lands")
+    if when is None:
+        return JsonResponse({"ok": False, "reason": "no_time", "ident": ident})
+
+    def _stamp(dt):
+        if dt is None:
+            return None
+        return {
+            "time": dt.strftime("%I:%M %p").lstrip("0"),
+            "date": dt.date().isoformat(),
+            "date_label": f"{dt.strftime('%A, %B')} {dt.day}",
+            "minutes": dt.hour * 60 + dt.minute,
+        }
+
+    # What "Match" fills in. An arrival pickup IS the landing time (the driver is
+    # due at the meet point ten minutes later); a departure pickup is the house
+    # lead before takeoff. Working it out here keeps the rule in one place
+    # instead of half in Python and half in the page.
+    from .booking_guards import (
+        DEPARTURE_GUEST_AT_AIRPORT_MIN,
+        DEPARTURE_RECOMMENDED_LEAD_MIN,
+        DEPARTURE_ROUND_DOWN_MIN,
+    )
+
+    # The 2h30 rule is a RESORT rule. A cruise-port run is timed off the ship:
+    # the guest cannot leave before they disembark, so the flight has nothing to
+    # say about when the car should be there, and the drive is far longer than
+    # the half hour the rule budgets.
+    from .analytics import is_cruise_port_location
+
+    from_port = is_cruise_port_location(request.GET.get("pickup", ""))
+
+    recommended = None
+    recommendation_note = ""
+    if verb == "departs" and from_port:
+        recommendation_note = (
+            "Set this pickup from the ship's disembarkation time \u2014 a "
+            "cruise-port run is not timed off the flight."
+        )
+    elif verb == "lands":
+        # An arrival is NOT rounded: the pickup IS the landing time, and the
+        # whole board reads it that way. Rounding it down would put the driver
+        # at the meet point before the plane is on the ground.
+        recommended = {
+            "time": when.strftime("%I:%M %p").lstrip("0"),
+            "minutes": when.hour * 60 + when.minute,
+            "day_offset": 0,
+            "lead_min": 0,
+            "why": "the landing time",
+        }
+    elif verb == "departs":
+        takeoff = when.hour * 60 + when.minute
+        raw = takeoff - DEPARTURE_RECOMMENDED_LEAD_MIN
+        raw -= raw % DEPARTURE_ROUND_DOWN_MIN   # down to the quarter hour
+        day_offset = 0
+        if raw < 0:
+            raw += 24 * 60
+            day_offset = -1
+        hour, minute = divmod(raw, 60)
+        stamp = when.replace(hour=hour, minute=minute)
+        # Describe the lead the rounded time actually gives, not the rule's.
+        lead = takeoff - raw if day_offset == 0 else takeoff + (24 * 60) - raw
+        hours, minutes = divmod(lead, 60)
+        recommended = {
+            "time": stamp.strftime("%I:%M %p").lstrip("0"),
+            "minutes": raw,
+            "day_offset": day_offset,
+            "lead_min": lead,
+            "why": (
+                f"{hours}h {minutes:02d}m before takeoff" if hours
+                else f"{minutes}m before takeoff"
+            ),
+        }
+
+    return JsonResponse({
+        "ok": True,
+        "ident": result.get("flight_iata") or ident,
+        "verb": verb,
+        # Resolved from the route when the caller could not say.
+        "direction": direction or "arrival",
+        "recommended_pickup": recommended,
+        "recommendation_note": recommendation_note,
+        "from_cruise_port": from_port,
+        "guest_at_airport_min": DEPARTURE_GUEST_AT_AIRPORT_MIN,
+        "recommended_lead_min": DEPARTURE_RECOMMENDED_LEAD_MIN,
+        "time": when.strftime("%I:%M %p").lstrip("0"),
+        "date": when.date().isoformat(),
+        "date_label": f"{when.strftime('%a, %b')} {when.day}",
+        # Minutes past midnight, so the page can say how far the pickup sits
+        # from the flight without re-parsing anything.
+        "minutes": when.hour * 60 + when.minute,
+        # Everything the details panel shows. Schedule-only lookups carry no
+        # gate or terminal, which is why the panel never promises one.
+        "origin": result.get("origin") or "",
+        "destination": result.get("destination") or "",
+        "status": result.get("flight_status") or "",
+        "cancelled": bool(result.get("cancelled")),
+        "diverted": bool(result.get("diverted")),
+        "schedule_only": result.get("data_source") == "schedules",
+        "departure": _stamp(departure),
+        "arrival": _stamp(arrival),
+    })
+
+
+@login_required
 def customer_search_api(request):
     """
     AJAX endpoint to search for existing customers
@@ -8663,7 +8967,7 @@ def customer_search_api(request):
     
     results = []
     for customer in customers:
-        results.append({
+        row = {
             'id': customer.id,
             'first_name': customer.first_name,
             'last_name': customer.last_name,
@@ -8673,7 +8977,41 @@ def customer_search_api(request):
             'full_name': customer.get_full_name(),
             'reservation_count': customer.reservation_count,
             'is_returning': customer.is_returning,
-        })
+            'last_trip': '',
+            'last_route': None,
+        }
+
+        # Most repeat guests take the same trip again, so the last one on file
+        # is offered as a one-click starting point for the new booking.
+        last_leg = (
+            Leg.objects
+            .filter(reservation__customer=customer)
+            .select_related('reservation__vehicle', 'flight_information')
+            .order_by('-pickup_date', '-pickup_time', '-id')
+            .first()
+        )
+        if last_leg and last_leg.pickup_location and last_leg.dropoff_location:
+            def _short(place):
+                return (place or '').replace(
+                    'Orlando International Airport (MCO)', 'MCO'
+                )
+            bits = [last_leg.pickup_date.strftime('%b %d') if last_leg.pickup_date else '']
+            bits.append(f"{_short(last_leg.pickup_location)} → {_short(last_leg.dropoff_location)}")
+            vehicle = getattr(last_leg.reservation, 'vehicle', None)
+            if vehicle:
+                bits.append(vehicle.get_vehicle_type_display())
+            row['last_trip'] = ' · '.join(b for b in bits if b)
+            flight = last_leg.flight_information
+            row['last_route'] = {
+                'from': last_leg.pickup_location,
+                'to': last_leg.dropoff_location,
+                'airline': (
+                    getattr(flight, 'airline_display_name', '') or
+                    getattr(flight, 'airline', '') or ''
+                ) if flight else '',
+            }
+
+        results.append(row)
     
     return JsonResponse({
         "success": True,

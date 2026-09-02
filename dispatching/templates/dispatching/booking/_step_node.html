@@ -1,0 +1,29 @@
+{% comment %}
+One stepper node.
+
+  n     : 1-5
+  label : text under the circle
+  url   : where the node jumps to
+  reach : truthy when every step BEFORE this one is filled in
+  done  : truthy when this step's own data is in the session
+  cur   : the step being shown
+
+Backward navigation is always allowed; forward navigation needs every step in
+between to be clear, otherwise the node is locked and says so with a padlock.
+{% endcomment %}
+{% if n == cur %}
+  <span class="rw-step is-active" aria-current="step">
+    <span class="rw-circle">{{ n }}</span>
+    <span class="rw-step-label">{{ label }}</span>
+  </span>
+{% elif reach %}
+  <a href="{{ url }}" class="rw-step {% if done %}is-complete{% endif %}">
+    <span class="rw-circle">{% if done %}<i class="bi bi-check-lg"></i>{% else %}{{ n }}{% endif %}</span>
+    <span class="rw-step-label">{{ label }}</span>
+  </a>
+{% else %}
+  <span class="rw-step is-locked" title="Finish the earlier steps first">
+    <span class="rw-circle"><i class="bi bi-lock-fill"></i></span>
+    <span class="rw-step-label">{{ label }}</span>
+  </span>
+{% endif %}
