@@ -1279,14 +1279,26 @@
     .dsx-amber { background: rgba(224,166,58,0.18); color: #8A6A12; }
     .dsx-red   { background: rgba(198,40,40,0.12);  color: #b02a37; }
     .dsx-none  { background: #f0eeea; color: #6c757d; }
-    .dsx-mint { display: grid; grid-template-columns: 16px 1fr; gap: 0.55rem;
-        padding: 0.4rem 1.05rem; align-items: start; }
+    /* A call-out is one decision: who, on what car, for what money. The card is a
+       grid so a stack of them reads DOWN the columns — names, then shifts, then
+       values — instead of re-parsing a sentence each time. Everything that only
+       qualifies the decision drops to the quiet second line. */
+    /* A call-out is a phone call to a named person, so the NAME leads and gets its
+       own column: a stack of proposals reads as a list of people, and the shift
+       details line up beside them instead of starting at a ragged edge. */
+    .dsx-mint { display: grid; grid-template-columns: 16px minmax(7.5rem, auto) 1fr;
+        gap: 0.1rem 0.65rem; padding: 0.55rem 1.05rem; align-items: baseline; }
     .dsx-mint + .dsx-mint { box-shadow: inset 0 1px 0 #f4f2ee; }
     .dsx-mint:hover { background: #fbfaf7; }
     .dsx-mint-check { width: 15px; height: 15px; accent-color: #198754;
-        cursor: pointer; margin-top: 2px; }
-    .dsx-mint-t { font-size: 0.78rem; }
-    .dsx-mint-s { font-size: 0.68rem; color: #6c757d; margin-top: 1px; }
+        cursor: pointer; grid-row: 1 / span 2; align-self: center; }
+    .dsx-mint-n { font-size: 0.8rem; font-weight: 650; color: #212529;
+        grid-row: 1 / span 2; align-self: center; }
+    .dsx-mint-t { font-size: 0.78rem; color: #4a453e; }
+    .dsx-mint-t .unit { color: #6c757d; }
+    .dsx-mint-t .sep, .dsx-mint-s .sep { color: #d8d3ca; margin: 0 0.28rem; }
+    .dsx-mint-s { grid-column: 3; font-size: 0.7rem; color: #857f75;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.1rem; }
     .dsx-exc { margin: 0.4rem 1.05rem 0; padding: 0.45rem 0.6rem; border-radius: 6px;
         background: rgba(185,143,38,0.10); color: #6b5410; font-size: 0.73rem; }
 
@@ -1315,6 +1327,22 @@
         background: rgba(44,122,76,0.09); color: #22573a; font-size: 0.74rem; }
     .dsp-warn { margin-top: 0.35rem; padding: 0.35rem 0.55rem; border-radius: 6px;
         background: rgba(224,166,58,0.14); color: #6b5410; font-size: 0.7rem; }
+    /* NOW / DO THIS / RESULT. Every row is labelled, so no figure on this panel is
+       ambiguous about which state of the day it describes. */
+    .dsp-step { display: grid; grid-template-columns: 4.4rem 1fr; gap: 0.65rem;
+        padding: 0.4rem 0; font-size: 0.78rem; color: #212529;
+        border-top: 1px solid #f3f0eb; }
+    .dsp-step:first-child { border-top: 0; padding-top: 0.1rem; }
+    .dsp-lbl { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: #9a948b; padding-top: 0.16rem; }
+    .dsp-step b { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .dsp-step .sep { color: #d8d3ca; margin: 0 0.4rem; }
+    .dsp-go > div > b:first-child { color: #1f5c39; }
+    /* The state the day reaches IF you do the thing above it. */
+    .dsp-then { margin-top: 0.28rem; padding-left: 0.6rem; color: #1f5c39;
+        border-left: 2px solid rgba(44,122,76,0.35); font-size: 0.76rem; }
+    .dsp-end { background: rgba(44,122,76,0.06); border-radius: 6px;
+        padding: 0.4rem 0.55rem; margin-top: 0.15rem; }
     .dsp-stamp { margin-top: 0.45rem; font-size: 0.66rem; color: #9a948b; }
     .dsp.stale .dsp-bd { opacity: 0.55; }
     .dsp-rebuild { font-size: 0.68rem; font-weight: 650; color: #6b5410;
@@ -5745,7 +5773,7 @@
         if ((data.mint_proposals || []).length) {
             body += '<div class="ds-grp">Second shifts — standby call-outs <b>'
                 + data.mint_proposals.length + '</b></div>'
-                + '<div class="ds-note">Nobody is called automatically — tick one to put it on the plan, then Apply. Times are estimates from booked jobs.</div>';
+                + '<div class="ds-note">Nobody is called automatically. Tick one, then Apply.</div>';
             data.mint_proposals.forEach(function(mp, i) {
                 var unitN = (mp.vehicle_label || '').split(' ')[0];
                 // Sentence rules: 12-hour AM/PM only, and clauses in the order
@@ -5775,44 +5803,41 @@
                     }));
                 }
                 var nFarm = legs.filter(function(l) { return l.source !== 'shed'; }).length;
-                var head;
-                if (mp.side === 'early') {
-                    head = '<b>' + esc(mp.driver_name) + '</b> drives ' + esc(unitN)
-                        + ' first — pickup' + (times.length > 1 ? 's' : '') + ' '
-                        + esc(joinAnd(times)) + ', done ~' + esc(done) + ' — then hands it '
-                        + (mp.partner_name ? 'to ' + esc(mp.partner_name) : 'off')
-                        + ' at ' + esc(cutLbl) + '.';
-                    if (mp.est_saving) {
-                        head += ' Catches ' + nFarm + ' job' + (nFarm !== 1 ? 's' : '')
-                            + ' that would’ve farmed out — saves ≈$' + mp.est_saving + '.';
-                    }
-                } else {
-                    head = '<b>' + esc(mp.driver_name) + '</b> takes ' + esc(unitN)
-                        + (mp.partner_name ? ' from ' + esc(mp.partner_name) : '')
-                        + ' at ' + esc(cutLbl) + '. Covers ' + mp.n_jobs + ' job'
-                        + (mp.n_jobs !== 1 ? 's' : '') + ' (' + esc(jobsClause)
-                        + '), done by ~' + esc(done) + '.';
-                    if (mp.est_saving) {
-                        head += ' Saves ≈$' + mp.est_saving + ' vs. farming '
-                            + (nFarm === 1 ? 'it' : nFarm === 2 ? 'both' : nFarm + ' of them')
-                            + ' out.';
-                    }
+                // LINE 1 is the decision, in columns: who · which car · the shift.
+                // LINE 2 carries everything that only qualifies it.
+                var SEP = '<span class="sep">·</span>';
+                var shift = (mp.side === 'early')
+                    ? esc(joinAnd(times)) + ' – ~' + esc(done)
+                    : esc(cutLbl) + ' – ~' + esc(done);
+                // The name is its own column now; this line is the shift only.
+                var head = '<span class="unit">' + esc(unitN) + '</span>' + SEP + shift;
+
+                // The jobs it catches, named ONCE — the old card said this twice,
+                // in the sentence and again underneath it.
+                var sub = ['catches ' + esc(jobsClause)];
+                if (mp.partner_name) {
+                    sub.push(mp.side === 'early'
+                        ? 'hands the car to ' + esc(mp.partner_name)
+                        : 'takes the car from ' + esc(mp.partner_name));
                 }
-                var chips = '';
-                if (mp.thin) chips += ' <span class="ds-tag swap" title="Fewer jobs than the soft minimum — no call-out minimum pay exists, so the only cost is goodwill. Offer; let the driver decline.">thin — worth it?</span>';
-                if (mp.handoff_band) {
-                    chips += ' <span class="dsx-chip dsx-' + mp.handoff_band + '" title="'
+                var shed = (mp.legs || []).filter(function(l) { return l.source === 'shed'; });
+                if (shed.length) {
+                    sub.push('off ' + esc(shed[0].from_driver || 'another driver') + '’s long day');
+                }
+                if (mp.thin) {
+                    sub.push('<span class="ds-tag swap" title="Fewer jobs than the soft '
+                        + 'minimum. There is no call-out minimum pay, so the only cost is '
+                        + 'goodwill — offer it and let the driver decline.">thin</span>');
+                }
+                // A green handoff is the expected case and says nothing; only amber
+                // and red earn a chip.
+                if (mp.handoff_band && mp.handoff_band !== 'green') {
+                    sub.push('<span class="dsx-chip dsx-' + mp.handoff_band + '" title="'
                         + esc(mp.handoff_reason || '') + '"><i class="dxd"></i>'
-                        + mp.handoff_band.toUpperCase()
-                        + (mp.handoff_ready_at ? ' · car back ~' + esc(mp.handoff_ready_at) : '')
-                        + '</span>';
+                        + esc(mp.handoff_band.toUpperCase()) + '</span>');
                 }
-                var legsTxt = (mp.legs || []).map(function(l) {
-                    var src = l.source === 'shed'
-                        ? 'off ' + (l.from_driver || 'a') + '’s long day'
-                        : l.source === 'farm' ? 'farmed today' : 'unassigned';
-                    return esc(l.time) + ' ' + esc(l.kind) + ' (' + esc(src) + ')';
-                }).join(' · ');
+                var legsTxt = sub.join('<span class="sep">·</span>');
+                var chips = '';
                 var planLine = (mp.handoff_band === 'amber' && mp.handoff_reason)
                     ? '<div class="dsx-mint-s" style="color:#8A6A12;">' + esc(mp.handoff_reason) + '</div>' : '';
                 body += '<div class="dsx-mint" data-mint-idx="' + i + '"'
@@ -5821,9 +5846,11 @@
                     + ' data-partner-id="' + (mp.partner_driver_id || '') + '"'
                     + ' data-partner-ps="' + (mp.partner_planned_start_hour == null ? '' : mp.partner_planned_start_hour) + '"'
                     + ' data-partner-pe="' + (mp.partner_planned_end_hour == null ? '' : mp.partner_planned_end_hour) + '">'
-                    + '<input type="checkbox" class="dsx-mint-check" aria-label="Second shift: ' + esc(mp.driver_name) + ' on ' + esc(unitN) + '">'
-                    + '<div><div class="dsx-mint-t">' + head + chips + '</div>'
-                    + '<div class="dsx-mint-s">' + legsTxt + '</div>' + planLine + '</div></div>';
+                    + '<input type="checkbox" class="dsx-mint-check" aria-label="Second shift: ' + esc(mp.driver_name) + ' on ' + esc(unitN) + '"'
+                    + (mp.est_saving ? ' title="Keeps ≈$' + mp.est_saving + ' in-house"' : '') + '>'
+                    + '<div class="dsx-mint-n">' + esc(mp.driver_name) + '</div>'
+                    + '<div class="dsx-mint-t">' + head + '</div>'
+                    + '<div class="dsx-mint-s">' + legsTxt + '</div>' + planLine + '</div>';
             });
         }
         // ── The priced crunch exception (Build 2d): a choice, never a default.
@@ -5955,19 +5982,32 @@
                 }
                 var r = st.result || {};
                 var b = r.baseline || {}, s = r.score || {};
-                var html = '<div class="dsp-line">Today’s setup builds to <b>'
-                    + (b.coverage_pct != null ? b.coverage_pct + '%' : '—') + '</b> coverage, '
-                    + '<b>' + b.farm_outs + '</b> farmed (≈' + money(b.farm_cost_usd || 0)
-                    + '), <b>' + b.driver_days + '</b> drivers. Best plan found: <b>'
-                    + (s.coverage_pct != null ? s.coverage_pct + '%' : '—') + '</b> coverage, <b>'
-                    + s.farm_outs + '</b> farmed (≈' + money(s.farm_cost_usd || 0)
-                    + '), <b>' + s.driver_days + '</b> drivers.</div>';
+                // On most days the best plan IS the current setup, and printing an
+                // identical set of figures twice was the panel's worst habit. State
+                // the day once; show a before -> after only on the numbers that moved.
+                // Read as a ladder: where the day stands NOW, what to DO, and what
+                // the day becomes. Two sets of bare numbers side by side (the old
+                // panel) left the dispatcher guessing which was which.
+                function nums(o, extra) {
+                    return '<b>' + (o.coverage_pct != null ? o.coverage_pct + '%' : '—')
+                        + '</b> in-house<span class="sep">·</span><b>' + o.farm_outs
+                        + '</b> farmed' + (extra && o.farm_cost_usd != null
+                            ? ' <span class="dsp-quiet">≈' + money(o.farm_cost_usd) + '</span>' : '')
+                        + '<span class="sep">·</span><b>' + o.driver_days + '</b> drivers';
+                }
+                function step(label, inner, cls) {
+                    return '<div class="dsp-step' + (cls ? ' ' + cls : '') + '">'
+                        + '<span class="dsp-lbl">' + label + '</span><div>' + inner + '</div></div>';
+                }
+                var html = step('Now', nums(b, true));
                 if ((r.swaps || []).length) {
-                    html += '<div class="dsp-do"><i class="bi bi-check2-circle me-1"></i>'
-                        + esc(r.instructions || r.swaps.join('; ')) + '</div>';
+                    html += step('Do this',
+                        esc(r.instructions || r.swaps.join('; '))
+                        + '<div class="dsp-then">' + nums(s, false) + '</div>', 'dsp-go');
                 } else {
-                    html += '<div class="dsp-quiet dsp-line">' + esc(r.instructions
-                        || 'Your current setup is already the best this search found.') + '</div>';
+                    html += step('Verdict', '<i class="bi bi-check2 me-1"></i>'
+                        + 'This is already the best setup the search found. Build as usual.',
+                        'dsp-ok');
                 }
                 if (r.epsilon_note) {
                     html += '<div class="dsp-warn">' + esc(r.epsilon_note) + '</div>';
@@ -5987,27 +6027,23 @@
                 });
                 // "Catch the rest" (D16): named spare drivers on free cars, each
                 // verified to capture farmed trips. Tick-suggestions only.
-                (r.additions || []).forEach(function(ad) {
-                    var caught = (ad.captured || []).map(function(c) {
-                        return c.pickup;
-                    }).filter(Boolean).join(', ');
-                    html += '<div class="dsp-do"><i class="bi bi-person-plus me-1"></i>'
-                        + 'Tick <b>' + esc(ad.driver_name) + '</b> and give him <b>'
-                        + esc(ad.vehicle_label) + '</b> — catches '
-                        + (ad.captured || []).length + ' trip'
-                        + ((ad.captured || []).length !== 1 ? 's' : '')
-                        + (caught ? ' (' + esc(caught) + ')' : '')
-                        + ', keeps ≈' + money(ad.kept_usd || 0) + ' in-house.</div>';
+                // Each addition is one more rung on the same ladder, and the running
+                // total is shown once at the end rather than per suggestion.
+                (r.additions || []).forEach(function(ad, i) {
+                    var caught = (ad.captured || []).map(function(c) { return c.pickup; })
+                        .filter(Boolean).join(' and ');
+                    html += step(i === 0 ? 'Also' : '',
+                        'Tick <b>' + esc(ad.driver_name) + '</b> and give him '
+                        + esc(ad.vehicle_label) + '.'
+                        + '<div class="dsp-quiet">catches ' + esc(caught
+                            || ((ad.captured || []).length + ' more trips')) + '</div>', 'dsp-go');
                 });
                 if (r.with_additions) {
                     var wa = r.with_additions;
-                    html += '<div class="dsp-line">With '
-                        + (r.additions.length !== 1 ? 'those ticks' : 'that tick')
-                        + ': <b>' + wa.coverage_pct + '%</b> coverage, <b>'
-                        + wa.farm_outs + '</b> farmed, <b>' + wa.driver_days
-                        + '</b> drivers — ≈' + money(wa.kept_usd || 0)
-                        + ' kept in-house. Tick them in the crew list above, '
-                        + 'Apply, then build the schedule.</div>';
+                    html += step((r.additions.length !== 1 ? 'With those' : 'With that'),
+                        nums(wa, false)
+                        + (wa.kept_usd ? '<div class="dsp-quiet">'
+                            + money(wa.kept_usd) + ' kept in-house</div>' : ''), 'dsp-end');
                 }
                 if (r.additions_note) {
                     html += '<div class="dsp-quiet dsp-line">' + esc(r.additions_note) + '</div>';
@@ -6020,10 +6056,13 @@
                     html += '<div class="dsp-warn">Time budget hit — this is the best found '
                         + 'so far, not an exhaustive search.</div>';
                 }
-                html += '<div class="dsp-stamp">Built ' + clock(st.computed_at)
-                    + ' · from bookings as of ' + clock(st.bookings_as_of)
-                    + ' · ' + (r.evaluations || '?') + ' evaluations in '
+                // The stamp answers one question — is this still current? Evaluation
+                // counts and run seconds are engine trivia and belong in the tooltip.
+                html += '<div class="dsp-stamp" title="' + (r.evaluations || '?')
+                    + ' plans evaluated in '
                     + (r.wall_clock_s != null ? r.wall_clock_s + 's' : '?')
+                    + ', from bookings as of ' + clock(st.bookings_as_of) + '">Built '
+                    + clock(st.computed_at)
                     + (st.stale ? ' · <b>bookings may have moved</b> — '
                         + '<button class="dsp-rebuild" id="dspRebuild">re-build</button>' : '')
                     + '</div>';
