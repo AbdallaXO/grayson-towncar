@@ -209,6 +209,32 @@ STATIC_FLOOR_DWELL_MIN = 45
 # exactly this model. Flip off to chain on the metric estimates again.
 CHAIN_STATIC_TIMING = True
 
+# Chain feasibility takes the LATER of the static planning clear time and the BOARD's
+# own measured estimate (estimate_job_end_time — measured dwell + measured drive for
+# that time-of-day/day-type bucket, the real flight time when known, and the Publix
+# stop) WHEN THE NEXT PICKUP IS A FIXED-TIME JOB: a departure, a return, a cruise
+# transfer — someone standing outside a resort at an agreed minute with a flight or a
+# ship to catch.
+#
+# Reason (2026-09-02, founder review of a real built 09-12 board): the two clocks
+# disagree by up to 35 min and the board's is the LATER one, so the engine was
+# building chains the dispatcher's own screen already showed as late — Michael Olmo
+# clearing 12:03 PM on the board with a 12:00 PM next pickup, passed by the engine on
+# an 11:28 AM static clear. Measured over 11 replayed dates, that produced ~10
+# fixed-time pickups PER DAY the driver could not physically reach.
+#
+# An airport ARRIVAL next job is deliberately EXCLUDED: its booked time is the
+# flight's landing slot, not a waiting guest, and the deplaning grace already lets the
+# driver reach the kerb after it. Applying the later clock there too costs ~4.6
+# trips/day for no punctuality gain (analysis/22).
+#
+# Repositioning stays on the category table (chain_repo_minutes) — the
+# p75-of-in-service objection above applies to an empty reposition and still stands.
+# Taking the later value can only ever DECLINE a turn the old path allowed, never
+# admit a new one. Founder ruling 2026-09-02: "i do not want us to be late especially
+# for departures cruise jobs etc."
+CHAIN_CLEAR_TAKES_LATER = True
+
 # Chain repositioning may use the PRECOMPUTED REAL ROAD DISTANCE for an exact address pair
 # where the category table demonstrably can't be trusted (2026-08-09 audit, B3): it bills
 # every intra-cluster hop at one flat average — ('Disney Resort','Disney Resort') = 12 —
@@ -1077,11 +1103,18 @@ def chain_repo_minutes(from_text, to_text, from_category, to_category) -> int:
     return DRIVE_TIME_ESTIMATES.get((from_category, to_category), DEFAULT_DRIVE_TIME)
 
 
-def _slot_chain_end(slot, target_date: date) -> datetime:
+def _slot_chain_end(slot, target_date: date, take_later: bool = False) -> datetime:
     """A slot's clear time for chain math: the precomputed founder static-model value
     when present (CHAIN_STATIC_TIMING), else the dynamic estimate raised to the arrival
-    static floor (legacy fallback for callers that build bare slots)."""
+    static floor (legacy fallback for callers that build bare slots).
+
+    ``take_later``: also honour the BOARD's measured estimate, so chain math never
+    plans on a clear time EARLIER than the one the dispatcher is shown. The caller
+    decides — it is passed only when the job being seated after this slot is a
+    FIXED-TIME pickup (see CHAIN_CLEAR_TAKES_LATER)."""
     if CHAIN_STATIC_TIMING and slot.chain_clear_dt is not None:
+        if take_later and slot.estimated_end_time is not None:
+            return max(slot.chain_clear_dt, slot.estimated_end_time)
         return slot.chain_clear_dt
     from dispatching import feasibility_guards as fg
     end = slot.estimated_end_time
@@ -1208,13 +1241,17 @@ def check_feasibility(
     # 2:40): picking by pickup time alone hands the 2:40 clear to the turnaround math and
     # silently ignores the 4:00 one. On an already-valid chain the two choices agree, so
     # this only ever fires where there is a real conflict to catch (audit 2026-08-09, B5).
+    # Never plan on a clear time earlier than the board's when the job we are seating
+    # is a FIXED-TIME pickup (departure / return / cruise) — CHAIN_CLEAR_TAKES_LATER.
+    _later_for_new = CHAIN_CLEAR_TAKES_LATER and not new_is_arrival
     preceding = None
     following = None
     for slot in sorted_slots:
         slot_pickup_dt = datetime.combine(target_date, slot.pickup_time)
         if slot_pickup_dt <= new_pickup_dt:
             if (preceding is None
-                    or _slot_chain_end(slot, target_date) > _slot_chain_end(preceding, target_date)):
+                    or _slot_chain_end(slot, target_date, _later_for_new)
+                    > _slot_chain_end(preceding, target_date, _later_for_new)):
                 preceding = slot
         elif following is None:
             following = slot
@@ -1223,7 +1260,7 @@ def check_feasibility(
 
     # Check against preceding slot — context-dependent turnaround (Guard B)
     if preceding:
-        preceding_end = _slot_chain_end(preceding, target_date)
+        preceding_end = _slot_chain_end(preceding, target_date, _later_for_new)
         if CHAIN_STATIC_TIMING:
             reposition = chain_repo_minutes(preceding.dropoff_location, new_leg.pickup_location,
                                             preceding.dropoff_category, new_pickup_cat)
@@ -1276,7 +1313,10 @@ def check_feasibility(
             same_terminal=(new_dropoff_cat == following.pickup_category),
             deplaning_grace=deplaning_grace, safety_pad=safety_pad,
         )
-        earliest_for_next = new_chain_end_dt + timedelta(minutes=req)
+        _end_for_next = new_chain_end_dt
+        if CHAIN_CLEAR_TAKES_LATER and not following_is_arrival:
+            _end_for_next = max(_end_for_next, new_end_dt)
+        earliest_for_next = _end_for_next + timedelta(minutes=req)
         following_buffer = int((following_pickup_dt - earliest_for_next).total_seconds() / 60)
 
         # Guard B' on the other side of the insert — same floor, same exemption.
