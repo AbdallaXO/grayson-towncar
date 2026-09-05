@@ -177,6 +177,24 @@ def _run_batch_tasks():
         except Exception as e:
             logger.error(f"overnight_confirm_sweep error: {e}", exc_info=True)
 
+    # 6c. Grade yesterday's Recovery Advisor cards (Phase 1.2). Idempotent by
+    #     DATA, not by cadence: it picks up rows whose outcome is still missing
+    #     on a service date that has closed, so a skipped cycle costs nothing
+    #     and a repeat cycle is one indexed SELECT that finds nothing. That is
+    #     deliberately not `_cycle_count % 48` — the counter is per-process and
+    #     resets on every worker recycle (dispatching/fleet_sync.should_reconcile
+    #     documents why that gate cannot express "nightly").
+    try:
+        from dispatching.advisor_events import fill_outcomes
+        result = fill_outcomes()
+        if result and result.get("graded"):
+            logger.info(
+                f"Advisor outcomes: {result['graded']} graded, "
+                f"{result.get('scored', 0)} scorable"
+            )
+    except Exception as e:
+        logger.error(f"fill_outcomes error: {e}", exc_info=True)
+
     # 7. Ops task generation — scan for flight mismatches, driver conflicts,
     #    unassigned legs, unpaid reservations, auto-close, snooze expiry
     try:

@@ -421,3 +421,181 @@ class DayPlan(models.Model):
 
     def __str__(self):
         return f"DayPlan {self.date} ({self.status})"
+
+
+class AdvisorEvent(models.Model):
+    """One Recovery Advisor card, from the first time it reached a screen to
+    what actually happened to the trip it was about.
+
+    WHY THIS EXISTS. The advisor's precision was measured once, offline, by
+    replaying 28 days through it (``analysis/23_advisor_replay.py``). That
+    number is a photograph: it stops being true the moment a detector, a
+    constant or the board's shape changes, and nothing in production would say
+    so. D5 refuses to show a warning class below 70% precision, so the number
+    has to keep being computed after launch — which means the cards have to be
+    written down as they are raised, and graded once the day is over. This
+    table is that ledger, and it is also the trust ledger D14 would need before
+    anything here is ever allowed to apply itself.
+
+    ONE ROW PER EPISODE, NOT PER CARD ID. The engine's card id is an anti-flap
+    key, not a lifecycle: ``overlap:{prev}:{next}`` is reborn under the same
+    string every time the same pair breaks again, and a card can leave the rail
+    (a fresh on-time GPS ping suppresses it) and come back an hour later. An
+    episode is one continuous run of sightings; a sighting more than
+    ``advisor_events.EPISODE_GAP_MIN`` after the last one opens a new episode.
+    Measured on the 28-day replay before this table existed
+    (``analysis/27_advisor_event_gate.py`` -> ``out/27_identity_stability.csv``).
+
+    A CARD IS NOT ONE THING WHILE IT LIVES, so this row records both ends.
+    Under a stable id, ``severity`` and ``basis`` flip as a tap lands or GPS
+    goes stale, and — the one that decides the grading — ``leg_ids[-1]``, the
+    downstream trip the card is ABOUT, changes as ``_downstream_breaks``
+    re-walks the chain. The outcome is graded on the impact leg as LAST seen,
+    and ``impact_leg_first_id`` preserves the first claim so a moved claim is
+    visible rather than silently overwritten.
+
+    WHAT "SEEN" MEANS, EXACTLY. A sighting is "the server sent this card to a
+    browser, or the background sweep computed it" — never "a dispatcher read
+    it". The rail polls while collapsed and while the tab is unfocused-then-
+    refocused, so these counts are an upper bound on human attention and must
+    never be reported as one. ``source`` records which surface saw it first.
+
+    THE OUTCOME IS THE REPLAY'S, DELIBERATELY. ``advisor_events.leg_lateness``
+    is a line-for-line ORM twin of 23's ``build_truth`` — last on-location tap
+    against ``pickup_policy.pickup_deadline``, 19's batch-tap rule, one decimal,
+    strictly greater than 15 — because a live precision number computed a
+    different way could not be compared with the replay's, and comparing them is
+    the only reason to keep this table. ``outcome_deadline`` and
+    ``outcome_deadline_basis`` are stored alongside the verdict so that a flight
+    record edited after the fact shows up as a disagreement instead of a
+    mystery.
+
+    STRICTLY A LEDGER. Nothing here is read by detection, generation, ranking or
+    the apply path; a row failing to write must never fail a poll or an apply,
+    and every writer in ``advisor_events`` is wrapped accordingly.
+    """
+
+    SOURCE_CHOICES = [
+        ("rail", "Dispatch board rail"),
+        ("task", "Ops task detail"),
+        ("sweep", "Background sweep"),
+    ]
+    #: 19's tap-quality vocabulary, plus the two 23 adds. ``no_deadline`` is a
+    #: leg ``pickup_deadline`` could not price; ``unknown`` is an impact leg that
+    #: is not on the service date at all (a card CAN name the previous evening's
+    #: tail leg — conflict_advisor._load_prev_tail).
+    QUALITY_CHOICES = [
+        ("ok", "Scored"), ("batch", "Batch-entered taps"),
+        ("none", "No usable tap"), ("no_deadline", "No priceable deadline"),
+        ("unknown", "Impact leg off the date"),
+    ]
+
+    # ── identity ──────────────────────────────────────────────────────────
+    service_date = models.DateField(db_index=True)
+    #: The engine's anti-flap id (conflict_advisor.Disruption.id) — carries no
+    #: date, so it is only unique WITH service_date. May also be a synthetic
+    #: ``farm_pending:{leg}`` id, which no detector ever emitted.
+    card_id = models.CharField(max_length=120, db_index=True)
+    episode = models.PositiveSmallIntegerField(default=1)
+
+    # ── what the card was, first and last ─────────────────────────────────
+    kind = models.CharField(max_length=24, blank=True, default="")
+    severity = models.CharField(max_length=10, blank=True, default="")
+    basis = models.CharField(max_length=24, blank=True, default="")
+    severity_last = models.CharField(max_length=10, blank=True, default="")
+    basis_last = models.CharField(max_length=24, blank=True, default="")
+    #: Volatile by design (unassigned embeds "12 min out", overrun the overrun
+    #: minutes), so this is the first one only — a label for a human reading the
+    #: ledger, never a key.
+    headline = models.CharField(max_length=200, blank=True, default="")
+
+    # ── the claim ─────────────────────────────────────────────────────────
+    #: NOT a ForeignKey on purpose. A card can name a leg on the previous
+    #: service date, and a CASCADE would delete ledger rows when a leg is
+    #: deleted — quietly moving every precision number this table exists to
+    #: keep honest.
+    impact_leg_id = models.IntegerField(null=True, blank=True, db_index=True)
+    impact_leg_first_id = models.IntegerField(null=True, blank=True)
+    #: len(leg_ids). 1 means the card names no downstream victim, so its outcome
+    #: grades the leg it fired on — 23's ``pct_single_leg`` honesty column, and
+    #: the reason §3.3's headline precisions flatter the tool.
+    leg_count = models.PositiveSmallIntegerField(default=0)
+    impact_at = models.DateTimeField(null=True, blank=True)
+
+    # ── lifecycle ─────────────────────────────────────────────────────────
+    first_seen_at = models.DateTimeField(db_index=True)
+    last_seen_at = models.DateTimeField()
+    sightings = models.PositiveIntegerField(default=1)
+    source = models.CharField(max_length=8, choices=SOURCE_CHOICES, default="rail")
+    #: Ever arrived carrying at least one validated plan. §3.3's one durable
+    #: finding is that 88-96% of the two biggest classes do, and that this is
+    #: worth screen space independently of whether the warning was necessary.
+    had_plans = models.BooleanField(default=False)
+    #: Ever came back past ADVISOR_MAX_DISRUPTIONS with no plans attached.
+    detected_only = models.BooleanField(default=False)
+
+    # ── what the dispatcher did ───────────────────────────────────────────
+    applied_at = models.DateTimeField(null=True, blank=True)
+    applied_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    #: The plan's positional id ({card}#p{rank}) plus the mode the write took.
+    #: Positional means it is a label, not a key — the ranking can change
+    #: between two polls of the same card.
+    applied_plan_id = models.CharField(max_length=140, blank=True, default="")
+    applied_mode = models.CharField(max_length=8, blank=True, default="")
+    applied_snapshot_id = models.IntegerField(null=True, blank=True)
+    #: An apply the engine refused: 409 board-drifted, 400 hard rule, 403
+    #: sandbox, 404 leg gone. Recorded because a plan a dispatcher tried and
+    #: could not use is not the same as a plan nobody wanted.
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    rejected_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    rejected_error = models.CharField(max_length=200, blank=True, default="")
+
+    snoozed_at = models.DateTimeField(null=True, blank=True)
+    snoozed_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    snoozed_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
+    #: Re-snoozing the same card is legal and overwrites the cache entry in
+    #: place, so the stamp is the LAST snooze and this is how many there were.
+    snooze_count = models.PositiveSmallIntegerField(default=0)
+
+    task_filed_at = models.DateTimeField(null=True, blank=True)
+    task_filed_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name="+")
+    task_id = models.IntegerField(null=True, blank=True)
+    #: False when ops.services.create_task deduped or hit its two-hour cooldown
+    #: — the scanner had already filed the same task. That is the honest
+    #: "superseded" signal, and counting it as a filing would overstate the rail.
+    task_created = models.BooleanField(default=False)
+
+    # ── what actually happened ────────────────────────────────────────────
+    outcome_filled_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    outcome_attempts = models.PositiveSmallIntegerField(default=0)
+    outcome_quality = models.CharField(max_length=12, choices=QUALITY_CHOICES,
+                                       blank=True, default="")
+    #: Minutes the impact leg's on-location tap landed after its deadline, to
+    #: one decimal and signed — 23's units exactly, so `> 15` here and `> 15`
+    #: there mean the same thing. Null whenever quality != "ok".
+    outcome_late_min = models.FloatField(null=True, blank=True)
+    outcome_deadline = models.DateTimeField(null=True, blank=True)
+    outcome_deadline_basis = models.CharField(max_length=60, blank=True, default="")
+    outcome_tap_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Advisor Event"
+        verbose_name_plural = "Advisor Events"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service_date", "card_id", "episode"],
+                name="uniq_advisor_event_episode",
+            ),
+        ]
+        indexes = [
+            # The nightly fill's only query: yesterday's unresolved rows.
+            models.Index(fields=["service_date", "outcome_filled_at"],
+                         name="idx_advisor_event_fill"),
+        ]
+
+    def __str__(self):
+        state = self.outcome_quality or "unscored"
+        return f"{self.service_date} {self.card_id} #{self.episode} ({state})"

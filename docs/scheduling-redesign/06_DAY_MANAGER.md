@@ -34,7 +34,7 @@ ends, so their effect cannot be measured here at all** (§0.2).
 | No new daemon needed / allowed | `samsara_scheduler.py` — 180 s, lock `737_202`, `sweep_eta` at `:234`; `ghl_integration/scheduler.py` — 1800 s, lock `737_201`, runs `generate_ops_tasks` at `:183`. 04 §6 (`:183`) bans a new periodic daemon outright |
 | `AdvisorEvent` / `DispatchEtaSample` do not exist | absent from `dispatching/models.py` — both are new work in Phase 1 |
 | **The advisor has never been applied in production** | `reservations_schedulesnapshot.trigger` holds only `before_reset` (119), `before_auto_assign` (45), `manual` (36). No `conflict_advisor` trigger, ever |
-| Analysis script numbering 23–25 is free | `docs/scheduling-redesign/analysis/` runs 00–20, 22 (21 is unused) |
+| Analysis script numbering 23–25 is free | `docs/scheduling-redesign/analysis/` runs 00–20, 22 (21 is unused); 23–27 are now taken |
 
 ### 0.2 Snapshot reconciliation and the scanner baseline [measured, 2026-09-05]
 
@@ -599,11 +599,19 @@ Only classes clearing D5 on (1) with a usable (3) ship. If recall is low, the ho
 that the milestone catches a *subset* of trouble well — which is still worth shipping, but must
 be described that way rather than as "the system watches your day".
 
-**Live instrument — `AdvisorEvent`.** One row per card lifecycle: shown (first fingerprint), plan
-applied / snoozed / task filed / expired / superseded, and the realised outcome (filled nightly
-by a small job on the existing GHL loop's `generate_ops_tasks` tick: impact leg's on-location
+**Live instrument — `AdvisorEvent`. SHIPPED 2026-09-05 (Phase 1.2 below).** One row per card
+lifecycle: shown, plan applied / refused / snoozed / task filed, and the realised outcome (filled
+by a small job on the existing GHL loop once the service date has closed: impact leg's on-location
 lateness). This makes the precision number stay true in production and is the D14 trust ledger.
-Today snooze is cache-only and nothing is persisted.
+Before this, snooze was cache-only and nothing was persisted at all.
+
+**Three of that paragraph's four assumptions were measured before the table was designed, and two
+were wrong** — `analysis/27_advisor_event_gate.py`, the same 28 days on a 3-minute grid
+(`out/27_identity_stability.csv`, `27_cadence_coverage.csv`, `27_card_episodes.csv`). Details in
+Phase 1.2; the short version is that "one row per card lifecycle" is not what the engine's card id
+gives you (5.5% of ids carry more than one episode, `flight_change` 14.1%), and a card does not
+stay the same card while it lives — under a stable id the **impact leg itself moves on 11.9% of
+episodes**, which is the leg the outcome grades.
 
 **Ship rule (D5, per class):** replay precision ≥70% on 28 days **and** ≥70% over the first two
 live weeks from `AdvisorEvent`; otherwise the class renders as a passive row with no plans, or
@@ -725,8 +733,59 @@ code it judges; every dispatcher-visible change ships with a release note; invis
 
    **Open decision:** 12's own output says `turn_tight` should "demote to info" at 68.9%. That is a
    dispatcher-visible rendering change and is **not** included here — flagged, not taken.
-2. **`AdvisorEvent` model + nightly outcome fill** on the existing GHL loop tick (no new daemon).
-   Gate: replay of one live week reproduces the card list the log holds.
+2. ~~**`AdvisorEvent` model + nightly outcome fill**~~ **SHIPPED 2026-09-05.**
+   `dispatching.models.AdvisorEvent` + `dispatching/advisor_events.py`; recorded from the rail's
+   state endpoint, the ops task-detail card, and the apply / snooze / file-task writes; graded on
+   the existing GHL loop once a service date has closed. No new daemon. Invisible, so
+   `Release-Note: none`. Gate script `analysis/27_advisor_event_gate.py`, **written and baselined
+   before the model existed** — the stated gate ("replay of one live week reproduces the card list
+   the log holds") cannot run until a live week exists, so it was replaced by the two things that
+   can be checked now: does the log's *shape* fit what cards actually do, and does its *grading*
+   reproduce 23's.
+
+   **The measurements changed three design decisions.** 28 days, 3-minute grid, 06:00–23:00,
+   9,548 computes:
+
+   | What was assumed | What was measured | What changed |
+   |---|---|---|
+   | "one row per card lifecycle" | 1,558 unique (date, id) pairs → **1,656 episodes** (59.1/day). **5.5% of ids** come back after leaving the rail — `flight_change` **14.1%** | The row is keyed `(service_date, card_id, episode)`, not `(date, id)`. Keying on the id alone would have merged 6% of lifecycles |
+   | a card is one thing while it lives | Under a **stable id**: severity changes on **8.1%** of episodes, basis on 4.1%, and **the impact leg — `leg_ids[-1]`, the trip the outcome grades — on 11.9%** (`late_cascade` 23.6%) | The row keeps **both ends** (`severity`/`severity_last`, `impact_leg_first_id`/`impact_leg_id`) and grades the last claim. A single value would have reported whichever end the log happened to catch |
+   | the log can ride the 30-minute GHL loop | Share of episodes a sampler sees **at all**, averaged over every phase offset: **3 min 100%**, 6 min 95.3%, 15 min 86.5%, **30 min 76.1%**, 60 min 60.8% | The unattended sweep rides the **180 s Samsara tick** (the `fleet_sync` precedent, same loop, same lock); only the nightly grading stayed on the GHL loop as planned |
+
+   **On that last row, the reason is not the precision bias** — that stays under a point until an
+   hour (30 min: −0.9). It is *which* cards a coarse sampler loses. **44.7% of episodes live under
+   30 minutes**, and they are not spread evenly: `overrun` **93.1%** under 30 min, `unassigned`
+   75.7%, `late_cascade` 68.5%, against `overlap`'s 25.3%. A 30-minute log would have reported
+   those three classes on a quarter fewer cards than the classes they are compared against — and
+   D5 is a per-class bar. Cost of the finer cadence, measured on the same run: **P50 76 ms, max
+   925 ms, zero of 9,548 computes over the 4 s budget** — about 26 seconds of CPU across a day.
+
+   **And one assumption the plan did not state, which is the reason the sweep exists at all.**
+   Phase 1.2 as written feeds the log from the rail — and the rail is superuser-only
+   (`advisor_views.advisor_visible_to`), **two active accounts** [measured: 3 superusers, one
+   deactivated], on a panel that keeps polling while collapsed and stops while the tab is hidden.
+   There is no record anywhere of how often it is actually open: `StaffActivityMiddleware` skips
+   JSON responses, so **zero rows** in the entire snapshot record an advisor poll (the best proxy
+   is 548 dashboard page-views by superusers over the 17 days since the rail shipped). A log fed
+   only from there is an attendance record, and it cannot support either thing the log is *for*:
+   §3.3(b) is explicitly "ship nothing visible, build `AdvisorEvent`, log for a month", and Phase
+   2's gate is two live weeks of per-class precision **before** the rail opens. Hence the sweep,
+   behind one constant (`advisor_events.ADVISOR_EVENT_SWEEP`) so it can be switched off without
+   changing a pixel.
+
+   **Gate results:**
+
+   | Gate | Result |
+   |---|---|
+   | Grading reproduces 23's `build_truth` (`27 --verify-fill`) | ✔ **3,108 legs over 28 dates, 0 disagreements.** Last on-location tap, `pickup_deadline`, 19's batch rule, one decimal, strict `>15` — and no status filter, because build_truth scores cancelled legs too |
+   | The fill's ceiling — how many rows can ever be resolved | **85.5%** of episodes have an impact leg with a usable tap. The other 14.5% can never be graded by any nightly job, and are recorded as such rather than dropped from the denominator |
+   | `dispatching.tests_advisor_events` | ✔ 48/48 |
+   | `dispatching` + `ops` suites | ✔ 2,485 tests, the same 7 pre-existing failures as a stashed baseline (samsara telemetry ×4, fleet ×2, staffing board) |
+
+   **What this does not tell you.** GPS (`dispatch_*`) is blanked at every replayed tick because
+   the sweep keeps no history, so every number above is measured with the advisor's best sensor
+   switched off — `gps_fresh` classes have no measured episode shape at all. The live log is the
+   first thing that will see them, which is the same argument Phase 1.3 rests on.
 3. **GPS sweep history** — `sweep_eta` writes a compact `DispatchEtaSample` row per evaluated leg
    (bulk insert on the same 180 s tick it already runs). Gate: 07's ETA-error table reproducible
    from the new table.
@@ -833,10 +892,12 @@ Acceptance instrument for the whole project: the same CSVs from Phase 0, re-run 
 
 - Phase 0: `docs/scheduling-redesign/analysis/25_scanner_outcomes.py`, `23_advisor_replay.py`,
   `24_live_clock_split.py` + `analysis/out/` CSVs; this document, updated with the decisions.
-- Phase 1: `dispatching/board_validation.py` (take_later), `dispatching/models.py` + migration
-  (`AdvisorEvent`, `DispatchEtaSample`), `dispatching/samsara_scheduler.py` (history insert),
-  `ops/tasks.py` (`classify_turn`, `detect_driver_conflicts` → shared formula),
-  `ghl_integration/scheduler.py` (nightly outcome fill hook), tests.
+- Phase 1: `dispatching/board_validation.py` (take_later ✔), `dispatching/models.py` + migration
+  (`AdvisorEvent` ✔ `0019`, `DispatchEtaSample`), `dispatching/advisor_events.py` (✔ the ledger,
+  the outcome twin, the sweep), `dispatching/samsara_scheduler.py` (✔ ledger sweep; history insert
+  still to come), `dispatching/advisor_views.py` + `conflict_advisor_actions.py` + `ops/views.py`
+  (✔ the four record points), `ops/tasks.py` (`classify_turn`, `detect_driver_conflicts` → shared
+  formula), `ghl_integration/scheduler.py` (✔ outcome fill hook), tests.
 - Phase 2: `dispatching/advisor_views.py` (gate + outcome endpoint), `_recovery_advisor.html`
   (class filter, "not a problem"), `ops/tasks.py` (file-from-cards), release note.
 - Phase 3: `dispatching/conflict_advisor.py` (`_callin_plans`, cascade rule, fixed-time weight),

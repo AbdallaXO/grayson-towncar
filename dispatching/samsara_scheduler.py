@@ -331,6 +331,25 @@ def _run_fleet_work():
         logger.error(f"Fleet nightly reconcile failed: {e}", exc_info=True)
 
 
+def _run_advisor_log():
+    """Write down what the Recovery Advisor says this minute (Phase 1.2).
+
+    Fully isolated, same contract as ``_run_fleet_work``: an exception here must
+    never stop the GPS poll or the ETA sweep. It rides THIS loop rather than the
+    30-minute one because 44.7% of card episodes live under half an hour and are
+    not spread evenly across the classes — see ``advisor_events`` for the
+    measured coverage table."""
+    try:
+        from dispatching.advisor_events import sweep_today
+    except Exception as e:
+        logger.warning(f"Advisor ledger unavailable: {e}")
+        return
+    try:
+        sweep_today()
+    except Exception as e:
+        logger.error(f"Advisor ledger sweep failed: {e}", exc_info=True)
+
+
 def _run_scheduler():
     """Daemon loop. Dies with the process. Survives any per-cycle exception."""
     time.sleep(60)  # let Django finish booting
@@ -355,6 +374,10 @@ def _run_scheduler():
                 # guarded so neither can take the poller (or the ETA badges the
                 # dispatch board depends on) down with it.
                 _run_fleet_work()
+                # Recovery Advisor ledger: one row per card episode, written
+                # whether or not a superuser has the rail open. Guarded the
+                # same way — the log must never cost the board its ETAs.
+                _run_advisor_log()
             else:
                 logger.debug("Another worker holds the Samsara poller lock, skipping cycle")
         except Exception as e:

@@ -127,6 +127,10 @@ class CardTaskLinkTests(_AdvisorTaskFixture):
             "leg_id": b.id,                     # the anchor (broken) pickup
             "task_type": "driver_conflict",
             "title": card["headline"],
+            # Carried so the advisor ledger can tie the filed task back to the
+            # card that offered it — leg_id alone cannot, since two kinds can
+            # raise cards on the same leg at the same minute.
+            "disruption_id": card["id"],
         })
 
     def test_unassigned_card_offers_driver_assign_type(self):

@@ -123,7 +123,12 @@ number for each type. Nothing ships until that number exists.
   actually impossible.**
 - Point the three arguing alarm systems at one piece of arithmetic, so a turn gets one verdict.
 - Start writing down what each warning said and what actually happened, so the accuracy
-  number stays true after launch instead of being a one-off.
+  number stays true after launch instead of being a one-off. **Done, and one thing about it
+  is worth knowing.** The plan was to write a warning down when it appears on your screen —
+  but the tool is switched on for two people, and nobody can tell how often either of you
+  actually has it open. So it now writes itself down every three minutes whether anyone is
+  watching. That matters for the choice in Section 4: "keep it hidden and just collect a
+  month of evidence" is now a real option, because the evidence collects itself.
 - Start keeping the GPS history, which today is thrown away.
 
 **Third, the visible step:** open it to dispatchers — but only the warning types that passed
