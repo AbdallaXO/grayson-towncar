@@ -469,6 +469,22 @@ taps land within two hours of the booked pickup**. Drivers tap, and they tap liv
 clean taps" caveat elsewhere in this document concerns the on-location tap used as a *truth
 clock*; it does not apply to this signal.)
 
+**The two halves of the problem (founder, 2026-09-05).** A live routing call returns an ETA that
+already prices traffic *as it stands now*, so GPS does know a moving driver is stuck — it simply
+cannot see traffic that has not happened yet. That splits day-of lateness cleanly:
+
+| | What breaks | What sees it |
+|---|---|---|
+| **Half one** | He never got started — still on location, the plan is already broken | **the milestone rule** (§3.4) |
+| **Half two** | He started fine and is now stuck in traffic | **GPS only** |
+
+26 measures the milestone rule catching ~59% of late trips; the ~41% it misses are, by
+construction, mostly half two — the driver left on time and the road did the rest. No plan-derived
+rule can ever see those. 07 already scored the signal that can: mid-trip GPS saying the chained
+next pickup is blowing is **72% right on "late at all"**, the strongest predictor measured
+anywhere in this project — and unprovable further because the sweep keeps no history. **Phase 1.3
+is therefore not support work for §3.4; it is the other half of the same detector.**
+
 **The one real risk, and GPS's actual job here.** For the ~6% with no tap, a missed milestone is
 ambiguous — he may have picked up and not tapped. That ambiguity is precisely what produced the
 hygiene cards §3.3 found scoring 100% on one-leg tautologies. **So GPS is not needed for ETA
@@ -673,9 +689,42 @@ code it judges; every dispatcher-visible change ships with a release note; invis
 
 ### Phase 1 — invisible fixes (`Release-Note: none`)
 
-1. **`take_later` on the live path** — `board_validation.turn_slack_minutes` (and `_slot_leg_shim`
-   callers) apply the fixed-time rule; `board_turn_bands` inherits. Gate: 24 re-run shows 0
-   clean-but-negative flips; 12 re-run stays ≥70%; full `dispatching` suite green.
+1. ~~**`take_later` on the live path**~~ **SHIPPED 2026-09-05.** `turn_slack_minutes` takes the
+   later of (static clear, board estimate) when the next pickup is fixed-time — the same branch
+   `check_feasibility` takes at `scheduler.py:1317` — on the planning branch only; the
+   recorded-pickup re-anchor is a fact and is never raised to a model estimate. One formula, so
+   the chips, `assign_warnings`, the advisor's math, `board_turn_bands` and
+   `validate_post_move_board` all inherit it. Four regression tests in
+   `tests_board_validation.TakesLaterParityTests`, including the sereen shape as a named case.
+   **Dispatcher-visible, so it ships with a release note** (`2026-09-05-board-chips-tell-the-truth.md`)
+   — the plan's assumption that Phase 1 was entirely invisible was wrong for this item.
+
+   **Gate results, and one of them did not pass as written:**
+
+   | Gate | Result |
+   |---|---|
+   | 24 re-run | ✔ Live formula now carries the rule; the 5.1/day it used to call clean are now banded red — same 142 cases, now visible |
+   | `dispatching.tests_board_validation` | ✔ 22/22 |
+   | 12 re-run ≥70% | **`turn_critical` 90.3% ✔, ALL 78.9% ✔, `turn_tight` 68.9% ✘** |
+
+   **On the `turn_tight` miss.** Before/after, measured by reverting the change and re-running:
+
+   | Class | Fired before → after | Real before → after | Precision |
+   |---|---|---|---|
+   | `turn_critical` | 156 → **298** | 146 → **269** | 93.6% → 90.3% |
+   | `turn_tight` | 355 → 341 | 281 → 235 | 79.2% → **68.9%** |
+   | ALL | 511 → 639 | **427 → 504** | 83.6% → 78.9% |
+
+   The fix **catches 77 more genuine conflicts** and nearly doubles the critical band while losing
+   3 points of precision on it. `turn_tight` falls because the real conflicts *migrated out of it*
+   into critical, leaving the marginal ones behind — a compositional effect, not a degradation.
+   Note also what 12's truth actually is: 09's flat occupancy model (`m09.OCC`), a **definition**
+   computed from the same optimistic clock this change corrects, so it cannot arbitrate this
+   particular change (§3.2 makes the same point about the 92.5% that let Build 1 ship). The
+   evidence that the fix is right is 24's 142 named cases, not 12.
+
+   **Open decision:** 12's own output says `turn_tight` should "demote to info" at 68.9%. That is a
+   dispatcher-visible rendering change and is **not** included here — flagged, not taken.
 2. **`AdvisorEvent` model + nightly outcome fill** on the existing GHL loop tick (no new daemon).
    Gate: replay of one live week reproduces the card list the log holds.
 3. **GPS sweep history** — `sweep_eta` writes a compact `DispatchEtaSample` row per evaluated leg

@@ -25,14 +25,14 @@ WHAT THIS MEASURES
 Every adjacent slot pair on the REAL hand-built boards of the replay window,
 priced twice:
 
-    live        turn_slack_minutes exactly as shipped
-    corrected   the same, with the prev slot's clear time raised to
-                max(static clear, board clear) when the NEXT pickup is
-                fixed-time — i.e. the rule check_feasibility already applies
+    without   turn_slack_minutes with CHAIN_CLEAR_TAKES_LATER forced OFF
+    with      turn_slack_minutes exactly as shipped
 
-The delta is taken from ``_slot_chain_end`` itself, called both ways, so this is
-not a re-implementation of the slack formula: the shipped formula runs once and
-the correction is subtracted from its result.
+The shipped formula runs BOTH times, with only the module-level rule flag patched
+between them, so neither side is a re-implementation and the script keeps working
+whichever side of the fix it is run on. Before 2026-09-05 "with" and "without"
+were identical, because the live path did not carry the rule; after it, the gap
+between them is what the fix bought.
 
 Reported per day: fixed-time turns, band flips ('' / tight / critical via
 ``pickup_policy.turn_band``), and the case that matters —
@@ -113,15 +113,20 @@ def main():
 
     load_module("gate17", "17_build3_gate.py").django_on_copy()
 
+    from unittest.mock import patch
+    from dispatching import scheduler as sched_mod
     from dispatching.board_validation import turn_slack_minutes
     from dispatching.scheduler import (build_driver_schedules, preload_timing_cache,
-                                       _slot_chain_end, CHAIN_CLEAR_TAKES_LATER)
+                                       CHAIN_CLEAR_TAKES_LATER)
     from dispatching import feasibility_guards as fg
     from dispatching import pickup_policy
     from reservations.models import Leg
     preload_timing_cache()
+    live_has_rule = "take_later" in __import__("inspect").getsource(turn_slack_minutes)
     print(f"scheduler.CHAIN_CLEAR_TAKES_LATER = {CHAIN_CLEAR_TAKES_LATER} "
-          f"(planning side, fixed 2026-09-02); board_validation has no such rule")
+          f"(planning side, 2026-09-02)")
+    print(f"board_validation.turn_slack_minutes carries the rule: "
+          f"{'YES (fixed 2026-09-05)' if live_has_rule else 'NO — this is the bug'}")
 
     per_date, offenders = [], []
     for day in picks:
@@ -143,24 +148,20 @@ def main():
             slots = sorted(sched.slots, key=lambda s: (s.pickup_time, s.leg_id))
             for a, b in zip(slots, slots[1:]):
                 n_pairs += 1
-                live = turn_slack_minutes(a, b, day)
-                if live is None:
+                with patch.object(sched_mod, "CHAIN_CLEAR_TAKES_LATER", False):
+                    live = turn_slack_minutes(a, b, day)
+                corrected = turn_slack_minutes(a, b, day)
+                if live is None or corrected is None:
                     n_unjudgeable += 1
                     continue
                 if fg.is_airport_arrival(b.trip_type, b.pickup_category):
                     continue                      # arrival: the rule exempts it
                 n_fixed += 1
-                try:
-                    plain = _slot_chain_end(a, day, take_later=False)
-                    later = _slot_chain_end(a, day, take_later=True)
-                except Exception:
-                    continue
-                delta = int((later - plain).total_seconds() / 60)
+                delta = live - corrected
                 if delta <= 0:
                     continue
                 n_worse += 1
                 worst = max(worst, delta)
-                corrected = live - delta
                 lb = pickup_policy.turn_band(live)
                 cb = pickup_policy.turn_band(corrected)
                 if lb != cb:
@@ -193,17 +194,24 @@ def main():
           f"{tot('pairs_clock_differs') / n:>6.1f}/day")
     print(f"  band flips                     {tot('band_flips'):>6}   "
           f"{tot('band_flips') / n:>6.1f}/day")
-    print(f"  BOARD SAYS FINE, ENGINE SAYS NO{tot('clean_or_tight_but_negative'):>6}   "
+    print(f"  CLEAN/TIGHT WITHOUT THE RULE,  {tot('clean_or_tight_but_negative'):>6}   "
           f"{tot('clean_or_tight_but_negative') / n:>6.1f}/day")
+    print(f"  NEGATIVE WITH IT")
     print(f"  pairs the formula can't judge  {tot('unjudgeable'):>6}   "
           f"{tot('unjudgeable') / n:>6.1f}/day")
-    print("\n  After Phase 1.1 lands, the last-but-one line must be 0.0/day: the "
-          "board, the\n  warnings and the advisor all read the corrected clock.")
+    if live_has_rule:
+        print("\n  The live formula now carries the rule, so those turns are the ones "
+              "the fix\n  NEWLY BANDS RED. Before 2026-09-05 a dispatcher was shown a "
+              "clean or tight\n  chip on every one of them.")
+    else:
+        print("\n  The live formula does NOT carry the rule, so every turn above is a "
+              "chip a\n  dispatcher is shown as fine on a turn the engine would refuse "
+              "to build.")
 
     if offenders:
         C.sub("THE TEN WORST — a dispatcher was shown a clean chip on these turns")
         print(f"{'date':12s}{'driver':<22}{'from':>9}{'to':>9}{'next':<12}"
-              f"{'live':>6}{'corr':>6}{'delta':>7}{'chip':>8}")
+              f"{'w/out':>6}{'with':>6}{'delta':>7}{'chip':>8}")
         for o in sorted(offenders, key=lambda r: r[8])[:10]:
             print(f"{o[0]:12s}{str(o[1])[:21]:<22}{o[4][:5]:>9}{o[5][:5]:>9}"
                   f"{str(o[6])[:11]:<12}{o[7]:>6}{o[8]:>6}{o[9]:>7}{o[10]:>8}")

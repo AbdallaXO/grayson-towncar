@@ -59,6 +59,16 @@ def turn_slack_minutes(prev_slot, next_slot, target_date, prev_leg=None,
     leg may be seated, so a turn the assignment engine calls legal can no longer
     render red on the board, and one it calls impossible can no longer render clean.
 
+    That parity includes CHAIN_CLEAR_TAKES_LATER (restored here 2026-09-05; the engine
+    gained it 2026-09-02 and this formula did not, so for three days the docstring above
+    was a lie). When the NEXT pickup is fixed-time — a departure, a return, a cruise, a
+    guest already standing there — the previous job's clear time is raised to the board's
+    own measured estimate: max(static clear, estimated end). An airport arrival is exempt,
+    because the guest is still deplaning. Measured on 28 real boards before the fix
+    (analysis/24): 36.7 fixed-time turns a day, 9.3 band flips, and 5.1 turns a day where
+    this formula said clean or tight while the engine's corrected clock said NEGATIVE —
+    a dispatcher shown a green chip on a turn the engine would refuse to build.
+
     What it replaces: a raw clock gap banded at <20 / <10 with no repositioning drive
     and no deplaning grace. That made a same-terminal MCO drop -> arrival look
     "critical" (the engine considers it fine — the guest is still deplaning) while a
@@ -75,25 +85,34 @@ def turn_slack_minutes(prev_slot, next_slot, target_date, prev_leg=None,
     Returns None when the slots don't carry enough information to judge.
     """
     from dispatching.scheduler import (
-        _slot_chain_end, chain_repo_minutes, chain_clear_dt_from_actual,
+        CHAIN_CLEAR_TAKES_LATER, _slot_chain_end, chain_repo_minutes,
+        chain_clear_dt_from_actual,
     )
     from dispatching import feasibility_guards as fg
 
     if prev_slot is None or next_slot is None or next_slot.pickup_time is None:
         return None
     try:
+        next_is_arrival = fg.is_airport_arrival(next_slot.trip_type,
+                                                next_slot.pickup_category)
         if prev_leg is not None and prev_picked_up_dt is not None:
             prev_end = chain_clear_dt_from_actual(prev_leg, prev_picked_up_dt)
         else:
-            prev_end = _slot_chain_end(prev_slot, target_date)
+            # CHAIN_CLEAR_TAKES_LATER, the same branch check_feasibility takes at
+            # scheduler.py:1317. Passed ONLY on the planning branch: the recorded-pickup
+            # re-anchor above is already a fact, and raising a fact to a model estimate
+            # would make the detection clock pessimistic about a driver who is
+            # demonstrably ahead.
+            prev_end = _slot_chain_end(
+                prev_slot, target_date,
+                take_later=(CHAIN_CLEAR_TAKES_LATER and not next_is_arrival))
         next_pickup = datetime.combine(target_date, next_slot.pickup_time)
         repo = chain_repo_minutes(
             prev_slot.dropoff_location, next_slot.pickup_location,
             prev_slot.dropoff_category, next_slot.pickup_category,
         )
         req = fg.required_turnaround(
-            repo,
-            fg.is_airport_arrival(next_slot.trip_type, next_slot.pickup_category),
+            repo, next_is_arrival,
             same_terminal=(prev_slot.dropoff_category == next_slot.pickup_category),
         )
         return int((next_pickup - (prev_end + timedelta(minutes=req))).total_seconds() / 60)

@@ -110,6 +110,89 @@ class TurnSlackDelegateTests(TestCase):
         self.assertIsNone(_gap_turn_slack(None, None, DAY))
 
 
+class TakesLaterParityTests(TestCase):
+    """CHAIN_CLEAR_TAKES_LATER on the LIVE path (2026-09-05).
+
+    scheduler.check_feasibility has, since 2026-09-02, refused to plan a chain on a
+    clear time earlier than the board's own measured estimate when the job being seated
+    is FIXED-TIME. turn_slack_minutes did not, so for three days the board could show a
+    clean chip on a turn the engine would refuse to build — analysis/24 measured 5.1 of
+    them a day on real boards, worst case a CLEAN chip on a turn 47 minutes short.
+
+    What is pinned here: the rule fires for fixed-time next jobs, is exempt for airport
+    arrivals (the guest is still deplaning), and never touches the recorded-pickup
+    branch, where the clear time is a fact rather than a model estimate.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        preload_timing_cache()
+
+    def _slots(self, next_trip="return"):
+        """Built through the same sim-slot builder the engine uses, so the location
+        CATEGORIES are the real ones, then given the shape 22 found on real boards: a
+        MEASURED end (3:40) running 25 min past the static model's clear (3:15).
+
+        The next job picks up at MCO either way, so switching next_trip between
+        'return' and 'arrival' switches the rule's exemption and nothing else —
+        is_airport_arrival reads the trip type AND the pickup category."""
+        prev = _make_sim_slot(_leg(201, 14, 0, trip="arrival",
+                                   pickup_loc="MCO Terminal B",
+                                   dropoff_loc="Disney Contemporary"), DAY)
+        prev.chain_clear_dt = _dt(15, 15)
+        prev.estimated_end_time = _dt(15, 40)
+        nxt = _make_sim_slot(_leg(202, 16, 0, trip=next_trip,
+                                  pickup_loc="MCO Terminal A",
+                                  dropoff_loc="Disney Boardwalk"), DAY)
+        return prev, nxt
+
+    def _slack_without_the_rule(self, prev, nxt):
+        with patch("dispatching.board_validation.CHAIN_CLEAR_TAKES_LATER", False,
+                   create=True):
+            from dispatching import scheduler as sch
+            with patch.object(sch, "CHAIN_CLEAR_TAKES_LATER", False):
+                return bv.turn_slack_minutes(prev, nxt, DAY)
+
+    def test_fixed_time_next_job_takes_the_later_clear(self):
+        prev, nxt = self._slots(next_trip="return")
+        before = self._slack_without_the_rule(prev, nxt)
+        after = bv.turn_slack_minutes(prev, nxt, DAY)
+        # The measured clear is 25 min past the static one, and the whole 25 comes
+        # off the slack the dispatcher is shown.
+        self.assertEqual(before - after, 25)
+
+    def test_airport_arrival_next_job_is_exempt(self):
+        prev, nxt = self._slots(next_trip="arrival")
+        # The guest is still deplaning, so the arrival keeps the static clear and the
+        # chip does not move at all.
+        self.assertEqual(bv.turn_slack_minutes(prev, nxt, DAY),
+                         self._slack_without_the_rule(prev, nxt))
+
+    def test_recorded_pickup_still_beats_the_model(self):
+        """A fact must never be raised to a model estimate: a driver who demonstrably
+        picked up early keeps his real clear time."""
+        prev, nxt = self._slots(next_trip="return")
+        prev_leg = _leg(201, 14, 0, trip="arrival",
+                        pickup_loc="MCO Terminal B",
+                        dropoff_loc="Disney Contemporary")
+        on_fact = bv.turn_slack_minutes(prev, nxt, DAY, prev_leg=prev_leg,
+                                        prev_picked_up_dt=_dt(14, 0))
+        self.assertIsNotNone(on_fact)
+        self.assertGreater(on_fact, bv.turn_slack_minutes(prev, nxt, DAY))
+
+    def test_the_board_can_no_longer_call_an_impossible_turn_clean(self):
+        """analysis/24's finding, as a regression: a turn the engine refuses must not
+        band clean or tight on the live path. This is the sereen 2026-07-25 shape — a
+        CLEAN chip on a turn 47 minutes short."""
+        prev, nxt = self._slots(next_trip="return")
+        prev.chain_clear_dt = _dt(14, 30)         # static model: hours of room
+        prev.estimated_end_time = _dt(16, 5)      # measured: clears AFTER the pickup
+        self.assertEqual(pp.turn_band(self._slack_without_the_rule(prev, nxt)), "")
+        slack = bv.turn_slack_minutes(prev, nxt, DAY)
+        self.assertLess(slack, 0)
+        self.assertEqual(pp.turn_band(slack), "critical")
+
+
 class BoardTurnBandsTests(TestCase):
     """The pair sweep: stable (driver, prev_leg, next_leg) keys, banded by
     pickup_policy.turn_band, with the optional recorded-pickup re-anchor."""
