@@ -476,8 +476,58 @@ prediction; it is needed to disambiguate a missing tap** — has the car left th
 not. That is a far cheaper question than routing, and `dispatch_is_moving` /
 `dispatch_stationary_minutes` already answer it from data the sweep stores anyway.
 
-**What must be measured before any of this is built** (the house rule, and §3.3 is why it exists).
-`analysis/26_milestone_detector.py`, scored on the same 28-day rig:
+**Measured 2026-09-05, before a line of product code — `analysis/26_milestone_detector.py`,
+28 days, real boards, `out/26_milestone_sweep.csv`.** The rule was implemented exactly as
+specified above (shipped math read backwards, picked-up tap as the observation, next leg's
+`pickup_deadline` as the outcome) and swept over how early it starts watching and how long it
+waits before speaking. Pairs whose driver changed after the milestone are excluded, so no credit
+is taken for trouble a dispatcher had already fixed.
+
+Population: **72.3 chained pairs/day**, of which **11.2/day end with the next trip running >15 min
+late** — that is the entire population any warning system has to catch. 6.0% of first legs carry
+no pickup tap (the GPS-disambiguation case).
+
+| Start watching | Grace | Fires/day | Precision | **Recall** | Warning P50 | Warning P25 |
+|---:|---:|---:|---:|---:|---:|---:|
+| at the milestone | 0 | 21.1 | 26.7% | **50.2%** | 87 min | 60 min |
+| at the milestone | +5 | 18.3 | 28.7% | 46.7% | 83 min | 55 min |
+| at the milestone | +10 | 15.4 | 30.2% | 41.3% | 80 min | 65 min |
+| 10 min early | 0 | 27.1 | 24.5% | **59.0%** | 97 min | 70 min |
+| 10 min early | +5 | 23.9 | 25.7% | 54.6% | 92 min | 65 min |
+
+**The warning time is the win, and it is decisive.** Typical notice is **80–97 minutes**, and even
+the impatient quartile gets **55–70**. Every detector in §3.3 was useful only inside 30 minutes;
+this one speaks well over an hour out, which is the founder's actual requirement — enough time to
+find a backup rather than enough time to watch it happen.
+
+**Recall is now measured for the first time in this project: ~47–59%.** The rule sees about half
+of everything that goes wrong. That is a real answer to "does it watch my day", and it is honest:
+half the late trips arrive with no missed milestone in front of them, because nothing in the plan
+predicted them.
+
+**Precision is the problem, and it is the same problem as everywhere else — by trip type
+(grace +5):**
+
+| Job at risk | Fires | Right | Precision | Recall | Warning P50 |
+|---|---:|---:|---:|---:|---:|
+| **return** | 227 | 37 | **16.3%** | 54.4% | 80 min |
+| arrival | 237 | 95 | 40.1% | 43.8% | 90 min |
+| cruise | 33 | 12 | 36.4% | 50.0% | 75 min |
+
+On returns — the trips §1.2 says lateness actually costs — it fires eight times a day and is right
+one time in six. **But the cause is diagnosable and is not the design.** The milestone is derived
+from `required_turnaround`, which carries the safety pad and the conservative static durations
+19 and 22 both measured as pessimistic. Five times in six, a driver who blows a deadline built
+from that clock still reaches the return within 15 minutes. **The rule is sound; the arithmetic
+under it is too cautious**, and it will stay too cautious until the clock work lands. That is a
+second, independent argument for Phase 1.1 — and it means 26 must be re-run after it.
+
+**Verdict.** Ship-worthy as a *watch list*, not yet as an alarm: ~18 fires/day (against 70.9
+scanner tasks, §0.2), half the trouble caught, an hour-plus of notice, and one in three right
+overall. Re-measure after Phase 1.1 and after GPS history exists, and re-tune the grace against
+whatever warning time the founder says he actually needs.
+
+**What was measured, and why these four** (the house rule, and §3.3 is why it exists):
 
 1. **Precision** — when a milestone is missed, does the next trip actually run late?
 2. **Recall — never measured for anything in this project.** Of the trips that DID run late, how
