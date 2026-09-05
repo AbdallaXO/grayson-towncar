@@ -404,6 +404,95 @@ victim in their wording; a hard visible-card budget (≤5, ranked by severity th
 replaces the 6-plan truncation; **the two-fact rule is dropped as a ship criterion, having been
 tested and failed.**
 
+### 3.4 The milestone detector — the founder's spec, 2026-09-05
+
+**This supersedes §3.2's two-fact bet and reframes what the day manager detects.** It arrived
+after the replay and answers the exact gap the replay found, so it is recorded here in the
+founder's own terms first, then in the engine's.
+
+> "The system cannot judge each trip in isolation. It needs to understand the driver's entire
+> upcoming chain. A five-minute delay for a driver who has nothing for three hours means almost
+> nothing. A five-minute delay for a driver whose next pickup is in 57 minutes could be the first
+> sign of a serious conflict. If the scheduler intentionally created a tight sequence, the Day
+> Manager should know: *this next trip only works if the current trip stays approximately on
+> schedule* — and watch that specific milestone."
+
+**The idea in one line: stop asking "is this turn tight?" and start asking "what had to be true,
+by when, for the next trip to work — and is it still true?"**
+
+**Why this is the right answer to what §3.3 measured.** Every existing detector forecasts
+lateness from arithmetic and is right 17.5% of the time about returns. A milestone detector does
+not forecast at all: it names a deadline the chain depends on and then observes whether that
+deadline passed. "It is 1:03 and the 1:00 pickup still has no tap" is a **fact**, and the claim
+attached to it — "the assumption that made the 2:00 assignment possible has failed" — is an
+inference about the *plan*, not a prediction about the driver. That is a categorically stronger
+class of statement than anything measured in §3.3, and it fires EARLIER, which is what the
+horizon cut says is the only region where anything works.
+
+**The engine already computes this — backwards.** `check_feasibility` runs forward: given a
+pickup at T, `chain_clear_dt` gives the clear time, `chain_repo_minutes` the reposition,
+`feasibility_guards.required_turnaround` the pad, and the sum is compared with the next pickup.
+Invert the same arithmetic and it yields, for each leg with a following job:
+
+    latest_safe_clear  = next_pickup − repo − required_turnaround
+    latest_safe_pickup = latest_safe_clear − (service + drive + unload for THIS leg)
+
+That is a **backward pass over the existing formulas** — no new model, no new constants, no
+network call, and it inherits the fixed-time rule of §3.1 for free. Every leg in a chain gets a
+`latest_safe_pickup`; a leg with hours of slack gets one far in the future and is never watched.
+
+**Escalation ladder, priced (the founder's progressive-accuracy rule).** The cost concern is
+already settled precedent in this codebase: `2c36aada`'s sibling commit (2026-08-09) removed a
+paid Distance Matrix call from `ops.tasks._reposition_minutes` for exactly this reason —
+"COST … routing through `chain_repo_minutes` makes the wider scan CHEAPER than the narrow one
+was." The ladder keeps that discipline:
+
+| Slack state | What is read | Paid calls |
+|---|---|---|
+| Comfortable (milestone far off) | booked times + stored category/route table | **none** |
+| Tightening | + trip status and the `dispatch_*` GPS the Samsara sweep already stores every 180 s | **none** — already fetched |
+| **Milestone missed** | that fact alone triggers the card and the backup search | **none** |
+| Conflict realistic, backup being priced | one fresh routing call from the car's actual position | one, per real conflict |
+
+Only the last tier spends money, and only once a genuine conflict exists.
+
+**The card says why, in the founder's words, not the engine's:**
+
+> **2:00 PM pickup at risk.** Driver X is still On Location on his 1:00 PM trip at 1:03. This
+> schedule needed that pickup by 1:00 to leave enough drive and unload time for the 2:00 departure.
+> **Start identifying backup coverage now.**
+
+**Observability — measured 2026-09-05, and it is good.** The detector depends on the picked-up
+tap being real and timely. Over the 28-day window, 2,458 in-house legs: **93.7% carry a picked-up
+tap; exactly 4 are bulk-entered** (picked-up and completed within 120 s, 19's rule); **98.1% of
+taps land within two hours of the booked pickup**. Drivers tap, and they tap live. (The "57–67%
+clean taps" caveat elsewhere in this document concerns the on-location tap used as a *truth
+clock*; it does not apply to this signal.)
+
+**The one real risk, and GPS's actual job here.** For the ~6% with no tap, a missed milestone is
+ambiguous — he may have picked up and not tapped. That ambiguity is precisely what produced the
+hygiene cards §3.3 found scoring 100% on one-leg tautologies. **So GPS is not needed for ETA
+prediction; it is needed to disambiguate a missing tap** — has the car left the pickup point or
+not. That is a far cheaper question than routing, and `dispatch_is_moving` /
+`dispatch_stationary_minutes` already answer it from data the sweep stores anyway.
+
+**What must be measured before any of this is built** (the house rule, and §3.3 is why it exists).
+`analysis/26_milestone_detector.py`, scored on the same 28-day rig:
+
+1. **Precision** — when a milestone is missed, does the next trip actually run late?
+2. **Recall — never measured for anything in this project.** Of the trips that DID run late, how
+   many had a missed milestone first? A warning system that is 90% precise and catches a third of
+   the trouble is not what the founder asked for. This is the number that decides the design.
+3. **Warning time** — minutes between the missed milestone and the next pickup. The founder's
+   requirement is "enough time to find a backup", so the distribution of this, not its mean, is
+   the acceptance test.
+4. **Volume** — missed milestones per day, against the ≤5-a-glance budget and the 70.9 tasks/day
+   the scanner files (§0.2).
+
+Only classes clearing D5 on (1) with a usable (3) ship. If recall is low, the honest report is
+that the milestone catches a *subset* of trouble well — which is still worth shipping, but must
+be described that way rather than as "the system watches your day".
+
 **Live instrument — `AdvisorEvent`.** One row per card lifecycle: shown (first fingerprint), plan
 applied / snoozed / task filed / expired / superseded, and the realised outcome (filled nightly
 by a small job on the existing GHL loop's `generate_ops_tasks` tick: impact leg's on-location
