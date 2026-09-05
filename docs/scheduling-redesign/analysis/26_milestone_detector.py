@@ -69,6 +69,11 @@ sys.path.insert(0, C.REPO_ROOT)
 GRACES = (0, 3, 5, 10)          # minutes after the milestone before it speaks
 EARLIES = (0, 10)               # minutes before the milestone to start watching
 LATE_BAR = 15
+# The founder's own bar, 2026-09-05: "45 minutes to an hour is good, 30 we can
+# work with but it's risky." A warning that arrives with less than this is not a
+# warning — it is a countdown. Recall is therefore reported AT these thresholds,
+# not in the abstract.
+USEFUL_WARNING_MIN = (60, 45, 30)
 
 ASSUMPTIONS = (
     "The milestone is derived from the SHIPPED forward math read backwards — "
@@ -226,8 +231,11 @@ def main():
 
     # ── sweep ───────────────────────────────────────────────────────────────
     C.sub("THE SWEEP — fire when the milestone passes, plus a grace")
-    print(f"{'early':>6}{'grace':>7}{'fires/day':>11}{'precision':>11}{'recall':>9}"
-          f"{'warn P50':>10}{'warn P25':>10}{'caught in time':>16}")
+    print("  'caught with N' = of the trips that ran late, the share flagged with at "
+          "least N minutes to spare.\n  The founder's bar: 45-60 good, 30 workable, "
+          "less than that is a countdown, not a warning.\n")
+    print(f"{'early':>6}{'grace':>7}{'fires/day':>11}{'prec':>7}{'recall':>8}"
+          f"{'warnP50':>9}{'w/60':>7}{'w/45':>7}{'w/30':>7}")
     sweep, warn_rows, fires_out = [], [], []
     for early in EARLIES:
         for grace in GRACES:
@@ -245,22 +253,27 @@ def main():
                     hits += 1
             prec = 100.0 * hits / len(fired) if fired else None
             rec = 100.0 * hits / len(truly_late) if truly_late else None
-            in_time = (100.0 * sum(1 for p, w in zip(fired, warns)
-                                   if p["late_min"] > LATE_BAR and w >= 20)
-                       / len(truly_late)) if truly_late else None
+            useful = {}
+            for thr in USEFUL_WARNING_MIN:
+                useful[thr] = (100.0 * sum(1 for p, w in zip(fired, warns)
+                                           if p["late_min"] > LATE_BAR and w >= thr)
+                               / len(truly_late)) if truly_late else None
             row = {"early_min": early, "grace_min": grace,
                    "fires": len(fired), "fires_per_day": round(len(fired) / n_days, 1),
                    "precision_pct": round(prec, 1) if prec is not None else None,
                    "recall_pct": round(rec, 1) if rec is not None else None,
                    "warn_p50": round(C.pct(warns, 50), 1) if warns else None,
                    "warn_p25": round(C.pct(warns, 25), 1) if warns else None,
-                   "recall_with_20min_warning_pct": round(in_time, 1)
-                   if in_time is not None else None}
+                   **{f"recall_with_{t}min_warning_pct":
+                      (round(useful[t], 1) if useful[t] is not None else None)
+                      for t in USEFUL_WARNING_MIN}}
             sweep.append(row)
             print(f"{early:>6}{grace:>7}{row['fires_per_day']:>11.1f}"
-                  f"{(row['precision_pct'] or 0):>10.1f}%{(row['recall_pct'] or 0):>8.1f}%"
-                  f"{(row['warn_p50'] or 0):>10.0f}{(row['warn_p25'] or 0):>10.0f}"
-                  f"{(row['recall_with_20min_warning_pct'] or 0):>15.1f}%")
+                  f"{(row['precision_pct'] or 0):>6.1f}%{(row['recall_pct'] or 0):>7.1f}%"
+                  f"{(row['warn_p50'] or 0):>9.0f}"
+                  f"{(row['recall_with_60min_warning_pct'] or 0):>6.1f}%"
+                  f"{(row['recall_with_45min_warning_pct'] or 0):>6.1f}%"
+                  f"{(row['recall_with_30min_warning_pct'] or 0):>6.1f}%")
             if early == 0 and grace == 5:
                 warn_rows = [[round(w, 1), 1 if p["late_min"] > LATE_BAR else 0,
                               p["b_trip"]] for p, w in zip(fired, warns)]
@@ -271,6 +284,18 @@ def main():
                               p["tap"].strftime("%H:%M") if p["tap"] else "",
                               p["b_trip"], p["slack"], round(p["late_min"], 1),
                               round(w, 1)] for p, w in zip(fired, warns)]
+
+    C.sub("WARNING TIME — the whole distribution, at early=0 grace=5")
+    ws = sorted(w for w, *_ in warn_rows) if warn_rows else []
+    if ws:
+        print("  " + C.fmt_describe("minutes of notice, every fire", ws))
+        hits = sorted(w for w, late, _ in warn_rows if late)
+        print("  " + C.fmt_describe("minutes of notice, the RIGHT ones", hits))
+        for thr in USEFUL_WARNING_MIN:
+            print(f"    fires giving >= {thr:>2} min: "
+                  f"{100.0 * sum(1 for w in ws if w >= thr) / len(ws):5.1f}%   "
+                  f"(of the correct ones: "
+                  f"{100.0 * sum(1 for w in hits if w >= thr) / max(1, len(hits)):5.1f}%)")
 
     C.sub("BY TRIP TYPE OF THE JOB AT RISK  (early=0, grace=5)")
     byk = defaultdict(lambda: [0, 0, 0])

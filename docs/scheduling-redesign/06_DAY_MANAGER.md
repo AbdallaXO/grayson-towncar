@@ -495,6 +495,27 @@ no pickup tap (the GPS-disambiguation case).
 | 10 min early | 0 | 27.1 | 24.5% | **59.0%** | 97 min | 70 min |
 | 10 min early | +5 | 23.9 | 25.7% | 54.6% | 92 min | 65 min |
 
+**Against the founder's own bar (2026-09-05: "45 minutes to an hour is good, 30 we can work with
+but it's risky") — recall is reported AT the threshold, because a warning with less notice than
+that is a countdown, not a warning:**
+
+| Setting | Fires/day | Precision | Recall | …with ≥60 min | …with ≥45 min | …with ≥30 min |
+|---|---:|---:|---:|---:|---:|---:|
+| watch from the milestone, speak at once | 21.1 | 26.7% | 50.2% | 34.0% | 37.5% | 38.1% |
+| watch from the milestone, +5 grace | 18.3 | 28.7% | 46.7% | 27.3% | 33.3% | 35.6% |
+| **watch 10 min early, speak at once** | **27.1** | **24.5%** | **59.0%** | **39.4%** | **41.6%** | **58.4%** |
+
+**The shape of that last row is the finding: what it catches, it catches in time.** Recall is
+59.0% and recall-with-30-minutes-notice is 58.4% — **99% of everything it catches arrives with at
+least half an hour to act, and 70% with the founder's preferred 45+.** Of the whole fire stream,
+85.8% give ≥45 min and 71.5% give ≥60. Distribution of notice across all 513 fires: P10 15 min,
+P25 55, P50 83, P75 100, P90 125.
+
+In daily terms: of ~11.2 trips a day that end up >15 min late, this flags **~6.6**, of which
+**~4.6 come with 45 minutes or more**, at a cost of ~27 flags a day. Against the status quo of
+70.9 scanner tasks a day with the same ~24% hit rate, no measured recall, and nothing useful
+outside the last half hour, that is a straight improvement on every axis except volume-per-catch.
+
 **The warning time is the win, and it is decisive.** Typical notice is **80–97 minutes**, and even
 the impatient quartile gets **55–70**. Every detector in §3.3 was useful only inside 30 minutes;
 this one speaks well over an hour out, which is the founder's actual requirement — enough time to
