@@ -536,12 +536,31 @@ predicted them.
 | cruise | 33 | 12 | 36.4% | 50.0% | 75 min |
 
 On returns — the trips §1.2 says lateness actually costs — it fires eight times a day and is right
-one time in six. **But the cause is diagnosable and is not the design.** The milestone is derived
-from `required_turnaround`, which carries the safety pad and the conservative static durations
-19 and 22 both measured as pessimistic. Five times in six, a driver who blows a deadline built
-from that clock still reaches the return within 15 minutes. **The rule is sound; the arithmetic
-under it is too cautious**, and it will stay too cautious until the clock work lands. That is a
-second, independent argument for Phase 1.1 — and it means 26 must be re-run after it.
+one time in six.
+
+**An earlier draft of this section claimed the clock fix would cure that. It was asserted, then
+tested, and it is wrong.** `26 --take-later` derives the milestone from the corrected clock —
+exactly what Phase 1.1 makes the live path do — and the result moves the opposite way on
+precision:
+
+| Milestone derived from | Fires/day | Precision | Recall | Warning P50 | Recall ≥45 min |
+|---|---:|---:|---:|---:|---:|
+| the clock as shipped | 27.1 | 24.5% | 59.0% | 97 min | 41.6% |
+| **the corrected clock (Phase 1.1)** | **29.5** | **23.6%** | **61.9%** | **105 min** | **44.8%** |
+
+The corrected clock makes the previous job clear later, so the deadline lands earlier, so the rule
+fires **more**: +2.4 flags/day and one point *worse* on precision. What it buys instead is **+3
+points of recall and 8 more minutes of notice** — it sees more of the trouble, and sooner. That is
+a good trade against the founder's bar (recall-with-45-minutes rises 41.6% → 44.8%), but it is not
+a false-alarm cure and must not be sold as one.
+
+**So the returns false-alarm rate is not yet explained.** The remaining candidates are the safety
+pad inside `required_turnaround`, the modelled trip duration, or drivers genuinely making up time
+on the road — and nothing here isolates which. That is a separate measurement (compare the
+milestone against what the leg's *actual* recorded duration would have made it), not an assumption
+to build on. Phase 1.1 is still worth doing for its own measured reasons (§0.1, 24: 5.1 turns/day
+the board calls fine and the engine calls impossible) and it improves this detector's reach — but
+it does not fix its precision.
 
 **Verdict.** Ship-worthy as a *watch list*, not yet as an alarm: ~18 fires/day (against 70.9
 scanner tasks, §0.2), half the trouble caught, an hour-plus of notice, and one in three right

@@ -126,6 +126,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=28)
     ap.add_argument("--dates", nargs="*", default=[])
+    ap.add_argument("--take-later", action="store_true",
+                    help="derive the milestone from the CORRECTED clock "
+                         "(max(static, board estimate)) when the next job is "
+                         "fixed-time — i.e. what Phase 1.1 would make the live "
+                         "path do. Tests whether the clock fix helps or hurts "
+                         "this detector; the two are not obviously aligned.")
     args = ap.parse_args()
     t0 = time.time()
 
@@ -182,7 +188,9 @@ def main():
                 try:
                     a_booked = dt.datetime.combine(day, a.pickup_time)
                     b_booked = dt.datetime.combine(day, b.pickup_time)
-                    service = _slot_chain_end(a, day) - a_booked
+                    later = (args.take_later and not
+                             fg.is_airport_arrival(b.trip_type, b.pickup_category))
+                    service = _slot_chain_end(a, day, take_later=later) - a_booked
                     repo = chain_repo_minutes(a.dropoff_location, b.pickup_location,
                                               a.dropoff_category, b.pickup_category)
                     req = fg.required_turnaround(
