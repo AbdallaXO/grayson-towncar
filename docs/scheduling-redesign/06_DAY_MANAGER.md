@@ -7,15 +7,13 @@ lives on that branch, not on `main`.
 Every figure is labelled **[measured]** / **[session-measured]** / **[modeled]** /
 **[founder-supplied]** per 00's convention.
 
-**Snapshot caveats (two, and the second is new).**
-1. Boards from **2026-08-29 onward are wiped locally** (0 assigned legs, no taps, 1 DVA row),
-   so every day-level figure stops at **2026-08-28**.
-2. **Two machines, two snapshots.** This plan was written on the desktop, against that
-   machine's copy of the database. The §0 checks below were run on the MacBook, whose copy is
-   demonstrably thinner: ops conflict tasks, KEOI flags and flight records all thin out or stop
-   in mid-July there. See §0.2. Nothing in the design depends on which copy is right, but the
-   Phase 0 baselines do — so **Phase 0 runs on the desktop copy**, and its first act is to
-   reconcile the two.
+**Snapshot provenance (settled 2026-09-05).** Baselines are cut from the **desktop copy**, now
+in place at `content/db.sqlite3` (660 MB). Every independent production write stream in it stops
+at **2026-08-21 22:17 UTC**, so that — not 2026-09-01 — is this document's horizon, and every
+day-level figure stops at **2026-08-21**. The earlier MacBook copy was newer (writes to
+2026-09-01) but partial in exactly the tables §1.1 depends on; it has been replaced. **One
+consequence matters: the five tuning commits of 2026-08-25 → 08-27 land after this snapshot
+ends, so their effect cannot be measured here at all** (§0.2).
 
 ---
 
@@ -38,36 +36,46 @@ Every figure is labelled **[measured]** / **[session-measured]** / **[modeled]**
 | **The advisor has never been applied in production** | `reservations_schedulesnapshot.trigger` holds only `before_reset` (119), `before_auto_assign` (45), `manual` (36). No `conflict_advisor` trigger, ever |
 | Analysis script numbering 23–25 is free | `docs/scheduling-redesign/analysis/` runs 00–20, 22 (21 is unused) |
 
-### 0.2 Data claims that do not reproduce on **this MacBook's** snapshot [measured]
+### 0.2 Snapshot reconciliation and the scanner baseline [measured, 2026-09-05]
 
-The §1.1 figures were measured on the **desktop** copy. Re-run here against the MacBook's
-`content/db.sqlite3`, they do not reproduce. That is a fact about the two snapshots, not (yet) a
-fault in the figures — but it means no Phase 0 baseline may be captured on this machine until
-the two are reconciled.
+Run: `analysis/25_scanner_outcomes.py` → `analysis/out/25_scanner_by_month.csv`,
+`25_scanner_closures.csv`, `25_scanner_by_day.csv`.
 
-| §1.1 claim | What the MacBook snapshot holds |
-|---|---|
-| "65 `driver_conflict` + `tight_turn` tasks/day on Aug 4–28" | **5 such tasks touch that window** — under `created_at`, under `due_at`, and under the leg's `pickup_date`. Creation of this task type effectively **stopped on 2026-07-11** (33–58/day 1–11 Jul, then nothing but 5 rows on 5–6 Aug). Monthly rate before that: Jun 37/day, Jul 41/day on active days — never 65 |
-| "106 KEOI flags, 50 of them `driver_conflict`, 43% chained-conflict, 10% not-a-conflict" | `reservations_legkeoi` holds **6 rows in total, all time** (5 in Jul, 1 in Aug) |
-| Flight-derived scans as a live baseline | `reservations_legflight` rows stop being created after July (Apr 14,802 / May 668 / Jun 970 / Jul 433 / Aug 0). `flight_verify` tasks fell 467 → 56 across the same boundary, while `driver_assign` (151 → 258) and `payment_chase` (124 → 120) carried on — i.e. the generator kept running; **the flight-dependent scans are what went quiet** |
+**The §1.1 figures reproduce on the desktop copy, and the current regime is worse than this
+document originally said.** `driver_conflict` + `tight_turn` filing, by month, per active day:
 
-**Most likely reading:** the MacBook copy is partial for those tables the way its late-August
-boards are, and the desktop copy is the true one. Phase 0 confirms that by re-running
-`25_scanner_outcomes.py` on the desktop copy and comparing row counts on the same date window.
+| Month | Active days | Tasks | Tasks/day | Legs flagged | % of legs | Open P50 | Open P75 | % moved | % no-move | % hand-closed blank | **% wasted look** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 2026-05 | 31 | 405 | 13.1 | 301 | 10.5% | 61 m | 194 m | 26.4 | 57.8 | 12.3 | 70.1 |
+| 2026-06 | 30 | 1,110 | 37.0 | 646 | 23.7% | 84 m | 197 m | 23.0 | 54.8 | 18.2 | 73.1 |
+| 2026-07 | 31 | 1,157 | 37.3 | 698 | 25.7% | 62 m | 208 m | 23.8 | 46.5 | 23.0 | 69.4 |
+| **2026-08 (1–21)** | **21** | **1,489** | **70.9** | **814** | **33.9%** | **68 m** | **276 m** | **24.5** | **40.0** | **26.0** | **65.9** |
 
-**But one question stays open on either machine, and it is worth an answer:** whether the
-scanner's conflict path is still filing at its old rate in *production* today. Four commits
-between 2026-08-09 and 2026-08-27 —
-`2c36aada` (builder stops building undriveable chains), `c04489f8` (conflict tasks turn critical
-only when the driver truly won't make it), `083a7d0a` (10-minute boundary), `2419c414` /
-`076dfe8e` (flags come down when the conflict does) — were aimed squarely at this noise, and
-they landed *after* most of the window §1.1 measures. If they worked, part of the problem this
-plan is built to solve has already been tuned away, which would **shrink Phase 1.4 and Phase 2.2,
-not the rest of the plan**. Answering that needs a post-2026-08-27 window on the desktop copy.
+Against the original claims: "65 tasks/day" → **70.9**; "31% of the day's legs" → **33.9%**;
+"median 79 min open, P75 4.7 h" → **68 min / 4.6 h**; "45% no-move + 21% blank" → **40% + 26%,
+i.e. 65.9% of closes bought nothing**; "30% closed by a reassignment/unassign" → **24.5% moved
+plus 4.8% retimed = 29.3%**. Escalations (a tight turn hardening into a conflict — one problem
+counted twice) are a further 6.4% and are excluded from those shares.
+
+**The trend is the part that was missing.** Filing has gone 13/day → 37 → 37 → **71**, and the
+share of the day's legs carrying an alarm has gone 10.5% → 33.9%, in five months. A third of
+every day's trips now raise an alarm, two thirds of which resolve without anyone moving
+anything. That is a stronger case for this project than the flat 65/day figure made, and it is
+also the noise floor the advisor has to beat: **≤5 cards a glance against ~71 tasks/day today.**
+
+**What still cannot be answered here.** Five commits — `2c36aada` (2026-08-09, builder stops
+building undriveable chains), `c04489f8` and `083a7d0a` (2026-08-25, conflict tasks turn critical
+only when the driver truly won't make it; 10-minute boundary), `2419c414` and `076dfe8e`
+(2026-08-27, flags come down when the conflict does; reassigning clears the flag on the spot) —
+were aimed squarely at this noise. **Four of the five land after this snapshot's last write, so
+their effect is unmeasurable on any copy currently on disk.** The August figures above are
+therefore a *pre-tuning* baseline. Re-running `25` on a pull taken after 2026-08-27 is the one
+outstanding Phase 0 item, and it decides how much of Phase 1.4 and Phase 2.2 is still needed. It
+does not block `23` or `24`.
 
 Everything downstream of §1.1 — the ranking of failure modes, the choice of engine, the
-precision problem, the ladder, the phasing — stands regardless of which reading is right,
-because it rests on code and on the replay, not on the task table.
+precision problem, the ladder, the phasing — stands on the code and the replay, not on the task
+table, and is unaffected either way.
 
 ---
 
@@ -122,7 +130,7 @@ before it ran long — which no plan can see and only taps and GPS can.
 
 | Work | Volume/day | What the record shows |
 |---|---|---|
-| **Alarm triage** — `driver_conflict` + `tight_turn` tasks from the 30-min scanner | **65 tasks on ~35 legs** (31% of the day's 112 legs); 93% created on the day; median 79 min open, P75 4.7 h [measured, desktop copy — the MacBook copy holds 5 in this window, §0.2] | How they close: **45%** because the arithmetic changed or the leg simply completed (no move made); **30%** by a reassignment/unassign; **21%** closed by hand with a blank note; **3%** cancelled. Plus system-raised KEOI flags on every red (50 of 106 KEOI are `driver_conflict`), plus `flight_verify` tasks (41/day), plus board pills, plus the Samsara chip |
+| **Alarm triage** — `driver_conflict` + `tight_turn` tasks from the 30-min scanner | **70.9 tasks on 39 legs/day — 33.9% of the day's legs** (Aug 1–21, pre-tuning); median 68 min open, P75 4.6 h [measured, §0.2] | How they close: **40%** because the arithmetic changed or the leg simply completed; **24.5%** by a reassignment/unassign and **4.8%** by a retime; **26%** closed by hand with a blank note; **4.4%** cancelled; 6.4% escalate rather than close. **65.9% of closes bought nothing.** Plus system-raised KEOI flags, `flight_verify` tasks, board pills, and the Samsara chip |
 | **Same-day driver changes** | **53 transitions on 26 legs** (28 reassign, 13 assign, 10 unassign) [measured] | The true "hand moves on the day" number. Two-thirds of the ~150 total happen in the 24–72 h build/finalize window — the builder's territory |
 | **Flight bookkeeping** | 36 bulk "Flight match" bursts (385 row writes); 7 single-leg hand matches [measured] | Already a button. Not a target |
 | **Farm leak from day-of revision** | ~2.8 legs/day in the last 6 h ≈ $200/day at $70.99 [measured] | Small next to the 24–72 h leak (7.5/day) |
@@ -144,10 +152,10 @@ and whether the previous job is demonstrably running long — a fact only taps a
 1. **The previous job runs long** (dwell, traffic, a late drop). The dominant real cause of
    lateness. Invisible to any plan; visible only from the recorded picked-up tap, the mid-trip
    GPS ETA to the next pickup, or the job overrunning its estimate.
-2. **Alarm noise itself** — three detectors on three clocks, ~65 tasks/day, 10% of KEOI flags
-   written to say "this is NOT a conflict". This is what generates the most work and is why D5
-   exists. **Re-confirm the current size on the desktop copy over a post-2026-08-27 window**
-   before sizing Phase 1.4 (§0.2).
+2. **Alarm noise itself** — three detectors on three clocks, **70.9 tasks/day on a third of the
+   day's legs, two thirds of them buying nothing**, and rising sharply month over month. This is
+   what generates the most work and is why D5 exists. The August figure is **pre-tuning**;
+   re-measure on a post-2026-08-27 pull before sizing Phase 1.4 (§0.2).
 3. **A later plane breaking the turn OUT** of an arrival. 10.6% of legs move ≥30 min after the
    cutoff; the bulk match handles the bookkeeping, the scanner raises the conflict, dispatchers
    absorb most of it by hand.
@@ -377,8 +385,9 @@ code it judges; every dispatcher-visible change ships with a release note; invis
 
 | Deliverable | Gate |
 |---|---|
-| **Reconcile the two snapshots first** — run `analysis/25_scanner_outcomes.py` on the **desktop** copy, and record row counts for the same window on both machines. Everything else in Phase 0 runs on the copy that wins | A one-line provenance note in this document naming which copy the baselines were cut from, and its last production write |
-| `analysis/25_scanner_outcomes.py` — the closure taxonomy above, as a re-runnable script, reported **by month** so the 2026-08-09→08-27 tuning commits are visible | Baseline: tasks/day and the no-move-close share, on a post-2026-08-27 window. If the scanner is genuinely quiet now, Phase 1.4 and Phase 2.2 shrink to "keep it that way" and the §1.3 rank-2 failure mode is downgraded |
+| ~~Reconcile the two snapshots~~ **DONE 2026-09-05** — desktop copy in place, horizon 2026-08-21, provenance recorded in the header | ✔ |
+| ~~`analysis/25_scanner_outcomes.py`~~ **DONE 2026-09-05** — volume, timing and closure taxonomy by month; three CSVs committed | ✔ Baseline: **70.9 tasks/day, 33.9% of legs, 65.9% of closes buy nothing**, rising month over month (§0.2) |
+| **Re-run `25` on a pull taken after 2026-08-27** — the only outstanding Phase 0 item; four of the five tuning commits land after this snapshot ends | If the scanner is genuinely quiet now, Phase 1.4 and Phase 2.2 shrink to "keep it that way" and the §1.3 rank-2 failure mode is downgraded. Does not block 23 or 24 |
 | `analysis/23_advisor_replay.py` (from the prototype) + `analysis/out/23_advisor_precision.csv`, `23_cards_per_day.csv`, `23_timing.csv` over the 28-day regime, 15-min ticks, flight estimates masked | Runs cold on the snapshot; per-class precision, card volume and P90 compute time recorded as the **baseline**. Prototype baseline (4 days): 16.1 cards/glance, best class 39% at >15 min, compute ≤1.3 s |
 | `analysis/24_live_clock_split.py` (from scratch) + `analysis/out/24_flips.csv` | Baseline: 10.8 flips/day, 6.1 clean-but-negative/day on 21 days |
 | Founder decisions logged: which classes may ship; whether the scanner is retired or re-pointed; call-in tier wanted in v1 | — |
