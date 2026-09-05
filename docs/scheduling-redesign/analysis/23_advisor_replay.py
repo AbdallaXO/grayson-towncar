@@ -255,7 +255,7 @@ def rewind(cur, snap, tick_utc, mask_estimates):
 # truth
 # --------------------------------------------------------------------------
 
-def build_truth(con, g19, day, leg_ids):
+def build_truth(con, g19, day, leg_ids, kinds):
     """{leg_id: (late_minutes_vs_deadline, quality)} from the PRISTINE snapshot,
     using production's pickup_deadline and 19's tap-quality rule."""
     from reservations.models import Leg
@@ -281,6 +281,11 @@ def build_truth(con, g19, day, leg_ids):
             out[leg.id] = (None, "no_deadline")
             continue
         out[leg.id] = (round((at - deadline).total_seconds() / 60.0, 1), "ok")
+    for leg in legs:
+        try:
+            kinds[leg.id] = leg.get_trip_type() or "?"
+        except Exception:
+            kinds[leg.id] = "?"
     return out
 
 
@@ -305,7 +310,8 @@ def replay_date(con, cur, g19, day, tickset, mask_estimates, cards, load, timing
     if not snap:
         return
     restore(cur, snap)
-    truth = build_truth(con, g19, day, snap["leg_ids"])
+    kinds = {}
+    truth = build_truth(con, g19, day, snap["leg_ids"], kinds)
     mode = "masked" if mask_estimates else "live"
     for tick in sorted(tickset, reverse=True):          # descending: taps only shrink
         rewind(cur, snap, tick + dt.timedelta(hours=C.utc_offset_hours(tick)),
@@ -329,6 +335,13 @@ def replay_date(con, cur, g19, day, tickset, mask_estimates, cards, load, timing
         for c in cs:
             impact = (c.get("leg_ids") or [None])[-1]
             late, quality = truth.get(impact, (None, "unknown"))
+            lead = None
+            if c.get("impact_at"):
+                try:
+                    lead = int((dt.datetime.fromisoformat(c["impact_at"])
+                                - tick).total_seconds() / 60)
+                except Exception:
+                    lead = None
             key = (mode, str(day), c["id"])
             prev = cards.get(key)
             if prev is None or bool(c.get("plans")) > prev["has_plans"]:
@@ -341,10 +354,14 @@ def replay_date(con, cur, g19, day, tickset, mask_estimates, cards, load, timing
                     "has_plans": bool(c.get("plans")),
                     "impact_leg": impact, "late_min": late, "quality": quality,
                     "n_legs": len(c.get("leg_ids") or []),
+                    "lead_min": lead, "impact_kind": kinds.get(impact, "?"),
                     "self_scored": len(c.get("leg_ids") or []) <= 1,
                     "instances": (prev or {}).get("instances", 0),
                 }
             cards[key]["instances"] = cards[key].get("instances", 0) + 1
+            if lead is not None and (cards[key].get("lead_min") is None
+                                     or lead > cards[key]["lead_min"]):
+                cards[key]["lead_min"] = lead
     restore(cur, snap)
 
 
@@ -385,6 +402,60 @@ def precision_rows(cards, n_dates):
                 if [c for c in scored if not c["self_scored"]] else None),
         })
     return sorted(rows, key=lambda r: (-r["unique_cards"], r["kind"]))
+
+
+LEAD_BUCKETS = ((0, 30, "0-30 min"), (30, 60, "30-60 min"), (60, 120, "1-2 h"),
+                (120, 240, "2-4 h"), (240, 10**6, "4 h +"))
+
+
+def bucket_of(lead):
+    if lead is None:
+        return "unknown"
+    if lead < 0:
+        return "already past"
+    for lo, hi, label in LEAD_BUCKETS:
+        if lo <= lead < hi:
+            return label
+    return "unknown"
+
+
+def lead_rows(cards, mode):
+    """Precision by HOW FAR AHEAD the warning was, forecast-only cards (a card
+    naming a later leg), scored population only. This is the cut that says
+    whether the advisor can see trouble coming or only describe it arriving."""
+    groups = defaultdict(list)
+    for c in cards.values():
+        if c["mode"] != mode or c["self_scored"] or c["quality"] != "ok":
+            continue
+        groups[(bucket_of(c.get("lead_min")), c["kind"])].append(c)
+        groups[(bucket_of(c.get("lead_min")), "ALL")].append(c)
+    order = ["already past"] + [b[2] for b in LEAD_BUCKETS] + ["unknown"]
+    rows = []
+    for (b, kind), g in groups.items():
+        rows.append({
+            "estimates": mode, "lead_bucket": b, "kind": kind, "scored": len(g),
+            "pct_late_15": round(100.0 * sum(c["late_min"] > 15 for c in g) / len(g), 1),
+            "pct_late_10": round(100.0 * sum(c["late_min"] > 10 for c in g) / len(g), 1),
+            "pct_late_any": round(100.0 * sum(c["late_min"] > 0 for c in g) / len(g), 1),
+        })
+    return sorted(rows, key=lambda r: (order.index(r["lead_bucket"])
+                                       if r["lead_bucket"] in order else 99,
+                                       r["kind"] != "ALL", r["kind"]))
+
+
+def kind_rows(cards, mode):
+    """Precision by the IMPACT leg's trip type. An airport arrival is scored
+    against a booked time that is really the landing slot, so deplaning noise
+    lands in this column — 19 saw the same thing."""
+    groups = defaultdict(list)
+    for c in cards.values():
+        if c["mode"] != mode or c["self_scored"] or c["quality"] != "ok":
+            continue
+        groups[c.get("impact_kind") or "?"].append(c)
+    return [{"estimates": mode, "impact_trip_type": k, "scored": len(g),
+             "pct_late_15": round(100.0 * sum(c["late_min"] > 15 for c in g) / len(g), 1),
+             "pct_late_10": round(100.0 * sum(c["late_min"] > 10 for c in g) / len(g), 1)}
+            for k, g in sorted(groups.items(), key=lambda kv: -len(kv[1]))]
 
 
 def main():
@@ -463,6 +534,24 @@ def main():
           f"downstream victim — it describes a\n  leg that is already late, so its "
           f"score is a tautology, not a forecast.")
 
+    # ── can it see it coming? ───────────────────────────────────────────────
+    ref = "live" if "live" in modes else modes[0]
+    lrows = lead_rows(cards, ref)
+    C.sub("HOW FAR AHEAD — precision by time from the warning to the moment "
+          "(forecast-only cards)")
+    print(f"{'lead time':<14}{'kind':<16}{'scored':>8}{'>15':>8}{'>10':>8}{'any':>8}")
+    for r in lrows:
+        mark = "  <-- D5" if r["pct_late_15"] >= 70 and r["scored"] >= 20 else ""
+        print(f"{r['lead_bucket']:<14}{r['kind']:<16}{r['scored']:>8}"
+              f"{r['pct_late_15']:>8.1f}{r['pct_late_10']:>8.1f}"
+              f"{r['pct_late_any']:>8.1f}{mark}")
+    krows = kind_rows(cards, ref)
+    C.sub("WHAT KIND OF TRIP THE WARNING WAS ABOUT")
+    print(f"{'impact trip':<20}{'scored':>8}{'>15':>8}{'>10':>8}")
+    for r in krows:
+        print(f"{str(r['impact_trip_type'])[:19]:<20}{r['scored']:>8}"
+              f"{r['pct_late_15']:>8.1f}{r['pct_late_10']:>8.1f}")
+
     # ── timing ──────────────────────────────────────────────────────────────
     ok = [r[3] for r in timing if r[3] >= 0]
     errs = Counter(r[5] for r in timing if r[5])
@@ -480,6 +569,17 @@ def main():
     p2 = C.write_csv("23_cards_per_day.csv",
                      ["date", "tick", "estimates", "cards", "critical", "hygiene",
                       "with_plans", "truncated"], load)
+    C.write_csv("23_lead_time.csv",
+                ["estimates", "lead_bucket", "kind", "scored", "pct_late_15",
+                 "pct_late_10", "pct_late_any"],
+                [[r[c] for c in ("estimates", "lead_bucket", "kind", "scored",
+                                 "pct_late_15", "pct_late_10", "pct_late_any")]
+                 for m in modes for r in lead_rows(cards, m)])
+    C.write_csv("23_impact_trip_type.csv",
+                ["estimates", "impact_trip_type", "scored", "pct_late_15", "pct_late_10"],
+                [[r[c] for c in ("estimates", "impact_trip_type", "scored",
+                                 "pct_late_15", "pct_late_10")]
+                 for m in modes for r in kind_rows(cards, m)])
     p3 = C.write_csv("23_timing.csv",
                      ["date", "tick", "estimates", "ms", "cards", "error"], timing)
     for p in (p1, p2, p3):

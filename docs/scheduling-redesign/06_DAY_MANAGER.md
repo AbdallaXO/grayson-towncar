@@ -319,6 +319,41 @@ critical at **43%**, then `overlap` at 32% and `flight_change` at 25%. `overrun`
 **No class passes D5. Not one, on either bound, at >15 or >10 minutes.** On today's evidence the
 Phase 2 visibility flip ships nothing at all.
 
+**How far ahead can it see? [measured 2026-09-05, `analysis/out/23_lead_time.csv`]** The founder's
+requirement is a tool that warns BEFORE, so the cards were re-cut by the gap between the warning
+and the moment it is about — forecast-only cards, live bound:
+
+| Warning fires… | Scored | >15 min | >10 min | Best class in the bucket |
+|---|---:|---:|---:|---|
+| inside 30 min | 94 | **55.3%** | 59.6% | `late_cascade` **68.2%** (n=22) |
+| 30–60 min | 209 | 32.5% | 37.8% | `flight_change` 50% (n=8) |
+| 1–2 h | 178 | 27.0% | 30.9% | `late_cascade` 50.0% (n=42) |
+| 2–4 h | 88 | 21.6% | 25.0% | `flight_change` 24.4% |
+| 4 h + | 177 | 24.9% | 30.5% | `overlap` 29.2% (n=24) |
+
+**Read it carefully, because a 3-day probe of the same cut was misleading and said 4.8% in the
+last row.** At 28 days the curve is not a cliff: it steps down once, at the 30-minute mark, and
+then flattens at 22–33%. Near-term warnings really are about twice as good as everything else —
+but "twice as good" tops out at **55%**, and the only class that approaches D5 does so on 22
+cards. **Capping the horizon improves the rail; it does not by itself produce a 70% early-warning
+tool.**
+
+**And the warnings are weakest exactly where lateness costs money:**
+
+| Impact trip | Scored | >15 min |
+|---|---:|---:|
+| return | 361 | **17.5%** |
+| arrival | 304 | 47.7% |
+| cruise | 60 | 35.0% |
+
+An arrival's booked time is the landing slot, so ordinary deplaning reads as lateness and
+inflates that 47.7% (19 hit the same artifact). Strip the flattery and the picture is: the
+advisor is **right one time in six** about the fixed-time jobs — returns and departures, guest on
+the kerb with a flight to catch — which are precisely the ones §1.2 identifies as where lateness
+actually damages service. That is the gap to engineer against, and it is a stronger argument for
+Phase 1.1 than anything else in this document: the fixed-time clock rule the live path is missing
+is the same shape as the trips it is worst at.
+
 **What the numbers do support.** Three things survive the test and are worth the build:
 
 1. **The cards carry validated fixes.** 88–96% of the two highest-volume classes arrive with a
@@ -337,14 +372,24 @@ will be late is right one time in three and must not claim otherwise.
 The founder decision Phase 0 hands over is therefore which of these, and it is a decision about
 what the rail is *for*, not about a threshold:
 
-- **(a) Ship the ladder, drop the prophecy.** Cards render as "here is what is happening and a
-  checked fix", with no implied prediction, ranked by severity and time-to-impact, capped at 5.
-  D5's 70% bar is retargeted at the *plans* (does the proposed move hold up?), not the warnings.
-  **Recommended** — it is the only reading the measurement supports.
+- **(a) Cap the horizon and ship the ladder.** Cards may only speak about the next ~60 minutes,
+  where precision is roughly double; beyond that the detector stays silent or files to the ops
+  queue. Wording states what has happened and offers a checked fix rather than forecasting, and
+  D5's 70% bar is retargeted at the *plans* (does the proposed move hold up?) rather than the
+  warnings. **Recommended.** Note honestly what this does and does not buy: the rail gets much
+  better, and it still is not a 70% predictor.
 - **(b) Hold everything until the live log exists.** Ship nothing visible; build `AdvisorEvent`,
   log for a month with GPS history, and re-measure the classes replay cannot score.
 - **(c) Re-cut the thresholds and re-measure.** Cheap to try (the script re-runs in 11 minutes)
-  but nothing in the distribution suggests a threshold exists that lifts a class over 70%.
+  but the lead-time and trip-type cuts are the two most promising slices and neither produces a
+  70% class, so a further threshold hunt is unlikely to find one.
+- **(d) Fix the two things that could actually extend the horizon, then re-measure.** Phase 1.1
+  (the clock — the advisor is currently blind to 5 breaks/day and optimistic on the rest, and its
+  worst trip type is the one the missing rule governs) and Phase 1.3 (GPS history — 07 scores
+  mid-trip GPS at 72% on "late at all", the strongest predictor in this project, and replay cannot
+  score it at all because the sweep keeps no history). Both are invisible, both are already
+  planned, and until they land every number above is a measurement of a tool doing its arithmetic
+  wrong with its best sensor switched off. **Do this alongside (a), not instead of it.**
 
 Caveats stated on the output and unchanged by the result: GPS (`dispatch_*`) is not historized —
 `bulk_update` writes it — so `gps_fresh` classes are absent here entirely and can only be scored

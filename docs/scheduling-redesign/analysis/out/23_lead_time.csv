@@ -1,0 +1,49 @@
+estimates,lead_bucket,kind,scored,pct_late_15,pct_late_10,pct_late_any
+live,already past,ALL,6,66.7,83.3,83.3
+live,already past,late_cascade,3,66.7,100.0,100.0
+live,already past,overrun,3,66.7,66.7,66.7
+live,0-30 min,ALL,94,55.3,59.6,72.3
+live,0-30 min,late_cascade,22,68.2,68.2,77.3
+live,0-30 min,overlap,67,49.3,55.2,70.1
+live,0-30 min,overrun,5,80.0,80.0,80.0
+live,30-60 min,ALL,209,32.5,37.8,55.5
+live,30-60 min,flight_change,8,50.0,62.5,62.5
+live,30-60 min,late_cascade,51,29.4,37.3,52.9
+live,30-60 min,overlap,146,33.6,37.0,55.5
+live,30-60 min,overrun,4,0.0,25.0,75.0
+live,1-2 h,ALL,178,27.0,30.9,50.0
+live,1-2 h,flight_change,7,14.3,28.6,42.9
+live,1-2 h,late_cascade,42,50.0,52.4,66.7
+live,1-2 h,overlap,127,19.7,23.6,44.1
+live,1-2 h,overrun,2,50.0,50.0,100.0
+live,2-4 h,ALL,88,21.6,25.0,48.9
+live,2-4 h,flight_change,45,24.4,31.1,46.7
+live,2-4 h,late_cascade,7,14.3,14.3,28.6
+live,2-4 h,overlap,36,19.4,19.4,55.6
+live,4 h +,ALL,177,24.9,30.5,46.9
+live,4 h +,flight_change,153,24.2,29.4,45.1
+live,4 h +,overlap,24,29.2,37.5,58.3
+masked,already past,ALL,7,71.4,85.7,85.7
+masked,already past,late_cascade,4,75.0,100.0,100.0
+masked,already past,overrun,3,66.7,66.7,66.7
+masked,0-30 min,ALL,110,50.0,56.4,70.0
+masked,0-30 min,late_cascade,22,63.6,63.6,72.7
+masked,0-30 min,overlap,83,44.6,53.0,68.7
+masked,0-30 min,overrun,5,80.0,80.0,80.0
+masked,30-60 min,ALL,213,32.4,38.0,55.9
+masked,30-60 min,flight_change,8,50.0,62.5,62.5
+masked,30-60 min,late_cascade,52,28.8,36.5,50.0
+masked,30-60 min,overlap,148,32.4,36.5,56.8
+masked,30-60 min,overrun,5,40.0,60.0,80.0
+masked,1-2 h,ALL,182,26.9,30.2,47.8
+masked,1-2 h,flight_change,10,30.0,40.0,50.0
+masked,1-2 h,late_cascade,42,45.2,50.0,61.9
+masked,1-2 h,overlap,128,20.3,22.7,42.2
+masked,1-2 h,overrun,2,50.0,50.0,100.0
+masked,2-4 h,ALL,85,17.6,21.2,44.7
+masked,2-4 h,flight_change,45,22.2,28.9,46.7
+masked,2-4 h,late_cascade,9,11.1,11.1,22.2
+masked,2-4 h,overlap,31,12.9,12.9,48.4
+masked,4 h +,ALL,157,24.2,30.6,46.5
+masked,4 h +,flight_change,136,23.5,29.4,44.9
+masked,4 h +,overlap,21,28.6,38.1,57.1
