@@ -69,25 +69,46 @@ right split: one set of rules about what's possible, two tools that ask at diffe
 I checked whether it still runs fast enough on today's busier days: **yes — a fifth of a
 second to just over one second**, even on a 186-trip Saturday.
 
-## Section 4 — the uncomfortable test result
+## Section 4 — we tested it, and the answer was not what anyone expected
 
-I replayed four real days through it, rewinding the system to what it actually knew at
-various points in the day, and scored every warning it raised against what really happened.
+I replayed 28 real days through it — rewinding the system every 15 minutes to exactly what it
+knew at that moment, running the tool, and checking each warning against what actually happened.
+Nearly four thousand runs.
 
-- It would show a dispatcher **about 16 warnings per glance** on a normal day, and 37 at
-  Friday lunchtime.
-- **Half of those warnings are record-keeping nags** — "somebody forgot to press the button"
-  — not actual trouble.
-- Its strongest warning type was **right about 2 times in 5**. The rest were worse.
+**The good news, and it's real:**
 
-Read that plainly: if we simply flipped the switch and let the floor see it tomorrow, we
-would be handing them a new version of the alarm they already ignore. **That is why the
-switch is the last step of this project, not the first.**
+- **It is not noisy.** About **4 warnings on screen at a time** — not the 16 the earlier
+  four-day sample suggested. Against roughly **71 alarms a day** from the system the floor uses
+  now, that's a tenfold reduction in things to look at.
+- **It is fast.** Six hundredths of a second, typically. It could run on every screen refresh
+  and nobody would notice.
+- **Most warnings arrive with a fix already checked.** Nine times in ten, the card comes with a
+  specific move that has already been tested against the whole rest of the day.
 
-The bar you set — a warning class ships only if it's right at least 7 times in 10 — is
-exactly right, and nothing here passes it yet. The design bet is that a warning built from
-**two independent facts** (something that actually happened, *plus* the arithmetic saying
-the next fixed-time pickup breaks) will clear the bar. That gets tested, not assumed.
+**The bad news, and it's the important part:**
+
+**It cannot predict lateness.** Not one warning type reaches the 7-in-10 bar you set. The best
+genuine forecast is right about **4 times in 10**; the two types we most expected to work —
+a plane moving, and a driver's tap showing he's running behind — are right **1 in 4** and
+**1 in 3**.
+
+And two warning types that *looked* good turned out to be cheating. They flag a trip that is
+already visibly late, and then get marked "correct" when that same trip turns out to be late. A
+tool that says "this trip is late" about a trip that is late isn't predicting anything — it's
+reading back the screen. Once you strip those out, the honest ceiling is 4 in 10.
+
+**What this means, plainly.** The tool is not an early-warning system and shouldn't pretend to
+be — the whole industry of "this trip is at risk" alerts is where these systems lose people's
+trust, and your own risk band already proved that. What it genuinely is: **the fastest, most
+reliable second pair of hands you have once something has already gone wrong.** "George is 20
+minutes overdue, and here is a checked way to cover his 4pm return" is worth screen space even
+if George would have made it. "George is going to be late" is not, because it's wrong more often
+than it's right.
+
+So the recommendation is to ship the fix, not the fortune-telling: cards state what is happening
+and offer a verified move, ranked by urgency, capped at five on screen — and the 70% bar moves
+from the warnings to the fixes, where it belongs. That's a decision for you, and it's written up
+with two alternatives in the main document.
 
 ## Section 5 — what we'd actually do, in order
 
@@ -123,13 +144,19 @@ about a third of the time, and that's where these systems lose people's trust.
 
 ## Section 7 — is this the right next investment?
 
-**Half of it, yes.** Measuring the tool, fixing the clock, and collapsing three alarms into
-one is cheap, low-risk, and takes real daily work off the floor. Building a new live
-optimiser is not justified by anything in the data.
+**Yes for the cheap half, and the test made that clearer, not muddier.** Fixing the clock is
+now a named, countable problem — five turns a day where the screen tells a dispatcher a driver
+is fine and the engine says he cannot possibly make it, with names and times attached. Cutting
+70 alarms a day down to about 4 is worth doing on its own. Neither of those depended on the tool
+being able to predict anything.
+
+What the test killed is the expensive half: there is no case for building a smarter predictor.
+The data says prediction doesn't work here, and we now know that from 28 days of evidence rather
+than from an argument.
 
 And the bigger money is still on the other side: the day-before builder leaks roughly **five
-trips a day** to affiliates that it shouldn't, against roughly **three** lost to same-day
-churn. Do the cheap half here — then go back to the builder.
+trips a day** to affiliates that it shouldn't, against roughly **three** lost to same-day churn.
+Do the cheap half here — then go back to the builder.
 
 ## Section 8 — where your plan needed correcting
 

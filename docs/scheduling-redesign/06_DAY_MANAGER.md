@@ -192,13 +192,14 @@ outcome log; (b) the `take_later` clock rule on the live path; (c) collapsing th
 system-raised KEOI onto the advisor's detection so the floor sees one verdict per turn; (d) a
 call-in tier; (e) a runtime check under today's volume.
 
-**Runtime budget plan.** Measured on the throwaway copy (prototype replay, 20 ticks over four
-real days of 72–189 legs): **0.1–1.3 s per full compute**, the 1.3 s being a 186-leg Saturday at
-08:00. The 4 s budget holds with room. What does *not* hold is the card cap —
-`ADVISOR_MAX_DISRUPTIONS = 6` truncated plan generation on 11 of 20 ticks because the board
-raised 13–37 cards at once. If volume ever pushes P90 past ~4 s, precompute on the existing
-Samsara loop tick (180 s, lock `737_202`) into the same cache key and let the GET serve — reuse
-of an existing loop, not a new daemon (04 §6). Never the assignment pipeline.
+**Runtime budget — settled, no work needed [measured, 23, 3,864 computes].** P50 **60 ms**, P90
+**325 ms**, max **905 ms**, and **zero ticks over the 4 s budget** across 28 days at 15-minute
+ticks. An earlier pass recorded one 70 s tick; that same minute re-runs in 52 ms in isolation and
+the uncontended full pass tops out at 905 ms, so it was host contention (two replays sharing a
+660 MB copy), not the advisor. **The Samsara-tick precompute contingency
+is dropped** — there is nothing to precompute around. The card cap is also less pressing than
+the prototype suggested: `ADVISOR_MAX_DISRUPTIONS = 6` truncates plan generation on **25% of
+ticks**, not 55%. Never the assignment pipeline.
 
 ---
 
@@ -245,15 +246,22 @@ Measured against "the impact leg's driver arrived >15 min after booked / gate+10
 | Manual-assign turn warnings vs the **09 definition** (not reality) | 92.5% / 80.5% | 12 re-run |
 
 No single signal clears 70% on the >15-min bar. The 92.5% number that let Build 1 ship measures
-agreement with a *definition*, not with what happened. **The advisor's compound classes have
-never been scored.** The design bet, to be tested not assumed: a card that requires **two
-independent facts** — a live fact (recorded pickup, fresh negative GPS, flight actual) *and* a
-negative engine slack on a **fixed-time** impact leg — clears 70%. Expected to pass:
-`flight_change` with `slack_out < 0` into a fixed-time job; `overlap` re-anchored on a recorded
-pickup with slack < −15; `overrun` / `late_cascade` with concrete breaks; `unassigned` ≤ 60 min.
-Expected to fail and be demoted to detected-only: clock-only overdue; planning-tight
-(`''→tight`); anything anchored on GPS `at_risk` without a chained break; arrival-as-impact-leg
-cards scored on the booked time.
+agreement with a *definition*, not with what happened. The advisor's compound classes had never
+been scored.
+
+**The design bet was: a card requiring two independent facts — a live fact (recorded pickup,
+fresh negative GPS, flight actual) AND a negative engine slack on a fixed-time impact leg —
+clears 70%. Expected to pass: `flight_change` into a fixed-time job, `overlap` re-anchored on a
+recorded pickup. Expected to fail and be demoted: clock-only overdue, hygiene.**
+
+**Measured 2026-09-05 (§3.3): the bet is refuted, and the ranking is inverted.** The two classes
+predicted to pass are the two worst forecasters on the rail — `overlap` on a recorded pickup
+**32.4%**, `flight_change` **24.9%** — while the clock-only cascade the plan wanted demoted is
+the best of them at **43.2%**. A recorded pickup turns out to say very little about whether the
+*next* leg runs late; it mostly says the driver is running early or late by a few minutes, which
+the deplaning grace and the turnaround pad absorb. Two-independent-facts is not the discriminator
+this design hoped for, and no rewriting of the detectors is justified by this evidence alone —
+what is justified is §3.3's conclusion about what the advisor is actually *for*.
 
 ### 3.3 How precision gets measured before shipping
 
@@ -276,33 +284,80 @@ proven:
   GPS-based classes cannot be replay-scored. They are scored live after 2–4 weeks of logging, and
   stay detected-only until then.
 
-**Prototype result (4 days × 5 ticks, 08:00–20:00) [measured, scratch]:**
+**Result — 28 days, 06:00–23:00 every 15 min, both estimate bounds, 3,864 computes
+[measured 2026-09-05, `analysis/out/23_advisor_precision.csv`]:**
 
-| Card class | Cards over 20 ticks | With move plans | Scored | Right at >15 min | Right at "late at all" |
-|---|---:|---:|---:|---:|---:|
-| `late_cascade` watch (hygiene: "chase the button") | **157** (49% of all cards) | 0 | 115 | 13% | 25% |
-| `late_cascade` critical (clock-only overdue + breaks) | 56 | 5 | 35 | **9%** | 26% |
-| `flight_change` critical | 40 | 16 | 31 | 39% | 52% |
-| `overrun` critical (recorded pickup) | 32 | 32 | 30 | 30% | 37% |
-| `overlap` critical | 23 | 11 | 19 | 26% | 47% |
-| `unassigned` (any) | 5 | 1 | 2 | — | — |
-| **All** | **321 = 16.1 per glance** | 65 | | | |
+Rail load first, because the prototype was wrong about it: **4.2 cards per glance (P50 3, P90 10,
+max 21)**, of which 3.2 critical. Not 16. The prototype's four days at 3-hour ticks were not
+representative, and the fear that the rail would drown a dispatcher is **not supported**.
 
-Read plainly: opened to the floor as-is, the advisor would show ~16 cards per glance on a normal
-day and 37 at Friday midday, half of them record-hygiene nags, and its strongest class would be
-wrong three times in five on the bar the founder set. That is the same wolf the risk band cries,
-in a nicer voice — and exactly why the gate must run before the one-line visibility change.
+Precision, live-estimates bound (the masked bound differs by <1 point everywhere, so the
+estimate-historization blind spot turns out to be small):
 
-Caveats the full script must state and fix where it can: four days not 28; 3-hour ticks not
-15-minute; flight `estimated_*` fields are not historized, so `flight_change` at 08:00 sees the
-day's final estimate (overstates — the full script masks estimates too and reports both bounds);
-GPS fields blanked, so `gps_fresh` classes are absent; the truth clock is the on-location tap,
-which only 57–67% of legs carry cleanly.
+| Card class | Cards/day | With plans | One-leg | Scored | >15 min | >10 min | Late at all | **>15 forecast-only** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `late_cascade` critical — clock_only | 10.0 | 58% | 41% | 187 | 62.0% | 65.2% | 74.3% | **43.2%** |
+| `overlap` critical — recorded_pickup | 9.2 | 96% | 0% | 238 | 32.4% | 37.4% | 59.7% | **32.4%** |
+| `flight_change` critical — flight | 8.6 | 88% | 0% | 213 | 24.9% | 31.0% | 46.0% | **24.9%** |
+| `overlap` warning — recorded_pickup | 4.8 | 64% | 0% | 129 | 24.0% | 25.6% | 45.0% | **24.0%** |
+| `late_cascade` watch (hygiene) | 3.1 | 0% | 100% | 74 | 60.8% | 64.9% | 73.0% | — |
+| `overrun` warning — recorded_pickup | 2.0 | 91% | 100% | 55 | 47.3% | 52.7% | 61.8% | — |
+| `flight_change` warning | 2.0 | 70% | 100% | 51 | 23.5% | 37.3% | 54.9% | — |
+| `unassigned` warning | 1.5 | 59% | 100% | 31 | 29.0% | 38.7% | 58.1% | — |
+| `overlap` critical — clock_only | 1.2 | 100% | 0% | 33 | 39.4% | 45.5% | 54.5% | **39.4%** |
+| `unassigned` critical | 1.0 | 100% | 100% | 17 | 47.1% | 47.1% | 64.7% | — |
+| `overrun` critical — recorded_pickup | 0.5 | 93% | 0% | 14 | 50.0% | 57.1% | 78.6% | **50.0%** (n=14) |
 
-Design consequences, folded into §3.1 and §4: hygiene cards leave the rail entirely (ops-queue
-material, and 49% of the volume); clock-only cascades never earn a plan; a hard visible-card
-budget (≤5, ranked by severity then time-to-impact) replaces the 6-plan truncation; the two-fact
-rule is the ship criterion, not a hope.
+**The last column is the one D5 must judge, and it is why the headline numbers flatter the tool.**
+A card carrying a single leg has no downstream victim: it says "this leg is overdue" and gets
+graded on "was this leg late". That is a description, not a forecast, and it is where the two
+best-looking scores come from — `late_cascade` watch is **100%** one-leg cards, `late_cascade`
+critical **41%**. Strip those out and the best genuine forecaster on the rail is `late_cascade`
+critical at **43%**, then `overlap` at 32% and `flight_change` at 25%. `overrun` critical reaches
+50% on fourteen scored cards, which is too few to bank.
+
+**No class passes D5. Not one, on either bound, at >15 or >10 minutes.** On today's evidence the
+Phase 2 visibility flip ships nothing at all.
+
+**What the numbers do support.** Three things survive the test and are worth the build:
+
+1. **The cards carry validated fixes.** 88–96% of the two highest-volume classes arrive with a
+   move plan already checked against the whole remaining day. That is work a dispatcher does not
+   have to do, independent of whether the warning was strictly necessary.
+2. **The volume is sane.** 4.2 a glance against **70.9 scanner tasks a day** (§0.2) is an order-of-
+   magnitude reduction in things to look at, and §0.2 says two thirds of those tasks buy nothing.
+3. **It is fast and deterministic.** 61 ms P50, no budget breaches.
+
+**So the honest framing changes, and §6 already anticipated it: the advisor's value is not early
+warning — it is a fast, pre-validated response to something that has already happened.** A card
+that says "George is 20 minutes overdue and here is a checked way to cover his 16:00 return" is
+worth screen space even when George would have made it anyway; a card that *predicts* George
+will be late is right one time in three and must not claim otherwise.
+
+The founder decision Phase 0 hands over is therefore which of these, and it is a decision about
+what the rail is *for*, not about a threshold:
+
+- **(a) Ship the ladder, drop the prophecy.** Cards render as "here is what is happening and a
+  checked fix", with no implied prediction, ranked by severity and time-to-impact, capped at 5.
+  D5's 70% bar is retargeted at the *plans* (does the proposed move hold up?), not the warnings.
+  **Recommended** — it is the only reading the measurement supports.
+- **(b) Hold everything until the live log exists.** Ship nothing visible; build `AdvisorEvent`,
+  log for a month with GPS history, and re-measure the classes replay cannot score.
+- **(c) Re-cut the thresholds and re-measure.** Cheap to try (the script re-runs in 11 minutes)
+  but nothing in the distribution suggests a threshold exists that lifts a class over 70%.
+
+Caveats stated on the output and unchanged by the result: GPS (`dispatch_*`) is not historized —
+`bulk_update` writes it — so `gps_fresh` classes are absent here entirely and can only be scored
+live; flight `estimated_*` cannot be dated (`last_updated` is touched by every later refresh, a
+median ~10 h after the arrival it describes), hence the two bounds; the truth clock is the
+on-location tap, which only 57–67% of legs carry cleanly, and unscorable cards are counted, never
+dropped; the roster, ops tasks and KEOI are not rewound.
+
+Design consequences, folded into §3.1 and §4: hygiene cards leave the rail (they are one-leg
+descriptions and carry no plan — ops-queue material); one-leg cards never claim a downstream
+victim in their wording; a hard visible-card budget (≤5, ranked by severity then time-to-impact)
+replaces the 6-plan truncation; **the two-fact rule is dropped as a ship criterion, having been
+tested and failed.**
 
 **Live instrument — `AdvisorEvent`.** One row per card lifecycle: shown (first fingerprint), plan
 applied / snoozed / task filed / expired / superseded, and the realised outcome (filled nightly
@@ -387,10 +442,10 @@ code it judges; every dispatcher-visible change ships with a release note; invis
 |---|---|
 | ~~Reconcile the two snapshots~~ **DONE 2026-09-05** — desktop copy in place, horizon 2026-08-21, provenance recorded in the header | ✔ |
 | ~~`analysis/25_scanner_outcomes.py`~~ **DONE 2026-09-05** — volume, timing and closure taxonomy by month; three CSVs committed | ✔ Baseline: **70.9 tasks/day, 33.9% of legs, 65.9% of closes buy nothing**, rising month over month (§0.2) |
-| **Re-run `25` on a pull taken after 2026-08-27** — the only outstanding Phase 0 item; four of the five tuning commits land after this snapshot ends | If the scanner is genuinely quiet now, Phase 1.4 and Phase 2.2 shrink to "keep it that way" and the §1.3 rank-2 failure mode is downgraded. Does not block 23 or 24 |
-| `analysis/23_advisor_replay.py` (from the prototype) + `analysis/out/23_advisor_precision.csv`, `23_cards_per_day.csv`, `23_timing.csv` over the 28-day regime, 15-min ticks, flight estimates masked | Runs cold on the snapshot; per-class precision, card volume and P90 compute time recorded as the **baseline**. Prototype baseline (4 days): 16.1 cards/glance, best class 39% at >15 min, compute ≤1.3 s |
-| `analysis/24_live_clock_split.py` (from scratch) + `analysis/out/24_flips.csv` | Baseline: 10.8 flips/day, 6.1 clean-but-negative/day on 21 days |
-| Founder decisions logged: which classes may ship; whether the scanner is retired or re-pointed; call-in tier wanted in v1 | — |
+| **Re-run `25` on a pull taken after 2026-08-27** — the one measurement Phase 0 cannot make on any copy on disk; four of the five tuning commits land after this snapshot ends | If the scanner is genuinely quiet now, Phase 1.4 and Phase 2.2 shrink to "keep it that way" and the §1.3 rank-2 failure mode is downgraded. Does not block 23 or 24 |
+| ~~`analysis/23_advisor_replay.py`~~ **DONE 2026-09-05** — 28 days, 15-min ticks, both estimate bounds, 3,864 computes; three CSVs committed | ✔ **4.2 cards/glance** (not 16); **no class passes D5** — best forecaster 43.2%, `overlap` 32.4%, `flight_change` 24.9%; compute P50 61 ms, zero budget breaches (§3.3) |
+| ~~`analysis/24_live_clock_split.py`~~ **DONE 2026-09-05** — 28 real boards, every turn priced twice; two CSVs committed | ✔ **5.1/day** the board calls clean or tight and the corrected clock calls negative; 9.3 band flips/day; all 142 named with driver and times |
+| **Founder decisions still open** — (1) §3.3's (a)/(b)/(c): what the rail is *for*, now that no class forecasts well enough to warn; (2) whether the scanner is retired or re-pointed, pending the post-08-27 pull; (3) call-in tier in v1? | Phase 1 can start on 1.1–1.3 regardless; only 1.4 and Phase 2 wait on these |
 
 ### Phase 1 — invisible fixes (`Release-Note: none`)
 
@@ -440,9 +495,11 @@ Acceptance instrument for the whole project: the same CSVs from Phase 0, re-run 
 
 ## 6. What NOT to build, and what to cut from the brief
 
-- **Do not flip `advisor_visible_to` to `is_staff` as-is.** The prototype replay shows what the
-  floor would get: ~16 cards a glance, half hygiene, best class 39% right. The one-line release is
-  the last step of Phase 2, not the first step of anything.
+- **Do not flip `advisor_visible_to` to `is_staff` while the cards still read as predictions.**
+  The 28-day replay retires the volume objection — 4.2 cards a glance is fine — and replaces it
+  with a sharper one: **no class forecasts lateness better than 43%**, so any card whose wording
+  implies "this trip will be late" is wrong more often than right. The flip is safe only
+  alongside the §3.3(a) reframing, and it stays the last step of Phase 2.
 - **No second engine and no whole-day re-plan.** The pipeline is minutes, non-deterministic under
   budget, and optimises the wrong thing day-of.
 - **No "smallest safe set of changes" optimiser.** Real day-of repairs are one move or a
