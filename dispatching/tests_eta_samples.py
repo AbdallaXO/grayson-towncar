@@ -53,7 +53,7 @@ def _fields(**kw):
         "dispatch_vehicle_label": "T-1",
         "dispatch_eta_origin_lat": 28.42,
         "dispatch_eta_origin_lng": -81.31,
-        "dispatch_eta_origin_target": "MCO",
+        "dispatch_eta_origin_target": "MCO Airport",
     }
     f.update(kw)
     return f
@@ -63,7 +63,7 @@ def _leg(**kw):
     """A leg-shaped stand-in carrying last tick's dispatch_* values."""
     d = dict(id=1, driver_id=7, status="on-the-way", dispatch_eta_minutes=None,
              dispatch_eta_origin_lat=None, dispatch_eta_origin_lng=None,
-             dispatch_eta_target="")
+             dispatch_eta_target="", dispatch_eta_origin_target="")
     d.update(kw)
     return SimpleNamespace(**d)
 
@@ -147,7 +147,8 @@ class BuildSampleTests(TestCase):
         sampled_at as the instant the drive time was measured, and here it is
         not."""
         prev = _leg(dispatch_eta_minutes=12, dispatch_eta_origin_lat=28.42,
-                    dispatch_eta_origin_lng=-81.31, dispatch_eta_target="pickup")
+                    dispatch_eta_origin_lng=-81.31,
+                    dispatch_eta_origin_target="MCO Airport")
         self.assertTrue(es.build_sample(prev, _fields(), NOW).eta_carried)
 
     def test_a_decimal_anchor_from_the_database_still_compares_equal(self):
@@ -160,18 +161,39 @@ class BuildSampleTests(TestCase):
         prev = _leg(dispatch_eta_minutes=12,
                     dispatch_eta_origin_lat=D("28.42"),
                     dispatch_eta_origin_lng=D("-81.31"),
-                    dispatch_eta_target="pickup")
+                    dispatch_eta_origin_target="MCO Airport")
         self.assertTrue(es.build_sample(prev, _fields(), NOW).eta_carried)
 
     def test_a_moved_anchor_is_not_carried_even_at_the_same_minutes(self):
         prev = _leg(dispatch_eta_minutes=12, dispatch_eta_origin_lat=28.99,
-                    dispatch_eta_origin_lng=-81.31, dispatch_eta_target="pickup")
+                    dispatch_eta_origin_lng=-81.31,
+                    dispatch_eta_origin_target="MCO Airport")
         self.assertFalse(es.build_sample(prev, _fields(), NOW).eta_carried)
 
-    def test_a_changed_target_is_not_carried(self):
+    def test_a_changed_destination_is_not_carried(self):
         prev = _leg(dispatch_eta_minutes=12, dispatch_eta_origin_lat=28.42,
-                    dispatch_eta_origin_lng=-81.31, dispatch_eta_target="dropoff")
-        self.assertTrue(es.build_sample(prev, _fields(), NOW).eta_carried is False)
+                    dispatch_eta_origin_lng=-81.31,
+                    dispatch_eta_origin_target="Disney Resort")
+        self.assertFalse(es.build_sample(prev, _fields(), NOW).eta_carried)
+
+    def test_the_handoff_flip_is_still_carried(self):
+        """The tick this column exists for, and the one a first cut got wrong.
+        'pickup' and 'next_pickup' are the same DESTINATION — the same leg's
+        pickup_location — so at every ordinary trip handoff the sweep carries
+        the stored minutes across the flip (_can_reuse_eta keys on the
+        destination string, not the kind). Comparing the KIND made that row read
+        'not carried', and it is the row where the evaluation stamp is furthest
+        from when the drive time was measured: the value carried across is a
+        CHAINED estimate now labelled a direct one."""
+        prev = _leg(dispatch_eta_minutes=29, dispatch_eta_origin_lat=28.42,
+                    dispatch_eta_origin_lng=-81.31,
+                    dispatch_eta_target="next_pickup",
+                    dispatch_eta_origin_target="MCO Airport")
+        s = es.build_sample(prev, _fields(dispatch_eta_minutes=29,
+                                          dispatch_eta_target="pickup"), NOW)
+        self.assertTrue(s.eta_carried)
+        self.assertEqual(s.eta_target, "pickup")
+        self.assertEqual(s.origin_target, "MCO Airport")
 
 
 class RecordTests(TestCase):

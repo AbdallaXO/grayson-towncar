@@ -680,6 +680,11 @@ class DispatchEtaSample(models.Model):
     origin_lat = models.FloatField(null=True, blank=True)
     origin_lng = models.FloatField(null=True, blank=True)
     vehicle_label = models.CharField(max_length=32, blank=True, default="")
+    #: The destination the drive time was priced TO. Stored so ``eta_carried``
+    #: is checkable from the data rather than trusted: it is one of the three
+    #: things that must be unchanged for a tick to carry no new information, and
+    #: it is the string ``_can_reuse_eta`` itself keys on.
+    origin_target = models.CharField(max_length=120, blank=True, default="")
     eta_carried = models.BooleanField(default=False)
 
     class Meta:

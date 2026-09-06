@@ -33,10 +33,17 @@ no pickup tap, and GPS's job is to say whether the car ever left; a leg with no
 tap is, by construction, not "under way" by status. The union rule costs 900
 more rows a day and loses neither.
 
-Stated honestly: even keeping every tick only covers 21 of those 25 legs — four
-are never the sweep's target at all, because the driver's car is not mapped to
-Samsara or another leg held the badge. n=25 over 28 days is thin, but the
-mechanism is structural rather than statistical, and the direction is 32% against 84%.
+Stated honestly: even keeping every tick covers only 21 of those 25 legs inside
+the hour around the milestone. A first draft of this paragraph explained the
+other four as unmapped cars, and that was wrong — all 25 drivers are in-house
+with a Samsara-mapped car, and all 25 legs ARE the sweep's target, for 19 to 191
+ticks each. The four were sampled EARLIER in the day: each carries a pickup
+deadline 83-171 minutes before the milestone and a `completed` tap before the
+coverage window opens, so by then the leg is closed and past the 45-minute
+grace, and the sweep has moved on to the driver's next leg. It is a property of
+where the window is placed, not of fleet telemetry — widening it to +/-2 h
+recovers 24 of 25. n=25 over 28 days is thin, but the mechanism behind the
+32%-against-84% direction is structural rather than statistical.
 
 GROWTH, so nobody is surprised later: ~1.25 M rows and ~278 MiB a year at
 today's fleet, which makes this the largest table in the database inside a year.
@@ -125,16 +132,27 @@ def build_sample(leg, fields, now):
 
     o_lat = fields.get("dispatch_eta_origin_lat")
     o_lng = fields.get("dispatch_eta_origin_lng")
-    # Same number, same anchor, same target as last time => no new information
-    # about the road. Deliberately NOT called "reused": whether a paid call was
-    # made is not knowable from the data, and for scoring it does not matter.
+    o_target = fields.get("dispatch_eta_origin_target") or ""
+    # Same number, from the same anchor, to the same DESTINATION as last time
+    # => no new information about the road. Deliberately NOT called "reused":
+    # whether a paid call was made is not knowable from the data, and for
+    # scoring it does not matter.
+    #
+    # The destination is `dispatch_eta_origin_target` — the place the drive time
+    # was priced TO — and NOT `dispatch_eta_target`, which is the target's KIND.
+    # A first cut compared the kind, and it was wrong on the one tick this column
+    # exists for: "pickup" and "next_pickup" are the same destination (the same
+    # leg's pickup_location), so at every ordinary trip handoff the sweep carries
+    # the stored minutes across the flip — _can_reuse_eta keys on exactly this
+    # string, samsara_risk.py:196 — while the kind changes. That row is the one
+    # where the evaluation stamp is FURTHEST from when the drive time was
+    # measured, and it is a chained estimate relabelled as a direct one.
     carried = bool(
         eta_minutes is not None
         and eta_minutes == getattr(leg, "dispatch_eta_minutes", None)
         and _same_coord(o_lat, getattr(leg, "dispatch_eta_origin_lat", None))
         and _same_coord(o_lng, getattr(leg, "dispatch_eta_origin_lng", None))
-        and (fields.get("dispatch_eta_target") or "")
-        == (getattr(leg, "dispatch_eta_target", "") or ""))
+        and o_target == (getattr(leg, "dispatch_eta_origin_target", "") or ""))
 
     return DispatchEtaSample(
         leg_id_ref=leg.id,
@@ -151,6 +169,7 @@ def build_sample(leg, fields, now):
         origin_lat=None if o_lat is None else float(o_lat),
         origin_lng=None if o_lng is None else float(o_lng),
         vehicle_label=(fields.get("dispatch_vehicle_label") or "")[:32],
+        origin_target=o_target[:120],
         eta_carried=carried,
     )
 

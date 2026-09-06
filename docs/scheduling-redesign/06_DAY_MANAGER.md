@@ -844,9 +844,16 @@ code it judges; every dispatcher-visible change ships with a release note; invis
    tap, where GPS's job is to say whether the car ever left; **a leg with no tap is, by
    construction, not "under way" by status.** The union costs 900 more rows a day and loses
    neither. Stated honestly: n=25 over 28 days is thin, and even keeping every tick covers only 21
-   of the 25 — four are never the sweep's target at all, because the car is unmapped or another
-   leg held the badge. The mechanism is structural rather than statistical, and the direction is
-   32% against 84%.
+   of the 25 **inside the hour around the milestone**. The first version of this paragraph
+   explained the other four as unmapped cars. **That was wrong, and an adversarial pass caught
+   it**: all 25 drivers are in-house with a Samsara-mapped car, and all 25 legs *are* the sweep's
+   target — for 19 to 191 ticks each. The four were sampled earlier in the day. Each carries a
+   pickup deadline 83–171 minutes before the milestone and a `completed` tap before the coverage
+   window opens, so by then the leg is closed and past the 45-minute grace and the sweep has moved
+   on to the driver's next leg. It is a property of where the window is placed, not of fleet
+   telemetry — widening it to ±2 h recovers 24 of 25, and the whole day recovers all 25. The
+   mechanism behind the 32%-against-84% direction is structural rather than statistical and is
+   unaffected.
 
    **Growth, so nobody is surprised.** ~1.25 M rows and ~278 MiB a year at today's fleet, which
    makes this the largest table in the database inside a year. Volume tracks **drivers, not trips**
@@ -863,11 +870,13 @@ code it judges; every dispatcher-visible change ships with a release note; invis
    matter. It matters at all because 07's error formula treats the evaluation stamp as the instant
    the drive time was measured, and on a carried tick it is not.
 
-   **One defect worth recording, because it would have been silent.**
-   `Leg.dispatch_eta_origin_lat/lng` are `DecimalField`s, so last tick's anchor comes back as a
-   `Decimal` while the sweep's is a `float`, and `28.42 == Decimal("28.42")` is False. The first
-   implementation compared them raw, which would have made `eta_carried` permanently False — a
-   column that always says the same thing and tells you nothing. Caught by a test, pinned by one.
+   **Three defects worth recording, because every one of them would have been silent.**
+
+   | Defect | Why it mattered |
+   |---|---|
+   | `Leg.dispatch_eta_origin_lat/lng` are `DecimalField`s, so last tick's anchor comes back as a `Decimal` against the sweep's `float`, and `28.42 == Decimal("28.42")` is False | The first cut compared them raw, which would have made `eta_carried` **permanently False** — a column that always says the same thing and tells you nothing. Caught by a test while writing it |
+   | `eta_carried` compared the target's KIND, not the destination the drive time was priced to | `pickup` and `next_pickup` are the *same destination* — the same leg's pickup location — so `_can_reuse_eta` carries the stored minutes across that flip at **every ordinary trip handoff** while the kind changes. That row is the one where the evaluation stamp is furthest from when the drive time was measured, and the value carried across is a *chained* estimate relabelled as a direct one. It now compares `dispatch_eta_origin_target`, the string the reuse rule itself keys on, and the sample stores it so the flag is checkable rather than trusted |
+   | This document, the module docstring and the commit message all said four ambiguous legs "are never the sweep's target at all, because the car is unmapped" | Not true, as the paragraph above now records. Published as a limitation of the fleet's telemetry when it was an artifact of where the analysis window sits — a reader would have gone hunting for unmapped cars that do not exist |
 4. **One clock for the scanner** — `classify_turn` / `detect_driver_conflicts` call
    `turn_slack_minutes` + `_turn_severity`; the 10-min red line becomes `pickup_policy.turn_band`.
    Gate: 25 re-run shows the same or fewer tasks/day with a higher move-close share; no

@@ -97,6 +97,15 @@ PAST_PICKUP_GRACE_MIN = 45          # pickup_policy.OVERDUE_STALE_MIN
                                     #  a first draft guessed 90 and the
                                     #  assert is why that never shipped)
 NEAR_MIN_DEFAULT = (60, 120, 180)
+#: How far either side of a missed milestone a sample still answers the question
+#: "has he left the pickup point yet". An hour before, because 26 measures the
+#: typical warning at 80-97 minutes and the impatient quartile at 55-70; half an
+#: hour after, because past that the next pickup is already happening. It is a
+#: CHOICE, so it is named rather than buried, and the sensitivity is reported:
+#: at -60..+30 a per-tick log covers 21 of the 25 ambiguous legs, at -120..+60
+#: 24 of 25, and over the whole day all 25. The four it misses at the shipped
+#: window were sampled earlier and tapped `completed` before it opened.
+NOTAP_WINDOW_MIN = (-60, 30)
 
 # Bytes per row, measured from this database with dbstat rather than guessed —
 # three existing narrow tables bracket what a compact sample row costs.
@@ -404,7 +413,8 @@ def main():
                         # "has he left the pickup point yet" is still worth
                         # asking?
                         for case in notap.get((str(day), leg_id), ()):
-                            if -60 <= (t - case["milestone"]).total_seconds() / 60 <= 30:
+                            gap = (t - case["milestone"]).total_seconds() / 60
+                            if NOTAP_WINDOW_MIN[0] <= gap <= NOTAP_WINDOW_MIN[1]:
                                 notap_seen[r].add((str(day), leg_id))
             t += dt.timedelta(seconds=args.tick_sec)
         per_date_rows.append([str(day)] + [day_rows[r] for r in rules])
@@ -441,6 +451,8 @@ def main():
           f"carries NO pickup tap.\n  For those, a missed milestone is ambiguous "
           f"— he may have picked up and not tapped — and the\n  question GPS "
           f"answers is whether the car has left the pickup point at all.\n")
+    print(f"  window: {NOTAP_WINDOW_MIN[0]:+d}..{NOTAP_WINDOW_MIN[1]:+d} min "
+          f"around the milestone (a named choice — see NOTAP_WINDOW_MIN)\n")
     print(f"{'rule':<24}{'ambiguous legs sampled':>26}")
     notap_rows = []
     for r in rules:
