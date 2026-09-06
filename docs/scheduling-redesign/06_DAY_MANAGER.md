@@ -753,12 +753,24 @@ code it judges; every dispatcher-visible change ships with a release note; invis
    | the log can ride the 30-minute GHL loop | Share of episodes a sampler sees **at all**, averaged over every phase offset: **3 min 100%**, 6 min 95.3%, 15 min 86.5%, **30 min 76.1%**, 60 min 60.8% | The unattended sweep rides the **180 s Samsara tick** (the `fleet_sync` precedent, same loop, same lock); only the nightly grading stayed on the GHL loop as planned |
 
    **On that last row, the reason is not the precision bias** — that stays under a point until an
-   hour (30 min: −0.9). It is *which* cards a coarse sampler loses. **44.7% of episodes live under
-   30 minutes**, and they are not spread evenly: `overrun` **93.1%** under 30 min, `unassigned`
-   75.7%, `late_cascade` 68.5%, against `overlap`'s 25.3%. A 30-minute log would have reported
-   those three classes on a quarter fewer cards than the classes they are compared against — and
-   D5 is a per-class bar. Cost of the finer cadence, measured on the same run: **P50 76 ms, max
-   925 ms, zero of 9,548 computes over the 4 s budget** — about 26 seconds of CPU across a day.
+   hour (30 min: −0.9). It is *which* cards a coarse sampler loses, and **D5 is applied class by
+   class, so the pooled 76.1% is the wrong number to choose a cadence by**
+   (`out/27_cadence_by_kind.csv`):
+
+   | Seen at all, by class | 3 min | 15 min | 30 min | 60 min |
+   |---|---:|---:|---:|---:|
+   | `overrun` | 100% | 69.4% | **47.1%** | 24.7% |
+   | `unassigned` | 100% | 66.0% | **50.4%** | 32.0% |
+   | `late_cascade` | 100% | 80.1% | **63.6%** | 41.4% |
+   | `flight_change` | 100% | 92.7% | 89.1% | 83.5% |
+   | `overlap` | 100% | 96.0% | 89.9% | 75.8% |
+
+   **44.7% of episodes live under 30 minutes** and they are not spread evenly — `overrun` 93.1% of
+   its episodes under 30 min, `unassigned` 75.7%, `late_cascade` 68.5%, against `overlap`'s 25.3%.
+   On the GHL loop `overrun` would be graded on fewer than half its cards while `overlap` kept nine
+   in ten: a **40-point spread inside a bar applied class by class**. Cost of the finer cadence,
+   measured on the same run: **P50 76 ms, max 925 ms, zero of 9,548 computes over the 4 s budget**
+   — about 26 seconds of CPU across a day.
 
    **And one assumption the plan did not state, which is the reason the sweep exists at all.**
    Phase 1.2 as written feeds the log from the rail — and the rail is superuser-only
@@ -786,6 +798,19 @@ code it judges; every dispatcher-visible change ships with a release note; invis
    the sweep keeps no history, so every number above is measured with the advisor's best sensor
    switched off — `gps_fresh` classes have no measured episode shape at all. The live log is the
    first thing that will see them, which is the same argument Phase 1.3 rests on.
+
+   **Six defects an adversarial pass then found, all of which made a number quietly wrong rather
+   than raising anything** — the failure mode this instrument exists to avoid, so they are recorded
+   rather than just fixed:
+
+   | Defect | Why it mattered |
+   |---|---|
+   | The episode gap was set to **45 min on a guess** that real boundaries were wider | They are not. Measured from the gate's own output: 98 boundaries, min 6 min, **P50 28.5**, P75 72. At 45, **67% of them merged** — and unevenly, 60 of the 98 being `flight_change`. Now 10 min (23% merge, against a floor of 17% at 6) |
+   | The outcome fill graded an impact leg **by id, never checking it was still on the card's date** | A guest confirming which night an overnight arrival takes off *moves the leg a day* (`overnight_arrival`), and the advisor raises cards on exactly that population — 114 such +1-day moves in the snapshot. The row would file a real signed lateness for a trip that never ran on that date, on the false-positive side of a class D5 gates. Now `unknown`, which is what 23 returns |
+   | `OUTCOME_RETRY_DAYS = 7` **never bound** | The eight-attempt cap was being spent at the GHL loop's 30-minute cadence — all eight gone four hours after the day closed. A tap entered the next morning could never flip the row from unscorable to scored. Attempts are now spaced 20 h apart |
+   | The **ops task page wrote whole-board columns from a leg-filtered compute** | `for_leg_id` narrows the card set *before* the six-card cap and the 4 s budget, so one surviving card always gets full plan generation — `had_plans` would have reported plan coverage the replay never measured. Leg-filtered sightings no longer write those two columns |
+   | The concurrent-insert recovery **could not run** | Its read sat inside the atomic block the failed INSERT had just marked for rollback, so it raised instead of recovering and the applied/snoozed stamp was lost in exactly the race it existed to survive. Its own savepoint now |
+   | This document said a 30-minute log would cost "a quarter fewer cards" **per class** | That was the pooled figure applied to a per-class claim, and the gate had not computed coverage by class at all. It does now, and the real per-class gap is roughly twice as large — the table above |
 3. **GPS sweep history** — `sweep_eta` writes a compact `DispatchEtaSample` row per evaluated leg
    (bulk insert on the same 180 s tick it already runs). Gate: 07's ETA-error table reproducible
    from the new table.

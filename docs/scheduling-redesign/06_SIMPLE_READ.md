@@ -129,6 +129,10 @@ number for each type. Nothing ships until that number exists.
   actually has it open. So it now writes itself down every three minutes whether anyone is
   watching. That matters for the choice in Section 4: "keep it hidden and just collect a
   month of evidence" is now a real option, because the evidence collects itself.
+  (Three minutes rather than half an hour is not fussiness: at half-hourly checks the
+  system would have caught fewer than half the short-lived warnings — and it would have
+  missed them unevenly, so two warning types would be judged on half the evidence of
+  the two they're ranked against.)
 - Start keeping the GPS history, which today is thrown away.
 
 **Third, the visible step:** open it to dispatchers — but only the warning types that passed

@@ -83,6 +83,7 @@ USAGE
 Outputs: out/27_card_episodes.csv      one row per (date, id, episode)
          out/27_identity_stability.csv episodes and mutation rates per kind
          out/27_cadence_coverage.csv   what each sampling cadence would see
+         out/27_cadence_by_kind.csv    the same, per class — D5's actual unit
          out/27_fill_parity.csv        --verify-fill only
 """
 import argparse
@@ -287,6 +288,25 @@ def coverage_rows(episodes, step_min, from_hour):
     return rows
 
 
+def coverage_by_kind_rows(episodes, step_min, from_hour):
+    """The same coverage question, per card class — because D5 is a per-class
+    bar, so the pooled figure is the wrong one to choose a cadence by."""
+    by_kind = defaultdict(list)
+    for e in episodes:
+        by_kind[e["kind"]].append(e)
+    rows = []
+    for kind, es in sorted(by_kind.items(), key=lambda kv: -len(kv[1])):
+        row = {"kind": kind, "episodes": len(es)}
+        for r in coverage_rows(es, step_min, from_hour):
+            row[f"seen_{r['cadence_min']}min"] = r["pct_episodes_seen"]
+        rows.append(row)
+    row = {"kind": "ALL", "episodes": len(episodes)}
+    for r in coverage_rows(episodes, step_min, from_hour):
+        row[f"seen_{r['cadence_min']}min"] = r["pct_episodes_seen"]
+    rows.append(row)
+    return rows
+
+
 def stability_rows(episodes):
     by_kind = defaultdict(list)
     for e in episodes:
@@ -461,6 +481,18 @@ def main():
           f"precision of every card —\n  a log that misses short-lived cards "
           f"reports a number that is not the advisor's.")
 
+    kcov = coverage_by_kind_rows(episodes, args.tick_min, args.from_hour)
+    C.sub("COVERAGE BY CLASS — the pooled figure is the wrong one to choose by")
+    cads = [c for c in CADENCES if c % args.tick_min == 0]
+    print(f"{'kind':<16}{'eps':>7}" + "".join(f"{str(c) + ' min':>10}" for c in cads))
+    for r in kcov:
+        print(f"{r['kind']:<16}{r['episodes']:>7}"
+              + "".join(f"{r.get(f'seen_{c}min', 0):>9.1f}%" for c in cads))
+    print(f"\n  D5 is applied CLASS BY CLASS, so a cadence has to be judged on "
+          f"the worst row\n  here, not the ALL row. A class seen on half its "
+          f"cards is being graded on half\n  the evidence of the class it is "
+          f"ranked against.")
+
     # ── 3. the fill's ceiling ───────────────────────────────────────────────
     C.sub("THE FILL'S CEILING — how many rows can ever be resolved")
     q = Counter(e["quality"] for e in episodes)
@@ -492,7 +524,10 @@ def main():
     ccols = list(crows[0].keys()) if crows else []
     p3 = C.write_csv("27_cadence_coverage.csv", ccols,
                      [[r[c] for c in ccols] for r in crows])
-    for p in (p1, p2, p3):
+    kcols = list(kcov[0].keys()) if kcov else []
+    p4 = C.write_csv("27_cadence_by_kind.csv", kcols,
+                     [[r.get(c, "") for c in kcols] for r in kcov])
+    for p in (p1, p2, p3, p4):
         print(f"\nWrote: {os.path.relpath(p, C.REPO_ROOT)}")
     print(f"runtime: {time.time() - t0:.1f}s")
 

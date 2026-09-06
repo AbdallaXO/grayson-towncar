@@ -232,7 +232,11 @@ class RecordCardsTests(_LedgerFixture):
     def test_a_sighting_past_the_gap_opens_a_new_episode(self):
         """The id is an anti-flap key, not a lifecycle: overlap:{prev}:{next}
         is reborn under the same string every time the same pair breaks again,
-        and a fresh on-time GPS ping can take a card off the rail for an hour."""
+        and a fresh on-time GPS ping can take a card off the rail for an hour.
+
+        The threshold is measured, not chosen: 98 real boundaries over the 28
+        replayed days sit at min 6 min / P50 28.5 / P75 72, so a gap of 45 —
+        this file's first draft — would have merged two thirds of them."""
         long_ago = timezone.now() - timedelta(minutes=ae.EPISODE_GAP_MIN + 5)
         ae.record_cards(DAY, [_card()], seen_at=long_ago)
         ae.record_cards(DAY, [_card()])
@@ -415,7 +419,9 @@ class FillOutcomesTests(_LedgerFixture):
         ae.fill_outcomes()
         a.refresh_from_db(); b.refresh_from_db()
         self.assertEqual((a.outcome_quality, b.outcome_quality), ("none", "batch"))
-        self.assertEqual(ae.fill_outcomes()["graded"], 1)
+        later = timezone.now() + timedelta(
+            hours=ae.OUTCOME_RETRY_EVERY_HOURS, minutes=1)
+        self.assertEqual(ae.fill_outcomes(now=later)["graded"], 1)
         a.refresh_from_db()
         self.assertEqual(a.outcome_attempts, 2)
 
@@ -646,3 +652,109 @@ class SweepTests(_LedgerFixture):
                    side_effect=RuntimeError("boom")):
             self.assertEqual(ae.sweep_today(now=timezone.make_aware(
                 timezone.datetime(2026, 9, 5, 14, 0))), {"cards": 0})
+
+
+class ReviewFixTests(_LedgerFixture):
+    """Four defects an adversarial pass found after the first commit. Each one
+    made a number quietly wrong rather than raising anything, which is the
+    failure mode this instrument exists to avoid."""
+
+    def _closed_row(self, leg_id, day=PAST, card_id="overlap:1:2", **kw):
+        f = dict(service_date=day, card_id=card_id, kind="overlap",
+                 severity="critical", severity_last="critical",
+                 impact_leg_id=leg_id, impact_leg_first_id=leg_id, leg_count=2,
+                 first_seen_at=timezone.now(), last_seen_at=timezone.now())
+        f.update(kw)
+        return AdvisorEvent.objects.create(**f)
+
+    def test_a_leg_that_moved_dates_is_unknown_not_scored(self):
+        """A guest confirming which night an overnight arrival takes off moves
+        the leg a day — and the advisor raises cards on exactly that
+        population. Grading the leg's NEW date under the OLD service date would
+        file a real, signed lateness for a trip that never ran then, on the
+        false-positive side of the class D5 gates."""
+        leg = self._leg(time(9, 0), day=PAST)
+        row = self._closed_row(leg.id)
+        leg.pickup_date = PAST + timedelta(days=1)
+        leg.save(update_fields=["pickup_date"])
+        self._tap(leg, "on-location",
+                  timezone.datetime(leg.pickup_date.year, leg.pickup_date.month,
+                                    leg.pickup_date.day, 8, 55))
+        ae.fill_outcomes()
+        row.refresh_from_db()
+        self.assertEqual(row.outcome_quality, "unknown")
+        self.assertIsNone(row.outcome_late_min)
+
+    def test_an_unresolved_row_is_not_retried_on_the_same_loop_cycle(self):
+        """The attempt cap is a runaway guard, not the schedule. Without
+        spacing, the 30-minute loop spends all eight attempts four hours after
+        the day closes and the seven-day window never binds at all."""
+        leg = self._leg(time(9, 0), day=PAST)
+        row = self._closed_row(leg.id)
+        ae.fill_outcomes()
+        row.refresh_from_db()
+        self.assertEqual((row.outcome_quality, row.outcome_attempts), ("none", 1))
+        self.assertEqual(ae.fill_outcomes()["graded"], 0)          # 30 min later
+        later = timezone.now() + timedelta(
+            hours=ae.OUTCOME_RETRY_EVERY_HOURS, minutes=1)
+        self.assertEqual(ae.fill_outcomes(now=later)["graded"], 1)
+
+    def test_a_late_tap_within_the_week_still_flips_the_row_to_scored(self):
+        leg = self._leg(time(9, 0), day=PAST)
+        row = self._closed_row(leg.id)
+        ae.fill_outcomes()
+        self._tap(leg, "on-location",
+                  timezone.datetime(PAST.year, PAST.month, PAST.day, 9, 40))
+        ae.fill_outcomes(now=timezone.now() + timedelta(
+            hours=ae.OUTCOME_RETRY_EVERY_HOURS + 1))
+        row.refresh_from_db()
+        self.assertEqual(row.outcome_quality, "ok")
+        self.assertEqual(row.outcome_late_min, 40.0)
+
+    def test_a_leg_filtered_compute_never_claims_the_card_carried_plans(self):
+        """for_leg_id narrows the card set BEFORE the six-card cap and the 4 s
+        budget, so one surviving card always gets full plan generation. Letting
+        that write had_plans would make the ops task page report plan coverage
+        the whole-board replay never measured."""
+        ae.record_cards(DAY, [_card(plans=[{"id": "p1"}])], whole_board=False)
+        row = AdvisorEvent.objects.get()
+        self.assertFalse(row.had_plans)
+        ae.record_cards(DAY, [_card(plans=[{"id": "p1"}])])
+        row.refresh_from_db()
+        self.assertTrue(row.had_plans)          # a full-board sighting still sets it
+
+    def test_a_racing_insert_recovers_the_row_instead_of_losing_the_stamp(self):
+        """Two workers can open the same episode at once — three gunicorn
+        workers share no cache, so they compute the same board independently.
+        The unique constraint makes one lose, and the loser has to read back the
+        winner. That read runs straight after a failed INSERT, which Django
+        refuses on a transaction it has marked for rollback — so the INSERT
+        needs its own savepoint or the applied/snoozed stamp is simply lost.
+
+        The race is staged by making the FIRST lookup miss a row that is really
+        there, which is exactly what the loser sees."""
+        from django.db import transaction as djtx
+        AdvisorEvent.objects.create(
+            service_date=DAY, card_id="overlap:9:9", episode=1, kind="overlap",
+            first_seen_at=timezone.now(), last_seen_at=timezone.now())
+        real_filter = AdvisorEvent.objects.filter
+        seen = {"n": 0}
+
+        def blind_once(*a, **kw):
+            seen["n"] += 1
+            qs = real_filter(*a, **kw)
+            return qs.none() if seen["n"] == 1 else qs
+
+        with djtx.atomic():
+            with patch.object(AdvisorEvent.objects, "filter",
+                              side_effect=blind_once):
+                row = ae._open_episode(DAY, "overlap:9:9",
+                                       create_at=timezone.now())
+            self.assertIsNotNone(row)             # recovered, not lost
+            self.assertEqual(row.card_id, "overlap:9:9")
+            # ...and the caller's transaction is still usable, which is the half
+            # that fails without the savepoint.
+            AdvisorEvent.objects.create(
+                service_date=DAY, card_id="after:1", kind="x",
+                first_seen_at=timezone.now(), last_seen_at=timezone.now())
+        self.assertEqual(AdvisorEvent.objects.filter(card_id="after:1").count(), 1)

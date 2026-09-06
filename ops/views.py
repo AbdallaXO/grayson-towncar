@@ -2195,7 +2195,7 @@ def task_detail_view(request, task_id):
                 from dispatching import advisor_events
                 advisor_events.record_cards(
                     task.leg.pickup_date, [context["advisor_card"]],
-                    source="task")
+                    source="task", whole_board=False)
         except Exception:
             logger.exception("Recovery Advisor card failed for task %s", task.id)
             context["advisor_card"] = None

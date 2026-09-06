@@ -65,16 +65,24 @@ logger = logging.getLogger(__name__)
 # ── Config (module constants, house advisor style; 0/False disables) ────────
 
 #: A sighting this long after the previous one starts a NEW episode rather than
-#: extending the old one. It has to exceed the coarsest observation cadence or
-#: every sighting would open its own episode — the rail's own resolution is the
-#: 5-minute clock bucket folded into the board fingerprint
-#: (ADVISOR_FINGERPRINT_CLOCK_MIN), and the background sweep rides the 180 s
-#: Samsara tick, so 45 minutes leaves a wide margin over both while staying far
-#: below the measured P50 gap between two genuine episodes of one card id.
-#: A consequence worth stating rather than hiding: the log cannot resolve an
-#: episode boundary finer than its observation cadence, so live episode counts
-#: are a floor against the replay's.
-EPISODE_GAP_MIN = 45
+#: extending the old one.
+#:
+#: Bounded from below by the observation cadence — the sweep's 180 s tick, and
+#: the rail's 5-minute board-fingerprint clock bucket — and from ABOVE by how
+#: far apart two genuine episodes of one card id actually sit, which was
+#: measured rather than assumed: 98 boundaries over the 28 replayed days
+#: (out/27_card_episodes.csv), min 6 min, P25 12, **P50 28.5**, P75 72, max 561.
+#: A first draft of this file put it at 45 on the guess that real boundaries were
+#: much wider than that. They are not — 45 would have merged 67% of them, and
+#: merged them unevenly (60 of the 98 boundaries are `flight_change`), which is
+#: precisely how a per-class denominator goes quietly wrong. At 10 minutes 23%
+#: merge, against a floor of 17% at 6 — the price of tolerating a card that
+#: flickers off for a tick or two, which the loop's drifting cadence guarantees.
+#:
+#: This is why ADVISOR_EVENT_SWEEP matters for more than coverage: with the
+#: sweep off, the only feed is a rail nobody may be watching, gaps of hours are
+#: routine, and every one of them would read as a new episode.
+EPISODE_GAP_MIN = 10
 
 #: Only a card whose impact leg had no usable tap yet is worth asking about
 #: again — 'batch', 'no_deadline' and 'unknown' never become 'ok'. Taps do land
@@ -82,6 +90,13 @@ EPISODE_GAP_MIN = 45
 #: so an unresolved row is retried for this many days and then left alone.
 OUTCOME_RETRY_DAYS = 7
 OUTCOME_MAX_ATTEMPTS = 8
+#: The attempt cap is a runaway guard, NOT the schedule. Without this spacing the
+#: fill rides the GHL loop's 30-minute cadence, so all eight attempts are spent
+#: four hours after the service date closes and OUTCOME_RETRY_DAYS never binds at
+#: all — the row is frozen 'none' before the driver who forgot to tap has even
+#: started the next day. At 20 hours, eight attempts span about a week, which is
+#: what the constant above says.
+OUTCOME_RETRY_EVERY_HOURS = 20
 #: Rows graded per nightly pass. ~44 unique cards/day were measured on the
 #: replay, so this is roughly a fortnight of backlog in one tick.
 OUTCOME_FILL_LIMIT = 600
@@ -102,11 +117,22 @@ OUTCOME_FILL_LIMIT = 600
 #:
 #: That is why this rides the 180 s Samsara tick rather than the 30-minute GHL
 #: loop the plan named for the nightly fill. It is not the precision bias — that
-#: stays under a point until an hour. It is WHICH cards a coarse sampler loses:
-#: 44.7% of episodes live under 30 minutes, and they are not spread evenly
-#: (overrun 93.1% under 30 min, unassigned 75.7%, late_cascade 68.5%, against
-#: overlap's 25.3%). A 30-minute log would report those classes on a quarter
-#: fewer cards than the classes it is being compared against.
+#: stays under a point until an hour. It is WHICH cards a coarse sampler loses,
+#: and D5 is a per-class bar, so the pooled figure above is the wrong one to
+#: judge it by (out/27_cadence_by_kind.csv):
+#:
+#:                        3 min    15 min   30 min   60 min
+#:     overrun            100.0%    69.4%    47.1%    24.7%
+#:     unassigned         100.0%    66.0%    50.4%    32.0%
+#:     late_cascade       100.0%    80.1%    63.6%    41.4%
+#:     flight_change      100.0%    92.7%    89.1%    83.5%
+#:     overlap            100.0%    96.0%    89.9%    75.8%
+#:
+#: 44.7% of episodes live under 30 minutes and they are not spread evenly
+#: (overrun 93.1% of episodes under 30 min, unassigned 75.7%, late_cascade
+#: 68.5%, against overlap's 25.3%). On the GHL loop, `overrun` would be scored
+#: on fewer than half its cards while `overlap` kept nine in ten — a 40-point
+#: spread inside a bar applied class by class.
 ADVISOR_EVENT_SWEEP = True
 #: Local hours the sweep runs, matching 23's replay window so the live and
 #: replayed populations are the same population. Outside it the board is empty
@@ -126,14 +152,20 @@ class LegOutcome:
     """What actually happened at one pickup. ``late_min`` is signed minutes past
     the deadline to one decimal, or None whenever ``quality`` is not 'ok'."""
 
-    __slots__ = ("late_min", "quality", "deadline", "basis", "tap_at")
+    __slots__ = ("late_min", "quality", "deadline", "basis", "tap_at",
+                 "pickup_date")
 
-    def __init__(self, late_min, quality, deadline=None, basis="", tap_at=None):
+    def __init__(self, late_min, quality, deadline=None, basis="", tap_at=None,
+                 pickup_date=None):
         self.late_min = late_min
         self.quality = quality
         self.deadline = deadline
         self.basis = basis
         self.tap_at = tap_at
+        #: The leg's CURRENT service date. The caller compares it with the
+        #: ledger row's own — a leg that moved dates after the card was raised
+        #: must not be graded under the date it left.
+        self.pickup_date = pickup_date
 
     def __repr__(self):                                   # pragma: no cover
         return f"LegOutcome({self.late_min!r}, {self.quality!r})"
@@ -193,7 +225,7 @@ def leg_lateness(leg_ids):
         ol = [ts for s, ts in rows if s == "on-location"]
         booked = getattr(leg, "pickup_time", None)
         if not rows or booked is None:
-            out[leg.id] = LegOutcome(None, "none")
+            out[leg.id] = LegOutcome(None, "none", pickup_date=leg.pickup_date)
             continue
         if not ol:
             pu = [ts for s, ts in rows if s == "picked-up"]
@@ -203,7 +235,8 @@ def leg_lateness(leg_ids):
                 gap = (cm[-1] - pu[-1]).total_seconds()
                 if abs(gap) <= BATCH_TAP_MAX_SEC:
                     quality = "batch"
-            out[leg.id] = LegOutcome(None, quality)
+            out[leg.id] = LegOutcome(None, quality,
+                                     pickup_date=leg.pickup_date)
             continue
         try:
             deadline, basis = pickup_deadline(leg, aware=False)
@@ -214,12 +247,14 @@ def leg_lateness(leg_ids):
             # one unpriceable leg would abort the whole nightly batch.
             deadline, basis = None, ""
         if deadline is None:
-            out[leg.id] = LegOutcome(None, "no_deadline")
+            out[leg.id] = LegOutcome(None, "no_deadline",
+                                     pickup_date=leg.pickup_date)
             continue
         at = _naive_local(ol[-1])
         out[leg.id] = LegOutcome(
             round((at - deadline).total_seconds() / 60.0, 1), "ok",
-            deadline=_aware(deadline), basis=basis or "", tap_at=ol[-1])
+            deadline=_aware(deadline), basis=basis or "", tap_at=ol[-1],
+            pickup_date=leg.pickup_date)
     return out
 
 
@@ -239,12 +274,20 @@ def _impact_at(card, day):
         return None
 
 
-def record_cards(day, cards, *, source="rail", seen_at=None):
+def record_cards(day, cards, *, source="rail", seen_at=None, whole_board=True):
     """Upsert one AdvisorEvent episode per card in ``cards``.
 
     ``cards`` is the serialized card list exactly as it leaves the state
     endpoint — post-snooze-filter, farm-pending reminders included — because
     that is what was actually sent to a screen.
+
+    ``whole_board=False`` for a leg-filtered compute (the ops task-detail card,
+    and the rail's ``?leg=`` requests). Those narrow the card set BEFORE
+    ``ADVISOR_MAX_DISRUPTIONS`` and the 4 s budget are applied
+    (``conflict_advisor._advisor_state``), so one surviving card always gets
+    full plan generation — it would look like it carried a plan even on a board
+    where the whole-board compute left it detected_only. The sighting is
+    recorded either way; the two columns that would lie are not.
 
     Cost is two or three queries regardless of card count. Concurrency is
     handled by the unique constraint rather than a lock: two gunicorn workers
@@ -286,8 +329,10 @@ def record_cards(day, cards, *, source="rail", seen_at=None):
                 row.impact_leg_id = impact
                 row.leg_count = len(legs)
                 row.impact_at = _impact_at(c, day) or row.impact_at
-                row.had_plans = row.had_plans or bool(c.get("plans"))
-                row.detected_only = row.detected_only or bool(c.get("detected_only"))
+                if whole_board:
+                    row.had_plans = row.had_plans or bool(c.get("plans"))
+                    row.detected_only = (row.detected_only
+                                         or bool(c.get("detected_only")))
                 touched.append(row)
                 continue
             fresh.append(AdvisorEvent(
@@ -303,8 +348,8 @@ def record_cards(day, cards, *, source="rail", seen_at=None):
                 leg_count=len(legs), impact_at=_impact_at(c, day),
                 first_seen_at=now, last_seen_at=now, sightings=1,
                 source=source,
-                had_plans=bool(c.get("plans")),
-                detected_only=bool(c.get("detected_only")),
+                had_plans=bool(c.get("plans")) and whole_board,
+                detected_only=bool(c.get("detected_only")) and whole_board,
             ))
 
         if touched:
@@ -345,7 +390,12 @@ def _open_episode(day, card_id, *, create_at=None, defaults=None):
               "sightings": 0, "source": "task"}
     kwargs.update(defaults or {})
     try:
-        return AdvisorEvent.objects.create(**kwargs)
+        # Its own savepoint: a failed INSERT marks the surrounding atomic block
+        # for rollback, and Django then refuses every later query on it — so
+        # without this the recovery read below raises TransactionManagementError
+        # and the stamp is lost in exactly the race it exists to survive.
+        with transaction.atomic():
+            return AdvisorEvent.objects.create(**kwargs)
     except IntegrityError:
         return (AdvisorEvent.objects.filter(service_date=day, card_id=card_id)
                 .order_by("-episode").first())
@@ -453,6 +503,8 @@ def fill_outcomes(now=None, limit=OUTCOME_FILL_LIMIT):
               .filter(Q(outcome_filled_at__isnull=True)
                       | Q(outcome_quality="none",
                           outcome_attempts__lt=OUTCOME_MAX_ATTEMPTS,
+                          outcome_filled_at__lt=now - timedelta(
+                              hours=OUTCOME_RETRY_EVERY_HOURS),
                           service_date__gte=today - timedelta(
                               days=OUTCOME_RETRY_DAYS)))
               .order_by("service_date", "id")[:limit])
@@ -464,9 +516,14 @@ def fill_outcomes(now=None, limit=OUTCOME_FILL_LIMIT):
         scored = 0
         for r in rows:
             o = outcomes.get(r.impact_leg_id)
-            if o is None:
-                # No such leg on this board any more: 23's scorer calls that
-                # 'unknown' and counts it rather than dropping it.
+            if o is None or o.pickup_date != r.service_date:
+                # The leg is gone, or it is no longer on the date this card was
+                # raised about — a guest confirming which night an overnight
+                # arrival takes off moves the leg a day (overnight_arrival), and
+                # the advisor raises cards on exactly that population. 23 builds
+                # truth only over the date's own legs and returns 'unknown' for
+                # both cases; grading the leg's NEW date under the OLD service
+                # date would file a real lateness for a trip that never ran then.
                 r.outcome_quality = "unknown"
                 r.outcome_late_min = None
             else:

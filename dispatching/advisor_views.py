@@ -192,7 +192,8 @@ def recovery_advisor_state(request):
     # its own failures: the rail must never go dark because a log row didn't.
     from dispatching import advisor_events
     advisor_events.record_cards(
-        d, cards, source="task" if for_leg_id is not None else "rail")
+        d, cards, source="task" if for_leg_id is not None else "rail",
+        whole_board=for_leg_id is None)
 
     from dispatching.assignment import _active_draft_for_date, can_use_sandbox
     held = _active_draft_for_date(d) is not None
