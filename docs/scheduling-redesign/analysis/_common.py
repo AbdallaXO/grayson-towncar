@@ -18,12 +18,38 @@ import os
 import sqlite3
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-# GRAYSON_SNAPSHOT_DB points a run at a frozen copy of the snapshot — needed
-# when the live local copy is simultaneously in use by a dev server, whose
-# writes (auditlog/historicalleg timestamps) would silently move the derived
-# horizon between runs. Default unchanged: the canonical snapshot path.
-DB_PATH = (os.environ.get("GRAYSON_SNAPSHOT_DB")
-           or os.path.join(REPO_ROOT, "content", "db.sqlite3"))
+# WHICH FILE THE BASELINES ARE CUT FROM, in order of precedence.
+#
+# GRAYSON_SNAPSHOT_DB points a run at a frozen copy explicitly. Failing that, a
+# frozen snapshot beside the working database wins — because content/db.sqlite3
+# is ALSO Django's default local database (business/settings.py: no
+# DATABASE_URL -> CONTENT_DIR/db.sqlite3), so the moment anyone runs the dev
+# server or `manage.py migrate` against it, it stops being a snapshot: its
+# schema moves, and auditlog/historicalleg writes move the derived horizon
+# between runs. That is a silent failure — every script still runs, and every
+# number quietly describes a different day than the committed CSVs do.
+#
+# Preferring the frozen file automatically, rather than requiring an env var
+# nobody will remember, is the difference between a baseline that stays true and
+# one that drifts without saying so. Frozen copies are named
+# `snapshot-YYYY-MM-DD.sqlite3` for the last date they hold writes for; the
+# newest one wins, and `preamble()` prints whichever file was used.
+def _resolve_db_path():
+    explicit = os.environ.get("GRAYSON_SNAPSHOT_DB")
+    if explicit:
+        return explicit
+    content = os.path.join(REPO_ROOT, "content")
+    try:
+        frozen = sorted(f for f in os.listdir(content)
+                        if f.startswith("snapshot-") and f.endswith(".sqlite3"))
+    except OSError:
+        frozen = []
+    if frozen:
+        return os.path.join(content, frozen[-1])
+    return os.path.join(content, "db.sqlite3")
+
+
+DB_PATH = _resolve_db_path()
 OUT_DIR = os.path.join(os.path.dirname(__file__), "out")
 
 

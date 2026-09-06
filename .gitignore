@@ -204,6 +204,11 @@ cython_debug/
 
 # Local DB backups + report artifacts (session tooling, never ship)
 content/db_backup_*.sqlite3
+# Frozen analysis baselines. content/db.sqlite3 is BOTH the local dev database
+# and the file the scheduling-redesign baselines are cut from, so a copy is
+# frozen per horizon date (snapshot-YYYY-MM-DD.sqlite3) and analysis/_common.py
+# prefers the newest one automatically. Hundreds of MB each — never committed.
+content/snapshot-*.sqlite3
 content/db_snapshot_meta.json
 /report.html
 /vehicle-assignments.html
