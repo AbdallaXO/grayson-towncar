@@ -1,0 +1,82 @@
+drop_zone,pickup_zone,clear_lo,clear_central,clear_hi,skip_wash_floor_central,direct_floor_central
+MCO Terminal,MCO Terminal,76.0,82.5,89.0,34.0,12
+MCO Terminal,SFB Terminal,119.0,130.5,142.0,82.0,70
+MCO Terminal,Disney Resort,99.0,110.5,122.0,62.0,45
+MCO Terminal,Universal Resort,94.0,107.5,122.0,59.0,40
+MCO Terminal,Port Canaveral Area,114.0,125.5,137.0,77.0,70
+MCO Terminal,Airport Hotel,81.0,90.5,100.0,42.0,27
+MCO Terminal,Other Hotel,94.0,103.5,114.0,55.0,40
+MCO Terminal,Residential,99.0,108.5,119.0,60.0,45
+MCO Terminal,Other,104.0,113.5,124.0,65.0,50
+SFB Terminal,MCO Terminal,136.0,142.5,149.0,94.0,70
+SFB Terminal,SFB Terminal,179.0,190.5,202.0,142.0,12
+SFB Terminal,Disney Resort,159.0,170.5,182.0,122.0,75
+SFB Terminal,Universal Resort,154.0,167.5,182.0,119.0,64
+SFB Terminal,Port Canaveral Area,174.0,185.5,197.0,137.0,85
+SFB Terminal,Airport Hotel,141.0,150.5,160.0,102.0,60
+SFB Terminal,Other Hotel,154.0,163.5,174.0,115.0,70
+SFB Terminal,Residential,159.0,168.5,179.0,120.0,70
+SFB Terminal,Other,164.0,173.5,184.0,125.0,50
+Disney Resort,MCO Terminal,106.0,112.5,119.0,64.0,40
+Disney Resort,SFB Terminal,149.0,160.5,172.0,112.0,70
+Disney Resort,Disney Resort,129.0,140.5,152.0,92.0,27
+Disney Resort,Universal Resort,124.0,137.5,152.0,89.0,43
+Disney Resort,Port Canaveral Area,144.0,155.5,167.0,107.0,87
+Disney Resort,Airport Hotel,111.0,120.5,130.0,72.0,40
+Disney Resort,Other Hotel,124.0,133.5,144.0,85.0,40
+Disney Resort,Residential,129.0,138.5,149.0,90.0,50
+Disney Resort,Other,134.0,143.5,154.0,95.0,50
+Universal Resort,MCO Terminal,101.0,107.5,114.0,59.0,35
+Universal Resort,SFB Terminal,144.0,155.5,167.0,107.0,45
+Universal Resort,Disney Resort,124.0,135.5,147.0,87.0,43
+Universal Resort,Universal Resort,119.0,132.5,147.0,84.0,25
+Universal Resort,Port Canaveral Area,139.0,150.5,162.0,102.0,75
+Universal Resort,Airport Hotel,106.0,115.5,125.0,67.0,35
+Universal Resort,Other Hotel,119.0,128.5,139.0,80.0,30
+Universal Resort,Residential,124.0,133.5,144.0,85.0,50
+Universal Resort,Other,129.0,138.5,149.0,90.0,50
+Port Canaveral Area,MCO Terminal,131.0,137.5,144.0,89.0,65
+Port Canaveral Area,SFB Terminal,174.0,185.5,197.0,137.0,80
+Port Canaveral Area,Disney Resort,154.0,165.5,177.0,117.0,87
+Port Canaveral Area,Universal Resort,149.0,162.5,177.0,114.0,75
+Port Canaveral Area,Port Canaveral Area,169.0,180.5,192.0,132.0,25
+Port Canaveral Area,Airport Hotel,136.0,145.5,155.0,97.0,70
+Port Canaveral Area,Other Hotel,149.0,158.5,169.0,110.0,70
+Port Canaveral Area,Residential,154.0,163.5,174.0,115.0,50
+Port Canaveral Area,Other,159.0,168.5,179.0,120.0,50
+Airport Hotel,MCO Terminal,88.0,94.5,101.0,46.0,22
+Airport Hotel,SFB Terminal,131.0,142.5,154.0,94.0,55
+Airport Hotel,Disney Resort,111.0,122.5,134.0,74.0,40
+Airport Hotel,Universal Resort,106.0,119.5,134.0,71.0,35
+Airport Hotel,Port Canaveral Area,126.0,137.5,149.0,89.0,70
+Airport Hotel,Airport Hotel,93.0,102.5,112.0,54.0,25
+Airport Hotel,Other Hotel,106.0,115.5,126.0,67.0,50
+Airport Hotel,Residential,111.0,120.5,131.0,72.0,50
+Airport Hotel,Other,116.0,125.5,136.0,77.0,50
+Other Hotel,MCO Terminal,101.0,107.5,114.0,59.0,35
+Other Hotel,SFB Terminal,144.0,155.5,167.0,107.0,65
+Other Hotel,Disney Resort,124.0,135.5,147.0,87.0,40
+Other Hotel,Universal Resort,119.0,132.5,147.0,84.0,30
+Other Hotel,Port Canaveral Area,139.0,150.5,162.0,102.0,70
+Other Hotel,Airport Hotel,106.0,115.5,125.0,67.0,50
+Other Hotel,Other Hotel,119.0,128.5,139.0,80.0,30
+Other Hotel,Residential,124.0,133.5,144.0,85.0,50
+Other Hotel,Other,129.0,138.5,149.0,90.0,50
+Residential,MCO Terminal,106.0,112.5,119.0,64.0,40
+Residential,SFB Terminal,149.0,160.5,172.0,112.0,65
+Residential,Disney Resort,129.0,140.5,152.0,92.0,50
+Residential,Universal Resort,124.0,137.5,152.0,89.0,50
+Residential,Port Canaveral Area,144.0,155.5,167.0,107.0,50
+Residential,Airport Hotel,111.0,120.5,130.0,72.0,50
+Residential,Other Hotel,124.0,133.5,144.0,85.0,50
+Residential,Residential,129.0,138.5,149.0,90.0,30
+Residential,Other,134.0,143.5,154.0,95.0,50
+Other,MCO Terminal,111.0,117.5,124.0,69.0,45
+Other,SFB Terminal,154.0,165.5,177.0,117.0,45
+Other,Disney Resort,134.0,145.5,157.0,97.0,50
+Other,Universal Resort,129.0,142.5,157.0,94.0,50
+Other,Port Canaveral Area,149.0,160.5,172.0,112.0,50
+Other,Airport Hotel,116.0,125.5,135.0,77.0,50
+Other,Other Hotel,129.0,138.5,149.0,90.0,50
+Other,Residential,134.0,143.5,154.0,95.0,50
+Other,Other,139.0,148.5,159.0,100.0,35

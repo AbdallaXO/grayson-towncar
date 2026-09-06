@@ -1,0 +1,8 @@
+theme,flags,pct
+chained conflict (prev job may run late),26,43.3
+explicit swap plan named,19,31.7
+flight timing is the risk,42,70.0
+'this is NOT a conflict' (false-positive annotation),6,10.0
+guest/pax readiness,15,25.0
+wants to avoid farm-out,3,5.0
+port / cruise,3,5.0

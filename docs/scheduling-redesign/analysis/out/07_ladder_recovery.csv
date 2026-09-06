@@ -1,0 +1,6 @@
+status,legs,in_legstatus,in_auditlog,only_auditlog,only_legstatus
+confirmed,17451,16874,16929,55,0
+on-the-way,17451,14437,14439,2,0
+on-location,17451,14396,14396,0,0
+picked-up,17451,14974,14975,1,0
+completed,17451,16804,16804,0,0

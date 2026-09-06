@@ -798,11 +798,15 @@ def log_leg_changes(sender, instance, created, **kwargs):
             # Leg updated - check what changed
             old_values = getattr(instance, '_pre_save_old_values', {})
             
-            # Track driver assignment changes
+            # Track driver assignment changes — ONLY when a pre-save snapshot exists.
+            # When save(update_fields=...) names neither 'driver' nor 'status', the
+            # pre_save handler above skips the snapshot; comparing against an empty
+            # dict here would fabricate a driver_assigned row with old=NULL on every
+            # such save (e.g. the nightly confirmation-SMS timestamp writes).
             old_driver_id = old_values.get('driver_id')
             new_driver_id = instance.driver_id if instance.driver else None
-            
-            if old_driver_id != new_driver_id:
+
+            if 'driver_id' in old_values and old_driver_id != new_driver_id:
                 if new_driver_id:
                     action = 'driver_assigned'
                     notes = f"Driver assigned: {instance.driver}"

@@ -1,0 +1,5 @@
+variant,n,p50,p75,p90,mean
+turnaround_actual_order,11395,51.2,95.7,162.0,70.0
+turnaround_scheduled_order,11597,49.9,92.9,154.1,67.6
+completed_to_on_the_way_actual,11438,8.5,65.6,134.0,42.6
+completed_to_on_the_way_scheduled,11380,7.6,63.6,128.6,40.8

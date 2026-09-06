@@ -14,3 +14,4 @@ This folder holds our team SOPs. Each one is a simple, step-by-step guide for ho
 | SOP-001 | [Requesting Refunds](refund-requests-sop.md) | How to request the right kind of refund (Price Adjustment, Partial, or Full Cancellation) |
 | SOP-002 | [Dispatcher Operations Handbook](dispatcher-operations-handbook.md) | Daily dispatcher reservations, scheduling, drivers, flights, confirmations, payments, tasks, alerts, and handoffs |
 | SOP-003 | [Reading the Chauffeur Load Page](chauffeur-load-metrics.md) | How to read Availability & Load / Chauffeur KPIs — idle days, trips per worked day, the findings rules, the "worth a conversation" list, full time vs part time |
+| SOP-004 | [Making, Adjusting, and Adding a Stop to a Reservation (Screenshots)](reservation-basics-walkthrough.md) | Picture-by-picture: book a new reservation, change pickup time/notes on an existing one, add an extra stop |

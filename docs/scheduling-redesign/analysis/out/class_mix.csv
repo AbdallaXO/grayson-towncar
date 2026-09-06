@@ -1,0 +1,166 @@
+window,dimension,key,vehicle_class,legs,share
+CURRENT,overall,,suv,1024,0.3256
+PRIOR,overall,,suv,3769,0.3284
+CURRENT,overall,,towncar,799,0.25405
+PRIOR,overall,,towncar,3070,0.26749
+CURRENT,overall,,mini_van,737,0.23434
+PRIOR,overall,,mini_van,2489,0.21687
+CURRENT,overall,,van,450,0.14308
+PRIOR,overall,,van,1673,0.14577
+CURRENT,overall,,Van(14 Pax),135,0.04293
+PRIOR,overall,,Van(14 Pax),476,0.04147
+CURRENT,dow,Mon,suv,121,0.29803
+CURRENT,dow,Tue,suv,80,0.2589
+CURRENT,dow,Wed,suv,114,0.34756
+CURRENT,dow,Thu,suv,113,0.30959
+CURRENT,dow,Fri,suv,188,0.32639
+CURRENT,dow,Sat,suv,226,0.36808
+CURRENT,dow,Sun,suv,182,0.33272
+CURRENT,dow,Mon,towncar,128,0.31527
+CURRENT,dow,Tue,towncar,76,0.24595
+CURRENT,dow,Wed,towncar,94,0.28659
+CURRENT,dow,Thu,towncar,99,0.27123
+CURRENT,dow,Fri,towncar,138,0.23958
+CURRENT,dow,Sat,towncar,125,0.20358
+CURRENT,dow,Sun,towncar,139,0.25411
+CURRENT,dow,Mon,mini_van,81,0.19951
+CURRENT,dow,Tue,mini_van,101,0.32686
+CURRENT,dow,Wed,mini_van,77,0.23476
+CURRENT,dow,Thu,mini_van,93,0.25479
+CURRENT,dow,Fri,mini_van,141,0.24479
+CURRENT,dow,Sat,mini_van,132,0.21498
+CURRENT,dow,Sun,mini_van,112,0.20475
+CURRENT,dow,Mon,van,57,0.14039
+CURRENT,dow,Tue,van,41,0.13269
+CURRENT,dow,Wed,van,34,0.10366
+CURRENT,dow,Thu,van,48,0.13151
+CURRENT,dow,Fri,van,88,0.15278
+CURRENT,dow,Sat,van,100,0.16287
+CURRENT,dow,Sun,van,82,0.14991
+CURRENT,dow,Mon,Van(14 Pax),19,0.0468
+CURRENT,dow,Tue,Van(14 Pax),11,0.0356
+CURRENT,dow,Wed,Van(14 Pax),9,0.02744
+CURRENT,dow,Thu,Van(14 Pax),12,0.03288
+CURRENT,dow,Fri,Van(14 Pax),21,0.03646
+CURRENT,dow,Sat,Van(14 Pax),31,0.05049
+CURRENT,dow,Sun,Van(14 Pax),32,0.0585
+CURRENT,hour,0,suv,1,0.33333
+CURRENT,hour,0,towncar,1,0.33333
+CURRENT,hour,0,mini_van,0,0.0
+CURRENT,hour,0,van,1,0.33333
+CURRENT,hour,0,Van(14 Pax),0,0.0
+CURRENT,hour,1,suv,3,0.75
+CURRENT,hour,1,towncar,0,0.0
+CURRENT,hour,1,mini_van,1,0.25
+CURRENT,hour,1,van,0,0.0
+CURRENT,hour,1,Van(14 Pax),0,0.0
+CURRENT,hour,2,suv,0,0.0
+CURRENT,hour,2,towncar,1,0.5
+CURRENT,hour,2,mini_van,1,0.5
+CURRENT,hour,2,van,0,0.0
+CURRENT,hour,2,Van(14 Pax),0,0.0
+CURRENT,hour,3,suv,6,0.375
+CURRENT,hour,3,towncar,5,0.3125
+CURRENT,hour,3,mini_van,2,0.125
+CURRENT,hour,3,van,3,0.1875
+CURRENT,hour,3,Van(14 Pax),0,0.0
+CURRENT,hour,4,suv,10,0.20833
+CURRENT,hour,4,towncar,19,0.39583
+CURRENT,hour,4,mini_van,9,0.1875
+CURRENT,hour,4,van,8,0.16667
+CURRENT,hour,4,Van(14 Pax),2,0.04167
+CURRENT,hour,5,suv,19,0.28358
+CURRENT,hour,5,towncar,21,0.31343
+CURRENT,hour,5,mini_van,19,0.28358
+CURRENT,hour,5,van,5,0.07463
+CURRENT,hour,5,Van(14 Pax),3,0.04478
+CURRENT,hour,6,suv,29,0.34118
+CURRENT,hour,6,towncar,24,0.28235
+CURRENT,hour,6,mini_van,18,0.21176
+CURRENT,hour,6,van,13,0.15294
+CURRENT,hour,6,Van(14 Pax),1,0.01176
+CURRENT,hour,7,suv,46,0.35938
+CURRENT,hour,7,towncar,35,0.27344
+CURRENT,hour,7,mini_van,29,0.22656
+CURRENT,hour,7,van,13,0.10156
+CURRENT,hour,7,Van(14 Pax),5,0.03906
+CURRENT,hour,8,suv,79,0.29811
+CURRENT,hour,8,towncar,73,0.27547
+CURRENT,hour,8,mini_van,56,0.21132
+CURRENT,hour,8,van,43,0.16226
+CURRENT,hour,8,Van(14 Pax),14,0.05283
+CURRENT,hour,9,suv,149,0.31635
+CURRENT,hour,9,towncar,99,0.21019
+CURRENT,hour,9,mini_van,112,0.23779
+CURRENT,hour,9,van,80,0.16985
+CURRENT,hour,9,Van(14 Pax),31,0.06582
+CURRENT,hour,10,suv,87,0.28618
+CURRENT,hour,10,towncar,70,0.23026
+CURRENT,hour,10,mini_van,83,0.27303
+CURRENT,hour,10,van,55,0.18092
+CURRENT,hour,10,Van(14 Pax),9,0.02961
+CURRENT,hour,11,suv,107,0.34628
+CURRENT,hour,11,towncar,73,0.23625
+CURRENT,hour,11,mini_van,69,0.2233
+CURRENT,hour,11,van,41,0.13269
+CURRENT,hour,11,Van(14 Pax),19,0.06149
+CURRENT,hour,12,suv,79,0.33617
+CURRENT,hour,12,towncar,49,0.20851
+CURRENT,hour,12,mini_van,55,0.23404
+CURRENT,hour,12,van,44,0.18723
+CURRENT,hour,12,Van(14 Pax),8,0.03404
+CURRENT,hour,13,suv,77,0.33624
+CURRENT,hour,13,towncar,61,0.26638
+CURRENT,hour,13,mini_van,49,0.21397
+CURRENT,hour,13,van,33,0.1441
+CURRENT,hour,13,Van(14 Pax),9,0.0393
+CURRENT,hour,14,suv,61,0.35465
+CURRENT,hour,14,towncar,49,0.28488
+CURRENT,hour,14,mini_van,42,0.24419
+CURRENT,hour,14,van,15,0.08721
+CURRENT,hour,14,Van(14 Pax),5,0.02907
+CURRENT,hour,15,suv,46,0.30464
+CURRENT,hour,15,towncar,45,0.29801
+CURRENT,hour,15,mini_van,43,0.28477
+CURRENT,hour,15,van,14,0.09272
+CURRENT,hour,15,Van(14 Pax),3,0.01987
+CURRENT,hour,16,suv,67,0.36813
+CURRENT,hour,16,towncar,38,0.20879
+CURRENT,hour,16,mini_van,52,0.28571
+CURRENT,hour,16,van,20,0.10989
+CURRENT,hour,16,Van(14 Pax),5,0.02747
+CURRENT,hour,17,suv,58,0.40559
+CURRENT,hour,17,towncar,37,0.25874
+CURRENT,hour,17,mini_van,26,0.18182
+CURRENT,hour,17,van,18,0.12587
+CURRENT,hour,17,Van(14 Pax),4,0.02797
+CURRENT,hour,18,suv,36,0.34286
+CURRENT,hour,18,towncar,29,0.27619
+CURRENT,hour,18,mini_van,23,0.21905
+CURRENT,hour,18,van,11,0.10476
+CURRENT,hour,18,Van(14 Pax),6,0.05714
+CURRENT,hour,19,suv,23,0.31944
+CURRENT,hour,19,towncar,21,0.29167
+CURRENT,hour,19,mini_van,18,0.25
+CURRENT,hour,19,van,6,0.08333
+CURRENT,hour,19,Van(14 Pax),4,0.05556
+CURRENT,hour,20,suv,16,0.33333
+CURRENT,hour,20,towncar,12,0.25
+CURRENT,hour,20,mini_van,13,0.27083
+CURRENT,hour,20,van,6,0.125
+CURRENT,hour,20,Van(14 Pax),1,0.02083
+CURRENT,hour,21,suv,6,0.22222
+CURRENT,hour,21,towncar,10,0.37037
+CURRENT,hour,21,mini_van,3,0.11111
+CURRENT,hour,21,van,6,0.22222
+CURRENT,hour,21,Van(14 Pax),2,0.07407
+CURRENT,hour,22,suv,7,0.20588
+CURRENT,hour,22,towncar,12,0.35294
+CURRENT,hour,22,mini_van,7,0.20588
+CURRENT,hour,22,van,6,0.17647
+CURRENT,hour,22,Van(14 Pax),2,0.05882
+CURRENT,hour,23,suv,12,0.26667
+CURRENT,hour,23,towncar,15,0.33333
+CURRENT,hour,23,mini_van,7,0.15556
+CURRENT,hour,23,van,9,0.2
+CURRENT,hour,23,Van(14 Pax),2,0.04444

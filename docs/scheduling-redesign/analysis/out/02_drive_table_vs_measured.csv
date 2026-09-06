@@ -1,0 +1,21 @@
+pickup_cat,dropoff_cat,shipped_min,n,p50,p75,p90,gap_p75,verdict
+MCO Terminal,Disney Resort,30,4859,35.9,45.6,59.4,15.6,TIGHT +16 at P75
+Disney Resort,MCO Terminal,30,4277,33.2,36.7,41.2,6.7,TIGHT +7 at P75
+Port Canaveral Area,MCO Terminal,55,446,49.6,55.7,65.7,0.7,calibrated
+MCO Terminal,Universal Resort,25,321,27.8,37.5,50.9,12.5,TIGHT +12 at P75
+MCO Terminal,Port Canaveral Area,55,311,51.1,57.9,71.1,2.9,TIGHT +3 at P75
+Universal Resort,MCO Terminal,25,269,23.6,27.0,30.8,2.0,calibrated
+Disney Resort,SFB Terminal,60,211,58.8,63.5,69.9,3.5,TIGHT +4 at P75
+SFB Terminal,Disney Resort,60,199,62.5,73.5,87.2,13.5,TIGHT +14 at P75
+Disney Resort,Port Canaveral Area,72,152,74.5,81.0,93.4,9.0,TIGHT +9 at P75
+Disney Resort,Universal Resort,28,120,28.3,32.5,40.3,4.5,TIGHT +4 at P75
+Port Canaveral Area,Disney Resort,72,118,69.7,80.4,93.2,8.4,TIGHT +8 at P75
+Airport Hotel,Port Canaveral Area,55,103,53.2,60.7,74.4,5.7,TIGHT +6 at P75
+Universal Resort,Disney Resort,28,97,28.2,33.2,35.6,5.2,TIGHT +5 at P75
+Airport Hotel,Disney Resort,25,50,32.1,37.6,46.6,12.6,TIGHT +13 at P75
+Disney Resort,Disney Resort,12,40,18.2,20.2,29.2,8.2,TIGHT +8 at P75
+MCO Terminal,Other Hotel,25,40,36.9,49.2,78.7,24.2,TIGHT +24 at P75
+Port Canaveral Area,Airport Hotel,55,39,48.6,57.3,68.6,2.3,TIGHT +2 at P75
+MCO Terminal,Residential,30,35,52.2,72.3,91.8,42.3,TIGHT +42 at P75
+Universal Resort,Port Canaveral Area,60,34,65.0,70.5,80.7,10.5,TIGHT +10 at P75
+Residential,MCO Terminal,30,30,36.9,47.2,76.0,17.2,TIGHT +17 at P75

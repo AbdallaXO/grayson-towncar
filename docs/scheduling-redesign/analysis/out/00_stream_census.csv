@@ -1,0 +1,25 @@
+stream,max_value_utc,rows,lag_hours_behind_pull
+reservations_leg.dispatch_eta_evaluated_at,2026-08-21 22:50:41,31568,0.0
+ops_operationaltask.created_at,2026-08-21 22:41:46,12961,0.15
+ghl_integration_ghlsynclog.created_at,2026-08-21 22:41:26,60511,0.15
+ops_staffactivity.created_at,2026-08-21 22:16:58,110738,0.56
+auth_user.last_login,2026-08-21 22:10:28,1210,0.67
+reservations_reservation.updated_at,2026-08-21 22:09:21,18132,0.69
+reservations_historicalreservation.history_date,2026-08-21 22:01:26,66838,0.82
+reservations_historicalcustomer.history_date,2026-08-21 21:59:22,35950,0.86
+reservations_reservation.last_modified_at,2026-08-21 21:54:07,18132,0.94
+reservations_customer.created_at,2026-08-21 21:53:21,18265,0.96
+reservations_leg.status_changed_at,2026-08-21 21:26:13,31568,1.41
+reservations_driverlocation.timestamp,2026-08-21 21:17:29,145756,1.55
+ops_timeclockshift.clock_in_at,2026-08-21 21:00:10,242,1.84
+ops_communicationattempt.created_at,2026-08-21 20:53:54,716,1.95
+reservations_routedistancecache.created_at,2026-08-21 19:58:32,4232,2.87
+reservations_reservation.first_paid_at,2026-08-21 18:37:48,18132,4.21
+reservations_scheduledraftevent.created_at,2026-08-21 18:27:56,724,4.38
+reservations_schedulesnapshot.created_at,2026-08-21 18:24:49,240,4.43
+reservations_leg.confirmation_sms_sent_at,2026-08-21 17:29:45,31568,5.35
+drivers_vehicledayreading.created_at,2026-08-21 14:19:07,209,8.53
+django_admin_log.action_time,2026-08-21 14:16:59,7648,8.56
+reservations_legkeoi.created_at,2026-08-21 10:26:49,63,12.4
+drivers_legpayment.updated_at,2026-08-18 20:17:32,21600,74.55
+drivers_driverwakeupcheck.created_at,,0,

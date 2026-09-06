@@ -1,0 +1,12 @@
+cause,trips,trips_per_day,usd_per_28d,fix_touches
+ENGINE_FILLED_DIFF,55,5.0,9939.0,"greedy order and scoring in scheduler.suggest_assignments, leg_value / evict_to_farm_for_value, recover_residuals_via_swaps — WHICH trips the engine chooses to fill a driver's day with"
+HUMAN_TIGHT_TURN,23,2.09,4156.0,"the engine's STATIC PLANNING CLOCK: scheduler.chain_clear_dt (flat STATIC_FLOOR_DWELL_MIN = 45 on every arrival), chain_repo_minutes / DRIVE_TIME_ESTIMATES (DEFAULT_DRIVE_TIME = 35 whenever the category table cannot price the pair; Disney->Disney = 12 cross-property average on adjacent-resort hops), feasibility_guards.required_turnaround"
+HUMAN_LONG_DAY,4,0.36,723.0,"span caps: SPAN_HARD_HOURS_DEFAULT 15 / stub max_hours / saved max_hours (feasibility_guards._capped_max_hours). D4 allows 15h only as a priced, visible exception"
+WINDOW_CLEAR_BY,3,0.27,542.0,feasibility_guards.END_HOUR_MODE = 'CLEAR_BY' vs the greedy pass's last-pickup reading of the SAME saved number — the engine is internally inconsistent and the UI never says End means 'done by'
+HUMAN_POLICY_TIGHT,2,0.18,361.0,SchedulerSettings.min_turn_buffer and per-driver default_min_turn_buffer (the engine's Guard B' planning floor)
+SHARE_DATA_INVALID,2,0.18,361.0,Day Setup data: >2 drivers on one unit (car_share.MAX_DRIVERS_PER_VEHICLE_DATE is enforced only in apply_day_setup) or a car row that puts one car in two places. It also IDLES the co-holders.
+SPLIT_HALF_IGNORED,1,0.09,181.0,"shared-car split modelling: planned_start_hour/planned_end_hour are NULL on every car row, and only the auto-assign MODAL prefill (views.py ~:12618) ever reads them — the cold Day-Builder path does not, so it spreads a half-day driver across the whole day"
+WINDOW_PICKUP,1,0.09,181.0,the driver's saved weekly window (stale vs practice for these drivers) and the engine's hard hour gate in scheduler.suggest_assignments
+CLASS,1,0.09,181.0,vehicle pairing in Day Setup (day_setup.suggest_day_setup unit affinity) and the booked class (Leg.effective_vehicle_type) — a bigger car for that driver that day
+SHARE_PARTNER_OFF,1,0.09,181.0,"same as ROSTER_OFF, but on the co-holder — the engine cannot model a split whose other half it does not have"
+WINDOW_WRAP_BUG,1,0.09,181.0,"ENGINE DEFECT: every hour gate assumes start <= end. scheduler.py suggest_assignments (~:1998) and its clones, feasibility_guards.window_check (clear-by anchored on target_date), drivers/availability.py is_pickup_within_window. An overnight driver is invisible to the engine."

@@ -1,0 +1,452 @@
+trip_type,pickup_cat,dropoff_cat,tod,day_type,sample_count,p75_total,p90_total,last_calculated
+arrival,MCO Terminal,Disney Resort,midday,weekday,644,75,82,2026-07-31 20:25:25
+arrival,MCO Terminal,Disney Resort,afternoon,weekday,480,81,91,2026-08-07 22:17:52
+return,Disney Resort,MCO Terminal,midday,weekday,461,36,39,2026-07-31 20:25:24
+return,Disney Resort,MCO Terminal,morning_rush,weekday,362,36,39,2026-07-31 20:25:24
+arrival,MCO Terminal,Disney Resort,morning_rush,weekday,354,75,83,2026-08-05 13:56:44
+return,Disney Resort,MCO Terminal,afternoon,weekday,321,38,41,2026-07-31 20:25:24
+arrival,MCO Terminal,Disney Resort,afternoon,weekend,253,82,91,2026-08-16 20:27:28
+arrival,MCO Terminal,Disney Resort,evening,weekday,245,78,87,2026-07-31 20:25:24
+return,Disney Resort,MCO Terminal,midday,weekend,244,36,39,2026-07-31 20:25:24
+arrival,MCO Terminal,Disney Resort,midday,weekend,244,79,87,2026-07-31 20:25:25
+return,Disney Resort,MCO Terminal,early_morning,weekday,217,33,36,2026-07-31 20:25:24
+return,Disney Resort,MCO Terminal,afternoon,weekend,204,36,39,2026-08-15 20:30:59
+return,Disney Resort,MCO Terminal,morning_rush,weekend,175,33,35,2026-07-31 20:25:24
+return,Disney Resort,MCO Terminal,early_morning,weekend,167,32,35,2026-07-31 20:25:24
+cruise,Port Canaveral Area,MCO Terminal,morning_rush,weekday,122,56,61,2026-07-31 20:25:25
+arrival,MCO Terminal,Disney Resort,morning_rush,weekend,114,75,83,2026-07-31 20:25:25
+cruise,Port Canaveral Area,MCO Terminal,morning_rush,weekend,98,48,50,2026-07-31 20:25:25
+arrival,MCO Terminal,Disney Resort,night,weekday,73,73,83,2026-08-07 05:07:49
+arrival,MCO Terminal,Disney Resort,evening,weekend,72,81,90,2026-07-31 20:25:25
+return,Disney Resort,MCO Terminal,evening,weekday,59,34,36,2026-07-31 20:25:24
+arrival,SFB Terminal,Disney Resort,midday,weekday,39,102,112,2026-07-31 20:25:25
+arrival,MCO Terminal,Universal Resort,midday,weekday,34,65,74,2026-07-31 20:25:26
+arrival,MCO Terminal,Universal Resort,afternoon,weekday,34,70,88,2026-07-31 20:25:25
+return,Universal Resort,MCO Terminal,morning_rush,weekday,31,24,26,2026-07-31 20:25:24
+cruise,Port Canaveral Area,Disney Resort,morning_rush,weekday,29,81,94,2026-07-31 20:25:25
+return,Disney Resort,MCO Terminal,evening,weekend,29,33,35,2026-08-16 23:45:30
+cruise,Disney Resort,Port Canaveral Area,midday,weekday,27,74,76,2026-07-31 20:25:24
+arrival,SFB Terminal,Disney Resort,afternoon,weekday,27,103,116,2026-07-31 20:25:25
+arrival,MCO Terminal,Disney Resort,night,weekend,27,82,89,2026-08-17 05:27:27
+other,Disney Resort,Universal Resort,morning_rush,weekday,27,32,35,2026-07-31 20:25:24
+cruise,Airport Hotel,Port Canaveral Area,midday,weekend,26,63,69,2026-07-31 20:25:26
+cruise,MCO Terminal,Port Canaveral Area,afternoon,weekday,25,54,59,2026-07-31 20:25:26
+cruise,MCO Terminal,Port Canaveral Area,afternoon,weekend,25,58,64,2026-07-31 20:25:26
+arrival,MCO Terminal,Universal Resort,evening,weekday,24,59,75,2026-07-31 20:25:25
+cruise,MCO Terminal,Port Canaveral Area,midday,weekday,24,59,75,2026-07-31 20:25:26
+return,Universal Resort,MCO Terminal,midday,weekday,23,26,27,2026-07-31 20:25:24
+return,Disney Resort,SFB Terminal,afternoon,weekday,23,66,76,2026-07-31 20:25:25
+return,Universal Resort,MCO Terminal,early_morning,weekday,22,24,29,2026-07-31 20:25:24
+return,Disney Resort,SFB Terminal,early_morning,weekday,22,58,62,2026-07-31 20:25:26
+cruise,Port Canaveral Area,Disney Resort,morning_rush,weekend,22,75,81,2026-07-31 20:25:26
+cruise,Disney Resort,Port Canaveral Area,midday,weekend,20,91,95,2026-07-31 20:25:24
+return,Disney Resort,SFB Terminal,midday,weekday,20,65,69,2026-07-31 20:25:24
+arrival,MCO Terminal,Universal Resort,afternoon,weekend,19,77,85,2026-08-16 21:39:46
+return,Disney Resort,MCO Terminal,night,weekday,19,30,32,2026-07-31 20:25:25
+arrival,MCO Terminal,Universal Resort,morning_rush,weekday,19,69,82,2026-07-31 20:25:25
+return,Universal Resort,MCO Terminal,morning_rush,weekend,18,26,27,2026-07-31 20:25:24
+cruise,MCO Terminal,Port Canaveral Area,midday,weekend,18,62,69,2026-07-31 20:25:25
+return,Disney Resort,SFB Terminal,morning_rush,weekday,17,61,64,2026-07-31 20:25:26
+cruise,MCO Terminal,Port Canaveral Area,evening,weekday,17,55,63,2026-07-31 20:25:25
+return,Universal Resort,MCO Terminal,afternoon,weekday,17,37,44,2026-07-31 20:25:24
+cruise,MCO Terminal,Port Canaveral Area,morning_rush,weekday,17,65,74,2026-07-31 20:25:27
+return,Disney Resort,MCO Terminal,night,weekend,17,30,33,2026-07-31 20:25:26
+arrival,SFB Terminal,Disney Resort,evening,weekday,16,88,99,2026-07-31 20:25:25
+cruise,Airport Hotel,Port Canaveral Area,midday,weekday,15,62,92,2026-07-31 20:25:25
+arrival,MCO Terminal,Universal Resort,midday,weekend,15,82,102,2026-07-31 20:25:25
+return,Disney Resort,MCO Terminal,morning_rush,holiday,15,,,2026-02-10 22:31:26
+arrival,MCO Terminal,Disney Resort,early_morning,weekday,15,74,83,2026-07-31 20:25:25
+return,Other Hotel,MCO Terminal,early_morning,weekday,14,36,,2026-05-23 18:33:32
+other,Universal Resort,Disney Resort,evening,weekday,14,31,35,2026-07-31 20:25:24
+return,Disney Resort,SFB Terminal,midday,weekend,14,62,67,2026-07-31 20:25:25
+return,Disney Resort,SFB Terminal,early_morning,weekend,14,58,63,2026-07-31 20:25:24
+arrival,MCO Terminal,Disney Resort,early_morning,weekend,14,68,77,2026-07-31 20:25:26
+other,Universal Resort,Disney Resort,midday,weekday,13,32,35,2026-07-31 20:25:24
+cruise,MCO Terminal,Port Canaveral Area,morning_rush,weekend,13,55,57,2026-07-31 20:25:26
+return,Other Hotel,MCO Terminal,early_morning,weekend,13,29,,2026-05-23 18:33:32
+arrival,SFB Terminal,Disney Resort,morning_rush,weekday,13,97,108,2026-07-31 20:25:27
+other,Universal Resort,Disney Resort,evening,weekend,12,34,35,2026-07-31 20:25:24
+other,Disney Resort,Universal Resort,morning_rush,weekend,12,33,40,2026-07-31 20:25:24
+arrival,SFB Terminal,Disney Resort,midday,weekend,12,117,136,2026-07-31 20:25:26
+return,Universal Resort,MCO Terminal,early_morning,weekend,12,23,24,2026-07-31 20:25:24
+other,Airport Hotel,Disney Resort,morning_rush,weekday,12,32,38,2026-07-31 20:25:24
+arrival,MCO Terminal,Disney Resort,midday,holiday,11,,,2026-02-10 22:31:26
+other,Universal Resort,Disney Resort,afternoon,weekday,11,32,35,2026-07-31 20:25:25
+arrival,SFB Terminal,Disney Resort,night,weekday,11,108,,2026-07-31 20:25:27
+return,Other Hotel,MCO Terminal,morning_rush,weekend,11,29,,2026-05-23 18:33:32
+other,Disney Resort,Universal Resort,midday,weekday,11,33,39,2026-07-31 20:25:24
+cruise,Port Canaveral Area,Airport Hotel,morning_rush,weekend,11,48,54,2026-07-31 20:25:25
+cruise,Universal Resort,Port Canaveral Area,midday,weekday,10,68,72,2026-07-31 20:25:26
+cruise,Airport Hotel,Port Canaveral Area,morning_rush,weekend,10,56,,2026-07-31 20:25:24
+return,Disney Resort,SFB Terminal,morning_rush,weekend,10,61,65,2026-07-31 20:25:25
+other,Airport Hotel,Disney Resort,morning_rush,weekend,10,39,49,2026-07-31 20:25:24
+arrival,SFB Terminal,Disney Resort,afternoon,weekend,9,119,,2026-07-31 20:25:26
+cruise,MCO Terminal,Port Canaveral Area,evening,weekend,9,54,,2026-07-31 20:25:25
+return,Universal Resort,MCO Terminal,midday,weekend,9,25,,2026-07-31 20:25:25
+arrival,MCO Terminal,Disney Resort,afternoon,holiday,9,,,2026-02-10 22:31:26
+arrival,SFB Terminal,Disney Resort,evening,weekend,8,133,,2026-07-31 20:25:26
+arrival,MCO Terminal,Other Hotel,evening,weekday,8,90,,2026-07-31 20:25:27
+cruise,Port Canaveral Area,Universal Resort,morning_rush,weekday,8,63,,2026-07-31 20:25:26
+arrival,MCO Terminal,Universal Resort,evening,weekend,8,84,,2026-07-31 20:25:26
+cruise,Disney Resort,Port Canaveral Area,morning_rush,weekend,8,73,,2026-07-31 20:25:24
+return,Universal Resort,MCO Terminal,afternoon,weekend,8,25,,2026-07-31 20:25:24
+other,MCO Terminal,Disney Resort,morning_rush,weekend,8,34,,2026-05-23 18:33:37
+cruise,Disney Resort,Port Canaveral Area,morning_rush,weekday,7,75,,2026-07-31 20:25:24
+return,Disney Resort,MCO Terminal,early_morning,holiday,7,,,2026-02-10 22:31:25
+other,Disney Resort,Other,morning_rush,weekday,7,,,2026-05-23 18:33:37
+arrival,MCO Terminal,Universal Resort,morning_rush,weekend,7,73,,2026-07-31 20:25:25
+cruise,Port Canaveral Area,MCO Terminal,midday,weekend,7,48,,2026-07-31 20:25:26
+other,Universal Resort,Disney Resort,morning_rush,weekday,7,25,,2026-07-31 20:25:24
+cruise,Port Canaveral Area,MCO Terminal,midday,weekday,7,57,,2026-07-31 20:25:27
+arrival,SFB Terminal,Disney Resort,morning_rush,weekend,7,91,,2026-07-31 20:25:26
+cruise,Airport Hotel,Port Canaveral Area,morning_rush,weekday,7,52,,2026-07-31 20:25:26
+cruise,Port Canaveral Area,Airport Hotel,morning_rush,weekday,7,57,,2026-07-31 20:25:26
+arrival,MCO Terminal,Residential,midday,weekend,6,,,2026-05-23 18:33:33
+return,Disney Resort,SFB Terminal,afternoon,weekend,6,68,,2026-07-31 20:25:24
+arrival,MCO Terminal,Other Hotel,afternoon,weekday,6,86,,2026-07-31 20:25:27
+cruise,Other Hotel,Port Canaveral Area,midday,weekend,6,76,,2026-07-31 20:25:25
+return,Residential,MCO Terminal,early_morning,weekday,6,36,,2026-07-31 20:25:26
+other,Disney Resort,Universal Resort,afternoon,weekday,6,46,,2026-07-31 20:25:26
+arrival,MCO Terminal,Universal Resort,night,weekday,6,,,2026-07-31 20:25:25
+other,Disney Resort,Universal Resort,evening,weekday,6,26,,2026-07-31 20:25:24
+return,Disney Resort,SFB Terminal,night,weekend,6,55,,2026-07-31 20:25:25
+other,Disney Resort,Disney Resort,morning_rush,weekday,5,24,,2026-07-31 20:25:26
+return,Disney Resort,MCO Terminal,midday,holiday,5,,,2026-02-10 22:31:26
+return,Disney Resort,MCO Terminal,afternoon,holiday,5,,,2026-02-10 22:31:26
+return,Residential,MCO Terminal,morning_rush,weekday,5,70,,2026-07-31 20:25:27
+cruise,Port Canaveral Area,Other Hotel,morning_rush,weekday,5,81,,2026-07-31 20:25:28
+arrival,MCO Terminal,Other Hotel,midday,weekday,5,,,2026-07-31 20:25:26
+return,Disney Resort,SFB Terminal,night,weekday,5,59,,2026-07-31 20:25:27
+arrival,MCO Terminal,Port Canaveral Area,midday,weekday,5,89,,2026-07-31 20:25:27
+other,Disney Resort,MCO Terminal,evening,weekend,5,,,2026-05-23 18:33:37
+other,Airport Hotel,Disney Resort,midday,weekend,5,35,,2026-07-31 20:25:27
+arrival,MCO Terminal,Port Canaveral Area,afternoon,weekend,5,98,,2026-07-31 20:25:27
+cruise,Port Canaveral Area,Universal Resort,morning_rush,weekend,5,83,,2026-07-31 20:25:26
+return,Other Hotel,MCO Terminal,midday,weekday,4,60,,2026-07-31 20:25:27
+arrival,MCO Terminal,Other Hotel,morning_rush,weekend,4,,,2026-05-23 18:33:39
+cruise,Other Hotel,Port Canaveral Area,morning_rush,weekend,4,,,2026-05-23 18:33:35
+arrival,MCO Terminal,Residential,evening,weekday,4,,,2026-07-31 20:25:25
+arrival,MCO Terminal,Residential,afternoon,weekday,4,,,2026-07-31 20:25:26
+return,Universal Resort,MCO Terminal,evening,weekday,4,30,,2026-07-31 20:25:24
+cruise,Port Canaveral Area,MCO Terminal,morning_rush,holiday,4,,,2026-02-10 22:31:26
+return,Other Hotel,MCO Terminal,afternoon,weekend,4,,,2026-05-23 18:33:32
+other,Other,Disney Resort,evening,weekday,4,,,2026-05-23 18:33:38
+other,MCO Terminal,Disney Resort,midday,weekend,4,,,2026-05-23 18:33:38
+arrival,MCO Terminal,Universal Resort,early_morning,weekday,4,,,2026-07-31 20:25:27
+arrival,MCO Terminal,Other,afternoon,weekday,4,,,2026-05-23 18:33:34
+arrival,MCO Terminal,Universal Resort,night,weekend,4,,,2026-07-31 20:25:28
+other,Universal Resort,Disney Resort,morning_rush,weekend,4,42,,2026-07-31 20:25:24
+other,Disney Resort,MCO Terminal,evening,weekday,4,,,2026-05-23 18:33:33
+cruise,Other,Port Canaveral Area,midday,weekday,4,,,2026-05-23 18:33:34
+arrival,MCO Terminal,Other Hotel,night,weekend,4,,,2026-05-23 18:33:34
+other,Disney Resort,Residential,midday,weekday,4,48,,2026-07-31 20:25:27
+other,Residential,Disney Resort,afternoon,weekday,4,81,,2026-07-31 20:25:27
+cruise,Port Canaveral Area,SFB Terminal,morning_rush,weekend,4,70,,2026-07-31 20:25:26
+cruise,Universal Resort,Port Canaveral Area,morning_rush,weekday,3,,,2026-07-31 20:25:24
+cruise,Port Canaveral Area,Disney Resort,morning_rush,holiday,3,,,2026-02-10 22:31:26
+arrival,MCO Terminal,Other Hotel,morning_rush,weekday,3,,,2026-07-31 20:25:27
+other,Other Hotel,Disney Resort,morning_rush,weekday,3,,,2026-07-31 20:25:27
+other,Other,Disney Resort,afternoon,weekend,3,,,2026-05-23 18:33:33
+arrival,MCO Terminal,Residential,evening,weekend,3,,,2026-07-31 20:25:27
+other,Disney Resort,Disney Resort,midday,weekday,3,,,2026-07-31 20:25:25
+arrival,SFB Terminal,Disney Resort,night,weekend,3,,,2026-07-31 20:25:28
+arrival,MCO Terminal,Port Canaveral Area,afternoon,weekday,3,,,2026-07-31 20:25:25
+arrival,MCO Terminal,Residential,morning_rush,weekend,3,,,2026-02-16 00:34:21
+arrival,MCO Terminal,Residential,night,weekday,3,,,2026-07-31 20:25:28
+other,Disney Resort,SFB Terminal,early_morning,weekend,3,,,2026-05-23 18:33:33
+arrival,MCO Terminal,Other,midday,weekday,3,,,2026-07-31 20:25:27
+arrival,MCO Terminal,Other,evening,weekday,3,,,2026-07-31 20:25:26
+other,Other Hotel,Disney Resort,midday,weekday,3,,,2026-07-31 20:25:28
+arrival,SFB Terminal,Universal Resort,midday,weekday,3,,,2026-07-31 20:25:27
+other,Universal Resort,Universal Resort,evening,weekday,3,,,2026-07-31 20:25:27
+return,Other,MCO Terminal,early_morning,weekday,3,,,2026-05-23 18:33:39
+other,Residential,Disney Resort,midday,weekend,2,,,2026-07-31 20:25:26
+cruise,Universal Resort,Port Canaveral Area,midday,weekend,2,,,2026-07-31 20:25:26
+arrival,MCO Terminal,Other Hotel,midday,weekend,2,,,2026-07-31 20:25:28
+return,Other Hotel,MCO Terminal,morning_rush,weekday,2,,,2026-07-31 20:25:26
+arrival,MCO Terminal,Other Hotel,afternoon,weekend,2,,,2026-07-31 20:25:26
+other,Disney Resort,Other,night,weekend,2,,,2026-05-23 18:33:37
+other,Other Hotel,Disney Resort,midday,weekend,2,,,2026-07-31 20:25:26
+other,Other,Disney Resort,evening,weekend,2,,,2026-05-23 18:33:37
+arrival,MCO Terminal,Disney Resort,morning_rush,holiday,2,,,2026-02-10 22:31:26
+return,Disney Resort,SFB Terminal,midday,holiday,2,,,2026-02-10 22:31:26
+other,Other,Disney Resort,afternoon,weekday,2,,,2026-07-31 20:25:27
+arrival,MCO Terminal,Residential,midday,weekday,2,,,2026-07-31 20:25:25
+return,Residential,MCO Terminal,early_morning,weekend,2,,,2026-07-31 20:25:26
+other,Disney Resort,Disney Resort,midday,weekend,2,,,2026-08-15 15:52:03
+cruise,Port Canaveral Area,MCO Terminal,early_morning,weekend,2,,,2026-07-31 20:25:27
+return,Disney Resort,SFB Terminal,evening,weekday,2,,,2026-07-31 20:25:28
+arrival,MCO Terminal,Other,morning_rush,weekday,2,,,2026-05-23 18:33:37
+return,Other,MCO Terminal,evening,weekday,2,,,2026-05-23 18:33:37
+other,Disney Resort,Other Hotel,evening,weekday,2,,,2026-07-31 20:25:28
+arrival,MCO Terminal,Port Canaveral Area,evening,weekday,2,,,2026-07-31 20:25:27
+arrival,Airport Hotel,Disney Resort,midday,weekend,2,,,2026-02-13 17:50:14
+other,Disney Resort,Universal Resort,evening,weekend,2,,,2026-07-31 20:25:25
+other,MCO Terminal,Other Hotel,morning_rush,weekday,2,,,2026-02-13 17:50:15
+other,Other Hotel,Other,morning_rush,weekday,2,,,2026-05-23 18:33:38
+arrival,MCO Terminal,Port Canaveral Area,morning_rush,weekend,2,,,2026-07-31 20:25:27
+return,Residential,MCO Terminal,midday,weekend,2,,,2026-07-31 20:25:27
+other,Universal Resort,Universal Resort,morning_rush,weekday,2,,,2026-07-31 20:25:24
+other,Disney Resort,Universal Resort,night,weekday,2,,,2026-07-31 20:25:24
+cruise,Port Canaveral Area,MCO Terminal,early_morning,weekday,2,,,2026-02-16 00:34:18
+other,Disney Resort,Airport Hotel,afternoon,weekend,2,,,2026-07-31 20:25:24
+other,Disney Resort,Universal Resort,early_morning,weekday,2,,,2026-05-23 18:33:32
+other,Disney Resort,Other Hotel,midday,weekday,2,,,2026-07-31 20:25:25
+other,Disney Resort,Airport Hotel,night,weekday,2,,,2026-07-31 20:25:25
+return,Other,MCO Terminal,midday,weekend,2,,,2026-05-23 18:33:34
+other,Residential,Disney Resort,midday,weekday,2,,,2026-07-31 20:25:26
+other,Disney Resort,Other Hotel,afternoon,weekday,2,,,2026-07-31 20:25:25
+return,Other Hotel,MCO Terminal,midday,weekend,2,,,2026-07-31 20:25:26
+return,Universal Resort,MCO Terminal,night,weekend,2,,,2026-07-31 20:25:25
+other,Residential,Disney Resort,morning_rush,weekday,2,,,2026-07-31 20:25:25
+other,Disney Resort,Residential,afternoon,weekday,2,,,2026-07-31 20:25:27
+other,Disney Resort,SFB Terminal,afternoon,weekday,2,,,2026-05-23 18:33:33
+return,Other,MCO Terminal,midday,weekday,2,,,2026-07-31 20:25:27
+other,Disney Resort,Universal Resort,afternoon,weekend,2,,,2026-07-31 20:25:26
+other,Disney Resort,Other,evening,weekday,2,,,2026-05-23 18:33:35
+cruise,SFB Terminal,Port Canaveral Area,afternoon,weekday,2,,,2026-07-31 20:25:26
+other,Disney Resort,Airport Hotel,evening,weekend,2,,,2026-07-31 20:25:26
+other,Disney Resort,Universal Resort,midday,weekend,2,,,2026-07-31 20:25:26
+other,Disney Resort,Other Hotel,night,weekday,2,,,2026-05-23 18:33:37
+other,Airport Hotel,Disney Resort,midday,weekday,2,,,2026-07-31 20:25:26
+arrival,MCO Terminal,Airport Hotel,evening,weekend,2,,,2026-07-31 20:25:27
+other,Residential,Universal Resort,morning_rush,weekday,2,,,2026-07-31 20:25:27
+return,Residential,MCO Terminal,morning_rush,weekend,2,,,2026-07-31 20:25:27
+other,Disney Resort,Disney Resort,evening,weekday,2,,,2026-07-31 20:25:27
+other,Disney Resort,Disney Resort,morning_rush,weekend,2,,,2026-07-31 20:25:26
+other,Other Hotel,Universal Resort,morning_rush,weekend,2,,,2026-05-23 18:33:41
+other,Disney Resort,Residential,afternoon,weekend,2,,,2026-05-23 18:33:41
+other,Disney Resort,Airport Hotel,evening,weekday,2,,,2026-07-31 20:25:25
+cruise,Port Canaveral Area,Airport Hotel,midday,weekday,2,,,2026-07-31 20:25:27
+other,Disney Resort,Airport Hotel,afternoon,weekday,2,,,2026-07-31 20:25:28
+other,Airport Hotel,Disney Resort,early_morning,weekday,2,,,2026-07-31 20:25:28
+cruise,Port Canaveral Area,Disney Resort,midday,weekend,2,,,2026-07-31 20:25:28
+other,MCO Terminal,Other Hotel,afternoon,weekday,1,,,2026-02-13 17:50:11
+arrival,Other,Universal Resort,night,weekday,1,,,2026-02-13 17:50:15
+cruise,Residential,Port Canaveral Area,midday,weekend,1,,,2026-05-23 18:33:36
+cruise,Port Canaveral Area,Universal Resort,morning_rush,holiday,1,,,2026-02-10 22:31:26
+arrival,Airport Hotel,Residential,evening,weekday,1,,,2026-02-13 17:50:14
+arrival,Other,Other Hotel,afternoon,weekend,1,,,2026-02-16 06:09:27
+arrival,MCO Terminal,Residential,afternoon,weekend,1,,,2026-07-31 20:25:26
+arrival,MCO Terminal,Residential,night,weekend,1,,,2026-02-16 00:34:30
+cruise,Other Hotel,Port Canaveral Area,midday,weekday,1,,,2026-07-31 20:25:26
+arrival,Airport Hotel,Disney Resort,midday,weekday,1,,,2026-02-13 17:50:09
+arrival,Other,Disney Resort,midday,weekday,1,,,2026-02-13 17:50:09
+return,Disney Resort,Other,evening,weekday,1,,,2026-02-13 17:50:10
+arrival,MCO Terminal,Residential,morning_rush,weekday,1,,,2026-07-31 20:25:28
+return,Residential,MCO Terminal,afternoon,weekday,1,,,2026-07-31 20:25:27
+return,Other Hotel,MCO Terminal,afternoon,weekday,1,,,2026-07-31 20:25:24
+cruise,Universal Resort,Port Canaveral Area,afternoon,weekday,1,,,2026-07-31 20:25:26
+return,Disney Resort,Other,morning_rush,weekend,1,,,2026-05-23 18:33:37
+return,Residential,MCO Terminal,afternoon,weekend,1,,,2026-07-31 20:25:25
+other,MCO Terminal,MCO Terminal,midday,holiday,1,,,2026-02-10 22:31:26
+return,Disney Resort,MCO Terminal,evening,holiday,1,,,2026-02-10 22:31:26
+arrival,MCO Terminal,Disney Resort,evening,holiday,1,,,2026-02-10 22:31:26
+other,Disney Resort,Other,midday,weekday,1,,,2026-07-31 20:25:27
+other,Other Hotel,MCO Terminal,early_morning,weekday,1,,,2026-02-13 17:50:12
+cruise,Port Canaveral Area,Disney Resort,midday,weekday,1,,,2026-07-31 20:25:27
+other,Other Hotel,Disney Resort,morning_rush,weekend,1,,,2026-07-31 20:25:27
+arrival,MCO Terminal,Other Hotel,evening,weekend,1,,,2026-07-31 20:25:27
+other,Other Hotel,Disney Resort,early_morning,weekend,1,,,2026-05-23 18:33:37
+other,Disney Resort,Residential,morning_rush,weekend,1,,,2026-07-31 20:25:27
+arrival,Other Hotel,Disney Resort,morning_rush,weekend,1,,,2026-02-13 17:50:13
+arrival,Airport Hotel,Disney Resort,morning_rush,weekend,1,,,2026-02-13 17:50:13
+other,Universal Resort,Disney Resort,midday,weekend,1,,,2026-07-31 20:25:26
+return,Disney Resort,Airport Hotel,evening,weekend,1,,,2026-02-13 17:50:14
+return,Residential,MCO Terminal,midday,weekday,1,,,2026-07-31 20:25:27
+return,Disney Resort,Other,afternoon,weekday,1,,,2026-02-16 06:09:28
+arrival,MCO Terminal,Other Hotel,night,weekday,1,,,2026-07-31 20:25:26
+return,Residential,Airport Hotel,night,weekday,1,,,2026-02-13 17:50:14
+other,Disney Resort,Residential,morning_rush,weekday,1,,,2026-07-31 20:25:24
+other,MCO Terminal,Other Hotel,evening,weekday,1,,,2026-02-13 17:50:14
+other,Disney Resort,Other,morning_rush,weekend,1,,,2026-07-31 20:25:27
+cruise,Port Canaveral Area,Other,morning_rush,weekend,1,,,2026-07-31 20:25:27
+cruise,MCO Terminal,Port Canaveral Area,night,weekend,1,,,2026-07-31 20:25:27
+return,Universal Resort,Other,afternoon,weekday,1,,,2026-02-13 17:50:15
+cruise,MCO Terminal,Port Canaveral Area,night,weekday,1,,,2026-07-31 20:25:25
+return,Disney Resort,Other Hotel,evening,weekday,1,,,2026-02-13 17:50:15
+return,Port Canaveral Area,MCO Terminal,morning_rush,weekend,1,,,2026-05-23 18:33:39
+cruise,Universal Resort,Port Canaveral Area,morning_rush,weekend,1,,,2026-07-31 20:25:26
+other,Residential,Universal Resort,morning_rush,weekend,1,,,2026-05-23 18:33:38
+cruise,Port Canaveral Area,Other Hotel,morning_rush,weekend,1,,,2026-07-31 20:25:29
+arrival,Disney Resort,Other,morning_rush,weekend,1,,,2026-02-13 17:50:15
+other,Universal Resort,Residential,evening,weekend,1,,,2026-05-23 18:33:38
+other,MCO Terminal,Airport Hotel,evening,weekend,1,,,2026-02-13 17:50:15
+return,Universal Resort,SFB Terminal,early_morning,weekday,1,,,2026-05-23 18:33:38
+cruise,Residential,Port Canaveral Area,midday,weekday,1,,,2026-02-16 06:09:29
+cruise,Port Canaveral Area,Residential,morning_rush,weekday,1,,,2026-07-31 20:25:27
+cruise,Residential,Port Canaveral Area,afternoon,weekday,1,,,2026-05-23 18:33:38
+other,MCO Terminal,MCO Terminal,midday,weekday,1,,,2026-02-13 17:50:11
+arrival,Other Hotel,Disney Resort,morning_rush,weekday,1,,,2026-02-13 17:50:16
+other,Disney Resort,Residential,midday,weekend,1,,,2026-07-31 20:25:28
+arrival,Other,Disney Resort,morning_rush,weekday,1,,,2026-05-23 18:33:32
+other,Universal Resort,Residential,midday,weekend,1,,,2026-02-16 00:34:18
+cruise,Port Canaveral Area,Universal Resort,midday,weekday,1,,,2026-02-16 00:34:18
+arrival,SFB Terminal,Universal Resort,afternoon,weekday,1,,,2026-07-31 20:25:26
+return,Other Hotel,MCO Terminal,night,weekend,1,,,2026-07-31 20:25:28
+return,Universal Resort,SFB Terminal,midday,weekday,1,,,2026-05-23 18:33:32
+other,Universal Resort,Other Hotel,evening,weekend,1,,,2026-07-31 20:25:27
+return,Other,MCO Terminal,morning_rush,weekday,1,,,2026-07-31 20:25:27
+return,Universal Resort,MCO Terminal,evening,weekend,1,,,2026-07-31 20:25:24
+arrival,MCO Terminal,Other,night,weekend,1,,,2026-02-16 00:34:20
+cruise,Port Canaveral Area,Other Hotel,midday,weekend,1,,,2026-02-16 00:34:21
+return,Other Hotel,SFB Terminal,afternoon,weekday,1,,,2026-02-16 00:34:21
+other,Residential,Disney Resort,evening,weekday,1,,,2026-05-23 18:33:32
+other,Other Hotel,SFB Terminal,early_morning,weekend,1,,,2026-05-23 18:33:32
+return,Residential,MCO Terminal,night,weekend,1,,,2026-05-23 18:33:32
+other,Disney Resort,MCO Terminal,morning_rush,weekday,1,,,2026-07-31 20:25:27
+cruise,Residential,Port Canaveral Area,morning_rush,weekend,1,,,2026-05-23 18:33:32
+arrival,MCO Terminal,Residential,early_morning,weekday,1,,,2026-05-23 18:33:41
+other,SFB Terminal,Residential,evening,weekday,1,,,2026-02-16 00:34:22
+other,Residential,SFB Terminal,afternoon,weekend,1,,,2026-05-23 18:33:32
+other,Universal Resort,Other Hotel,morning_rush,weekday,1,,,2026-05-23 18:33:32
+other,Other,Disney Resort,morning_rush,weekday,1,,,2026-05-23 18:33:39
+other,Disney Resort,Other Hotel,afternoon,weekend,1,,,2026-07-31 20:25:28
+arrival,SFB Terminal,Universal Resort,afternoon,weekend,1,,,2026-05-23 18:33:33
+other,Universal Resort,Other Hotel,midday,weekday,1,,,2026-07-31 20:25:27
+other,Residential,Universal Resort,afternoon,weekday,1,,,2026-02-16 00:34:25
+other,Disney Resort,Other,afternoon,weekday,1,,,2026-07-31 20:25:25
+arrival,MCO Terminal,MCO Terminal,midday,weekday,1,,,2026-05-23 18:33:40
+arrival,MCO Terminal,Other Hotel,early_morning,weekday,1,,,2026-07-31 20:25:28
+arrival,MCO Terminal,Other,night,weekday,1,,,2026-05-23 18:33:38
+return,MCO Terminal,MCO Terminal,morning_rush,weekday,1,,,2026-05-23 18:33:39
+other,Residential,Disney Resort,morning_rush,weekend,1,,,2026-02-16 00:34:25
+other,Disney Resort,Residential,evening,weekend,1,,,2026-05-23 18:33:40
+other,Residential,Disney Resort,evening,weekend,1,,,2026-05-23 18:33:33
+other,SFB Terminal,Disney Resort,midday,weekend,1,,,2026-02-16 06:09:28
+other,SFB Terminal,Disney Resort,morning_rush,weekend,1,,,2026-02-16 00:34:25
+cruise,Other Hotel,Port Canaveral Area,morning_rush,weekday,1,,,2026-07-31 20:25:27
+return,Universal Resort,MCO Terminal,night,weekday,1,,,2026-02-16 00:34:26
+other,MCO Terminal,Disney Resort,morning_rush,weekday,1,,,2026-07-31 20:25:28
+other,MCO Terminal,Disney Resort,midday,weekday,1,,,2026-07-31 20:25:27
+other,Universal Resort,Other,midday,weekend,1,,,2026-02-16 00:34:26
+other,Universal Resort,Residential,morning_rush,weekday,1,,,2026-07-31 20:25:28
+cruise,Disney Resort,Port Canaveral Area,evening,weekday,1,,,2026-05-23 18:33:34
+other,Other,Disney Resort,night,weekday,1,,,2026-07-31 20:25:29
+return,Residential,MCO Terminal,evening,weekend,1,,,2026-02-16 00:34:26
+arrival,SFB Terminal,Universal Resort,midday,weekend,1,,,2026-02-16 00:34:26
+other,Universal Resort,Residential,afternoon,weekday,1,,,2026-05-23 18:33:41
+other,SFB Terminal,Disney Resort,evening,weekend,1,,,2026-05-23 18:33:34
+arrival,SFB Terminal,Other,morning_rush,weekend,1,,,2026-05-23 18:33:34
+cruise,SFB Terminal,Port Canaveral Area,midday,weekend,1,,,2026-02-16 00:34:27
+arrival,MCO Terminal,Port Canaveral Area,midday,weekend,1,,,2026-07-31 20:25:26
+other,Universal Resort,Airport Hotel,evening,weekday,1,,,2026-05-23 18:33:34
+arrival,MCO Terminal,Port Canaveral Area,night,weekday,1,,,2026-07-31 20:25:28
+cruise,Residential,Port Canaveral Area,morning_rush,weekday,1,,,2026-05-23 18:33:34
+cruise,Port Canaveral Area,SFB Terminal,morning_rush,weekday,1,,,2026-07-31 20:25:25
+other,Other Hotel,SFB Terminal,midday,weekend,1,,,2026-02-16 00:34:27
+cruise,Port Canaveral Area,Universal Resort,afternoon,weekday,1,,,2026-02-16 00:34:27
+other,Disney Resort,Disney Resort,afternoon,weekday,1,,,2026-05-23 18:33:35
+arrival,SFB Terminal,Port Canaveral Area,midday,weekday,1,,,2026-05-23 18:33:35
+arrival,MCO Terminal,Other,afternoon,weekend,1,,,2026-07-31 20:25:27
+other,Other,Disney Resort,morning_rush,weekend,1,,,2026-02-16 00:34:27
+other,Disney Resort,Other,afternoon,weekend,1,,,2026-07-31 20:25:28
+cruise,Port Canaveral Area,SFB Terminal,midday,weekday,1,,,2026-02-16 00:34:27
+other,SFB Terminal,Other Hotel,midday,weekday,1,,,2026-05-23 18:33:35
+arrival,MCO Terminal,Airport Hotel,night,weekday,1,,,2026-02-16 00:34:27
+cruise,MCO Terminal,Port Canaveral Area,early_morning,weekday,1,,,2026-05-23 18:33:35
+other,Disney Resort,Other,midday,weekend,1,,,2026-07-31 20:25:28
+other,Other,Disney Resort,midday,weekend,1,,,2026-07-31 20:25:28
+other,Universal Resort,Disney Resort,afternoon,weekend,1,,,2026-02-16 00:34:28
+arrival,SFB Terminal,Other Hotel,evening,weekend,1,,,2026-05-23 18:33:36
+other,Other,Disney Resort,midday,weekday,1,,,2026-07-31 20:25:28
+other,Residential,Other Hotel,afternoon,weekday,1,,,2026-05-23 18:33:37
+cruise,Disney Resort,Port Canaveral Area,afternoon,weekday,1,,,2026-07-31 20:25:27
+return,Disney Resort,SFB Terminal,evening,weekend,1,,,2026-05-23 18:33:37
+cruise,Port Canaveral Area,Port Canaveral Area,midday,weekday,1,,,2026-02-16 00:34:28
+other,Other Hotel,Residential,evening,weekday,1,,,2026-05-23 18:33:37
+other,Disney Resort,Disney Resort,night,weekend,1,,,2026-05-23 18:33:37
+other,Residential,Other,early_morning,weekend,1,,,2026-05-23 18:33:37
+arrival,MCO Terminal,MCO Terminal,midday,weekend,1,,,2026-02-16 00:34:30
+cruise,Other Hotel,Port Canaveral Area,afternoon,weekend,1,,,2026-02-16 00:34:30
+return,MCO Terminal,MCO Terminal,midday,weekday,1,,,2026-05-23 18:33:37
+other,Airport Hotel,Residential,evening,weekday,1,,,2026-05-23 18:33:37
+other,Residential,Airport Hotel,night,weekday,1,,,2026-05-23 18:33:37
+other,MCO Terminal,Disney Resort,afternoon,weekend,1,,,2026-05-23 18:33:38
+other,Universal Resort,Other,afternoon,weekday,1,,,2026-02-16 06:09:28
+other,Other,Universal Resort,night,weekday,1,,,2026-07-31 20:25:28
+other,Disney Resort,MCO Terminal,afternoon,weekday,1,,,2026-05-23 18:33:38
+other,Disney Resort,SFB Terminal,midday,weekday,1,,,2026-02-16 06:09:29
+arrival,SFB Terminal,Other Hotel,morning_rush,weekend,1,,,2026-05-23 18:33:38
+arrival,Residential,Disney Resort,midday,weekend,1,,,2026-05-23 18:33:38
+return,Other,MCO Terminal,night,weekday,1,,,2026-05-23 18:33:38
+return,Airport Hotel,MCO Terminal,early_morning,weekday,1,,,2026-05-23 18:33:38
+other,Disney Resort,Residential,evening,weekday,1,,,2026-07-31 20:25:27
+return,Disney Resort,Residential,early_morning,weekend,1,,,2026-05-23 18:33:38
+other,Disney Resort,Disney Resort,afternoon,weekend,1,,,2026-05-23 18:33:38
+other,Other Hotel,Universal Resort,morning_rush,weekday,1,,,2026-05-23 18:33:38
+arrival,Residential,Disney Resort,afternoon,weekday,1,,,2026-05-23 18:33:38
+return,Universal Resort,SFB Terminal,afternoon,weekend,1,,,2026-05-23 18:33:38
+return,Disney Resort,Residential,afternoon,weekend,1,,,2026-05-23 18:33:38
+arrival,SFB Terminal,Other Hotel,night,weekday,1,,,2026-05-23 18:33:38
+arrival,MCO Terminal,Other,early_morning,weekend,1,,,2026-05-23 18:33:38
+return,SFB Terminal,SFB Terminal,early_morning,weekday,1,,,2026-05-23 18:33:38
+arrival,SFB Terminal,Port Canaveral Area,night,weekday,1,,,2026-07-31 20:25:27
+other,Universal Resort,Other,morning_rush,weekday,1,,,2026-07-31 20:25:28
+other,Other,Universal Resort,evening,weekday,1,,,2026-05-23 18:33:39
+return,Other,MCO Terminal,early_morning,weekend,1,,,2026-05-23 18:33:39
+return,Other,MCO Terminal,morning_rush,weekend,1,,,2026-05-23 18:33:39
+return,Other,MCO Terminal,afternoon,weekday,1,,,2026-07-31 20:25:29
+other,Universal Resort,Residential,night,weekday,1,,,2026-07-31 20:25:27
+return,Other Hotel,SFB Terminal,morning_rush,weekday,1,,,2026-05-23 18:33:40
+other,Other Hotel,Disney Resort,afternoon,weekday,1,,,2026-05-23 18:33:40
+return,MCO Terminal,MCO Terminal,afternoon,weekday,1,,,2026-05-23 18:33:40
+other,Disney Resort,Residential,early_morning,weekend,1,,,2026-05-23 18:33:40
+other,Disney Resort,Disney Resort,early_morning,weekend,1,,,2026-05-23 18:33:40
+cruise,Residential,Port Canaveral Area,afternoon,weekend,1,,,2026-07-31 20:25:27
+other,MCO Terminal,MCO Terminal,afternoon,weekday,1,,,2026-05-23 18:33:40
+return,Other Hotel,MCO Terminal,night,weekday,1,,,2026-07-31 20:25:27
+cruise,Port Canaveral Area,Port Canaveral Area,midday,weekend,1,,,2026-07-31 20:25:27
+return,Universal Resort,SFB Terminal,midday,weekend,1,,,2026-07-31 20:25:27
+return,Other Hotel,MCO Terminal,evening,weekend,1,,,2026-05-23 18:33:40
+other,Disney Resort,Residential,early_morning,weekday,1,,,2026-05-23 18:33:40
+other,Other Hotel,Universal Resort,midday,weekday,1,,,2026-05-23 18:33:41
+return,Other Hotel,MCO Terminal,evening,weekday,1,,,2026-07-31 20:25:29
+arrival,MCO Terminal,Other,morning_rush,weekend,1,,,2026-07-31 20:25:27
+return,Other,MCO Terminal,afternoon,weekend,1,,,2026-07-31 20:25:27
+other,Other,Other,morning_rush,weekday,1,,,2026-05-23 18:33:41
+other,Other,Other,afternoon,weekday,1,,,2026-05-23 18:33:41
+cruise,Port Canaveral Area,MCO Terminal,afternoon,weekday,1,,,2026-07-31 20:25:27
+other,Disney Resort,Other Hotel,night,weekend,1,,,2026-05-23 18:33:41
+other,SFB Terminal,Disney Resort,evening,weekday,1,,,2026-05-23 18:33:41
+arrival,MCO Terminal,Other,midday,weekend,1,,,2026-07-31 20:25:26
+arrival,SFB Terminal,Other Hotel,midday,weekend,1,,,2026-07-31 20:25:27
+other,Residential,Other,afternoon,weekday,1,,,2026-05-23 18:33:41
+other,Residential,Universal Resort,midday,weekday,1,,,2026-07-31 20:25:28
+arrival,SFB Terminal,Port Canaveral Area,afternoon,weekday,1,,,2026-07-31 20:25:28
+return,Other Hotel,SFB Terminal,midday,weekday,1,,,2026-05-23 18:33:41
+other,Disney Resort,Other,early_morning,weekend,1,,,2026-05-23 18:33:41
+cruise,Other,Port Canaveral Area,midday,weekend,1,,,2026-05-23 18:33:41
+other,Disney Resort,Other Hotel,evening,weekend,1,,,2026-05-23 18:33:41
+other,Residential,Residential,midday,weekday,1,,,2026-05-23 18:33:41
+arrival,MCO Terminal,Port Canaveral Area,night,weekend,1,,,2026-07-31 20:25:28
+return,Residential,MCO Terminal,night,weekday,1,,,2026-07-31 20:25:28
+arrival,MCO Terminal,Residential,early_morning,weekend,1,,,2026-07-31 20:25:28
+cruise,Port Canaveral Area,Disney Resort,early_morning,weekend,1,,,2026-07-31 20:25:28
+return,Disney Resort,Residential,morning_rush,weekend,1,,,2026-05-23 18:33:41
+other,Universal Resort,Residential,evening,weekday,1,,,2026-05-23 18:33:41
+other,MCO Terminal,Disney Resort,afternoon,weekday,1,,,2026-05-23 18:33:41
+other,Other,Universal Resort,afternoon,weekday,1,,,2026-07-31 20:25:28
+return,Disney Resort,Other,afternoon,weekend,1,,,2026-07-31 20:25:24
+arrival,Other,Disney Resort,midday,weekend,1,,,2026-07-31 20:25:27
+return,Disney Resort,Other,early_morning,weekend,1,,,2026-07-31 20:25:27
+return,Other Hotel,SFB Terminal,early_morning,weekday,1,,,2026-07-31 20:25:27
+arrival,Other,Disney Resort,afternoon,weekday,1,,,2026-07-31 20:25:27
+arrival,SFB Terminal,Universal Resort,night,weekday,1,,,2026-07-31 20:25:27
+other,MCO Terminal,MCO Terminal,morning_rush,weekday,1,,,2026-07-31 20:25:27
+other,Disney Resort,Universal Resort,early_morning,weekend,1,,,2026-07-31 20:25:27
+other,Disney Resort,Universal Resort,night,weekend,1,,,2026-07-31 20:25:27
+arrival,MCO Terminal,Airport Hotel,night,weekend,1,,,2026-07-31 20:25:28
+other,Disney Resort,Port Canaveral Area,midday,weekday,1,,,2026-07-31 20:25:28
+other,Universal Resort,Other Hotel,afternoon,weekday,1,,,2026-07-31 20:25:28
+arrival,Other,Universal Resort,midday,weekday,1,,,2026-07-31 20:25:28
+return,Universal Resort,SFB Terminal,early_morning,weekend,1,,,2026-07-31 20:25:24
+return,Airport Hotel,SFB Terminal,midday,weekend,1,,,2026-07-31 20:25:28
+cruise,Port Canaveral Area,Residential,morning_rush,weekend,1,,,2026-07-31 20:25:28
+other,Other,Other Hotel,evening,weekend,1,,,2026-07-31 20:25:28
+cruise,SFB Terminal,Port Canaveral Area,afternoon,weekend,1,,,2026-07-31 20:25:28
+arrival,SFB Terminal,Disney Resort,early_morning,weekend,1,,,2026-07-31 20:25:28
+arrival,MCO Terminal,Airport Hotel,afternoon,weekend,1,,,2026-07-31 20:25:28
+arrival,SFB Terminal,Residential,midday,weekday,1,,,2026-07-31 20:25:28
+other,Disney Resort,MCO Terminal,midday,weekend,1,,,2026-07-31 20:25:29
+arrival,SFB Terminal,Other Hotel,afternoon,weekday,1,,,2026-07-31 20:25:29

@@ -414,6 +414,211 @@ class DaySetupApplyTests(TestCase):
                              content_type="application/json")
         self.assertEqual(r.status_code, 403)
 
+    # ── Build 2a: the ≤2-drivers hard rule + planned windows on BOTH rows ──
+
+    def test_three_drivers_on_one_unit_rejected(self):
+        c = _mk_driver("charlie")
+        pairs = [{"driver_id": d.id, "vehicle_id": self.u1.id, "allow_share": True}
+                 for d in (self.a, self.b, c)]
+        r = self._post(pairs)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("at most two", r.json()["error"])
+        self.assertEqual(DriverVehicleAssignment.objects.count(), 0)
+
+    def test_share_onto_already_shared_unit_rejected(self):
+        # Two real holders outside the payload + one more allow_share pair = 3.
+        c = _mk_driver("charlie")
+        d = _mk_driver("delta")
+        DriverVehicleAssignment.objects.create(driver=c, date=TARGET, vehicle=self.u1)
+        DriverVehicleAssignment.objects.create(driver=d, date=TARGET, vehicle=self.u1)
+        r = self._post([{"driver_id": self.a.id, "vehicle_id": self.u1.id,
+                         "allow_share": True, "planned_start_hour": 16,
+                         "planned_end_hour": 23}])
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("at most two", r.json()["error"])
+
+    def test_single_pair_share_fills_both_windows(self):
+        # The Second-Shift Advisor / standby-proposal shape: holder keeps his row
+        # (NOT in the payload), the new PM pair arrives alone with allow_share.
+        # Build 2a: the plan is written on BOTH rows.
+        holder = _mk_driver("charlie")
+        h_row = DriverVehicleAssignment.objects.create(
+            driver=holder, date=TARGET, vehicle=self.u1)
+        r = self._post([{"driver_id": self.a.id, "vehicle_id": self.u1.id,
+                         "allow_share": True, "planned_start_hour": 16,
+                         "planned_end_hour": 23}])
+        self.assertEqual(r.status_code, 200)
+        a_row = DriverVehicleAssignment.objects.get(date=TARGET, driver=self.a)
+        self.assertEqual((a_row.planned_start_hour, a_row.planned_end_hour), (16, 23))
+        h_row.refresh_from_db()
+        self.assertEqual((h_row.planned_start_hour, h_row.planned_end_hour), (4, 15))
+
+    def test_single_pair_share_without_hours_uses_settings_cut(self):
+        from dispatching.models import SchedulerSettings
+        cfg = SchedulerSettings.get_settings()
+        cfg.share_split_hour = 17
+        cfg.save()
+        SchedulerSettings.clear_cache()
+        try:
+            holder = _mk_driver("charlie")
+            h_row = DriverVehicleAssignment.objects.create(
+                driver=holder, date=TARGET, vehicle=self.u1)
+            r = self._post([{"driver_id": self.a.id, "vehicle_id": self.u1.id,
+                             "allow_share": True}])
+            self.assertEqual(r.status_code, 200)
+            a_row = DriverVehicleAssignment.objects.get(date=TARGET, driver=self.a)
+            self.assertEqual((a_row.planned_start_hour, a_row.planned_end_hour), (17, 23))
+            h_row.refresh_from_db()
+            self.assertEqual((h_row.planned_start_hour, h_row.planned_end_hour), (4, 16))
+        finally:
+            SchedulerSettings.get_settings().reset_to_defaults()
+
+    def test_single_pair_share_never_clobbers_partner_window(self):
+        # The holder already carries a hand-set window: Apply fills only NULLs.
+        holder = _mk_driver("charlie")
+        h_row = DriverVehicleAssignment.objects.create(
+            driver=holder, date=TARGET, vehicle=self.u1,
+            planned_start_hour=5, planned_end_hour=14)
+        r = self._post([{"driver_id": self.a.id, "vehicle_id": self.u1.id,
+                         "allow_share": True, "planned_start_hour": 16,
+                         "planned_end_hour": 23}])
+        self.assertEqual(r.status_code, 200)
+        h_row.refresh_from_db()
+        self.assertEqual((h_row.planned_start_hour, h_row.planned_end_hour), (5, 14))
+
+    def test_two_pair_share_without_hours_gets_default_partition(self):
+        pairs = [{"driver_id": self.a.id, "vehicle_id": self.u1.id, "allow_share": True},
+                 {"driver_id": self.b.id, "vehicle_id": self.u1.id, "allow_share": True}]
+        r = self._post(pairs)
+        self.assertEqual(r.status_code, 200)
+        rows = {x.driver_id: x for x in
+                DriverVehicleAssignment.objects.filter(date=TARGET, vehicle=self.u1)}
+        wins = sorted((x.planned_start_hour, x.planned_end_hour)
+                      for x in rows.values())
+        self.assertEqual(wins, [(4, 15), (16, 23)])   # default cut = 16
+
+
+class DaySetupSplitShiftExtrasTests(TestCase):
+    """Build 2b/2c/2d payload keys on a built day: a rostered early driver, one
+    farmed evening leg, one standby body — the panel must propose the mint,
+    stamp the span readout, and leave every classic key untouched."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+        from rates.models import Location, Rate, Route
+        from reservations.models import Customer, Reservation
+
+        cls.vt = Vehicle.objects.create(vehicle_type="suv", capacity=6,
+                                        luggage_capacity=4)
+        cls.u1 = FleetVehicle.objects.create(vehicle_number="007", vehicle_type=cls.vt,
+                                             year=2023, make="Chevy", model="Suburban")
+        cls.worker = _mk_driver("worker")
+        cls.standby = _mk_driver("standy")
+        cls.aff = Driver.objects.create(
+            profile=User.objects.create_user("affco"), driver_type="affiliate",
+            is_active=True)
+        origin = Location.objects.create(name="MCO")
+        dest = Location.objects.create(name="Disney")
+        route = Route.objects.create(origin=origin, destination=dest,
+                                     inhouse_base_pay=Decimal("50.00"))
+        rate = Rate.objects.create(route=route, vehicle=cls.vt,
+                                   oneway_price=Decimal("100.00"),
+                                   round_trip_price=Decimal("180.00"))
+        customer = Customer.objects.create(first_name="Pat", last_name="Guest",
+                                           email="pat@example.com",
+                                           phone_number="5550001111")
+        cls.res = Reservation.objects.create(
+            trip_type="one-way", customer=customer, vehicle=cls.vt, rate=rate,
+            base_price=Decimal("100.00"), total_price=Decimal("100.00"))
+        cls.route = route
+        DriverVehicleAssignment.objects.create(driver=cls.worker, date=TARGET,
+                                               vehicle=cls.u1)
+
+    def _leg(self, hh, mm=0, driver=None,
+             pickup="Disney's Animal Kingdom Lodge",
+             dropoff="Orlando International Airport (MCO)"):
+        from datetime import time
+        from reservations.models import Leg
+        return Leg.objects.create(
+            reservation=self.res, pickup_date=TARGET, pickup_time=time(hh, mm),
+            pickup_location=pickup, dropoff_location=dropoff, driver=driver,
+            route=self.route, status="confirmed")
+
+    def test_mint_proposed_for_farmed_evening_leg(self):
+        self._leg(5, 0, driver=self.worker)
+        self._leg(10, 0, driver=self.worker)
+        farmed = self._leg(18, 0, driver=self.aff,
+                           pickup="Orlando International Airport (MCO)",
+                           dropoff="Disney's Animal Kingdom Lodge")
+        out = suggest_day_setup(TARGET)
+        self.assertIn(self.standby.id,
+                      [p["id"] for p in out["standby_pool"]])
+        self.assertEqual(len(out["mint_proposals"]), 1)
+        mp = out["mint_proposals"][0]
+        self.assertEqual(mp["driver_id"], self.standby.id)
+        self.assertEqual(mp["vehicle_id"], self.u1.id)
+        self.assertEqual(mp["side"], "late")
+        self.assertEqual([l["id"] for l in mp["legs"]], [farmed.id])
+        self.assertTrue(mp["thin"])                      # 1 job < soft min 2
+        self.assertGreater(mp["est_saving"], 0)
+        self.assertIn(mp["handoff_band"], ("green", "amber"))  # red never proposed
+        self.assertEqual(mp["planned_start_hour"], 18)
+        self.assertEqual(mp["planned_end_hour"], 23)
+        self.assertEqual(mp["partner_driver_id"], self.worker.id)
+        # span readout on the worker's row (2d)
+        row = next(r for r in out["rows"] if r["driver_id"] == self.worker.id)
+        self.assertIn("span_hours", row)
+        self.assertEqual(row["span_state"], "")
+        self.assertEqual(out["span_exceptions"], [])
+        self.assertEqual(out["shared_units"], [])
+
+    def test_worked_driver_not_in_pool_and_cold_day_proposes_nothing(self):
+        out = suggest_day_setup(TARGET)   # no legs at all on the date
+        self.assertEqual(out["mint_proposals"], [])
+        pool_ids = [p["id"] for p in out["standby_pool"]]
+        self.assertNotIn(self.worker.id, pool_ids)   # has a DVA row
+        self.assertIn(self.standby.id, pool_ids)
+
+    def test_shared_unit_banded(self):
+        second = _mk_driver("second")
+        DriverVehicleAssignment.objects.create(driver=second, date=TARGET,
+                                               vehicle=self.u1)
+        self._leg(5, 0, driver=self.worker)
+        self._leg(9, 0, driver=self.worker)
+        self._leg(19, 0, driver=second,
+                  pickup="Orlando International Airport (MCO)",
+                  dropoff="Disney's Animal Kingdom Lodge")
+        out = suggest_day_setup(TARGET)
+        self.assertEqual(len(out["shared_units"]), 1)
+        su = out["shared_units"][0]
+        self.assertEqual(su["vehicle_id"], self.u1.id)
+        self.assertEqual(su["handoff_band"], "green")
+        self.assertTrue(su["handoff_ready_at"])
+        self.assertIn("chain", su["handoff_reason"])
+
+
+class SchedulerSettingsFloatTests(TestCase):
+    def test_float_field_round_trips(self):
+        staff = User.objects.create_user("boss2", password="x", is_staff=True)
+        self.client.force_login(staff)
+        r = self.client.post(reverse("update_scheduler_settings"),
+                             data=json.dumps({"span_exception_max_hours": 14.5}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        from dispatching.models import SchedulerSettings
+        SchedulerSettings.clear_cache()
+        self.assertEqual(SchedulerSettings.get_settings().span_exception_max_hours, 14.5)
+        SchedulerSettings.get_settings().reset_to_defaults()
+
+    def test_int_fields_still_int_only(self):
+        staff = User.objects.create_user("boss3", password="x", is_staff=True)
+        self.client.force_login(staff)
+        r = self.client.post(reverse("update_scheduler_settings"),
+                             data=json.dumps({"share_split_hour": "nope"}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
 
 def _fake_end(leg, target_date):
     """Deterministic 60-min jobs for peak-histogram tests."""

@@ -1,0 +1,6 @@
+cadence_min,pct_episodes_seen,pct_episodes_seen_worst,sightings_per_day,scorable_seen_mean,pct_late_15_seen,pct_late_15_all,bias_points
+3,100.0,100.0,1908.5,1416.0,36.1,36.1,0.0
+6,95.3,94.9,954.2,1345.5,36.2,36.1,0.1
+15,86.5,83.9,381.7,1218.6,36.0,36.1,-0.1
+30,76.1,74.0,190.8,1070.0,35.2,36.1,-0.9
+60,60.8,58.2,95.4,862.7,32.4,36.1,-3.7

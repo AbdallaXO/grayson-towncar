@@ -2188,6 +2188,14 @@ def task_detail_view(request, task_id):
             context["advisor_card"] = (_advisor_card_for_task(task)
                                        if advisor_visible_to(request.user)
                                        else None)
+            # Ledger (Phase 1.2, invisible): this page can apply a plan, so a
+            # card shown only here must still exist in the log. Cheap — one
+            # card, and the recorder swallows its own failures.
+            if context["advisor_card"]:
+                from dispatching import advisor_events
+                advisor_events.record_cards(
+                    task.leg.pickup_date, [context["advisor_card"]],
+                    source="task", whole_board=False)
         except Exception:
             logger.exception("Recovery Advisor card failed for task %s", task.id)
             context["advisor_card"] = None

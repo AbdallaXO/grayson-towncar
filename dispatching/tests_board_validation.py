@@ -18,8 +18,10 @@ What is pinned here and why:
     a car-share partner overlap blocks.
 """
 from datetime import datetime, date as dt_date, time as dt_time
+from decimal import Decimal
 from unittest.mock import patch
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 
 from dispatching import board_validation as bv
@@ -29,6 +31,9 @@ from dispatching.scheduler import (
 )
 from dispatching.tests_swap_guards import fake_leg
 from dispatching.views import _gap_turn_slack, _pickup_risk
+from drivers.models import Driver, DriverVehicleAssignment, FleetVehicle
+from rates.models import Location, Rate, Route, Vehicle as RateVehicle
+from reservations.models import Customer, Leg, Reservation
 
 DAY = dt_date(2026, 5, 1)
 
@@ -103,6 +108,89 @@ class TurnSlackDelegateTests(TestCase):
     def test_missing_slots_still_return_none(self):
         self.assertIsNone(bv.turn_slack_minutes(None, None, DAY))
         self.assertIsNone(_gap_turn_slack(None, None, DAY))
+
+
+class TakesLaterParityTests(TestCase):
+    """CHAIN_CLEAR_TAKES_LATER on the LIVE path (2026-09-05).
+
+    scheduler.check_feasibility has, since 2026-09-02, refused to plan a chain on a
+    clear time earlier than the board's own measured estimate when the job being seated
+    is FIXED-TIME. turn_slack_minutes did not, so for three days the board could show a
+    clean chip on a turn the engine would refuse to build — analysis/24 measured 5.1 of
+    them a day on real boards, worst case a CLEAN chip on a turn 47 minutes short.
+
+    What is pinned here: the rule fires for fixed-time next jobs, is exempt for airport
+    arrivals (the guest is still deplaning), and never touches the recorded-pickup
+    branch, where the clear time is a fact rather than a model estimate.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        preload_timing_cache()
+
+    def _slots(self, next_trip="return"):
+        """Built through the same sim-slot builder the engine uses, so the location
+        CATEGORIES are the real ones, then given the shape 22 found on real boards: a
+        MEASURED end (3:40) running 25 min past the static model's clear (3:15).
+
+        The next job picks up at MCO either way, so switching next_trip between
+        'return' and 'arrival' switches the rule's exemption and nothing else —
+        is_airport_arrival reads the trip type AND the pickup category."""
+        prev = _make_sim_slot(_leg(201, 14, 0, trip="arrival",
+                                   pickup_loc="MCO Terminal B",
+                                   dropoff_loc="Disney Contemporary"), DAY)
+        prev.chain_clear_dt = _dt(15, 15)
+        prev.estimated_end_time = _dt(15, 40)
+        nxt = _make_sim_slot(_leg(202, 16, 0, trip=next_trip,
+                                  pickup_loc="MCO Terminal A",
+                                  dropoff_loc="Disney Boardwalk"), DAY)
+        return prev, nxt
+
+    def _slack_without_the_rule(self, prev, nxt):
+        with patch("dispatching.board_validation.CHAIN_CLEAR_TAKES_LATER", False,
+                   create=True):
+            from dispatching import scheduler as sch
+            with patch.object(sch, "CHAIN_CLEAR_TAKES_LATER", False):
+                return bv.turn_slack_minutes(prev, nxt, DAY)
+
+    def test_fixed_time_next_job_takes_the_later_clear(self):
+        prev, nxt = self._slots(next_trip="return")
+        before = self._slack_without_the_rule(prev, nxt)
+        after = bv.turn_slack_minutes(prev, nxt, DAY)
+        # The measured clear is 25 min past the static one, and the whole 25 comes
+        # off the slack the dispatcher is shown.
+        self.assertEqual(before - after, 25)
+
+    def test_airport_arrival_next_job_is_exempt(self):
+        prev, nxt = self._slots(next_trip="arrival")
+        # The guest is still deplaning, so the arrival keeps the static clear and the
+        # chip does not move at all.
+        self.assertEqual(bv.turn_slack_minutes(prev, nxt, DAY),
+                         self._slack_without_the_rule(prev, nxt))
+
+    def test_recorded_pickup_still_beats_the_model(self):
+        """A fact must never be raised to a model estimate: a driver who demonstrably
+        picked up early keeps his real clear time."""
+        prev, nxt = self._slots(next_trip="return")
+        prev_leg = _leg(201, 14, 0, trip="arrival",
+                        pickup_loc="MCO Terminal B",
+                        dropoff_loc="Disney Contemporary")
+        on_fact = bv.turn_slack_minutes(prev, nxt, DAY, prev_leg=prev_leg,
+                                        prev_picked_up_dt=_dt(14, 0))
+        self.assertIsNotNone(on_fact)
+        self.assertGreater(on_fact, bv.turn_slack_minutes(prev, nxt, DAY))
+
+    def test_the_board_can_no_longer_call_an_impossible_turn_clean(self):
+        """analysis/24's finding, as a regression: a turn the engine refuses must not
+        band clean or tight on the live path. This is the sereen 2026-07-25 shape — a
+        CLEAN chip on a turn 47 minutes short."""
+        prev, nxt = self._slots(next_trip="return")
+        prev.chain_clear_dt = _dt(14, 30)         # static model: hours of room
+        prev.estimated_end_time = _dt(16, 5)      # measured: clears AFTER the pickup
+        self.assertEqual(pp.turn_band(self._slack_without_the_rule(prev, nxt)), "")
+        slack = bv.turn_slack_minutes(prev, nxt, DAY)
+        self.assertLess(slack, 0)
+        self.assertEqual(pp.turn_band(slack), "critical")
 
 
 class BoardTurnBandsTests(TestCase):
@@ -307,3 +395,89 @@ class ValidatePostMoveBoardTests(TestCase):
         res = self._validate(_schedules({1: [a]}), _legs_by_id(a), [(101, 77)])
         self.assertFalse(res.ok)
         self.assertIn("not on the board", res.reason)
+
+
+class RevalidateSharerScopeTests(TestCase):
+    """revalidate_moves_against_db's car-share partner map must see every
+    ROSTERED co-holder of a shared vehicle, not just the ones who already
+    hold a leg — 2026-08-24 fix (05_BUILD3B_TICKETS.md §9.2 item 3).
+
+    build_sharer_partners() silently returns {} for a unit whose co-holder
+    isn't in the id set it's given (car_share.py's own docstring). The old
+    code built that set from `{l.driver_id for l in legs if l.driver_id}` —
+    a driver rostered (DVA row) but not yet holding any leg that day was
+    invisible. Traced through by hand before writing this: because the
+    function (a) re-queries ALL of the date's legs, not just the ones being
+    moved, and (b) applies every move in `valid_moves` before deriving that
+    set, a co-holder who is truly legless has nothing to conflict against
+    regardless — so this fix does not flip any REACHABLE verdict in this
+    caller today. What it fixes is real: the partner map it hands to
+    sharers_conflict() is now complete, which is what any future move batch
+    or reader of that map is entitled to assume. Test the map, not a verdict
+    that provably can't differ."""
+
+    @classmethod
+    def setUpTestData(cls):
+        preload_timing_cache()
+        vtype = RateVehicle.objects.create(
+            vehicle_type="suv", capacity=6, luggage_capacity=4)
+        origin = Location.objects.create(name="MCO")
+        dest = Location.objects.create(name="Disney")
+        route = Route.objects.create(
+            origin=origin, destination=dest, inhouse_base_pay=Decimal("50.00"))
+        rate = Rate.objects.create(
+            route=route, vehicle=vtype,
+            oneway_price=Decimal("100.00"), round_trip_price=Decimal("180.00"))
+        cls.route = route
+        cls.driver = Driver.objects.create(
+            profile=User.objects.create_user(username="b_driver", first_name="B"),
+            driver_type="inhouse")
+        cls.legless_partner = Driver.objects.create(
+            profile=User.objects.create_user(username="d_driver", first_name="D"),
+            driver_type="inhouse")
+        customer = Customer.objects.create(
+            first_name="Pat", last_name="Guest", email="pat@example.com",
+            phone_number="5550001111")
+        cls.reservation = Reservation.objects.create(
+            trip_type="one-way", customer=customer, vehicle=vtype, rate=rate,
+            base_price=Decimal("100.00"), total_price=Decimal("100.00"))
+        car = FleetVehicle.objects.create(
+            vehicle_number="014", year=2023, make="Chevrolet", model="Suburban",
+            vehicle_type=vtype)
+        DriverVehicleAssignment.objects.create(driver=cls.driver, date=DAY, vehicle=car)
+        DriverVehicleAssignment.objects.create(
+            driver=cls.legless_partner, date=DAY, vehicle=car)  # rostered, ZERO legs
+
+    def test_rostered_legless_coholder_is_included_as_a_partner(self):
+        leg = Leg.objects.create(
+            reservation=self.reservation, pickup_date=DAY, pickup_time=dt_time(9, 0),
+            pickup_location="Disney Contemporary", dropoff_location="MCO",
+            route=self.route)
+        from dispatching import car_share as cs
+        with patch("dispatching.scheduler.build_sharer_partners",
+                   wraps=cs.build_sharer_partners) as spy:
+            bv.revalidate_moves_against_db([(leg.id, self.driver.id)], DAY)
+        called_with_ids = spy.call_args[0][0]
+        self.assertIn(self.legless_partner.id, called_with_ids,
+                      "the legless co-holder must still be visible to "
+                      "build_sharer_partners so the partnership itself is "
+                      "recorded, even though nothing conflicts with an "
+                      "empty schedule today")
+
+    def test_unrostered_uninvolved_driver_still_excluded(self):
+        # A driver who is neither rostered on this car nor part of the move
+        # must NOT be pulled in — the fix widens scope to the ROSTER, it
+        # does not widen it to every driver in the system.
+        other = Driver.objects.create(
+            profile=User.objects.create_user(username="e_driver", first_name="E"),
+            driver_type="inhouse")
+        leg = Leg.objects.create(
+            reservation=self.reservation, pickup_date=DAY, pickup_time=dt_time(9, 0),
+            pickup_location="Disney Contemporary", dropoff_location="MCO",
+            route=self.route)
+        from dispatching import car_share as cs
+        with patch("dispatching.scheduler.build_sharer_partners",
+                   wraps=cs.build_sharer_partners) as spy:
+            bv.revalidate_moves_against_db([(leg.id, self.driver.id)], DAY)
+        called_with_ids = spy.call_args[0][0]
+        self.assertNotIn(other.id, called_with_ids)

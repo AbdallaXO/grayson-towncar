@@ -471,6 +471,36 @@ def _close_retime_task(plan: _AdvisorPlan, user) -> Optional[int]:
     return task.id
 
 
+def _record_rejected_apply(data: dict, plan, status: int, error: str) -> None:
+    """Stamp a refused apply onto the card's ledger row (Phase 1.2).
+
+    Runs in the ``except PlanRejected`` handler, where two things are already
+    true and neither can be assumed away: the transaction has rolled back, so
+    this needs its own (``record_rejected`` takes one), and ``plan`` is still
+    None whenever ``parse_advisor_plan`` itself raised — a parse failure is the
+    one case with no parsed day or card id, so read them off the untrusted
+    payload instead, and give up quietly if they are not usable."""
+    from dispatching import advisor_events
+
+    try:
+        if plan is not None:
+            day, card_id = plan.day, plan.disruption_id
+        else:
+            try:
+                day = datetime.strptime(
+                    (data or {}).get("date") or "", "%Y-%m-%d").date()
+            except (ValueError, TypeError, AttributeError):
+                return
+            card_id = str((data or {}).get("disruption_id") or "")
+        if not day or not card_id:
+            return
+        # create=False: a rejected apply for a card nobody ever logged is not
+        # worth minting a row for — it would be an event with no card behind it.
+        advisor_events.record_rejected(day, card_id, status=status, error=error)
+    except Exception:
+        logger.exception("advisor rejected-apply logging failed")
+
+
 # ── Entry point ─────────────────────────────────────────────────────────────────────────────
 def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
     """Validate + execute one advisor plan. Returns ``(http_status, json_payload)``.
@@ -482,6 +512,7 @@ def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
     from dispatching.conflict_advisor import _FARM_CONFIRM_LINE
     from dispatching.pickup_moves import apply_pickup_time_move
     from dispatching.views import _create_schedule_snapshot
+    from dispatching import advisor_events
 
     plan = None
     try:
@@ -571,7 +602,22 @@ def apply_advisor_plan(data: dict, user) -> Tuple[int, dict]:
                 # Driver-change plans rely on ops/signals auto-close (attributed
                 # via leg._reassigned_by inside set_leg_driver).
                 closed_task_id = _close_retime_task(plan, user)
+
+            # Ledger (Phase 1.2). Inside the transaction on purpose: an apply
+            # that rolls back must not leave an "applied" row behind. It takes
+            # its own savepoint and swallows its own failures, so a broken
+            # ledger can never turn a good apply into the 500 below.
+            advisor_events.record_applied(
+                plan.day, plan.disruption_id, plan_id=plan.plan_id, user=user,
+                mode="staged" if staged else "live",
+                snapshot_id=getattr(snapshot, "id", None))
     except PlanRejected as e:
+        # A refused apply is evidence too — a 409 says the board moved under a
+        # dispatcher who wanted the plan, which is not the same as nobody
+        # wanting it. The outer transaction is already rolled back here, and
+        # `plan` is None when parsing itself failed, so fall back to the raw
+        # payload rather than assuming either.
+        _record_rejected_apply(data, plan, e.status, e.error)
         return e.status, {"success": False, "error": e.error}
     except Exception:
         logger.exception("advisor apply failed")

@@ -1,0 +1,7 @@
+pickup_cat,dropoff_cat,floor_min,all_n,all_below,all_below_pct,clean_n,clean_below,clean_below_pct
+Disney Resort,MCO Terminal,12,5188,973,18.75,4109,39,0.95
+Disney Resort,SFB Terminal,35,257,52,20.23,205,5,2.44
+MCO Terminal,Disney Resort,12,5932,1156,19.49,4557,57,1.25
+MCO Terminal,Port Canaveral Area,30,387,82,21.19,292,5,1.71
+Port Canaveral Area,MCO Terminal,30,556,124,22.3,423,11,2.6
+SFB Terminal,Disney Resort,35,253,57,22.53,186,3,1.61

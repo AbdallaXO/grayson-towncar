@@ -1,0 +1,7 @@
+table,first_day,span_days,days_with_rows,longest_zero_run_days,zero_run_ended,longest_zero_run_last_180d,recent_zero_run_ended
+reservations_legstatus,2026-02-08,195,195,0,,0,
+reservations_reservation,2025-04-14,495,471,5,2025-04-19,0,
+payment_payment,2025-04-14,495,470,5,2025-04-19,0,
+reservations_auditlog,2026-01-10,224,224,0,,0,
+reservations_historicalleg,2026-03-03,172,172,0,,0,
+ops_staffactivity,2026-03-15,160,160,0,,0,

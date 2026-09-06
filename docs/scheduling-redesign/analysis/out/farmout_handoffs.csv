@@ -1,0 +1,9 @@
+from_arm,to_arm,handoffs,pct_of_handoffs
+inhouse,inhouse,21113,89.428
+inhouse,affiliate,1815,7.688
+affiliate,affiliate,391,1.656
+affiliate,inhouse,280,1.186
+unknown,affiliate,3,0.013
+unknown,inhouse,3,0.013
+affiliate,unknown,2,0.008
+inhouse,unknown,2,0.008

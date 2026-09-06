@@ -30,7 +30,7 @@ for fold-out. Sharers are excluded in v1 (folding an AM sharer would orphan the
 partner's planned handoff window).
 """
 import copy
-from datetime import datetime, date, time as dt_time
+from datetime import date
 
 # ── Flags ────────────────────────────────────────────────────────────────────
 FOLD_OUT_ENABLED = True
@@ -104,14 +104,8 @@ def build_fold_out_proposals(target_date: date, proposed_schedules, final_assign
     if not driver_hours:
         _reject(None, "no_working_drivers")
         return _done([])
-    from dispatching import feasibility_guards as fg
-    from dispatching.analytics import categorize_location
-    from dispatching.scheduler import (
-        check_feasibility, sharers_conflict, effective_span_hours,
-        _span_gap_credit_minutes, estimate_job_end_time, get_vehicle_tier,
-        get_compatible_vehicle_types, resolve_drive_minutes, load_all_driver_vtypes,
-        SPAN_TRIM_RAW_MAX_HOURS,
-    )
+    from dispatching.receiver_gate import gate_receiver
+    from dispatching.scheduler import effective_span_hours, load_all_driver_vtypes
     from dispatching.day_setup import _unit_label
     from drivers.models import DriverVehicleAssignment
 
@@ -161,8 +155,6 @@ def build_fold_out_proposals(target_date: date, proposed_schedules, final_assign
         candidates.append((len(slots), revenue, did, unit, slots))
     candidates.sort(key=lambda c: (c[0], c[1], c[2]))   # fewest legs / least at stake first
 
-    target_eff = fg.SPAN_SOFT_EFFECTIVE_HOURS
-
     def _simulate(did, slots):
         """All-or-nothing greedy placement of `did`'s legs onto other working drivers.
         Returns (relocations, receivers_summary) or None when any leg won't place."""
@@ -173,10 +165,6 @@ def build_fold_out_proposals(target_date: date, proposed_schedules, final_assign
         relocations = []
         for s in slots:
             leg = legs_by_id[s.leg_id]
-            lvtype = leg.effective_vehicle_type
-            l_tier = get_vehicle_tier(str(lvtype)) if lvtype else -1
-            pickup_dt = datetime.combine(target_date, leg.pickup_time)
-            new_end = estimate_job_end_time(leg, target_date)
             # Per-gate receiver elimination counts — the explain channel's evidence for
             # WHY an all-or-nothing fold failed ("everyone busy at the peak" reads as a
             # high feasibility count; "nobody else drives a van" as a high tier count).
@@ -186,62 +174,19 @@ def build_fold_out_proposals(target_date: date, proposed_schedules, final_assign
             for rid in sorted(driver_hours.keys()):
                 if rid == did:
                     continue
-                rsched = sim.get(rid)
-                # Receivers must already be carrying work — moving a thin day onto an
-                # idle body just swaps who gets released, so it never consolidates.
-                if rsched is None or not rsched.slots:
-                    gates["idle"] += 1
+                # The shared receiver stack (receiver_gate.py), with fold's documented
+                # semantics: a receiver must ALREADY be carrying work — moving a thin
+                # day onto an idle body just swaps who gets released, so it never
+                # consolidates — and no hollow gate (that is rebalance's invariant;
+                # adding it here would change fold verdicts — a founder call).
+                ok, raw_after, eff_after, key = gate_receiver(
+                    leg, rid, sim, target_date=target_date,
+                    driver_hours=driver_hours, flexible_drivers=flexible_drivers,
+                    capped_windows=capped_windows, sharer_partners=sharer_partners,
+                    dvtypes=dvtypes, require_carrying_work=True, hollow_gate=False,
+                    gates=gates)
+                if not ok:
                     continue
-                # Modal hard window (parity with the greedy/trim/gap passes; every rid
-                # here comes from driver_hours, so no membership re-check needed).
-                if not (flexible_drivers and rid in flexible_drivers):
-                    sh, eh = driver_hours[rid]
-                    if not (dt_time(sh, 0) <= leg.pickup_time <= dt_time(eh, 59)):
-                        gates["window"] += 1
-                        continue
-                rv = dvtypes.get(rid)
-                if rv and lvtype and str(lvtype) not in get_compatible_vehicle_types(rv):
-                    gates["tier"] += 1
-                    continue
-                if sharers_conflict(leg, rid, sharer_partners, sim, target_date):
-                    gates["occupancy"] += 1
-                    continue
-                feas = check_feasibility(rsched, leg, target_date,
-                                         driver_window=(capped_windows or {}).get(rid))
-                if not feas.feasible:
-                    gates["feasibility"] += 1
-                    continue
-                # Post-insert span ceilings (trim-pass idiom; credit from PRE-insert slots).
-                rslots = sorted(rsched.slots, key=lambda x: x.pickup_time)
-                or_first = datetime.combine(target_date, rslots[0].pickup_time)
-                or_last = max(x.estimated_end_time for x in rslots)
-                nr_first = min(or_first, pickup_dt)
-                nr_last = max(or_last, new_end)
-                raw_after = (nr_last - nr_first).total_seconds() / 3600
-                credit_h = _span_gap_credit_minutes(rslots, target_date) / 60.0
-                eff_after = max(0.0, raw_after - credit_h)
-                if raw_after > SPAN_TRIM_RAW_MAX_HOURS or eff_after > target_eff:
-                    gates["span"] += 1
-                    continue
-                raw_before = (or_last - or_first).total_seconds() / 3600
-                stretch_min = max(0.0, (raw_after - raw_before) * 60)
-                tier_waste = ((get_vehicle_tier(rv) - l_tier)
-                              if (rv and l_tier >= 0 and get_vehicle_tier(rv) > l_tier) else 0)
-                # Deadhead around the insertion point — tiebreak only, like the gap pass.
-                prev = max((x for x in rslots if x.pickup_time <= leg.pickup_time),
-                           key=lambda x: x.pickup_time, default=None)
-                nxt = min((x for x in rslots if x.pickup_time > leg.pickup_time),
-                          key=lambda x: x.pickup_time, default=None)
-                dh = 0
-                if prev is not None:
-                    dh += resolve_drive_minutes(prev.dropoff_location, leg.pickup_location,
-                                                prev.dropoff_category,
-                                                categorize_location(leg.pickup_location))
-                if nxt is not None:
-                    dh += resolve_drive_minutes(leg.dropoff_location, nxt.pickup_location,
-                                                categorize_location(leg.dropoff_location),
-                                                nxt.pickup_category)
-                key = (tier_waste, round(stretch_min), dh, rid)
                 if best is None or key < best[0]:
                     best = (key, rid, raw_after, eff_after)
             if best is None:

@@ -1,0 +1,3 @@
+window,start,end,days,taps,jobs_worked,live_legs,mean_drivers_per_day,max_drivers_per_day
+prior,2026-03-19,2026-07-31,135,64895,11886,12220,17.01,23
+current,2026-08-01,2026-08-20,20,13696,2280,2280,20.1,24

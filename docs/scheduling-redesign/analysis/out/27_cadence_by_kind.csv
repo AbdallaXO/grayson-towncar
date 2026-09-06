@@ -1,0 +1,7 @@
+kind,episodes,seen_3min,seen_6min,seen_15min,seen_30min,seen_60min
+late_cascade,530,100.0,93.9,80.1,63.6,41.4
+overlap,482,100.0,99.1,96.0,89.9,75.8
+flight_change,435,100.0,96.6,92.7,89.1,83.5
+unassigned,107,100.0,85.5,66.0,50.4,32.0
+overrun,102,100.0,89.2,69.4,47.1,24.7
+ALL,1656,100.0,95.3,86.5,76.1,60.8

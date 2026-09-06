@@ -2922,6 +2922,10 @@ def _advisor_state(board, fingerprint, for_leg_id=None):
                 "task_type": ("driver_assign" if d.kind == "unassigned"
                               else "driver_conflict"),
                 "title": d.headline,
+                # Carried so the ledger can tie a filed task back to the card
+                # that offered it (Phase 1.2). leg_id alone cannot: two kinds
+                # can raise cards on the same leg at the same minute.
+                "disruption_id": d.id,
             }
         cards.append(card)
     return {

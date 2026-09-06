@@ -1,0 +1,33 @@
+date,vehicle_id,vehicle_type,driver_out,driver_in,p2p_gap_min,out_kind,tail_model_min,obs_clear_min,drop_zone,pickup_zone,model_lo,model_central,model_hi,delta_obs_minus_central,skip_wash_floor,direct_floor,taps_clear_min
+2026-07-24,3,van,56,38,326.0,DEPARTURE,34.8,291.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,208.7,34.0,12,333.7
+2026-07-24,11,mini_van,69,66,506.4,OTHER,53.6,452.8,Port Canaveral Area,MCO Terminal,131.0,137.5,144.0,315.2,89.0,65,487.8
+2026-07-25,7,suv,58,62,160.0,ARRIVAL,75.5,84.5,Disney Resort,Disney Resort,129.0,140.5,152.0,-56.0,92.0,27,90.1
+2026-07-26,6,Van(14 Pax),51,58,72.0,DEPARTURE,34.8,37.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,-45.3,34.0,12,103.6
+2026-07-27,16,suv,57,59,218.0,ARRIVAL,75.5,142.5,Disney Resort,Disney Resort,129.0,140.5,152.0,2.0,92.0,27,95.3
+2026-07-28,7,suv,54,62,78.0,DEPARTURE,34.8,43.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,-39.3,34.0,12,82.7
+2026-07-30,7,suv,48,58,190.0,ARRIVAL,75.5,114.5,Disney Resort,MCO Terminal,106.0,112.5,119.0,2.0,64.0,40,176.1
+2026-07-30,11,mini_van,54,38,221.0,DEPARTURE,34.8,186.2,MCO Terminal,SFB Terminal,119.0,130.5,142.0,55.7,82.0,70,218.5
+2026-07-30,15,towncar,52,55,213.0,ARRIVAL,75.5,137.5,Universal Resort,Disney Resort,124.0,135.5,147.0,2.0,87.0,43,156.4
+2026-07-31,1,suv,26,58,222.0,ARRIVAL,75.5,146.5,Port Canaveral Area,Disney Resort,154.0,165.5,177.0,-19.0,117.0,87,193.7
+2026-07-31,5,suv,53,54,135.0,DEPARTURE,34.8,100.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,17.7,34.0,12,94.8
+2026-07-31,8,mini_van,55,38,195.0,DEPARTURE,34.8,160.2,MCO Terminal,Disney Resort,99.0,110.5,122.0,49.7,62.0,45,149.5
+2026-08-01,6,Van(14 Pax),52,51,210.0,ARRIVAL,75.5,134.5,Universal Resort,MCO Terminal,101.0,107.5,114.0,27.0,59.0,35,169.1
+2026-08-03,4,suv,33,53,560.0,ARRIVAL,75.5,484.5,Disney Resort,MCO Terminal,106.0,112.5,119.0,372.0,64.0,40,531.1
+2026-08-03,16,suv,67,64,280.0,ARRIVAL,75.5,204.5,Disney Resort,MCO Terminal,106.0,112.5,119.0,92.0,64.0,40,262.1
+2026-08-06,7,suv,33,61,185.0,ARRIVAL,75.5,109.5,Disney Resort,Disney Resort,129.0,140.5,152.0,-31.0,92.0,27,169.7
+2026-08-06,8,mini_van,69,62,517.0,ARRIVAL,75.5,441.5,Disney Resort,MCO Terminal,106.0,112.5,119.0,329.0,64.0,40,565.0
+2026-08-07,6,Van(14 Pax),51,66,259.0,ARRIVAL,75.5,183.5,Disney Resort,MCO Terminal,106.0,112.5,119.0,71.0,64.0,40,235.2
+2026-08-07,11,mini_van,55,50,251.0,ARRIVAL,75.5,175.5,Disney Resort,MCO Terminal,106.0,112.5,119.0,63.0,64.0,40,134.5
+2026-08-09,1,suv,58,26,283.9,ARRIVAL,75.5,208.4,Port Canaveral Area,MCO Terminal,131.0,137.5,144.0,70.9,89.0,65,
+2026-08-10,16,suv,38,50,134.0,DEPARTURE,34.8,99.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,16.7,34.0,12,132.2
+2026-08-10,17,Van(14 Pax),33,51,402.0,DEPARTURE,34.8,367.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,284.7,34.0,12,433.9
+2026-08-12,17,Van(14 Pax),51,64,170.0,DEPARTURE,34.8,135.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,52.7,34.0,12,128.9
+2026-08-13,5,suv,62,53,292.0,ARRIVAL,75.5,216.5,Disney Resort,Disney Resort,129.0,140.5,152.0,76.0,92.0,27,221.5
+2026-08-13,9,suv,46,50,303.0,DEPARTURE,34.8,268.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,185.7,34.0,12,299.1
+2026-08-14,5,suv,69,53,187.0,ARRIVAL,75.5,111.5,Port Canaveral Area,Disney Resort,154.0,165.5,177.0,-54.0,117.0,87,86.9
+2026-08-15,12,Van(14 Pax),57,66,174.0,ARRIVAL,75.5,98.5,Disney Resort,Disney Resort,129.0,140.5,152.0,-42.0,92.0,27,89.4
+2026-08-16,5,suv,53,62,225.0,ARRIVAL,75.5,149.5,Disney Resort,Disney Resort,129.0,140.5,152.0,9.0,92.0,27,89.7
+2026-08-17,5,suv,52,53,105.0,DEPARTURE,34.8,70.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,-12.3,34.0,12,115.1
+2026-08-17,16,suv,68,70,210.0,DEPARTURE,34.8,175.2,MCO Terminal,Disney Resort,99.0,110.5,122.0,64.7,62.0,45,199.3
+2026-08-20,11,mini_van,69,38,308.0,DEPARTURE,34.8,273.2,MCO Terminal,MCO Terminal,76.0,82.5,89.0,190.7,34.0,12,334.6
+2026-08-20,15,towncar,71,72,240.0,DEPARTURE,34.8,205.2,MCO Terminal,Disney Resort,99.0,110.5,122.0,94.7,62.0,45,198.6

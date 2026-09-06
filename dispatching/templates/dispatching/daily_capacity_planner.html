@@ -1145,6 +1145,29 @@
         z-index: 10001;
         font-size: 0.85rem;
     }
+    /* Advisory warnings for the assignment just made (warn-only validation).
+       Bottom-right, clear of the centered undo toast. Amber edge = warning,
+       muted edge = info. Dismiss via the × or the 30 s timeout. */
+    .dnd-warn-toast {
+        position: fixed; bottom: 72px; right: 20px; z-index: 10002;
+        max-width: 380px; background: #1e293b; color: #fff;
+        border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        font-size: 0.83rem; overflow: hidden;
+    }
+    .dnd-warn-head {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 8px 12px; font-weight: 600;
+        color: #fbbf24; border-bottom: 1px solid rgba(251,191,36,0.25);
+    }
+    .dnd-warn-close {
+        background: none; border: none; color: #cbd5e1; font-size: 1.1rem;
+        line-height: 1; cursor: pointer; padding: 0 2px;
+    }
+    .dnd-warn-close:hover { color: #fff; }
+    .dnd-warn-row { padding: 8px 12px 8px 10px; border-left: 3px solid transparent; }
+    .dnd-warn-row + .dnd-warn-row { border-top: 1px solid rgba(255,255,255,0.07); }
+    .dnd-warn-warn { border-left-color: #e0a63a; }
+    .dnd-warn-info { border-left-color: #64748b; color: #d7dde6; }
     .dnd-unassigned-row {
         background: repeating-linear-gradient(
             -45deg, transparent, transparent 8px,
@@ -1240,6 +1263,90 @@
         display: flex; align-items: center; gap: 0.5rem; }
     .ds-count { margin-right: auto; font-size: 0.73rem; color: #6c757d; }
     .ds-count.bad { color: #b02a37; font-weight: 600; }
+
+    /* ── Day Setup: split shifts & handoffs (Build 2). New dsx- namespace on
+       purpose — injected DOM must never match .ds-row/.ds-check/.ds-veh. */
+    .dsx-span { font-size: 0.62rem; font-weight: 700; color: #6c757d; white-space: nowrap; }
+    .dsx-span.warn { color: #B4530A; }
+    .dsx-span.bad  { color: #b02a37; }
+    .dsx-strip { padding: 0.45rem 1.05rem 0.45rem; display: flex; flex-wrap: wrap;
+        gap: 0.35rem; border-bottom: 1px solid #e9ecef; background: #fff; }
+    .dsx-chip { font-size: 0.66rem; font-weight: 650; padding: 0.14rem 0.5rem;
+        border-radius: 999px; display: inline-flex; gap: 0.32rem; align-items: center;
+        cursor: default; }
+    .dsx-chip .dxd { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .dsx-green { background: rgba(44,122,76,0.12);  color: #2C7A4C; }
+    .dsx-amber { background: rgba(224,166,58,0.18); color: #8A6A12; }
+    .dsx-red   { background: rgba(198,40,40,0.12);  color: #b02a37; }
+    .dsx-none  { background: #f0eeea; color: #6c757d; }
+    /* A call-out is one decision: who, on what car, for what money. The card is a
+       grid so a stack of them reads DOWN the columns — names, then shifts, then
+       values — instead of re-parsing a sentence each time. Everything that only
+       qualifies the decision drops to the quiet second line. */
+    /* A call-out is a phone call to a named person, so the NAME leads and gets its
+       own column: a stack of proposals reads as a list of people, and the shift
+       details line up beside them instead of starting at a ragged edge. */
+    .dsx-mint { display: grid; grid-template-columns: 16px minmax(7.5rem, auto) 1fr;
+        gap: 0.1rem 0.65rem; padding: 0.55rem 1.05rem; align-items: baseline; }
+    .dsx-mint + .dsx-mint { box-shadow: inset 0 1px 0 #f4f2ee; }
+    .dsx-mint:hover { background: #fbfaf7; }
+    .dsx-mint-check { width: 15px; height: 15px; accent-color: #198754;
+        cursor: pointer; grid-row: 1 / span 2; align-self: center; }
+    .dsx-mint-n { font-size: 0.8rem; font-weight: 650; color: #212529;
+        grid-row: 1 / span 2; align-self: center; }
+    .dsx-mint-t { font-size: 0.78rem; color: #4a453e; }
+    .dsx-mint-t .unit { color: #6c757d; }
+    .dsx-mint-t .sep, .dsx-mint-s .sep { color: #d8d3ca; margin: 0 0.28rem; }
+    .dsx-mint-s { grid-column: 3; font-size: 0.7rem; color: #857f75;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.1rem; }
+    .dsx-exc { margin: 0.4rem 1.05rem 0; padding: 0.45rem 0.6rem; border-radius: 6px;
+        background: rgba(185,143,38,0.10); color: #6b5410; font-size: 0.73rem; }
+
+    /* ── Day Setup: the Day-Builder panel (Build 3b). dsp- namespace on purpose —
+       injected DOM must never match .ds-row/.ds-check/.ds-veh. Propose-only:
+       nothing in this panel writes; it tells the dispatcher what to change. */
+    .dsp { margin: 0.55rem 1.05rem 0.15rem; border: 1px solid #eceae5;
+        border-radius: 8px; background: #fdfcfa; overflow: hidden; }
+    .dsp-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+        padding: 0.5rem 0.75rem; background: #f7f5f1; }
+    .dsp-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: #6b5410; }
+    .dsp-eps { font-size: 0.7rem; color: #6c757d; display: flex; align-items: center;
+        gap: 0.35rem; margin-left: auto; }
+    .dsp-eps select { font-size: 0.72rem; padding: 0.06rem 0.3rem; border-radius: 5px;
+        border: 1px solid #d9d5cd; background: #fff; }
+    .dsp-build { font-size: 0.74rem; font-weight: 650; border: 0; border-radius: 6px;
+        padding: 0.28rem 0.7rem; background: var(--dark, #1E1C17); color: var(--gold, #B98F26);
+        transition: opacity 0.15s ease; }
+    .dsp-build:disabled { opacity: 0.55; }
+    .dsp-bd { padding: 0.5rem 0.75rem 0.6rem; font-size: 0.74rem; }
+    .dsp-quiet { color: #8a857c; font-size: 0.7rem; }
+    .dsp-line { margin-top: 0.3rem; }
+    .dsp-line b { font-weight: 650; }
+    .dsp-do { margin-top: 0.4rem; padding: 0.4rem 0.55rem; border-radius: 6px;
+        background: rgba(44,122,76,0.09); color: #22573a; font-size: 0.74rem; }
+    .dsp-warn { margin-top: 0.35rem; padding: 0.35rem 0.55rem; border-radius: 6px;
+        background: rgba(224,166,58,0.14); color: #6b5410; font-size: 0.7rem; }
+    /* NOW / DO THIS / RESULT. Every row is labelled, so no figure on this panel is
+       ambiguous about which state of the day it describes. */
+    .dsp-step { display: grid; grid-template-columns: 4.4rem 1fr; gap: 0.65rem;
+        padding: 0.4rem 0; font-size: 0.78rem; color: #212529;
+        border-top: 1px solid #f3f0eb; }
+    .dsp-step:first-child { border-top: 0; padding-top: 0.1rem; }
+    .dsp-lbl { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.09em;
+        text-transform: uppercase; color: #9a948b; padding-top: 0.16rem; }
+    .dsp-step b { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .dsp-step .sep { color: #d8d3ca; margin: 0 0.4rem; }
+    .dsp-go > div > b:first-child { color: #1f5c39; }
+    /* The state the day reaches IF you do the thing above it. */
+    .dsp-then { margin-top: 0.28rem; padding-left: 0.6rem; color: #1f5c39;
+        border-left: 2px solid rgba(44,122,76,0.35); font-size: 0.76rem; }
+    .dsp-end { background: rgba(44,122,76,0.06); border-radius: 6px;
+        padding: 0.4rem 0.55rem; margin-top: 0.15rem; }
+    .dsp-stamp { margin-top: 0.45rem; font-size: 0.66rem; color: #9a948b; }
+    .dsp.stale .dsp-bd { opacity: 0.55; }
+    .dsp-rebuild { font-size: 0.68rem; font-weight: 650; color: #6b5410;
+        background: none; border: 0; text-decoration: underline; padding: 0; }
 </style>
 {% endblock %}
 
@@ -2387,6 +2494,19 @@
                                 <div class="row g-2 mb-3">
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Job Buffer (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="inter_job_buffer" style="width:75px;"></div>
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Arrival Grace (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="arrival_grace_minutes" style="width:75px;" title="Airport arrivals: pax deplane + bags, driver can arrive this many min after flight time"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Share Pad (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="vehicle_share_pad_min" style="width:75px;" title="Shared car (two drivers, one unit): minutes an insert must clear the partner's jobs each side — covers return to base, wash, fuel, drive out. 120 = measured anchor from real handoffs. Used by the manual-assign warning and the second-shift/mint proposals — NOT the build engine's farm-out gate, see Engine Share Pad below"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Engine Share Pad (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="engine_share_pad_min" style="width:75px;" title="Shared car pad for the BUILD ENGINE's farm-out gate only — a separate dial from Share Pad above (2026-08-24). This one is measured from the outgoing driver's clear time, so the same number is stricter here; 65 is the founder-set starting point after ground-truthing real handoffs the old shared 120 was wrongly farming out"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Assign Warnings (1/0)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="manual_assign_warnings" min="0" max="1" style="width:75px;" title="Warn-only checks on manual assigns (drag-drop / dropdowns): 1 = on, 0 = off. Never blocks an assignment either way"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Share Cut Hour</label><input type="number" class="form-control form-control-sm tuning-input" data-field="share_split_hour" min="0" max="23" style="width:75px;" title="Default AM/PM cut hour for a planned shared car when no better cut is known (16 = the measured modal handoff hour). A second-shift proposal derives its own cut from the actual handoff"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Handoff Green (%)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="handoff_gap_green_pct" min="10" max="300" style="width:75px;" title="GREEN bar for a car handoff, as % of the central wash-fuel-base zone chain. 100 = the model rule exactly; lower is more permissive"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Handoff Amber Floor (%)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="handoff_gap_amber_floor_pct" min="10" max="300" style="width:75px;" title="AMBER floor for a car handoff, as % of the LOW zone chain — under this (and under the skip-wash fast path) a handoff is RED: shown, never suggested"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Min Jobs / 2nd Shift</label><input type="number" class="form-control form-control-sm tuning-input" data-field="mint_min_jobs_soft" min="1" max="6" style="width:75px;" title="Soft minimum jobs on a proposed standby second shift — never a hard floor; thinner proposals still show, flagged 'thin — worth it?'"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Crunch Cap (h)</label><input type="number" step="0.5" class="form-control form-control-sm tuning-input" data-field="span_exception_max_hours" min="13.5" max="16" style="width:75px;" title="Hard ceiling for the priced crunch exception: a driver-day may be proposed past 13.5h only up to this, priced and shown as a choice — never a default"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Day-Builder (1/0)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="opt_enabled" min="0" max="1" style="width:75px;" title="Master switch for 'Build a plan' in Day Setup. 0 = the panel does not exist anywhere (ships off); 1 = on. Propose-only either way — the builder never writes a schedule"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Builder Budget (s)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="opt_runtime_budget_s" min="30" max="900" style="width:75px;" title="Wall-clock ceiling for one 'Build a plan' run. Hitting it returns the best plan found so far, clearly flagged — never silently truncated"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Builder Swaps</label><input type="number" class="form-control form-control-sm tuning-input" data-field="pass_b_max_swaps" min="0" max="12" style="width:75px;" title="Max targeted unit swaps the builder considers per run (each costs one full engine evaluation, ~6-15s)"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Builder Evals</label><input type="number" class="form-control form-control-sm tuning-input" data-field="pass_b_max_evals" min="1" max="20" style="width:75px;" title="Hard budget of full engine evaluations per 'Build a plan' run"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Plan Stale (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="opt_stale_after_min" min="10" max="1440" style="width:75px;" title="A built plan older than this renders greyed with a re-build prompt — bookings move"></div>
                                 </div>
                                 <h6 class="fw-bold mb-2">Auto-Assign Buffer Scores</h6>
                                 <div class="row g-2 mb-3">
@@ -2967,6 +3087,11 @@
             if (data.success || data.status === 'success') {
                 btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Done';
                 btn.style.background = '#1b5e20';
+                // Advisory warnings for this assignment — survive the reload
+                // (rendered as the corner toast by timeline-dnd.js).
+                if (data.warnings && data.warnings.length && window.dndStashAssignWarnings) {
+                    window.dndStashAssignWarnings(data.warnings);
+                }
                 // Fade out the whole suggestion card and reload after a beat
                 const card = btn.closest('.suggested-driver') || btn.closest('.sg-alt-item');
                 if (card) card.style.opacity = '0.5';
@@ -4835,10 +4960,16 @@
             document.querySelectorAll('.tuning-input').forEach(input => {
                 const field = input.dataset.field;
                 if (field in settings) {
-                    input.value = settings[field];
+                    // Boolean flags (e.g. manual_assign_warnings) render as 1/0
+                    // in their number input; the save path posts them back as
+                    // ints, which the endpoint's int() coercion accepts.
+                    const v = settings[field];
+                    input.value = (v === true) ? 1 : (v === false) ? 0 : v;
                 }
                 // Show default as placeholder
                 if (field in tuningDefaults) {
+                    if (tuningDefaults[field] === true) tuningDefaults[field] = 1;
+                    if (tuningDefaults[field] === false) tuningDefaults[field] = 0;
                     input.placeholder = tuningDefaults[field];
                     // Add or update default hint text
                     let hint = input.parentElement.querySelector('.default-hint');
@@ -5363,6 +5494,14 @@
                 return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
             });
         }
+        // 12-hour label for a whole hour — this panel never shows 24-hour time.
+        function dsxHour(h) {
+            h = parseInt(h, 10);
+            if (h === 0) return '12:00 AM';
+            if (h < 12) return h + ':00 AM';
+            if (h === 12) return '12:00 PM';
+            return (h - 12) + ':00 PM';
+        }
         // The board's own vehicle-type hues, so a unit reads the same colour here as
         // it does on the timeline behind the modal.
         var VDOT = {towncar:'#d97706', suv:'#2563eb', mini_van:'#7c3aed',
@@ -5469,6 +5608,27 @@
                 + '</div></div></div>';
         }
 
+        // ── Shared cars (Build 2b): one chip per two-driver unit, colored by the
+        // green/amber/red handoff feasibility from the wash-fuel-base zone chain.
+        var sharedStrip = '';
+        if ((data.shared_units || []).length) {
+            sharedStrip = '<div class="dsx-strip">'
+                + '<span style="font-size:0.6rem;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:#9a948b;align-self:center;">Shared cars</span>'
+                + data.shared_units.map(function(su) {
+                    var cls = su.handoff_band ? 'dsx-' + su.handoff_band : 'dsx-none';
+                    var who = su.from_driver && su.to_driver
+                        ? esc(su.from_driver) + ' → ' + esc(su.to_driver)
+                        : esc((su.drivers || []).map(function(d) { return d.name; }).join(' + '));
+                    var tail = su.handoff_band
+                        ? su.handoff_band.toUpperCase() + (su.handoff_ready_at
+                            ? ' · car back ~' + esc(su.handoff_ready_at) : '')
+                        : 'no verdict yet';
+                    return '<span class="dsx-chip ' + cls + '" title="' + esc(su.handoff_reason || '') + '">'
+                        + '<i class="dxd"></i>' + esc((su.vehicle_label || '').split(' ')[0])
+                        + ' ' + who + ' · ' + tail + '</span>';
+                }).join('') + '</div>';
+        }
+
         // Handback / swap callouts move ONTO the rows they concern; anything left is a
         // day-level note and stays as a short line.
         var rowNote = {};
@@ -5501,8 +5661,8 @@
             var rs = r.reason || '';
             if (r.share) {
                 return '<span class="ds-tag swap" title="Two drivers share this car in shifts — the windows are split so it can never be double-booked">'
-                    + (r.share.role === 'AM' ? 'hands off at ' + r.share.until + ':00'
-                                             : 'takes over at ' + r.share.from + ':00') + '</span>';
+                    + (r.share.role === 'AM' ? 'hands off at ' + dsxHour(r.share.until)
+                                             : 'takes over at ' + dsxHour(r.share.from)) + '</span>';
             }
             if (/set in admin/.test(rs)) return '<span class="ds-tag his">his car</span>';
             if (/^usual unit/.test(rs)) return '<span class="ds-tag usual">' + esc(rs.replace('usual unit · ', 'usual · ')) + '</span>';
@@ -5588,11 +5748,19 @@
                 body += locked
                     ? '<i class="bi bi-lock-fill" style="color:#ccc;font-size:0.8rem;"></i>'
                     : '<input type="checkbox" class="ds-check" ' + (r.checked ? 'checked' : '') + ' aria-label="' + esc(r.driver_name) + '">';
+                var spanBadge = '';
+                if (r.span_hours != null) {
+                    var sc = r.span_state === 'over_hard' ? ' bad'
+                           : r.span_state === 'over_soft' ? ' warn' : '';
+                    spanBadge = '<span class="dsx-span' + sc
+                        + '" title="Planned day span vs the 13.5h cap (15h is the crunch ceiling) — estimate from booked times">'
+                        + r.span_hours + 'h</span>';
+                }
                 body += '<span class="ds-who"><span class="ds-name">' + esc(r.driver_name) + '</span>'
                     + (r.forced ? '<span class="ds-tag pick">your pick</span>' : '')
                     + (locked ? '' : chip(r))
                     + (rowNote[r.driver_name] ? '<span class="ds-tag swap">' + esc(rowNote[r.driver_name]) + '</span>' : '')
-                    + streak(r.hint) + '</span>';
+                    + streak(r.hint) + spanBadge + '</span>';
                 body += locked
                     ? '<span style="font-size:0.76rem;font-weight:600;color:#6c757d;">' + dot(r.vehicle_label) + esc(r.vehicle_label) + '</span>'
                     : '<span class="ds-carwrap">' + vehSelect(r) + '</span>';
@@ -5600,9 +5768,123 @@
             });
             if (isBench) body += '</div>';
         });
+        // ── Standby second shifts (Build 2c): propose-only — a ticked proposal
+        // rides the normal Apply as a deliberate share; nothing else is written.
+        if ((data.mint_proposals || []).length) {
+            body += '<div class="ds-grp">Second shifts — standby call-outs <b>'
+                + data.mint_proposals.length + '</b></div>'
+                + '<div class="ds-note">Nobody is called automatically. Tick one, then Apply.</div>';
+            data.mint_proposals.forEach(function(mp, i) {
+                var unitN = (mp.vehicle_label || '').split(' ')[0];
+                // Sentence rules: 12-hour AM/PM only, and clauses in the order
+                // things actually happen — pick up the car, run the job(s),
+                // finish, hand off. Never a handoff before the job it follows.
+                var cutLbl = mp.cut_label || dsxHour(mp.cut_hour);
+                var done = mp.est_done
+                    || (mp.window ? mp.window.split(' – ').pop() : '');
+                var legs = mp.legs || [];
+                var times = legs.map(function(l) { return l.time; });
+                function joinAnd(a) {
+                    return a.length <= 1 ? (a[0] || '')
+                        : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+                }
+                var KIND = {arrival: 'arrival', departure: 'departure'};
+                var sameKind = legs.length
+                    && legs.every(function(l) { return l.kind === legs[0].kind; });
+                var jobsClause;
+                if (sameKind && KIND[legs[0].kind]) {
+                    jobsClause = joinAnd(times) + ' ' + KIND[legs[0].kind]
+                        + (legs.length > 1 ? 's' : '');
+                } else if (sameKind) {
+                    jobsClause = joinAnd(times);        // "other" jobs: times only
+                } else {
+                    jobsClause = joinAnd(legs.map(function(l) {
+                        return l.time + (KIND[l.kind] ? ' ' + KIND[l.kind] : '');
+                    }));
+                }
+                var nFarm = legs.filter(function(l) { return l.source !== 'shed'; }).length;
+                // LINE 1 is the decision, in columns: who · which car · the shift.
+                // LINE 2 carries everything that only qualifies it.
+                var SEP = '<span class="sep">·</span>';
+                var shift = (mp.side === 'early')
+                    ? esc(joinAnd(times)) + ' – ~' + esc(done)
+                    : esc(cutLbl) + ' – ~' + esc(done);
+                // The name is its own column now; this line is the shift only.
+                var head = '<span class="unit">' + esc(unitN) + '</span>' + SEP + shift;
+
+                // The jobs it catches, named ONCE — the old card said this twice,
+                // in the sentence and again underneath it.
+                var sub = ['catches ' + esc(jobsClause)];
+                if (mp.partner_name) {
+                    sub.push(mp.side === 'early'
+                        ? 'hands the car to ' + esc(mp.partner_name)
+                        : 'takes the car from ' + esc(mp.partner_name));
+                }
+                var shed = (mp.legs || []).filter(function(l) { return l.source === 'shed'; });
+                if (shed.length) {
+                    sub.push('off ' + esc(shed[0].from_driver || 'another driver') + '’s long day');
+                }
+                if (mp.thin) {
+                    sub.push('<span class="ds-tag swap" title="Fewer jobs than the soft '
+                        + 'minimum. There is no call-out minimum pay, so the only cost is '
+                        + 'goodwill — offer it and let the driver decline.">thin</span>');
+                }
+                // A green handoff is the expected case and says nothing; only amber
+                // and red earn a chip.
+                if (mp.handoff_band && mp.handoff_band !== 'green') {
+                    sub.push('<span class="dsx-chip dsx-' + mp.handoff_band + '" title="'
+                        + esc(mp.handoff_reason || '') + '"><i class="dxd"></i>'
+                        + esc(mp.handoff_band.toUpperCase()) + '</span>');
+                }
+                var legsTxt = sub.join('<span class="sep">·</span>');
+                var chips = '';
+                var planLine = (mp.handoff_band === 'amber' && mp.handoff_reason)
+                    ? '<div class="dsx-mint-s" style="color:#8A6A12;">' + esc(mp.handoff_reason) + '</div>' : '';
+                body += '<div class="dsx-mint" data-mint-idx="' + i + '"'
+                    + ' data-driver-id="' + mp.driver_id + '" data-vehicle-id="' + mp.vehicle_id + '"'
+                    + ' data-ps="' + mp.planned_start_hour + '" data-pe="' + mp.planned_end_hour + '"'
+                    + ' data-partner-id="' + (mp.partner_driver_id || '') + '"'
+                    + ' data-partner-ps="' + (mp.partner_planned_start_hour == null ? '' : mp.partner_planned_start_hour) + '"'
+                    + ' data-partner-pe="' + (mp.partner_planned_end_hour == null ? '' : mp.partner_planned_end_hour) + '">'
+                    + '<input type="checkbox" class="dsx-mint-check" aria-label="Second shift: ' + esc(mp.driver_name) + ' on ' + esc(unitN) + '"'
+                    + (mp.est_saving ? ' title="Keeps ≈$' + mp.est_saving + ' in-house"' : '') + '>'
+                    + '<div class="dsx-mint-n">' + esc(mp.driver_name) + '</div>'
+                    + '<div class="dsx-mint-t">' + head + '</div>'
+                    + '<div class="dsx-mint-s">' + legsTxt + '</div>' + planLine + '</div>';
+            });
+        }
+        // ── The priced crunch exception (Build 2d): a choice, never a default.
+        (data.span_exceptions || []).forEach(function(ex) {
+            body += '<div class="dsx-exc"><i class="bi bi-clock-history me-1"></i>'
+                + '<b>+' + ex.added_hours + ' h on ' + esc(ex.driver_name) + '</b> keeps '
+                + ex.n_legs + ' leg' + (ex.n_legs !== 1 ? 's' : '') + ' in-house (≈ $'
+                + ex.est_value + '): ' + ex.base_span + 'h → ' + ex.new_span
+                + 'h — over the 13.5h day, inside the crunch ceiling. Your call: set it up '
+                + 'in the builder (' + (ex.legs || []).map(function(l) { return esc(l.time); }).join(', ')
+                + '); nothing happens on its own.</div>';
+        });
         (data.warnings || []).forEach(function(w) {
             body += '<div class="ds-warn"><i class="bi bi-exclamation-triangle me-1"></i>' + esc(w) + '</div>';
         });
+        // ── Day-Builder (Build 3b): propose-only "Build a plan" panel. Renders
+        // ONLY when the founder has switched it on (opt_enabled) — with it off,
+        // this modal is byte-for-byte what Build 2 shipped.
+        if (data.opt_enabled) {
+            var epsNow = parseInt(data.opt_epsilon_farmouts || 0, 10);
+            body += '<div class="dsp" id="dspPanel">'
+                + '<div class="dsp-head">'
+                + '<span class="dsp-title"><i class="bi bi-compass me-1"></i>Build a plan</span>'
+                + '<span class="dsp-eps"><label for="dspEps">Allow up to</label>'
+                + '<select id="dspEps" aria-label="Extra farm-outs allowed">'
+                + [0, 1, 2, 3].map(function(n) {
+                    return '<option value="' + n + '"' + (n === epsNow ? ' selected' : '') + '>' + n + '</option>';
+                }).join('')
+                + '</select><label for="dspEps">more farmed trips to buy a better day</label></span>'
+                + '<button class="dsp-build" id="dspBuild"><i class="bi bi-compass me-1"></i>Build a plan</button>'
+                + '</div>'
+                + '<div class="dsp-bd" id="dspBody"><span class="dsp-quiet">Checking for a plan…</span></div>'
+                + '</div>';
+        }
         body += '</div>';
 
         var footer = '<div class="ds-foot">'
@@ -5612,7 +5894,7 @@
             + '<button class="btn btn-sm ds-apply" style="font-size:0.8rem;background:var(--dark);color:var(--gold);font-weight:600;"><i class="bi bi-check2 me-1"></i>Apply</button>'
             + '</div>';
 
-        modal.innerHTML = header + cov + ledger + body + footer;
+        modal.innerHTML = header + cov + ledger + sharedStrip + body + footer;
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
         overlay.querySelector('.ds-cancel').addEventListener('click', function() { overlay.remove(); });
@@ -5655,6 +5937,183 @@
             });
         });
 
+        // ── Day-Builder wiring (Build 3b). Read-only: this panel never writes a
+        // schedule — it launches the background build, polls, and RENDERS the
+        // proposal with instructions the dispatcher carries out through the
+        // ordinary Day Setup + Build Schedule doors.
+        var dspPanel = modal.querySelector('#dspPanel');
+        if (dspPanel) (function() {
+            var dspBody = dspPanel.querySelector('#dspBody');
+            var dspBtn = dspPanel.querySelector('#dspBuild');
+            var dspEps = dspPanel.querySelector('#dspEps');
+            var pollTimer = null;
+
+            function clock(iso) {
+                if (!iso) return '';
+                var d = new Date(iso);
+                if (isNaN(d)) return '';
+                var h = d.getHours(), m = ('0' + d.getMinutes()).slice(-2);
+                var ap = h >= 12 ? 'PM' : 'AM';
+                h = h % 12 || 12;
+                return h + ':' + m + ' ' + ap;
+            }
+            function money(v) { return '$' + Math.round(v).toLocaleString(); }
+
+            function render(st) {
+                dspPanel.classList.toggle('stale', !!st.stale && st.status === 'done');
+                if (st.status === 'none') {
+                    dspBody.innerHTML = '<span class="dsp-quiet">No plan built for this '
+                        + 'date yet. Building takes a few minutes and changes nothing — '
+                        + 'you review, then apply what you like in Day Setup.</span>';
+                    return;
+                }
+                if (st.status === 'running') {
+                    dspBody.innerHTML = '<span class="dsp-quiet"><i class="bi bi-hourglass-split me-1"></i>'
+                        + 'Building… started ' + clock(st.requested_at) + '. You can close '
+                        + 'this — the plan keeps building and shows here when done.</span>';
+                    if (!pollTimer) pollTimer = setInterval(load, 4000);
+                    return;
+                }
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                if (st.status === 'refused' || st.status === 'error') {
+                    dspBody.innerHTML = '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
+                        + esc(st.error || 'The builder could not plan this day.') + '</div>';
+                    return;
+                }
+                var r = st.result || {};
+                var b = r.baseline || {}, s = r.score || {};
+                // On most days the best plan IS the current setup, and printing an
+                // identical set of figures twice was the panel's worst habit. State
+                // the day once; show a before -> after only on the numbers that moved.
+                // Read as a ladder: where the day stands NOW, what to DO, and what
+                // the day becomes. Two sets of bare numbers side by side (the old
+                // panel) left the dispatcher guessing which was which.
+                function nums(o, extra) {
+                    return '<b>' + (o.coverage_pct != null ? o.coverage_pct + '%' : '—')
+                        + '</b> in-house<span class="sep">·</span><b>' + o.farm_outs
+                        + '</b> farmed' + (extra && o.farm_cost_usd != null
+                            ? ' <span class="dsp-quiet">≈' + money(o.farm_cost_usd) + '</span>' : '')
+                        + '<span class="sep">·</span><b>' + o.driver_days + '</b> drivers';
+                }
+                function step(label, inner, cls) {
+                    return '<div class="dsp-step' + (cls ? ' ' + cls : '') + '">'
+                        + '<span class="dsp-lbl">' + label + '</span><div>' + inner + '</div></div>';
+                }
+                var html = step('Now', nums(b, true));
+                if ((r.swaps || []).length) {
+                    html += step('Do this',
+                        esc(r.instructions || r.swaps.join('; '))
+                        + '<div class="dsp-then">' + nums(s, false) + '</div>', 'dsp-go');
+                } else {
+                    html += step('Verdict', '<i class="bi bi-check2 me-1"></i>'
+                        + 'This is already the best setup the search found. Build as usual.',
+                        'dsp-ok');
+                }
+                if (r.epsilon_note) {
+                    html += '<div class="dsp-warn">' + esc(r.epsilon_note) + '</div>';
+                }
+                (r.exceptions || []).forEach(function(ex) {
+                    html += '<div class="dsp-line"><i class="bi bi-clock-history me-1"></i><b>'
+                        + esc(ex.driver_name) + '</b> runs ' + ex.eff_hours + 'h — over the '
+                        + '13.5h day, inside the crunch ceiling — keeping ' + ex.legs_kept
+                        + ' leg' + (ex.legs_kept !== 1 ? 's' : '') + ' in-house (≈'
+                        + money(ex.price_usd || 0) + ' if farmed). Your call.</div>';
+                });
+                (r.shares || []).forEach(function(sh) {
+                    html += '<div class="dsp-line"><span class="dsx-chip dsx-' + esc(sh.band || 'none')
+                        + '" title="' + esc(sh.reason || '') + '"><i class="dxd"></i>proposed share · unit '
+                        + esc(String(sh.vehicle_id)) + ' · ' + esc((sh.band || '?').toUpperCase())
+                        + '</span></div>';
+                });
+                // "Catch the rest" (D16): named spare drivers on free cars, each
+                // verified to capture farmed trips. Tick-suggestions only.
+                // Each addition is one more rung on the same ladder, and the running
+                // total is shown once at the end rather than per suggestion.
+                (r.additions || []).forEach(function(ad, i) {
+                    var caught = (ad.captured || []).map(function(c) { return c.pickup; })
+                        .filter(Boolean).join(' and ');
+                    html += step(i === 0 ? 'Also' : '',
+                        'Tick <b>' + esc(ad.driver_name) + '</b> and give him '
+                        + esc(ad.vehicle_label) + '.'
+                        + '<div class="dsp-quiet">catches ' + esc(caught
+                            || ((ad.captured || []).length + ' more trips')) + '</div>', 'dsp-go');
+                });
+                if (r.with_additions) {
+                    var wa = r.with_additions;
+                    html += step((r.additions.length !== 1 ? 'With those' : 'With that'),
+                        nums(wa, false)
+                        + (wa.kept_usd ? '<div class="dsp-quiet">'
+                            + money(wa.kept_usd) + ' kept in-house</div>' : ''), 'dsp-end');
+                }
+                if (r.additions_note) {
+                    html += '<div class="dsp-quiet dsp-line">' + esc(r.additions_note) + '</div>';
+                }
+                (r.seed_wall_notes || []).forEach(function(n) {
+                    html += '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
+                        + esc(n) + '</div>';
+                });
+                if (st.budget_exhausted) {
+                    html += '<div class="dsp-warn">Time budget hit — this is the best found '
+                        + 'so far, not an exhaustive search.</div>';
+                }
+                // The stamp answers one question — is this still current? Evaluation
+                // counts and run seconds are engine trivia and belong in the tooltip.
+                html += '<div class="dsp-stamp" title="' + (r.evaluations || '?')
+                    + ' plans evaluated in '
+                    + (r.wall_clock_s != null ? r.wall_clock_s + 's' : '?')
+                    + ', from bookings as of ' + clock(st.bookings_as_of) + '">Built '
+                    + clock(st.computed_at)
+                    + (st.stale ? ' · <b>bookings may have moved</b> — '
+                        + '<button class="dsp-rebuild" id="dspRebuild">re-build</button>' : '')
+                    + '</div>';
+                dspBody.innerHTML = html;
+                var rb = dspBody.querySelector('#dspRebuild');
+                if (rb) rb.addEventListener('click', build);
+            }
+
+            function load() {
+                if (!document.body.contains(dspPanel)) {
+                    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                    return;
+                }
+                fetch('{% url "day_plan_status" %}?date={{ selected_date|date:"Y-m-d" }}')
+                    .then(function(r) { return r.json(); })
+                    .then(function(st) { if (st.success) render(st); })
+                    .catch(function() {});
+            }
+
+            function build() {
+                var eps = parseInt(dspEps.value, 10) || 0;
+                dspBtn.disabled = true;
+                // Persist the dial (Ticket B) — fire-and-forget; the build itself
+                // carries the value either way.
+                fetch('{% url "update_scheduler_settings" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({opt_epsilon_farmouts: eps}),
+                }).catch(function() {});
+                fetch('{% url "build_day_plan" %}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                    body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', epsilon: eps}),
+                }).then(function(r) { return r.json(); }).then(function(res) {
+                    dspBtn.disabled = false;
+                    if (!res.success) {
+                        dspBody.innerHTML = '<div class="dsp-warn"><i class="bi bi-exclamation-triangle me-1"></i>'
+                            + esc(res.error || 'Could not start the build.') + '</div>';
+                        return;
+                    }
+                    load();
+                }).catch(function(err) {
+                    dspBtn.disabled = false;
+                    dspBody.innerHTML = '<div class="dsp-warn">Error: ' + esc(String(err)) + '</div>';
+                });
+            }
+
+            dspBtn.addEventListener('click', build);
+            load();
+        })();
+
         function dsCollect() {
             var pairs = [];
             modal.querySelectorAll('.ds-row').forEach(function(row) {
@@ -5668,6 +6127,31 @@
                         p.planned_end_hour = parseInt(row.dataset.plannedEnd);
                     }
                     pairs.push(p);
+                }
+            });
+            // Ticked standby second shifts (Build 2c) ride along as deliberate
+            // shares. If the outgoing partner's own pair is in this payload
+            // (an unlocked row still holding the same unit), it gets the AM/PM
+            // partition too; a locked partner stays out and the server fills
+            // his window on Apply (Build 2a).
+            modal.querySelectorAll('.dsx-mint').forEach(function(row) {
+                var cb = row.querySelector('.dsx-mint-check');
+                if (!cb || !cb.checked) return;
+                var vid = parseInt(row.dataset.vehicleId);
+                pairs.push({driver_id: parseInt(row.dataset.driverId), vehicle_id: vid,
+                            allow_share: true,
+                            planned_start_hour: parseInt(row.dataset.ps),
+                            planned_end_hour: parseInt(row.dataset.pe)});
+                var partnerId = parseInt(row.dataset.partnerId || '');
+                if (!isNaN(partnerId)) {
+                    var pp = pairs.find(function(p) {
+                        return p.driver_id === partnerId && p.vehicle_id === vid && !p.allow_share;
+                    });
+                    if (pp && row.dataset.partnerPs !== '' && row.dataset.partnerPe !== '') {
+                        pp.allow_share = true;
+                        pp.planned_start_hour = parseInt(row.dataset.partnerPs);
+                        pp.planned_end_hour = parseInt(row.dataset.partnerPe);
+                    }
                 }
             });
             return pairs;
@@ -5689,10 +6173,15 @@
             // both drivers instead of the old bare "same unit picked twice!".
             var el = modal.querySelector('.ds-count');
             var idle = ((data.capacity || {}).idle || []).length;
+            var carsOut = {};
+            pairs.forEach(function(p) { carsOut[p.vehicle_id] = 1; });
+            var nCars = Object.keys(carsOut).length;
+            var nShifts = pairs.length;
             el.classList.toggle('bad', !!dup);
             el.textContent = dup
                 ? dupLabel + ' is picked twice — change one of them'
-                : pairs.length + ' car' + (pairs.length !== 1 ? 's' : '') + ' out'
+                : nCars + ' car' + (nCars !== 1 ? 's' : '') + ' out'
+                  + (nShifts > nCars ? ' · ' + (nShifts - nCars) + ' shared' : '')
                   + (idle ? ' · ' + idle + ' parked' : '');
             modal.querySelector('.ds-apply').disabled = dup || pairs.length === 0;
         }
@@ -5704,6 +6193,7 @@
             });
         });
         modal.querySelectorAll('.ds-veh').forEach(function(sel) { sel.addEventListener('change', dsRefresh); });
+        modal.querySelectorAll('.dsx-mint-check').forEach(function(cb) { cb.addEventListener('change', dsRefresh); });
         dsRefresh();
 
         modal.querySelector('.ds-apply').addEventListener('click', function() {

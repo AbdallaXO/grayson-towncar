@@ -1,0 +1,7 @@
+vehicle_class,farmed_legs_matched,matched_pair_median_premium,matched_pair_mean_premium,claimed_M2_premium,verdict
+towncar,601,55.0,56.51,59.23,REVISED
+suv,575,65.0,65.24,72.18,REVISED
+mini_van,353,65.0,62.29,68.51,REVISED
+van,188,110.0,109.29,127.49,REVISED
+Van(14 Pax),50,110.0,115.4,130.77,REVISED
+ALL,1767,65.0,67.79,73.96,REVISED

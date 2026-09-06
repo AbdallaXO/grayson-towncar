@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
+from dispatching.models import SchedulerSettings
 from dispatching.shift_advisor import build_shift_proposals
 from dispatching.tests_span_caps import _slot, _sched, _FakeLeg
 from drivers.models import Driver, DriverVehicleAssignment, DriverWeeklySchedule, FleetVehicle
@@ -83,6 +84,52 @@ class ShiftAdvisorTests(TestCase):
         self.assertEqual(best["vehicle_id"], self.held.id)
         self.assertIsNotNone(best["freed"])
         self.assertTrue(best["freed"]["clear"])   # formatted holder-clears time
+
+    def test_freed_unit_buffer_reads_the_live_setting_not_the_stale_90(self):
+        # 2026-08-24 fix: this buffer used to be the hardcoded module constant
+        # (90) regardless of what car_share.py's other three conventions were
+        # configured to. Worker clears 09:30 (08:00 + 90min); proposal picks
+        # up 100 minutes later, at 11:10. 90 would clear it (09:30+90=11:00
+        # <= 11:10); the live default of 120 does not (09:30+120=11:30 >
+        # 11:10) — so with the fix, and nothing overridden, the unit must NOT
+        # be offered as freed.
+        DriverVehicleAssignment.objects.filter(vehicle=self.spare).delete()
+        self.spare.delete()
+        DriverVehicleAssignment.objects.create(driver=self.worker, date=TARGET, vehicle=self.held)
+        for i in range(1, 7):
+            DriverVehicleAssignment.objects.create(
+                driver=self.worker, date=TARGET - timedelta(days=i), vehicle=self.held)
+        self.assertEqual(SchedulerSettings.get_settings().vehicle_share_pad_min, 120)
+        legs = {99: _leg(99, 11, 10)}
+        props = build_shift_proposals(TARGET, [legs[99]], {}, {self.worker.id},
+                                      self._board([_slot(1, 8, dur_min=90)]), legs)
+        self.assertEqual(len(props), 1)
+        self.assertIsNone(props[0]["best"], "the stale 90-min buffer would "
+                          "have wrongly offered this unit as freed")
+
+    def test_freed_unit_buffer_follows_a_reconfigured_live_setting(self):
+        # Same shape, but the live setting is explicitly moved to 60 — a
+        # value that is neither the old hardcoded 90 nor the new default
+        # 120 — so passing only proves the code reads SchedulerSettings at
+        # call time, not that it swapped one hardcoded number for another.
+        cfg = SchedulerSettings.get_settings()
+        cfg.vehicle_share_pad_min = 60
+        cfg.save()
+        self.addCleanup(SchedulerSettings.clear_cache)
+        DriverVehicleAssignment.objects.filter(vehicle=self.spare).delete()
+        self.spare.delete()
+        DriverVehicleAssignment.objects.create(driver=self.worker, date=TARGET, vehicle=self.held)
+        for i in range(1, 7):
+            DriverVehicleAssignment.objects.create(
+                driver=self.worker, date=TARGET - timedelta(days=i), vehicle=self.held)
+        # worker clears 09:30; proposal at 10:40 is a 70-min gap — fails the
+        # old hardcoded 90 AND the new default 120, but clears a live 60.
+        legs = {99: _leg(99, 10, 40)}
+        props = build_shift_proposals(TARGET, [legs[99]], {}, {self.worker.id},
+                                      self._board([_slot(1, 8, dur_min=90)]), legs)
+        self.assertEqual(len(props), 1)
+        self.assertIsNotNone(props[0]["best"])
+        self.assertIsNotNone(props[0]["best"]["freed"])
 
     def test_cert_gate_no_sprinter_for_uncertified(self):
         DriverVehicleAssignment.objects.filter(vehicle=self.spare).delete()

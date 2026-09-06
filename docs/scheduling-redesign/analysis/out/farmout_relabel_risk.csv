@@ -1,0 +1,19 @@
+driver_id,driver,type_now,n_type_edits,last_type_edit,legs_all_time,legs_in_W,legs_before_edit,legs_after_edit,median_pay_before,median_pay_after,pay_stepped,at_risk_in_W
+33,runer,inhouse,1,2026-01-06,1145,604,0,604,,35.0,no,no
+20,Carlos Medina,inhouse,1,2026-01-06,389,0,0,0,,,no,no
+26,neuma,inhouse,1,2026-01-06,1512,644,0,644,,35.0,no,no
+31,Julio Bonilla,inhouse,1,2026-01-06,366,86,0,86,,27.5,no,no
+32,roberto,inhouse,1,2026-01-06,1573,910,0,910,,25.0,no,no
+34,shipo,inhouse,1,2026-01-06,352,151,0,151,,25.0,no,no
+35,Hasan,inhouse,1,2026-01-06,206,61,0,61,,40.0,no,no
+38,Angel Almanzar,inhouse,1,2026-01-06,822,382,0,382,,25.0,no,no
+9,Abdalla,inhouse,2,2026-01-06,304,1,0,1,,1.0,no,no
+49,alex,inhouse,1,2026-01-17,492,173,0,173,,40.0,no,no
+48,Michael Olmo,inhouse,1,2026-01-20,630,456,0,456,,35.0,no,no
+1,Rayyan Vorajee,inhouse,3,2026-03-15,411,0,0,0,,,no,no
+21,Michelle Francis,affiliate,2,2026-04-20,136,0,0,0,,,no,no
+6,placeholder,inhouse,3,2026-04-20,110,45,18,27,40.0,37.18,no,yes
+63,mesfin,inhouse,1,2026-04-28,156,156,0,156,,25.0,no,no
+53,sereen,inhouse,1,2026-05-02,637,626,5,621,80.0,25.0,yes,yes
+67,ernesto,inhouse,1,2026-06-03,221,221,0,221,,25.0,no,no
+50,Lev Askerov,inhouse,1,2026-06-19,75,55,7,48,80.0,35.0,yes,yes
