@@ -133,7 +133,14 @@ number for each type. Nothing ships until that number exists.
   system would have caught fewer than half the short-lived warnings — and it would have
   missed them unevenly, so two warning types would be judged on half the evidence of
   the two they're ranked against.)
-- Start keeping the GPS history, which today is thrown away.
+- Start keeping the GPS history, which today is thrown away. **Done.** Every three minutes
+  the system already works out where each car is and how it's doing against its next job,
+  writes that on the trip, and wipes it three minutes later. It now keeps a copy. Two things
+  are worth knowing. First, it does not keep every reading — a car parked three hours from
+  its next pickup tells nobody anything, and skipping those halves the size of the record
+  without losing a single reading anyone would ever look at. Second, it deliberately keeps
+  the readings for drivers who have *not* tapped anything, because those are the ones where
+  we most need to know whether the car has actually left.
 
 **Third, the visible step:** open it to dispatchers — but only the warning types that passed
 the test. The failures show as a quiet line with no suggestion, or not at all. Tasks and

@@ -599,3 +599,106 @@ class AdvisorEvent(models.Model):
     def __str__(self):
         state = self.outcome_quality or "unscored"
         return f"{self.service_date} {self.card_id} #{self.episode} ({state})"
+
+
+class DispatchEtaSample(models.Model):
+    """One reading of where a car was, relative to where it had to be next.
+
+    WHY THIS EXISTS. The Samsara sweep already asks this question every 180
+    seconds for every in-house driver, writes the answer onto the leg, and
+    destroys it on the next tick — ``sweep_eta`` overwrites the same twelve
+    ``dispatch_*`` columns in place, and ``bulk_update`` fires no signal, so not
+    even simple-history sees it. What survives today is an accident: an
+    unrelated ``.save()`` on a leg copies whatever the last sweep happened to
+    leave, which is why the only prediction log this project has is triggered by
+    driver taps rather than by the sweep — a median 33 minutes apart against a
+    3-minute cadence, and clustered around taps.
+
+    WHY IT IS NOT SUPPORT WORK (06 §3.4). Day-of lateness splits in two: the
+    milestone rule catches "he never got started"; GPS is the only thing that
+    can see "he started fine and is now stuck". 07 scores that second signal at
+    72% on "late at all" — the strongest predictor measured anywhere in this
+    project — on 442 accidental samples. It cannot be pushed further, or scored
+    per class, or replayed at all, until the sweep keeps what it already knows.
+
+    NOT EVERY TICK IS WORTH A ROW, and the rule was measured before it was
+    chosen (``analysis/28_eta_history_gate.py``, 28 real days at the real
+    180 s cadence, ``out/28_write_rules.csv``). A literal per-tick insert is
+    6,868 rows/day — 2.5 M a year, and three quarters of them a parked car
+    hours from its next job. See ``eta_samples.WRITE_RULE`` for what is written
+    instead and what that was tested against; the short version is half the rows
+    for 97% of the samples any analysis can grade and 100% of the ambiguous
+    legs §3.4 needs.
+
+    A NOTE ON ``eta_carried``, because it is easy to misread. It does NOT mean
+    "no Google call was made" — that is not knowable from the data. It means
+    this tick's ETA is the same number from the same origin as the previous
+    sample, so it carries no new information about the road, whether it was a
+    reused value or a fresh call that came back unchanged. That is the honest
+    version of the distinction, and it is the one an analysis needs: 07's error
+    formula treats ``sampled_at`` as the instant the drive time was measured,
+    and on a carried tick it is not.
+
+    STRICTLY A LEDGER, like ``AdvisorEvent``: nothing reads it in a request
+    path, and a failure to write one must never cost the board its ETA badges.
+    """
+
+    #: Not a ForeignKey, for the same reason AdvisorEvent's impact leg is not:
+    #: this is measurement evidence, and a cascade would silently delete the
+    #: samples behind a published precision number.
+    leg_id_ref = models.IntegerField(db_index=True)
+    driver_id_ref = models.IntegerField(null=True, blank=True, db_index=True)
+    #: The sweep's own clock for this tick — identical to the
+    #: ``dispatch_eta_evaluated_at`` it stamps on the leg, so a sample and the
+    #: leg row it produced are joinable on it.
+    sampled_at = models.DateTimeField(db_index=True)
+
+    #: pickup | next_pickup | dropoff. A dropoff target carries no deadline and
+    #: therefore no band — 07 scores it as an ETA only.
+    eta_target = models.CharField(max_length=12, blank=True, default="")
+    eta_minutes = models.IntegerField(null=True, blank=True)
+    eta_target_time = models.DateTimeField(null=True, blank=True)
+    #: on_time | watch | at_risk | late | unknown, or blank for a dropoff.
+    risk_status = models.CharField(max_length=12, blank=True, default="")
+    #: The sweep computes both of these and keeps neither — they survive today
+    #: only as English inside ``dispatch_risk_reason``, where nothing can score
+    #: them. Recomputed here by the same formula
+    #: (``samsara_risk.evaluate``: slack = minutes_to_target - drive_min), from
+    #: values stamped with the same ``now``, so they are the sweep's numbers
+    #: rather than a second opinion.
+    minutes_to_target = models.FloatField(null=True, blank=True)
+    slack_minutes = models.FloatField(null=True, blank=True)
+
+    #: The movement snapshot §3.4 names as GPS's real job — not predicting an
+    #: ETA, but answering whether a car with no pickup tap has left the pickup
+    #: point at all.
+    is_moving = models.BooleanField(null=True, blank=True)
+    stationary_minutes = models.IntegerField(null=True, blank=True)
+    #: The position the ETA was anchored to — NOT necessarily this tick's fix:
+    #: on a carried value the sweep keeps the older anchor on purpose, which is
+    #: exactly what makes ``eta_carried`` detectable.
+    origin_lat = models.FloatField(null=True, blank=True)
+    origin_lng = models.FloatField(null=True, blank=True)
+    vehicle_label = models.CharField(max_length=32, blank=True, default="")
+    eta_carried = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Dispatch ETA Sample"
+        verbose_name_plural = "Dispatch ETA Samples"
+        constraints = [
+            # One reading per leg per tick. The sweep can only produce one, and
+            # the constraint makes a retried or double-running loop harmless.
+            models.UniqueConstraint(
+                fields=["leg_id_ref", "sampled_at"],
+                name="uniq_eta_sample_leg_tick",
+            ),
+        ]
+        indexes = [
+            # Every analysis walks one leg's samples in time order.
+            models.Index(fields=["leg_id_ref", "sampled_at"],
+                         name="idx_eta_sample_series"),
+        ]
+
+    def __str__(self):
+        return (f"leg {self.leg_id_ref} @ {self.sampled_at:%Y-%m-%d %H:%M} "
+                f"{self.eta_target or '-'} {self.risk_status or '-'}")

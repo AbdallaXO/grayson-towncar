@@ -231,6 +231,18 @@ def _clear_eta_fields(leg):
     return True
 
 
+def _build_eta_sample(leg, fields, now):
+    """One DispatchEtaSample, or None. Isolated exactly like _run_fleet_work:
+    the ETA badges the dispatch board depends on must never go dark because the
+    log could not build a row."""
+    try:
+        from dispatching.eta_samples import build_sample
+        return build_sample(leg, fields, now)
+    except Exception:
+        logger.exception("eta sample build failed for leg %s", getattr(leg, "id", "?"))
+        return None
+
+
 def sweep_eta(now=None, refresh_eta=True) -> dict:
     """
     For each in-house driver with legs today, compute the schedule-aware ETA +
@@ -265,6 +277,7 @@ def sweep_eta(now=None, refresh_eta=True) -> dict:
         by_driver.setdefault(leg.driver_id, []).append(leg)
 
     to_update = []
+    samples = []
     flagged = 0
     for dlegs in by_driver.values():
         vehicle = resolve_assigned_fleet_vehicle(dlegs[0])
@@ -272,6 +285,13 @@ def sweep_eta(now=None, refresh_eta=True) -> dict:
         for leg in dlegs:
             fields = results.get(leg.id)
             if fields is not None:
+                # Keep the reading before it is overwritten (Phase 1.3). MUST
+                # come first: the leg still holds the PREVIOUS tick's ETA and
+                # origin here, and comparing them is the only way to know
+                # whether this tick's value carries new information.
+                sample = _build_eta_sample(leg, fields, now)
+                if sample is not None:
+                    samples.append(sample)
                 if _apply_eta_fields(leg, fields, now):
                     to_update.append(leg)
                 flagged += 1
@@ -280,6 +300,9 @@ def sweep_eta(now=None, refresh_eta=True) -> dict:
 
     if to_update:
         Leg.objects.bulk_update(to_update, _ETA_FIELDS)
+    if samples:
+        from dispatching.eta_samples import record_samples
+        record_samples(samples)
     logger.info(f"Samsara ETA sweep: flagged {flagged} leg(s) across {len(by_driver)} driver(s)")
     return {"status": "ok", "drivers": len(by_driver), "flagged": flagged}
 

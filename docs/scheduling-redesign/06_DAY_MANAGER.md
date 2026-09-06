@@ -34,7 +34,7 @@ ends, so their effect cannot be measured here at all** (§0.2).
 | No new daemon needed / allowed | `samsara_scheduler.py` — 180 s, lock `737_202`, `sweep_eta` at `:234`; `ghl_integration/scheduler.py` — 1800 s, lock `737_201`, runs `generate_ops_tasks` at `:183`. 04 §6 (`:183`) bans a new periodic daemon outright |
 | `AdvisorEvent` / `DispatchEtaSample` do not exist | absent from `dispatching/models.py` — both are new work in Phase 1 |
 | **The advisor has never been applied in production** | `reservations_schedulesnapshot.trigger` holds only `before_reset` (119), `before_auto_assign` (45), `manual` (36). No `conflict_advisor` trigger, ever |
-| Analysis script numbering 23–25 is free | `docs/scheduling-redesign/analysis/` runs 00–20, 22 (21 is unused); 23–27 are now taken |
+| Analysis script numbering 23–25 is free | `docs/scheduling-redesign/analysis/` runs 00–20, 22 (21 is unused); 23–28 are now taken |
 
 ### 0.2 Snapshot reconciliation and the scanner baseline [measured, 2026-09-05]
 
@@ -811,9 +811,63 @@ code it judges; every dispatcher-visible change ships with a release note; invis
    | The **ops task page wrote whole-board columns from a leg-filtered compute** | `for_leg_id` narrows the card set *before* the six-card cap and the 4 s budget, so one surviving card always gets full plan generation — `had_plans` would have reported plan coverage the replay never measured. Leg-filtered sightings no longer write those two columns |
    | The concurrent-insert recovery **could not run** | Its read sat inside the atomic block the failed INSERT had just marked for rollback, so it raised instead of recovering and the applied/snoozed stamp was lost in exactly the race it existed to survive. Its own savepoint now |
    | This document said a 30-minute log would cost "a quarter fewer cards" **per class** | That was the pooled figure applied to a per-class claim, and the gate had not computed coverage by class at all. It does now, and the real per-class gap is roughly twice as large — the table above |
-3. **GPS sweep history** — `sweep_eta` writes a compact `DispatchEtaSample` row per evaluated leg
-   (bulk insert on the same 180 s tick it already runs). Gate: 07's ETA-error table reproducible
-   from the new table.
+3. ~~**GPS sweep history**~~ **SHIPPED 2026-09-06.** `dispatching.models.DispatchEtaSample` +
+   `dispatching/eta_samples.py`; `sweep_eta` builds a row per evaluated leg and bulk-inserts on
+   the same 180 s tick, before `_apply_eta_fields` overwrites the leg. Invisible,
+   `Release-Note: none`. Gate script `analysis/28_eta_history_gate.py`, written before the model.
+
+   **The stated gate passes exactly:** 07's ETA-error table, rebuilt from sample-shaped rows by
+   the shipped reader (`eta_samples.prediction_errors`) — **6,575 committed rows, 6,575 rebuilt,
+   0 disagreements, 0 rows invented**. It matters that production code does the rebuilding: a
+   live figure computed a different way could not be set against §3.4's 72%.
+
+   **What the ticket did not say, and what it costs.** "A row per evaluated leg per tick" is a
+   volume decision nobody had priced. Simulating the sweep's own target selection over the same
+   28 days at its real cadence (`out/28_write_rules.csv`) — target selection depends only on leg
+   status, pickup time and deadline, so the row *stream* is exactly replayable even though the
+   ETA values are not:
+
+   | Write rule | Rows/day | MiB/yr | Scorable kept | Ambiguous legs |
+   |---|---:|---:|---:|---:|
+   | everything (the ticket, read literally) | 6,868 | 557 | 100.0% | 21/25 · 84.0% |
+   | under way only | 2,509 | 204 | 95.9% | **8/25 · 32.0%** |
+   | within 60 min only | 1,650 | 134 | 38.6% | 20/25 · 80.0% |
+   | **under way OR within 60 min** | **3,429** | **278** | **97.0%** | **21/25 · 84.0%** |
+
+   "Scorable" is 07's own window — a sample between the two taps it would be graded against. Only
+   **1,762 of the 6,868 daily rows are scorable at all**; the rest are a parked car hours from its
+   next job, a row no analysis in this project can grade.
+
+   **The last column is why the cheapest rule lost, and it is the measurement that mattered.**
+   "Under way" halves the volume and keeps 96% of what 07 can score — then loses two thirds of the
+   case §3.4 actually wants GPS for. An ambiguous leg is one whose milestone passed with no pickup
+   tap, where GPS's job is to say whether the car ever left; **a leg with no tap is, by
+   construction, not "under way" by status.** The union costs 900 more rows a day and loses
+   neither. Stated honestly: n=25 over 28 days is thin, and even keeping every tick covers only 21
+   of the 25 — four are never the sweep's target at all, because the car is unmapped or another
+   leg held the badge. The mechanism is structural rather than statistical, and the direction is
+   32% against 84%.
+
+   **Growth, so nobody is surprised.** ~1.25 M rows and ~278 MiB a year at today's fleet, which
+   makes this the largest table in the database inside a year. Volume tracks **drivers, not trips**
+   (~1.2 rows per driver-tick), so it grows with headcount. `eta_samples.RETENTION_DAYS` is the
+   dial and ships at **0 — keep everything** — because deleting samples deletes the evidence behind
+   a published number.
+
+   **Three values the sweep computes and has always destroyed are now kept:** `minutes_to_target`
+   and `slack_minutes` (they survive today only as English inside `dispatch_risk_reason`, where
+   nothing can score them — and `slack` is the quantity §3.4's 72% is actually about), and
+   `eta_carried` — this tick's ETA is the same number from the same anchor as the last, so it
+   carries no new information about the road. That last one is deliberately *not* called "reused":
+   whether a paid Google call happened is not knowable from the data, and for scoring it does not
+   matter. It matters at all because 07's error formula treats the evaluation stamp as the instant
+   the drive time was measured, and on a carried tick it is not.
+
+   **One defect worth recording, because it would have been silent.**
+   `Leg.dispatch_eta_origin_lat/lng` are `DecimalField`s, so last tick's anchor comes back as a
+   `Decimal` while the sweep's is a `float`, and `28.42 == Decimal("28.42")` is False. The first
+   implementation compared them raw, which would have made `eta_carried` permanently False — a
+   column that always says the same thing and tells you nothing. Caught by a test, pinned by one.
 4. **One clock for the scanner** — `classify_turn` / `detect_driver_conflicts` call
    `turn_slack_minutes` + `_turn_severity`; the 10-min red line becomes `pickup_policy.turn_band`.
    Gate: 25 re-run shows the same or fewer tasks/day with a higher move-close share; no
