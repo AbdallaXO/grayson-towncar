@@ -103,6 +103,22 @@ class TurnSlackWarningTests(AssignWarningsBase):
         self.assertTrue(resp["success"])
         self.assertEqual(resp["warnings"], [])
 
+    def test_only_a_real_conflict_carries_interrupting_severity(self):
+        """Severity decides what INTERRUPTS. turn_critical is right 90.3% of
+        the time (269 of 298 over 28 days) and earns a toast; turn_tight is
+        right 68.9% (235 of 341) — under D5's 70% bar, so one interruption in
+        three was a false alarm. Founder's call, 2026-09-06: it still computes,
+        still returns, still shows inside a toast a conflict raised, and the
+        board still bands the turn amber. It just stops tapping the dispatcher
+        on the shoulder by itself."""
+        from dispatching.assign_warnings import CLASS_SEVERITY
+        self.assertEqual(CLASS_SEVERITY["turn_critical"], "warning")
+        self.assertEqual(CLASS_SEVERITY["turn_tight"], "info")
+        # Every other class is advisory too — nothing but a real conflict
+        # should ever be the sole reason a dispatcher is interrupted.
+        interrupting = {k for k, v in CLASS_SEVERITY.items() if v == "warning"}
+        self.assertEqual(interrupting, {"turn_critical"})
+
     def test_severity_values_are_presentational_only(self):
         self._leg(9, 0, driver=self.driver)
         new = self._leg(9, 10, pickup=POLY)

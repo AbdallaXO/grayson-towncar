@@ -64,9 +64,25 @@ ACTIVE_STATUSES = ("confirmed", "in-progress", "on-the-way", "picked-up", "on-lo
 #       until the founder ratifies otherwise. share_pad stays info regardless
 #       (an under-pad handoff is AMBER per 03 §3.2 — a plan prompt, not an
 #       alarm; ~12% of real executed handoffs ran under 120 min).
+# Severity decides whether a class INTERRUPTS. Only "warning" raises the toast
+# on its own (timeline-dnd.stashAssignWarnings); "info" rides along inside a
+# toast raised by something else, so the fact is still there without a tap on
+# the shoulder.
+#
+# turn_tight is "info" on the founder's call (2026-09-06), and the number is why:
+# after the take-later clock fix it fires 341 times in 28 days and is right 235
+# of them — 68.9%, under the 70% bar D5 sets, so one interruption in three is a
+# false alarm. turn_critical is right 90.3% of the time (269 of 298) and keeps
+# interrupting. analysis/12 flagged this demotion; commit 3373b84e recorded it
+# as flagged-not-taken because it is a dispatcher-visible rendering decision.
+# It is taken now.
+#
+# Note what did NOT change: turn_tight is still computed, still returned, still
+# shown on a toast a real conflict raised, and the board still bands the turn
+# amber. The only thing removed is its power to interrupt on its own.
 CLASS_SEVERITY = {
     "turn_critical": "warning",
-    "turn_tight": "warning",
+    "turn_tight": "info",
     "share_overlap": "info",
     "share_interleave": "info",
     "share_pad": "info",

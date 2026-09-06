@@ -297,6 +297,18 @@
   var WARN_STASH_TTL_MS = 15000;
 
   function stashAssignWarnings(warnings) {
+    // Only a REAL conflict interrupts. An assignment whose only remarks are
+    // "info" (a tight turn, a shared-car note) is left alone: the board still
+    // bands the turn, and the remark still rides along inside a toast that a
+    // conflict raised. Founder's call, 2026-09-06, on the measurement — the
+    // tight-turn class is right 69% of the time against the conflict class's
+    // 90%, so one interruption in three was a false alarm.
+    // The rule lives here, not at the two call sites, so the board and the
+    // planner's quick-assign cannot drift apart.
+    if (!warnings || !warnings.some(function (w) { return w && w.severity === 'warning'; })) {
+      clearStashedAssignWarnings();
+      return;
+    }
     // Stamped with time + page so a stash orphaned by a failed reload can
     // never fire later on the wrong page or for a long-gone assignment.
     var payload = { ts: Date.now(), path: location.pathname, warnings: warnings };
