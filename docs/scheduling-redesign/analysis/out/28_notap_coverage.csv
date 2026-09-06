@@ -1,0 +1,9 @@
+rule,legs_sampled,legs_total,pct
+everything,21,25,84.0
+under_way,8,25,32.0
+near_60,20,25,80.0
+near_120,20,25,80.0
+near_180,20,25,80.0
+under_way_or_near_60,21,25,84.0
+under_way_or_near_120,21,25,84.0
+under_way_or_near_180,21,25,84.0

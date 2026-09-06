@@ -47,7 +47,8 @@ RA_CARDS_TTL_S = 120        # shared (date, fingerprint)-keyed compute cache
 # keeps serving the previous shape until the TTL drains. Bump it whenever the
 # serialized card or plan dict gains, loses or redefines a field.
 #   2 — dispatcher-facing `display` block (advisor_display.py)
-RA_CARD_SHAPE_V = 2
+#   3 — `file_task.disruption_id` (the ledger's join back to the card)
+RA_CARD_SHAPE_V = 3
 RA_CRIT_TTL_S = 300         # navbar badge mirror (today only)
 RA_SNOOZE_DEFAULT_MIN = 30
 RA_SNOOZE_CAP_MIN = 240     # owner decision: snooze is 30 min default, 4 h cap
@@ -182,6 +183,18 @@ def recovery_advisor_state(request):
         crit = sum(1 for c in cards if c.get("severity") == "critical")
         cache.set("ra_crit_count", crit, RA_CRIT_TTL_S)
 
+    # Ledger (Phase 1.2, invisible). Records the cards ACTUALLY SENT — after
+    # the snooze filter, farm-pending reminders included — because that is the
+    # set a screen received. Deliberately NOT on the short-circuit branch
+    # (which is pinned to three queries) and NOT at compute time (the card
+    # cache is shared across tabs for 120 s, so a compute is not a showing).
+    # Upserts by episode in two writes whatever the card count, and swallows
+    # its own failures: the rail must never go dark because a log row didn't.
+    from dispatching import advisor_events
+    advisor_events.record_cards(
+        d, cards, source="task" if for_leg_id is not None else "rail",
+        whole_board=for_leg_id is None)
+
     from dispatching.assignment import _active_draft_for_date, can_use_sandbox
     held = _active_draft_for_date(d) is not None
     return JsonResponse({
@@ -269,7 +282,12 @@ def recovery_advisor_file_task(request):
         metadata={"source": "conflict_advisor",
                   "driver_id": leg.driver_id},
     )
+    from dispatching import advisor_events
+    card_id = str(data.get("disruption_id") or "").strip()
+
     if task is not None:
+        advisor_events.record_task_filed(d, card_id, task_id=task.id,
+                                         created=True, user=request.user)
         return JsonResponse({"success": True, "created": True, "task_id": task.id})
 
     # Dedup/cooldown hit — hand back the open twin (if any) for the deep-link.
@@ -277,6 +295,10 @@ def recovery_advisor_file_task(request):
         leg_id=leg_id, task_type=task_type,
         status__in=list(OperationalTask.OPEN_STATUSES))
         .order_by("id").values_list("id", flat=True).first())
+    # created=False is the honest signal, not a failure: the 30-minute scanner
+    # had already filed the same task, which is what "superseded" means here.
+    advisor_events.record_task_filed(d, card_id, task_id=existing,
+                                     created=False, user=request.user)
     return JsonResponse({"success": True, "created": False, "task_id": existing})
 
 
@@ -317,6 +339,11 @@ def recovery_advisor_snooze(request):
     # self-expires with its last snooze.
     ttl = max(1, int(max(e["until"] for e in entries) - now))
     cache.set(key, entries, ttl)
+    # The snooze itself is cache-only and gone within four hours, so this row
+    # is the only lasting record that a card was dismissed, and by whom.
+    from dispatching import advisor_events
+    advisor_events.record_snoozed(d, disruption_id, minutes=minutes,
+                                  user=request.user)
     return JsonResponse({
         "success": True,
         "disruption_id": disruption_id,

@@ -147,6 +147,120 @@ class SchedulerSettings(models.Model):
     rest_min_gap_minutes = models.IntegerField(default=510, help_text="Min overnight rest: minutes between a driver's last drop-off (prev day) and his first pickup (next day). 510=8.5h. 0 disables rest scoring + advisories.")
     rest_penalty_per_hour = models.IntegerField(default=40, help_text="Score penalty per hour of overnight-rest deficit, charged ONLY when a leg would become a driver's first pickup of the day (soft — never blocks coverage).")
 
+    # ── Shared-Car Handoff (scheduling redesign, Build 1) ─────────
+    vehicle_share_pad_min = models.IntegerField(
+        default=120,
+        help_text="Shared-car handoff pad: when two drivers hold ONE physical unit "
+                  "for the day, an insert for one must clear the partner's jobs by "
+                  "this many minutes each side. 120 is the empirical anchor from "
+                  "measured handoffs — the retired constant 60 sat near the 9th "
+                  "percentile of real pickup-to-pickup handoff gaps (optimistic "
+                  "nine times in ten). Read by the manual-assign warning and the "
+                  "second-shift/mint engine — NOT by the build engine's own "
+                  "farm-out gate, which has its own dial below.")
+    engine_share_pad_min = models.IntegerField(
+        default=65,
+        help_text="Shared-car pad for the BUILD ENGINE's farm-out gate only "
+                  "(car_share.sharers_conflict) — separate from vehicle_share_pad_"
+                  "min on purpose (2026-08-24). The engine measures this pad from "
+                  "the outgoing driver's estimated CLEAR time to the partner's "
+                  "pickup; the warning/mint pad above measures pickup-to-pickup. "
+                  "At the shared 120 the engine was rejecting, and therefore "
+                  "farming out, real handoffs the founder confirmed ran fine — one "
+                  "as tight as a 48-min clear-to-pickup gap. Tune this one alone; "
+                  "it never affects the warning or the second-shift proposals.")
+
+    # ── Manual-Assign Warnings (scheduling redesign, Build 1) ─────
+    manual_assign_warnings = models.BooleanField(
+        default=True,
+        help_text="Warn-only validation on the manual assign path (board drag-drop "
+                  "and driver dropdowns): turn-slack and shared-car checks returned "
+                  "as dismissible warnings on the response. NEVER blocks an "
+                  "assignment. Off (0) skips the computation entirely.")
+
+    # ── Split Shifts & Handoffs (scheduling redesign, Build 2) ────
+    share_split_hour = models.IntegerField(
+        default=16,
+        help_text="Default AM/PM cut hour for a planned shared car when no better "
+                  "cut is known (16 = the measured modal handoff hour). A standby "
+                  "second-shift proposal derives its own cut from the actual "
+                  "handoff; this is the fallback for hand-made shares.")
+    handoff_gap_green_pct = models.IntegerField(
+        default=100,
+        help_text="Handoff GREEN bar as a percent of the central wash-fuel-base "
+                  "zone chain (drop zone to next-pickup zone). 100 = the 03-model "
+                  "rule exactly; lower is more permissive. Structured chain tables "
+                  "live in dispatching/handoff_chain.py.")
+    handoff_gap_amber_floor_pct = models.IntegerField(
+        default=100,
+        help_text="Handoff AMBER floor as a percent of the LOW zone chain — below "
+                  "this (and below the skip-wash fast path) a handoff is RED: "
+                  "shown, never suggested. 100 = the 03-model rule exactly.")
+    mint_min_jobs_soft = models.IntegerField(
+        default=2,
+        help_text="Soft minimum jobs on a proposed standby second shift (D6). "
+                  "NEVER a hard floor — a thinner proposal still shows, flagged "
+                  "'thin — worth it?' with the dollars it saves.")
+    span_exception_max_hours = models.FloatField(
+        default=15.0,
+        help_text="Hard ceiling for the priced crunch exception: a per-driver day "
+                  "may be proposed past the 13.5h soft cap ONLY up to this many "
+                  "hours, priced and rendered as a choice — never a default.")
+
+    # ── Day-Builder (scheduling redesign, Build 3b — Ticket A/B/D) ────────
+    # Pass A (the roster-size ladder) was CUT by the Ticket-C surrogate-noise
+    # gate (analysis/16, 2026-08-25): between-size differences don't clear
+    # within-size jitter. The builder optimizes pairing and splits at the
+    # dispatcher's chosen headcount, so there are no pass_a_* knobs.
+    opt_enabled = models.BooleanField(
+        default=False,
+        help_text="Master switch for the Day-Builder ('Build a plan' in Day "
+                  "Setup). Ships OFF — the feature exists but stays invisible "
+                  "until the founder turns it on (05 §7 acceptance).")
+    opt_epsilon_farmouts = models.IntegerField(
+        default=0,
+        help_text="The coverage dial: allow up to this many MORE farm-outs than "
+                  "the same-date suggest+build baseline to buy a better day "
+                  "(0-3). At 0 the builder may never worsen coverage. Applies "
+                  "to the farm-out count ONLY — it can never buy a wall "
+                  "(conflicts, hours, rest, shared-car rules).")
+    pass_b_max_swaps = models.IntegerField(
+        default=6,
+        help_text="Day-Builder: max targeted pairing swaps considered per run. "
+                  "A swap is considered only when it changes a tier constraint "
+                  "or reshapes a shared car.")
+    pass_b_max_evals = models.IntegerField(
+        default=10,
+        help_text="Day-Builder: hard budget of full pipeline evaluations per "
+                  "run (each costs ~6-15s on a real day).")
+    opt_runtime_budget_s = models.IntegerField(
+        default=240,
+        help_text="Day-Builder: wall-clock ceiling in seconds. The job stops "
+                  "at the ceiling and returns its best-so-far, flagged "
+                  "'budget exhausted' — never silently truncated.")
+    opt_stale_after_min = models.IntegerField(
+        default=120,
+        help_text="Day-Builder: a computed plan older than this many minutes "
+                  "renders greyed with a 're-build' prompt (bookings move).")
+    opt_w_span = models.FloatField(
+        default=1.0,
+        help_text="Day-Builder quality weight [assumed]: sum of per-driver "
+                  "effective hours over the 13.5h target. Tie-break only — "
+                  "never outranks coverage or farm cost, never moves a wall.")
+    opt_w_fairness = models.FloatField(
+        default=1.0,
+        help_text="Day-Builder quality weight [assumed]: stdev of legs per "
+                  "working driver. Tie-break only.")
+    opt_w_handoff = models.FloatField(
+        default=2.0,
+        help_text="Day-Builder quality weight [assumed]: count of AMBER "
+                  "handoff bands in the plan (RED is a wall, never scored). "
+                  "Tie-break only.")
+    opt_w_gaps = models.FloatField(
+        default=0.5,
+        help_text="Day-Builder quality weight [assumed]: hours of internal "
+                  "idle gaps above the idle-gap threshold. Tie-break only.")
+
     # ── Greedy Type Ordering (lower = processed earlier within each hour) ──
     type_priority_return = models.IntegerField(default=0, help_text="Ordering priority for returns/departures within each hour bucket")
     type_priority_cruise = models.IntegerField(default=1, help_text="Ordering priority for cruise legs within each hour bucket")
@@ -274,3 +388,322 @@ class ChauffeurExceptionDismissal(models.Model):
     def __str__(self):
         state = "cleared" if self.cleared_at else "active"
         return f"{self.driver} · {self.rule} ({state})"
+
+
+class DayPlan(models.Model):
+    """One Day-Builder job + its latest result, per service date (Build 3b, Ticket D).
+
+    The claim row: "Build a plan" claims the date's row by a race-safe UPDATE
+    (status -> running) so a double-click cannot double-run, then the work runs
+    in a `_run_in_background` daemon thread (the existing pattern; the wrapper
+    closes the thread's DB connection on exit — the 2026-07-18 standing rule).
+    The panel polls status and renders `result_json` with the computed-at stamp.
+
+    STRICTLY the job ledger: the plan itself never writes a Leg or a
+    DriverVehicleAssignment row — v1 is propose-only (05 Ticket E).
+    """
+    STATUS_CHOICES = [
+        ("idle", "Idle"), ("running", "Running"), ("done", "Done"),
+        ("refused", "Refused"), ("error", "Error"),
+    ]
+    date = models.DateField(unique=True, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="idle")
+    epsilon = models.IntegerField(default=0)
+    requested_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    requested_at = models.DateTimeField(null=True, blank=True)
+    #: When the job STARTED reading the day — the "from bookings as of" stamp.
+    bookings_as_of = models.DateTimeField(null=True, blank=True)
+    computed_at = models.DateTimeField(null=True, blank=True)
+    result_json = models.TextField(blank=True, default="")
+    error = models.TextField(blank=True, default="")
+    budget_exhausted = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"DayPlan {self.date} ({self.status})"
+
+
+class AdvisorEvent(models.Model):
+    """One Recovery Advisor card, from the first time it reached a screen to
+    what actually happened to the trip it was about.
+
+    WHY THIS EXISTS. The advisor's precision was measured once, offline, by
+    replaying 28 days through it (``analysis/23_advisor_replay.py``). That
+    number is a photograph: it stops being true the moment a detector, a
+    constant or the board's shape changes, and nothing in production would say
+    so. D5 refuses to show a warning class below 70% precision, so the number
+    has to keep being computed after launch — which means the cards have to be
+    written down as they are raised, and graded once the day is over. This
+    table is that ledger, and it is also the trust ledger D14 would need before
+    anything here is ever allowed to apply itself.
+
+    ONE ROW PER EPISODE, NOT PER CARD ID. The engine's card id is an anti-flap
+    key, not a lifecycle: ``overlap:{prev}:{next}`` is reborn under the same
+    string every time the same pair breaks again, and a card can leave the rail
+    (a fresh on-time GPS ping suppresses it) and come back an hour later. An
+    episode is one continuous run of sightings; a sighting more than
+    ``advisor_events.EPISODE_GAP_MIN`` after the last one opens a new episode.
+    Measured on the 28-day replay before this table existed
+    (``analysis/27_advisor_event_gate.py`` -> ``out/27_identity_stability.csv``).
+
+    A CARD IS NOT ONE THING WHILE IT LIVES, so this row records both ends.
+    Under a stable id, ``severity`` and ``basis`` flip as a tap lands or GPS
+    goes stale, and — the one that decides the grading — ``leg_ids[-1]``, the
+    downstream trip the card is ABOUT, changes as ``_downstream_breaks``
+    re-walks the chain. The outcome is graded on the impact leg as LAST seen,
+    and ``impact_leg_first_id`` preserves the first claim so a moved claim is
+    visible rather than silently overwritten.
+
+    WHAT "SEEN" MEANS, EXACTLY. A sighting is "the server sent this card to a
+    browser, or the background sweep computed it" — never "a dispatcher read
+    it". The rail polls while collapsed and while the tab is unfocused-then-
+    refocused, so these counts are an upper bound on human attention and must
+    never be reported as one. ``source`` records which surface saw it first.
+
+    THE OUTCOME IS THE REPLAY'S, DELIBERATELY. ``advisor_events.leg_lateness``
+    is a line-for-line ORM twin of 23's ``build_truth`` — last on-location tap
+    against ``pickup_policy.pickup_deadline``, 19's batch-tap rule, one decimal,
+    strictly greater than 15 — because a live precision number computed a
+    different way could not be compared with the replay's, and comparing them is
+    the only reason to keep this table. ``outcome_deadline`` and
+    ``outcome_deadline_basis`` are stored alongside the verdict so that a flight
+    record edited after the fact shows up as a disagreement instead of a
+    mystery.
+
+    STRICTLY A LEDGER. Nothing here is read by detection, generation, ranking or
+    the apply path; a row failing to write must never fail a poll or an apply,
+    and every writer in ``advisor_events`` is wrapped accordingly.
+    """
+
+    SOURCE_CHOICES = [
+        ("rail", "Dispatch board rail"),
+        ("task", "Ops task detail"),
+        ("sweep", "Background sweep"),
+    ]
+    #: 19's tap-quality vocabulary, plus the two 23 adds. ``no_deadline`` is a
+    #: leg ``pickup_deadline`` could not price; ``unknown`` is an impact leg that
+    #: is not on the service date at all (a card CAN name the previous evening's
+    #: tail leg — conflict_advisor._load_prev_tail).
+    QUALITY_CHOICES = [
+        ("ok", "Scored"), ("batch", "Batch-entered taps"),
+        ("none", "No usable tap"), ("no_deadline", "No priceable deadline"),
+        ("unknown", "Impact leg off the date"),
+    ]
+
+    # ── identity ──────────────────────────────────────────────────────────
+    service_date = models.DateField(db_index=True)
+    #: The engine's anti-flap id (conflict_advisor.Disruption.id) — carries no
+    #: date, so it is only unique WITH service_date. May also be a synthetic
+    #: ``farm_pending:{leg}`` id, which no detector ever emitted.
+    card_id = models.CharField(max_length=120, db_index=True)
+    episode = models.PositiveSmallIntegerField(default=1)
+
+    # ── what the card was, first and last ─────────────────────────────────
+    kind = models.CharField(max_length=24, blank=True, default="")
+    severity = models.CharField(max_length=10, blank=True, default="")
+    basis = models.CharField(max_length=24, blank=True, default="")
+    severity_last = models.CharField(max_length=10, blank=True, default="")
+    basis_last = models.CharField(max_length=24, blank=True, default="")
+    #: Volatile by design (unassigned embeds "12 min out", overrun the overrun
+    #: minutes), so this is the first one only — a label for a human reading the
+    #: ledger, never a key.
+    headline = models.CharField(max_length=200, blank=True, default="")
+
+    # ── the claim ─────────────────────────────────────────────────────────
+    #: NOT a ForeignKey on purpose. A card can name a leg on the previous
+    #: service date, and a CASCADE would delete ledger rows when a leg is
+    #: deleted — quietly moving every precision number this table exists to
+    #: keep honest.
+    impact_leg_id = models.IntegerField(null=True, blank=True, db_index=True)
+    impact_leg_first_id = models.IntegerField(null=True, blank=True)
+    #: len(leg_ids). 1 means the card names no downstream victim, so its outcome
+    #: grades the leg it fired on — 23's ``pct_single_leg`` honesty column, and
+    #: the reason §3.3's headline precisions flatter the tool.
+    leg_count = models.PositiveSmallIntegerField(default=0)
+    impact_at = models.DateTimeField(null=True, blank=True)
+
+    # ── lifecycle ─────────────────────────────────────────────────────────
+    first_seen_at = models.DateTimeField(db_index=True)
+    last_seen_at = models.DateTimeField()
+    sightings = models.PositiveIntegerField(default=1)
+    source = models.CharField(max_length=8, choices=SOURCE_CHOICES, default="rail")
+    #: Ever arrived carrying at least one validated plan. §3.3's one durable
+    #: finding is that 88-96% of the two biggest classes do, and that this is
+    #: worth screen space independently of whether the warning was necessary.
+    had_plans = models.BooleanField(default=False)
+    #: Ever came back past ADVISOR_MAX_DISRUPTIONS with no plans attached.
+    detected_only = models.BooleanField(default=False)
+
+    # ── what the dispatcher did ───────────────────────────────────────────
+    applied_at = models.DateTimeField(null=True, blank=True)
+    applied_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    #: The plan's positional id ({card}#p{rank}) plus the mode the write took.
+    #: Positional means it is a label, not a key — the ranking can change
+    #: between two polls of the same card.
+    applied_plan_id = models.CharField(max_length=140, blank=True, default="")
+    applied_mode = models.CharField(max_length=8, blank=True, default="")
+    applied_snapshot_id = models.IntegerField(null=True, blank=True)
+    #: An apply the engine refused: 409 board-drifted, 400 hard rule, 403
+    #: sandbox, 404 leg gone. Recorded because a plan a dispatcher tried and
+    #: could not use is not the same as a plan nobody wanted.
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    rejected_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    rejected_error = models.CharField(max_length=200, blank=True, default="")
+
+    snoozed_at = models.DateTimeField(null=True, blank=True)
+    snoozed_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    snoozed_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
+    #: Re-snoozing the same card is legal and overwrites the cache entry in
+    #: place, so the stamp is the LAST snooze and this is how many there were.
+    snooze_count = models.PositiveSmallIntegerField(default=0)
+
+    task_filed_at = models.DateTimeField(null=True, blank=True)
+    task_filed_by = models.ForeignKey("auth.User", null=True, blank=True,
+                                      on_delete=models.SET_NULL, related_name="+")
+    task_id = models.IntegerField(null=True, blank=True)
+    #: False when ops.services.create_task deduped or hit its two-hour cooldown
+    #: — the scanner had already filed the same task. That is the honest
+    #: "superseded" signal, and counting it as a filing would overstate the rail.
+    task_created = models.BooleanField(default=False)
+
+    # ── what actually happened ────────────────────────────────────────────
+    outcome_filled_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    outcome_attempts = models.PositiveSmallIntegerField(default=0)
+    outcome_quality = models.CharField(max_length=12, choices=QUALITY_CHOICES,
+                                       blank=True, default="")
+    #: Minutes the impact leg's on-location tap landed after its deadline, to
+    #: one decimal and signed — 23's units exactly, so `> 15` here and `> 15`
+    #: there mean the same thing. Null whenever quality != "ok".
+    outcome_late_min = models.FloatField(null=True, blank=True)
+    outcome_deadline = models.DateTimeField(null=True, blank=True)
+    outcome_deadline_basis = models.CharField(max_length=60, blank=True, default="")
+    outcome_tap_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Advisor Event"
+        verbose_name_plural = "Advisor Events"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service_date", "card_id", "episode"],
+                name="uniq_advisor_event_episode",
+            ),
+        ]
+        indexes = [
+            # The nightly fill's only query: yesterday's unresolved rows.
+            models.Index(fields=["service_date", "outcome_filled_at"],
+                         name="idx_advisor_event_fill"),
+        ]
+
+    def __str__(self):
+        state = self.outcome_quality or "unscored"
+        return f"{self.service_date} {self.card_id} #{self.episode} ({state})"
+
+
+class DispatchEtaSample(models.Model):
+    """One reading of where a car was, relative to where it had to be next.
+
+    WHY THIS EXISTS. The Samsara sweep already asks this question every 180
+    seconds for every in-house driver, writes the answer onto the leg, and
+    destroys it on the next tick — ``sweep_eta`` overwrites the same twelve
+    ``dispatch_*`` columns in place, and ``bulk_update`` fires no signal, so not
+    even simple-history sees it. What survives today is an accident: an
+    unrelated ``.save()`` on a leg copies whatever the last sweep happened to
+    leave, which is why the only prediction log this project has is triggered by
+    driver taps rather than by the sweep — a median 33 minutes apart against a
+    3-minute cadence, and clustered around taps.
+
+    WHY IT IS NOT SUPPORT WORK (06 §3.4). Day-of lateness splits in two: the
+    milestone rule catches "he never got started"; GPS is the only thing that
+    can see "he started fine and is now stuck". 07 scores that second signal at
+    72% on "late at all" — the strongest predictor measured anywhere in this
+    project — on 442 accidental samples. It cannot be pushed further, or scored
+    per class, or replayed at all, until the sweep keeps what it already knows.
+
+    NOT EVERY TICK IS WORTH A ROW, and the rule was measured before it was
+    chosen (``analysis/28_eta_history_gate.py``, 28 real days at the real
+    180 s cadence, ``out/28_write_rules.csv``). A literal per-tick insert is
+    6,868 rows/day — 2.5 M a year, and three quarters of them a parked car
+    hours from its next job. See ``eta_samples.WRITE_RULE`` for what is written
+    instead and what that was tested against; the short version is half the rows
+    for 97% of the samples any analysis can grade and 100% of the ambiguous
+    legs §3.4 needs.
+
+    A NOTE ON ``eta_carried``, because it is easy to misread. It does NOT mean
+    "no Google call was made" — that is not knowable from the data. It means
+    this tick's ETA is the same number from the same origin as the previous
+    sample, so it carries no new information about the road, whether it was a
+    reused value or a fresh call that came back unchanged. That is the honest
+    version of the distinction, and it is the one an analysis needs: 07's error
+    formula treats ``sampled_at`` as the instant the drive time was measured,
+    and on a carried tick it is not.
+
+    STRICTLY A LEDGER, like ``AdvisorEvent``: nothing reads it in a request
+    path, and a failure to write one must never cost the board its ETA badges.
+    """
+
+    #: Not a ForeignKey, for the same reason AdvisorEvent's impact leg is not:
+    #: this is measurement evidence, and a cascade would silently delete the
+    #: samples behind a published precision number.
+    leg_id_ref = models.IntegerField(db_index=True)
+    driver_id_ref = models.IntegerField(null=True, blank=True, db_index=True)
+    #: The sweep's own clock for this tick — identical to the
+    #: ``dispatch_eta_evaluated_at`` it stamps on the leg, so a sample and the
+    #: leg row it produced are joinable on it.
+    sampled_at = models.DateTimeField(db_index=True)
+
+    #: pickup | next_pickup | dropoff. A dropoff target carries no deadline and
+    #: therefore no band — 07 scores it as an ETA only.
+    eta_target = models.CharField(max_length=12, blank=True, default="")
+    eta_minutes = models.IntegerField(null=True, blank=True)
+    eta_target_time = models.DateTimeField(null=True, blank=True)
+    #: on_time | watch | at_risk | late | unknown, or blank for a dropoff.
+    risk_status = models.CharField(max_length=12, blank=True, default="")
+    #: The sweep computes both of these and keeps neither — they survive today
+    #: only as English inside ``dispatch_risk_reason``, where nothing can score
+    #: them. Recomputed here by the same formula
+    #: (``samsara_risk.evaluate``: slack = minutes_to_target - drive_min), from
+    #: values stamped with the same ``now``, so they are the sweep's numbers
+    #: rather than a second opinion.
+    minutes_to_target = models.FloatField(null=True, blank=True)
+    slack_minutes = models.FloatField(null=True, blank=True)
+
+    #: The movement snapshot §3.4 names as GPS's real job — not predicting an
+    #: ETA, but answering whether a car with no pickup tap has left the pickup
+    #: point at all.
+    is_moving = models.BooleanField(null=True, blank=True)
+    stationary_minutes = models.IntegerField(null=True, blank=True)
+    #: The position the ETA was anchored to — NOT necessarily this tick's fix:
+    #: on a carried value the sweep keeps the older anchor on purpose, which is
+    #: exactly what makes ``eta_carried`` detectable.
+    origin_lat = models.FloatField(null=True, blank=True)
+    origin_lng = models.FloatField(null=True, blank=True)
+    vehicle_label = models.CharField(max_length=32, blank=True, default="")
+    #: The destination the drive time was priced TO. Stored so ``eta_carried``
+    #: is checkable from the data rather than trusted: it is one of the three
+    #: things that must be unchanged for a tick to carry no new information, and
+    #: it is the string ``_can_reuse_eta`` itself keys on.
+    origin_target = models.CharField(max_length=120, blank=True, default="")
+    eta_carried = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Dispatch ETA Sample"
+        verbose_name_plural = "Dispatch ETA Samples"
+        constraints = [
+            # One reading per leg per tick. The sweep can only produce one, and
+            # the constraint makes a retried or double-running loop harmless.
+            models.UniqueConstraint(
+                fields=["leg_id_ref", "sampled_at"],
+                name="uniq_eta_sample_leg_tick",
+            ),
+        ]
+        indexes = [
+            # Every analysis walks one leg's samples in time order.
+            models.Index(fields=["leg_id_ref", "sampled_at"],
+                         name="idx_eta_sample_series"),
+        ]
+
+    def __str__(self):
+        return (f"leg {self.leg_id_ref} @ {self.sampled_at:%Y-%m-%d %H:%M} "
+                f"{self.eta_target or '-'} {self.risk_status or '-'}")

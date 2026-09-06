@@ -48,6 +48,8 @@
   }
 
   // ── Assignment API call ──
+  // live_override (set via the held-day "Edit live" toggle) forces a write to the
+  // live schedule even when the date is held — for emergency same-day changes.
   function assignLeg(legId, driverId) {
     return fetch('/dispatching/update-leg-assignment/', {
       method: 'POST',
@@ -55,7 +57,7 @@
         'X-CSRFToken': getCSRF(),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ leg_id: legId, field: 'driver', value: driverId }),
+      body: JSON.stringify({ leg_id: legId, field: 'driver', value: driverId, live_override: !!window._draftEditLive }),
     }).then(function (r) { return r.json(); });
   }
 
@@ -67,7 +69,7 @@
         'X-CSRFToken': getCSRF(),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ leg_id: legId, field: 'driver', value: '' }),
+      body: JSON.stringify({ leg_id: legId, field: 'driver', value: '', live_override: !!window._draftEditLive }),
     }).then(function (r) { return r.json(); });
   }
 
@@ -108,7 +110,7 @@
     toast.className = 'dnd-undo-toast';
     toast.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;">' +
-        '<span>' + msg + '</span>' +
+        '<span>' + escapeHtml(msg) + '</span>' +
         '<button class="btn btn-sm btn-warning dnd-undo-btn">Undo</button>' +
         '<span class="dnd-undo-countdown" style="font-size:0.75rem;opacity:0.7;">8s</span>' +
       '</div>';
@@ -243,11 +245,16 @@
     promise.then(function (resp) {
       if (resp.success) {
         feasibilityCache.clear();
+        // Advisory warnings for the assignment just made — survive the reload.
+        if (resp.warnings && resp.warnings.length) stashAssignWarnings(resp.warnings);
         // Show success toast briefly then reload to update layout
         showUndoToast(
           customerName + ' ' + timeStr + ': ' + srcName + ' → ' + tgtName,
           function () {
-            // Undo: reassign back then reload
+            // Undo: reassign back then reload. The stash from the reverted
+            // assignment must die with it — a "Check this assignment" toast
+            // about a move that no longer exists would misdirect.
+            clearStashedAssignWarnings();
             var undoPromise;
             if (origDriverId === 'unassigned') {
               undoPromise = unassignLeg(legId);
@@ -280,6 +287,68 @@
     }, 4000);
   }
 
+  // ── Assignment warnings toast (warn-only validation) ──
+  // update-leg-assignment now returns advisory `warnings` for the assignment
+  // just made (turn slack, shared-car checks). The assignment ALWAYS goes
+  // through — these only inform. The board reloads right after a successful
+  // drop, so the warnings are stashed in sessionStorage and rendered as a
+  // dismissible toast once the reloaded page comes up.
+  var WARN_KEY = 'dndAssignWarnings';
+  var WARN_STASH_TTL_MS = 15000;
+
+  function stashAssignWarnings(warnings) {
+    // Stamped with time + page so a stash orphaned by a failed reload can
+    // never fire later on the wrong page or for a long-gone assignment.
+    var payload = { ts: Date.now(), path: location.pathname, warnings: warnings };
+    try { sessionStorage.setItem(WARN_KEY, JSON.stringify(payload)); } catch (e) { /* private mode */ }
+  }
+
+  function clearStashedAssignWarnings() {
+    try { sessionStorage.removeItem(WARN_KEY); } catch (e) { /* private mode */ }
+  }
+
+  function showStashedAssignWarnings() {
+    var raw = null;
+    try {
+      raw = sessionStorage.getItem(WARN_KEY);
+      if (raw !== null) sessionStorage.removeItem(WARN_KEY);
+    } catch (e) { return; }
+    if (!raw) return;
+    var payload;
+    try { payload = JSON.parse(raw); } catch (e) { return; }
+    if (!payload || !payload.warnings || !payload.warnings.length) return;
+    if (!payload.ts || (Date.now() - payload.ts) > WARN_STASH_TTL_MS) return;
+    if (payload.path && payload.path !== location.pathname) return;
+    showWarningsToast(payload.warnings);
+  }
+
+  function showWarningsToast(warnings) {
+    var toast = document.createElement('div');
+    toast.className = 'dnd-warn-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    var rows = '';
+    warnings.forEach(function (w) {
+      var sev = (w && w.severity === 'warning') ? 'warn' : 'info';
+      var text = (w && w.text) ? w.text : String(w);
+      rows += '<div class="dnd-warn-row dnd-warn-' + sev + '">' + escapeHtml(text) + '</div>';
+    });
+    toast.innerHTML =
+      '<div class="dnd-warn-head">' +
+        '<span>Check this assignment</span>' +
+        '<button type="button" class="dnd-warn-close" aria-label="Dismiss">&times;</button>' +
+      '</div>' + rows;
+    document.body.appendChild(toast);
+    function dismiss() { if (toast.parentNode) toast.parentNode.removeChild(toast); }
+    toast.querySelector('.dnd-warn-close').addEventListener('click', dismiss);
+    setTimeout(dismiss, 30000);
+  }
+
+  // Pages that assign through their own fetch (the planner's quick-assign
+  // dropdown) stash the endpoint's warnings here before their reload; init()
+  // renders them after it, same as a drag-drop.
+  window.dndStashAssignWarnings = stashAssignWarnings;
+
   // ── Cached row rects for fast hit-testing during drag ──
   var rowRectsCache = null;
 
@@ -306,6 +375,10 @@
 
   // ── Initialize DnD ──
   function init() {
+    // Warnings stashed by the drop that triggered this reload (shown on any
+    // page that runs this module, even before the rows container mounts).
+    showStashedAssignWarnings();
+
     var container = document.querySelector('.timeline-rows');
     if (!container) return;
 
@@ -320,6 +393,13 @@
       var slot = e.target.closest('[draggable="true"]');
       if (!slot) { e.preventDefault(); return; }
       if (window._gapPopupActive) { e.preventDefault(); return; }
+      // Board locked: a draft submitted for review is read-only until the
+      // manager approves or requests changes.
+      if (container.dataset.boardLocked === '1') {
+        e.preventDefault();
+        if (window.showBoardLockedNotice) window.showBoardLockedNotice();
+        return;
+      }
 
       draggedEl = slot;
       draggedLegId = slot.dataset.legId;

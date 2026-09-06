@@ -371,6 +371,8 @@ Countdown-to-impact is recomputed client-side every 30s from impact_at.
           leg_id: card.file_task.leg_id,
           task_type: card.file_task.task_type,
           title: card.file_task.title,
+          // Ties the filed task back to the card in the advisor ledger.
+          disruption_id: card.file_task.disruption_id || card.id,
         }).then(function (res) {
           if (res.status === 200 && res.data.task_id) {
             var link = el('a', 'ra-link', 'Task #' + res.data.task_id);

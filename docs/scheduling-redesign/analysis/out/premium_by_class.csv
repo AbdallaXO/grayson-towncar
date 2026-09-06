@@ -1,0 +1,6 @@
+vehicle_class,farmed_legs_priced,inhouse_legs_priced,affiliate_actual_usd,inhouse_counterfactual_usd,premium_usd,premium_usd_per_leg,affiliate_mean_usd,affiliate_median_usd,affiliate_p75_usd,inhouse_mean_usd,inhouse_median_usd,inhouse_p75_usd,farmout_share_pct
+towncar,954,2912,91088.58,34239.12,56849.46,59.59,95.48,89.5,101.0,35.64,25.0,44.5,24.71
+suv,840,3940,90443.73,33568.45,56875.28,67.71,107.67,90.0,118.0,38.82,25.0,52.5,17.74
+mini_van,554,2668,56690.85,20302.93,36387.92,65.68,102.33,90.0,113.0,35.55,25.0,48.0,17.27
+van,299,1819,46912.16,13029.46,33882.7,113.32,156.9,144.0,190.0,41.83,35.0,59.0,14.14
+Van(14 Pax),73,535,12785.53,3693.7,9091.83,124.55,175.14,180.0,200.0,45.89,40.0,69.0,12.44

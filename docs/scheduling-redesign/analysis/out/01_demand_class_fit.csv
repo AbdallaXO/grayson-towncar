@@ -1,0 +1,8 @@
+min_feasible_class,booked_class,legs,share_of_testable
+mini_van,suv,492,0.15659
+towncar,suv,121,0.03851
+towncar,mini_van,110,0.03501
+van,Van(14 Pax),47,0.01496
+suv,van,26,0.00827
+mini_van,van,11,0.0035
+mini_van,Van(14 Pax),2,0.00064

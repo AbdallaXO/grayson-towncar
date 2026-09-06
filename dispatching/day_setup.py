@@ -34,8 +34,10 @@ DAY_SETUP_MIN_UNIT_DAYS = 5        # units used fewer days than this in the wind
                                    # "rarely used": suggested only as a LAST RESORT (founder:
                                    # "there is no such thing as a car not working today" —
                                    # every unit is fleet capacity, the label just flags it)
-DAY_SETUP_SHARE_HANDOFF_HOUR = 15  # default AM/PM split hour for a planned shared car —
-                                   # editable per driver in the auto-assign modal afterwards
+# The default AM/PM split hour for a planned shared car moved to the live
+# SchedulerSettings singleton (`share_split_hour`, default 16 — the measured
+# modal handoff hour; scheduling redesign Build 2e). Still editable per driver
+# in the auto-assign modal afterwards.
 DAY_SETUP_SHARE_PAD_HOURS = 0      # AM partner's End and PM partner's Start are the handoff
                                    # hour itself; the engine's hard pickup-hour windows +
                                    # clear-by guard keep the physical handoff honest
@@ -120,7 +122,11 @@ def peak_concurrency(target_date, legs=None):
     if legs is None:
         from reservations.models import Leg
         legs = list(Leg.objects.filter(pickup_date=target_date)
-                    .exclude(reservation__status="cancelled").exclude(status="cancelled")
+                    # BOTH cancellation spellings exist on Reservation.status in
+                    # production ('cancelled' and one-L 'canceled'); Leg.status only
+                    # ever carries the two-L form. (00 §A6 non-negotiable filter.)
+                    .exclude(reservation__status__in=("cancelled", "canceled"))
+                    .exclude(status="cancelled")
                     .select_related("reservation__vehicle", "vehicle",
                                     "reservation", "flight_information"))
     if sch._timing_cache is None:
@@ -314,7 +320,10 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
     # flight_information, so select them here and avoid the N+1).
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
-        .exclude(reservation__status="cancelled").exclude(status="cancelled")
+        # Same exclusion as peak_concurrency above (the docstring there promises
+        # parity): both Reservation cancellation spellings, two-L Leg status.
+        .exclude(reservation__status__in=("cancelled", "canceled"))
+        .exclude(status="cancelled")
         .select_related("reservation__vehicle", "vehicle",
                         "reservation", "flight_information")
     )
@@ -737,10 +746,13 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
             f"Second-Shift Advisor proposes adding them after the build if the day "
             f"needs a second shift.")
     elif unmatched:
+        from dispatching.models import SchedulerSettings
         sharable = sorted(((avail_start.get(pid, 4), pid) for pid in proposed),
                           key=lambda t: (t[0], t[1]))
         shared_partners = set()
-        h = DAY_SETUP_SHARE_HANDOFF_HOUR
+        # The share-cut hour is live-editable (Build 2e): SchedulerSettings
+        # share_split_hour, default 16 — the measured modal handoff hour.
+        h = SchedulerSettings.get_settings().share_split_hour
         for d in list(unmatched):
             pick = None
             for st, pid in sharable:
@@ -962,7 +974,18 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
         unit_key.get(r.get("vehicle_id"), (0, 0, "")),
         r["driver_name"].lower(),
     ))
-    return {
+    # ── Build-2 split-shift extras: ADDITIVE payload keys only (shared_units /
+    # mint_proposals / span_exceptions / standby_pool + per-row span_hours).
+    # Any failure degrades to the classic payload — never breaks the modal. ──
+    extras = {}
+    try:
+        extras = _split_shift_extras(target_date, legs, all_units, oos_units,
+                                     proposed, drivers, by_id, rows)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Day Setup split-shift extras failed")
+
+    payload = {
         "date": target_date.isoformat(),
         "rows": rows,
         "swaps": swaps,
@@ -984,6 +1007,8 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
         # snapshot for the apply view's drift check (409 if a row changed since preview)
         "snapshot": {str(a.driver_id): a.vehicle_id for a in existing.values()},
     }
+    payload.update(extras)
+    return payload
 
 
 def _vnum(vid, units):
@@ -991,3 +1016,355 @@ def _vnum(vid, units):
         if u.id == vid:
             return u.vehicle_number
     return "?"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SPLIT SHIFTS & HANDOFFS (scheduling redesign, Build 2) — payload extras
+# ═════════════════════════════════════════════════════════════════════════════
+# Additive keys on the suggest payload: `shared_units` (green/amber/red handoff
+# feasibility per shared car, 2b), `mint_proposals` (standby second shifts, 2c),
+# `span_exceptions` (the priced crunch exception, 2d), `standby_pool`, plus a
+# per-row `span_hours` readout. Existing keys untouched. Propose-only: nothing
+# here writes — a ticked proposal goes through apply_day_setup like any pair.
+#
+# The pool rule and the mint engine are dispatching/standby_mints.py — the
+# SHARED core extracted from analysis/10 (verified byte-identical), so the
+# panel's feasibility verdicts cannot drift from the evidence replay. The zone
+# chain and the band rule are dispatching/handoff_chain.py. No drive-time
+# lookups on unknown routes happen here (the chain is a static table): the
+# billed INLINE_RESOLVER path is untouched.
+
+def _fmt_clock(dt_):
+    return dt_.strftime("%I:%M %p").lstrip("0")
+
+
+def _fmt_hour(h):
+    """12-hour label for a whole hour — the panel never shows 24-hour time."""
+    if h == 0:
+        return "12:00 AM"
+    if h < 12:
+        return f"{h}:00 AM"
+    if h == 12:
+        return "12:00 PM"
+    return f"{h - 12}:00 PM"
+
+
+def _split_shift_extras(target_date, legs, all_units, oos_units,
+                        proposed, drivers, by_id, rows):
+    """Build the Build-2 payload keys. Read-only; estimates from booked times."""
+    from datetime import datetime as _dt
+
+    from dispatching import feasibility_guards as fg
+    from dispatching import handoff_chain as hc
+    from dispatching import standby_mints as sm
+    from dispatching.analytics import categorize_location
+    from dispatching.models import SchedulerSettings
+    from drivers.models import Driver, DriverDateOverride, DriverVehicleAssignment
+    from reservations.models import Leg
+
+    cfg = SchedulerSettings.get_settings()
+    unit_by_id = {u.id: u for u in all_units}
+    for u in oos_units:
+        unit_by_id.setdefault(u.id, u)
+
+    # ── The day's legs as the mint engine sees them (P50 occupancy — the
+    # replay convention), plus the zone/type side-tables the bands need. ──
+    leg_zone_pick, leg_zone_drop, leg_kind = {}, {}, {}
+    day_mls = []
+    for l in legs:
+        if l.pickup_time is None:
+            continue
+        pcat = categorize_location(l.pickup_location)
+        dcat = categorize_location(l.dropoff_location)
+        kind = hc.occupancy_kind(pcat, dcat)
+        # effective_vehicle_type is already the RAW vehicle_type string (never
+        # the .title()-cased __str__ — the _unit_tier gotcha), same field the
+        # replay's SQL COALESCE reads.
+        tier = sm.VEHICLE_TIER.get(l.effective_vehicle_type, sm.VEHICLE_TIER_DEFAULT)
+        ml = sm.MintLeg(l.id, target_date, _dt.combine(target_date, l.pickup_time),
+                        kind, l.driver_id, tier)
+        leg_zone_pick[l.id], leg_zone_drop[l.id], leg_kind[l.id] = pcat, dcat, kind
+        day_mls.append(ml)
+
+    drv_meta = {d.id: d for d in Driver.objects.filter(
+        id__in={ml.did for ml in day_mls if ml.did is not None})}
+    for d in drivers:
+        drv_meta.setdefault(d.id, d)
+
+    boards, farmed = {}, []
+    for ml in day_mls:
+        d = drv_meta.get(ml.did) if ml.did is not None else None
+        if d is not None and d.driver_type == "inhouse":
+            boards.setdefault(ml.did, []).append(ml)
+        elif d is None or d.driver_type == "affiliate":
+            farmed.append(ml)   # unassigned counts with farmed: it walks out too
+    for ls in boards.values():
+        ls.sort(key=lambda x: x.pick)
+
+    # ── Roster/fleet state, RAW like the replay: real DVA rows only. This
+    # run's not-yet-applied proposals deliberately do NOT count — a mint rides
+    # only on a car that is actually on the day's plan, exactly the world the
+    # evidence replay validated (Apply the roster first; the proposals appear
+    # on the next Suggest). ``proposed`` stays a parameter so a later build
+    # can revisit that choice consciously. ──
+    dva_rows = list(DriverVehicleAssignment.objects
+                    .filter(date=target_date, vehicle__isnull=False)
+                    .select_related("driver", "driver__profile"))
+    dva_day = {r.driver_id: r.vehicle_id for r in dva_rows}
+    from drivers.models import FleetVehicle
+    fleet, oos_ids = {}, set()
+    for u in FleetVehicle.objects.all().select_related("vehicle_type"):
+        raw = u.vehicle_type.vehicle_type if u.vehicle_type else None
+        fleet[u.id] = {"active": bool(u.is_active),
+                       "tier": sm.VEHICLE_TIER.get(raw, sm.VEHICLE_TIER_DEFAULT)}
+        if u.is_out_of_service_on(target_date):
+            oos_ids.add(u.id)
+        unit_by_id.setdefault(u.id, u)
+
+    def name_of(did):
+        d = drv_meta.get(did) or by_id.get(did)
+        return str(d) if d is not None else f"driver {did}"
+
+    # ── Rest bounds vs the ACTUAL adjacent boards (03 §1 rule 3) ──
+    rest_min = cfg.rest_min_gap_minutes
+    prev_day, next_day = (target_date - timedelta(days=1),
+                          target_date + timedelta(days=1))
+    prev_end, next_start = {}, {}
+    adj = (Leg.objects.filter(pickup_date__in=(prev_day, next_day),
+                              driver__isnull=False, pickup_time__isnull=False,
+                              driver__driver_type="inhouse")
+           .exclude(reservation__status__in=("cancelled", "canceled"))
+           .exclude(status="cancelled"))
+    for l in adj:
+        kind = hc.occupancy_kind(categorize_location(l.pickup_location),
+                                 categorize_location(l.dropoff_location))
+        ml = sm.MintLeg(l.id, l.pickup_date,
+                        _dt.combine(l.pickup_date, l.pickup_time), kind,
+                        l.driver_id, 0)
+        if l.pickup_date == prev_day:
+            if l.driver_id not in prev_end or ml.end > prev_end[l.driver_id]:
+                prev_end[l.driver_id] = ml.end
+        else:
+            if l.driver_id not in next_start or ml.start < next_start[l.driver_id]:
+                next_start[l.driver_id] = ml.start
+
+    def rest_ok_first(did, _day, first_start):
+        b = prev_end.get(did)
+        return b is None or (first_start - b).total_seconds() / 60.0 >= rest_min
+
+    def rest_ok_last(did, _day, last_end):
+        b = next_start.get(did)
+        return b is None or (b - last_end).total_seconds() / 60.0 >= rest_min
+
+    # ── The adopted standby pool (shared rule; `drivers` is already the
+    # active in-house, demo-excluded roster — a strict subset of the replay's
+    # candidates, so the panel can only propose FEWER people, never more) ──
+    off_today = set()
+    for o in DriverDateOverride.objects.filter(status="approved",
+                                               exception_type="off",
+                                               date__lte=target_date):
+        a, b = o.date, (o.end_date or o.date)
+        if b < a or (b - a).days > 90:   # same malformed-row guard as the replay
+            b = a
+        if a <= target_date <= b:
+            off_today.add(o.driver_id)
+    works_today = {did for did, ls in boards.items() if ls}
+    pool = sm.standby_pool_ids([d.id for d in drivers], works_today, dva_day,
+                               off_today)
+
+    out = {
+        "standby_pool": [{"id": did, "name": name_of(did)} for did in pool],
+        "shared_units": [], "mint_proposals": [], "span_exceptions": [],
+        "premium_per_leg": sm.FARMOUT_PREMIUM_PER_LEG,
+        # Build 3b (additive keys): whether the Day-Builder panel renders, and
+        # the current epsilon dial value it prefills. The plan itself comes
+        # from the day-plan-status endpoint, never through this payload.
+        "opt_enabled": bool(cfg.opt_enabled),
+        "opt_epsilon_farmouts": int(cfg.opt_epsilon_farmouts or 0),
+    }
+
+    # ── Per-row span readout (2d): the driver's planned day vs 13.5 h ──
+    hard_cap = float(cfg.span_exception_max_hours)
+    for r in rows:
+        ls = boards.get(r["driver_id"])
+        if not ls:
+            continue
+        sp = sm.span_h(ls)
+        r["span_hours"] = round(sp, 1)
+        r["span_state"] = ("over_hard" if sp > hard_cap
+                          else "over_soft" if sp > sm.SPAN_CAP_H else "")
+
+    # ── Handoff band helper (2b): A hands the unit to B ──
+    def band_for(a_last, b_first):
+        gap_min = (b_first.pick - a_last.end).total_seconds() / 60.0
+        b = hc.handoff_band(
+            leg_zone_drop[a_last.id], leg_zone_pick[b_first.id], gap_min,
+            incoming_is_arrival=(b_first.kind == "ARRIVAL"),
+            green_pct=cfg.handoff_gap_green_pct,
+            amber_floor_pct=cfg.handoff_gap_amber_floor_pct)
+        ready = a_last.end + timedelta(
+            minutes=hc.car_ready_min(leg_zone_drop[a_last.id])[1])
+        return b, _fmt_clock(ready)
+
+    # ── 2b: every shared car already on the plan (locked rows + this run) ──
+    by_unit = {}
+    for did, vid in dva_day.items():
+        by_unit.setdefault(vid, []).append(did)
+    for vid, dids in sorted(by_unit.items()):
+        if len(dids) < 2:
+            continue
+        entry = {
+            "vehicle_id": vid,
+            "vehicle_label": _unit_label(unit_by_id[vid]) if vid in unit_by_id else f"#{vid}",
+            "drivers": [{"id": x, "name": name_of(x)} for x in sorted(dids)],
+            "handoff_band": None, "handoff_ready_at": None,
+            "handoff_reason": "", "from_driver": None, "to_driver": None,
+        }
+        with_legs = [x for x in dids if boards.get(x)]
+        if len(with_legs) >= 2:
+            a, b = sorted(with_legs, key=lambda x: boards[x][0].pick)[:2]
+            a_last, b_first = boards[a][-1], boards[b][0]
+            if b_first.pick > a_last.pick:
+                band, ready = band_for(a_last, b_first)
+                entry.update({
+                    "handoff_band": band["band"], "handoff_ready_at": ready,
+                    "handoff_reason": band["reason"],
+                    "from_driver": name_of(a), "to_driver": name_of(b),
+                })
+            else:
+                entry["handoff_reason"] = ("jobs interleave — no single handoff "
+                                           "moment (estimated from booked times)")
+        else:
+            entry["handoff_reason"] = ("no jobs on one side yet — feasibility "
+                                       "appears once the day is built")
+        out["shared_units"].append(entry)
+
+    # ── 2c/2d: the mint engine + the crunch exception, on BUILT days only.
+    # Mints are a day-before decision read off the built board (01 §2); on a
+    # date with nothing assigned in-house yet there is no board to read. ──
+    if not boards:
+        return out
+    gap = cfg.vehicle_share_pad_min
+    res = sm.replay_one_day(
+        target_date, boards, farmed, dva_day, fleet, pool,
+        gap=gap, buf=sm.MINT_BUF_CENTRAL_MIN, cap_h=sm.SPAN_CAP_H,
+        policy="soft", rest_ok_first=rest_ok_first, rest_ok_last=rest_ok_last,
+        is_oos=lambda v: v in oos_ids)
+
+    farmed_ids = {ml.id for ml in farmed}
+    for m in res["mints"]:
+        mls = m["legs"]
+        first, last = mls[0], mls[-1]
+        partner_ids = [x for x in by_unit.get(m["veh"], [])
+                       if x in dva_day and dva_day[x] == m["veh"] and x != m["driver"]]
+        partner_id = partner_ids[0] if partner_ids else None
+        partner_board = boards.get(partner_id) or []
+
+        band_d = {"band": None, "reason": "no handoff — the unit has no other "
+                                          "jobs planned that day"}
+        ready = None
+        if m["side"] == "late" and partner_board:
+            band_d, ready = band_for(partner_board[-1], first)
+        elif m["side"] == "early" and partner_board:
+            band_d, ready = band_for(last, partner_board[0])
+        if band_d.get("band") == "red":
+            continue   # red is shown on existing shares, never SUGGESTED (2b)
+
+        # Suggested AM/PM cut for the planned windows (2a): the hour the car
+        # actually changes hands; the dispatcher can edit it after Apply.
+        if m["side"] == "late":
+            cut = first.pick.hour
+            mint_w = (cut, 23)
+            partner_w = (4, max(cut - 1, 0))
+        elif m["side"] == "early":
+            cut = partner_board[0].pick.hour if partner_board else min(last.pick.hour + 2, 23)
+            mint_w = (first.pick.hour, max(cut - 1, 0))
+            partner_w = (cut, 23)
+        elif first.pick.hour >= 12:
+            cut = first.pick.hour
+            mint_w = (cut, 23)
+            partner_w = (4, max(cut - 1, 0))
+        else:
+            cut = min(last.pick.hour + 2, 23)
+            mint_w = (first.pick.hour, max(cut - 1, 0))
+            partner_w = (cut, 23)
+
+        n_farm = sum(1 for ml in mls if ml.id in farmed_ids)
+        legs_out = []
+        for ml in mls:
+            src = ("farm" if (ml.id in farmed_ids and ml.did is not None)
+                   else "unassigned" if ml.id in farmed_ids else "shed")
+            legs_out.append({"id": ml.id, "time": _fmt_clock(ml.pick),
+                             "kind": ml.kind.lower(), "source": src,
+                             "from_driver": (name_of(ml.did)
+                                             if src != "unassigned" else None)})
+        out["mint_proposals"].append({
+            "driver_id": m["driver"], "driver_name": name_of(m["driver"]),
+            "vehicle_id": m["veh"],
+            "vehicle_label": (_unit_label(unit_by_id[m["veh"]])
+                              if m["veh"] in unit_by_id else f"#{m['veh']}"),
+            "side": m["side"],
+            "window": f"{_fmt_clock(first.pick)} – {_fmt_clock(last.end)}",
+            "cut_label": _fmt_hour(cut),
+            "first_pickup": _fmt_clock(first.pick),
+            "est_done": _fmt_clock(last.end),
+            "planned_start_hour": mint_w[0], "planned_end_hour": mint_w[1],
+            "partner_driver_id": partner_id,
+            "partner_name": name_of(partner_id) if partner_id else None,
+            "partner_planned_start_hour": partner_w[0],
+            "partner_planned_end_hour": partner_w[1],
+            "cut_hour": cut,
+            "legs": legs_out, "n_jobs": len(mls),
+            "est_saving": round(n_farm * sm.FARMOUT_PREMIUM_PER_LEG),
+            "thin": len(mls) < cfg.mint_min_jobs_soft,
+            "handoff_band": band_d.get("band"),
+            "handoff_ready_at": ready,
+            "handoff_reason": band_d.get("reason", ""),
+        })
+
+    # ── 2d: the priced crunch exception. Residual pool legs the capped day
+    # couldn't reach: would extending ONE driver past 13.5 h (never past the
+    # hard ceiling) keep them in-house? Same engine, higher cap, no mints —
+    # so every share/buffer/rest rule still holds. Rendered as a choice. ──
+    placed = {ml.id for m in res["mints"] for ml in m["legs"]}
+    for did, ls in res["boards"].items():
+        placed.update(ml.id for ml in ls)
+    residual = [ml for ml in farmed if ml.id not in placed]
+    if residual and hard_cap > sm.SPAN_CAP_H:
+        # The crunch pass must SEE the proposed mints: fold each mint in as its
+        # driver's board (with the roster row implied), so an extension can
+        # never overlap or crowd a second shift proposed above. Mint drivers
+        # themselves never get an exception — a fresh call-out is not a crunch.
+        boards2 = dict(res["boards"])
+        dva2 = dict(dva_day)
+        mint_driver_ids = set()
+        for m in res["mints"]:
+            boards2[m["driver"]] = list(m["legs"])
+            dva2.setdefault(m["driver"], m["veh"])
+            mint_driver_ids.add(m["driver"])
+        res2 = sm.replay_one_day(
+            target_date, boards2, residual, dva2, fleet, [],
+            gap=gap, buf=sm.MINT_BUF_CENTRAL_MIN, cap_h=hard_cap,
+            policy="free", no_mint=True,
+            rest_ok_first=rest_ok_first, rest_ok_last=rest_ok_last,
+            is_oos=lambda v: v in oos_ids)
+        for did in sorted(res2["boards"]):
+            if did in mint_driver_ids:
+                continue
+            before, after = boards2.get(did, []), res2["boards"][did]
+            added = [ml for ml in after if ml.id not in {x.id for x in before}]
+            if not added:
+                continue
+            base_sp, new_sp = sm.span_h(before), sm.span_h(after)
+            if new_sp <= sm.SPAN_CAP_H:
+                continue   # not an exception — the builder can just take it
+            out["span_exceptions"].append({
+                "driver_id": did, "driver_name": name_of(did),
+                "base_span": round(base_sp, 1), "new_span": round(new_sp, 1),
+                "added_hours": round(new_sp - base_sp, 1),
+                "legs": [{"id": ml.id, "time": _fmt_clock(ml.pick)}
+                         for ml in added],
+                "n_legs": len(added),
+                "est_value": round(len(added) * sm.FARMOUT_PREMIUM_PER_LEG),
+            })
+    return out

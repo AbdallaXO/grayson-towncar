@@ -134,10 +134,11 @@ SPAN_COVERAGE_RESCUE = True
 # Founder rule (2026-06-10): the pad must cover the AM driver RETURNING the car to the
 # warehouse + wash/fuel (~30-40 min after his last clear) + the PM driver's drive OUT to
 # his first pickup — "done by 3:00 means the car is ready at base ~3:30-3:40, first PM
-# job ~4:30". 60 is the founder's minimum; a geography-aware split (car_ready = clear +
-# drive_to_base + service; PM pickup >= car_ready + drive_out) needs a base-location
-# concept the engine doesn't have yet — see the smarter-handoff arc.
-VEHICLE_SHARE_PAD_MIN = 60
+# job ~4:30". The pad lives on SchedulerSettings.vehicle_share_pad_min (default 120,
+# live-editable): the old flat constant of 60 sat near the 9th percentile of measured
+# pickup-to-pickup handoff gaps — optimistic nine times in ten (scheduling redesign,
+# Build 1c). A geography-aware split (car_ready = clear + drive_to_base + service;
+# PM pickup >= car_ready + drive_out) is the Build-2 zone-chain upgrade.
 # Span-trim relocation pass (Span Governor Phase 3): after coverage is settled, actively
 # SHORTEN over-long days — peel a long driver's FIRST or LAST leg (the only span-shrinking
 # legs) onto a driver with room: the founder's "Roberto just starts later" move applied to
@@ -207,6 +208,32 @@ STATIC_FLOOR_DWELL_MIN = 45
 # 'impossible'" is the project's prime directive; .analysis/analyze_sunday.py scores with
 # exactly this model. Flip off to chain on the metric estimates again.
 CHAIN_STATIC_TIMING = True
+
+# Chain feasibility takes the LATER of the static planning clear time and the BOARD's
+# own measured estimate (estimate_job_end_time — measured dwell + measured drive for
+# that time-of-day/day-type bucket, the real flight time when known, and the Publix
+# stop) WHEN THE NEXT PICKUP IS A FIXED-TIME JOB: a departure, a return, a cruise
+# transfer — someone standing outside a resort at an agreed minute with a flight or a
+# ship to catch.
+#
+# Reason (2026-09-02, founder review of a real built 09-12 board): the two clocks
+# disagree by up to 35 min and the board's is the LATER one, so the engine was
+# building chains the dispatcher's own screen already showed as late — Michael Olmo
+# clearing 12:03 PM on the board with a 12:00 PM next pickup, passed by the engine on
+# an 11:28 AM static clear. Measured over 11 replayed dates, that produced ~10
+# fixed-time pickups PER DAY the driver could not physically reach.
+#
+# An airport ARRIVAL next job is deliberately EXCLUDED: its booked time is the
+# flight's landing slot, not a waiting guest, and the deplaning grace already lets the
+# driver reach the kerb after it. Applying the later clock there too costs ~4.6
+# trips/day for no punctuality gain (analysis/22).
+#
+# Repositioning stays on the category table (chain_repo_minutes) — the
+# p75-of-in-service objection above applies to an empty reposition and still stands.
+# Taking the later value can only ever DECLINE a turn the old path allowed, never
+# admit a new one. Founder ruling 2026-09-02: "i do not want us to be late especially
+# for departures cruise jobs etc."
+CHAIN_CLEAR_TAKES_LATER = True
 
 # Chain repositioning may use the PRECOMPUTED REAL ROAD DISTANCE for an exact address pair
 # where the category table demonstrably can't be trusted (2026-08-09 audit, B3): it bills
@@ -1076,11 +1103,18 @@ def chain_repo_minutes(from_text, to_text, from_category, to_category) -> int:
     return DRIVE_TIME_ESTIMATES.get((from_category, to_category), DEFAULT_DRIVE_TIME)
 
 
-def _slot_chain_end(slot, target_date: date) -> datetime:
+def _slot_chain_end(slot, target_date: date, take_later: bool = False) -> datetime:
     """A slot's clear time for chain math: the precomputed founder static-model value
     when present (CHAIN_STATIC_TIMING), else the dynamic estimate raised to the arrival
-    static floor (legacy fallback for callers that build bare slots)."""
+    static floor (legacy fallback for callers that build bare slots).
+
+    ``take_later``: also honour the BOARD's measured estimate, so chain math never
+    plans on a clear time EARLIER than the one the dispatcher is shown. The caller
+    decides — it is passed only when the job being seated after this slot is a
+    FIXED-TIME pickup (see CHAIN_CLEAR_TAKES_LATER)."""
     if CHAIN_STATIC_TIMING and slot.chain_clear_dt is not None:
+        if take_later and slot.estimated_end_time is not None:
+            return max(slot.chain_clear_dt, slot.estimated_end_time)
         return slot.chain_clear_dt
     from dispatching import feasibility_guards as fg
     end = slot.estimated_end_time
@@ -1207,13 +1241,17 @@ def check_feasibility(
     # 2:40): picking by pickup time alone hands the 2:40 clear to the turnaround math and
     # silently ignores the 4:00 one. On an already-valid chain the two choices agree, so
     # this only ever fires where there is a real conflict to catch (audit 2026-08-09, B5).
+    # Never plan on a clear time earlier than the board's when the job we are seating
+    # is a FIXED-TIME pickup (departure / return / cruise) — CHAIN_CLEAR_TAKES_LATER.
+    _later_for_new = CHAIN_CLEAR_TAKES_LATER and not new_is_arrival
     preceding = None
     following = None
     for slot in sorted_slots:
         slot_pickup_dt = datetime.combine(target_date, slot.pickup_time)
         if slot_pickup_dt <= new_pickup_dt:
             if (preceding is None
-                    or _slot_chain_end(slot, target_date) > _slot_chain_end(preceding, target_date)):
+                    or _slot_chain_end(slot, target_date, _later_for_new)
+                    > _slot_chain_end(preceding, target_date, _later_for_new)):
                 preceding = slot
         elif following is None:
             following = slot
@@ -1222,7 +1260,7 @@ def check_feasibility(
 
     # Check against preceding slot — context-dependent turnaround (Guard B)
     if preceding:
-        preceding_end = _slot_chain_end(preceding, target_date)
+        preceding_end = _slot_chain_end(preceding, target_date, _later_for_new)
         if CHAIN_STATIC_TIMING:
             reposition = chain_repo_minutes(preceding.dropoff_location, new_leg.pickup_location,
                                             preceding.dropoff_category, new_pickup_cat)
@@ -1275,7 +1313,10 @@ def check_feasibility(
             same_terminal=(new_dropoff_cat == following.pickup_category),
             deplaning_grace=deplaning_grace, safety_pad=safety_pad,
         )
-        earliest_for_next = new_chain_end_dt + timedelta(minutes=req)
+        _end_for_next = new_chain_end_dt
+        if CHAIN_CLEAR_TAKES_LATER and not following_is_arrival:
+            _end_for_next = max(_end_for_next, new_end_dt)
+        earliest_for_next = _end_for_next + timedelta(minutes=req)
         following_buffer = int((following_pickup_dt - earliest_for_next).total_seconds() / 60)
 
         # Guard B' on the other side of the insert — same floor, same exemption.
@@ -3151,54 +3192,14 @@ def trim_spans_via_relocation(final_assignments, legs_by_id, drivers, drivers_by
     return final_assignments, moves
 
 
-def build_sharer_partners(driver_ids, target_date, rows=None):
-    """Map {driver_id: {other drivers sharing the SAME physical vehicle that date}}.
-
-    Built from DriverVehicleAssignment: a vehicle held by >1 working driver is one
-    physical unit split across shifts (Day Setup AM/PM share or an advisor freed-unit
-    accept). Feed the result to sharers_conflict() to gate any insert against the
-    car-share partner's jobs. Mirrors the inline construction in suggest_assignments().
-    Pass ``rows`` (the date's DVA rows) to skip the query."""
-    from drivers.models import DriverVehicleAssignment
-
-    working = set(driver_ids)
-    if rows is None:
-        rows = DriverVehicleAssignment.objects.filter(
-            date=target_date, vehicle__isnull=False, driver_id__in=working)
-    unit_holders = {}
-    for dva in rows:
-        if dva.vehicle_id is None or dva.driver_id not in working:
-            continue
-        unit_holders.setdefault(dva.vehicle_id, []).append(dva.driver_id)
-    partners = {}
-    for holders in unit_holders.values():
-        if len(holders) > 1:
-            for did in holders:
-                partners.setdefault(did, set()).update(
-                    h for h in holders if h != did)
-    return partners
-
-
-def sharers_conflict(leg, driver_id, sharer_partners, schedules, target_date,
-                     pad_min=None):
-    """True if giving `leg` to `driver_id` would overlap his car-share PARTNER's jobs
-    (one physical unit). Interval = [pickup - pad, est_end + pad] vs every partner slot.
-    schedules: {driver_id: DriverDaySchedule} for the CURRENT board state."""
-    partners = (sharer_partners or {}).get(driver_id)
-    if not partners:
-        return False
-    pad = timedelta(minutes=VEHICLE_SHARE_PAD_MIN if pad_min is None else pad_min)
-    start = datetime.combine(target_date, leg.pickup_time) - pad
-    end = estimate_job_end_time(leg, target_date) + pad
-    for pid in partners:
-        psched = schedules.get(pid)
-        if psched is None:
-            continue
-        for s in psched.slots:
-            s_start = datetime.combine(target_date, s.pickup_time)
-            if start < s.estimated_end_time and s_start < end:
-                return True
-    return False
+# The co-driver car-share gate is defined ONCE, in dispatching/car_share.py —
+# alongside the manual-warning and mint-engine conventions, so the three can be
+# read side by side (Build 3a, P2). Re-exported here because ~12 modules and the
+# replay scripts import these names from `scheduler`, and `sch.sharers_conflict`
+# is what the tests patch.
+from dispatching.car_share import (            # noqa: E402  (re-export)
+    build_sharer_partners, sharers_conflict,
+)
 
 
 def compact_gaps_via_relocation(final_assignments, legs_by_id, drivers, drivers_by_id,

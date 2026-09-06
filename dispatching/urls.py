@@ -162,6 +162,8 @@ urlpatterns = [
     ),
     path("suggest-day-setup/", views.suggest_day_setup_view, name="suggest_day_setup"),
     path("apply-day-setup/", views.apply_day_setup, name="apply_day_setup"),
+    path("build-day-plan/", views.build_day_plan_view, name="build_day_plan"),
+    path("day-plan-status/", views.day_plan_status, name="day_plan_status"),
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
     # Inline editor for extra stops + multi-flight on the reservation detail page

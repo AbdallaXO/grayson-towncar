@@ -28,8 +28,15 @@ ADVISOR_ENABLED = True
 ADVISOR_MIN_LEGS = 1            # all measured second-shift slots are ONE-leg tails
 ADVISOR_CLUSTER_GAP_MIN = 180   # max idle inside one proposal (else it splits)
 ADVISOR_CHAIN_PAD_MIN = 20      # min turnaround assumed between chained proposal legs
-ADVISOR_FREED_BUFFER_MIN = 90   # a freed unit needs holder's clear + this before the
-                                # proposal's first pickup (wide buffer — no Phase-4 gate yet)
+ADVISOR_FREED_BUFFER_MIN = 90   # FALLBACK ONLY if SchedulerSettings is unavailable.
+                                # Was hardcoded and read directly until 2026-08-24: every
+                                # other copy of this buffer (the engine gate, the manual
+                                # warnings, the mint engine) reads the live
+                                # vehicle_share_pad_min (120), so a freed-unit proposal
+                                # could survive here at 90 min and then be refused when the
+                                # dispatcher tried to build it. See car_share.py's module
+                                # docstring — this was flagged as a real inconsistency, not
+                                # a deliberate fourth convention.
 ADVISOR_MAX_PROPOSALS = 4
 ADVISOR_SUGGEST_SCHEDULED_OFF = True   # off-per-schedule idle drivers may be suggested,
                                        # loudly labeled — the dispatcher decides
@@ -161,7 +168,19 @@ def build_shift_proposals(target_date: date, residual_legs, overload_map,
     idle.sort(key=lambda t: (not t[1], t[0].id))   # available-today first, then id
 
     def freed_units_for(first_pickup_dt):
-        """Units whose holder clears comfortably before the proposal starts."""
+        """Units whose holder clears comfortably before the proposal starts.
+
+        Buffer: the live SchedulerSettings.vehicle_share_pad_min (the same one
+        car_share.py's three conventions read), falling back to
+        ADVISOR_FREED_BUFFER_MIN only if settings can't be reached — that
+        module-level 90 previously ran unconditionally, which let this
+        advisor propose a freed-unit handoff the engine's own gate would
+        then refuse to build (2026-08-24 fix)."""
+        from dispatching.models import SchedulerSettings
+        try:
+            buffer_min = SchedulerSettings.get_settings().vehicle_share_pad_min
+        except Exception:
+            buffer_min = ADVISOR_FREED_BUFFER_MIN
         out = []
         for a in todays:
             if not a.vehicle_id:
@@ -170,7 +189,7 @@ def build_shift_proposals(target_date: date, residual_legs, overload_map,
             if sched is None or not sched.slots:
                 continue
             clear = max(s.estimated_end_time for s in sched.slots)
-            if clear + timedelta(minutes=ADVISOR_FREED_BUFFER_MIN) <= first_pickup_dt:
+            if clear + timedelta(minutes=buffer_min) <= first_pickup_dt:
                 out.append((clear, a.vehicle_id, str(a.driver)))
         out.sort(key=lambda t: (t[0], t[1]))
         return out

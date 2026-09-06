@@ -1,0 +1,13 @@
+metric,regime,n,p50,p75,p90
+approach,prior_regime,8900,23.9,43.5,68.8
+approach,current_regime,2509,26.5,47.8,74.8
+dwell ALL,prior_regime,9054,17.8,37.1,57.1
+dwell ALL,current_regime,2554,18.3,37.3,57.7
+dwell ARRIVAL,prior_regime,4237,27.7,44.6,65.3
+dwell ARRIVAL,current_regime,1277,26.6,45.1,65.0
+dwell DEPARTURE,prior_regime,4046,10.4,26.8,45.4
+dwell DEPARTURE,current_regime,1084,11.2,28.3,46.0
+ride,prior_regime,7674,35.2,46.1,61.5
+ride,current_regime,2111,35.4,46.8,62.0
+occupancy,prior_regime,9288,53.0,74.0,96.9
+occupancy,current_regime,2634,53.7,74.8,96.9

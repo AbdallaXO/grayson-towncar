@@ -1,0 +1,7 @@
+stream,rows,ms_truncated,expected_by_chance,z,full_microsecond,no_fraction
+reservations_legstatus.timestamp,94404,79,94.4,-1.59,94325,0
+reservations_reservation.created_at,18132,17,18.1,-0.27,18115,0
+reservations_auditlog.timestamp,260125,269,260.1,0.55,259856,0
+reservations_historicalleg.history_date,208508,201,208.5,-0.52,208307,0
+payment_payment.created_at,18786,15,18.8,-0.87,18771,0
+ops_staffactivity.created_at,110738,128,110.7,1.64,110610,0

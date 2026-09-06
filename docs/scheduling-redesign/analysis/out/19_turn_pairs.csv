@@ -1,0 +1,915 @@
+date,driver_id,driver,first_leg,first_pickup,first_type,second_leg,second_pickup,second_type,from_cat,to_cat,engine_ok,buffer_min,reason,clear,repo_min,required_turn_min,defaults,relieved_at_dwell25,relieved_at_dwell35,second_on_location_min,tap_quality
+2026-08-03,68,AldoH,27845,3:45 AM,return,32159,5:30 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,04:15,30,30,,,,35,ok
+2026-08-03,68,AldoH,32159,5:30 AM,return,25745,7:30 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,06:00,30,30,,,,-31,ok
+2026-08-03,68,AldoH,25745,7:30 AM,return,30328,10:30 AM,return,SFB Terminal,Disney Resort,True,60,60min buffer,08:30,60,60,,,,-18,ok
+2026-08-03,68,AldoH,30328,10:30 AM,return,27874,12:30 PM,return,SFB Terminal,Disney Resort,True,0,0min buffer,11:30,60,60,,,,-18,ok
+2026-08-03,68,AldoH,27874,12:30 PM,return,28896,1:48 PM,arrival,MCO Terminal,MCO Terminal,True,58,58min buffer,13:00,2,-10,,,,13,ok
+2026-08-03,68,AldoH,28896,1:48 PM,arrival,31178,4:00 PM,return,Disney Resort,Disney Resort,True,20,20min buffer,15:28,12,12,flat arrival dwell|cross-property Disney average,True,True,-12,ok
+2026-08-03,33,runer,22974,4:00 AM,return,30867,5:40 AM,return,MCO Terminal,Disney Resort,True,40,40min buffer,04:30,30,30,,,,-12,ok
+2026-08-03,33,runer,30867,5:40 AM,return,25954,7:15 AM,return,MCO Terminal,Disney Resort,True,35,35min buffer,06:10,30,30,,,,-10,ok
+2026-08-03,33,runer,25954,7:15 AM,return,14659,9:00 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,07:45,30,30,,,,-15,ok
+2026-08-03,33,runer,14659,9:00 AM,return,27858,10:13 AM,arrival,MCO Terminal,MCO Terminal,True,53,53min buffer,09:30,2,-10,,,,-29,ok
+2026-08-03,67,ernesto,23309,4:30 AM,return,29733,5:30 AM,return,MCO Terminal,Universal Resort,True,5,5min buffer,05:00,25,25,,,,13,ok
+2026-08-03,67,ernesto,29733,5:30 AM,return,31281,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,130,130min buffer,05:55,55,55,,,,12,ok
+2026-08-03,67,ernesto,31281,9:00 AM,cruise,27659,11:30 AM,cruise,MCO Terminal,Universal Resort,True,70,70min buffer,09:55,25,25,,,,-5,ok
+2026-08-03,67,ernesto,27659,11:30 AM,cruise,25845,1:43 PM,arrival,Port Canaveral Area,MCO Terminal,True,18,18min buffer,12:30,55,55,,,,31,ok
+2026-08-03,32,roberto,24862,5:30 AM,return,24604,7:05 AM,return,MCO Terminal,Disney Resort,True,35,35min buffer,06:00,30,30,,,,-10,ok
+2026-08-03,32,roberto,24604,7:05 AM,return,29526,8:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,0,0min buffer,07:35,55,55,,,,-10,ok
+2026-08-03,32,roberto,29526,8:30 AM,cruise,32326,10:00 AM,return,Residential,Disney Resort,True,20,20min buffer,09:05,35,35,first job's drive unpriced|reposition unpriced,,,-6,ok
+2026-08-03,32,roberto,32326,10:00 AM,return,23025,11:00 AM,cruise,MCO Terminal,Disney Resort,True,0,0min buffer,10:30,30,30,,,,4,ok
+2026-08-03,32,roberto,23025,11:00 AM,cruise,21092,2:00 PM,return,Port Canaveral Area,Disney Resort,True,36,36min buffer,12:12,72,72,,,,-16,ok
+2026-08-03,32,roberto,21092,2:00 PM,return,30003,5:30 PM,return,MCO Terminal,Disney Resort,True,150,150min buffer,14:30,30,30,,,,-112,ok
+2026-08-03,32,roberto,30003,5:30 PM,return,29581,7:00 PM,other,MCO Terminal,Disney Resort,True,30,30min buffer,18:00,30,30,,,,-9,ok
+2026-08-03,52,Junaid Baidr,28908,6:00 AM,return,29579,7:45 AM,other,MCO Terminal,Disney Resort,True,50,50min buffer,06:25,30,30,,,,-3,ok
+2026-08-03,52,Junaid Baidr,29579,7:45 AM,other,26226,10:00 AM,cruise,Residential,Disney Resort,True,65,65min buffer,08:20,35,35,first job's drive unpriced|reposition unpriced,,,-12,ok
+2026-08-03,52,Junaid Baidr,26226,10:00 AM,cruise,29580,1:00 PM,other,Port Canaveral Area,Residential,True,73,73min buffer,11:12,35,35,reposition unpriced,,,-9,ok
+2026-08-03,52,Junaid Baidr,29580,1:00 PM,other,30969,2:43 PM,arrival,Disney Resort,MCO Terminal,True,38,38min buffer,13:35,30,30,first job's drive unpriced,,,39,ok
+2026-08-03,52,Junaid Baidr,30969,2:43 PM,arrival,20648,5:05 PM,arrival,Disney Resort,MCO Terminal,True,12,12min buffer,16:23,30,30,flat arrival dwell,True,True,18,ok
+2026-08-03,51,David Encarancion,25634,8:00 AM,cruise,31443,9:35 AM,arrival,Airport Hotel,MCO Terminal,True,28,28min buffer,08:55,12,12,,,,17,ok
+2026-08-03,51,David Encarancion,31443,9:35 AM,arrival,31138,11:45 AM,return,Disney Resort,Disney Resort,True,42,42min buffer,10:50,13,13,flat arrival dwell|cross-property Disney average,True,True,-41,ok
+2026-08-03,51,David Encarancion,31138,11:45 AM,return,32288,2:20 PM,arrival,MCO Terminal,MCO Terminal,True,135,135min buffer,12:15,2,-10,,,,18,ok
+2026-08-03,51,David Encarancion,32288,2:20 PM,arrival,27991,4:02 PM,arrival,Disney Resort,MCO Terminal,False,-3,"Needs 3 more min. Previous job ends ~3:35 PM, +30min turnaround required.",15:35,30,30,flat arrival dwell,True,True,12,ok
+2026-08-03,51,David Encarancion,27991,4:02 PM,arrival,30413,7:20 PM,arrival,Disney Resort,MCO Terminal,True,93,93min buffer,17:17,30,30,flat arrival dwell,True,True,2,ok
+2026-08-03,54,Steven Kleisath,31558,8:00 AM,return,19768,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,08:30,55,55,,,,-12,ok
+2026-08-03,54,Steven Kleisath,19768,9:30 AM,cruise,30084,11:00 AM,cruise,MCO Terminal,MCO Terminal,True,45,45min buffer,10:25,2,-10,,,,-36,ok
+2026-08-03,54,Steven Kleisath,30084,11:00 AM,cruise,32318,1:30 PM,return,Port Canaveral Area,Other,True,15,15min buffer,12:40,35,35,reposition unpriced,,,-8,ok
+2026-08-03,54,Steven Kleisath,32318,1:30 PM,return,30647,3:14 PM,arrival,MCO Terminal,MCO Terminal,True,79,79min buffer,14:05,2,-10,first job's drive unpriced,,,-44,ok
+2026-08-03,54,Steven Kleisath,30647,3:14 PM,arrival,31041,5:41 PM,arrival,Disney Resort,MCO Terminal,True,42,42min buffer,16:29,30,30,flat arrival dwell,True,True,0,ok
+2026-08-03,54,Steven Kleisath,31041,5:41 PM,arrival,22811,7:30 PM,return,Disney Resort,Disney Resort,False,-3,"Needs 3 more min. Previous job ends ~7:21 PM, +12min turnaround required.",19:21,12,12,flat arrival dwell|cross-property Disney average,True,True,-12,ok
+2026-08-03,46,Yovanny Suarez,12163,8:15 AM,arrival,32026,10:37 AM,arrival,Disney Resort,MCO Terminal,True,12,12min buffer,09:55,30,30,flat arrival dwell,True,True,-9,ok
+2026-08-03,46,Yovanny Suarez,32026,10:37 AM,arrival,29162,12:00 PM,return,Universal Resort,Disney Resort,False,-15,"Needs 15 more min. Previous job ends ~11:47 AM, +28min turnaround required.",11:47,28,28,flat arrival dwell,True,False,-14,ok
+2026-08-03,46,Yovanny Suarez,29162,12:00 PM,return,32227,12:55 PM,arrival,MCO Terminal,MCO Terminal,True,35,35min buffer,12:30,2,-10,,,,-7,ok
+2026-08-03,46,Yovanny Suarez,32227,12:55 PM,arrival,30386,4:00 PM,return,Disney Resort,Disney Resort,True,98,98min buffer,14:10,12,12,flat arrival dwell|cross-property Disney average,True,True,-17,ok
+2026-08-03,46,Yovanny Suarez,30386,4:00 PM,return,26163,5:30 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,16:30,30,30,,,,-20,ok
+2026-08-03,55,rizwan,21814,8:30 AM,return,30579,11:00 AM,return,MCO Terminal,Disney Resort,True,90,90min buffer,09:00,30,30,,,,-9,ok
+2026-08-03,55,rizwan,30579,11:00 AM,return,30956,11:54 AM,arrival,MCO Terminal,MCO Terminal,True,34,34min buffer,11:30,2,-10,,,,40,ok
+2026-08-03,55,rizwan,30956,11:54 AM,arrival,32352,1:30 PM,return,Disney Resort,Disney Resort,True,9,9min buffer,13:09,12,12,flat arrival dwell|cross-property Disney average,True,True,18,ok
+2026-08-03,55,rizwan,32352,1:30 PM,return,31823,4:07 PM,arrival,MCO Terminal,MCO Terminal,True,137,137min buffer,14:00,2,-10,,,,8,ok
+2026-08-03,55,rizwan,31823,4:07 PM,arrival,31647,6:30 PM,return,Disney Resort,Disney Resort,True,56,56min buffer,17:22,12,12,flat arrival dwell|cross-property Disney average,True,True,-25,ok
+2026-08-03,55,rizwan,31647,6:30 PM,return,31016,7:33 PM,arrival,MCO Terminal,MCO Terminal,True,43,43min buffer,19:00,2,-10,,,,19,ok
+2026-08-03,59,Aftab,24460,8:30 AM,return,30953,10:00 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,09:00,30,30,,,,-15,ok
+2026-08-03,59,Aftab,30953,10:00 AM,return,28295,11:09 AM,arrival,MCO Terminal,MCO Terminal,True,49,49min buffer,10:30,2,-10,,,,15,ok
+2026-08-03,59,Aftab,28295,11:09 AM,arrival,30777,3:00 PM,arrival,Disney Resort,MCO Terminal,True,126,126min buffer,12:24,30,30,flat arrival dwell,True,True,23,ok
+2026-08-03,59,Aftab,30777,3:00 PM,arrival,32090,5:00 PM,return,Disney Resort,Disney Resort,True,33,33min buffer,16:15,12,12,flat arrival dwell|cross-property Disney average,True,True,-3,ok
+2026-08-03,59,Aftab,32090,5:00 PM,return,31796,5:55 PM,arrival,MCO Terminal,MCO Terminal,True,35,35min buffer,17:30,2,-10,,,,29,ok
+2026-08-03,57,Seline,27298,8:30 AM,return,28553,9:04 AM,arrival,MCO Terminal,MCO Terminal,True,14,14min buffer,09:00,2,-10,,,,-5,ok
+2026-08-03,57,Seline,28553,9:04 AM,arrival,32317,11:00 AM,arrival,Disney Resort,MCO Terminal,True,11,11min buffer,10:19,30,30,flat arrival dwell,True,True,-2,ok
+2026-08-03,57,Seline,32317,11:00 AM,arrival,15932,12:00 PM,cruise,Other,Disney Resort,False,-55,"Needs 55 more min. Previous job ends ~12:20 PM, +35min turnaround required.",12:20,35,35,first job's drive unpriced|flat arrival dwell|reposition unpriced,False,False,-12,ok
+2026-08-03,57,Seline,15932,12:00 PM,cruise,25174,2:33 PM,arrival,Port Canaveral Area,MCO Terminal,True,26,26min buffer,13:12,55,55,,,,20,ok
+2026-08-03,57,Seline,25174,2:33 PM,arrival,31847,5:37 PM,arrival,Disney Resort,MCO Terminal,True,79,79min buffer,15:48,30,30,flat arrival dwell,True,True,51,ok
+2026-08-03,66,Francisco Pedraza,29723,8:30 AM,other,32052,10:03 AM,arrival,Disney Resort,MCO Terminal,True,38,38min buffer,08:55,30,30,,,,5,ok
+2026-08-03,66,Francisco Pedraza,32052,10:03 AM,arrival,21300,12:00 PM,return,Disney Resort,Disney Resort,True,34,34min buffer,11:18,8,8,flat arrival dwell|cross-property Disney average,True,True,-11,ok
+2026-08-03,66,Francisco Pedraza,21300,12:00 PM,return,24997,12:42 PM,arrival,MCO Terminal,MCO Terminal,True,22,22min buffer,12:30,2,-10,,,,31,ok
+2026-08-03,66,Francisco Pedraza,24997,12:42 PM,arrival,29902,6:27 PM,arrival,Disney Resort,MCO Terminal,True,240,240min buffer,13:57,30,30,flat arrival dwell,True,True,-7,ok
+2026-08-03,38,Angel Almanzar,25211,9:00 AM,return,27877,10:24 AM,cruise,MCO Terminal,MCO Terminal,True,69,69min buffer,09:25,2,-10,,,,64,ok
+2026-08-03,38,Angel Almanzar,27877,10:24 AM,cruise,22792,3:26 PM,arrival,Port Canaveral Area,MCO Terminal,True,147,147min buffer,12:04,55,55,,,,-57,ok
+2026-08-03,38,Angel Almanzar,22792,3:26 PM,arrival,31291,7:02 PM,arrival,Disney Resort,MCO Terminal,True,86,86min buffer,17:06,30,30,flat arrival dwell,True,True,34,ok
+2026-08-03,38,Angel Almanzar,31291,7:02 PM,arrival,30092,11:27 PM,arrival,Disney Resort,MCO Terminal,True,135,135min buffer,20:42,30,30,flat arrival dwell,True,True,-91,ok
+2026-08-03,69,Charlie,27825,9:00 AM,cruise,31825,10:29 AM,cruise,MCO Terminal,MCO Terminal,True,44,44min buffer,09:55,2,-10,,,,-1,ok
+2026-08-03,69,Charlie,31825,10:29 AM,cruise,31258,2:27 PM,arrival,Port Canaveral Area,MCO Terminal,True,83,83min buffer,12:09,55,55,,,,7,ok
+2026-08-03,69,Charlie,31258,2:27 PM,arrival,24632,5:58 PM,arrival,Disney Resort,MCO Terminal,True,81,81min buffer,16:07,30,30,flat arrival dwell,True,True,-3,ok
+2026-08-03,64,Raymond,31754,6:23 PM,arrival,31644,9:00 PM,other,Disney Resort,Universal Resort,True,54,54min buffer,19:38,28,28,flat arrival dwell,True,True,,none
+2026-08-03,64,Raymond,31644,9:00 PM,other,29124,11:50 PM,arrival,Disney Resort,SFB Terminal,True,82,82min buffer,21:28,60,60,,,,,none
+2026-08-13,48,Michael Olmo,33343,5:00 AM,return,33469,8:14 AM,arrival,MCO Terminal,MCO Terminal,True,179,179min buffer,05:25,2,-10,,,,-3,ok
+2026-08-13,48,Michael Olmo,33469,8:14 AM,arrival,31510,9:35 AM,return,Disney Resort,Disney Resort,False,-10,"Needs 10 more min. Previous job ends ~9:29 AM, +16min turnaround required.",09:29,16,16,flat arrival dwell|cross-property Disney average,True,True,-15,ok
+2026-08-13,48,Michael Olmo,31510,9:35 AM,return,21089,9:59 AM,arrival,MCO Terminal,MCO Terminal,True,4,4min buffer,10:05,2,-10,,,,11,ok
+2026-08-13,48,Michael Olmo,21089,9:59 AM,arrival,31366,1:30 PM,return,Disney Resort,Universal Resort,True,108,108min buffer,11:14,28,28,flat arrival dwell,True,True,-12,ok
+2026-08-13,48,Michael Olmo,31366,1:30 PM,return,33968,3:35 PM,arrival,MCO Terminal,MCO Terminal,True,110,110min buffer,13:55,2,-10,,,,-104,ok
+2026-08-13,56,george,32133,5:20 AM,return,33252,8:00 AM,return,MCO Terminal,Disney Resort,True,100,100min buffer,05:50,30,30,,,,-29,ok
+2026-08-13,56,george,33252,8:00 AM,return,24996,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,-6,ok
+2026-08-13,56,george,24996,9:00 AM,return,20700,9:30 AM,cruise,MCO Terminal,Airport Hotel,False,-12,"Needs 12 more min. Previous job ends ~9:30 AM, +12min turnaround required.",09:30,12,12,,,,8,ok
+2026-08-13,56,george,20700,9:30 AM,cruise,34106,12:15 PM,return,Port Canaveral Area,Disney Resort,True,38,38min buffer,10:25,72,72,,,,-22,ok
+2026-08-13,56,george,34106,12:15 PM,return,32107,1:45 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,12:45,30,30,,,,-36,ok
+2026-08-13,56,george,32107,1:45 PM,return,33239,3:29 PM,arrival,MCO Terminal,MCO Terminal,True,84,84min buffer,14:15,2,-10,,,,-77,ok
+2026-08-13,32,roberto,31492,5:30 AM,return,24768,8:00 AM,return,MCO Terminal,Disney Resort,True,90,90min buffer,06:00,30,30,,,,-88,ok
+2026-08-13,32,roberto,24768,8:00 AM,return,20563,9:00 AM,cruise,MCO Terminal,Airport Hotel,True,18,18min buffer,08:30,12,12,,,,-9,ok
+2026-08-13,32,roberto,20563,9:00 AM,cruise,27685,11:11 AM,arrival,Port Canaveral Area,MCO Terminal,True,21,21min buffer,09:55,55,55,,,,17,ok
+2026-08-13,32,roberto,27685,11:11 AM,arrival,18387,1:30 PM,return,Disney Resort,Disney Resort,True,51,51min buffer,12:26,13,13,flat arrival dwell|cross-property Disney average,True,True,-76,ok
+2026-08-13,32,roberto,18387,1:30 PM,return,31584,3:30 PM,return,MCO Terminal,Disney Resort,True,60,60min buffer,14:00,30,30,,,,-55,ok
+2026-08-13,32,roberto,31584,3:30 PM,return,31289,4:38 PM,arrival,MCO Terminal,MCO Terminal,True,48,48min buffer,16:00,2,-10,,,,-11,ok
+2026-08-13,32,roberto,31289,4:38 PM,arrival,23994,7:42 PM,arrival,Residential,MCO Terminal,True,46,46min buffer,18:18,38,38,flat arrival dwell,True,True,14,ok
+2026-08-13,26,neuma,30880,7:00 AM,return,31619,9:00 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,07:30,30,30,,,,,none
+2026-08-13,26,neuma,31619,9:00 AM,return,34222,9:30 AM,arrival,MCO Terminal,MCO Terminal,True,10,10min buffer,09:30,2,-10,,,,,none
+2026-08-13,26,neuma,34222,9:30 AM,arrival,24092,11:15 AM,return,Disney Resort,Disney Resort,True,19,19min buffer,10:45,11,11,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-13,26,neuma,24092,11:15 AM,return,29572,12:52 PM,arrival,MCO Terminal,MCO Terminal,True,77,77min buffer,11:45,2,-10,,,,,none
+2026-08-13,26,neuma,29572,12:52 PM,arrival,27092,2:45 PM,return,Disney Resort,Disney Resort,True,31,31min buffer,14:07,7,7,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-13,26,neuma,27092,2:45 PM,return,24223,4:00 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,15:15,30,30,,,,,none
+2026-08-13,26,neuma,24223,4:00 PM,return,31048,5:15 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,16:30,30,30,,,,,none
+2026-08-13,52,Junaid Baidr,26893,7:45 AM,return,26965,9:30 AM,cruise,SFB Terminal,Port Canaveral Area,False,-25,"Needs 25 more min. Previous job ends ~8:45 AM, +70min turnaround required.",08:45,70,70,,,,3,ok
+2026-08-13,52,Junaid Baidr,26965,9:30 AM,cruise,29443,11:30 AM,return,Disney Resort,Disney Resort,True,38,38min buffer,10:42,10,10,cross-property Disney average,,,-12,ok
+2026-08-13,52,Junaid Baidr,29443,11:30 AM,return,25592,12:25 PM,arrival,MCO Terminal,MCO Terminal,True,35,35min buffer,12:00,2,-10,,,,26,ok
+2026-08-13,52,Junaid Baidr,25592,12:25 PM,arrival,31093,3:00 PM,return,Disney Resort,Disney Resort,True,67,67min buffer,13:40,13,13,flat arrival dwell|cross-property Disney average,True,True,-13,ok
+2026-08-13,57,Seline,27394,8:00 AM,return,32286,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,17,ok
+2026-08-13,57,Seline,32286,9:00 AM,return,29727,9:12 AM,arrival,MCO Terminal,MCO Terminal,False,-8,"Needs 8 more min. Previous job ends ~9:30 AM, +-10min turnaround required.",09:30,2,-10,,,,50,ok
+2026-08-13,57,Seline,29727,9:12 AM,arrival,33972,12:00 PM,other,Disney Resort,Disney Resort,True,77,77min buffer,10:27,16,16,flat arrival dwell|cross-property Disney average,True,True,-40,ok
+2026-08-13,57,Seline,33972,12:00 PM,other,32940,2:00 PM,return,Universal Resort,Disney Resort,True,64,64min buffer,12:28,28,28,,,,2,ok
+2026-08-13,57,Seline,32940,2:00 PM,return,26102,4:00 PM,return,MCO Terminal,Disney Resort,True,60,60min buffer,14:30,30,30,,,,-7,ok
+2026-08-13,57,Seline,26102,4:00 PM,return,31689,4:38 PM,arrival,MCO Terminal,MCO Terminal,True,18,18min buffer,16:30,2,-10,,,,28,ok
+2026-08-13,57,Seline,31689,4:38 PM,arrival,32346,7:02 PM,arrival,Disney Resort,MCO Terminal,True,39,39min buffer,17:53,30,30,flat arrival dwell,True,True,-17,ok
+2026-08-13,62,shelley,33452,8:00 AM,other,30019,8:56 AM,arrival,Disney Resort,MCO Terminal,False,-2,"Needs 2 more min. Previous job ends ~8:28 AM, +30min turnaround required.",08:28,30,30,,,,8,ok
+2026-08-13,62,shelley,30019,8:56 AM,arrival,29502,10:15 AM,return,Disney Resort,Disney Resort,True,2,2min buffer,10:11,2,2,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-13,62,shelley,29502,10:15 AM,return,23320,1:02 PM,arrival,MCO Terminal,MCO Terminal,True,147,147min buffer,10:45,2,-10,,,,-3,ok
+2026-08-13,55,rizwan,33465,8:14 AM,arrival,34281,10:00 AM,other,Disney Resort,Disney Resort,True,19,19min buffer,09:29,12,12,flat arrival dwell|cross-property Disney average,True,True,-34,ok
+2026-08-13,55,rizwan,34281,10:00 AM,other,30280,10:25 AM,arrival,Universal Resort,MCO Terminal,False,-28,"Needs 28 more min. Previous job ends ~10:28 AM, +25min turnaround required.",10:28,25,25,,,,25,ok
+2026-08-13,55,rizwan,30280,10:25 AM,arrival,22942,12:51 PM,arrival,Disney Resort,MCO Terminal,True,41,41min buffer,11:40,30,30,flat arrival dwell,True,True,15,ok
+2026-08-13,55,rizwan,22942,12:51 PM,arrival,28680,5:24 PM,arrival,Disney Resort,MCO Terminal,True,168,168min buffer,14:06,30,30,flat arrival dwell,True,True,15,ok
+2026-08-13,55,rizwan,28680,5:24 PM,arrival,31747,8:02 PM,arrival,Disney Resort,MCO Terminal,True,53,53min buffer,18:39,30,30,flat arrival dwell,True,True,43,ok
+2026-08-13,46,Yovanny Suarez,28127,8:30 AM,return,27041,8:54 AM,arrival,MCO Terminal,MCO Terminal,True,4,4min buffer,09:00,2,-10,,,,15,ok
+2026-08-13,46,Yovanny Suarez,27041,8:54 AM,arrival,24641,10:15 AM,return,Disney Resort,Disney Resort,True,2,2min buffer,10:09,4,4,flat arrival dwell|cross-property Disney average,True,True,-7,ok
+2026-08-13,46,Yovanny Suarez,24641,10:15 AM,return,24417,11:02 AM,arrival,MCO Terminal,MCO Terminal,True,27,27min buffer,10:45,2,-10,,,,-3,ok
+2026-08-13,46,Yovanny Suarez,24417,11:02 AM,arrival,33352,12:55 PM,arrival,Disney Resort,MCO Terminal,True,8,8min buffer,12:17,30,30,flat arrival dwell,True,True,17,ok
+2026-08-13,46,Yovanny Suarez,33352,12:55 PM,arrival,31069,3:00 PM,return,Disney Resort,Disney Resort,True,16,16min buffer,14:35,9,9,flat arrival dwell|cross-property Disney average,True,True,-28,ok
+2026-08-13,58,ken,31720,8:46 AM,cruise,28804,11:39 AM,arrival,Port Canaveral Area,MCO Terminal,True,18,18min buffer,10:26,55,55,,,,70,ok
+2026-08-13,58,ken,28804,11:39 AM,arrival,33278,1:54 PM,arrival,Disney Resort,MCO Terminal,True,5,5min buffer,13:19,30,30,flat arrival dwell,True,True,70,ok
+2026-08-13,58,ken,33278,1:54 PM,arrival,30862,6:00 PM,return,Disney Resort,Disney Resort,True,162,162min buffer,15:09,9,9,flat arrival dwell|cross-property Disney average,True,True,28,ok
+2026-08-13,58,ken,30862,6:00 PM,return,33221,8:00 PM,arrival,MCO Terminal,MCO Terminal,True,100,100min buffer,18:30,2,-10,,,,71,ok
+2026-08-13,58,ken,33221,8:00 PM,arrival,34282,9:30 PM,other,Disney Resort,Universal Resort,False,-13,"Needs 13 more min. Previous job ends ~9:15 PM, +28min turnaround required.",21:15,28,28,flat arrival dwell,True,False,28,ok
+2026-08-13,54,Steven Kleisath,32438,8:51 AM,arrival,32926,11:58 AM,arrival,Disney Resort,MCO Terminal,True,82,82min buffer,10:06,30,30,flat arrival dwell,True,True,-25,ok
+2026-08-13,54,Steven Kleisath,32926,11:58 AM,arrival,30832,4:22 PM,arrival,Disney Resort,MCO Terminal,True,159,159min buffer,13:13,30,30,flat arrival dwell,True,True,-37,ok
+2026-08-13,54,Steven Kleisath,30832,4:22 PM,arrival,28036,6:43 PM,arrival,Disney Resort,MCO Terminal,True,36,36min buffer,17:37,30,30,flat arrival dwell,True,True,-28,ok
+2026-08-13,54,Steven Kleisath,28036,6:43 PM,arrival,32507,9:42 PM,arrival,Disney Resort,MCO Terminal,True,74,74min buffer,19:58,30,30,flat arrival dwell,True,True,-30,ok
+2026-08-13,64,Raymond,29249,9:00 AM,other,30213,10:00 AM,return,Disney Resort,Disney Resort,True,22,22min buffer,09:28,10,10,cross-property Disney average,,,,none
+2026-08-13,64,Raymond,30213,10:00 AM,return,28714,10:25 AM,arrival,MCO Terminal,MCO Terminal,True,5,5min buffer,10:30,2,-10,,,,8,ok
+2026-08-13,64,Raymond,28714,10:25 AM,arrival,30207,12:31 PM,arrival,Disney Resort,MCO Terminal,True,21,21min buffer,11:40,30,30,flat arrival dwell,True,True,3,ok
+2026-08-13,64,Raymond,30207,12:31 PM,arrival,31852,4:17 PM,arrival,Disney Resort,MCO Terminal,True,96,96min buffer,14:11,30,30,flat arrival dwell,True,True,29,ok
+2026-08-13,64,Raymond,31852,4:17 PM,arrival,30624,6:30 PM,return,Disney Resort,Disney Resort,True,51,51min buffer,17:32,7,7,flat arrival dwell|cross-property Disney average,True,True,-1,ok
+2026-08-13,64,Raymond,30624,6:30 PM,return,32941,8:00 PM,arrival,MCO Terminal,MCO Terminal,True,70,70min buffer,19:00,2,-10,,,,,none
+2026-08-13,64,Raymond,32941,8:00 PM,arrival,29250,10:45 PM,other,Disney Resort,Disney Resort,True,83,83min buffer,21:15,7,7,flat arrival dwell|cross-property Disney average,True,True,-30,ok
+2026-08-13,64,Raymond,29250,10:45 PM,other,32419,11:52 PM,arrival,Universal Resort,MCO Terminal,True,14,14min buffer,23:13,25,25,,,,106,ok
+2026-08-13,38,Angel Almanzar,30382,9:00 AM,return,25114,12:54 PM,arrival,SFB Terminal,MCO Terminal,True,114,114min buffer,10:00,60,60,,,,43,ok
+2026-08-13,38,Angel Almanzar,25114,12:54 PM,arrival,28341,6:00 PM,return,Disney Resort,Disney Resort,True,198,198min buffer,14:34,8,8,flat arrival dwell|cross-property Disney average,True,True,-147,ok
+2026-08-13,38,Angel Almanzar,28341,6:00 PM,return,33330,6:54 PM,arrival,MCO Terminal,MCO Terminal,True,34,34min buffer,18:30,2,-10,,,,-11,ok
+2026-08-13,51,David Encarancion,34070,9:00 AM,cruise,27446,11:00 AM,return,Disney Resort,Disney Resort,True,36,36min buffer,10:12,12,12,cross-property Disney average,,,-14,ok
+2026-08-13,51,David Encarancion,27446,11:00 AM,return,30807,1:30 PM,return,MCO Terminal,Universal Resort,True,95,95min buffer,11:30,25,25,,,,5,ok
+2026-08-13,51,David Encarancion,30807,1:30 PM,return,31858,3:00 PM,return,MCO Terminal,Disney Resort,True,35,35min buffer,13:55,30,30,,,,-26,ok
+2026-08-13,51,David Encarancion,31858,3:00 PM,return,32943,10:12 PM,cruise,MCO Terminal,SFB Terminal,True,342,342min buffer,15:30,60,60,,,,30,ok
+2026-08-13,59,Aftab,25979,9:59 AM,arrival,30914,12:30 PM,arrival,Disney Resort,MCO Terminal,True,46,46min buffer,11:14,30,30,flat arrival dwell,True,True,20,ok
+2026-08-13,59,Aftab,30914,12:30 PM,arrival,31527,3:10 PM,arrival,Disney Resort,MCO Terminal,True,55,55min buffer,13:45,30,30,flat arrival dwell,True,True,21,ok
+2026-08-13,59,Aftab,31527,3:10 PM,arrival,29506,5:15 PM,return,Disney Resort,Disney Resort,True,44,44min buffer,16:25,6,6,flat arrival dwell|cross-property Disney average,True,True,-5,ok
+2026-08-13,53,sereen,23646,5:54 PM,return,29466,7:25 PM,arrival,MCO Terminal,MCO Terminal,True,71,71min buffer,18:24,2,-10,,,,7,ok
+2026-08-13,53,sereen,29466,7:25 PM,arrival,33326,8:42 PM,arrival,Disney Resort,MCO Terminal,False,-28,"Needs 28 more min. Previous job ends ~8:40 PM, +30min turnaround required.",20:40,30,30,flat arrival dwell,False,False,36,ok
+2026-08-13,50,Lev Askerov,25368,8:03 PM,cruise,34381,10:04 PM,cruise,Port Canaveral Area,MCO Terminal,False,-34,"Needs 34 more min. Previous job ends ~9:43 PM, +55min turnaround required.",21:43,55,55,,,,26,ok
+2026-08-14,48,Michael Olmo,33747,2:45 AM,return,33518,4:00 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,03:15,30,30,,,,-30,ok
+2026-08-14,48,Michael Olmo,33518,4:00 AM,return,32219,7:30 AM,return,MCO Terminal,Disney Resort,True,150,150min buffer,04:30,30,30,,,,-12,ok
+2026-08-14,48,Michael Olmo,32219,7:30 AM,return,26452,8:11 AM,arrival,MCO Terminal,MCO Terminal,True,21,21min buffer,08:00,2,-10,,,,-2,ok
+2026-08-14,48,Michael Olmo,26452,8:11 AM,arrival,28525,9:45 AM,return,Disney Resort,Disney Resort,True,9,9min buffer,09:26,10,10,flat arrival dwell|cross-property Disney average,True,True,-32,ok
+2026-08-14,48,Michael Olmo,28525,9:45 AM,return,30452,11:00 AM,other,MCO Terminal,Airport Hotel,True,33,33min buffer,10:15,12,12,,,,-41,ok
+2026-08-14,48,Michael Olmo,30452,11:00 AM,other,33138,11:40 AM,arrival,Disney Resort,MCO Terminal,False,-15,"Needs 15 more min. Previous job ends ~11:25 AM, +30min turnaround required.",11:25,30,30,,,,2,ok
+2026-08-14,48,Michael Olmo,33138,11:40 AM,arrival,32332,1:00 PM,return,Disney Resort,Disney Resort,True,5,5min buffer,12:55,0,0,flat arrival dwell|cross-property Disney average,True,True,-9,ok
+2026-08-14,48,Michael Olmo,32332,1:00 PM,return,34235,2:28 PM,arrival,MCO Terminal,MCO Terminal,True,68,68min buffer,13:30,2,-10,,,,-11,ok
+2026-08-14,26,neuma,32650,3:30 AM,return,14097,4:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,04:00,30,30,,,,,none
+2026-08-14,26,neuma,14097,4:30 AM,return,23590,6:30 AM,return,SFB Terminal,Disney Resort,True,0,0min buffer,05:30,60,60,,,,,none
+2026-08-14,26,neuma,23590,6:30 AM,return,30156,8:30 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,07:00,30,30,,,,,none
+2026-08-14,26,neuma,30156,8:30 AM,return,33859,9:38 AM,arrival,MCO Terminal,MCO Terminal,True,48,48min buffer,09:00,2,-10,,,,37,ok
+2026-08-14,26,neuma,33859,9:38 AM,arrival,33040,11:00 AM,return,Universal Resort,Disney Resort,False,-16,"Needs 16 more min. Previous job ends ~10:48 AM, +28min turnaround required.",10:48,28,28,flat arrival dwell,True,False,,none
+2026-08-14,26,neuma,33040,11:00 AM,return,33081,12:53 PM,arrival,SFB Terminal,SFB Terminal,True,63,63min buffer,12:00,2,-10,,,,,none
+2026-08-14,26,neuma,33081,12:53 PM,arrival,29216,3:12 PM,arrival,Disney Resort,MCO Terminal,True,4,4min buffer,14:38,30,30,flat arrival dwell,True,True,,none
+2026-08-14,26,neuma,29216,3:12 PM,arrival,26549,5:23 PM,arrival,Disney Resort,MCO Terminal,True,26,26min buffer,16:27,30,30,flat arrival dwell,True,True,,none
+2026-08-14,66,Francisco Pedraza,33796,4:00 AM,return,33624,7:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,125,125min buffer,04:30,55,55,,,,-7,ok
+2026-08-14,66,Francisco Pedraza,33624,7:30 AM,cruise,32688,9:30 AM,return,MCO Terminal,Disney Resort,True,35,35min buffer,08:25,30,30,,,,-7,ok
+2026-08-14,66,Francisco Pedraza,32688,9:30 AM,return,30215,11:00 AM,cruise,MCO Terminal,Disney Resort,True,30,30min buffer,10:00,30,30,,,,-37,ok
+2026-08-14,66,Francisco Pedraza,30215,11:00 AM,cruise,30799,1:30 PM,return,Port Canaveral Area,Disney Resort,True,6,6min buffer,12:12,72,72,,,,-64,ok
+2026-08-14,66,Francisco Pedraza,30799,1:30 PM,return,33215,3:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,14:00,30,30,,,,-12,ok
+2026-08-14,66,Francisco Pedraza,33215,3:00 PM,return,30389,6:00 PM,return,MCO Terminal,Disney Resort,True,120,120min buffer,15:30,30,30,,,,-8,ok
+2026-08-14,33,runer,23761,6:45 AM,return,20651,9:45 AM,cruise,MCO Terminal,Port Canaveral Area,True,95,95min buffer,07:15,55,55,,,,-36,ok
+2026-08-14,33,runer,20651,9:45 AM,cruise,29344,11:00 AM,return,MCO Terminal,Disney Resort,False,-10,"Needs 10 more min. Previous job ends ~10:40 AM, +30min turnaround required.",10:40,30,30,,,,-2,ok
+2026-08-14,33,runer,29344,11:00 AM,return,27415,12:45 PM,cruise,MCO Terminal,Disney Resort,True,45,45min buffer,11:30,30,30,,,,6,ok
+2026-08-14,33,runer,27415,12:45 PM,cruise,34733,8:17 PM,arrival,Port Canaveral Area,MCO Terminal,True,325,325min buffer,13:57,55,55,,,,-32,ok
+2026-08-14,59,Aftab,33723,7:00 AM,return,32761,9:30 AM,cruise,SFB Terminal,Port Canaveral Area,True,20,20min buffer,08:00,70,70,,,,5,ok
+2026-08-14,59,Aftab,32761,9:30 AM,cruise,32795,11:19 AM,arrival,MCO Terminal,MCO Terminal,True,64,64min buffer,10:25,2,-10,,,,27,ok
+2026-08-14,59,Aftab,32795,11:19 AM,arrival,33210,1:00 PM,return,Disney Resort,Disney Resort,True,14,14min buffer,12:34,12,12,flat arrival dwell|cross-property Disney average,True,True,0,ok
+2026-08-14,59,Aftab,33210,1:00 PM,return,33506,5:05 PM,cruise,MCO Terminal,MCO Terminal,True,225,225min buffer,13:30,2,-10,,,,37,ok
+2026-08-14,59,Aftab,33506,5:05 PM,cruise,30451,7:26 PM,arrival,Port Canaveral Area,MCO Terminal,False,-14,"Needs 14 more min. Previous job ends ~6:45 PM, +55min turnaround required.",18:45,55,55,,,,30,ok
+2026-08-14,69,Charlie,31874,7:30 AM,return,33313,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,08:00,55,55,,,,-8,ok
+2026-08-14,69,Charlie,33313,9:00 AM,cruise,32490,10:53 AM,cruise,MCO Terminal,MCO Terminal,True,68,68min buffer,09:55,2,-10,,,,0,ok
+2026-08-14,58,ken,30197,7:45 AM,return,20347,9:15 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,08:15,30,30,,,,23,ok
+2026-08-14,58,ken,20347,9:15 AM,return,21810,10:30 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,09:45,30,30,,,,29,ok
+2026-08-14,58,ken,21810,10:30 AM,return,32901,12:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,11:00,30,30,,,,28,ok
+2026-08-14,58,ken,32901,12:00 PM,return,32444,12:23 PM,arrival,MCO Terminal,MCO Terminal,True,3,3min buffer,12:30,2,-10,,,,101,ok
+2026-08-14,58,ken,32444,12:23 PM,arrival,25058,2:45 PM,return,Disney Resort,Disney Resort,True,59,59min buffer,13:38,8,8,flat arrival dwell|cross-property Disney average,True,True,44,ok
+2026-08-14,58,ken,25058,2:45 PM,return,34019,3:45 PM,other,MCO Terminal,Disney Resort,True,0,0min buffer,15:15,30,30,,,,5,ok
+2026-08-14,58,ken,34019,3:45 PM,other,30347,5:30 PM,arrival,Other,MCO Terminal,True,40,40min buffer,16:20,30,30,first job's drive unpriced|reposition unpriced,,,100,ok
+2026-08-14,32,roberto,31340,7:45 AM,return,26184,9:30 AM,cruise,MCO Terminal,Disney Resort,True,45,45min buffer,08:15,30,30,,,,-18,ok
+2026-08-14,32,roberto,26184,9:30 AM,cruise,11744,11:30 AM,return,Port Canaveral Area,Disney Resort,False,-24,"Needs 24 more min. Previous job ends ~10:42 AM, +72min turnaround required.",10:42,72,72,,,,2,ok
+2026-08-14,32,roberto,11744,11:30 AM,return,27414,12:45 PM,cruise,MCO Terminal,Disney Resort,True,15,15min buffer,12:00,30,30,,,,-4,ok
+2026-08-14,32,roberto,27414,12:45 PM,cruise,31486,3:00 PM,return,Port Canaveral Area,Disney Resort,False,-9,"Needs 9 more min. Previous job ends ~1:57 PM, +72min turnaround required.",13:57,72,72,,,,21,ok
+2026-08-14,32,roberto,31486,3:00 PM,return,31490,6:15 PM,return,MCO Terminal,Disney Resort,True,135,135min buffer,15:30,30,30,,,,52,ok
+2026-08-14,32,roberto,31490,6:15 PM,return,30666,7:21 PM,arrival,MCO Terminal,MCO Terminal,True,46,46min buffer,18:45,2,-10,,,,32,ok
+2026-08-14,57,Seline,32479,7:45 AM,return,31926,9:00 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,08:15,30,30,,,,-7,ok
+2026-08-14,57,Seline,31926,9:00 AM,return,32428,9:59 AM,arrival,MCO Terminal,MCO Terminal,True,39,39min buffer,09:30,2,-10,,,,23,ok
+2026-08-14,57,Seline,32428,9:59 AM,arrival,34349,12:00 PM,return,Disney Resort,Disney Resort,True,30,30min buffer,11:14,16,16,flat arrival dwell|cross-property Disney average,True,True,-16,ok
+2026-08-14,57,Seline,34349,12:00 PM,return,29728,12:53 PM,arrival,MCO Terminal,SFB Terminal,False,-37,"Needs 37 more min. Previous job ends ~12:30 PM, +60min turnaround required.",12:30,60,60,,,,24,ok
+2026-08-14,68,AldoH,34018,7:52 AM,other,29689,9:26 AM,arrival,Disney Resort,MCO Terminal,True,29,29min buffer,08:27,30,30,first job's drive unpriced,,,5,ok
+2026-08-14,68,AldoH,29689,9:26 AM,arrival,28226,11:30 AM,cruise,Disney Resort,Disney Resort,True,36,36min buffer,10:41,13,13,flat arrival dwell|cross-property Disney average,True,True,-9,ok
+2026-08-14,68,AldoH,28226,11:30 AM,cruise,30900,1:55 PM,arrival,Port Canaveral Area,MCO Terminal,True,18,18min buffer,12:42,55,55,,,,5,ok
+2026-08-14,68,AldoH,30900,1:55 PM,arrival,32745,4:00 PM,return,Disney Resort,Disney Resort,True,43,43min buffer,15:10,7,7,flat arrival dwell|cross-property Disney average,True,True,-24,ok
+2026-08-14,68,AldoH,32745,4:00 PM,return,31075,8:20 PM,arrival,MCO Terminal,MCO Terminal,True,240,240min buffer,16:30,2,-10,,,,-9,ok
+2026-08-14,54,Steven Kleisath,33332,8:00 AM,cruise,31711,9:30 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,08:55,30,30,,,,-5,ok
+2026-08-14,54,Steven Kleisath,31711,9:30 AM,return,24432,9:54 AM,arrival,MCO Terminal,MCO Terminal,True,4,4min buffer,10:00,2,-10,,,,14,ok
+2026-08-14,54,Steven Kleisath,24432,9:54 AM,arrival,31346,12:00 PM,cruise,Disney Resort,Disney Resort,True,38,38min buffer,11:09,13,13,flat arrival dwell|cross-property Disney average,True,True,-27,ok
+2026-08-14,54,Steven Kleisath,31346,12:00 PM,cruise,33534,3:00 PM,return,Port Canaveral Area,Disney Resort,True,36,36min buffer,13:12,72,72,,,,0,ok
+2026-08-14,64,Raymond,28094,8:30 AM,return,30920,9:37 AM,cruise,MCO Terminal,MCO Terminal,True,47,47min buffer,09:00,2,-10,,,,-25,ok
+2026-08-14,64,Raymond,30920,9:37 AM,cruise,27416,12:45 PM,cruise,Port Canaveral Area,Disney Resort,True,16,16min buffer,11:17,72,72,,,,,none
+2026-08-14,64,Raymond,27416,12:45 PM,cruise,31975,3:30 PM,return,Port Canaveral Area,Disney Resort,True,21,21min buffer,13:57,72,72,,,,,none
+2026-08-14,64,Raymond,31975,3:30 PM,return,28602,8:06 PM,cruise,MCO Terminal,MCO Terminal,True,256,256min buffer,16:00,2,-10,,,,8,ok
+2026-08-14,38,Angel Almanzar,32379,8:30 AM,cruise,24855,10:00 AM,return,Other,Disney Resort,True,14,14min buffer,09:05,41,41,first job's drive unpriced|reposition unpriced,,,16,ok
+2026-08-14,38,Angel Almanzar,24855,10:00 AM,return,24678,11:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,10:30,30,30,,,,6,ok
+2026-08-14,38,Angel Almanzar,24678,11:30 AM,return,34562,1:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,12:00,30,30,,,,-4,ok
+2026-08-14,38,Angel Almanzar,34562,1:00 PM,return,28067,2:00 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,13:30,30,30,,,,3,ok
+2026-08-14,38,Angel Almanzar,28067,2:00 PM,return,32406,2:30 PM,cruise,MCO Terminal,MCO Terminal,True,10,10min buffer,14:30,2,-10,,,,35,ok
+2026-08-14,38,Angel Almanzar,32406,2:30 PM,cruise,24105,7:15 PM,cruise,Port Canaveral Area,MCO Terminal,True,130,130min buffer,16:10,55,55,,,,-26,ok
+2026-08-14,56,george,32728,9:00 AM,cruise,31621,10:08 AM,arrival,MCO Terminal,MCO Terminal,True,23,23min buffer,09:55,2,-10,,,,-32,ok
+2026-08-14,56,george,31621,10:08 AM,arrival,31561,1:08 PM,cruise,Disney Resort,MCO Terminal,True,75,75min buffer,11:23,30,30,flat arrival dwell,True,True,-63,ok
+2026-08-14,56,george,31561,1:08 PM,cruise,33022,3:45 PM,return,Port Canaveral Area,Disney Resort,False,-15,"Needs 15 more min. Previous job ends ~2:48 PM, +72min turnaround required.",14:48,72,72,,,,-13,ok
+2026-08-14,56,george,33022,3:45 PM,return,27204,5:30 PM,return,MCO Terminal,Disney Resort,True,45,45min buffer,16:15,30,30,,,,-43,ok
+2026-08-14,56,george,27204,5:30 PM,return,33280,6:28 PM,arrival,MCO Terminal,MCO Terminal,True,38,38min buffer,18:00,2,-10,,,,-28,ok
+2026-08-14,51,David Encarancion,27144,9:15 AM,cruise,31019,11:15 AM,return,Disney Resort,Disney Resort,True,36,36min buffer,10:27,12,12,cross-property Disney average,,,-14,ok
+2026-08-14,51,David Encarancion,31019,11:15 AM,return,31902,1:00 PM,return,MCO Terminal,Disney Resort,True,45,45min buffer,11:45,30,30,,,,25,ok
+2026-08-14,51,David Encarancion,31902,1:00 PM,return,31912,2:30 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,13:30,30,30,,,,5,ok
+2026-08-14,51,David Encarancion,31912,2:30 PM,return,11122,4:14 PM,arrival,MCO Terminal,MCO Terminal,True,84,84min buffer,15:00,2,-10,,,,281,ok
+2026-08-14,51,David Encarancion,11122,4:14 PM,arrival,31471,7:30 PM,return,Disney Resort,Disney Resort,True,67,67min buffer,18:09,13,13,flat arrival dwell|cross-property Disney average,True,True,1,ok
+2026-08-14,51,David Encarancion,31471,7:30 PM,return,25942,10:49 PM,arrival,MCO Terminal,MCO Terminal,True,179,179min buffer,20:00,2,-10,,,,24,ok
+2026-08-14,53,sereen,32886,2:00 PM,return,31938,2:10 PM,arrival,MCO Terminal,MCO Terminal,False,-10,"Needs 10 more min. Previous job ends ~2:30 PM, +-10min turnaround required.",14:30,2,-10,,,,37,ok
+2026-08-14,53,sereen,31938,2:10 PM,arrival,30443,6:19 PM,arrival,Universal Resort,MCO Terminal,True,154,154min buffer,15:20,25,25,flat arrival dwell,True,True,28,ok
+2026-08-14,53,sereen,30443,6:19 PM,arrival,30399,10:28 PM,arrival,Universal Resort,MCO Terminal,True,154,154min buffer,19:29,25,25,flat arrival dwell,True,True,-17,ok
+2026-08-15,48,Michael Olmo,25704,3:40 AM,return,28074,5:25 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,04:10,30,30,,,,-60,ok
+2026-08-15,48,Michael Olmo,28074,5:25 AM,return,28522,6:16 AM,arrival,MCO Terminal,MCO Terminal,True,31,31min buffer,05:55,2,-10,,,,-20,ok
+2026-08-15,48,Michael Olmo,28522,6:16 AM,arrival,16385,9:00 AM,cruise,Disney Resort,Port Canaveral Area,True,17,17min buffer,07:31,72,72,flat arrival dwell,True,True,-27,ok
+2026-08-15,48,Michael Olmo,16385,9:00 AM,cruise,33241,10:50 AM,arrival,MCO Terminal,MCO Terminal,True,65,65min buffer,09:55,2,-10,,,,-56,ok
+2026-08-15,48,Michael Olmo,33241,10:50 AM,arrival,20539,12:30 PM,return,Disney Resort,Disney Resort,True,12,12min buffer,12:05,13,13,flat arrival dwell|cross-property Disney average,True,True,-25,ok
+2026-08-15,48,Michael Olmo,20539,12:30 PM,return,24273,2:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,13:00,30,30,,,,-24,ok
+2026-08-15,48,Michael Olmo,24273,2:00 PM,return,34390,2:17 PM,arrival,MCO Terminal,MCO Terminal,False,-3,"Needs 3 more min. Previous job ends ~2:30 PM, +-10min turnaround required.",14:30,2,-10,,,,28,ok
+2026-08-15,26,neuma,28026,5:00 AM,return,28444,6:15 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,05:30,30,30,,,,,none
+2026-08-15,26,neuma,28444,6:15 AM,return,29431,8:00 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,06:45,30,30,,,,,none
+2026-08-15,26,neuma,29431,8:00 AM,return,31013,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,,none
+2026-08-15,26,neuma,31013,9:00 AM,return,19202,9:43 AM,arrival,MCO Terminal,MCO Terminal,True,23,23min buffer,09:30,2,-10,,,,,none
+2026-08-15,26,neuma,19202,9:43 AM,arrival,33912,12:00 PM,return,Disney Resort,Disney Resort,True,25,25min buffer,11:23,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-15,26,neuma,33912,12:00 PM,return,26425,1:00 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,12:30,30,30,,,,,none
+2026-08-15,26,neuma,26425,1:00 PM,return,31349,1:21 PM,arrival,MCO Terminal,MCO Terminal,True,1,1min buffer,13:30,2,-10,,,,,none
+2026-08-15,26,neuma,31349,1:21 PM,arrival,24118,3:30 PM,return,Disney Resort,Disney Resort,True,47,47min buffer,14:36,7,7,flat arrival dwell|cross-property Disney average,True,True,-21,ok
+2026-08-15,26,neuma,24118,3:30 PM,return,33078,4:24 PM,arrival,MCO Terminal,MCO Terminal,True,34,34min buffer,16:00,2,-10,,,,,none
+2026-08-15,26,neuma,33078,4:24 PM,arrival,31870,6:00 PM,return,Disney Resort,Disney Resort,True,5,5min buffer,17:46,9,9,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-15,57,Seline,29399,5:00 AM,return,19240,6:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,05:30,30,30,,,,1,ok
+2026-08-15,57,Seline,19240,6:00 AM,return,32469,7:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,06:30,30,30,,,,-3,ok
+2026-08-15,57,Seline,32469,7:30 AM,return,27538,8:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:00,30,30,,,,10,ok
+2026-08-15,57,Seline,27538,8:30 AM,return,32869,9:45 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,09:00,30,30,,,,5,ok
+2026-08-15,57,Seline,32869,9:45 AM,return,27403,10:06 AM,arrival,MCO Terminal,MCO Terminal,True,1,1min buffer,10:15,2,-10,,,,17,ok
+2026-08-15,32,roberto,25184,6:00 AM,return,27695,8:00 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,06:30,30,30,,,,-49,ok
+2026-08-15,32,roberto,27695,8:00 AM,return,19008,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,4,ok
+2026-08-15,32,roberto,19008,9:00 AM,return,19652,10:01 AM,arrival,MCO Terminal,MCO Terminal,True,41,41min buffer,09:30,2,-10,,,,-4,ok
+2026-08-15,32,roberto,19652,10:01 AM,arrival,21610,12:09 PM,arrival,Disney Resort,MCO Terminal,False,-2,"Needs 2 more min. Previous job ends ~11:41 AM, +30min turnaround required.",11:41,30,30,flat arrival dwell,True,True,7,ok
+2026-08-15,32,roberto,21610,12:09 PM,arrival,34533,2:00 PM,return,Disney Resort,Disney Resort,True,21,21min buffer,13:24,15,15,flat arrival dwell|cross-property Disney average,True,True,-5,ok
+2026-08-15,32,roberto,34533,2:00 PM,return,33403,4:00 PM,return,MCO Terminal,Disney Resort,True,60,60min buffer,14:30,30,30,,,,-69,ok
+2026-08-15,32,roberto,33403,4:00 PM,return,23984,5:00 PM,arrival,MCO Terminal,MCO Terminal,True,40,40min buffer,16:30,2,-10,,,,3,ok
+2026-08-15,32,roberto,23984,5:00 PM,arrival,34577,8:54 PM,arrival,Disney Resort,MCO Terminal,True,98,98min buffer,18:46,30,30,flat arrival dwell,True,True,-1,ok
+2026-08-15,33,runer,22732,6:30 AM,return,26233,7:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,07:00,30,30,,,,-4,ok
+2026-08-15,33,runer,26233,7:30 AM,return,31506,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,08:00,55,55,,,,-19,ok
+2026-08-15,33,runer,31506,9:00 AM,cruise,30728,9:52 AM,arrival,MCO Terminal,MCO Terminal,True,7,7min buffer,09:55,2,-10,,,,-12,ok
+2026-08-15,33,runer,30728,9:52 AM,arrival,29716,11:04 AM,arrival,Disney Resort,MCO Terminal,False,-33,"Needs 33 more min. Previous job ends ~11:07 AM, +30min turnaround required.",11:07,30,30,flat arrival dwell,False,False,37,ok
+2026-08-15,33,runer,29716,11:04 AM,arrival,34835,1:00 PM,other,Disney Resort,Other,True,12,12min buffer,12:19,29,29,flat arrival dwell|reposition unpriced,True,True,-6,ok
+2026-08-15,33,runer,34835,1:00 PM,other,29900,2:30 PM,return,Disney Resort,Disney Resort,True,46,46min buffer,13:35,9,9,first job's drive unpriced|cross-property Disney average,,,-26,ok
+2026-08-15,33,runer,29900,2:30 PM,return,28938,2:35 PM,arrival,MCO Terminal,MCO Terminal,False,-15,"Needs 15 more min. Previous job ends ~3:00 PM, +-10min turnaround required.",15:00,2,-10,,,,40,ok
+2026-08-15,33,runer,28938,2:35 PM,arrival,31884,4:10 PM,return,Disney Resort,Disney Resort,True,10,10min buffer,15:50,10,10,flat arrival dwell|cross-property Disney average,True,True,-1,ok
+2026-08-15,33,runer,31884,4:10 PM,return,33301,4:53 PM,arrival,MCO Terminal,MCO Terminal,True,23,23min buffer,16:40,2,-10,,,,7,ok
+2026-08-15,61,Idrees,28545,6:45 AM,return,33778,8:30 AM,other,MCO Terminal,Airport Hotel,True,63,63min buffer,07:15,12,12,,,,30,ok
+2026-08-15,61,Idrees,33778,8:30 AM,other,30829,10:23 AM,arrival,Disney Resort,MCO Terminal,True,58,58min buffer,08:55,30,30,,,,16,ok
+2026-08-15,61,Idrees,30829,10:23 AM,arrival,26966,12:30 PM,return,Disney Resort,Disney Resort,True,43,43min buffer,11:38,9,9,flat arrival dwell|cross-property Disney average,True,True,-16,ok
+2026-08-15,61,Idrees,26966,12:30 PM,return,31318,1:16 PM,arrival,MCO Terminal,MCO Terminal,True,26,26min buffer,13:00,2,-10,,,,60,ok
+2026-08-15,61,Idrees,31318,1:16 PM,arrival,14703,4:00 PM,return,Disney Resort,Disney Resort,True,80,80min buffer,14:31,9,9,flat arrival dwell|cross-property Disney average,True,True,34,ok
+2026-08-15,61,Idrees,14703,4:00 PM,return,31667,4:52 PM,arrival,MCO Terminal,MCO Terminal,True,32,32min buffer,16:30,2,-10,,,,85,ok
+2026-08-15,58,ken,31868,7:00 AM,return,33701,8:00 AM,return,MCO Terminal,Universal Resort,True,5,5min buffer,07:30,25,25,,,,75,ok
+2026-08-15,58,ken,33701,8:00 AM,return,30166,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,10,10min buffer,08:25,55,55,,,,127,ok
+2026-08-15,58,ken,30166,9:30 AM,cruise,27556,2:00 PM,return,Other Hotel,Disney Resort,True,163,163min buffer,10:25,52,52,,,,48,ok
+2026-08-15,58,ken,27556,2:00 PM,return,27131,4:52 PM,arrival,MCO Terminal,MCO Terminal,True,152,152min buffer,14:30,2,-10,,,,88,ok
+2026-08-15,58,ken,27131,4:52 PM,arrival,34935,5:59 PM,arrival,Disney Resort,MCO Terminal,False,-40,"Needs 40 more min. Previous job ends ~6:09 PM, +30min turnaround required.",18:09,30,30,flat arrival dwell,False,False,165,ok
+2026-08-15,58,ken,34935,5:59 PM,arrival,34959,10:15 PM,arrival,Other Hotel,MCO Terminal,True,164,164min buffer,19:09,22,22,flat arrival dwell,True,True,51,ok
+2026-08-15,68,AldoH,31876,7:15 AM,return,34167,8:13 AM,arrival,MCO Terminal,MCO Terminal,True,38,38min buffer,07:45,2,-10,,,,-24,ok
+2026-08-15,68,AldoH,34167,8:13 AM,arrival,25480,11:48 AM,arrival,Disney Resort,MCO Terminal,True,110,110min buffer,09:28,30,30,flat arrival dwell,True,True,12,ok
+2026-08-15,68,AldoH,25480,11:48 AM,arrival,33621,1:48 PM,arrival,Disney Resort,MCO Terminal,True,15,15min buffer,13:03,30,30,flat arrival dwell,True,True,-19,ok
+2026-08-15,68,AldoH,33621,1:48 PM,arrival,28639,4:30 PM,other,Disney Resort,Disney Resort,False,-999,6 passengers exceeds 13 cap (4).,15:03,9,9,flat arrival dwell|cross-property Disney average,False,False,-20,ok
+2026-08-15,68,AldoH,28639,4:30 PM,other,29730,5:00 PM,arrival,Disney Resort,MCO Terminal,False,-999,4 suitcases exceeds 13 cap (3).,16:42,30,30,,,,21,ok
+2026-08-15,62,shelley,17893,8:00 AM,cruise,28075,9:35 AM,arrival,MCO Terminal,MCO Terminal,True,50,50min buffer,08:55,2,-10,,,,,none
+2026-08-15,62,shelley,28075,9:35 AM,arrival,32598,12:30 PM,return,Disney Resort,Disney Resort,True,72,72min buffer,11:15,3,3,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-15,62,shelley,32598,12:30 PM,return,32765,1:53 PM,arrival,MCO Terminal,MCO Terminal,True,63,63min buffer,13:00,2,-10,,,,9,ok
+2026-08-15,62,shelley,32765,1:53 PM,arrival,31771,4:00 PM,return,Disney Resort,Disney Resort,True,43,43min buffer,15:08,9,9,flat arrival dwell|cross-property Disney average,True,True,2,ok
+2026-08-15,62,shelley,31771,4:00 PM,return,30987,5:14 PM,arrival,MCO Terminal,MCO Terminal,True,54,54min buffer,16:30,2,-10,,,,3,ok
+2026-08-15,62,shelley,30987,5:14 PM,arrival,32198,6:48 PM,arrival,Disney Resort,MCO Terminal,False,-12,"Needs 12 more min. Previous job ends ~6:31 PM, +30min turnaround required.",18:31,30,30,flat arrival dwell,True,False,-3,ok
+2026-08-15,55,rizwan,21344,8:00 AM,return,33348,8:58 AM,arrival,MCO Terminal,MCO Terminal,True,38,38min buffer,08:30,2,-10,,,,10,ok
+2026-08-15,55,rizwan,33348,8:58 AM,arrival,29413,11:21 AM,arrival,Disney Resort,MCO Terminal,True,38,38min buffer,10:13,30,30,flat arrival dwell,True,True,7,ok
+2026-08-15,55,rizwan,29413,11:21 AM,arrival,33303,1:00 PM,return,Disney Resort,Disney Resort,True,12,12min buffer,12:36,12,12,flat arrival dwell|cross-property Disney average,True,True,-11,ok
+2026-08-15,55,rizwan,33303,1:00 PM,return,30510,2:30 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,13:30,30,30,,,,-8,ok
+2026-08-15,55,rizwan,30510,2:30 PM,return,13682,3:09 PM,arrival,MCO Terminal,MCO Terminal,True,19,19min buffer,15:00,2,-10,,,,16,ok
+2026-08-15,55,rizwan,13682,3:09 PM,arrival,32808,5:15 PM,return,Disney Resort,Disney Resort,False,-7,"Needs 7 more min. Previous job ends ~5:12 PM, +10min turnaround required.",17:12,10,10,flat arrival dwell|cross-property Disney average,True,True,-3,ok
+2026-08-15,55,rizwan,32808,5:15 PM,return,33882,6:02 PM,arrival,MCO Terminal,MCO Terminal,True,27,27min buffer,17:45,2,-10,,,,10,ok
+2026-08-15,53,sereen,25434,8:00 AM,cruise,32325,9:11 AM,arrival,MCO Terminal,MCO Terminal,True,26,26min buffer,08:55,2,-10,,,,9,ok
+2026-08-15,53,sereen,32325,9:11 AM,arrival,19778,10:47 AM,arrival,Disney Resort,MCO Terminal,False,-9,"Needs 9 more min. Previous job ends ~10:26 AM, +30min turnaround required.",10:26,30,30,flat arrival dwell,True,True,7,ok
+2026-08-15,53,sereen,19778,10:47 AM,arrival,32978,1:00 PM,return,Disney Resort,Disney Resort,True,57,57min buffer,12:02,1,1,flat arrival dwell|cross-property Disney average,True,True,-32,ok
+2026-08-15,53,sereen,32978,1:00 PM,return,29035,2:00 PM,other,MCO Terminal,Disney Resort,True,0,0min buffer,13:30,30,30,,,,-8,ok
+2026-08-15,53,sereen,29035,2:00 PM,other,24359,2:35 PM,arrival,Universal Resort,MCO Terminal,False,-18,"Needs 18 more min. Previous job ends ~2:28 PM, +25min turnaround required.",14:28,25,25,,,,14,ok
+2026-08-15,53,sereen,24359,2:35 PM,arrival,27731,5:45 PM,return,Disney Resort,Disney Resort,True,79,79min buffer,16:15,11,11,flat arrival dwell|cross-property Disney average,True,True,-23,ok
+2026-08-15,53,sereen,27731,5:45 PM,return,24966,6:35 PM,arrival,MCO Terminal,MCO Terminal,True,30,30min buffer,18:15,2,-10,,,,27,ok
+2026-08-15,53,sereen,24966,6:35 PM,arrival,31222,7:58 PM,arrival,Disney Resort,MCO Terminal,False,-22,"Needs 22 more min. Previous job ends ~7:50 PM, +30min turnaround required.",19:50,30,30,flat arrival dwell,False,False,10,ok
+2026-08-15,53,sereen,31222,7:58 PM,arrival,34751,10:54 PM,arrival,Universal Resort,MCO Terminal,True,56,56min buffer,21:33,25,25,flat arrival dwell,True,True,-39,ok
+2026-08-15,56,george,28958,8:00 AM,return,31629,9:00 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,08:25,30,30,,,,-18,ok
+2026-08-15,56,george,31629,9:00 AM,return,33940,9:35 AM,arrival,MCO Terminal,MCO Terminal,True,15,15min buffer,09:30,2,-10,,,,-2,ok
+2026-08-15,56,george,33940,9:35 AM,arrival,31941,11:30 AM,return,Disney Resort,Disney Resort,True,29,29min buffer,10:50,11,11,flat arrival dwell|cross-property Disney average,True,True,-4,ok
+2026-08-15,56,george,31941,11:30 AM,return,23490,12:25 PM,arrival,MCO Terminal,MCO Terminal,True,35,35min buffer,12:00,2,-10,,,,-27,ok
+2026-08-15,56,george,23490,12:25 PM,arrival,30752,2:30 PM,return,Disney Resort,Disney Resort,True,46,46min buffer,13:40,4,4,flat arrival dwell|cross-property Disney average,True,True,-24,ok
+2026-08-15,56,george,30752,2:30 PM,return,34100,3:06 PM,arrival,MCO Terminal,MCO Terminal,True,16,16min buffer,15:00,2,-10,,,,-8,ok
+2026-08-15,56,george,34100,3:06 PM,arrival,34876,4:45 PM,return,Disney Resort,Disney Resort,True,15,15min buffer,16:21,9,9,flat arrival dwell|cross-property Disney average,True,True,-24,ok
+2026-08-15,56,george,34876,4:45 PM,return,32963,5:52 PM,cruise,MCO Terminal,MCO Terminal,True,47,47min buffer,17:15,2,-10,,,,-36,ok
+2026-08-15,59,Aftab,34012,8:00 AM,other,31025,9:00 AM,return,Disney Resort,Disney Resort,True,25,25min buffer,08:25,10,10,cross-property Disney average,,,-5,ok
+2026-08-15,59,Aftab,31025,9:00 AM,return,25225,10:01 AM,arrival,MCO Terminal,MCO Terminal,True,41,41min buffer,09:30,2,-10,,,,22,ok
+2026-08-15,59,Aftab,25225,10:01 AM,arrival,27145,12:30 PM,return,Universal Resort,Disney Resort,True,51,51min buffer,11:11,28,28,flat arrival dwell,True,True,-16,ok
+2026-08-15,59,Aftab,27145,12:30 PM,return,8519,3:10 PM,arrival,MCO Terminal,MCO Terminal,True,140,140min buffer,13:00,2,-10,,,,15,ok
+2026-08-15,59,Aftab,8519,3:10 PM,arrival,32399,4:41 PM,arrival,Disney Resort,MCO Terminal,False,-14,"Needs 14 more min. Previous job ends ~4:25 PM, +30min turnaround required.",16:25,30,30,flat arrival dwell,True,False,14,ok
+2026-08-15,59,Aftab,32399,4:41 PM,arrival,22898,6:31 PM,arrival,Universal Resort,MCO Terminal,True,15,15min buffer,17:51,25,25,flat arrival dwell,True,True,16,ok
+2026-08-15,64,Raymond,32911,8:30 AM,return,28638,10:30 AM,other,MCO Terminal,Disney Resort,True,60,60min buffer,09:00,30,30,,,,2,ok
+2026-08-15,64,Raymond,28638,10:30 AM,other,31122,12:30 PM,return,Disney Resort,Disney Resort,True,101,101min buffer,10:42,7,7,cross-property Disney average,,,-13,ok
+2026-08-15,64,Raymond,31122,12:30 PM,return,34464,1:18 PM,arrival,MCO Terminal,MCO Terminal,True,28,28min buffer,13:00,2,-10,,,,,none
+2026-08-15,64,Raymond,34464,1:18 PM,arrival,33080,3:30 PM,return,Universal Resort,Universal Resort,True,56,56min buffer,14:28,6,6,flat arrival dwell,True,True,-18,ok
+2026-08-15,64,Raymond,33080,3:30 PM,return,33246,4:50 PM,arrival,MCO Terminal,MCO Terminal,True,65,65min buffer,15:55,2,-10,,,,,none
+2026-08-15,64,Raymond,33246,4:50 PM,arrival,30574,6:30 PM,return,Disney Resort,Disney Resort,True,13,13min buffer,18:06,11,11,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-15,64,Raymond,30574,6:30 PM,return,32887,7:39 PM,arrival,MCO Terminal,MCO Terminal,True,49,49min buffer,19:00,2,-10,,,,,none
+2026-08-15,64,Raymond,32887,7:39 PM,arrival,29112,10:32 PM,arrival,Disney Resort,MCO Terminal,True,56,56min buffer,21:06,30,30,flat arrival dwell,True,True,-1,ok
+2026-08-15,50,Lev Askerov,31370,9:00 AM,return,34517,10:15 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,09:30,30,30,,,,-6,ok
+2026-08-15,50,Lev Askerov,34517,10:15 AM,return,33383,11:30 AM,cruise,MCO Terminal,Airport Hotel,True,33,33min buffer,10:45,12,12,,,,7,ok
+2026-08-15,50,Lev Askerov,33383,11:30 AM,cruise,27999,2:00 PM,return,Port Canaveral Area,Disney Resort,True,23,23min buffer,12:25,72,72,,,,0,ok
+2026-08-15,50,Lev Askerov,27999,2:00 PM,return,32271,4:00 PM,return,MCO Terminal,Disney Resort,True,60,60min buffer,14:30,30,30,,,,-16,ok
+2026-08-15,69,Charlie,32267,9:00 AM,cruise,18786,10:39 AM,arrival,MCO Terminal,MCO Terminal,True,54,54min buffer,09:55,2,-10,,,,8,ok
+2026-08-15,69,Charlie,18786,10:39 AM,arrival,32606,12:30 PM,return,Disney Resort,Disney Resort,True,26,26min buffer,11:54,10,10,flat arrival dwell|cross-property Disney average,True,True,-28,ok
+2026-08-15,69,Charlie,32606,12:30 PM,return,34825,1:14 PM,arrival,MCO Terminal,MCO Terminal,True,24,24min buffer,13:00,2,-10,,,,6,ok
+2026-08-15,69,Charlie,34825,1:14 PM,arrival,29709,3:59 PM,arrival,Disney Resort,MCO Terminal,True,60,60min buffer,14:29,30,30,flat arrival dwell,True,True,5,ok
+2026-08-15,66,Francisco Pedraza,32930,1:00 PM,return,21777,1:56 PM,arrival,MCO Terminal,MCO Terminal,True,36,36min buffer,13:30,2,-10,,,,13,ok
+2026-08-15,66,Francisco Pedraza,21777,1:56 PM,arrival,27097,3:45 PM,return,Disney Resort,Disney Resort,True,27,27min buffer,15:11,7,7,flat arrival dwell|cross-property Disney average,True,True,-3,ok
+2026-08-15,66,Francisco Pedraza,27097,3:45 PM,return,21065,5:30 PM,return,MCO Terminal,Disney Resort,True,45,45min buffer,16:15,30,30,,,,-24,ok
+2026-08-15,66,Francisco Pedraza,21065,5:30 PM,return,24878,6:05 PM,arrival,MCO Terminal,MCO Terminal,True,15,15min buffer,18:00,2,-10,,,,22,ok
+2026-08-15,66,Francisco Pedraza,24878,6:05 PM,arrival,31841,10:51 PM,arrival,Disney Resort,MCO Terminal,True,181,181min buffer,19:20,30,30,flat arrival dwell,True,True,-30,ok
+2026-08-16,61,Idrees,34414,4:00 AM,return,22277,5:45 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,04:30,30,30,,,,-9,ok
+2026-08-16,61,Idrees,22277,5:45 AM,return,32395,7:45 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,06:15,30,30,,,,24,ok
+2026-08-16,61,Idrees,32395,7:45 AM,return,33034,9:00 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,08:15,30,30,,,,2,ok
+2026-08-16,61,Idrees,33034,9:00 AM,return,34919,9:24 AM,arrival,MCO Terminal,MCO Terminal,True,4,4min buffer,09:30,2,-10,,,,72,ok
+2026-08-16,61,Idrees,34919,9:24 AM,arrival,21996,11:53 AM,arrival,Disney Resort,MCO Terminal,True,44,44min buffer,10:39,30,30,flat arrival dwell,True,True,29,ok
+2026-08-16,61,Idrees,21996,11:53 AM,arrival,29747,1:30 PM,return,Disney Resort,Disney Resort,True,10,10min buffer,13:08,12,12,flat arrival dwell|cross-property Disney average,True,True,-17,ok
+2026-08-16,61,Idrees,29747,1:30 PM,return,21788,2:03 PM,arrival,MCO Terminal,MCO Terminal,True,13,13min buffer,14:00,2,-10,,,,52,ok
+2026-08-16,61,Idrees,21788,2:03 PM,arrival,28792,4:31 PM,arrival,Disney Resort,MCO Terminal,True,43,43min buffer,15:18,30,30,flat arrival dwell,True,True,23,ok
+2026-08-16,61,Idrees,28792,4:31 PM,arrival,33470,7:00 PM,return,Universal Resort,Disney Resort,True,51,51min buffer,17:41,28,28,flat arrival dwell,True,True,-34,ok
+2026-08-16,50,Lev Askerov,25391,4:30 AM,return,34090,5:45 AM,return,MCO Terminal,Universal Resort,True,20,20min buffer,05:00,25,25,,,,-23,ok
+2026-08-16,50,Lev Askerov,34090,5:45 AM,return,23578,7:00 AM,return,MCO Terminal,Disney Resort,True,20,20min buffer,06:10,30,30,,,,-18,ok
+2026-08-16,50,Lev Askerov,23578,7:00 AM,return,32098,8:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,07:30,55,55,,,,-14,ok
+2026-08-16,50,Lev Askerov,32098,8:30 AM,cruise,32927,9:30 AM,return,MCO Terminal,Disney Resort,False,-25,"Needs 25 more min. Previous job ends ~9:25 AM, +30min turnaround required.",09:25,30,30,,,,1,ok
+2026-08-16,50,Lev Askerov,32927,9:30 AM,return,28529,10:30 AM,cruise,MCO Terminal,Disney Resort,True,0,0min buffer,10:00,30,30,,,,8,ok
+2026-08-16,50,Lev Askerov,28529,10:30 AM,cruise,24061,1:22 PM,arrival,Port Canaveral Area,SFB Terminal,True,30,30min buffer,11:42,70,70,,,,-15,ok
+2026-08-16,50,Lev Askerov,24061,1:22 PM,arrival,18011,4:00 PM,return,Disney Resort,Disney Resort,True,43,43min buffer,15:07,10,10,flat arrival dwell|cross-property Disney average,True,True,-24,ok
+2026-08-16,26,neuma,34023,4:45 AM,return,32273,5:30 AM,return,MCO Terminal,Disney Resort,False,-15,"Needs 15 more min. Previous job ends ~5:15 AM, +30min turnaround required.",05:15,30,30,,,,,none
+2026-08-16,26,neuma,32273,5:30 AM,return,26114,7:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,06:00,30,30,,,,,none
+2026-08-16,26,neuma,26114,7:15 AM,return,28014,8:15 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,07:45,30,30,,,,,none
+2026-08-16,26,neuma,28014,8:15 AM,return,32030,9:23 AM,arrival,MCO Terminal,MCO Terminal,True,48,48min buffer,08:45,2,-10,,,,33,ok
+2026-08-16,26,neuma,32030,9:23 AM,arrival,33497,10:40 AM,arrival,Disney Resort,MCO Terminal,False,-28,"Needs 28 more min. Previous job ends ~10:38 AM, +30min turnaround required.",10:38,30,30,flat arrival dwell,False,False,,none
+2026-08-16,26,neuma,33497,10:40 AM,arrival,28363,12:30 PM,return,Disney Resort,Disney Resort,True,28,28min buffer,11:55,7,7,flat arrival dwell|cross-property Disney average,True,True,2,ok
+2026-08-16,26,neuma,28363,12:30 PM,return,33048,2:40 PM,cruise,MCO Terminal,MCO Terminal,True,110,110min buffer,13:00,2,-10,,,,36,ok
+2026-08-16,56,george,34223,5:45 AM,return,34632,8:06 AM,arrival,MCO Terminal,SFB Terminal,True,51,51min buffer,06:15,60,60,,,,-80,ok
+2026-08-16,56,george,34632,8:06 AM,arrival,33247,10:30 AM,cruise,Disney Resort,Disney Resort,True,25,25min buffer,09:51,14,14,flat arrival dwell|cross-property Disney average,True,True,-39,ok
+2026-08-16,56,george,33247,10:30 AM,cruise,7394,1:00 PM,return,Port Canaveral Area,Disney Resort,True,6,6min buffer,11:42,72,72,,,,-18,ok
+2026-08-16,56,george,7394,1:00 PM,return,34253,2:00 PM,other,MCO Terminal,Airport Hotel,True,18,18min buffer,13:30,12,12,,,,-19,ok
+2026-08-16,56,george,34253,2:00 PM,other,32155,2:54 PM,arrival,Disney Resort,MCO Terminal,False,-1,"Needs 1 more min. Previous job ends ~2:25 PM, +30min turnaround required.",14:25,30,30,,,,-5,ok
+2026-08-16,56,george,32155,2:54 PM,arrival,27042,5:25 PM,return,Disney Resort,Disney Resort,True,37,37min buffer,16:34,14,14,flat arrival dwell|cross-property Disney average,True,True,-61,ok
+2026-08-16,56,george,27042,5:25 PM,return,34370,6:30 PM,return,MCO Terminal,Disney Resort,True,5,5min buffer,17:55,30,30,,,,-6,ok
+2026-08-16,46,Yovanny Suarez,31588,6:00 AM,return,31033,8:15 AM,return,MCO Terminal,Disney Resort,True,75,75min buffer,06:30,30,30,,,,-35,ok
+2026-08-16,46,Yovanny Suarez,31033,8:15 AM,return,30528,8:19 AM,arrival,MCO Terminal,MCO Terminal,False,-16,"Needs 16 more min. Previous job ends ~8:45 AM, +-10min turnaround required.",08:45,2,-10,,,,26,ok
+2026-08-16,46,Yovanny Suarez,30528,8:19 AM,arrival,27130,10:45 AM,return,Disney Resort,Disney Resort,True,38,38min buffer,09:59,8,8,flat arrival dwell|cross-property Disney average,True,True,-33,ok
+2026-08-16,46,Yovanny Suarez,27130,10:45 AM,return,34135,11:30 AM,cruise,MCO Terminal,MCO Terminal,True,25,25min buffer,11:15,2,-10,,,,-8,ok
+2026-08-16,46,Yovanny Suarez,34135,11:30 AM,cruise,30080,2:00 PM,arrival,Port Canaveral Area,MCO Terminal,False,-5,"Needs 5 more min. Previous job ends ~1:10 PM, +55min turnaround required.",13:10,55,55,,,,26,ok
+2026-08-16,46,Yovanny Suarez,30080,2:00 PM,arrival,33605,4:45 PM,return,Disney Resort,Disney Resort,True,78,78min buffer,15:15,12,12,flat arrival dwell|cross-property Disney average,True,True,-19,ok
+2026-08-16,59,Aftab,21479,6:20 AM,cruise,24383,9:10 AM,cruise,MCO Terminal,Port Canaveral Area,True,60,60min buffer,07:15,55,55,,,,8,ok
+2026-08-16,59,Aftab,24383,9:10 AM,cruise,32782,9:55 AM,arrival,MCO Terminal,MCO Terminal,True,0,0min buffer,10:05,2,-10,,,,11,ok
+2026-08-16,59,Aftab,32782,9:55 AM,arrival,27925,12:18 PM,arrival,Disney Resort,MCO Terminal,True,13,13min buffer,11:35,30,30,flat arrival dwell,True,True,1,ok
+2026-08-16,59,Aftab,27925,12:18 PM,arrival,30818,2:30 PM,return,Other Hotel,Disney Resort,True,21,21min buffer,13:53,16,16,flat arrival dwell,True,True,-9,ok
+2026-08-16,53,sereen,33958,7:00 AM,return,31145,8:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,07:30,30,30,,,,1,ok
+2026-08-16,53,sereen,31145,8:00 AM,return,24715,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,-5,ok
+2026-08-16,53,sereen,24715,9:00 AM,return,33411,10:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,09:30,30,30,,,,-7,ok
+2026-08-16,53,sereen,33411,10:00 AM,return,7138,10:22 AM,arrival,MCO Terminal,MCO Terminal,True,2,2min buffer,10:30,2,-10,,,,17,ok
+2026-08-16,53,sereen,7138,10:22 AM,arrival,28805,12:45 PM,return,Disney Resort,Disney Resort,True,31,31min buffer,12:02,12,12,flat arrival dwell|cross-property Disney average,True,True,-20,ok
+2026-08-16,53,sereen,28805,12:45 PM,return,28466,1:15 PM,arrival,MCO Terminal,MCO Terminal,True,10,10min buffer,13:15,2,-10,,,,25,ok
+2026-08-16,68,AldoH,24416,7:45 AM,return,30654,8:45 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:15,30,30,,,,-11,ok
+2026-08-16,68,AldoH,30654,8:45 AM,return,34707,9:47 AM,arrival,MCO Terminal,MCO Terminal,True,42,42min buffer,09:15,2,-10,,,,13,ok
+2026-08-16,68,AldoH,34707,9:47 AM,arrival,34075,11:50 AM,arrival,Disney Resort,MCO Terminal,False,-7,"Needs 7 more min. Previous job ends ~11:27 AM, +30min turnaround required.",11:27,30,30,flat arrival dwell,True,True,3,ok
+2026-08-16,68,AldoH,34075,11:50 AM,arrival,29588,2:00 PM,return,Disney Resort,Universal Resort,True,2,2min buffer,13:30,28,28,flat arrival dwell,True,True,-2,ok
+2026-08-16,68,AldoH,29588,2:00 PM,return,28178,3:21 PM,arrival,MCO Terminal,MCO Terminal,True,66,66min buffer,14:25,2,-10,,,,-56,ok
+2026-08-16,68,AldoH,28178,3:21 PM,arrival,15180,6:32 PM,arrival,Disney Resort,MCO Terminal,True,86,86min buffer,16:36,30,30,flat arrival dwell,True,True,5,ok
+2026-08-16,68,AldoH,15180,6:32 PM,arrival,33861,8:14 PM,arrival,Universal Resort,MCO Terminal,True,7,7min buffer,19:42,25,25,flat arrival dwell,True,True,64,ok
+2026-08-16,68,AldoH,33861,8:14 PM,arrival,29529,11:10 PM,arrival,Disney Resort,MCO Terminal,True,71,71min buffer,21:29,30,30,flat arrival dwell,True,True,31,ok
+2026-08-16,58,ken,33414,7:45 AM,return,30955,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,20,20min buffer,08:15,55,55,,,,30,ok
+2026-08-16,58,ken,30955,9:30 AM,cruise,26087,11:01 AM,arrival,MCO Terminal,MCO Terminal,True,46,46min buffer,10:25,2,-10,,,,65,ok
+2026-08-16,58,ken,26087,11:01 AM,arrival,29135,1:22 PM,arrival,Disney Resort,MCO Terminal,True,11,11min buffer,12:41,30,30,flat arrival dwell,True,True,68,ok
+2026-08-16,58,ken,29135,1:22 PM,arrival,33142,4:35 PM,arrival,Disney Resort,MCO Terminal,True,88,88min buffer,14:37,30,30,flat arrival dwell,True,True,70,ok
+2026-08-16,58,ken,33142,4:35 PM,arrival,27121,6:45 PM,return,Disney Resort,Disney Resort,True,46,46min buffer,17:50,9,9,flat arrival dwell|cross-property Disney average,True,True,21,ok
+2026-08-16,33,runer,24624,8:00 AM,return,17184,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,-18,ok
+2026-08-16,33,runer,17184,9:00 AM,return,31642,10:45 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,09:30,30,30,,,,-39,ok
+2026-08-16,33,runer,31642,10:45 AM,return,17815,11:42 AM,arrival,MCO Terminal,MCO Terminal,True,37,37min buffer,11:15,2,-10,,,,-23,ok
+2026-08-16,33,runer,17815,11:42 AM,arrival,31528,1:45 PM,return,Disney Resort,Disney Resort,True,38,38min buffer,12:57,10,10,flat arrival dwell|cross-property Disney average,True,True,-23,ok
+2026-08-16,33,runer,31528,1:45 PM,return,33936,5:00 PM,return,MCO Terminal,Disney Resort,True,135,135min buffer,14:15,30,30,,,,-16,ok
+2026-08-16,33,runer,33936,5:00 PM,return,19991,6:03 PM,arrival,MCO Terminal,MCO Terminal,True,43,43min buffer,17:30,2,-10,,,,-27,ok
+2026-08-16,55,rizwan,31748,8:00 AM,return,34595,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,9,ok
+2026-08-16,55,rizwan,34595,9:00 AM,return,29950,9:23 AM,arrival,MCO Terminal,MCO Terminal,True,3,3min buffer,09:30,2,-10,,,,24,ok
+2026-08-16,55,rizwan,29950,9:23 AM,arrival,22319,11:30 AM,return,Disney Resort,Disney Resort,True,42,42min buffer,10:38,10,10,flat arrival dwell|cross-property Disney average,True,True,7,ok
+2026-08-16,55,rizwan,22319,11:30 AM,return,23924,11:48 AM,arrival,MCO Terminal,MCO Terminal,False,-2,"Needs 2 more min. Previous job ends ~12:00 PM, +-10min turnaround required.",12:00,2,-10,,,,20,ok
+2026-08-16,55,rizwan,23924,11:48 AM,arrival,27397,2:27 PM,arrival,Disney Resort,MCO Terminal,True,29,29min buffer,13:28,30,30,flat arrival dwell,True,True,13,ok
+2026-08-16,32,roberto,32519,8:00 AM,cruise,26839,10:00 AM,cruise,Disney Resort,Port Canaveral Area,False,-24,"Needs 24 more min. Previous job ends ~9:12 AM, +72min turnaround required.",09:12,72,72,,,,-1,ok
+2026-08-16,32,roberto,26839,10:00 AM,cruise,34945,11:14 AM,arrival,Other Hotel,MCO Terminal,True,14,14min buffer,10:55,5,5,,,,21,ok
+2026-08-16,32,roberto,34945,11:14 AM,arrival,33453,1:00 PM,return,Disney Resort,Disney Resort,True,17,17min buffer,12:29,14,14,flat arrival dwell|cross-property Disney average,True,True,-21,ok
+2026-08-16,32,roberto,33453,1:00 PM,return,34139,1:29 PM,arrival,MCO Terminal,MCO Terminal,True,9,9min buffer,13:30,2,-10,,,,-5,ok
+2026-08-16,32,roberto,34139,1:29 PM,arrival,25880,4:17 PM,arrival,Disney Resort,MCO Terminal,True,38,38min buffer,15:09,30,30,flat arrival dwell,True,True,20,ok
+2026-08-16,32,roberto,25880,4:17 PM,arrival,21742,8:46 PM,arrival,Disney Resort,MCO Terminal,True,164,164min buffer,17:32,30,30,flat arrival dwell,True,True,23,ok
+2026-08-16,64,Raymond,25933,9:00 AM,cruise,31541,10:11 AM,arrival,MCO Terminal,MCO Terminal,True,26,26min buffer,09:55,2,-10,,,,-5,ok
+2026-08-16,64,Raymond,31541,10:11 AM,arrival,31015,11:30 AM,return,Disney Resort,Disney Resort,False,-9,"Needs 9 more min. Previous job ends ~11:26 AM, +13min turnaround required.",11:26,13,13,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-16,64,Raymond,31015,11:30 AM,return,32889,1:15 PM,return,MCO Terminal,Disney Resort,True,45,45min buffer,12:00,30,30,,,,,none
+2026-08-16,64,Raymond,32889,1:15 PM,return,18982,4:04 PM,arrival,MCO Terminal,MCO Terminal,True,149,149min buffer,13:45,2,-10,,,,18,ok
+2026-08-16,64,Raymond,18982,4:04 PM,arrival,33573,6:15 PM,arrival,Disney Resort,MCO Terminal,True,26,26min buffer,17:19,30,30,flat arrival dwell,True,True,8,ok
+2026-08-16,51,David Encarancion,25935,9:00 AM,cruise,30181,10:05 AM,arrival,MCO Terminal,MCO Terminal,True,20,20min buffer,09:55,2,-10,,,,50,ok
+2026-08-16,51,David Encarancion,30181,10:05 AM,arrival,33505,1:00 PM,return,Disney Resort,Disney Resort,True,90,90min buffer,11:20,10,10,flat arrival dwell|cross-property Disney average,True,True,8,ok
+2026-08-16,51,David Encarancion,33505,1:00 PM,return,19867,1:20 PM,arrival,MCO Terminal,MCO Terminal,True,0,0min buffer,13:30,2,-10,,,,46,ok
+2026-08-16,51,David Encarancion,19867,1:20 PM,arrival,32794,4:45 PM,return,Disney Resort,Disney Resort,True,120,120min buffer,14:35,10,10,flat arrival dwell|cross-property Disney average,True,True,7,ok
+2026-08-16,51,David Encarancion,32794,4:45 PM,return,32164,6:32 PM,arrival,MCO Terminal,MCO Terminal,True,87,87min buffer,17:15,2,-10,,,,25,ok
+2026-08-16,51,David Encarancion,32164,6:32 PM,arrival,23499,8:50 PM,arrival,Disney Resort,MCO Terminal,True,33,33min buffer,19:47,30,30,flat arrival dwell,True,True,14,ok
+2026-08-16,51,David Encarancion,23499,8:50 PM,arrival,35129,10:58 PM,arrival,Disney Resort,MCO Terminal,True,23,23min buffer,22:05,30,30,flat arrival dwell,True,True,17,ok
+2026-08-16,69,Charlie,24418,9:30 AM,return,27384,11:31 AM,arrival,MCO Terminal,MCO Terminal,True,101,101min buffer,10:00,2,-10,,,,9,ok
+2026-08-16,69,Charlie,27384,11:31 AM,arrival,26269,1:45 PM,return,Disney Resort,Disney Resort,True,54,54min buffer,12:46,5,5,flat arrival dwell|cross-property Disney average,True,True,-18,ok
+2026-08-16,69,Charlie,26269,1:45 PM,return,28237,2:21 PM,arrival,MCO Terminal,MCO Terminal,True,16,16min buffer,14:15,2,-10,,,,-6,ok
+2026-08-16,66,Francisco Pedraza,33364,10:36 AM,arrival,30158,12:00 PM,return,Disney Resort,Disney Resort,False,-3,"Needs 3 more min. Previous job ends ~11:51 AM, +12min turnaround required.",11:51,12,12,flat arrival dwell|cross-property Disney average,True,True,-9,ok
+2026-08-16,66,Francisco Pedraza,30158,12:00 PM,return,22181,1:22 PM,arrival,MCO Terminal,MCO Terminal,True,62,62min buffer,12:30,2,-10,,,,-1,ok
+2026-08-16,66,Francisco Pedraza,22181,1:22 PM,arrival,20788,4:15 PM,return,Disney Resort,Disney Resort,True,63,63min buffer,15:02,10,10,flat arrival dwell|cross-property Disney average,True,True,-12,ok
+2026-08-16,66,Francisco Pedraza,20788,4:15 PM,return,32862,5:10 PM,arrival,MCO Terminal,MCO Terminal,False,-999,6 suitcases exceeds 009 cap (5).,16:45,2,-10,,,,12,ok
+2026-08-16,62,shelley,24659,5:00 PM,return,31447,5:44 PM,arrival,MCO Terminal,MCO Terminal,True,24,24min buffer,17:30,2,-10,,,,,none
+2026-08-16,62,shelley,31447,5:44 PM,arrival,34108,6:00 PM,return,Disney Resort,Disney Resort,False,-96,"Needs 96 more min. Previous job ends ~7:24 PM, +12min turnaround required.",19:24,12,12,flat arrival dwell|cross-property Disney average,False,False,20,ok
+2026-08-17,26,neuma,34168,3:45 AM,return,33446,5:30 AM,other,MCO Terminal,Disney Resort,True,45,45min buffer,04:15,30,30,,,,,none
+2026-08-17,26,neuma,33446,5:30 AM,other,32282,7:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,06:00,30,30,,,,,none
+2026-08-17,26,neuma,32282,7:15 AM,return,34177,8:06 AM,arrival,MCO Terminal,MCO Terminal,True,31,31min buffer,07:45,2,-10,,,,,none
+2026-08-17,26,neuma,34177,8:06 AM,arrival,32768,10:00 AM,return,Disney Resort,Disney Resort,True,31,31min buffer,09:21,8,8,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-17,26,neuma,32768,10:00 AM,return,27688,10:27 AM,arrival,MCO Terminal,MCO Terminal,True,7,7min buffer,10:30,2,-10,,,,,none
+2026-08-17,26,neuma,27688,10:27 AM,arrival,29819,12:54 PM,arrival,Disney Resort,MCO Terminal,True,42,42min buffer,11:42,30,30,flat arrival dwell,True,True,,none
+2026-08-17,26,neuma,29819,12:54 PM,arrival,33396,5:16 PM,arrival,Disney Resort,MCO Terminal,True,157,157min buffer,14:09,30,30,flat arrival dwell,True,True,40,ok
+2026-08-17,57,Seline,28519,4:30 AM,return,13586,7:00 AM,return,SFB Terminal,Disney Resort,True,30,30min buffer,05:30,60,60,,,,8,ok
+2026-08-17,57,Seline,13586,7:00 AM,return,27421,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,65,65min buffer,07:30,55,55,,,,-5,ok
+2026-08-17,57,Seline,27421,9:30 AM,cruise,29202,10:44 AM,arrival,MCO Terminal,MCO Terminal,True,29,29min buffer,10:25,2,-10,,,,4,ok
+2026-08-17,57,Seline,29202,10:44 AM,arrival,30949,12:30 PM,return,Disney Resort,Disney Resort,True,21,21min buffer,11:59,10,10,flat arrival dwell|cross-property Disney average,True,True,-17,ok
+2026-08-17,57,Seline,30949,12:30 PM,return,32003,1:19 PM,arrival,MCO Terminal,MCO Terminal,True,29,29min buffer,13:00,2,-10,,,,27,ok
+2026-08-17,57,Seline,32003,1:19 PM,arrival,33260,3:21 PM,arrival,Disney Resort,MCO Terminal,True,17,17min buffer,14:34,30,30,flat arrival dwell,True,True,4,ok
+2026-08-17,57,Seline,33260,3:21 PM,arrival,32800,6:00 PM,return,Disney Resort,Disney Resort,True,69,69min buffer,16:36,15,15,flat arrival dwell|cross-property Disney average,True,True,-13,ok
+2026-08-17,52,Junaid Baidr,33466,4:30 AM,return,31074,7:00 AM,return,MCO Terminal,Disney Resort,True,90,90min buffer,05:00,30,30,,,,-2,ok
+2026-08-17,52,Junaid Baidr,31074,7:00 AM,return,30990,9:00 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,07:30,30,30,,,,-20,ok
+2026-08-17,52,Junaid Baidr,30990,9:00 AM,return,31261,9:25 AM,arrival,MCO Terminal,MCO Terminal,True,5,5min buffer,09:30,2,-10,,,,21,ok
+2026-08-17,52,Junaid Baidr,31261,9:25 AM,arrival,30308,11:30 AM,return,Disney Resort,Disney Resort,True,38,38min buffer,10:40,12,12,flat arrival dwell|cross-property Disney average,True,True,0,ok
+2026-08-17,52,Junaid Baidr,30308,11:30 AM,return,24007,12:39 PM,arrival,MCO Terminal,SFB Terminal,False,-21,"Needs 21 more min. Previous job ends ~12:00 PM, +60min turnaround required.",12:00,60,60,,,,18,ok
+2026-08-17,52,Junaid Baidr,24007,12:39 PM,arrival,32120,3:30 PM,return,Disney Resort,Disney Resort,True,41,41min buffer,14:49,0,0,flat arrival dwell|cross-property Disney average,True,True,-16,ok
+2026-08-17,62,shelley,29729,5:00 AM,return,33129,8:35 AM,arrival,SFB Terminal,MCO Terminal,True,95,95min buffer,06:00,60,60,,,,,none
+2026-08-17,62,shelley,33129,8:35 AM,arrival,34509,12:50 PM,arrival,Disney Resort,MCO Terminal,True,125,125min buffer,10:15,30,30,flat arrival dwell,True,True,50,ok
+2026-08-17,62,shelley,34509,12:50 PM,arrival,35044,4:30 PM,return,Disney Resort,Disney Resort,True,136,136min buffer,14:05,9,9,flat arrival dwell|cross-property Disney average,True,True,1,ok
+2026-08-17,62,shelley,35044,4:30 PM,return,31327,5:24 PM,arrival,MCO Terminal,MCO Terminal,True,34,34min buffer,17:00,2,-10,,,,3,ok
+2026-08-17,33,runer,33755,5:00 AM,return,27420,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,185,185min buffer,05:30,55,55,,,,-50,ok
+2026-08-17,33,runer,27420,9:30 AM,cruise,24313,11:00 AM,cruise,MCO Terminal,Other Hotel,True,10,10min buffer,10:25,25,25,,,,18,ok
+2026-08-17,33,runer,24313,11:00 AM,cruise,34251,2:08 PM,arrival,Port Canaveral Area,MCO Terminal,True,78,78min buffer,11:55,55,55,,,,1,ok
+2026-08-17,33,runer,34251,2:08 PM,arrival,34953,4:31 PM,arrival,Disney Resort,MCO Terminal,True,38,38min buffer,15:23,30,30,flat arrival dwell,True,True,5,ok
+2026-08-17,46,Yovanny Suarez,32315,6:30 AM,return,33969,7:35 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,07:00,30,30,,,,-19,ok
+2026-08-17,46,Yovanny Suarez,33969,7:35 AM,return,33588,8:30 AM,other,MCO Terminal,Airport Hotel,True,13,13min buffer,08:05,12,12,,,,-17,ok
+2026-08-17,46,Yovanny Suarez,33588,8:30 AM,other,34741,9:45 AM,return,Disney Resort,Disney Resort,True,40,40min buffer,08:55,10,10,cross-property Disney average,,,-13,ok
+2026-08-17,46,Yovanny Suarez,34741,9:45 AM,return,30355,9:52 AM,arrival,MCO Terminal,MCO Terminal,False,-13,"Needs 13 more min. Previous job ends ~10:15 AM, +-10min turnaround required.",10:15,2,-10,,,,31,ok
+2026-08-17,46,Yovanny Suarez,30355,9:52 AM,arrival,20392,11:30 AM,return,Disney Resort,Disney Resort,True,18,18min buffer,11:07,5,5,flat arrival dwell|cross-property Disney average,True,True,-21,ok
+2026-08-17,46,Yovanny Suarez,20392,11:30 AM,return,27467,12:41 PM,arrival,MCO Terminal,MCO Terminal,True,51,51min buffer,12:00,2,-10,,,,6,ok
+2026-08-17,46,Yovanny Suarez,27467,12:41 PM,arrival,33327,3:00 PM,return,Disney Resort,Disney Resort,True,59,59min buffer,13:56,5,5,flat arrival dwell|cross-property Disney average,True,True,-4,ok
+2026-08-17,46,Yovanny Suarez,33327,3:00 PM,return,28468,4:15 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,15:30,30,30,,,,-5,ok
+2026-08-17,46,Yovanny Suarez,28468,4:15 PM,return,34602,4:38 PM,arrival,MCO Terminal,MCO Terminal,True,3,3min buffer,16:45,2,-10,,,,38,ok
+2026-08-17,64,Raymond,31853,7:00 AM,return,34630,8:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,07:30,30,30,,,,,none
+2026-08-17,64,Raymond,34630,8:30 AM,return,33171,11:00 AM,cruise,MCO Terminal,Universal Resort,True,95,95min buffer,09:00,25,25,,,,,none
+2026-08-17,64,Raymond,33171,11:00 AM,cruise,32050,1:08 PM,arrival,Port Canaveral Area,MCO Terminal,True,13,13min buffer,12:00,55,55,,,,17,ok
+2026-08-17,64,Raymond,32050,1:08 PM,arrival,33973,3:00 PM,other,Disney Resort,Universal Resort,True,9,9min buffer,14:23,28,28,flat arrival dwell,True,True,-14,ok
+2026-08-17,64,Raymond,33973,3:00 PM,other,25834,4:45 PM,return,Disney Resort,Disney Resort,True,65,65min buffer,15:28,12,12,cross-property Disney average,,,,none
+2026-08-17,64,Raymond,25834,4:45 PM,return,30343,5:56 PM,arrival,MCO Terminal,MCO Terminal,True,51,51min buffer,17:15,2,-10,,,,74,ok
+2026-08-17,64,Raymond,30343,5:56 PM,arrival,30400,6:15 PM,return,Disney Resort,Disney Resort,False,-66,"Needs 66 more min. Previous job ends ~7:11 PM, +10min turnaround required.",19:11,10,10,flat arrival dwell|cross-property Disney average,False,False,-28,ok
+2026-08-17,32,roberto,26185,7:30 AM,cruise,27419,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,10,10min buffer,08:25,55,55,,,,-21,ok
+2026-08-17,32,roberto,27419,9:30 AM,cruise,33257,11:30 AM,cruise,MCO Terminal,Disney Resort,True,35,35min buffer,10:25,30,30,,,,-23,ok
+2026-08-17,32,roberto,33257,11:30 AM,cruise,21090,2:15 PM,return,Port Canaveral Area,Disney Resort,True,21,21min buffer,12:42,72,72,,,,-40,ok
+2026-08-17,32,roberto,21090,2:15 PM,return,35037,4:01 PM,arrival,MCO Terminal,MCO Terminal,True,86,86min buffer,14:45,2,-10,,,,45,ok
+2026-08-17,38,Angel Almanzar,30926,8:06 AM,arrival,33557,9:45 AM,return,Disney Resort,Disney Resort,True,12,12min buffer,09:21,12,12,flat arrival dwell|cross-property Disney average,True,True,2,ok
+2026-08-17,38,Angel Almanzar,33557,9:45 AM,return,17265,11:02 AM,arrival,MCO Terminal,MCO Terminal,True,57,57min buffer,10:15,2,-10,,,,-38,ok
+2026-08-17,38,Angel Almanzar,17265,11:02 AM,arrival,35117,1:13 PM,arrival,Disney Resort,MCO Terminal,True,1,1min buffer,12:42,30,30,flat arrival dwell,True,True,-36,ok
+2026-08-17,38,Angel Almanzar,35117,1:13 PM,arrival,31607,5:00 PM,return,Disney Resort,Disney Resort,True,126,126min buffer,14:53,1,1,flat arrival dwell|cross-property Disney average,True,True,-36,ok
+2026-08-17,38,Angel Almanzar,31607,5:00 PM,return,25464,6:03 PM,arrival,MCO Terminal,MCO Terminal,True,43,43min buffer,17:30,2,-10,,,,-26,ok
+2026-08-17,67,ernesto,32439,8:25 AM,return,32774,9:31 AM,arrival,MCO Terminal,MCO Terminal,True,46,46min buffer,08:55,2,-10,,,,27,ok
+2026-08-17,67,ernesto,32774,9:31 AM,arrival,30167,12:45 PM,return,Disney Resort,Other Hotel,True,69,69min buffer,10:46,50,50,flat arrival dwell,True,True,-11,ok
+2026-08-17,67,ernesto,30167,12:45 PM,return,19341,1:58 PM,arrival,MCO Terminal,MCO Terminal,True,58,58min buffer,13:10,2,-10,,,,34,ok
+2026-08-17,67,ernesto,19341,1:58 PM,arrival,26453,4:30 PM,return,Disney Resort,Disney Resort,True,45,45min buffer,15:38,7,7,flat arrival dwell|cross-property Disney average,True,True,-18,ok
+2026-08-17,67,ernesto,26453,4:30 PM,return,33356,6:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,17:00,30,30,,,,-22,ok
+2026-08-17,67,ernesto,33356,6:00 PM,return,34703,6:27 PM,arrival,MCO Terminal,MCO Terminal,True,7,7min buffer,18:30,2,-10,,,,51,ok
+2026-08-17,69,Charlie,27928,8:45 AM,other,30281,9:30 AM,return,Disney Resort,Disney Resort,True,9,9min buffer,09:10,11,11,cross-property Disney average,,,-10,ok
+2026-08-17,69,Charlie,30281,9:30 AM,return,33279,11:00 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,10:00,30,30,,,,-8,ok
+2026-08-17,69,Charlie,33279,11:00 AM,return,30438,11:15 AM,arrival,MCO Terminal,MCO Terminal,False,-5,"Needs 5 more min. Previous job ends ~11:30 AM, +-10min turnaround required.",11:30,2,-10,,,,30,ok
+2026-08-17,54,Steven Kleisath,28198,8:45 AM,return,33536,10:00 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,09:15,30,30,,,,-16,ok
+2026-08-17,54,Steven Kleisath,33536,10:00 AM,return,32771,11:17 AM,arrival,MCO Terminal,MCO Terminal,True,57,57min buffer,10:30,2,-10,,,,-30,ok
+2026-08-17,54,Steven Kleisath,32771,11:17 AM,arrival,33595,2:29 PM,arrival,Disney Resort,MCO Terminal,True,87,87min buffer,12:32,30,30,flat arrival dwell,True,True,-23,ok
+2026-08-17,54,Steven Kleisath,33595,2:29 PM,arrival,33493,6:00 PM,return,Disney Resort,Disney Resort,True,126,126min buffer,15:44,10,10,flat arrival dwell|cross-property Disney average,True,True,-17,ok
+2026-08-17,54,Steven Kleisath,33493,6:00 PM,return,28223,7:55 PM,arrival,MCO Terminal,MCO Terminal,True,95,95min buffer,18:30,2,-10,,,,-42,ok
+2026-08-17,51,David Encarancion,25369,9:00 AM,cruise,33153,11:00 AM,return,MCO Terminal,Disney Resort,True,35,35min buffer,09:55,30,30,,,,-13,ok
+2026-08-17,51,David Encarancion,33153,11:00 AM,return,31939,12:00 PM,return,MCO Terminal,Universal Resort,True,5,5min buffer,11:30,25,25,,,,5,ok
+2026-08-17,66,Francisco Pedraza,26634,9:30 AM,cruise,32305,11:09 AM,arrival,MCO Terminal,MCO Terminal,True,54,54min buffer,10:25,2,-10,,,,-12,ok
+2026-08-17,66,Francisco Pedraza,32305,11:09 AM,arrival,32942,12:45 PM,return,Disney Resort,Disney Resort,True,8,8min buffer,12:24,13,13,flat arrival dwell|cross-property Disney average,True,True,-5,ok
+2026-08-17,66,Francisco Pedraza,32942,12:45 PM,return,29602,1:22 PM,arrival,MCO Terminal,MCO Terminal,True,17,17min buffer,13:15,2,-10,,,,11,ok
+2026-08-17,66,Francisco Pedraza,29602,1:22 PM,arrival,19019,4:33 PM,cruise,Disney Resort,MCO Terminal,True,86,86min buffer,14:37,30,30,flat arrival dwell,True,True,-7,ok
+2026-08-17,66,Francisco Pedraza,19019,4:33 PM,cruise,26168,7:27 PM,arrival,Port Canaveral Area,MCO Terminal,True,19,19min buffer,18:13,55,55,,,,-20,ok
+2026-08-17,68,AldoH,35157,9:30 AM,cruise,29511,11:06 AM,arrival,MCO Terminal,MCO Terminal,True,51,51min buffer,10:25,2,-10,,,,-2,ok
+2026-08-17,68,AldoH,29511,11:06 AM,arrival,19561,1:05 PM,arrival,Disney Resort,MCO Terminal,False,-11,"Needs 11 more min. Previous job ends ~12:46 PM, +30min turnaround required.",12:46,30,30,flat arrival dwell,True,False,38,ok
+2026-08-17,68,AldoH,19561,1:05 PM,arrival,30941,1:30 PM,return,Disney Resort,Disney Resort,False,-62,"Needs 62 more min. Previous job ends ~2:20 PM, +12min turnaround required.",14:20,12,12,flat arrival dwell|cross-property Disney average,False,False,-27,ok
+2026-08-17,70,CarlosG,30216,5:00 PM,return,23243,6:30 PM,return,MCO Terminal,Other Hotel,True,28,28min buffer,17:30,32,32,,,,-5,ok
+2026-08-17,70,CarlosG,23243,6:30 PM,return,17225,7:46 PM,arrival,MCO Terminal,SFB Terminal,False,-9,"Needs 9 more min. Previous job ends ~6:55 PM, +60min turnaround required.",18:55,60,60,,,,16,ok
+2026-08-17,53,sereen,26602,5:15 PM,arrival,34214,9:25 PM,arrival,Disney Resort,MCO Terminal,True,120,120min buffer,18:55,30,30,flat arrival dwell,True,True,27,ok
+2026-08-18,52,Junaid Baidr,29036,4:15 AM,return,32010,8:55 AM,arrival,MCO Terminal,MCO Terminal,True,265,265min buffer,04:40,2,-10,,,,0,ok
+2026-08-18,52,Junaid Baidr,32010,8:55 AM,arrival,10800,11:18 AM,arrival,Disney Resort,MCO Terminal,True,38,38min buffer,10:10,30,30,flat arrival dwell,True,True,7,ok
+2026-08-18,52,Junaid Baidr,10800,11:18 AM,arrival,24122,1:20 PM,return,Disney Resort,Disney Resort,True,11,11min buffer,12:58,11,11,flat arrival dwell|cross-property Disney average,True,True,-13,ok
+2026-08-18,52,Junaid Baidr,24122,1:20 PM,return,27518,2:00 PM,arrival,MCO Terminal,MCO Terminal,True,20,20min buffer,13:50,2,-10,,,,11,ok
+2026-08-18,46,Yovanny Suarez,34213,6:15 AM,arrival,31027,8:15 AM,return,Residential,Disney Resort,True,10,10min buffer,07:30,35,35,flat arrival dwell|reposition unpriced,True,True,-5,ok
+2026-08-18,46,Yovanny Suarez,31027,8:15 AM,return,30102,8:53 AM,arrival,MCO Terminal,MCO Terminal,True,18,18min buffer,08:45,2,-10,,,,-5,ok
+2026-08-18,46,Yovanny Suarez,30102,8:53 AM,arrival,26837,1:30 PM,return,Universal Resort,Disney Resort,True,179,179min buffer,10:03,28,28,flat arrival dwell,True,True,-36,ok
+2026-08-18,46,Yovanny Suarez,26837,1:30 PM,return,32268,2:00 PM,arrival,MCO Terminal,MCO Terminal,True,10,10min buffer,14:00,2,-10,,,,2,ok
+2026-08-18,26,neuma,28607,7:30 AM,return,20408,9:00 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,08:00,30,30,,,,,none
+2026-08-18,26,neuma,20408,9:00 AM,return,20564,10:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,09:30,55,55,,,,,none
+2026-08-18,26,neuma,20564,10:30 AM,cruise,21285,11:18 AM,arrival,MCO Terminal,MCO Terminal,True,3,3min buffer,11:25,2,-10,,,,,none
+2026-08-18,26,neuma,21285,11:18 AM,arrival,25626,3:00 PM,return,Disney Resort,Disney Resort,True,107,107min buffer,12:58,15,15,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-18,26,neuma,25626,3:00 PM,return,31678,4:30 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,15:30,30,30,,,,,none
+2026-08-18,26,neuma,31678,4:30 PM,return,34449,4:47 PM,arrival,MCO Terminal,MCO Terminal,False,-3,"Needs 3 more min. Previous job ends ~5:00 PM, +-10min turnaround required.",17:00,2,-10,,,,,none
+2026-08-18,26,neuma,34449,4:47 PM,arrival,32529,7:15 PM,return,Disney Resort,Disney Resort,True,61,61min buffer,18:02,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-18,72,OmarM,32516,7:30 AM,return,23995,9:00 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,08:00,30,30,,,,-24,ok
+2026-08-18,72,OmarM,23995,9:00 AM,return,33353,10:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,09:30,30,30,,,,6,ok
+2026-08-18,72,OmarM,33353,10:00 AM,return,28633,11:00 AM,other,MCO Terminal,Other Hotel,True,10,10min buffer,10:30,20,20,,,,11,ok
+2026-08-18,72,OmarM,28633,11:00 AM,other,33037,11:45 AM,return,Disney Resort,Disney Resort,True,11,11min buffer,11:25,9,9,cross-property Disney average,,,-7,ok
+2026-08-18,72,OmarM,33037,11:45 AM,return,24816,2:00 PM,return,MCO Terminal,Disney Resort,True,75,75min buffer,12:15,30,30,,,,-5,ok
+2026-08-18,72,OmarM,24816,2:00 PM,return,35202,3:30 PM,other,MCO Terminal,Universal Resort,True,35,35min buffer,14:30,25,25,,,,-15,ok
+2026-08-18,72,OmarM,35202,3:30 PM,other,31332,5:00 PM,return,Universal Resort,Universal Resort,True,64,64min buffer,15:40,16,16,,,,-19,ok
+2026-08-18,59,Aftab,25641,8:00 AM,cruise,29467,10:35 AM,arrival,MCO Terminal,MCO Terminal,True,110,110min buffer,08:55,2,-10,,,,23,ok
+2026-08-18,59,Aftab,29467,10:35 AM,arrival,33577,1:00 PM,other,Disney Resort,Disney Resort,True,39,39min buffer,12:15,6,6,flat arrival dwell|cross-property Disney average,True,True,-11,ok
+2026-08-18,59,Aftab,33577,1:00 PM,other,22943,2:00 PM,return,Disney Resort,Disney Resort,True,36,36min buffer,13:12,12,12,cross-property Disney average,,,-21,ok
+2026-08-18,59,Aftab,22943,2:00 PM,return,28106,4:30 PM,arrival,MCO Terminal,MCO Terminal,True,130,130min buffer,14:30,2,-10,,,,70,ok
+2026-08-18,62,shelley,31721,8:00 AM,cruise,34465,9:45 AM,other,MCO Terminal,Universal Resort,True,25,25min buffer,08:55,25,25,,,,-13,ok
+2026-08-18,62,shelley,34465,9:45 AM,other,33773,11:00 AM,arrival,Disney Resort,MCO Terminal,True,17,17min buffer,10:13,30,30,,,,34,ok
+2026-08-18,62,shelley,33773,11:00 AM,arrival,34061,2:15 PM,return,Disney Resort,Disney Resort,True,109,109min buffer,12:15,11,11,flat arrival dwell|cross-property Disney average,True,True,,batch
+2026-08-18,62,shelley,34061,2:15 PM,return,34868,4:45 PM,arrival,MCO Terminal,MCO Terminal,True,130,130min buffer,14:45,2,-10,,,,-5,ok
+2026-08-18,64,Raymond,20701,8:30 AM,cruise,26505,9:42 AM,arrival,MCO Terminal,MCO Terminal,True,27,27min buffer,09:25,2,-10,,,,,none
+2026-08-18,64,Raymond,26505,9:42 AM,arrival,35156,12:00 PM,return,Disney Resort,Universal Resort,True,35,35min buffer,10:57,28,28,flat arrival dwell,True,True,,none
+2026-08-18,64,Raymond,35156,12:00 PM,return,27579,12:33 PM,arrival,MCO Terminal,MCO Terminal,True,18,18min buffer,12:25,2,-10,,,,39,ok
+2026-08-18,64,Raymond,27579,12:33 PM,arrival,28232,3:15 PM,return,Disney Resort,Disney Resort,True,50,50min buffer,14:13,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-18,66,Francisco Pedraza,30487,8:30 AM,return,26850,10:00 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,09:00,30,30,,,,-24,ok
+2026-08-18,66,Francisco Pedraza,26850,10:00 AM,return,30466,10:23 AM,arrival,MCO Terminal,MCO Terminal,True,3,3min buffer,10:30,2,-10,,,,32,ok
+2026-08-18,66,Francisco Pedraza,30466,10:23 AM,arrival,30070,12:12 PM,arrival,Disney Resort,MCO Terminal,True,4,4min buffer,11:38,30,30,flat arrival dwell,True,True,22,ok
+2026-08-18,66,Francisco Pedraza,30070,12:12 PM,arrival,31746,2:45 PM,return,Disney Resort,Disney Resort,True,71,71min buffer,13:27,7,7,flat arrival dwell|cross-property Disney average,True,True,-12,ok
+2026-08-18,66,Francisco Pedraza,31746,2:45 PM,return,25936,3:33 PM,arrival,MCO Terminal,MCO Terminal,True,28,28min buffer,15:15,2,-10,,,,-9,ok
+2026-08-18,32,roberto,31153,8:45 AM,return,28450,10:23 AM,arrival,MCO Terminal,MCO Terminal,True,78,78min buffer,09:15,2,-10,,,,1,ok
+2026-08-18,32,roberto,28450,10:23 AM,arrival,31276,12:30 PM,return,Disney Resort,Disney Resort,True,41,41min buffer,11:38,11,11,flat arrival dwell|cross-property Disney average,True,True,-57,ok
+2026-08-18,32,roberto,31276,12:30 PM,return,17124,12:36 PM,arrival,MCO Terminal,MCO Terminal,False,-14,"Needs 14 more min. Previous job ends ~1:00 PM, +-10min turnaround required.",13:00,2,-10,,,,22,ok
+2026-08-18,32,roberto,17124,12:36 PM,arrival,33139,4:30 PM,return,Disney Resort,Disney Resort,True,123,123min buffer,14:16,11,11,flat arrival dwell|cross-property Disney average,True,True,-81,ok
+2026-08-18,32,roberto,33139,4:30 PM,return,35171,5:30 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,17:00,30,30,,,,5,ok
+2026-08-18,32,roberto,35171,5:30 PM,return,25567,6:24 PM,arrival,MCO Terminal,MCO Terminal,True,34,34min buffer,18:00,2,-10,,,,26,ok
+2026-08-18,53,sereen,34686,8:46 AM,arrival,33123,11:00 AM,return,Disney Resort,Disney Resort,True,46,46min buffer,10:01,13,13,flat arrival dwell|cross-property Disney average,True,True,-10,ok
+2026-08-18,53,sereen,33123,11:00 AM,return,30444,12:00 PM,return,MCO Terminal,Universal Resort,True,5,5min buffer,11:30,25,25,,,,-5,ok
+2026-08-18,53,sereen,30444,12:00 PM,return,34855,12:12 PM,arrival,MCO Terminal,MCO Terminal,False,-3,"Needs 3 more min. Previous job ends ~12:25 PM, +-10min turnaround required.",12:25,2,-10,,,,24,ok
+2026-08-18,53,sereen,34855,12:12 PM,arrival,27679,3:27 PM,arrival,Universal Resort,MCO Terminal,True,100,100min buffer,13:22,25,25,flat arrival dwell,True,True,0,ok
+2026-08-18,53,sereen,27679,3:27 PM,arrival,33547,6:30 PM,return,Disney Resort,Disney Resort,True,100,100min buffer,16:42,8,8,flat arrival dwell|cross-property Disney average,True,True,-18,ok
+2026-08-18,54,Steven Kleisath,35201,9:00 AM,other,25115,12:50 PM,return,Universal Resort,Disney Resort,True,192,192min buffer,09:10,28,28,,,,-32,ok
+2026-08-18,54,Steven Kleisath,25115,12:50 PM,return,33447,3:52 PM,arrival,MCO Terminal,MCO Terminal,True,162,162min buffer,13:20,2,-10,,,,-15,ok
+2026-08-18,67,ernesto,24209,9:30 AM,cruise,27535,10:52 AM,arrival,MCO Terminal,MCO Terminal,True,37,37min buffer,10:25,2,-10,,,,34,ok
+2026-08-18,67,ernesto,27535,10:52 AM,arrival,29923,1:30 PM,return,Disney Resort,Disney Resort,True,51,51min buffer,12:32,7,7,flat arrival dwell|cross-property Disney average,True,True,-6,ok
+2026-08-18,67,ernesto,29923,1:30 PM,return,33640,4:03 PM,arrival,MCO Terminal,MCO Terminal,True,133,133min buffer,14:00,2,-10,,,,51,ok
+2026-08-18,68,AldoH,29573,9:30 AM,return,32147,11:11 AM,arrival,MCO Terminal,MCO Terminal,True,81,81min buffer,10:00,2,-10,,,,-3,ok
+2026-08-18,68,AldoH,32147,11:11 AM,arrival,9118,3:36 PM,cruise,Disney Resort,MCO Terminal,True,135,135min buffer,12:51,30,30,flat arrival dwell,True,True,19,ok
+2026-08-18,69,Charlie,31727,9:41 AM,arrival,27074,12:00 PM,return,Disney Resort,Disney Resort,True,55,55min buffer,10:56,9,9,flat arrival dwell|cross-property Disney average,True,True,-22,ok
+2026-08-18,69,Charlie,27074,12:00 PM,return,34912,1:16 PM,arrival,MCO Terminal,MCO Terminal,True,56,56min buffer,12:30,2,-10,,,,6,ok
+2026-08-18,69,Charlie,34912,1:16 PM,arrival,26387,4:00 PM,return,Disney Resort,Disney Resort,True,75,75min buffer,14:31,14,14,flat arrival dwell|cross-property Disney average,True,True,-29,ok
+2026-08-18,69,Charlie,26387,4:00 PM,return,18908,5:18 PM,arrival,MCO Terminal,MCO Terminal,True,58,58min buffer,16:30,2,-10,,,,7,ok
+2026-08-18,71,JoseT,32058,10:18 AM,arrival,31231,1:44 PM,arrival,Disney Resort,MCO Terminal,True,101,101min buffer,11:33,30,30,flat arrival dwell,True,True,98,ok
+2026-08-18,71,JoseT,31231,1:44 PM,arrival,20964,4:15 PM,arrival,Disney Resort,MCO Terminal,True,46,46min buffer,14:59,30,30,flat arrival dwell,True,True,-5,ok
+2026-08-18,71,JoseT,20964,4:15 PM,arrival,28250,6:15 PM,arrival,Disney Resort,MCO Terminal,True,15,15min buffer,17:30,30,30,flat arrival dwell,True,True,6,ok
+2026-08-18,71,JoseT,28250,6:15 PM,arrival,12647,10:08 PM,arrival,Disney Resort,MCO Terminal,True,103,103min buffer,19:55,30,30,flat arrival dwell,True,True,-9,ok
+2026-08-19,26,neuma,32347,4:10 AM,return,22635,6:30 AM,return,MCO Terminal,Disney Resort,True,85,85min buffer,04:35,30,30,,,,,none
+2026-08-19,26,neuma,22635,6:30 AM,return,24879,9:00 AM,other,MCO Terminal,Disney Resort,True,90,90min buffer,07:00,30,30,,,,,none
+2026-08-19,26,neuma,24879,9:00 AM,other,20463,11:25 AM,cruise,Universal Resort,MCO Terminal,True,92,92min buffer,09:28,25,25,,,,,none
+2026-08-19,72,OmarM,22976,5:30 AM,return,35443,8:00 AM,other,MCO Terminal,Airport Hotel,True,108,108min buffer,06:00,12,12,,,,-8,ok
+2026-08-19,72,OmarM,35443,8:00 AM,other,27132,10:00 AM,return,Disney Resort,Disney Resort,True,80,80min buffer,08:25,15,15,cross-property Disney average,,,-36,ok
+2026-08-19,72,OmarM,27132,10:00 AM,return,23808,11:15 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,10:30,30,30,,,,2,ok
+2026-08-19,56,george,32400,5:30 AM,return,32263,7:30 AM,return,MCO Terminal,Disney Resort,True,65,65min buffer,05:55,30,30,,,,-82,ok
+2026-08-19,56,george,32263,7:30 AM,return,30921,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,08:00,55,55,,,,-10,ok
+2026-08-19,56,george,30921,9:00 AM,cruise,32951,9:40 AM,arrival,MCO Terminal,MCO Terminal,False,-5,"Needs 5 more min. Previous job ends ~9:55 AM, +-10min turnaround required.",09:55,2,-10,,,,22,ok
+2026-08-19,56,george,32951,9:40 AM,arrival,33924,12:07 PM,arrival,Disney Resort,MCO Terminal,True,42,42min buffer,10:55,30,30,flat arrival dwell,True,True,-13,ok
+2026-08-19,46,Yovanny Suarez,33009,6:00 AM,return,30348,8:00 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,06:30,30,30,,,,-36,ok
+2026-08-19,46,Yovanny Suarez,30348,8:00 AM,return,31962,9:22 AM,arrival,MCO Terminal,MCO Terminal,True,62,62min buffer,08:30,2,-10,,,,2,ok
+2026-08-19,46,Yovanny Suarez,31962,9:22 AM,arrival,28715,12:00 PM,return,Disney Resort,Disney Resort,True,47,47min buffer,11:02,11,11,flat arrival dwell|cross-property Disney average,True,True,-18,ok
+2026-08-19,46,Yovanny Suarez,28715,12:00 PM,return,31094,1:43 PM,arrival,MCO Terminal,MCO Terminal,True,83,83min buffer,12:30,2,-10,,,,18,ok
+2026-08-19,53,sereen,32666,6:30 AM,return,34752,7:50 AM,return,MCO Terminal,Disney Resort,True,20,20min buffer,07:00,30,30,,,,-10,ok
+2026-08-19,53,sereen,34752,7:50 AM,return,31347,9:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,15,15min buffer,08:20,55,55,,,,-15,ok
+2026-08-19,53,sereen,31347,9:30 AM,cruise,25481,11:45 AM,return,MCO Terminal,Disney Resort,True,50,50min buffer,10:25,30,30,,,,-8,ok
+2026-08-19,53,sereen,25481,11:45 AM,return,23809,1:15 PM,arrival,MCO Terminal,MCO Terminal,True,70,70min buffer,12:15,2,-10,,,,6,ok
+2026-08-19,67,ernesto,29217,7:30 AM,return,31034,8:58 AM,arrival,MCO Terminal,MCO Terminal,True,68,68min buffer,08:00,2,-10,,,,29,ok
+2026-08-19,67,ernesto,31034,8:58 AM,arrival,21124,11:23 AM,arrival,Disney Resort,MCO Terminal,True,15,15min buffer,10:38,30,30,flat arrival dwell,True,True,21,ok
+2026-08-19,67,ernesto,21124,11:23 AM,arrival,31266,2:00 PM,return,Disney Resort,Disney Resort,True,67,67min buffer,12:38,15,15,flat arrival dwell|cross-property Disney average,True,True,-2,ok
+2026-08-19,58,ken,26557,7:55 AM,return,31409,9:00 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,08:25,30,30,,,,44,ok
+2026-08-19,58,ken,31409,9:00 AM,return,31690,10:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,09:30,30,30,,,,-15,ok
+2026-08-19,58,ken,31690,10:00 AM,return,33569,1:15 PM,arrival,MCO Terminal,MCO Terminal,True,175,175min buffer,10:30,2,-10,,,,82,ok
+2026-08-19,58,ken,33569,1:15 PM,arrival,27030,4:21 PM,arrival,Disney Resort,MCO Terminal,True,56,56min buffer,14:55,30,30,flat arrival dwell,True,True,-6,ok
+2026-08-19,57,Seline,33478,8:00 AM,return,29240,9:15 AM,return,MCO Terminal,Universal Resort,True,20,20min buffer,08:30,25,25,,,,4,ok
+2026-08-19,57,Seline,29240,9:15 AM,return,29204,9:31 AM,arrival,MCO Terminal,MCO Terminal,True,1,1min buffer,09:40,2,-10,,,,15,ok
+2026-08-19,57,Seline,29204,9:31 AM,arrival,20925,12:14 PM,arrival,Universal Resort,MCO Terminal,True,68,68min buffer,10:41,25,25,flat arrival dwell,True,True,27,ok
+2026-08-19,57,Seline,20925,12:14 PM,arrival,28893,4:00 PM,return,Disney Resort,Disney Resort,True,122,122min buffer,13:54,4,4,flat arrival dwell|cross-property Disney average,True,True,-63,ok
+2026-08-19,52,Junaid Baidr,24441,8:30 AM,return,30128,9:30 AM,other,MCO Terminal,Airport Hotel,True,18,18min buffer,09:00,12,12,,,,-25,ok
+2026-08-19,52,Junaid Baidr,30128,9:30 AM,other,35498,11:02 AM,arrival,Disney Resort,MCO Terminal,True,37,37min buffer,09:55,30,30,,,,9,ok
+2026-08-19,52,Junaid Baidr,35498,11:02 AM,arrival,32483,2:30 PM,return,Disney Resort,Disney Resort,True,121,121min buffer,12:17,12,12,flat arrival dwell|cross-property Disney average,True,True,-8,ok
+2026-08-19,59,Aftab,28956,8:30 AM,return,34231,9:48 AM,arrival,MCO Terminal,MCO Terminal,True,58,58min buffer,09:00,2,-10,,,,20,ok
+2026-08-19,59,Aftab,34231,9:48 AM,arrival,35208,12:30 PM,return,Residential,Disney Resort,True,61,61min buffer,11:03,26,26,flat arrival dwell|reposition unpriced,True,True,-35,ok
+2026-08-19,59,Aftab,35208,12:30 PM,return,34274,1:58 PM,arrival,MCO Terminal,MCO Terminal,True,68,68min buffer,13:00,2,-10,,,,19,ok
+2026-08-19,59,Aftab,34274,1:58 PM,arrival,34264,4:21 PM,arrival,Other,MCO Terminal,True,28,28min buffer,15:18,35,35,first job's drive unpriced|flat arrival dwell|reposition unpriced,True,True,5,ok
+2026-08-19,71,JoseT,33784,8:46 AM,arrival,24758,11:29 AM,arrival,Disney Resort,MCO Terminal,True,58,58min buffer,10:01,30,30,flat arrival dwell,True,True,-53,ok
+2026-08-19,71,JoseT,24758,11:29 AM,arrival,35430,4:01 PM,arrival,Disney Resort,MCO Terminal,True,142,142min buffer,13:09,30,30,flat arrival dwell,True,True,14,ok
+2026-08-19,69,Charlie,32494,9:00 AM,return,32813,9:47 AM,arrival,MCO Terminal,MCO Terminal,True,27,27min buffer,09:30,2,-10,,,,-6,ok
+2026-08-19,69,Charlie,32813,9:47 AM,arrival,33001,2:30 PM,return,Disney Resort,Disney Resort,True,199,199min buffer,11:02,9,9,flat arrival dwell|cross-property Disney average,True,True,-40,ok
+2026-08-19,69,Charlie,33001,2:30 PM,return,31943,5:10 PM,arrival,MCO Terminal,MCO Terminal,True,140,140min buffer,15:00,2,-10,,,,3,ok
+2026-08-19,38,Angel Almanzar,33741,9:00 AM,cruise,32744,10:18 AM,arrival,Disney Resort,MCO Terminal,False,-24,"Needs 24 more min. Previous job ends ~10:12 AM, +30min turnaround required.",10:12,30,30,,,,24,ok
+2026-08-19,38,Angel Almanzar,32744,10:18 AM,arrival,24285,12:14 PM,arrival,Disney Resort,MCO Terminal,True,11,11min buffer,11:33,30,30,flat arrival dwell,True,True,-27,ok
+2026-08-19,38,Angel Almanzar,24285,12:14 PM,arrival,35470,3:30 PM,other,Disney Resort,Other Hotel,True,79,79min buffer,13:54,17,17,flat arrival dwell,True,True,-18,ok
+2026-08-19,68,AldoH,35204,9:29 AM,arrival,31111,11:23 AM,arrival,Disney Resort,MCO Terminal,True,9,9min buffer,10:44,30,30,flat arrival dwell,True,True,6,ok
+2026-08-19,68,AldoH,31111,11:23 AM,arrival,34510,1:10 PM,return,Disney Resort,Disney Resort,True,22,22min buffer,12:38,10,10,flat arrival dwell|cross-property Disney average,True,True,-45,ok
+2026-08-19,68,AldoH,34510,1:10 PM,return,32674,3:00 PM,return,MCO Terminal,Disney Resort,True,50,50min buffer,13:40,30,30,,,,-6,ok
+2026-08-19,68,AldoH,32674,3:00 PM,return,32936,4:45 PM,return,MCO Terminal,Disney Resort,True,45,45min buffer,15:30,30,30,,,,-35,ok
+2026-08-19,68,AldoH,32936,4:45 PM,return,35672,10:08 PM,arrival,MCO Terminal,MCO Terminal,True,303,303min buffer,17:15,2,-10,,,,-1,ok
+2026-08-19,51,David Encarancion,19909,11:45 AM,cruise,29695,2:49 PM,arrival,Port Canaveral Area,MCO Terminal,True,57,57min buffer,12:57,55,55,,,,21,ok
+2026-08-19,51,David Encarancion,29695,2:49 PM,arrival,34780,7:14 PM,arrival,Disney Resort,MCO Terminal,True,135,135min buffer,16:29,30,30,flat arrival dwell,True,True,39,ok
+2026-08-19,51,David Encarancion,34780,7:14 PM,arrival,29205,10:30 PM,other,Disney Resort,Universal Resort,True,93,93min buffer,20:29,28,28,flat arrival dwell,True,True,-1,ok
+2026-08-19,51,David Encarancion,29205,10:30 PM,other,31850,11:19 PM,arrival,Disney Resort,MCO Terminal,False,-8,"Needs 8 more min. Previous job ends ~10:58 PM, +30min turnaround required.",22:58,30,30,,,,33,ok
+2026-08-20,48,Michael Olmo,30906,4:30 AM,return,33742,5:45 AM,return,MCO Terminal,Disney Resort,True,20,20min buffer,04:55,30,30,,,,-23,ok
+2026-08-20,48,Michael Olmo,33742,5:45 AM,return,34321,7:43 AM,arrival,MCO Terminal,MCO Terminal,True,98,98min buffer,06:15,2,-10,,,,-10,ok
+2026-08-20,48,Michael Olmo,34321,7:43 AM,arrival,30081,10:15 AM,return,Disney Resort,Disney Resort,True,39,39min buffer,09:23,13,13,flat arrival dwell|cross-property Disney average,True,True,-66,ok
+2026-08-20,48,Michael Olmo,30081,10:15 AM,return,25540,12:26 PM,arrival,MCO Terminal,MCO Terminal,True,111,111min buffer,10:45,2,-10,,,,-65,ok
+2026-08-20,48,Michael Olmo,25540,12:26 PM,arrival,25610,3:00 PM,return,Disney Resort,Disney Resort,True,49,49min buffer,14:06,5,5,flat arrival dwell|cross-property Disney average,True,True,-11,ok
+2026-08-20,32,roberto,33599,6:30 AM,return,28681,8:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,07:00,30,30,,,,-3,ok
+2026-08-20,32,roberto,28681,8:15 AM,return,29998,9:25 AM,arrival,MCO Terminal,MCO Terminal,True,50,50min buffer,08:45,2,-10,,,,7,ok
+2026-08-20,32,roberto,29998,9:25 AM,arrival,35353,11:00 AM,other,Disney Resort,Disney Resort,True,8,8min buffer,10:40,12,12,flat arrival dwell|cross-property Disney average,True,True,-15,ok
+2026-08-20,32,roberto,35353,11:00 AM,other,30383,11:52 AM,arrival,Universal Resort,MCO Terminal,False,-1,"Needs 1 more min. Previous job ends ~11:28 AM, +25min turnaround required.",11:28,25,25,,,,11,ok
+2026-08-20,32,roberto,30383,11:52 AM,arrival,28527,2:30 PM,return,Disney Resort,Disney Resort,True,49,49min buffer,13:32,9,9,flat arrival dwell|cross-property Disney average,True,True,-61,ok
+2026-08-20,71,JoseT,30822,6:45 AM,return,25600,9:00 AM,arrival,MCO Terminal,MCO Terminal,True,120,120min buffer,07:10,2,-10,,,,22,ok
+2026-08-20,71,JoseT,25600,9:00 AM,arrival,33130,11:00 AM,return,Disney Resort,Disney Resort,True,7,7min buffer,10:40,13,13,flat arrival dwell|cross-property Disney average,True,True,-36,ok
+2026-08-20,53,sereen,33480,7:10 AM,return,29647,9:29 AM,arrival,MCO Terminal,MCO Terminal,True,119,119min buffer,07:40,2,-10,,,,4,ok
+2026-08-20,53,sereen,29647,9:29 AM,arrival,32501,12:49 PM,arrival,Disney Resort,SFB Terminal,True,40,40min buffer,11:09,60,60,flat arrival dwell,True,True,-2,ok
+2026-08-20,53,sereen,32501,12:49 PM,arrival,30897,3:03 PM,arrival,Disney Resort,MCO Terminal,False,-1,"Needs 1 more min. Previous job ends ~2:34 PM, +30min turnaround required.",14:34,30,30,flat arrival dwell,True,True,3,ok
+2026-08-20,53,sereen,30897,3:03 PM,arrival,30927,5:15 PM,return,Disney Resort,Disney Resort,True,20,20min buffer,16:43,12,12,flat arrival dwell|cross-property Disney average,True,True,-20,ok
+2026-08-20,53,sereen,30927,5:15 PM,return,34708,6:30 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,17:45,30,30,,,,-9,ok
+2026-08-20,26,neuma,34191,7:39 AM,arrival,35847,9:00 AM,return,Disney Resort,Residential,False,-6,"Needs 6 more min. Previous job ends ~8:54 AM, +12min turnaround required.",08:54,12,12,flat arrival dwell|reposition unpriced,True,True,,none
+2026-08-20,26,neuma,35847,9:00 AM,return,24173,9:29 AM,arrival,MCO Terminal,MCO Terminal,True,9,9min buffer,09:30,2,-10,,,,,none
+2026-08-20,26,neuma,24173,9:29 AM,arrival,28069,11:45 AM,return,Disney Resort,Disney Resort,True,51,51min buffer,10:44,10,10,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-20,26,neuma,28069,11:45 AM,return,35856,1:30 PM,return,MCO Terminal,Disney Resort,True,45,45min buffer,12:15,30,30,,,,,none
+2026-08-20,26,neuma,35856,1:30 PM,return,33082,3:30 PM,return,MCO Terminal,Disney Resort,True,60,60min buffer,14:00,30,30,,,,,none
+2026-08-20,52,Junaid Baidr,29119,8:00 AM,return,35332,9:37 AM,arrival,MCO Terminal,MCO Terminal,True,77,77min buffer,08:30,2,-10,,,,18,ok
+2026-08-20,52,Junaid Baidr,35332,9:37 AM,arrival,29854,11:00 AM,return,Disney Resort,Disney Resort,True,3,3min buffer,10:52,5,5,flat arrival dwell|cross-property Disney average,True,True,-2,ok
+2026-08-20,56,george,26882,8:10 AM,return,24347,9:33 AM,arrival,MCO Terminal,MCO Terminal,True,63,63min buffer,08:40,2,-10,,,,-62,ok
+2026-08-20,56,george,24347,9:33 AM,arrival,22279,11:00 AM,return,Disney Resort,Disney Resort,True,7,7min buffer,10:48,5,5,flat arrival dwell|cross-property Disney average,True,True,-18,ok
+2026-08-20,56,george,22279,11:00 AM,return,25778,1:30 PM,arrival,MCO Terminal,MCO Terminal,True,130,130min buffer,11:30,2,-10,,,,-115,ok
+2026-08-20,56,george,25778,1:30 PM,arrival,30529,3:00 PM,return,Disney Resort,Disney Resort,True,1,1min buffer,14:45,14,14,flat arrival dwell|cross-property Disney average,True,True,-16,ok
+2026-08-20,33,runer,35490,8:18 AM,arrival,25593,10:45 AM,return,Disney Resort,Disney Resort,True,54,54min buffer,09:33,18,18,flat arrival dwell|cross-property Disney average,True,True,-16,ok
+2026-08-20,33,runer,25593,10:45 AM,return,35650,2:13 PM,arrival,MCO Terminal,MCO Terminal,True,188,188min buffer,11:15,2,-10,,,,-93,ok
+2026-08-20,33,runer,35650,2:13 PM,arrival,29157,4:40 PM,arrival,Disney Resort,MCO Terminal,True,42,42min buffer,15:28,30,30,flat arrival dwell,True,True,-22,ok
+2026-08-20,33,runer,29157,4:40 PM,arrival,32078,6:15 PM,return,Disney Resort,Disney Resort,True,12,12min buffer,17:55,8,8,flat arrival dwell|cross-property Disney average,True,True,-10,ok
+2026-08-20,69,Charlie,32077,8:25 AM,arrival,24744,9:59 AM,arrival,Disney Resort,MCO Terminal,False,-11,"Needs 11 more min. Previous job ends ~9:40 AM, +30min turnaround required.",09:40,30,30,flat arrival dwell,True,False,8,ok
+2026-08-20,69,Charlie,24744,9:59 AM,arrival,35687,1:00 PM,return,Disney Resort,Disney Resort,True,98,98min buffer,11:14,8,8,flat arrival dwell|cross-property Disney average,True,True,-55,ok
+2026-08-20,58,ken,33482,8:30 AM,return,31377,9:56 AM,arrival,MCO Terminal,MCO Terminal,True,66,66min buffer,09:00,2,-10,,,,85,ok
+2026-08-20,58,ken,31377,9:56 AM,arrival,34586,1:07 PM,arrival,Disney Resort,MCO Terminal,True,86,86min buffer,11:11,30,30,flat arrival dwell,True,True,69,ok
+2026-08-20,58,ken,34586,1:07 PM,arrival,30194,3:50 PM,return,Disney Resort,Disney Resort,True,85,85min buffer,14:22,3,3,flat arrival dwell|cross-property Disney average,True,True,20,ok
+2026-08-20,54,Steven Kleisath,35481,8:53 AM,arrival,32445,10:30 AM,return,Disney Resort,Disney Resort,True,15,15min buffer,10:08,7,7,flat arrival dwell|cross-property Disney average,True,True,-16,ok
+2026-08-20,54,Steven Kleisath,32445,10:30 AM,return,33144,1:11 PM,arrival,MCO Terminal,MCO Terminal,True,141,141min buffer,11:00,2,-10,,,,-13,ok
+2026-08-20,57,Seline,33240,9:00 AM,return,17544,9:30 AM,arrival,MCO Terminal,MCO Terminal,True,10,10min buffer,09:30,2,-10,,,,19,ok
+2026-08-20,57,Seline,17544,9:30 AM,arrival,27892,1:08 PM,arrival,Disney Resort,MCO Terminal,True,88,88min buffer,11:10,30,30,flat arrival dwell,True,True,26,ok
+2026-08-20,57,Seline,27892,1:08 PM,arrival,28388,3:03 PM,arrival,Disney Resort,MCO Terminal,True,10,10min buffer,14:23,30,30,flat arrival dwell,True,True,31,ok
+2026-08-20,59,Aftab,34051,9:30 AM,arrival,30988,11:30 AM,return,Disney Resort,Disney Resort,True,20,20min buffer,11:10,0,0,flat arrival dwell|cross-property Disney average,True,True,-15,ok
+2026-08-20,59,Aftab,30988,11:30 AM,return,35573,1:30 PM,arrival,MCO Terminal,MCO Terminal,True,100,100min buffer,12:00,2,-10,,,,16,ok
+2026-08-20,59,Aftab,35573,1:30 PM,arrival,33331,4:30 PM,return,Other Hotel,Disney Resort,True,88,88min buffer,14:40,22,22,flat arrival dwell,True,True,-13,ok
+2026-08-20,67,ernesto,32156,9:45 AM,return,31053,9:59 AM,arrival,MCO Terminal,MCO Terminal,False,-6,"Needs 6 more min. Previous job ends ~10:15 AM, +-10min turnaround required.",10:15,2,-10,,,,40,ok
+2026-08-20,67,ernesto,31053,9:59 AM,arrival,35829,12:30 PM,return,Disney Resort,Disney Resort,True,72,72min buffer,11:14,4,4,flat arrival dwell|cross-property Disney average,True,True,8,ok
+2026-08-20,67,ernesto,35829,12:30 PM,return,36018,2:00 PM,arrival,MCO Terminal,MCO Terminal,True,70,70min buffer,13:00,2,-10,,,,16,ok
+2026-08-20,67,ernesto,36018,2:00 PM,arrival,35035,7:31 PM,arrival,Disney Resort,MCO Terminal,True,226,226min buffer,15:15,30,30,flat arrival dwell,True,True,34,ok
+2026-08-20,51,David Encarancion,14744,10:15 AM,return,35752,11:27 AM,arrival,MCO Terminal,MCO Terminal,True,52,52min buffer,10:45,2,-10,,,,25,ok
+2026-08-20,51,David Encarancion,35752,11:27 AM,arrival,35192,4:41 PM,arrival,Disney Resort,MCO Terminal,True,209,209min buffer,12:42,30,30,flat arrival dwell,True,True,-12,ok
+2026-08-20,51,David Encarancion,35192,4:41 PM,arrival,35914,7:15 PM,return,Universal Resort,Disney Resort,True,31,31min buffer,18:16,28,28,flat arrival dwell,True,True,2,ok
+2026-08-20,51,David Encarancion,35914,7:15 PM,return,24038,8:29 PM,arrival,MCO Terminal,MCO Terminal,True,54,54min buffer,19:45,2,-10,,,,-26,ok
+2026-08-20,51,David Encarancion,24038,8:29 PM,arrival,35230,11:05 PM,arrival,Disney Resort,MCO Terminal,True,47,47min buffer,21:48,30,30,flat arrival dwell,True,True,-4,ok
+2026-08-20,72,OmarM,34111,3:00 PM,return,29878,5:47 PM,arrival,MCO Terminal,MCO Terminal,True,147,147min buffer,15:30,2,-10,,,,2,ok
+2026-08-20,72,OmarM,29878,5:47 PM,arrival,22988,7:48 PM,arrival,Disney Resort,MCO Terminal,False,-9,"Needs 9 more min. Previous job ends ~7:27 PM, +30min turnaround required.",19:27,30,30,flat arrival dwell,True,True,20,ok
+2026-08-20,38,Angel Almanzar,35785,6:08 PM,arrival,32676,8:24 PM,arrival,Disney Resort,MCO Terminal,True,31,31min buffer,19:23,30,30,flat arrival dwell,True,True,30,ok
+2026-08-20,38,Angel Almanzar,32676,8:24 PM,arrival,35907,11:29 PM,arrival,Universal Resort,MCO Terminal,True,90,90min buffer,21:34,25,25,flat arrival dwell,True,True,67,ok
+2026-08-21,48,Michael Olmo,29820,3:15 AM,return,33559,4:30 AM,return,MCO Terminal,Universal Resort,True,20,20min buffer,03:45,25,25,,,,-28,ok
+2026-08-21,48,Michael Olmo,33559,4:30 AM,return,30884,6:15 AM,return,MCO Terminal,Disney Resort,True,50,50min buffer,04:55,30,30,,,,-13,ok
+2026-08-21,48,Michael Olmo,30884,6:15 AM,return,32863,8:40 AM,return,MCO Terminal,Disney Resort,True,85,85min buffer,06:45,30,30,,,,-78,ok
+2026-08-21,48,Michael Olmo,32863,8:40 AM,return,25951,9:23 AM,arrival,MCO Terminal,MCO Terminal,True,23,23min buffer,09:10,2,-10,,,,-3,ok
+2026-08-21,48,Michael Olmo,25951,9:23 AM,arrival,34188,11:30 AM,return,Disney Resort,Disney Resort,True,44,44min buffer,10:38,8,8,flat arrival dwell|cross-property Disney average,True,True,-54,ok
+2026-08-21,48,Michael Olmo,34188,11:30 AM,return,30453,12:30 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,12:00,30,30,,,,-11,ok
+2026-08-21,48,Michael Olmo,30453,12:30 PM,return,13683,2:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,13:00,30,30,,,,-13,ok
+2026-08-21,48,Michael Olmo,13683,2:00 PM,return,36195,3:18 PM,arrival,MCO Terminal,MCO Terminal,True,58,58min buffer,14:30,2,-10,,,,-5,ok
+2026-08-21,53,sereen,36008,4:30 AM,return,28224,7:00 AM,return,MCO Terminal,Disney Resort,True,90,90min buffer,05:00,30,30,,,,-12,ok
+2026-08-21,53,sereen,28224,7:00 AM,return,34101,8:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,07:30,55,55,,,,-5,ok
+2026-08-21,53,sereen,34101,8:30 AM,cruise,33915,9:45 AM,arrival,Universal Resort,MCO Terminal,False,-10,"Needs 10 more min. Previous job ends ~9:30 AM, +25min turnaround required.",09:30,25,25,,,,11,ok
+2026-08-21,53,sereen,33915,9:45 AM,arrival,28179,11:30 AM,return,Disney Resort,Disney Resort,False,-5,"Needs 5 more min. Previous job ends ~11:25 AM, +10min turnaround required.",11:25,10,10,flat arrival dwell|cross-property Disney average,True,True,-3,ok
+2026-08-21,53,sereen,28179,11:30 AM,return,35977,1:59 PM,arrival,MCO Terminal,MCO Terminal,True,129,129min buffer,12:00,2,-10,,,,1,ok
+2026-08-21,53,sereen,35977,1:59 PM,arrival,36102,4:30 PM,return,Disney Resort,Disney Resort,True,39,39min buffer,15:39,12,12,flat arrival dwell|cross-property Disney average,True,True,-41,ok
+2026-08-21,66,Francisco Pedraza,35819,4:45 AM,return,29530,8:00 AM,return,MCO Terminal,Disney Resort,True,135,135min buffer,05:15,30,30,,,,-6,ok
+2026-08-21,66,Francisco Pedraza,29530,8:00 AM,return,33655,10:30 AM,return,MCO Terminal,Disney Resort,True,90,90min buffer,08:30,30,30,,,,-4,ok
+2026-08-21,66,Francisco Pedraza,33655,10:30 AM,return,29757,11:28 AM,arrival,MCO Terminal,MCO Terminal,True,38,38min buffer,11:00,2,-10,,,,-15,ok
+2026-08-21,26,neuma,24360,6:00 AM,return,35118,7:45 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,06:30,30,30,,,,-26,ok
+2026-08-21,26,neuma,35118,7:45 AM,return,33225,8:51 AM,arrival,MCO Terminal,MCO Terminal,True,46,46min buffer,08:15,2,-10,,,,,none
+2026-08-21,26,neuma,33225,8:51 AM,arrival,31814,10:30 AM,return,Disney Resort,Disney Resort,True,11,11min buffer,10:06,13,13,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-21,26,neuma,31814,10:30 AM,return,22154,11:00 AM,arrival,MCO Terminal,MCO Terminal,True,10,10min buffer,11:00,2,-10,,,,,none
+2026-08-21,26,neuma,22154,11:00 AM,arrival,18480,1:00 PM,return,Universal Resort,Disney Resort,True,22,22min buffer,12:10,28,28,flat arrival dwell,True,True,,none
+2026-08-21,26,neuma,18480,1:00 PM,return,29468,3:00 PM,return,MCO Terminal,Disney Resort,True,60,60min buffer,13:30,30,30,,,,,none
+2026-08-21,26,neuma,29468,3:00 PM,return,32031,4:30 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,15:30,30,30,,,,,none
+2026-08-21,26,neuma,32031,4:30 PM,return,19870,5:30 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,17:00,30,30,,,,,none
+2026-08-21,56,george,33281,6:30 AM,return,33895,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,65,65min buffer,07:00,55,55,,,,-52,ok
+2026-08-21,56,george,33895,9:00 AM,cruise,29908,10:30 AM,other,Disney Resort,Disney Resort,True,8,8min buffer,10:12,10,10,cross-property Disney average,,,-23,ok
+2026-08-21,56,george,29908,10:30 AM,other,35033,11:07 AM,arrival,Universal Resort,MCO Terminal,False,-16,"Needs 16 more min. Previous job ends ~10:58 AM, +25min turnaround required.",10:58,25,25,,,,15,ok
+2026-08-21,56,george,35033,11:07 AM,arrival,33259,1:00 PM,return,Disney Resort,Universal Resort,True,10,10min buffer,12:22,28,28,flat arrival dwell,True,True,-32,ok
+2026-08-21,56,george,33259,1:00 PM,return,31856,3:44 PM,arrival,MCO Terminal,MCO Terminal,True,149,149min buffer,13:25,2,-10,,,,-68,ok
+2026-08-21,58,ken,35815,6:30 AM,return,27385,8:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,07:00,30,30,,,,34,ok
+2026-08-21,58,ken,27385,8:15 AM,return,21992,10:00 AM,cruise,MCO Terminal,Residential,True,29,29min buffer,08:45,46,46,,,,7,ok
+2026-08-21,58,ken,21992,10:00 AM,cruise,34946,3:45 PM,return,Port Canaveral Area,Disney Resort,True,238,238min buffer,10:35,72,72,first job's drive unpriced,,,42,ok
+2026-08-21,58,ken,34946,3:45 PM,return,35276,6:52 PM,arrival,MCO Terminal,MCO Terminal,True,167,167min buffer,16:15,2,-10,,,,,none
+2026-08-21,32,roberto,34252,6:45 AM,return,29147,8:30 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,07:15,30,30,,,,-37,ok
+2026-08-21,32,roberto,29147,8:30 AM,return,26972,10:00 AM,cruise,MCO Terminal,Residential,True,14,14min buffer,09:00,46,46,,,,84,ok
+2026-08-21,32,roberto,26972,10:00 AM,cruise,34466,1:00 PM,return,Port Canaveral Area,Disney Resort,True,73,73min buffer,10:35,72,72,first job's drive unpriced,,,-14,ok
+2026-08-21,32,roberto,34466,1:00 PM,return,35866,1:55 PM,arrival,MCO Terminal,MCO Terminal,True,35,35min buffer,13:30,2,-10,,,,20,ok
+2026-08-21,32,roberto,35866,1:55 PM,arrival,36083,4:00 PM,return,Disney Resort,Disney Resort,True,38,38min buffer,15:10,12,12,flat arrival dwell|cross-property Disney average,True,True,-6,ok
+2026-08-21,32,roberto,36083,4:00 PM,return,31715,5:00 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,16:30,30,30,,,,7,ok
+2026-08-21,32,roberto,31715,5:00 PM,return,30707,5:54 PM,arrival,MCO Terminal,MCO Terminal,True,34,34min buffer,17:30,2,-10,,,,5,ok
+2026-08-21,57,Seline,29731,7:00 AM,return,31622,8:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,07:30,30,30,,,,9,ok
+2026-08-21,57,Seline,31622,8:30 AM,return,36025,10:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,09:00,55,55,,,,3,ok
+2026-08-21,57,Seline,36025,10:00 AM,cruise,23122,11:30 AM,return,Universal Resort,Disney Resort,True,2,2min buffer,11:00,28,28,,,,9,ok
+2026-08-21,57,Seline,23122,11:30 AM,return,21998,12:21 PM,arrival,MCO Terminal,MCO Terminal,True,31,31min buffer,12:00,2,-10,,,,30,ok
+2026-08-21,57,Seline,21998,12:21 PM,arrival,32312,2:39 PM,arrival,Disney Resort,MCO Terminal,True,33,33min buffer,13:36,30,30,flat arrival dwell,True,True,40,ok
+2026-08-21,55,rizwan,31319,7:00 AM,return,34643,7:56 AM,arrival,MCO Terminal,MCO Terminal,True,36,36min buffer,07:30,2,-10,,,,7,ok
+2026-08-21,55,rizwan,34643,7:56 AM,arrival,8520,10:00 AM,return,Disney Resort,Disney Resort,True,12,12min buffer,09:36,12,12,flat arrival dwell|cross-property Disney average,True,True,-17,ok
+2026-08-21,55,rizwan,8520,10:00 AM,return,34864,11:02 AM,arrival,MCO Terminal,MCO Terminal,True,42,42min buffer,10:30,2,-10,,,,2,ok
+2026-08-21,33,runer,33337,8:00 AM,cruise,31241,9:10 AM,arrival,MCO Terminal,SFB Terminal,False,-45,"Needs 45 more min. Previous job ends ~8:55 AM, +60min turnaround required.",08:55,60,60,,,,1,ok
+2026-08-21,33,runer,31241,9:10 AM,arrival,30140,2:30 PM,return,Disney Resort,Disney Resort,True,198,198min buffer,10:55,17,17,flat arrival dwell|cross-property Disney average,True,True,-26,ok
+2026-08-21,33,runer,30140,2:30 PM,return,33589,4:00 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,15:00,30,30,,,,2,ok
+2026-08-21,33,runer,33589,4:00 PM,return,27368,5:15 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,16:30,30,30,,,,0,ok
+2026-08-21,33,runer,27368,5:15 PM,return,34941,6:45 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,17:45,30,30,,,,,none
+2026-08-21,33,runer,34941,6:45 PM,return,35960,8:40 PM,arrival,MCO Terminal,SFB Terminal,True,25,25min buffer,19:15,60,60,,,,,none
+2026-08-21,71,JoseT,25227,8:30 AM,other,32796,9:30 AM,return,Disney Resort,Disney Resort,True,18,18min buffer,08:58,14,14,cross-property Disney average,,,-2,ok
+2026-08-21,71,JoseT,32796,9:30 AM,return,36108,11:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,10:00,30,30,,,,-36,ok
+2026-08-21,71,JoseT,36108,11:15 AM,return,35313,12:44 PM,arrival,MCO Terminal,MCO Terminal,True,69,69min buffer,11:45,2,-10,,,,28,ok
+2026-08-21,71,JoseT,35313,12:44 PM,arrival,31977,3:19 PM,arrival,Disney Resort,MCO Terminal,True,25,25min buffer,14:24,30,30,flat arrival dwell,True,True,14,ok
+2026-08-21,71,JoseT,31977,3:19 PM,arrival,36111,7:43 PM,arrival,Disney Resort,MCO Terminal,True,159,159min buffer,16:34,30,30,flat arrival dwell,True,True,,none
+2026-08-21,38,Angel Almanzar,32783,8:30 AM,return,33143,9:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,09:00,30,30,,,,1,ok
+2026-08-21,38,Angel Almanzar,33143,9:30 AM,return,33550,10:13 AM,arrival,MCO Terminal,MCO Terminal,True,23,23min buffer,10:00,2,-10,,,,15,ok
+2026-08-21,38,Angel Almanzar,33550,10:13 AM,arrival,35858,2:18 PM,arrival,Disney Resort,MCO Terminal,True,140,140min buffer,11:28,30,30,flat arrival dwell,True,True,-16,ok
+2026-08-21,38,Angel Almanzar,35858,2:18 PM,arrival,21243,4:30 PM,return,Disney Resort,Disney Resort,True,45,45min buffer,15:33,12,12,flat arrival dwell|cross-property Disney average,True,True,-25,ok
+2026-08-21,51,David Encarancion,24314,9:00 AM,cruise,33118,10:05 AM,arrival,MCO Terminal,MCO Terminal,True,20,20min buffer,09:55,2,-10,,,,-5,ok
+2026-08-21,51,David Encarancion,33118,10:05 AM,arrival,33974,12:30 PM,return,Disney Resort,Disney Resort,True,58,58min buffer,11:20,12,12,flat arrival dwell|cross-property Disney average,True,True,15,ok
+2026-08-21,51,David Encarancion,33974,12:30 PM,return,30182,1:30 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,13:00,30,30,,,,19,ok
+2026-08-21,51,David Encarancion,30182,1:30 PM,return,34487,2:18 PM,arrival,MCO Terminal,MCO Terminal,True,28,28min buffer,14:00,2,-10,,,,26,ok
+2026-08-21,51,David Encarancion,34487,2:18 PM,arrival,34633,4:45 PM,return,Disney Resort,Disney Resort,True,60,60min buffer,15:33,12,12,flat arrival dwell|cross-property Disney average,True,True,27,ok
+2026-08-21,51,David Encarancion,34633,4:45 PM,return,33282,7:07 PM,arrival,SFB Terminal,MCO Terminal,True,22,22min buffer,17:45,60,60,,,,,none
+2026-08-21,51,David Encarancion,33282,7:07 PM,arrival,30460,11:47 PM,arrival,Disney Resort,MCO Terminal,True,154,154min buffer,20:43,30,30,flat arrival dwell,True,True,,none
+2026-08-21,67,ernesto,26400,9:00 AM,return,33017,9:45 AM,arrival,MCO Terminal,MCO Terminal,True,25,25min buffer,09:30,2,-10,,,,29,ok
+2026-08-21,67,ernesto,33017,9:45 AM,arrival,35695,11:10 AM,return,Disney Resort,Disney Resort,True,0,0min buffer,11:00,10,10,flat arrival dwell|cross-property Disney average,True,True,6,ok
+2026-08-21,67,ernesto,35695,11:10 AM,return,23708,12:30 PM,return,MCO Terminal,Disney Resort,True,20,20min buffer,11:40,30,30,,,,2,ok
+2026-08-21,67,ernesto,23708,12:30 PM,return,33255,1:01 PM,arrival,MCO Terminal,MCO Terminal,True,11,11min buffer,13:00,2,-10,,,,75,ok
+2026-08-21,67,ernesto,33255,1:01 PM,arrival,12224,3:29 PM,arrival,Disney Resort,MCO Terminal,True,43,43min buffer,14:16,30,30,flat arrival dwell,True,True,42,ok
+2026-08-21,68,AldoH,27315,9:00 AM,return,33752,9:22 AM,arrival,MCO Terminal,MCO Terminal,True,2,2min buffer,09:30,2,-10,,,,29,ok
+2026-08-21,68,AldoH,33752,9:22 AM,arrival,33845,11:00 AM,return,Disney Resort,Disney Resort,True,7,7min buffer,10:37,16,16,flat arrival dwell|cross-property Disney average,True,True,-15,ok
+2026-08-21,68,AldoH,33845,11:00 AM,return,30329,11:07 AM,arrival,MCO Terminal,MCO Terminal,False,-13,"Needs 13 more min. Previous job ends ~11:30 AM, +-10min turnaround required.",11:30,2,-10,,,,30,ok
+2026-08-21,68,AldoH,30329,11:07 AM,arrival,27235,1:15 PM,return,Disney Resort,Disney Resort,True,41,41min buffer,12:22,12,12,flat arrival dwell|cross-property Disney average,True,True,-42,ok
+2026-08-21,54,Steven Kleisath,28854,9:15 AM,return,35984,11:19 AM,arrival,MCO Terminal,MCO Terminal,True,104,104min buffer,09:45,2,-10,,,,-4,ok
+2026-08-21,54,Steven Kleisath,35984,11:19 AM,arrival,23267,1:15 PM,return,Disney Resort,Disney Resort,True,28,28min buffer,12:34,13,13,flat arrival dwell|cross-property Disney average,True,True,-7,ok
+2026-08-21,54,Steven Kleisath,23267,1:15 PM,return,36194,2:25 PM,arrival,MCO Terminal,MCO Terminal,True,50,50min buffer,13:45,2,-10,,,,-13,ok
+2026-08-21,54,Steven Kleisath,36194,2:25 PM,arrival,33596,3:45 PM,return,Disney Resort,Disney Resort,False,-2,"Needs 2 more min. Previous job ends ~3:40 PM, +7min turnaround required.",15:40,7,7,flat arrival dwell|cross-property Disney average,True,True,13,ok
+2026-08-21,54,Steven Kleisath,33596,3:45 PM,return,25073,6:34 PM,arrival,MCO Terminal,MCO Terminal,True,149,149min buffer,16:15,2,-10,,,,,none
+2026-08-21,50,Lev Askerov,34920,4:30 PM,return,29909,6:45 PM,other,MCO Terminal,Universal Resort,True,80,80min buffer,17:00,25,25,,,,,none
+2026-08-21,50,Lev Askerov,29909,6:45 PM,other,34667,7:43 PM,arrival,Disney Resort,MCO Terminal,True,0,0min buffer,19:13,30,30,,,,,none
+2026-08-21,70,CarlosG,33276,5:59 PM,arrival,36148,9:37 PM,arrival,Disney Resort,MCO Terminal,True,113,113min buffer,19:14,30,30,flat arrival dwell,True,True,,none
+2026-08-22,48,Michael Olmo,28939,3:00 AM,return,29136,4:15 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,03:30,30,30,,,,,none
+2026-08-22,48,Michael Olmo,29136,4:15 AM,return,32176,6:30 AM,return,MCO Terminal,Other Hotel,True,85,85min buffer,04:45,20,20,,,,,none
+2026-08-22,48,Michael Olmo,32176,6:30 AM,return,31668,7:30 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,06:55,30,30,,,,,none
+2026-08-22,48,Michael Olmo,31668,7:30 AM,return,19020,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,08:00,55,55,,,,,none
+2026-08-22,48,Michael Olmo,19020,9:00 AM,cruise,36211,9:55 AM,arrival,MCO Terminal,MCO Terminal,True,10,10min buffer,09:55,2,-10,,,,,none
+2026-08-22,48,Michael Olmo,36211,9:55 AM,arrival,33498,1:00 PM,return,Disney Resort,Disney Resort,True,73,73min buffer,11:35,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,48,Michael Olmo,33498,1:00 PM,return,31020,1:45 PM,arrival,MCO Terminal,MCO Terminal,True,25,25min buffer,13:30,2,-10,,,,,none
+2026-08-22,48,Michael Olmo,31020,1:45 PM,arrival,25980,4:30 PM,return,Disney Resort,Disney Resort,True,79,79min buffer,15:00,11,11,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,62,shelley,34877,3:00 AM,return,34647,4:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,03:30,30,30,,,,,none
+2026-08-22,62,shelley,34647,4:30 AM,return,31223,6:30 AM,return,MCO Terminal,Universal Resort,True,65,65min buffer,05:00,25,25,,,,,none
+2026-08-22,62,shelley,31223,6:30 AM,return,24880,8:30 AM,return,MCO Terminal,Universal Resort,True,70,70min buffer,06:55,25,25,,,,,none
+2026-08-22,62,shelley,24880,8:30 AM,return,33642,10:00 AM,other,MCO Terminal,Airport Hotel,True,53,53min buffer,08:55,12,12,,,,,none
+2026-08-22,62,shelley,33642,10:00 AM,other,34797,11:00 AM,cruise,Disney Resort,Airport Hotel,True,10,10min buffer,10:25,25,25,,,,,none
+2026-08-22,62,shelley,34797,11:00 AM,cruise,33990,1:04 PM,other,Port Canaveral Area,Residential,True,14,14min buffer,11:55,55,55,reposition unpriced,,,,none
+2026-08-22,62,shelley,33990,1:04 PM,other,29120,2:00 PM,return,Disney Resort,Disney Resort,True,19,19min buffer,13:39,2,2,first job's drive unpriced|cross-property Disney average,,,,none
+2026-08-22,62,shelley,29120,2:00 PM,return,34651,3:15 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,14:30,30,30,,,,,none
+2026-08-22,62,shelley,34651,3:15 PM,return,34854,4:15 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,15:45,30,30,,,,,none
+2026-08-22,26,neuma,24571,3:30 AM,return,33365,5:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,04:00,30,30,,,,,none
+2026-08-22,26,neuma,33365,5:15 AM,return,27398,6:30 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,05:45,30,30,,,,,none
+2026-08-22,26,neuma,27398,6:30 AM,return,31680,8:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,07:00,55,55,,,,,none
+2026-08-22,26,neuma,31680,8:00 AM,cruise,25109,9:15 AM,return,MCO Terminal,Disney Resort,False,-10,"Needs 10 more min. Previous job ends ~8:55 AM, +30min turnaround required.",08:55,30,30,,,,,none
+2026-08-22,26,neuma,25109,9:15 AM,return,30830,10:25 AM,return,MCO Terminal,Disney Resort,True,10,10min buffer,09:45,30,30,,,,,none
+2026-08-22,26,neuma,30830,10:25 AM,return,18909,12:30 PM,return,MCO Terminal,Disney Resort,True,65,65min buffer,10:55,30,30,,,,,none
+2026-08-22,26,neuma,18909,12:30 PM,return,34539,1:30 PM,return,MCO Terminal,Universal Resort,True,5,5min buffer,13:00,25,25,,,,,none
+2026-08-22,26,neuma,34539,1:30 PM,return,29498,2:00 PM,arrival,MCO Terminal,MCO Terminal,True,15,15min buffer,13:55,2,-10,,,,,none
+2026-08-22,26,neuma,29498,2:00 PM,arrival,26088,4:00 PM,return,Disney Resort,Disney Resort,True,40,40min buffer,15:15,5,5,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,26,neuma,26088,4:00 PM,return,34615,5:15 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,16:30,30,30,,,,,none
+2026-08-22,53,sereen,35101,3:30 AM,return,36074,4:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,04:00,30,30,,,,,none
+2026-08-22,53,sereen,36074,4:30 AM,return,34236,6:15 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,05:00,30,30,,,,,none
+2026-08-22,53,sereen,34236,6:15 AM,return,24634,8:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,20,20min buffer,06:45,55,55,,,,,none
+2026-08-22,53,sereen,24634,8:00 AM,cruise,26603,9:30 AM,return,Disney Resort,Disney Resort,True,6,6min buffer,09:12,12,12,cross-property Disney average,,,,none
+2026-08-22,53,sereen,26603,9:30 AM,return,31328,10:45 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,10:00,30,30,,,,,none
+2026-08-22,53,sereen,31328,10:45 AM,return,30915,12:00 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,11:15,30,30,,,,,none
+2026-08-22,53,sereen,30915,12:00 PM,return,35214,12:38 PM,arrival,MCO Terminal,MCO Terminal,True,18,18min buffer,12:30,2,-10,,,,,none
+2026-08-22,53,sereen,35214,12:38 PM,arrival,14428,2:30 PM,return,Disney Resort,Disney Resort,True,22,22min buffer,13:53,14,14,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,53,sereen,14428,2:30 PM,return,33548,3:10 PM,arrival,MCO Terminal,MCO Terminal,True,20,20min buffer,15:00,2,-10,,,,,none
+2026-08-22,53,sereen,33548,3:10 PM,arrival,9021,4:45 PM,return,Disney Resort,Disney Resort,True,10,10min buffer,16:25,10,10,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,52,Junaid Baidr,32766,3:45 AM,return,17226,5:00 AM,return,MCO Terminal,Disney Resort,True,15,15min buffer,04:15,30,30,,,,,none
+2026-08-22,52,Junaid Baidr,17226,5:00 AM,return,30439,7:30 AM,return,SFB Terminal,Disney Resort,True,30,30min buffer,06:00,60,60,,,,,none
+2026-08-22,52,Junaid Baidr,30439,7:30 AM,return,24433,8:40 AM,return,MCO Terminal,Disney Resort,True,10,10min buffer,08:00,30,30,,,,,none
+2026-08-22,52,Junaid Baidr,24433,8:40 AM,return,31948,10:00 AM,return,MCO Terminal,Disney Resort,True,20,20min buffer,09:10,30,30,,,,,none
+2026-08-22,52,Junaid Baidr,31948,10:00 AM,return,23195,11:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,10:30,30,30,,,,,none
+2026-08-22,52,Junaid Baidr,23195,11:00 AM,return,24093,11:33 AM,arrival,MCO Terminal,MCO Terminal,True,13,13min buffer,11:30,2,-10,,,,,none
+2026-08-22,52,Junaid Baidr,24093,11:33 AM,arrival,33622,1:00 PM,return,Disney Resort,Disney Resort,True,3,3min buffer,12:48,9,9,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,56,george,19653,4:00 AM,return,27580,6:00 AM,return,MCO Terminal,Disney Resort,True,60,60min buffer,04:30,30,30,,,,,none
+2026-08-22,56,george,27580,6:00 AM,return,33194,7:30 AM,cruise,MCO Terminal,Port Canaveral Area,True,5,5min buffer,06:30,55,55,,,,,none
+2026-08-22,56,george,33194,7:30 AM,cruise,32741,9:30 AM,cruise,MCO Terminal,Disney Resort,True,35,35min buffer,08:25,30,30,,,,,none
+2026-08-22,56,george,32741,9:30 AM,cruise,21789,12:15 PM,return,Port Canaveral Area,Disney Resort,True,21,21min buffer,10:42,72,72,,,,,none
+2026-08-22,56,george,21789,12:15 PM,return,32165,1:30 PM,return,MCO Terminal,Disney Resort,True,15,15min buffer,12:45,30,30,,,,,none
+2026-08-22,56,george,32165,1:30 PM,return,29177,2:16 PM,arrival,MCO Terminal,MCO Terminal,True,26,26min buffer,14:00,2,-10,,,,,none
+2026-08-22,56,george,29177,2:16 PM,arrival,34960,4:15 PM,return,Disney Resort,Universal Resort,True,16,16min buffer,15:31,28,28,flat arrival dwell,True,True,,none
+2026-08-22,56,george,34960,4:15 PM,return,33988,4:46 PM,arrival,MCO Terminal,MCO Terminal,True,16,16min buffer,16:40,2,-10,,,,,none
+2026-08-22,57,Seline,23491,4:00 AM,return,34221,5:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,04:30,30,30,,,,,none
+2026-08-22,57,Seline,34221,5:30 AM,return,33248,8:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,65,65min buffer,06:00,55,55,,,,,none
+2026-08-22,57,Seline,33248,8:00 AM,cruise,32341,9:30 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,08:55,30,30,,,,,none
+2026-08-22,57,Seline,32341,9:30 AM,return,29113,11:00 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,10:00,30,30,,,,,none
+2026-08-22,57,Seline,29113,11:00 AM,return,15346,11:56 AM,arrival,MCO Terminal,MCO Terminal,True,36,36min buffer,11:30,2,-10,,,,,none
+2026-08-22,57,Seline,15346,11:56 AM,arrival,21743,3:00 PM,return,Disney Resort,Disney Resort,True,72,72min buffer,13:36,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,57,Seline,21743,3:00 PM,return,32513,4:46 PM,arrival,MCO Terminal,MCO Terminal,True,86,86min buffer,15:30,2,-10,,,,,none
+2026-08-22,59,Aftab,34984,4:15 AM,return,30820,6:45 AM,return,MCO Terminal,Disney Resort,True,90,90min buffer,04:45,30,30,,,,,none
+2026-08-22,59,Aftab,30820,6:45 AM,return,24106,9:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,50,50min buffer,07:15,55,55,,,,,none
+2026-08-22,59,Aftab,24106,9:00 AM,cruise,29327,10:30 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,09:55,30,30,,,,,none
+2026-08-22,59,Aftab,29327,10:30 AM,return,29869,11:30 AM,arrival,MCO Terminal,MCO Terminal,True,40,40min buffer,11:00,2,-10,,,,,none
+2026-08-22,59,Aftab,29869,11:30 AM,arrival,15181,1:30 PM,return,Disney Resort,Universal Resort,True,17,17min buffer,12:45,28,28,flat arrival dwell,True,True,,none
+2026-08-22,59,Aftab,15181,1:30 PM,return,34894,2:30 PM,return,MCO Terminal,Disney Resort,True,5,5min buffer,13:55,30,30,,,,,none
+2026-08-22,59,Aftab,34894,2:30 PM,return,24967,5:00 PM,other,MCO Terminal,Disney Resort,True,90,90min buffer,15:00,30,30,,,,,none
+2026-08-22,32,roberto,31759,4:30 AM,return,32148,5:30 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,04:55,30,30,,,,,none
+2026-08-22,32,roberto,32148,5:30 AM,return,21359,8:00 AM,cruise,MCO Terminal,Port Canaveral Area,True,65,65min buffer,06:00,55,55,,,,,none
+2026-08-22,32,roberto,21359,8:00 AM,cruise,30729,9:30 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,08:55,30,30,,,,,none
+2026-08-22,32,roberto,30729,9:30 AM,return,29196,10:17 AM,arrival,MCO Terminal,MCO Terminal,True,27,27min buffer,10:00,2,-10,,,,,none
+2026-08-22,32,roberto,29196,10:17 AM,arrival,27152,12:30 PM,arrival,Universal Resort,MCO Terminal,True,38,38min buffer,11:27,25,25,flat arrival dwell,True,True,,none
+2026-08-22,32,roberto,27152,12:30 PM,arrival,21286,2:00 PM,return,Disney Resort,Disney Resort,True,6,6min buffer,13:45,9,9,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,32,roberto,21286,2:00 PM,return,34208,2:40 PM,arrival,MCO Terminal,MCO Terminal,True,20,20min buffer,14:30,2,-10,,,,,none
+2026-08-22,32,roberto,34208,2:40 PM,arrival,34600,4:30 PM,return,Disney Resort,Disney Resort,True,23,23min buffer,15:55,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,32,roberto,34600,4:30 PM,return,25587,7:04 PM,arrival,MCO Terminal,MCO Terminal,True,134,134min buffer,17:00,2,-10,,,,,none
+2026-08-22,58,ken,22129,4:45 AM,return,32205,6:30 AM,return,MCO Terminal,Disney Resort,True,45,45min buffer,05:15,30,30,,,,,none
+2026-08-22,58,ken,32205,6:30 AM,return,31217,8:00 AM,other,MCO Terminal,Universal Resort,True,35,35min buffer,07:00,25,25,,,,,none
+2026-08-22,58,ken,31217,8:00 AM,other,27686,9:00 AM,return,Disney Resort,Disney Resort,True,16,16min buffer,08:28,16,16,cross-property Disney average,,,,none
+2026-08-22,58,ken,27686,9:00 AM,return,25881,10:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,09:30,30,30,,,,,none
+2026-08-22,58,ken,25881,10:00 AM,return,17341,11:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,10:30,30,30,,,,,none
+2026-08-22,58,ken,17341,11:00 AM,return,34102,1:00 PM,return,MCO Terminal,Universal Resort,True,65,65min buffer,11:30,25,25,,,,,none
+2026-08-22,58,ken,34102,1:00 PM,return,30414,3:05 PM,arrival,MCO Terminal,MCO Terminal,True,110,110min buffer,13:25,2,-10,,,,,none
+2026-08-22,58,ken,30414,3:05 PM,arrival,32709,4:34 PM,arrival,Disney Resort,MCO Terminal,False,-16,"Needs 16 more min. Previous job ends ~4:20 PM, +30min turnaround required.",16:20,30,30,flat arrival dwell,True,False,,none
+2026-08-22,61,Idrees,31112,4:45 AM,return,32984,5:50 AM,return,MCO Terminal,Disney Resort,True,5,5min buffer,05:15,30,30,,,,,none
+2026-08-22,61,Idrees,32984,5:50 AM,return,34658,8:30 AM,return,SFB Terminal,Disney Resort,True,40,40min buffer,06:50,60,60,,,,,none
+2026-08-22,61,Idrees,34658,8:30 AM,return,29174,9:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,09:00,30,30,,,,,none
+2026-08-22,61,Idrees,29174,9:30 AM,return,31617,10:17 AM,arrival,MCO Terminal,MCO Terminal,True,27,27min buffer,10:00,2,-10,,,,,none
+2026-08-22,61,Idrees,31617,10:17 AM,arrival,17818,12:45 PM,return,Disney Resort,Disney Resort,True,67,67min buffer,11:32,6,6,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,61,Idrees,17818,12:45 PM,return,22312,2:15 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,13:15,30,30,,,,,none
+2026-08-22,61,Idrees,22312,2:15 PM,return,21631,3:03 PM,arrival,MCO Terminal,MCO Terminal,True,28,28min buffer,14:45,2,-10,,,,,none
+2026-08-22,64,Raymond,19992,8:00 AM,return,29603,9:30 AM,return,MCO Terminal,Disney Resort,True,30,30min buffer,08:30,30,30,,,,,none
+2026-08-22,64,Raymond,29603,9:30 AM,return,21611,10:30 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,10:00,30,30,,,,,none
+2026-08-22,64,Raymond,21611,10:30 AM,return,17353,12:13 PM,arrival,MCO Terminal,MCO Terminal,True,83,83min buffer,11:00,2,-10,,,,,none
+2026-08-22,64,Raymond,17353,12:13 PM,arrival,28076,2:00 PM,return,Disney Resort,Disney Resort,True,32,32min buffer,13:28,0,0,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,64,Raymond,28076,2:00 PM,return,34563,3:00 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,14:30,30,30,,,,,none
+2026-08-22,64,Raymond,34563,3:00 PM,return,24646,4:30 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,15:30,30,30,,,,,none
+2026-08-22,64,Raymond,24646,4:30 PM,return,29210,5:12 PM,arrival,MCO Terminal,MCO Terminal,True,22,22min buffer,17:00,2,-10,,,,,none
+2026-08-22,64,Raymond,29210,5:12 PM,arrival,32954,7:59 PM,arrival,Disney Resort,MCO Terminal,True,62,62min buffer,18:27,30,30,flat arrival dwell,True,True,,none
+2026-08-22,71,JoseT,32486,8:00 AM,return,35179,9:00 AM,other,MCO Terminal,Airport Hotel,True,18,18min buffer,08:30,12,12,,,,,none
+2026-08-22,71,JoseT,35179,9:00 AM,other,34140,9:45 AM,return,Disney Resort,Disney Resort,True,12,12min buffer,09:25,8,8,cross-property Disney average,,,,none
+2026-08-22,71,JoseT,34140,9:45 AM,return,34112,10:11 AM,arrival,MCO Terminal,MCO Terminal,True,6,6min buffer,10:15,2,-10,,,,,none
+2026-08-22,71,JoseT,34112,10:11 AM,arrival,34455,12:13 PM,arrival,Disney Resort,MCO Terminal,True,17,17min buffer,11:26,30,30,flat arrival dwell,True,True,,none
+2026-08-22,71,JoseT,34455,12:13 PM,arrival,32861,1:45 PM,return,Disney Resort,Disney Resort,True,5,5min buffer,13:28,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,71,JoseT,32861,1:45 PM,return,26787,2:20 PM,arrival,MCO Terminal,MCO Terminal,True,15,15min buffer,14:15,2,-10,,,,,none
+2026-08-22,71,JoseT,26787,2:20 PM,arrival,25243,4:37 PM,arrival,Disney Resort,MCO Terminal,True,7,7min buffer,16:00,30,30,flat arrival dwell,True,True,,none
+2026-08-22,54,Steven Kleisath,33448,8:00 AM,return,32493,9:00 AM,return,MCO Terminal,Disney Resort,True,0,0min buffer,08:30,30,30,,,,,none
+2026-08-22,54,Steven Kleisath,32493,9:00 AM,return,20054,9:32 AM,arrival,MCO Terminal,MCO Terminal,True,12,12min buffer,09:30,2,-10,,,,,none
+2026-08-22,54,Steven Kleisath,20054,9:32 AM,arrival,34826,11:30 AM,return,Disney Resort,Disney Resort,True,28,28min buffer,10:47,14,14,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,33,runer,28603,8:30 AM,cruise,34450,10:15 AM,return,Disney Resort,Disney Resort,True,21,21min buffer,09:42,12,12,cross-property Disney average,,,,none
+2026-08-22,33,runer,34450,10:15 AM,return,34076,1:15 PM,return,MCO Terminal,Disney Resort,True,120,120min buffer,10:45,30,30,,,,,none
+2026-08-22,33,runer,34076,1:15 PM,return,27404,2:45 PM,return,MCO Terminal,Disney Resort,True,30,30min buffer,13:45,30,30,,,,,none
+2026-08-22,33,runer,27404,2:45 PM,return,30176,4:00 PM,arrival,MCO Terminal,MCO Terminal,True,55,55min buffer,15:15,2,-10,,,,,none
+2026-08-22,68,AldoH,30431,8:36 AM,arrival,28092,10:30 AM,return,Disney Resort,Disney Resort,True,29,29min buffer,09:51,9,9,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,68,AldoH,28092,10:30 AM,return,34361,11:03 AM,arrival,MCO Terminal,MCO Terminal,True,13,13min buffer,11:00,2,-10,,,,,none
+2026-08-22,68,AldoH,34361,11:03 AM,arrival,27689,12:45 PM,return,Disney Resort,Disney Resort,True,15,15min buffer,12:18,12,12,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,68,AldoH,27689,12:45 PM,return,25141,12:56 PM,arrival,MCO Terminal,MCO Terminal,False,-8,"Needs 8 more min. Previous job ends ~1:15 PM, +-10min turnaround required.",13:15,2,-10,,,,,none
+2026-08-22,68,AldoH,25141,12:56 PM,arrival,25465,2:45 PM,return,Disney Resort,Disney Resort,True,23,23min buffer,14:11,10,10,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,68,AldoH,25465,2:45 PM,return,30888,3:45 PM,arrival,MCO Terminal,MCO Terminal,True,40,40min buffer,15:15,2,-10,,,,,none
+2026-08-22,68,AldoH,30888,3:45 PM,arrival,23495,5:30 PM,return,Disney Resort,Disney Resort,True,25,25min buffer,17:00,5,5,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,55,rizwan,22578,12:25 PM,arrival,17041,2:45 PM,return,Disney Resort,Universal Resort,True,36,36min buffer,13:40,28,28,flat arrival dwell,True,True,,none
+2026-08-22,55,rizwan,17041,2:45 PM,return,34486,4:00 PM,return,MCO Terminal,Disney Resort,True,20,20min buffer,15:10,30,30,,,,,none
+2026-08-22,55,rizwan,34486,4:00 PM,return,25490,4:50 PM,arrival,MCO Terminal,MCO Terminal,True,30,30min buffer,16:30,2,-10,,,,,none
+2026-08-22,55,rizwan,25490,4:50 PM,arrival,35018,6:51 PM,arrival,Disney Resort,MCO Terminal,True,16,16min buffer,18:05,30,30,flat arrival dwell,True,True,,none
+2026-08-22,66,Francisco Pedraza,31718,2:26 PM,arrival,32125,4:00 PM,return,Disney Resort,Disney Resort,True,8,8min buffer,15:41,11,11,flat arrival dwell|cross-property Disney average,True,True,,none
+2026-08-22,66,Francisco Pedraza,32125,4:00 PM,return,25568,5:00 PM,return,MCO Terminal,Disney Resort,True,0,0min buffer,16:30,30,30,,,,,none
+2026-08-22,66,Francisco Pedraza,25568,5:00 PM,return,35178,5:55 PM,arrival,MCO Terminal,MCO Terminal,True,35,35min buffer,17:30,2,-10,,,,,none
+2026-08-22,70,CarlosG,30118,8:22 PM,arrival,35727,11:15 PM,arrival,Disney Resort,MCO Terminal,True,68,68min buffer,21:37,30,30,flat arrival dwell,True,True,,none
