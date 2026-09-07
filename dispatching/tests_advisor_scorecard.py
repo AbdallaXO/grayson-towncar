@@ -16,7 +16,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from dispatching.management.commands.advisor_scorecard import _verdict, _wilson
+from dispatching.advisor_events import verdict as _v, wilson as _wilson
 from dispatching.models import AdvisorEvent
 
 DAY = timezone.localdate() - timedelta(days=2)
@@ -35,23 +35,23 @@ def _event(i, *, kind="overlap", severity="critical", basis="recorded_pickup",
 
 class VerdictTests(TestCase):
     def test_a_thin_class_refuses_to_give_a_number(self):
-        verdict, band = _verdict(5, 6)          # 83% off six warnings
-        self.assertEqual(verdict, "too early")
-        self.assertEqual(band, "")
+        words, lo, hi = _v(5, 6)                # 83% off six warnings
+        self.assertEqual(words, "too early")
+        self.assertIsNone(lo)
 
     def test_a_clear_pass_is_called_a_pass(self):
-        verdict, _ = _verdict(95, 100)
-        self.assertEqual(verdict, "PASSES the bar")
+        words, _lo, _hi = _v(95, 100)
+        self.assertEqual(words, "passes the bar")
 
     def test_a_clear_fail_is_called_a_fail(self):
-        verdict, _ = _verdict(20, 100)
-        self.assertEqual(verdict, "FAILS the bar")
+        words, _lo, _hi = _v(20, 100)
+        self.assertEqual(words, "fails the bar")
 
     def test_a_borderline_class_says_it_does_not_know(self):
         """70% off 30 warnings cannot be told from 60% or 80%. Saying 'passes'
         here is how a tool talks itself into being trusted."""
-        verdict, _ = _verdict(21, 30)
-        self.assertEqual(verdict, "not sure yet")
+        words, _lo, _hi = _v(21, 30)
+        self.assertEqual(words, "not sure yet")
 
     def test_the_interval_behaves_at_the_edges(self):
         lo, hi = _wilson(0, 5)
@@ -83,7 +83,7 @@ class OutputTests(TestCase):
         for i in range(40):
             _event(i, late=40.0)                 # all genuinely late
         text = self._run()
-        self.assertIn("PASSES the bar", text)
+        self.assertIn("passes the bar", text)
         self.assertIn("100%", text)
 
     def test_unscorable_warnings_are_named_not_dropped(self):
@@ -164,3 +164,58 @@ class AdminTests(TestCase):
         self.assertIsNone(ma.was_right(_event(9, quality="none", late=None)))
         self.assertIs(ma.was_right(_event(10, late=40.0)), True)
         self.assertIs(ma.was_right(_event(11, late=2.0)), False)
+
+
+class AdminSummaryTests(TestCase):
+    """The verdict renders on the admin page, from the SAME call the command
+    makes — a browser and a terminal must not quietly disagree."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User
+        cls.boss = User.objects.create_superuser("sc_boss2", "b2@x.com", "x")
+
+    def setUp(self):
+        self.client.force_login(self.boss)
+
+    def test_the_page_shows_the_verdict_above_the_rows(self):
+        for i in range(40):
+            _event(i, late=40.0)
+        html = self.client.get("/admin/dispatching/advisorevent/").content.decode()
+        self.assertIn("Is the advisor right often enough?", html)
+        self.assertIn("passes the bar", html)
+        self.assertIn("turn won&#x27;t work", html)   # class named in plain words
+
+    def test_a_thin_class_shows_no_percentage_on_the_page_either(self):
+        for i in range(6):
+            _event(i, late=40.0)
+        html = self.client.get("/admin/dispatching/advisorevent/").content.decode()
+        self.assertIn("too early", html)
+        self.assertNotIn("100.0%", html)
+
+    def test_a_self_scoring_class_is_flagged_on_the_page(self):
+        for i in range(25):
+            _event(i, kind="late_cascade", basis="clock_only", legs=1, late=40.0)
+        html = self.client.get("/admin/dispatching/advisorevent/").content.decode()
+        self.assertIn("mostly grades itself", html)
+
+    def test_the_page_survives_a_broken_scorecard(self):
+        """A failure costs the summary, never the ledger underneath."""
+        from unittest.mock import patch
+        _event(1, late=40.0)
+        with patch("dispatching.advisor_events.scorecard",
+                   side_effect=RuntimeError("boom")):
+            resp = self.client.get("/admin/dispatching/advisorevent/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_the_page_and_the_command_report_the_same_numbers(self):
+        from dispatching import advisor_events as ae
+        for i in range(30):
+            _event(i, late=40.0 if i < 27 else 1.0)
+        sc = ae.scorecard(days=14)
+        row = sc["rows"][0]
+        self.assertEqual(row["graded"], 30)
+        self.assertEqual(row["right"], 27)
+        out = StringIO()
+        call_command("advisor_scorecard", stdout=out)
+        self.assertIn(f"{row['pct_right']:.0f}%", out.getvalue())

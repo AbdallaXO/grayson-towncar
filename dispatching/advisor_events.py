@@ -596,3 +596,149 @@ def sweep_today(now=None):
     except Exception:
         logger.exception("advisor sweep failed")
         return {"cards": 0}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# THE SCORECARD — one implementation, two skins
+# ══════════════════════════════════════════════════════════════════════════
+
+#: Below this many graded warnings of ONE class, a percentage is noise. The bar
+#: is 70%, and separating a pass from a fail takes roughly 50 graded warnings;
+#: under 20 the interval is so wide it spans both answers.
+MIN_TO_SPEAK = 20
+#: D5's bar for a warning class to be worth a dispatcher's screen.
+PRECISION_BAR = 70.0
+#: A warning counts as RIGHT when the trip it named reached its pickup more than
+#: this many minutes late — 23's definition, so live and replayed numbers mean
+#: the same thing.
+LATE_BAR_MIN = 15
+
+#: Engine class names in words a dispatcher would use.
+KIND_WORDS = {
+    "late_cascade": "driver running late",
+    "overlap": "turn won't work",
+    "flight_change": "flight moved",
+    "overrun": "job running long",
+    "unassigned": "no driver yet",
+    "farm_pending": "farmed, awaiting confirm",
+}
+
+
+def wilson(k, n):
+    """95% interval for k of n. Wilson rather than the textbook formula, which
+    at these sample sizes cheerfully reports things like '-4% to 31%'."""
+    import math
+    if not n:
+        return 0.0, 100.0
+    p, z = k / n, 1.96
+    d = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / d
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return max(0.0, (centre - half) * 100), min(100.0, (centre + half) * 100)
+
+
+def verdict(k, n):
+    """What can honestly be said about a class yet: (words, low, high).
+
+    The restraint is the feature. This is measuring a system that lost trust by
+    sounding confident and being wrong three times in four; a readout that
+    quotes 83% off six warnings would repeat exactly that."""
+    if n < MIN_TO_SPEAK:
+        return "too early", None, None
+    lo, hi = wilson(k, n)
+    if lo >= PRECISION_BAR:
+        return "passes the bar", lo, hi
+    if hi < PRECISION_BAR:
+        return "fails the bar", lo, hi
+    return "not sure yet", lo, hi
+
+
+def class_label(kind, severity, basis):
+    tail = (" (on his tap)" if basis == "recorded_pickup"
+            else " (on GPS)" if (basis or "").startswith("gps") else "")
+    return f"{KIND_WORDS.get(kind, kind)}{tail} — {severity}"
+
+
+def scorecard(days=14, now=None):
+    """How often each warning class was right, and how sure we can be.
+
+    Returns {"rows": [...], "totals": {...}} — no formatting, so the management
+    command and the admin page render ONE set of numbers rather than two
+    implementations that can drift."""
+    from django.utils import timezone as djtz
+    from dispatching.models import AdvisorEvent
+
+    today = djtz.localdate(now or djtz.now())
+    since = today - timedelta(days=days)
+    raw = list(AdvisorEvent.objects.filter(service_date__gte=since)
+               .values("kind", "severity", "basis", "leg_count",
+                       "outcome_quality", "outcome_late_min", "service_date",
+                       "had_plans", "applied_at"))
+    totals = {
+        "since": since, "until": today, "days_seen": len({r["service_date"] for r in raw}),
+        "warnings": len(raw),
+        "graded": sum(1 for r in raw if r["outcome_quality"] == "ok"),
+        "waiting": sum(1 for r in raw if not r["outcome_quality"]),
+        "ungradeable": sum(1 for r in raw
+                           if r["outcome_quality"] and r["outcome_quality"] != "ok"),
+        "applied": sum(1 for r in raw if r["applied_at"]),
+        "bar": PRECISION_BAR, "min_to_speak": MIN_TO_SPEAK,
+    }
+
+    buckets = {}
+    for r in raw:
+        if r["outcome_quality"] != "ok":
+            continue
+        b = buckets.setdefault((r["kind"], r["severity"], r["basis"] or "-"),
+                               {"n": 0, "right": 0, "solo": 0, "plans": 0})
+        b["n"] += 1
+        if (r["outcome_late_min"] or 0) > LATE_BAR_MIN:
+            b["right"] += 1
+        if (r["leg_count"] or 0) <= 1:
+            b["solo"] += 1
+        if r["had_plans"]:
+            b["plans"] += 1
+
+    rows = []
+    for (kind, severity, basis), b in sorted(buckets.items(),
+                                             key=lambda kv: -kv[1]["n"]):
+        words, lo, hi = verdict(b["right"], b["n"])
+        rows.append({
+            "kind": kind, "severity": severity, "basis": basis,
+            "label": class_label(kind, severity, basis),
+            "graded": b["n"], "right": b["right"],
+            "pct_right": round(100.0 * b["right"] / b["n"], 1) if b["n"] else None,
+            "low": None if lo is None else round(lo, 1),
+            "high": None if hi is None else round(hi, 1),
+            "verdict": words,
+            # 23's honesty column: a card carrying one leg has no downstream
+            # victim, so "was this leg late" grades the leg it fired on.
+            "pct_single_leg": round(100.0 * b["solo"] / b["n"], 1),
+            "self_scoring": b["solo"] * 2 >= b["n"],
+            "pct_with_plans": round(100.0 * b["plans"] / b["n"], 1),
+        })
+    return {"rows": rows, "totals": totals}
+
+
+def eta_summary(days=14, now=None):
+    """A count, not a verdict — scoring these against what happened is 07's job
+    and it needs the trips to have finished."""
+    from django.utils import timezone as djtz
+    from dispatching.models import DispatchEtaSample
+
+    today = djtz.localdate(now or djtz.now())
+    since = today - timedelta(days=days)
+    qs = DispatchEtaSample.objects.filter(sampled_at__date__gte=since)
+    n = qs.count()
+    if not n:
+        return {"readings": 0}
+    days_seen = qs.values_list("sampled_at__date", flat=True).distinct().count()
+    return {
+        "readings": n,
+        "days_seen": days_seen,
+        "per_day": round(n / max(1, days_seen)),
+        "trips": qs.values("leg_id_ref").distinct().count(),
+        "carried": qs.filter(eta_carried=True).count(),
+        "pct_carried": round(100.0 * qs.filter(eta_carried=True).count() / n, 1),
+        "cannot_make_it": qs.filter(slack_minutes__lt=0).count(),
+    }

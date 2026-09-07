@@ -15,9 +15,13 @@ denominator behind a percentage this project publishes.
 For the numbers rather than the rows, use `manage.py advisor_scorecard`, which
 knows not to quote a percentage it cannot stand behind.
 """
+import logging
+
 from django.contrib import admin
 
 from dispatching.models import AdvisorEvent, DispatchEtaSample
+
+logger = logging.getLogger(__name__)
 
 
 class _ReadOnly(admin.ModelAdmin):
@@ -43,6 +47,27 @@ class AdvisorEventAdmin(_ReadOnly):
     search_fields = ("card_id", "headline")
     date_hierarchy = "service_date"
     ordering = ("-service_date", "-first_seen_at")
+
+    def changelist_view(self, request, extra_context=None):
+        """Put the verdict above the rows.
+
+        The question is almost always "is this any good"; the rows are what you
+        drill into afterwards. Numbers come from advisor_events.scorecard(), the
+        same call `manage.py advisor_scorecard` makes, so a browser and a
+        terminal cannot quietly disagree. Never breaks the page: a failure here
+        costs the summary, not the ledger."""
+        from dispatching import advisor_events
+
+        ctx = dict(extra_context or {})
+        try:
+            ctx["sc"] = advisor_events.scorecard(days=14)
+            ctx["sc"]["late_bar"] = advisor_events.LATE_BAR_MIN
+            ctx["eta"] = advisor_events.eta_summary(days=14)
+        except Exception:
+            logger.exception("advisor scorecard failed")
+            ctx.setdefault("sc", {"rows": [], "totals": {}})
+            ctx.setdefault("eta", {"readings": 0})
+        return super().changelist_view(request, extra_context=ctx)
 
     @admin.display(description="Right?", boolean=True)
     def was_right(self, obj):

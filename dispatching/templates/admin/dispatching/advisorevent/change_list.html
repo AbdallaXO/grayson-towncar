@@ -1,0 +1,84 @@
+{% extends "admin/change_list.html" %}
+{# The scorecard sits ABOVE the rows: the question is almost always "is this
+   thing any good", and the rows are the evidence you drill into afterwards.
+   Numbers come from advisor_events.scorecard() — the same call the
+   advisor_scorecard management command makes, so a browser and a terminal
+   cannot disagree. #}
+{% block result_list %}
+  <div style="margin:0 0 18px;padding:14px 16px;border:1px solid var(--hairline-color,#e0e0e0);border-radius:6px;background:var(--darkened-bg,#f8f8f8);">
+    <h2 style="margin:0 0 4px;font-size:15px;">Is the advisor right often enough?</h2>
+    <p style="margin:0 0 12px;color:var(--body-quiet-color,#666);font-size:12px;">
+      {{ sc.totals.since }} to {{ sc.totals.until }} —
+      {{ sc.totals.warnings }} warning{{ sc.totals.warnings|pluralize }} over
+      {{ sc.totals.days_seen }} day{{ sc.totals.days_seen|pluralize }}:
+      <strong>{{ sc.totals.graded }} graded</strong>,
+      {{ sc.totals.waiting }} still waiting for the service day to end,
+      {{ sc.totals.ungradeable }} that can never be graded because the driver
+      never tapped “on location”.
+      {% if sc.totals.applied %}
+        {{ sc.totals.applied }} fix{{ sc.totals.applied|pluralize:"es" }} applied
+        from a warning.
+      {% endif %}
+    </p>
+
+    {% if sc.rows %}
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:left;border-bottom:1px solid var(--hairline-color,#ddd);">
+            <th style="padding:4px 8px 6px 0;">What it warned about</th>
+            <th style="padding:4px 8px 6px 0;text-align:right;">Graded</th>
+            <th style="padding:4px 8px 6px 0;text-align:right;">Right</th>
+            <th style="padding:4px 8px 6px 0;">How sure</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in sc.rows %}
+            <tr style="border-bottom:1px solid var(--hairline-color,#eee);">
+              <td style="padding:6px 8px 6px 0;">
+                {{ r.label }}
+                {% if r.self_scoring %}
+                  <span title="{{ r.pct_single_leg }}% of these name a trip that was already late when the warning fired — that is reading back the screen, not forecasting."
+                        style="color:#8a6d00;">· mostly grades itself</span>
+                {% endif %}
+              </td>
+              <td style="padding:6px 8px 6px 0;text-align:right;">{{ r.graded }}</td>
+              <td style="padding:6px 8px 6px 0;text-align:right;">
+                {% if r.verdict == "too early" %}—{% else %}{{ r.pct_right }}%{% endif %}
+              </td>
+              <td style="padding:6px 8px 6px 0;">
+                {{ r.verdict }}{% if r.low is not None %}
+                  <span style="color:var(--body-quiet-color,#666);">
+                    ({{ r.low }}–{{ r.high }}%)</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p style="margin:10px 0 0;color:var(--body-quiet-color,#666);font-size:12px;">
+        “Right” means the trip the warning named really did reach its pickup more
+        than {{ sc.late_bar }} minutes late. The bar is {{ sc.totals.bar }}%.
+        A class with fewer than {{ sc.totals.min_to_speak }} graded warnings shows
+        no percentage at all — a small sample can look like anything.
+      </p>
+    {% else %}
+      <p style="margin:0;font-size:13px;">
+        Nothing graded yet. Warnings are graded after their service day ends, so
+        the first numbers appear the day after this starts recording.
+      </p>
+    {% endif %}
+
+    <p style="margin:10px 0 0;font-size:12px;color:var(--body-quiet-color,#666);">
+      <strong>GPS readings:</strong>
+      {% if eta.readings %}
+        {{ eta.readings }} over {{ eta.days_seen }} day{{ eta.days_seen|pluralize }}
+        ({{ eta.per_day }} a day) across {{ eta.trips }} trips;
+        {{ eta.pct_carried }}% repeat the previous reading unchanged;
+        {{ eta.cannot_make_it }} caught a car that could not reach its next stop
+        in time.
+      {% else %}
+        none yet — these fill every 3 minutes while cars are working.
+      {% endif %}
+    </p>
+  </div>
+  {{ block.super }}
+{% endblock %}
