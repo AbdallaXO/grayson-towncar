@@ -8,6 +8,7 @@ from . import db_health
 from . import fleet_views
 from . import trip_link_views
 from . import vehicle_route_views
+from . import passenger_search
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 from ops import leads_board as ops_leads
@@ -123,6 +124,10 @@ urlpatterns = [
     path("execute-takeback/", views.execute_takeback, name="execute_takeback"),
     path("swap-tester/", views.swap_tester, name="swap_tester"),
     path("schedule-board/", views.schedule_board, name="schedule_board"),
+    # Board search box: find a guest by name / phone / email / 50-number and
+    # land on the day their trip is actually on.
+    path("board-search/", passenger_search.board_passenger_search,
+         name="board_passenger_search"),
     path("reset-schedule/", views.reset_schedule, name="reset_schedule"),
     path("save-snapshot/", views.save_schedule_snapshot, name="save_schedule_snapshot"),
     path("list-snapshots/", views.list_schedule_snapshots, name="list_schedule_snapshots"),

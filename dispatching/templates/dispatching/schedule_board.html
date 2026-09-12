@@ -477,6 +477,33 @@
           margin-top: 2px;
       }
       .unassigned-more-hint.is-visible { display: block; }
+      /* Grab the gold rule under the backlog and drag it. The automatic height
+         fits the chips on an ordinary day, but a start-of-day board is 140 jobs
+         deep and an evening board is four — one number can't be right for both,
+         and the dispatcher is the one who knows which they are looking at. The
+         size they choose is remembered, so paging to the next day keeps it. */
+      .dnd-unassigned-row { position: relative; }
+      .unassigned-resizer {
+          position: absolute; left: 0; right: 0; bottom: -5px; height: 12px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: ns-resize; z-index: 6; touch-action: none;
+      }
+      .unassigned-resizer-grip {
+          width: 46px; height: 4px; border-radius: 2px;
+          background: rgba(201,162,39,0.45);
+          transition: background .15s ease, width .15s ease;
+      }
+      .unassigned-resizer:hover .unassigned-resizer-grip,
+      .unassigned-resizer:focus-visible .unassigned-resizer-grip,
+      .unassigned-resizer.is-dragging .unassigned-resizer-grip {
+          background: #C9A227; width: 78px;
+      }
+      .unassigned-resizer:focus { outline: none; }
+      /* The pointer is captured on the handle, so the cursor has to be held by
+         the page or it flickers back to a text caret over the chips mid-drag. */
+      body.unassigned-resizing, body.unassigned-resizing * {
+          cursor: ns-resize !important; user-select: none;
+      }
       .dnd-unassigned-row .timeline-slot {
           height: 20px; font-size: 0.55rem; opacity: 0.85;
           border-radius: 3px;
@@ -732,6 +759,96 @@
       }
       .board-focus-dropped > .bi { color: #64748b; }
 
+      /* ── Passenger search ────────────────────────────────────────────────
+         The board is one day at a time; a guest on the phone is a name. This is
+         the way from one to the other, so it sits in the header beside the date
+         — the place the eye already goes when the question is "which day". */
+      .board-search { position: relative; }
+      .board-search-field {
+          display: flex; align-items: center; gap: 6px;
+          background: #fff; border: 1px solid #d8dde5; border-radius: 999px;
+          padding: 1px 10px; width: 252px;
+          transition: border-color .15s ease, box-shadow .15s ease;
+      }
+      .board-search-field:focus-within {
+          border-color: #C9A227; box-shadow: 0 0 0 3px rgba(201,162,39,0.18);
+      }
+      .board-search-field > .bi { color: #94a3b8; font-size: 0.82rem; }
+      .board-search-field input {
+          flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+          font-size: 0.8rem; color: #1a2332; padding: 5px 0;
+      }
+      .board-search-field input::placeholder { color: #9aa5b4; }
+      .board-search-key {
+          font-size: 0.58rem; font-weight: 700; color: #b6bfcc;
+          border: 1px solid #e2e6ec; border-radius: 3px; padding: 0 4px;
+      }
+      .board-search-clear {
+          border: 0; background: transparent; color: #94a3b8;
+          line-height: 1; padding: 0 1px; font-size: 0.72rem; cursor: pointer;
+      }
+      .board-search-clear:hover { color: #1a2332; }
+      .board-search-spin { color: #C9A227; font-size: 0.72rem; }
+
+      .board-search-panel {
+          position: absolute; top: calc(100% + 8px); left: 0; z-index: 1200;
+          width: 430px; max-height: 434px; overflow-y: auto;
+          background: #fff; border: 1px solid #e4e8ee; border-radius: 10px;
+          box-shadow: 0 14px 38px rgba(16,24,40,0.16);
+          padding: 4px 0;
+      }
+      .board-search-state { padding: 13px 15px; font-size: 0.78rem; color: #64748b; }
+      .board-search-state strong { color: #1a2332; }
+      .board-search-person { padding: 9px 15px 5px; border-top: 1px solid #f1f3f6; }
+      .board-search-person:first-child { border-top: 0; }
+      .board-search-name { font-size: 0.84rem; font-weight: 700; color: #1a2332; }
+      .board-search-contact {
+          display: flex; flex-wrap: wrap; gap: 4px 12px;
+          font-size: 0.7rem; color: #64748b; margin-top: 1px;
+      }
+      .board-search-trips { padding-bottom: 4px; }
+      .board-search-trip {
+          display: flex; align-items: baseline; gap: 8px;
+          width: 100%; text-align: left; cursor: pointer;
+          border: 0; border-left: 3px solid transparent; background: transparent;
+          padding: 6px 15px 6px 12px; font-size: 0.76rem; color: #1a2332;
+          transition: background .12s ease, border-color .12s ease;
+      }
+      .board-search-trip:hover, .board-search-trip.is-active {
+          background: rgba(201,162,39,0.1); border-left-color: #C9A227;
+      }
+      .board-search-when { font-weight: 700; white-space: nowrap; }
+      .board-search-time { color: #475569; white-space: nowrap; }
+      .board-search-route {
+          flex: 1; min-width: 0; color: #64748b;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .board-search-driver { color: #94a3b8; font-size: 0.68rem; white-space: nowrap; }
+      .board-search-tag {
+          font-size: 0.56rem; font-weight: 800; letter-spacing: .03em;
+          padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+      }
+      .bst-today { background: #C9A227; color: #1a2332; }
+      .bst-cancelled { background: #fdecec; color: #b42318; }
+      .bst-affiliate { background: #e8f0fc; color: #1d4ed8; }
+      .board-search-more { padding: 0 15px 9px; font-size: 0.66rem; color: #9aa5b4; }
+
+      /* The trip you went looking for, once the board opens on its day. The ring
+         STAYS — a flash you blink through is a trip you have to find twice. */
+      .timeline-slot.tl-found {
+          outline: 3px solid #C9A227; outline-offset: 2px;
+          box-shadow: 0 0 0 6px rgba(201,162,39,0.26), 0 2px 10px rgba(0,0,0,0.3);
+          z-index: 12;
+          animation: tlFoundPulse 1.5s ease-in-out 3;
+      }
+      @keyframes tlFoundPulse {
+          0%, 100% { box-shadow: 0 0 0 6px rgba(201,162,39,0.26), 0 2px 10px rgba(0,0,0,0.3); }
+          50%      { box-shadow: 0 0 0 13px rgba(201,162,39,0.04), 0 2px 10px rgba(0,0,0,0.3); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+          .timeline-slot.tl-found { animation: none; }
+      }
+
       /* ── Affiliate board ─────────────────────────────────────────────── */
       .board-switch .btn-gold {
           background: #C9A227; border-color: #C9A227; color: #1a2332; font-weight: 600;
@@ -774,8 +891,8 @@
   <div class="container-fluid py-3">
 
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div class="d-flex align-items-center gap-3">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
         <h5 class="mb-0 fw-bold">
           <i class="bi bi-kanban me-2"></i>{% if is_affiliate_board %}Affiliate Board{% else %}Schedule Board{% endif %}
         </h5>
@@ -795,6 +912,28 @@
              class="btn {% if is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
             <i class="bi bi-people me-1"></i>Affiliates
           </a>
+        </div>
+        {% comment %}
+          Find a passenger. A dispatcher on the phone has a name, a number or the
+          50-number off the confirmation — never the date the board is keyed on.
+          Picking a trip opens the board on that trip's day with the bar ringed.
+        {% endcomment %}
+        <div class="board-search" id="boardSearch">
+          <div class="board-search-field">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input type="text" id="boardSearchInput" autocomplete="off" spellcheck="false"
+                   placeholder="Find a passenger&hellip;"
+                   aria-label="Find a passenger by name, phone, email or trip number"
+                   aria-controls="boardSearchPanel" aria-expanded="false" role="combobox">
+            <span class="board-search-spin" id="boardSearchSpin" hidden aria-hidden="true">
+              <i class="bi bi-arrow-repeat"></i>
+            </span>
+            <span class="board-search-key" id="boardSearchKey" aria-hidden="true">/</span>
+            <button type="button" class="board-search-clear" id="boardSearchClear" hidden
+                    aria-label="Clear the passenger search"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <div class="board-search-panel" id="boardSearchPanel" role="listbox"
+               aria-label="Passenger search results" hidden></div>
         </div>
         {% comment %}
           Filter by driver. The two boards hold different rosters, so the switch
@@ -853,6 +992,40 @@
         <i class="bi bi-info-circle-fill"></i>
         <strong>{{ driver_filter_dropped }}</strong> has no lane on {{ selected_date|date:"M j" }} — showing every driver.
       </div>
+    {% endif %}
+
+    {% comment %}
+      Landed here from the passenger search. Says whose trip is ringed — and,
+      when the trip is not on this board after all (moved, farmed out, cancelled,
+      or behind the driver filter), says that out loud instead of leaving the
+      dispatcher staring at a board with no ring on it.
+    {% endcomment %}
+    {% if focus_note %}
+      {% if focus_note.on_this_board %}
+        <div class="board-focus-note">
+          <i class="bi bi-crosshair"></i>
+          Showing <strong>{{ focus_note.guest }}</strong> — {{ focus_note.time }}{% if focus_note.driver %} with {{ focus_note.driver }}{% else %}, still unassigned{% endif %}.
+          <a href="{{ focus_note.res_url }}">Open the reservation</a>
+        </div>
+      {% elif focus_note.cancelled %}
+        <div class="board-focus-note board-focus-dropped">
+          <i class="bi bi-x-octagon-fill"></i>
+          <strong>{{ focus_note.guest }}</strong>'s {{ focus_note.date_label }} trip is cancelled, so it is on no board.
+          <a href="{{ focus_note.res_url }}">Open the reservation</a>
+        </div>
+      {% elif focus_note.hidden_by_filter %}
+        <div class="board-focus-note">
+          <i class="bi bi-funnel-fill"></i>
+          <strong>{{ focus_note.guest }}</strong>'s {{ focus_note.time }} trip is on this day, but the driver filter is hiding its lane.
+          <a href="{{ focus_note.correct_url }}">Show every driver</a>
+        </div>
+      {% else %}
+        <div class="board-focus-note">
+          <i class="bi bi-info-circle-fill"></i>
+          <strong>{{ focus_note.guest }}</strong>'s trip is {{ focus_note.date_label }} at {{ focus_note.time }}{% if focus_note.driver %} with {{ focus_note.driver }}{% endif %} — not on the board you are looking at.
+          <a href="{{ focus_note.correct_url }}">Take me to it</a>
+        </div>
+      {% endif %}
     {% endif %}
 
     {% include 'dispatching/includes/_draft_banner.html' %}
@@ -950,6 +1123,17 @@
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
+                </div>
+                {% comment %}
+                  Drag this to give the backlog more or less of the screen.
+                  Double-click (or Home) puts it back to the height that fits
+                  today's chips.
+                {% endcomment %}
+                <div class="unassigned-resizer" id="unassignedResizer"
+                     role="separator" aria-orientation="horizontal" tabindex="0"
+                     aria-label="Resize the Unassigned lane"
+                     title="Drag to resize the Unassigned lane · double-click to fit">
+                  <span class="unassigned-resizer-grip"></span>
                 </div>
               </div>
 
@@ -1493,13 +1677,16 @@
       }, true);
     })();
 
-    // ── Unassigned backlog overflow hint ─────────────────────────────────
-    // The lane scrolls when the backlog is deeper than the viewport allows. The
-    // "N jobs" label alone reads as "you can see all N", so say how many are below.
+    // ── Unassigned backlog: overflow hint + drag-to-resize ───────────────
+    // The lane scrolls when the backlog is deeper than the height it has. The
+    // "N jobs" label alone reads as "you can see all N", so say how many are
+    // below — and let the dispatcher drag the lane taller instead of scrolling
+    // a 140-job backlog through a 200px window.
     (function(){
-      const bar  = document.querySelector('.dnd-unassigned-row .timeline-bar');
-      const hint = document.getElementById('unassignedMoreHint');
-      const cnt  = document.getElementById('unassignedHiddenCount');
+      const bar    = document.querySelector('.dnd-unassigned-row .timeline-bar');
+      const hint   = document.getElementById('unassignedMoreHint');
+      const cnt    = document.getElementById('unassignedHiddenCount');
+      const handle = document.getElementById('unassignedResizer');
       if(!bar || !hint || !cnt) return;
 
       function update(){
@@ -1517,6 +1704,91 @@
       update();
       bar.addEventListener('scroll', update, {passive: true});
       window.addEventListener('resize', update);
+
+      if(!handle) return;
+
+      // The height the server worked out for today's chips, kept so double-click
+      // can put the lane back to it.
+      const FIT_HEIGHT = parseInt(bar.style.height, 10) || bar.clientHeight;
+      const STORE_KEY = 'graysonBoardUnassignedLaneHeight';
+      const MIN_HEIGHT = 34;
+      const hasChips = !!bar.querySelector('.timeline-slot');
+
+      // Never taller than the window — a lane you have to scroll the PAGE to see
+      // the bottom of is worse than the scroll it was meant to replace. The
+      // fallbacks matter: the saved height is restored before first paint, and a
+      // viewport that reads as 0 there would clamp every lane down to the floor.
+      function viewportHeight(){
+        return window.innerHeight || document.documentElement.clientHeight || 900;
+      }
+      function maxHeight(){ return Math.max(120, Math.round(viewportHeight() * 0.8)); }
+
+      function setHeight(px, remember){
+        const height = Math.min(Math.max(Math.round(px), MIN_HEIGHT), maxHeight());
+        bar.style.maxHeight = 'none';   // the CSS cap is the default, not a ceiling
+        bar.style.height = height + 'px';
+        if(remember){
+          try { localStorage.setItem(STORE_KEY, String(height)); } catch(e){}
+        }
+        update();
+        return height;
+      }
+
+      function resetHeight(){
+        bar.style.maxHeight = '';
+        bar.style.height = FIT_HEIGHT + 'px';
+        try { localStorage.removeItem(STORE_KEY); } catch(e){}
+        update();
+      }
+
+      // Carry the chosen size across days — paging the board is the most common
+      // thing a dispatcher does, and re-dragging the lane every time is a tax.
+      // An empty lane stays compact whatever was saved: there is nothing to see
+      // in it, and 400px of dashed gold pushes the drivers off the screen.
+      if(hasChips){
+        try {
+          const saved = parseInt(localStorage.getItem(STORE_KEY), 10);
+          if(saved) setHeight(saved, false);
+        } catch(e){}
+      }
+
+      let dragging = false, startY = 0, startHeight = 0;
+
+      handle.addEventListener('pointerdown', function(e){
+        dragging = true;
+        startY = e.clientY;
+        startHeight = bar.getBoundingClientRect().height;
+        handle.setPointerCapture(e.pointerId);
+        handle.classList.add('is-dragging');
+        document.body.classList.add('unassigned-resizing');
+        e.preventDefault();
+      });
+
+      handle.addEventListener('pointermove', function(e){
+        if(!dragging) return;
+        setHeight(startHeight + (e.clientY - startY), false);
+      });
+
+      function endDrag(){
+        if(!dragging) return;
+        dragging = false;
+        handle.classList.remove('is-dragging');
+        document.body.classList.remove('unassigned-resizing');
+        // Save the height that actually landed, after clamping.
+        setHeight(bar.getBoundingClientRect().height, true);
+      }
+      handle.addEventListener('pointerup', endDrag);
+      handle.addEventListener('pointercancel', endDrag);
+
+      handle.addEventListener('dblclick', function(e){ e.preventDefault(); resetHeight(); });
+
+      handle.addEventListener('keydown', function(e){
+        const step = e.shiftKey ? 60 : 20;
+        const now = bar.getBoundingClientRect().height;
+        if(e.key === 'ArrowDown'){ e.preventDefault(); setHeight(now + step, true); }
+        else if(e.key === 'ArrowUp'){ e.preventDefault(); setHeight(now - step, true); }
+        else if(e.key === 'Home'){ e.preventDefault(); resetHeight(); }
+      });
     })();
 
     // ── Live clock + "now" marker ────────────────────────────────────────
@@ -1593,6 +1865,232 @@
       const boardDate = '{{ selected_date|date:"Y-m-d" }}';
       window.open('{% url "dashboard" %}?date=' + boardDate + '&highlight=' + legId, '_blank');
     });
+
+    // ── Passenger search ─────────────────────────────────────────────────
+    // A name, a phone number, an email or the 50-number goes in; the guest's
+    // trips come back, each one a link to the day it is actually on. Picking a
+    // trip that is ALREADY drawn on this board only rings it — reloading the
+    // page would throw away the dispatcher's scroll position to show them a
+    // bar that was on screen the whole time.
+    (function(){
+      const SEARCH_URL = '{% url "board_passenger_search" %}';
+      const BOARD_DATE = '{{ selected_date|date:"Y-m-d" }}';
+      const BOARD_VIEW = '{{ board_view }}';
+      const BOARD_YEAR = '{{ selected_date|date:"Y" }}';
+
+      const box    = document.getElementById('boardSearch');
+      const input  = document.getElementById('boardSearchInput');
+      const panel  = document.getElementById('boardSearchPanel');
+      const clear  = document.getElementById('boardSearchClear');
+      const keyTag = document.getElementById('boardSearchKey');
+      const spin   = document.getElementById('boardSearchSpin');
+
+      // Ring the bar and scroll to it. Shared by the search panel and by the
+      // ?focus= landing below, so a trip found looks the same either way.
+      function ringLeg(legId){
+        const slot = document.querySelector('.timeline-slot[data-leg-id="' + legId + '"]');
+        if(!slot) return false;
+        document.querySelectorAll('.timeline-slot.tl-found').forEach(function(el){
+          el.classList.remove('tl-found');
+        });
+        slot.classList.add('tl-found');
+        slot.scrollIntoView({block: 'center', inline: 'center', behavior: 'smooth'});
+        return true;
+      }
+
+      {% if focus_leg_id %}
+      // Wait for the board to finish laying out before scrolling to the trip.
+      // The lanes take their heights from the rows above them, so a scroll fired
+      // mid-layout lands next to the bar instead of on it.
+      (function(){
+        function land(){ ringLeg('{{ focus_leg_id }}'); }
+        if(document.readyState === 'complete'){ requestAnimationFrame(land); }
+        else { window.addEventListener('load', function(){ requestAnimationFrame(land); }); }
+      })();
+      {% endif %}
+
+      if(!box || !input || !panel) return;
+
+      let timer = null, inflight = null, rows = [], activeIndex = -1;
+
+      function esc(v){
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){
+          return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+        });
+      }
+
+      function showPanel(html){
+        panel.innerHTML = html;
+        panel.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+        rows = Array.prototype.slice.call(panel.querySelectorAll('.board-search-trip'));
+        activeIndex = -1;
+      }
+
+      function closePanel(){
+        panel.hidden = true;
+        panel.innerHTML = '';
+        input.setAttribute('aria-expanded', 'false');
+        rows = []; activeIndex = -1;
+      }
+
+      function setActive(i){
+        if(!rows.length) return;
+        if(activeIndex >= 0) rows[activeIndex].classList.remove('is-active');
+        activeIndex = (i + rows.length) % rows.length;
+        const row = rows[activeIndex];
+        row.classList.add('is-active');
+        row.scrollIntoView({block: 'nearest'});
+      }
+
+      function tripRow(trip){
+        const tags = [];
+        if(trip.cancelled){
+          tags.push('<span class="board-search-tag bst-cancelled">CANCELLED</span>');
+        } else if(trip.when === 'today'){
+          tags.push('<span class="board-search-tag bst-today">TODAY</span>');
+        }
+        if(trip.board === 'affiliate' && !trip.cancelled){
+          tags.push('<span class="board-search-tag bst-affiliate">AFFILIATE</span>');
+        }
+        // The year only earns its space when the trip is not in the board's year
+        // — otherwise every row carries a number nobody reads.
+        const day = trip.year && String(trip.year) !== BOARD_YEAR
+          ? trip.date_label + ' ' + trip.year
+          : trip.date_label;
+        return '<button type="button" class="board-search-trip" role="option"' +
+               ' data-leg-id="' + esc(trip.leg_id) + '"' +
+               ' data-date="' + esc(trip.date) + '"' +
+               ' data-board="' + esc(trip.board) + '"' +
+               ' data-url="' + esc(trip.board_url || trip.res_url) + '">' +
+                 '<span class="board-search-when">' + esc(day) + '</span>' +
+                 '<span class="board-search-time">' + esc(trip.time_label) + '</span>' +
+                 '<span class="board-search-route">' + esc(trip.route) + '</span>' +
+                 '<span class="board-search-driver">' +
+                   (trip.driver ? esc(trip.driver) : (trip.cancelled ? '' : 'Unassigned')) +
+                 '</span>' + tags.join('') +
+               '</button>';
+      }
+
+      function personBlock(person){
+        const contact = [];
+        if(person.phone) contact.push('<span>' + esc(person.phone) + '</span>');
+        if(person.email) contact.push('<span>' + esc(person.email) + '</span>');
+        const trips = person.trips.length
+          ? person.trips.map(tripRow).join('')
+          : '<div class="board-search-more">Nothing in the last six months.</div>';
+        const more = person.trip_count > person.shown_count
+          ? '<div class="board-search-more">Showing ' + esc(person.shown_count) +
+            ' of ' + esc(person.trip_count) + ' trips on file.</div>'
+          : '';
+        return '<div class="board-search-person">' +
+                 '<div class="board-search-name">' + esc(person.name) + '</div>' +
+                 '<div class="board-search-contact">' + contact.join('') + '</div>' +
+               '</div>' +
+               '<div class="board-search-trips">' + trips + more + '</div>';
+      }
+
+      function render(data){
+        if(!data.results || !data.results.length){
+          showPanel('<div class="board-search-state">No guest matches <strong>' +
+                    esc(data.query) + '</strong>.</div>');
+          return;
+        }
+        showPanel(data.results.map(personBlock).join(''));
+      }
+
+      function run(query){
+        if(inflight) inflight.abort();
+        inflight = new AbortController();
+        spin.hidden = false;
+        fetch(SEARCH_URL + '?q=' + encodeURIComponent(query), {
+          signal: inflight.signal,
+          headers: {'X-Requested-With': 'XMLHttpRequest'},
+        })
+          .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+          .then(function(data){
+            spin.hidden = true;
+            // A slower answer to an older query must never overwrite the newer one.
+            if(data.query !== input.value.trim()) return;
+            render(data);
+          })
+          .catch(function(err){
+            if(err && err.name === 'AbortError') return;
+            spin.hidden = true;
+            showPanel('<div class="board-search-state">Search is not answering ' +
+                      'right now — try the reservations list.</div>');
+          });
+      }
+
+      input.addEventListener('input', function(){
+        const query = input.value.trim();
+        clear.hidden = !query;
+        keyTag.hidden = !!query;
+        if(timer) clearTimeout(timer);
+        if(query.length < 2){
+          if(inflight) inflight.abort();
+          spin.hidden = true;
+          closePanel();
+          return;
+        }
+        timer = setTimeout(function(){ run(query); }, 200);
+      });
+
+      function openTrip(button){
+        const legId = button.dataset.legId;
+        const sameBoard = button.dataset.date === BOARD_DATE &&
+                          button.dataset.board === BOARD_VIEW;
+        // Already on screen: ring it in place. Otherwise the link carries the
+        // day and the board it belongs to.
+        if(sameBoard && ringLeg(legId)){
+          closePanel();
+          input.blur();
+          return;
+        }
+        window.location.href = button.dataset.url;
+      }
+
+      panel.addEventListener('click', function(e){
+        const button = e.target.closest('.board-search-trip');
+        if(button) openTrip(button);
+      });
+
+      input.addEventListener('keydown', function(e){
+        if(e.key === 'Escape'){ closePanel(); input.blur(); return; }
+        if(!rows.length) return;
+        if(e.key === 'ArrowDown'){ e.preventDefault(); setActive(activeIndex + 1); }
+        else if(e.key === 'ArrowUp'){ e.preventDefault(); setActive(activeIndex - 1); }
+        else if(e.key === 'Enter'){
+          e.preventDefault();
+          openTrip(rows[activeIndex >= 0 ? activeIndex : 0]);
+        }
+      });
+
+      clear.addEventListener('click', function(){
+        input.value = '';
+        clear.hidden = true;
+        keyTag.hidden = false;
+        closePanel();
+        input.focus();
+      });
+
+      document.addEventListener('click', function(e){
+        if(!box.contains(e.target)) closePanel();
+      });
+
+      // "/" jumps to the box the way it does in every other tool a dispatcher
+      // uses — but never while they are typing somewhere else.
+      document.addEventListener('keydown', function(e){
+        if(e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+        const el = document.activeElement;
+        const tag = el ? el.tagName : '';
+        if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+           (el && el.isContentEditable)) return;
+        e.preventDefault();
+        input.focus();
+        input.select();
+      });
+    })();
   </script>
 
 

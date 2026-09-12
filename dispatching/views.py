@@ -1672,6 +1672,67 @@ def schedule_board(request):
         .order_by("pickup_time")
     )
 
+    # ── Passenger search focus ──────────────────────────────────────────────
+    # The board's search box links back here with ?focus=<leg id>. The ring and
+    # the scroll are the template's job; this builds the line that names the
+    # guest, and the correction for the case where the trip is NOT on the board
+    # you just landed on — moved to another day, farmed out to the other board,
+    # cancelled since, or sitting behind an active driver filter. Silence there
+    # would read as "the search lied".
+    focus_leg_id = None
+    focus_note = None
+    _raw_focus = (request.GET.get("focus") or "").strip()
+    if _raw_focus.isdigit():
+        _focus_leg = (
+            Leg.objects.filter(id=int(_raw_focus))
+            .select_related(
+                "reservation", "reservation__customer", "driver", "driver__profile",
+            )
+            .first()
+        )
+        if _focus_leg:
+            _f_res = _focus_leg.reservation
+            _f_cancelled = (
+                _focus_leg.status == "cancelled"
+                or (_f_res and _f_res.status == "cancelled")
+            )
+            _f_view = (
+                "affiliate"
+                if _focus_leg.driver and _focus_leg.driver.driver_type == "affiliate"
+                else "inhouse"
+            )
+            _f_hidden_by_filter = bool(
+                driver_filter and str(_focus_leg.driver_id or "") != driver_filter
+            )
+            _f_here = (
+                not _f_cancelled
+                and _focus_leg.pickup_date == selected_date
+                and _f_view == board_view
+                and not _f_hidden_by_filter
+            )
+            if _f_here:
+                focus_leg_id = _focus_leg.id
+            focus_note = {
+                "guest": str(_f_res.customer) if _f_res and _f_res.customer else "That trip",
+                "time": strf(_focus_leg.pickup_time, "%-I:%M %p"),
+                "date_label": strf(_focus_leg.pickup_date, "%a, %b %-d"),
+                "driver": str(_focus_leg.driver) if _focus_leg.driver else "",
+                "on_this_board": _f_here,
+                "cancelled": _f_cancelled,
+                "hidden_by_filter": _f_hidden_by_filter and not _f_cancelled,
+                "res_url": (
+                    reverse("reservation_details", args=[_f_res.uuid]) if _f_res else ""
+                ),
+                "correct_url": (
+                    ""
+                    if _f_here or _f_cancelled
+                    else (
+                        f"?date={_focus_leg.pickup_date.isoformat()}"
+                        f"&view={_f_view}&focus={_focus_leg.id}"
+                    )
+                ),
+            }
+
     context = {
         "selected_date": selected_date,
         "prev_date": prev_date,
@@ -1684,6 +1745,9 @@ def schedule_board(request):
         "filtered_driver_name": filtered_driver_name,
         "filtered_driver_legs": filtered_driver_legs,
         "driver_filter_dropped": driver_filter_dropped,
+        # ── Passenger search ──
+        "focus_leg_id": focus_leg_id,
+        "focus_note": focus_note,
         # ── Live clock + "now" marker ──
         # Seeded from the SERVER's local time, not the browser's: dispatchers
         # reviewing the board from another timezone must still see Orlando time,
