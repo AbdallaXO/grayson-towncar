@@ -1,0 +1,5 @@
+{% extends 'users/partners/base.html' %}{% block partner_content %}
+<div class="partner-wrap">
+<div class="partner-eyebrow">Your private workspaces</div><h1>Your agencies.</h1>{% for agency in agencies %}<section class="partner-card"><h2><a href="{% url 'partner_agency' agency.pk %}">{{ agency.name }}</a></h2></section>{% empty %}<p>You do not currently manage an agency.</p><a class="partner-button" href="{% url 'register_agent' %}?type=agency">Register my agency</a>{% endfor %}
+</div>
+{% endblock %}

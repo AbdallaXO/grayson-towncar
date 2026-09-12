@@ -1,0 +1,5 @@
+{% extends 'users/partners/base.html' %}{% block partner_content %}
+<div class="partner-wrap">
+<h1>Agency payout #{{ payout.pk }}</h1><p>Total paid: ${{ payout.total_amount }} · {{ payout.payout_period_start }} – {{ payout.payout_period_end }}</p><p class="partner-note">Guest details are shown only for bookings attributed to your agency. Other commissions may be included in your payment without granting access to the underlying booking.</p><section class="partner-card">{% for row in rows %}<p>Booking {{ row.pk }} · {{ row.customer.get_full_name }} · {{ row.travel_agent.agent_name }} · ${{ row.commission_amount }}</p>{% empty %}<p>No guest booking details are shared for this payout.</p>{% endfor %}</section>
+</div>
+{% endblock %}

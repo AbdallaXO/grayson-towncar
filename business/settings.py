@@ -610,3 +610,27 @@ LOGGING = {
     },
     "root": {"handlers": ["stdout", "stderr"], "level": "INFO"},
 }
+
+# Partner onboarding: pause public transitions independently of booking/payout safety.
+PARTNER_REGISTRATION_ENABLED = os.getenv('PARTNER_REGISTRATION_ENABLED', '1') == '1'
+PARTNER_APPLICATIONS_ENABLED = os.getenv('PARTNER_APPLICATIONS_ENABLED', '0') == '1'
+PARTNER_MATCHING_ENABLED = os.getenv('PARTNER_MATCHING_ENABLED', '0') == '1'
+PARTNER_EMAIL_DELIVERY_ENABLED = os.getenv('PARTNER_EMAIL_DELIVERY_ENABLED', '0') == '1'
+PARTNER_PUBLIC_ORIGIN = os.getenv('PARTNER_PUBLIC_ORIGIN', 'https://www.graysontowncar.com')
+# Shown to partners as the "need help" address. Must be a mailbox someone reads.
+PARTNER_CONTACT_EMAIL = os.getenv('PARTNER_CONTACT_EMAIL', 'reservations@graysontowncar.com')
+# Email images must resolve from a public host, never localhost, or inboxes show gaps.
+PARTNER_EMAIL_ASSET_ORIGIN = os.getenv('PARTNER_EMAIL_ASSET_ORIGIN', 'https://www.graysontowncar.com')
+# Encrypts stored bank account numbers. Generate with `manage.py generate_payout_key`
+# and keep a copy: losing it makes existing account numbers unreadable.
+PARTNER_PAYOUT_KEY = os.getenv('PARTNER_PAYOUT_KEY', '')
+# Safety net for testing against a copy of production data: when set, partner
+# mail may only reach these addresses and anything else is held, never sent.
+# Leave EMPTY in production so real partners receive their mail.
+PARTNER_EMAIL_ALLOWLIST = [
+    address.strip().lower()
+    for address in os.getenv('PARTNER_EMAIL_ALLOWLIST', '').split(',')
+    if address.strip()
+]
+# Keep delivery shorter than the outbox lease so a stalled SMTP connection recovers.
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '30'))

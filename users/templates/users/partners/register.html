@@ -1,0 +1,241 @@
+{% extends 'users/partners/base.html' %}{% load static %}
+{% block partner_content %}
+
+<section class="partner-hero">
+  <div class="partner-hero-inner">
+    <div>
+      <span class="partner-eyebrow">The partner program · For travel advisors</span>
+      <h1>Your clients.<br>Our care.</h1>
+      <p class="partner-lead">You build the trip. We handle the arrival — your clients met inside baggage claim, before the bags are.</p>
+      <div class="partner-hero-stats">
+        <div class="stat"><div class="value">10%</div><div class="label">Commission on every completed ride</div></div>
+        <div class="stat"><div class="value">5.0/5</div><div class="label">Across 2,400+ guest reviews</div></div>
+        <div class="stat"><div class="value">$0</div><div class="label">No fees, quotas or minimums</div></div>
+      </div>
+    </div>
+    <figure class="partner-hero-figure" style="margin:0">
+      <img src="{% static 'images/chauffeur-door.jpg' %}" width="1100" height="733"
+           alt="A chauffeur holding the door as a guest steps out of a black SUV">
+    </figure>
+  </div>
+</section>
+
+<div class="partner-wrap">
+  <div class="partner-grid">
+
+    <section class="partner-card">
+      <span class="partner-rule-gold"></span>
+      <h2>Create your partner account</h2>
+      <p class="partner-note" style="margin:-8px 0 26px">Takes about two minutes. You can book as soon as it's done — email verification and payment setup can follow.</p>
+
+      {% comment %}
+        novalidate: the browser's generic bubbles are replaced by the inline
+        messages below. Django still validates everything server-side.
+      {% endcomment %}
+      <form method="post" id="partner-registration" novalidate>{% csrf_token %}{{ form.non_field_errors }}
+        {% for field in form %}
+          {% if field.name == 'agency_name' %}<h3 class="partner-section-label">Your affiliation <span class="partner-note" style="font-weight:400">optional</span></h3>
+          {% elif field.name == 'payment_preference' %}<h3 class="partner-section-label">How you get paid</h3>
+          {% elif field.name == 'terms' %}<h3 class="partner-section-label">Confirm</h3>{% endif %}
+          <div class="partner-field" data-field="{{ field.name }}">
+            {{ field.errors }}
+            {% if field.field.widget.input_type == 'checkbox' %}
+              <label for="{{ field.id_for_label }}">{{ field }} {{ field.label }}</label>
+            {% else %}
+              {{ field.label_tag }}{{ field }}
+            {% endif %}
+            {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+          </div>
+        {% endfor %}
+
+        {% if turnstile_site_key %}<div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-action="turnstile-spin-v2"></div><script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}
+
+        <div class="partner-actions">
+          <button type="submit" class="gold">Create my account</button>
+          <span id="draft-status" class="partner-note" role="status">Saved as you go on this browser. Passwords and account numbers never are.</span>
+        </div>
+      </form>
+    </section>
+
+    <aside>
+      <section class="partner-card">
+        <span class="partner-eyebrow">Why advisors hand us the airport</span>
+        <ul class="partner-benefits">
+          <li>
+            <span class="partner-disc"><i class="bi bi-percent" aria-hidden="true"></i></span>
+            <span class="partner-benefit-text">
+              <b>10% Commission</b>
+              <span>On every client booking you refer, paid the way you prefer.</span>
+            </span>
+          </li>
+          <li>
+            <span class="partner-disc"><i class="bi bi-grid-1x2" aria-hidden="true"></i></span>
+            <span class="partner-benefit-text">
+              <b>Partner Dashboard</b>
+              <span>Track reservations, monitor commissions and manage bookings in one place.</span>
+            </span>
+          </li>
+          <li>
+            <span class="partner-disc"><i class="bi bi-gem" aria-hidden="true"></i></span>
+            <span class="partner-benefit-text">
+              <b>White-Glove Service</b>
+              <span>Your clients are met inside baggage claim, car seats included, by a driver who tracks their flight.</span>
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="partner-card quiet">
+        <h3>Already have an account?</h3>
+        <p class="partner-note" style="margin:0 0 14px">Sign in to register an agency or update your affiliation — no second account needed.</p>
+        <a class="partner-button secondary" href="{% url 'agent_login' %}?next={% url 'register_agent' %}">Sign in</a>
+      </section>
+    </aside>
+  </div>
+
+  <details class="partner-terms">
+    <summary>
+      <span class="t">Partner terms</span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="partner-terms-body">
+      <span class="partner-rule-gold"></span>
+      <ol class="partner-clauses">
+        <li>
+          <span class="n">01</span>
+          <div>
+            <b>Your account</b>
+            <p>You are responsible for accurate account and booking information, and for having the authority to represent any agency you register.</p>
+          </div>
+        </li>
+        <li>
+          <span class="n">02</span>
+          <div>
+            <b>How commission works</b>
+            <p>Client bookings earn the commission rate assigned by Grayson on the eligible base fare. Personal trips, gratuity and excluded charges do not earn commission. Commission is released once the trip is eligible, your identity is verified and a payee is confirmed.</p>
+          </div>
+        </li>
+        <li>
+          <span class="n">03</span>
+          <div>
+            <b>While you are setting up</b>
+            <p>You can start booking straight away. The remaining setup steps can be finished whenever it suits you.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </details>
+</div>
+
+<script>
+const registration=document.getElementById('partner-registration');
+const kind=registration.querySelectorAll('[name="account_type"]');
+const agencyName=registration.elements.namedItem('agency_name');
+// Only the chosen rail's fields are ever shown, so nobody is asked for a
+// routing number to be paid by PayPal.
+const RAIL_FIELDS={paypal:['paypal_email'],venmo:['venmo_handle'],
+  bank:['bank_account_name','bank_routing_number','bank_account_type','bank_account_number']};
+function show(name,visible){const el=registration.querySelector(`[data-field="${name}"]`);if(el)el.hidden=!visible;}
+function updatePath(changed=false){
+  const owner=registration.elements.namedItem('account_type').value==='agency';
+  ['address','authority'].forEach(name=>show(name,owner));
+  show('disclosure',agencyName.value.trim());
+  const agencyPay=registration.querySelector('[name="payment_preference"][value="agency"]');
+  agencyPay.disabled=!agencyName.value.trim()&&!owner;
+  if(owner&&changed)agencyPay.checked=true;
+  if(agencyPay.disabled)registration.querySelector('[name="payment_preference"][value="direct"]').checked=true;
+  const chosen=registration.querySelector('[name="payment_preference"]:checked');
+  const direct=chosen&&chosen.value==='direct';
+  show('payment_method',direct);
+  const rail=direct?registration.elements.namedItem('payment_method').value:'';
+  Object.entries(RAIL_FIELDS).forEach(([key,names])=>names.forEach(name=>show(name,key===rail)));
+}
+kind.forEach(el=>el.addEventListener('change',()=>updatePath(true)));
+agencyName.addEventListener('input',()=>updatePath());
+registration.querySelectorAll('[name="payment_preference"]').forEach(el=>el.addEventListener('change',()=>updatePath()));
+registration.elements.namedItem('payment_method').addEventListener('change',()=>updatePath());
+updatePath();
+
+/* ---- Inline validation -------------------------------------------------
+   Says what is actually needed and where, instead of the browser's generic
+   bubble. Fields inside a hidden section are skipped, so nobody is blocked by
+   a field they cannot see. The server remains the authority. */
+const LABELS={agent_name:'your full name',email:'your email address',phone:'your phone number',
+  username:'a username',password1:'a password',password2:'your password again',
+  agency_name:'your agency name',authority:'your role and authority',address:'the agency address',
+  paypal_email:'the email on your PayPal account',venmo_handle:'your Venmo username',
+  bank_account_name:'the name on the account',bank_routing_number:'your 9-digit routing number',
+  bank_account_number:'your account number'};
+
+function clearError(wrap){
+  const existing=wrap.querySelector('.field-error');
+  if(existing)existing.remove();
+  const input=wrap.querySelector('input,select,textarea');
+  if(input)input.removeAttribute('aria-invalid');
+}
+function setError(wrap,message){
+  clearError(wrap);
+  const note=document.createElement('p');
+  note.className='field-error';note.textContent=message;
+  wrap.appendChild(note);
+  const input=wrap.querySelector('input,select,textarea');
+  if(input)input.setAttribute('aria-invalid','true');
+}
+function problemWith(wrap){
+  const name=wrap.dataset.field;
+  const input=wrap.querySelector('input,select,textarea');
+  if(!input)return null;
+  const value=(input.value||'').trim();
+  if(input.type==='checkbox'){
+    if(name==='terms'&&!input.checked)return 'Please accept the partner terms to continue.';
+    if(name==='disclosure'&&!input.checked&&agencyName.value.trim())
+      return 'Please confirm the disclosure so we can check your affiliation with the agency.';
+    return null;
+  }
+  if(input.tagName==='SELECT'&&input.required&&!value)return 'Please choose an option.';
+  if(input.required&&!value)return 'Please enter '+(LABELS[name]||'this')+'.';
+  if(value&&input.type==='email'&&!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(value))
+    return 'Please enter a valid email address, like name@agency.com.';
+  if(value&&name==='password2'&&value!==(registration.elements.namedItem('password1')||{}).value)
+    return 'These passwords do not match.';
+  if(value&&name==='bank_routing_number'&&!/^\d{9}$/.test(value.replace(/\D/g,'')))
+    return 'A routing number is exactly 9 digits.';
+  return null;
+}
+registration.addEventListener('submit',event=>{
+  let firstBad=null;
+  registration.querySelectorAll('.partner-field').forEach(wrap=>{
+    // A hidden section is not part of this person's path through the form.
+    if(wrap.hidden||wrap.offsetParent===null){clearError(wrap);return;}
+    const problem=problemWith(wrap);
+    if(problem){setError(wrap,problem);if(!firstBad)firstBad=wrap;}
+    else clearError(wrap);
+  });
+  if(firstBad){
+    event.preventDefault();
+    firstBad.scrollIntoView({block:'center',behavior:'smooth'});
+    const input=firstBad.querySelector('input,select,textarea');
+    if(input)input.focus({preventScroll:true});
+  }
+});
+// Clearing as they type, so a corrected field stops shouting immediately.
+registration.addEventListener('input',event=>{
+  const wrap=event.target.closest('.partner-field');
+  if(wrap&&wrap.querySelector('.field-error')&&!problemWith(wrap))clearError(wrap);
+});
+
+let draftTimer;
+registration.addEventListener('input',event=>{
+  if(event.target.type==='password')return;
+  clearTimeout(draftTimer);
+  draftTimer=setTimeout(async()=>{
+    const data=new FormData(registration);
+    ['password1','password2','terms','disclosure','bank_account_number'].forEach(key=>data.delete(key));
+    try {
+      const response=await fetch("{% url 'partner_draft' %}",{method:'POST',body:data,headers:{'X-CSRFToken':registration.elements.namedItem('csrfmiddlewaretoken').value}});
+      document.getElementById('draft-status').textContent=response.ok?'Progress saved on this browser.':'Progress could not be saved. Keep this page open and try again.';
+    } catch(error){document.getElementById('draft-status').textContent='Progress could not be saved. Keep this page open and try again.';}
+  },800);
+});
+</script>
+{% endblock %}

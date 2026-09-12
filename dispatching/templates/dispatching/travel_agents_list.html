@@ -338,7 +338,10 @@
     sel.addEventListener('change', () => {
       const id = sel.dataset.agentId;
       const fd = new FormData();
+      const reason = window.prompt('Reason for changing future agency affiliation (earlier bookings remain unchanged):');
+      if (!reason?.trim()) { window.location.reload(); return; }
       fd.append('existing_agency', sel.value);
+      fd.append('reason', reason);
       sel.classList.add('saving');
       formFetch(`/dispatching/travel-agents/${id}/set-agency/`, fd)
         .then((data) => {
@@ -367,9 +370,11 @@
     box.addEventListener('change', () => {
       const id = box.dataset.agentId;
       const desired = box.checked;
+      const reason = window.prompt('Reason for approving this future payment arrangement:');
+      if (!reason?.trim()) { box.checked = !desired; return; }
       box.disabled = true;
       jsonFetch(`/dispatching/travel-agents/${id}/toggle-agency-pays/`, {
-        agency_handles_payment: desired,
+        agency_handles_payment: desired, reason: reason,
       })
         .then((data) => {
           box.disabled = false;

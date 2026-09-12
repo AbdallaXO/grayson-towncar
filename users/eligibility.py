@@ -196,6 +196,11 @@ def get_commission_eligibility(reservation, *, now=None, grace_hours=DEFAULT_GRA
             commission=commission,
         )
 
+    from users.partner_services import payout_blocker
+    blocker = payout_blocker(reservation)
+    if blocker:
+        return EligibilityResult(STATUS_REVIEW, "partner_setup_hold", blocker, commission=commission)
+
     # Fast path: dispatcher clicked every leg completed and the reservation
     # status auto-rolled to "completed". No grace needed.
     if reservation.status == "completed":

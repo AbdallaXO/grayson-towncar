@@ -137,7 +137,72 @@ class NewsletterSubscriptionAttempt(models.Model):
         return f"{self.ip_address} - {self.email} - {self.timestamp}"
 
 
-class TravelAgent(models.Model):
+class PayoutDetails(models.Model):
+    """Structured payout details, shared by agents and agencies.
+
+    Replaces a single free-text handle. Each rail gets its own validated field so
+    a payout run knows what it is holding -- a PayPal email and a Venmo handle
+    are not interchangeable, and a mistyped handle pays a stranger irreversibly.
+    Account numbers are encrypted; see users.payout_crypto.
+    """
+
+    # Rails a new partner may choose. Retired rails stay valid for existing rows
+    # so history and admin display keep working -- they are simply not offered.
+    SELECTABLE_PAYMENT_METHODS = ["paypal", "venmo", "bank"]
+    RETIRED_PAYMENT_METHODS = ["zelle", "cashapp", "check", "other"]
+
+    ACCOUNT_TYPE_CHOICES = [("checking", "Checking"), ("savings", "Savings")]
+
+    paypal_email = models.EmailField(blank=True, default="", help_text="The email on the PayPal account.")
+    venmo_handle = models.CharField(
+        max_length=64, blank=True, default="", help_text="Venmo username, without the @."
+    )
+    bank_account_name = models.CharField(max_length=120, blank=True, default="")
+    bank_routing_number = models.CharField(max_length=9, blank=True, default="")
+    bank_account_type = models.CharField(
+        max_length=10, blank=True, default="", choices=ACCOUNT_TYPE_CHOICES
+    )
+    # Ciphertext, plus the last four kept in clear so screens can identify an
+    # account without decrypting anything.
+    bank_account_encrypted = models.TextField(blank=True, default="")
+    bank_account_last4 = models.CharField(max_length=4, blank=True, default="")
+
+    class Meta:
+        abstract = True
+
+    def set_bank_account(self, number):
+        """Store an account number encrypted, keeping the last four readable."""
+        from .payout_crypto import encrypt, last4
+
+        number = "".join(c for c in (number or "") if c.isdigit())
+        self.bank_account_encrypted = encrypt(number)
+        self.bank_account_last4 = last4(number)
+
+    @property
+    def bank_account_number(self):
+        """The real account number. Decrypts on demand; '' if unreadable."""
+        from .payout_crypto import decrypt
+
+        return decrypt(self.bank_account_encrypted)
+
+    @property
+    def bank_account_masked(self):
+        return f"••••{self.bank_account_last4}" if self.bank_account_last4 else ""
+
+    def payout_target(self, method):
+        """What this payee's chosen rail actually pays to, or '' if not set up."""
+        if method == "paypal":
+            return self.paypal_email or ""
+        if method == "venmo":
+            return self.venmo_handle or ""
+        if method == "bank":
+            complete = self.bank_account_last4 and self.bank_routing_number and self.bank_account_name
+            return self.bank_account_masked if complete else ""
+        # Retired rails were never structured; they still carry free text.
+        return (getattr(self, "payment_info", "") or "").strip()
+
+
+class TravelAgent(PayoutDetails):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     agent_name = models.CharField(
         max_length=100, help_text="Your full name", null=True, blank=True
@@ -218,9 +283,10 @@ class TravelAgent(models.Model):
     @property
     def effective_payment_info(self):
         """The handle/info actually used — agency's if routed through agency, else own."""
-        if self.routes_through_agency and self.agency:
-            return self.agency.payment_info or ""
-        return self.payment_info or ""
+        payee = self.agency if (self.routes_through_agency and self.agency) else self
+        method = self.effective_payment_method
+        # Structured detail for the chosen rail, falling back to legacy free text.
+        return payee.payout_target(method) or (payee.payment_info or "")
 
     @property
     def payment_info_complete(self):
@@ -308,165 +374,10 @@ class TravelAgent(models.Model):
         return total_from_payouts
 
     def process_commission_payment(self, create_agency_payout=True):
-        """
-        Process payment for all currently-Ready commissions.
-
-        Uses users.eligibility.ready_reservations as the single source of truth
-        for what to include -- the same helper that the queue UI and previews
-        use. This guarantees the operator can never accidentally pay something
-        that the queue marked as Needs Review or Excluded (refunded, unpaid,
-        cancelled, etc.) by clicking Pay Now.
-
-        Args:
-            create_agency_payout (bool): Whether to create an agency payout if agent belongs to an agency
-        """
-        from django.utils import timezone
-        from django.db import transaction
-        from users.eligibility import ready_reservations
-
-        with transaction.atomic():
-            # Pull every Ready reservation + its computed commission in one pass.
-            # Keep the (reservation, EligibilityResult) tuples so we can use the
-            # already-computed commission decimal instead of recalculating.
-            ready_items = list(ready_reservations(self))
-
-            if ready_items:
-                commission_total = sum((r.commission for _, r in ready_items), Decimal("0"))
-                ready_reservation_objs = [res for res, _ in ready_items]
-                ready_reservation_ids = [res.id for res in ready_reservation_objs]
-
-                # Period start = earliest pickup_date across legs of all paid reservations.
-                # Period end = today (the day this payout was processed).
-                earliest_pickup_date = None
-                for reservation in ready_reservation_objs:
-                    for leg in reservation.legs.all():
-                        if leg.pickup_date and (earliest_pickup_date is None or leg.pickup_date < earliest_pickup_date):
-                            earliest_pickup_date = leg.pickup_date
-
-                period_start = earliest_pickup_date if earliest_pickup_date else timezone.localtime(timezone.now()).date()
-                period_end = timezone.localtime(timezone.now()).date()
-
-                # Build detailed reservation summary for notes.
-                reservation_details = []
-                for res, result in ready_items:
-                    reservation_details.append(
-                        f"#{res.id} - {res.customer} (Base: ${res.base_price:.2f}, Total: ${res.total_price:.2f} -> Commission: ${result.commission:.2f})"
-                    )
-
-                agent_payout_notes = [
-                    f"DIRECT AGENT PAYOUT",
-                    f"Agent: {self.agent_name or self.user.username} ({self.user.email})",
-                    f"Agency: {self.agency.name if self.agency else 'Independent'}",
-                    f"Commission Rate: {self.commission_rate}%",
-                    f"Period: {period_start} to {period_end}",
-                    f"Processed: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    f"Total Reservations: {len(reservation_details)}",
-                    f"Total Commission: ${commission_total:.2f}",
-                    "",
-                    "RESERVATION BREAKDOWN:",
-                    "-" * 40,
-                ]
-
-                display_reservations = reservation_details[:15]
-                agent_payout_notes.extend(display_reservations)
-
-                if len(reservation_details) > 15:
-                    agent_payout_notes.append(
-                        f"... and {len(reservation_details) - 15} more reservations"
-                    )
-
-                notes_text = "\n".join(agent_payout_notes)
-
-                agent_payout = CommissionPayout.objects.create(
-                    agent=self,
-                    agency=self.agency,
-                    total_amount=commission_total,
-                    payout_period_start=period_start,
-                    payout_period_end=period_end,
-                    notes=notes_text,
-                )
-
-                agent_payout.reservations.set(ready_reservation_ids)
-
-                # Mark each paid reservation: persist the actually-paid commission
-                # (could differ from stored commission_amount if rate changed since booking).
-                for res, result in ready_items:
-                    res.commission_amount = result.commission
-                    res.commission_paid = True
-                    res.commission_paid_at = timezone.now()
-                    res.save(
-                        update_fields=[
-                            "commission_amount",
-                            "commission_paid",
-                            "commission_paid_at",
-                        ]
-                    )
-
-                # Update agent totals
-                self.total_paid_commission += commission_total
-                self.last_payment_date = timezone.now()
-                self.unpaid_commissions = 0
-                self.save(
-                    update_fields=[
-                        "total_paid_commission",
-                        "last_payment_date",
-                        "unpaid_commissions",
-                    ]
-                )
-
-                # Create agency payout if agent belongs to an agency and flag is set
-                agency_payout = None
-                if self.agency and self.agency_handles_payment and create_agency_payout:
-                    # Create detailed agency payout notes
-                    agency_payout_notes = [
-                        f"AGENCY PAYOUT - {self.agency.name}",
-                        f"Single Agent Commission Payment",
-                        f"Agent: {self.agent_name or self.user.username} ({self.user.email})",
-                        f"Commission Rate: {self.commission_rate}%",
-                        f"Period: {period_start} to {period_end}",
-                        f"Processed: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                        f"Reservations: {len(reservation_details)}",
-                        f"Amount: ${commission_total:.2f}",
-                        "",
-                        "LINKED AGENT PAYOUT:",
-                        f"Agent Payout ID: #{agent_payout.id}",
-                        "",
-                        "SAMPLE RESERVATIONS:",
-                        "-" * 30,
-                    ]
-
-                    # Add sample reservations (first 5)
-                    sample_reservations = reservation_details[:5]
-                    agency_payout_notes.extend(sample_reservations)
-                    if len(reservation_details) > 5:
-                        agency_payout_notes.append(
-                            f"... and {len(reservation_details) - 5} more"
-                        )
-
-                    agency_notes_text = "\n".join(agency_payout_notes)
-
-                    # Create corresponding agency payout
-                    agency_payout = AgencyCommissionPayout.objects.create(
-                        agency=self.agency,
-                        total_amount=commission_total,
-                        payout_period_start=agent_payout.payout_period_start,
-                        payout_period_end=agent_payout.payout_period_end,
-                        notes=agency_notes_text,
-                    )
-
-                    # Link the agent payout to the agency payout
-                    agency_payout.agent_payouts.add(agent_payout)
-
-                    # Update agency's total paid commission
-                    self.agency.total_paid_commission += commission_total
-                    self.agency.save(update_fields=["total_paid_commission"])
-
-                # Double-check that total_paid_commission matches payouts
-                self.sync_paid_commission()
-
-                return agent_payout, commission_total, agency_payout
-
-            return None, 0, None
+        from .partner_services import process_recorded_payout
+        # Agent entry points pay only the direct-to-agent group. Agency groups
+        # have their own entry point, including when the agent has since left.
+        return process_recorded_payout(self, agency=None, create_agency_payout=create_agency_payout)
 
     def __str__(self):
         return f"{self.agent_name} - {self.agency}"
@@ -510,11 +421,6 @@ class CommissionPayout(models.Model):
             return f"{self.agency.name} (Agent: {self.agent}) – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"
         return f"{self.agent} – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"
 
-    def save(self, *args, **kwargs):
-        # If agent has an agency, set it automatically
-        if not self.agency and self.agent.agency:
-            self.agency = self.agent.agency
-        super().save(*args, **kwargs)
 
 
 class AgencyCommissionPayout(models.Model):
@@ -546,10 +452,24 @@ class AgencyCommissionPayout(models.Model):
         verbose_name_plural = "Agency Commission Payouts"
 
 
-class Agency(models.Model):
+class Agency(PayoutDetails):
     """
     Represents a travel agency with multiple travel agents
     """
+
+    # Some agencies pay their own agents and are always the payee. Stating that
+    # once stops every new agent being adjudicated by hand -- and stops an agent
+    # believing they arranged direct payment when the agency never allows it.
+    PAYOUT_POLICY_CHOICES = [
+        ("either", "Agents may ask to be paid directly"),
+        ("agency", "Grayson always pays the agency, never the agent"),
+    ]
+    payout_policy = models.CharField(
+        max_length=10,
+        choices=PAYOUT_POLICY_CHOICES,
+        default="either",
+        help_text="Whether this agency's agents may be paid directly by Grayson.",
+    )
 
     name = models.CharField(max_length=100)
     address = models.TextField(blank=True, null=True)
@@ -591,7 +511,9 @@ class Agency(models.Model):
 
     @property
     def payment_info_complete(self):
-        return bool(self.payment_method) and bool(self.payment_info)
+        return bool(self.payment_method) and bool(
+            self.payout_target(self.payment_method) or self.payment_info
+        )
 
     class Meta:
         verbose_name = "Agency"
@@ -652,153 +574,11 @@ class Agency(models.Model):
         }
 
     def process_agency_commission_payment(self):
-        """Process payment for all currently-Ready commissions from every agent in the agency.
+        from .partner_services import process_recorded_agency_payout
+        return process_recorded_agency_payout(self)
 
-        Delegates per-agent work to TravelAgent.process_commission_payment so the
-        eligibility logic lives in exactly one place (users.eligibility). This
-        function only does the agency-level orchestration: aggregating per-agent
-        payouts into one AgencyCommissionPayout, building the summary notes, and
-        bumping the agency-level total_paid_commission once.
-        """
-        from django.utils import timezone
-        from django.db import transaction
-        from reservations.models import Reservation
-        from decimal import Decimal
 
-        with transaction.atomic():
-            # All agents who route through the agency. We can't pre-filter on
-            # unpaid_commissions__gt=0 because that stat may be stale relative
-            # to the live eligibility helper -- let the helper decide per agent.
-            agents = self.agents.filter(agency_handles_payment=True).select_related("user")
-
-            processed_payouts = []
-            total_amount = Decimal("0")
-            earliest_date = None
-            latest_date = None
-            total_reservations = 0
-            agent_details = []
-
-            for agent in agents:
-                # Run the per-agent processor with create_agency_payout=False so it
-                # doesn't try to spawn its own AgencyCommissionPayout -- we make
-                # the combined one ourselves below.
-                agent_payout, agent_commission_total, _ = agent.process_commission_payment(
-                    create_agency_payout=False
-                )
-                if not agent_payout or agent_commission_total <= 0:
-                    continue
-
-                processed_payouts.append(agent_payout)
-                total_amount += agent_commission_total
-                total_reservations += agent_payout.reservations.count()
-
-                # Pull the period range from the agent payout the per-agent
-                # processor just stamped (uses the same pickup-date logic).
-                if earliest_date is None or agent_payout.payout_period_start < earliest_date:
-                    earliest_date = agent_payout.payout_period_start
-                if latest_date is None or agent_payout.payout_period_end > latest_date:
-                    latest_date = agent_payout.payout_period_end
-
-                agent_details.append({
-                    "name": agent.agent_name or agent.user.username,
-                    "email": agent.user.email,
-                    "commission_rate": agent.commission_rate,
-                    "reservation_count": agent_payout.reservations.count(),
-                    "reservation_ids": list(
-                        agent_payout.reservations.values_list("id", flat=True)[:5]
-                    ),
-                    "total_reservations": agent_payout.reservations.count(),
-                    "amount": agent_commission_total,
-                    "period_start": agent_payout.payout_period_start,
-                    "period_end": agent_payout.payout_period_end,
-                })
-
-            if processed_payouts:
-                # Build comprehensive agency payout notes
-                agency_notes_lines = [
-                    f"AGENCY PAYOUT - {self.name}",
-                    f"Processed: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                    f"Period: {earliest_date} to {latest_date}",
-                    f"Total Agents: {len(agent_details)}",
-                    f"Total Reservations: {total_reservations}",
-                    f"Total Amount: ${total_amount:.2f}",
-                    "",
-                    "AGENT BREAKDOWN:",
-                    "-" * 50,
-                ]
-
-                for i, agent_detail in enumerate(agent_details, 1):
-                    # Get detailed reservation information for this agent
-                    agent_reservations = Reservation.objects.filter(
-                        id__in=agent_detail["reservation_ids"]
-                    ).select_related(
-                        "customer",
-                        "rate",
-                        "rate__route",
-                        "rate__route__origin",
-                        "rate__route__destination",
-                        "vehicle",
-                    )
-
-                    agency_notes_lines.extend(
-                        [
-                            f"{i}. {agent_detail['name']}",
-                            f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
-                            f"   Period: {agent_detail['period_start']} ⇄ {agent_detail['period_end']}",
-                            "",
-                            "   RESERVATION DETAILS:",
-                            "   " + "-" * 40,
-                        ]
-                    )
-
-                    # Add detailed reservation information
-                    for res in agent_reservations:
-                        agency_notes_lines.extend(
-                            [
-                                f"   - Reservation #{res.id}",
-                                f"     Customer: {res.customer.get_full_name()}",
-                                f"     Route: {res.rate.route.origin} to {res.rate.route.destination}",
-                                f"     Vehicle: {res.vehicle.vehicle_type.title() if res.vehicle else 'N/A'}",
-                                f"     Trip Type: {res.trip_type.replace('_', ' ').title()}",
-                                f"     Amount: ${res.total_price:.2f}",
-                                f"     Commission: ${res.commission_amount:.2f}",
-                                f"     Date: {res.created_at.strftime('%Y-%m-%d')}",
-                                "",
-                            ]
-                        )
-
-                    agency_notes_lines.extend(
-                        [
-                            "   " + "-" * 40,
-                            "",
-                        ]
-                    )
-
-                agency_notes_lines.extend(
-                    [
-                        "-" * 50,
-                        f"Individual agent payouts created: {len(processed_payouts)}",
-                    ]
-                )
-
-                comprehensive_notes = "\n".join(agency_notes_lines)
-
-                # Create agency payout record with detailed notes
-                agency_payout = AgencyCommissionPayout.objects.create(
-                    agency=self,
-                    total_amount=total_amount,
-                    payout_period_start=earliest_date,
-                    payout_period_end=latest_date,
-                    notes=comprehensive_notes,
-                )
-
-                # Link all agent payouts to this agency payout
-                agency_payout.agent_payouts.set(processed_payouts)
-
-                # Update agency's total paid commission
-                self.total_paid_commission += total_amount
-                self.save(update_fields=["total_paid_commission"])
-
-                return agency_payout, total_amount
-
-            return None, 0
+# Registered here so Django discovers the additive onboarding models.
+from .partner_models import (PartnerIdentity, PartnerToken, AgencyAlias,
+    AgencyApplication, AffiliationClaim, AgencyMembership, PartnerBooking,
+    PartnerEvent, PartnerOutbox, PartnerBackfill, PartnerNameLock, PartnerPayoutAdjustment)

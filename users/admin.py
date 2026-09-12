@@ -1,3 +1,4 @@
+from django.utils.html import escape
 """
 Django Admin Configuration for User and Agency Management
 
@@ -295,6 +296,12 @@ class ReservationInline(admin.TabularInline):
     verbose_name = "Reservation"
     verbose_name_plural = "Reservations in this Payout"
 
+    can_delete = False
+    def has_add_permission(self, request, obj=None):
+        return False
+    def has_change_permission(self, request, obj=None):
+        return False
+
     def get_queryset(self, request):
         """Optimize queryset with related data."""
         from reservations.models import Reservation
@@ -323,6 +330,12 @@ class AgentPayoutInline(admin.TabularInline):
     readonly_fields = ["agent_payout_info"]
     verbose_name = "Agent Payout"
     verbose_name_plural = "Agent Payouts in this Agency Payout"
+
+    can_delete = False
+    def has_add_permission(self, request, obj=None):
+        return False
+    def has_change_permission(self, request, obj=None):
+        return False
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("commissionpayout__agent")
@@ -432,7 +445,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
         "user__email",
         "agency__name",
     ]
-    list_editable = ["agency", "agency_handles_payment", "commission_rate"]
+    list_editable = []
     list_per_page = 50
 
     fieldsets = (
@@ -475,7 +488,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
         ),
         ("System Information", {"fields": ("created_at",), "classes": ("collapse",)}),
     )
-    readonly_fields = ["created_at"]
+    readonly_fields = ["created_at", "agency", "agency_handles_payment"]
 
     show_full_result_count = False
 
@@ -598,48 +611,18 @@ class TravelAgentAdmin(admin.ModelAdmin):
     mark_agents_for_payment.short_description = "Check agents for payment"
 
     def _calculate_commission_preview(self, queryset):
-        """Calculate commission preview data."""
-        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
-        from reservations.models import Reservation
-
-        preview_data = {"agents": [], "total": 0}
-
+        from users.services import preview_agent_payout
+        from decimal import Decimal
+        data = {"agents": [], "total": Decimal("0")}
         for agent in queryset:
-            unpaid_reservations = Reservation.objects.filter(
-                travel_agent=agent, commission_paid=False, status="completed"
-            ).annotate(
-                calculated_commission=ExpressionWrapper(
-                    F("total_price") * (agent.commission_rate / 100),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
-            )
-
-            if unpaid_reservations.exists():
-                commission_total = sum(
-                    r.calculated_commission for r in unpaid_reservations
-                )
-                # Get date range based on actual service dates (pickup dates) and current date
-                earliest_pickup_date = None
-                for reservation in unpaid_reservations:
-                    for leg in reservation.legs.all():
-                        if earliest_pickup_date is None or leg.pickup_date < earliest_pickup_date:
-                            earliest_pickup_date = leg.pickup_date
-                
-                start_date = earliest_pickup_date if earliest_pickup_date else timezone.localtime(timezone.now()).date()
-                end_date = timezone.localtime(timezone.now()).date()  # Current date when processing payout
-
-                preview_data["agents"].append(
-                    {
-                        "agent": agent,
-                        "amount": commission_total,
-                        "count": unpaid_reservations.count(),
-                        "period": f"{start_date.strftime('%b %d, %Y')} to {end_date.strftime('%b %d, %Y')}",
-                        "agency_handles": agent.agency_handles_payment and agent.agency,
-                    }
-                )
-                preview_data["total"] += commission_total
-
-        return preview_data
+            preview = preview_agent_payout(agent)
+            if preview["count"]:
+                amount = Decimal(preview["total"])
+                data["agents"].append({"agent": agent, "amount": amount,
+                    "count": preview["count"], "period": preview["period_start"] + " to " + preview["period_end"],
+                    "agency_handles": False})
+                data["total"] += amount
+        return data
 
     def _format_preview_message(self, preview_data):
         """Format preview message as HTML table."""
@@ -658,7 +641,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
             payment_to = "Agency" if item["agency_handles"] else "Agent"
             message += (
                 f"<tr>"
-                f"<td style='padding: 8px; border: 1px solid #ddd;'>{item['agent']}</td>"
+                f"<td style='padding: 8px; border: 1px solid #ddd;'>{escape(str(item['agent']))}</td>"
                 f"<td style='padding: 8px; border: 1px solid #ddd;'>{item['count']}</td>"
                 f"<td style='padding: 8px; border: 1px solid #ddd;'>{item['period']}</td>"
                 f"<td style='padding: 8px; border: 1px solid #ddd;'>${item['amount']:,.2f}</td>"
@@ -750,16 +733,14 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         return request.user.is_superuser
     
     def has_add_permission(self, request):
-        """Only superusers can add."""
-        return request.user.is_superuser
+        return False  # Payouts must pass through the eligibility service.
     
     def has_change_permission(self, request, obj=None):
         """Only superusers can change."""
         return request.user.is_superuser
     
     def has_delete_permission(self, request, obj=None):
-        """Only superusers can delete."""
-        return request.user.is_superuser
+        return False  # Keep completed disbursement history immutable.
 
     list_display = [
         "payout_id",
@@ -774,7 +755,7 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     list_filter = ["paid_at", "payout_period_start", "agency"]
     search_fields = ["agent__agent_name", "agent__user__username", "agency__name"]
     inlines = [ReservationInline]
-    readonly_fields = ["paid_at", "reservation_details"]
+    readonly_fields = ["paid_at", "reservation_details", "agent", "agency", "total_amount", "payout_period_start", "payout_period_end"]
     list_per_page = 50
     show_full_result_count = False
 
@@ -919,7 +900,8 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
     reservation_details.short_description = "Reservation Details"
 
-    actions = ["recalculate_amounts", "cancel_payouts", "send_commission_statement"]
+    # Completed payouts are accounting history; corrections require adjustments.
+    actions = ["send_commission_statement"]
 
     def recalculate_amounts(self, request, queryset):
         """Recalculate payout amounts based on included reservations."""
@@ -1028,7 +1010,7 @@ class AgencyAdmin(admin.ModelAdmin):
     ]
     list_filter = ["is_active", "created_at"]
     search_fields = ["name"]
-    filter_horizontal = ["heads"]
+    filter_horizontal = []
     list_per_page = 25
 
     fieldsets = (
@@ -1052,7 +1034,7 @@ class AgencyAdmin(admin.ModelAdmin):
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
-    readonly_fields = ["created_at", "updated_at", "total_paid_commission"]
+    readonly_fields = ["created_at", "updated_at", "total_paid_commission", "heads"]
 
     show_full_result_count = False
 
@@ -1134,63 +1116,10 @@ class AgencyAdmin(admin.ModelAdmin):
     ]
 
     def preview_agency_commissions(self, request, queryset):
-        """Preview agency commission payments."""
-        preview_data = []
-        grand_total = 0
-
+        from users.services import preview_agency_payout
         for agency in queryset:
-            agents_with_unpaid = agency.agents.filter(
-                unpaid_commissions__gt=0, agency_handles_payment=True
-            )
-
-            if agents_with_unpaid.exists():
-                agency_total = sum(
-                    agent.unpaid_commissions for agent in agents_with_unpaid
-                )
-
-                preview_data.append(
-                    {
-                        "agency": agency,
-                        "agent_count": agents_with_unpaid.count(),
-                        "total": agency_total,
-                        "agents": [
-                            {"name": str(agent), "unpaid": agent.unpaid_commissions}
-                            for agent in agents_with_unpaid
-                        ],
-                    }
-                )
-                grand_total += agency_total
-
-        if preview_data:
-            message = "Agency Commission Payment Preview:<br><br>"
-
-            for item in preview_data:
-                message += f"<h4>{item['agency']} - {item['agent_count']} agents - ${item['total']:,.2f}</h4>"
-                message += (
-                    "<table style='border-collapse: collapse; margin-bottom: 20px;'>"
-                )
-                message += (
-                    "<tr><th style='padding: 8px; border: 1px solid #ddd;'>Agent</th>"
-                )
-                message += (
-                    "<th style='padding: 8px; border: 1px solid #ddd;'>Unpaid</th></tr>"
-                )
-
-                for agent in item["agents"]:
-                    message += (
-                        f"<tr>"
-                        f"<td style='padding: 8px; border: 1px solid #ddd;'>{agent['name']}</td>"
-                        f"<td style='padding: 8px; border: 1px solid #ddd;'>${agent['unpaid']:,.2f}</td>"
-                        f"</tr>"
-                    )
-                message += "</table>"
-
-            message += f"<p><strong>Grand Total: ${grand_total:,.2f}</strong></p>"
-            self.message_user(request, mark_safe(message))
-        else:
-            self.message_user(
-                request, "No unpaid commissions found for agency payment handling."
-            )
+            preview = preview_agency_payout(agency)
+            self.message_user(request, f"{agency.name}: {preview['count']} eligible bookings, ${preview['total']} ready for this recorded payee.")
 
     preview_agency_commissions.short_description = "Preview agency payments"
 
@@ -1255,16 +1184,14 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         return request.user.is_superuser
     
     def has_add_permission(self, request):
-        """Only superusers can add."""
-        return request.user.is_superuser
+        return False  # Payouts must pass through the eligibility service.
     
     def has_change_permission(self, request, obj=None):
         """Only superusers can change."""
         return request.user.is_superuser
     
     def has_delete_permission(self, request, obj=None):
-        """Only superusers can delete."""
-        return request.user.is_superuser
+        return False  # Keep completed disbursement history immutable.
     """Admin interface for agency commission payouts."""
 
     list_display = [
@@ -1279,7 +1206,7 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     list_filter = ["paid_at", "payout_period_start", "agency"]
     search_fields = ["agency__name"]
     inlines = [AgentPayoutInline]
-    readonly_fields = ["paid_at", "agent_payout_details"]
+    readonly_fields = ["paid_at", "agent_payout_details", "agency", "total_amount", "payout_period_start", "payout_period_end"]
     list_per_page = 50
     show_full_result_count = False
 
@@ -1411,7 +1338,7 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
     agent_payout_details.short_description = "Agent Payout Details"
 
-    actions = ["cancel_agency_payouts", "send_commission_statement"]
+    actions = ["send_commission_statement"]
 
     def cancel_agency_payouts(self, request, queryset):
         """Cancel selected agency payouts."""
@@ -1566,3 +1493,21 @@ class ContactUsFormAdmin(admin.ModelAdmin):
 admin.site.site_header = "Travel Management Admin"
 admin.site.site_title = "Travel Admin"
 admin.site.index_title = "Travel Management Administration"
+
+from .models import PartnerPayoutAdjustment
+
+# Workflow records are inspected here; transitions go through the partner workspace.
+from .models import (PartnerIdentity, AgencyAlias, AgencyApplication, AffiliationClaim,
+    AgencyMembership, PartnerBooking, PartnerEvent, PartnerOutbox)
+
+class PartnerReadOnlyAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return False
+    def has_delete_permission(self, request, obj=None):
+        return False
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+for _model in (PartnerIdentity, AgencyAlias, AgencyApplication, AffiliationClaim,
+               AgencyMembership, PartnerBooking, PartnerEvent, PartnerOutbox, PartnerPayoutAdjustment):
+    admin.site.register(_model, PartnerReadOnlyAdmin)

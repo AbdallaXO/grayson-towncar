@@ -1,0 +1,89 @@
+{% extends 'users/partners/base.html' %}{% block partner_content %}
+<div class="partner-wrap">
+
+{% if viewing_as_staff %}
+<div class="partner-staffbar" role="status">
+  <strong>You are viewing this as Grayson staff.</strong>
+  <span>{{ agency.name }} is not your agency. Anything you change here affects their account, and is recorded against your name.</span>
+  <a href="{% url 'partner_staff' %}">Back to partner administration</a>
+</div>
+{% endif %}
+<div class="partner-eyebrow">{% if viewing_as_staff %}Agency workspace{% else %}Your agency workspace{% endif %}</div>
+<h1>{{ agency.name }}</h1>
+<p class="partner-lead">Your people, their payment arrangements, and the bookings credited to this agency.</p>
+<div class="partner-tiles">
+  <div class="tile"><div class="k">{{ member_count }}</div><div class="s">Agents on this agency</div></div>
+  <div class="tile"><div class="k">${{ money.unpaid|default:0|floatformat:2 }}</div><div class="s">Awaiting payout</div></div>
+  <div class="tile"><div class="k">${{ money.pending|default:0|floatformat:2 }}</div><div class="s">Pending completion</div></div>
+  <div class="tile"><div class="k">${{ money.paid|default:0|floatformat:2 }}</div><div class="s">Paid to date</div></div>
+</div>
+{% if agencies|length > 1 %}<nav aria-label="Switch agency">{% for item in agencies %}<a class="partner-status" href="{% url 'partner_agency' item.pk %}">{{ item.name }}</a>{% endfor %}</nav>{% endif %}
+{% if matching_enabled and candidates %}
+<section class="partner-card"><h2>Agents to review</h2><p class="partner-note">These people identified your agency and verified their email. Their booking history and payout details remain private.</p>
+{% for candidate in candidates %}<details><summary>{{ candidate.name }} · {{ candidate.email }}</summary><p>Entered agency: {{ candidate.affiliation }}<br>Payment preference: {{ candidate.requested_payee }}</p><form method="post">{% csrf_token %}<input type="hidden" name="claim" value="{{ candidate.id }}"><label for="payee-{{ candidate.id }}">Payment arrangement</label><select id="payee-{{ candidate.id }}" name="payee"><option value="direct" {% if candidate.requested_payee == 'direct' %}selected{% endif %}>Direct to agent</option><option value="agency" {% if candidate.requested_payee == 'agency' %}selected{% endif %}>Through our agency</option></select><p class="partner-note">If this differs from the agent’s preference, they must accept before it takes effect.</p><label for="reason-{{ candidate.id }}">Reason / message</label><input id="reason-{{ candidate.id }}" name="reason" maxlength="1000"><div class="partner-actions"><button name="action" value="add">Add agent</button><button class="secondary" name="action" value="reject">Not ours</button></div></form></details>{% endfor %}</section>
+{% endif %}
+<section class="partner-card">
+  <h2>Your members</h2>
+  <form method="get" class="partner-search">
+    <label class="sr-only" for="member-q">Search agents</label>
+    <input type="search" id="member-q" name="q" value="{{ member_query }}" placeholder="Search by name or email">
+    <button class="secondary">Search</button>
+    {% if member_query %}<a class="partner-note" href="{% url 'partner_agency' agency.pk %}">Clear</a>{% endif %}
+  </form>
+  {% if member_query %}<p class="partner-note">{{ member_shown }} of {{ member_count }} agents match "{{ member_query }}".</p>{% endif %}
+  <div class="partner-table">
+    <table>
+      <thead><tr><th>Agent</th><th>Role</th><th>Paid by</th><th class="num">Awaiting</th><th class="num">Pending</th><th class="num">Earned</th><th class="actions-col">Agent</th></tr></thead>
+      <tbody>
+      {% for member in members %}
+        {% with a=member.user.travelagent %}
+        <tr>
+          <td><strong>{{ a.agent_name|default:member.user.username }}</strong><br>
+            <span class="partner-note">{{ member.user.email }}{% if a.phone %} · {{ a.phone }}{% endif %}</span></td>
+          <td>{{ member.get_role_display }}</td>
+          <td>{% if member.payee == 'agency' %}The agency{% elif member.payee == 'direct' %}The agent{% else %}Not settled{% endif %}</td>
+          <td class="num">${{ a.unpaid_commissions|default:0|floatformat:2 }}</td>
+          <td class="num">${{ a.pending_commissions|default:0|floatformat:2 }}</td>
+          <td class="num">${{ a.total_paid_commission|default:0|floatformat:2 }}</td>
+          <td class="row-actions">
+            {% if a.pk %}<a class="partner-view" href="{% url 'agent_detail' a.pk %}">View</a>{% endif %}
+            <details class="row-manage"><summary>Manage</summary>
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="membership" value="{{ member.pk }}">
+              <div class="partner-field"><label for="mr-{{ member.pk }}">Reason for the change</label><input id="mr-{{ member.pk }}" name="reason" required></div>
+              {% if can_own %}
+                <div class="partner-field"><label for="role-{{ member.pk }}">Role</label>
+                  <select name="role" id="role-{{ member.pk }}">
+                    <option value="agent" {% if member.role == 'agent' %}selected{% endif %}>Agent</option>
+                    <option value="admin" {% if member.role == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="owner" {% if member.role == 'owner' %}selected{% endif %}>Owner</option>
+                  </select></div>
+                <div class="partner-actions"><button name="action" value="role">Update role</button>
+                  <button class="secondary" name="action" value="remove">Remove</button></div>
+              {% else %}
+                <div class="partner-actions"><button class="secondary" name="action" value="remove">Remove</button></div>
+              {% endif %}
+            </form>
+            </details>
+          </td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="7" class="partner-note">{% if member_query %}Nobody matches that search.{% else %}No agents on this agency yet.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if members.has_other_pages %}
+    <p class="partner-pager">
+      {% if members.has_previous %}<a href="?mpage={{ members.previous_page_number }}{% if member_query %}&q={{ member_query|urlencode }}{% endif %}">Previous</a>{% endif %}
+      <span>Page {{ members.number }} of {{ members.paginator.num_pages }}</span>
+      {% if members.has_next %}<a href="?mpage={{ members.next_page_number }}{% if member_query %}&q={{ member_query|urlencode }}{% endif %}">Next</a>{% endif %}
+    </p>
+  {% endif %}
+</section>
+<section class="partner-card"><h2>Agency bookings</h2><p class="partner-note">Only bookings attributed to this agency appear here. Adding a member does not include their earlier bookings.</p><div class="partner-table"><table><thead><tr><th>Booking</th><th>Guest</th><th>Agent</th><th>Status</th><th>Commission</th></tr></thead><tbody>{% for booking in bookings %}<tr><td>{{ booking.display_number|default:booking.pk }}</td><td>{{ booking.customer.get_full_name }}</td><td>{{ booking.travel_agent.agent_name }}</td><td>{{ booking.status }}</td><td>${{ booking.commission_amount|default:'0.00' }}{% if booking.partner_context.hold %}<br>{{ booking.partner_context.hold }}{% endif %}</td></tr>{% empty %}<tr><td colspan="5">No bookings attributed to this agency yet.</td></tr>{% endfor %}</tbody></table></div>{% if bookings.has_previous %}<a href="?page={{ bookings.previous_page_number }}{% if request.GET.agent %}&agent={{ request.GET.agent|urlencode }}{% endif %}">Previous</a>{% endif %} <span>Page {{ bookings.number }} of {{ bookings.paginator.num_pages }}</span> {% if bookings.has_next %}<a href="?page={{ bookings.next_page_number }}{% if request.GET.agent %}&agent={{ request.GET.agent|urlencode }}{% endif %}">Next</a>{% endif %}</section>
+<section class="partner-card"><h2>Agency payment history</h2>{% for payout in payouts %}<p><a href="{% url 'agency_commission_payout_detail' payout.pk %}">Payout #{{ payout.pk }}</a> · {{ payout.paid_at|date:'M j, Y' }} · ${{ payout.total_amount }}</p>{% empty %}<p>No agency payouts recorded yet.</p>{% endfor %}</section><section class="partner-card"><h2>Decision history</h2>{% for item in decisions %}<p>{{ item.created_at }} · {{ item.kind }}{% if item.details.reason %}<br>{{ item.details.reason }}{% endif %}</p>{% empty %}<p>No decisions recorded yet.</p>{% endfor %}</section>{% if can_own %}<section class="partner-card"><h2>Agency profile & payout details</h2><p class="partner-note">Name changes go through Grayson to keep private agency matching accurate.</p><form method="post">{% csrf_token %}<input type="hidden" name="action" value="profile">{{ form.as_p }}<button>Save agency details</button></form></section>
+{% endif %}
+</div>
+{% endblock %}

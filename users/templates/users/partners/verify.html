@@ -1,0 +1,5 @@
+{% extends 'users/partners/base.html' %}{% block partner_content %}
+<div class="partner-wrap">
+<section class="partner-card partner-compact"><div class="partner-eyebrow">One small step</div><h1>Confirm your email.</h1><p>Verification lets us complete your partner setup. It does not sign you in or share your earlier bookings.</p><form method="post">{% csrf_token %}<button>Verify this email</button></form></section>
+</div>
+{% endblock %}

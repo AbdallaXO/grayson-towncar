@@ -1,0 +1,35 @@
+{% extends 'main.html' %}{% load static %}
+{% comment %}
+  A Grayson staff screen. It borrows the partner design tokens but not the
+  GRAYSON PARTNERS header -- internal tools do not belong inside the
+  agency-facing portal.
+{% endcomment %}
+{% block title %}Partner payouts | Grayson{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/partner-portal.css' %}">
+<div class="partner-shell">
+<div class="partner-wrap">
+<div class="partner-eyebrow">Recorded commission payees</div><h1>Partner payouts.</h1><p class="partner-lead">Amounts below use the payee recorded for each booking. Changing an agent’s agency does not reroute an earlier commission.</p><section class="partner-card"><h2>Ready to pay</h2><div class="partner-table"><table><thead><tr><th>Payee</th><th>Bookings</th><th>Total</th><th>Action</th></tr></thead><tbody>{% for group in groups %}<tr><td>{{ group.name }} · {{ group.kind }}</td><td>{{ group.count }}</td><td>${{ group.total|floatformat:2 }}</td><td><button type="button" class="payout-preview" data-kind="{{ group.kind }}" data-id="{{ group.id }}">Preview payout</button></td></tr>{% empty %}<tr><td colspan="4">No commissions ready to pay.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="partner-card" id="payout-confirm" hidden><h2>Review before marking paid</h2><p id="payout-summary"></p><div id="payout-lines"></div><form id="payout-form">{% csrf_token %}<label>Payment reference</label><input name="reference" required><label>Method used</label><input name="method" required><p class="partner-note">This records a payment you have made. It does not transfer money.</p><button>Mark this payee paid</button></form><p id="payout-result" role="status"></p></section>
+<section class="partner-card"><h2>Needs review / payout held</h2><div class="partner-table"><table><thead><tr><th>Booking</th><th>Agent</th><th>Accrued commission</th><th>Reason</th></tr></thead><tbody>{% for row in held %}<tr><td>{{ row.id }}</td><td>{{ row.agent }}</td><td>${{ row.amount|floatformat:2 }}</td><td>{{ row.reason }}</td></tr>{% empty %}<tr><td colspan="4">No commissions requiring review.</td></tr>{% endfor %}</tbody></table></div><a href="{% url 'partner_staff' %}">Resolve partner setup or preview a backfill</a></section>
+<script>
+let selected=null;
+const result=document.getElementById('payout-result');
+document.querySelectorAll('.payout-preview').forEach(button=>button.addEventListener('click',async()=>{
+ selected={type:button.dataset.kind,id:Number(button.dataset.id)};
+ const url=selected.type==='agency'?"{% url 'preview_agency_payout' %}":"{% url 'preview_agent_payout' %}";
+ try{const response=await fetch(url+'?id='+selected.id);if(!response.ok)throw Error('Preview unavailable');const data=await response.json();
+ document.getElementById('payout-confirm').hidden=false;document.getElementById('payout-summary').textContent='Current eligible total: $'+data.total;
+ const lines=document.getElementById('payout-lines');lines.replaceChildren();const rows=data.reservations||data.agents?.flatMap(a=>a.reservations)||[];
+ rows.forEach(row=>{const p=document.createElement('p');p.textContent='Booking '+row.id+' · $'+row.commission;lines.appendChild(p);});result.textContent='';
+ }catch(e){alert(e.message);}
+}));
+document.getElementById('payout-form').addEventListener('submit',async event=>{event.preventDefault();if(!selected)return;const form=event.target;const button=form.querySelector('button');button.disabled=true;
+ try{const response=await fetch("{% url 'process_bulk_payout' %}",{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':form.csrfmiddlewaretoken.value},body:JSON.stringify({items:[{...selected,reference:form.reference.value,method:form.elements.namedItem('method').value,email:false}]})});const data=await response.json();const item=data.items?.[0];if(!response.ok||!item?.ok)throw Error(item?.error||data.error||'No payout was recorded');location.reload();}catch(e){result.textContent=e.message;button.disabled=false;}
+});
+</script>
+</div>
+</div>
+{% endblock %}
+
+{% block newsletter %}{% endblock %}

@@ -19783,9 +19783,7 @@ def process_agency_payout_view(request):
         agency = Agency.objects.get(id=agency_id)
 
         # Check if there are agents with unpaid commissions
-        owing_agents = agency.agents.filter(
-            unpaid_commissions__gt=0, agency_handles_payment=True
-        ).count()
+        owing_agents = svc_preview_agency_payout(agency)["count"]
 
         if owing_agents == 0:
             return JsonResponse({"success": False, "error": "No unpaid commissions for this agency."})
@@ -20828,85 +20826,53 @@ def admin_travel_agent_detail(request, pk):
 @staff_member_required
 @require_POST
 def admin_travel_agent_set_agency(request, pk):
-    """
-    Assign an agent to an agency. Accepts:
-      - existing_agency: <agency_id> | "" (none = unassign)
-      - new_agency_name: optional — if filled, creates a new Agency and assigns it
-
-    Responds with JSON when the request asks for it
-    (X-Requested-With: XMLHttpRequest or Accept: application/json),
-    otherwise redirects to the agent detail page.
-    """
+    from users import partner_services as partners
+    from django.core.exceptions import ValidationError
     agent = get_object_or_404(TravelAgent, pk=pk)
-    wants_json = (
-        request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        or "application/json" in request.headers.get("Accept", "")
-    )
-
-    new_name = (request.POST.get("new_agency_name") or "").strip()
-    existing = (request.POST.get("existing_agency") or "").strip()
-
-    flash = ""
-    if new_name:
-        agency = Agency.objects.filter(name__iexact=new_name).first()
-        created = False
-        if not agency:
-            agency = Agency.objects.create(name=new_name, is_active=True)
-            created = True
-        agent.agency = agency
-        agent.save(update_fields=["agency"])
-        flash = (
-            f"Created agency \"{agency.name}\" and assigned {agent} to it."
-            if created else
-            f"Assigned {agent} to existing agency \"{agency.name}\"."
-        )
-    elif existing == "":
-        agent.agency = None
-        agent.save(update_fields=["agency"])
-        flash = f"Removed {agent} from their agency."
-    elif existing.isdigit():
-        agency = get_object_or_404(Agency, pk=int(existing))
-        agent.agency = agency
-        agent.save(update_fields=["agency"])
-        flash = f"Assigned {agent} to {agency.name}."
-    else:
-        if wants_json:
-            return JsonResponse({"success": False, "error": "No agency selection provided."}, status=400)
-        messages.error(request, "No agency selection provided.")
-        return redirect("admin_travel_agent_detail", pk=agent.pk)
-
-    if wants_json:
-        return JsonResponse({
-            "success": True,
-            "message": flash,
-            "agency": (
-                {"id": agent.agency.id, "name": agent.agency.name}
-                if agent.agency else None
-            ),
-        })
-    messages.success(request, flash)
-    return redirect("admin_travel_agent_detail", pk=agent.pk)
+    reason = request.POST.get("reason", "")
+    try:
+        partners.require_staff(request.user, reason)
+        with transaction.atomic():
+            if request.POST.get("new_agency_name"):
+                name = request.POST["new_agency_name"].strip()
+                matches = list(Agency.objects.filter(name__iexact=name)[:2])
+                if len(matches) > 1:
+                    raise ValidationError("Multiple agencies match. Select the specific agency.")
+                agency = matches[0] if matches else Agency.objects.create(name=name)
+            elif request.POST.get("existing_agency"):
+                agency = get_object_or_404(Agency, pk=request.POST["existing_agency"])
+            else:
+                from users.models import AgencyMembership
+                for member in AgencyMembership.objects.filter(user=agent.user,active=True,booking_affiliation=True):
+                    partners.remove_member(request.user, member.pk, reason)
+                agency = None
+            if agency:
+                partners.assign_member(request.user, agent, agency, "pending", reason)
+        if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+            messages.success(request, "Future affiliation updated. Review payment routing in Partner onboarding.")
+            return redirect("admin_travel_agent_detail", pk=pk)
+        return JsonResponse({"success": True, "message": "Future affiliation updated; payment arrangement needs confirmation.",
+            "agency": {"id": agency.pk, "name": agency.name} if agency else None})
+    except ValidationError as exc:
+        return JsonResponse({"success": False, "error": " ".join(exc.messages)}, status=400)
 
 
 @login_required
 @staff_member_required
 @require_POST
 def admin_travel_agent_toggle_agency_pays(request, pk):
-    """JSON: flip the agency_handles_payment flag on a single agent."""
+    from users import partner_services as partners
+    from django.core.exceptions import ValidationError
     agent = get_object_or_404(TravelAgent, pk=pk)
     try:
         data = json.loads(request.body or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
-    val = bool(data.get("agency_handles_payment"))
-    if val and not agent.agency_id:
-        return JsonResponse(
-            {"success": False, "error": "Assign an agency before enabling agency-pays."},
-            status=400,
-        )
-    agent.agency_handles_payment = val
-    agent.save(update_fields=["agency_handles_payment"])
-    return JsonResponse({"success": True, "agency_handles_payment": val})
+        val = data.get("agency_handles_payment")
+        if not isinstance(val, bool) or not agent.agency_id:
+            raise ValidationError("Choose a boolean routing option and assign an agency first.")
+        partners.assign_member(request.user, agent, agent.agency, "agency" if val else "direct", data.get("reason", ""))
+        return JsonResponse({"success": True, "agency_handles_payment": val})
+    except (ValidationError, ValueError) as exc:
+        return JsonResponse({"success": False, "error": str(exc)}, status=400)
 
 
 @login_required
@@ -20935,39 +20901,30 @@ def admin_travel_agent_set_rate(request, pk):
 @staff_member_required
 @require_POST
 def admin_travel_agents_bulk_assign(request):
-    """JSON: assign many agents to one agency in a single call.
-
-    Body:
-      - agent_ids: [int]
-      - agency_id: <int> | null  (null = unassign)
-    """
+    from users import partner_services as partners
+    from users.models import AgencyMembership
+    from django.core.exceptions import ValidationError
     try:
         data = json.loads(request.body or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
-
-    agent_ids = data.get("agent_ids") or []
-    if not isinstance(agent_ids, list) or not agent_ids:
-        return JsonResponse({"success": False, "error": "agent_ids required"}, status=400)
-    try:
-        agent_ids = [int(x) for x in agent_ids]
-    except (TypeError, ValueError):
-        return JsonResponse({"success": False, "error": "agent_ids must be ints"}, status=400)
-
-    raw_agency = data.get("agency_id")
-    agency = None
-    if raw_agency not in (None, "", "null"):
-        try:
-            agency = Agency.objects.get(pk=int(raw_agency))
-        except (Agency.DoesNotExist, TypeError, ValueError):
-            return JsonResponse({"success": False, "error": "Agency not found"}, status=404)
-
-    updated = TravelAgent.objects.filter(id__in=agent_ids).update(agency=agency)
-    return JsonResponse({
-        "success": True,
-        "updated": updated,
-        "agency": ({"id": agency.id, "name": agency.name} if agency else None),
-    })
+        reason = data.get("reason", "")
+        partners.require_staff(request.user, reason)
+        ids = sorted(set(int(v) for v in data.get("agent_ids", [])))
+        if not ids or len(ids) > 500:
+            raise ValidationError("Select 1–500 agents.")
+        agency = get_object_or_404(Agency, pk=data["agency_id"]) if data.get("agency_id") else None
+        with transaction.atomic():
+            agents = list(TravelAgent.objects.filter(pk__in=ids).order_by("pk"))
+            if len(agents) != len(ids):
+                raise ValidationError("An agent was not found.")
+            for agent in agents:
+                if agency:
+                    partners.assign_member(request.user, agent, agency, "pending", reason)
+                else:
+                    for member in AgencyMembership.objects.filter(user=agent.user,active=True,booking_affiliation=True):
+                        partners.remove_member(request.user, member.pk, reason)
+        return JsonResponse({"success": True, "updated": len(ids), "agency": {"id": agency.pk,"name": agency.name} if agency else None})
+    except (ValidationError, ValueError, TypeError) as exc:
+        return JsonResponse({"success": False, "error": str(exc)}, status=400)
 
 
 @login_required

@@ -478,34 +478,6 @@ def send_refund_request_notification(refund_request_or_reservation):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
-def agent_register_email(instance):
-    """
-    Sends a welcome email to new travel agents after registration.
-    Uses background thread to avoid blocking the request.
-    """
-    try:
-        context = {
-            "agent": instance,
-            "agent_name": instance.agent_name or instance.user.get_full_name() or instance.user.username,
-            "email": instance.user.email,
-        }
-        subject = "Welcome to Grayson Towncar Travel Agent Portal!"
-        from_email = "reservations@graysontowncar.com"
-        to = [instance.user.email]
-        html_content = render_to_string("users/agent_register_email.html", context)
-
-        def _send_email():
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            logger.info(f"Welcome email sent to {instance.user.email}")
-
-        _send_email_with_retry(_send_email, max_retries=3)
-
-    except Exception as e:
-        logger.error(f"Error sending agent welcome email: {e}")
-
-
 def send_internal_confirmation(reservation):
     """Emails Self when a reservation gets made in case of any errors and customer does not get an email"""
     logger.info(
@@ -664,64 +636,6 @@ def thankyou_email(instance):
         logger.error(f"Error sending thank you email: {e}")
 
 
-def partner_inquiry_thankyou_email(instance):
-    """
-    Sends a branded "we received your partner inquiry" email to the submitter.
-    Uses the existing partner_contact_email.html template (Tabular-built).
-    """
-    try:
-        context = {
-            "name": instance.name,
-            "email": instance.email,
-            "agency_name": instance.agency_name,
-        }
-        subject = "We received your partner inquiry — Grayson Towncar"
-        from_email = "reservations@graysontowncar.com"
-        to = [instance.email]
-        html_content = render_to_string("users/partner_contact_email.html", context)
-
-        def _send_email():
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            logger.info(f"Partner inquiry thank-you sent to {instance.email}")
-
-        _send_email_with_retry(_send_email, max_retries=3)
-
-    except Exception as e:
-        logger.error(f"Error sending partner inquiry thank-you email: {e}")
-
-
-def partner_inquiry_admin_notification(instance):
-    """
-    Notify staff that a new partner inquiry was submitted, so it doesn't sit
-    silently in the DB. Sent to admin@graysontowncar.com (same inbox used by
-    refund-request notifications).
-    """
-    try:
-        context = {
-            "inquiry": instance,
-            # Best-effort deep link into the Django admin change page so a
-            # staff member can open it from the email with one click.
-            "admin_url": f"https://www.graysontowncar.com/admin/users/partnerform/{instance.pk}/change/",
-        }
-        subject = f"New partner inquiry: {instance.name} ({instance.agency_name})"
-        from_email = "reservations@graysontowncar.com"
-        to = ["admin@graysontowncar.com"]
-        html_content = render_to_string("users/partner_inquiry_admin_email.html", context)
-
-        def _send_email():
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            logger.info(f"Partner inquiry admin notification sent for #{instance.pk}")
-
-        _send_email_with_retry(_send_email, max_retries=3)
-
-    except Exception as e:
-        logger.error(f"Error sending partner inquiry admin notification: {e}")
-
-
 def send_agent_commission_statement(agent, payout, recipient_email, sent_by=None):
     """
     Send a commission statement email to a travel agent.
@@ -811,8 +725,13 @@ def send_agency_commission_statement(agency, payout, recipient_email, sent_by=No
 
     try:
         # Get agent payouts for this agency payout
-        agent_payouts = payout.agent_payouts.all().select_related("agent", "agent__user")
+        # Agency statements may show payment totals, but guest detail must remain
+        # scoped even for commissions resolved before membership approval.
+        from django.db.models import Prefetch
+        agent_payouts = payout.agent_payouts.all().select_related("agent", "agent__user").prefetch_related(
+            Prefetch("reservations", queryset=Reservation.objects.filter(partner_context__agency=agency).select_related("customer")))
 
+        payout._prefetched_objects_cache = {"agent_payouts": agent_payouts}
         # Calculate totals
         total_agents = agent_payouts.count()
         total_reservations = sum(ap.reservations.count() for ap in agent_payouts)

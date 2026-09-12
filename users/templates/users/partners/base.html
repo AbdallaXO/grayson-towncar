@@ -1,0 +1,10 @@
+{% extends 'main.html' %}{% load static %}
+{% block title %}Grayson Partner Portal{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/partner-portal.css' %}">
+<div class="partner-shell">
+  <header class="partner-header"><a href="{% url 'partner' %}" class="partner-wordmark">GRAYSON <span>PARTNERS</span></a><nav aria-label="Partner navigation">{% if user.is_authenticated %}<a href="{% url 'agent_dashboard' %}">My bookings</a><a href="{% url 'partner_setup' %}">My account</a><a href="{% url 'agency_dashboard' %}">My agencies</a>{% else %}<a href="{% url 'agent_login' %}">Sign in</a>{% endif %}</nav></header>
+  {% block partner_content %}{% endblock %}
+</div>
+{% endblock %}
+{% block newsletter %}{% endblock %}

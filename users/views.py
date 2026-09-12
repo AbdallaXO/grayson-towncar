@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import User
@@ -21,7 +22,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import HttpResponse, Http404, JsonResponse
 import json
 import logging
 
@@ -82,8 +83,14 @@ def partner(request):
                 "try again, or call us at (407) 212-7190.",
             )
         elif form.is_valid():
-            form.save()
-            return redirect("thankyou")
+            inquiry = form.save()
+            request.session["partner_inquiry"] = inquiry.pk
+            request.session["partner_draft"] = {
+                "agent_name": inquiry.name, "email": inquiry.email,
+                "phone": inquiry.phone_number, "agency_name": inquiry.agency_name,
+                "agency_website": inquiry.agency_website or "",
+            }
+            return render(request, "users/partners/inquiry_success.html")
     else:
         form = PartnerFormSubmission()
 
@@ -223,9 +230,14 @@ def registerUser(request):
     if request.method == "POST":
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
-            user = form.save(commit=False)
-            user.username = user.username.lower()
-            user.save()
+            from .partner_services import create_personal_user
+            from django.core.exceptions import ValidationError
+            from django.db import IntegrityError
+            try:
+                user = create_personal_user(form.cleaned_data['username'], form.cleaned_data['email'], form.cleaned_data['password1'])
+            except (ValidationError, IntegrityError):
+                form.add_error(None, 'This account already exists. Sign in to continue.')
+                return render(request, 'users/login_register.html', {'page':'register','form':form})
             messages.success(
                 request,
                 f"Hello {user.username} Your account was created successfully!",
@@ -247,18 +259,59 @@ def registerUser(request):
     )
 
 
+AMBIGUOUS_LOGIN = (
+    "That email is shared by more than one account. Please sign in with your "
+    "username, or contact Grayson to have the accounts sorted out."
+)
+
+
+def resolve_login_identifier(identifier):
+    """Find the single account for a username or an email address.
+
+    Returns ``(user, ambiguous)``. Username is tried first, then email. When an
+    identifier matches more than one account, no user is returned and
+    ``ambiguous`` is True -- picking one arbitrarily would sign somebody into a
+    stranger's account, and this database really does contain shared emails and
+    case-variant usernames.
+    """
+    identifier = (identifier or "").strip()
+    if not identifier:
+        return None, False
+
+    by_username = list(User.objects.filter(username__iexact=identifier)[:2])
+    if len(by_username) == 1:
+        return by_username[0], False
+    if len(by_username) > 1:
+        return None, True
+
+    if "@" in identifier:
+        by_email = list(User.objects.filter(email__iexact=identifier)[:2])
+        if len(by_email) == 1:
+            return by_email[0], False
+        if len(by_email) > 1:
+            return None, True
+
+    return None, False
+
+
 def loginUser(request):
     """Handle user login for admins and drivers only."""
     if request.method == "POST":
+        from .partner_views import limited
+        if limited(request, "login", limit=30, seconds=900):
+            return HttpResponse("Too many sign-in attempts. Please try again later.", status=429)
+
         username = request.POST["username"]
         password = request.POST["password"]
 
-        # Try to find user with case-insensitive lookup
-        try:
-            user_obj = User.objects.get(username__iexact=username)
-            # Use the actual username from database for authentication
+        # Username or email; the resolver refuses to guess when either is shared.
+        user_obj, ambiguous = resolve_login_identifier(username)
+        if ambiguous:
+            messages.error(request, AMBIGUOUS_LOGIN)
+            user = None
+        elif user_obj is not None:
             user = authenticate(request, username=user_obj.username, password=password)
-        except User.DoesNotExist:
+        else:
             user = None
 
         if user is not None:
@@ -352,87 +405,34 @@ def rate_limit(key_prefix, limit=60, period=60):
 
 
 def register_agent(request):
-    """Handle travel agent registration with user account creation."""
-    if request.method == "POST":
-        # Extract form data
-        form_data = {
-            "username": request.POST.get("username"),
-            "email": request.POST.get("email"),
-            "agent_name": request.POST.get("agent_name"),
-            "agency_name": request.POST.get("agency_name"),
-            "phone": request.POST.get("phone"),
-            "payment_info": request.POST.get("payment_info"),
-            "payment_method": request.POST.get("payment_method"),
-        }
-
-        password1 = request.POST.get("password1")
-        password2 = request.POST.get("password2")
-        error_context = {"form_data": form_data}
-
-        # Validate passwords
-        if password1 != password2:
-            messages.error(request, "Passwords do not match.")
-            return render(request, "users/register_agent.html", error_context)
-
-        # Check for existing accounts
-        if User.objects.filter(username=form_data["username"]).exists():
-            messages.error(request, "Username already exists.")
-            return render(request, "users/register_agent.html", error_context)
-
-        if User.objects.filter(email=form_data["email"]).exists():
-            messages.error(request, "Email already exists.")
-            return render(request, "users/register_agent.html", error_context)
-
-        try:
-            # Create user and agent profile atomically
-            with transaction.atomic():
-                user = User.objects.create_user(
-                    username=form_data["username"],
-                    email=form_data["email"],
-                    password=password1,
-                )
-
-                TravelAgent.objects.create(
-                    user=user,
-                    agent_name=form_data["agent_name"],
-                    agency_name=form_data["agency_name"],
-                    phone=form_data["phone"],
-                    payment_method=form_data["payment_method"],
-                    payment_info=form_data["payment_info"],
-                )
-
-            login(request, user)
-            messages.success(request, "Successfully registered as a travel agent!")
-            return redirect("agent_dashboard")
-
-        except Exception as e:
-            messages.error(request, f"Error creating account: {str(e)}")
-            return render(request, "users/register_agent.html", error_context)
-
-    return render(request, "users/register_agent.html")
+    from .partner_views import register
+    return register(request)
 
 
 def agent_login(request):
-    """Dedicated login view for travel agents with validation."""
-    # Redirect if already authenticated agent
     if request.user.is_authenticated:
-        try:
-            TravelAgent.objects.get(user=request.user)
-            return redirect("agent_dashboard")
-        except TravelAgent.DoesNotExist:
-            messages.error(request, "You are not registered as a travel agent.")
-            logout(request)
+        from django.utils.http import url_has_allowed_host_and_scheme
+        target = request.GET.get("next")
+        if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+            return redirect(target)
+        return redirect("partner_setup" if TravelAgent.objects.filter(user=request.user).exists() else "register_agent")
 
     if request.method == "POST":
+        from .partner_views import limited
+        if limited(request, "login", limit=30, seconds=900):
+            return HttpResponse("Too many sign-in attempts. Please try again later.", status=429)
+
         username = request.POST["username"]
         password = request.POST["password"]
 
-        # Try to find user with case-insensitive lookup
-        try:
-            user_obj = User.objects.get(username__iexact=username)
-            # Use the actual username from database for authentication
+        # Username or email; the resolver refuses to guess when either is shared.
+        user_obj, ambiguous = resolve_login_identifier(username)
+        if ambiguous:
+            messages.error(request, AMBIGUOUS_LOGIN)
+            user = None
+        elif user_obj is not None:
             user = authenticate(request, username=user_obj.username, password=password)
-        except User.DoesNotExist:
+        else:
             user = None
 
         if user is not None:
@@ -441,15 +441,88 @@ def agent_login(request):
                 login(request, user)
                 request.session["login_type"] = "agent"  # Add this line
                 messages.success(request, "Successfully logged in as travel agent")
-                return redirect("agent_dashboard")
+                from django.utils.http import url_has_allowed_host_and_scheme
+                target = request.POST.get("next") or request.GET.get("next")
+                if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                    return redirect(target)
+                return redirect("partner_setup")
             except TravelAgent.DoesNotExist:
-                messages.error(
-                    request, "This account is not registered as a travel agent."
-                )
+                login(request, user)
+                from .partner_services import managed_agencies
+                return redirect("agency_dashboard" if managed_agencies(user).exists() else "register_agent")
         else:
             messages.error(request, "Invalid credentials")
 
     return render(request, "users/agent_login.html")
+
+
+def _reset_link_lifetime():
+    """How long a reset link lasts, in the words the email uses.
+
+    Read from PASSWORD_RESET_TIMEOUT rather than hard-coded, so the promise in
+    the email cannot drift away from what the token actually does.
+    """
+    from django.conf import settings
+
+    seconds = getattr(settings, "PASSWORD_RESET_TIMEOUT", 259200)
+    hours = seconds / 3600
+    if hours < 1:
+        minutes = max(1, round(seconds / 60))
+        return f"{minutes} minute{'s' if minutes != 1 else ''}"
+    if hours < 48:
+        hours = round(hours)
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    days = round(hours / 24)
+    return f"{days} day{'s' if days != 1 else ''}"
+
+
+class PartnerPasswordResetView(auth_views.PasswordResetView):
+    """Password reset, wearing the same brand as the rest of the partner mail.
+
+    The HTML body reuses the partner email shell (users/partners/email.html)
+    so a reset looks like it came from the same company as every other
+    message. The plain-text body stays the fallback, as it does in the outbox.
+    """
+
+    template_name = "users/password_reset.html"
+    subject_template_name = "users/password_reset_subject.txt"
+    email_template_name = "users/password_reset_email.txt"
+    html_email_template_name = "users/password_reset_email.html"
+    success_url = reverse_lazy("password_reset_done")
+
+    @property
+    def extra_email_context(self):
+        from django.conf import settings
+
+        lifetime = _reset_link_lifetime()
+        return {
+            # Framing for the shared shell. No program pitch on a security
+            # email — it gets the masthead, the message and the button.
+            "show_program": False,
+            "eyebrow": "Account security",
+            "headline": "Let us get you back in.",
+            "action_label": "Choose a new password",
+            "paragraphs": [
+                "Someone asked to reset the password on the Grayson partner "
+                "account registered to this address.",
+                f"Use the button below to choose a new one. The link works once "
+                f"and expires in {lifetime}.",
+                "If this was not you, no action is needed — your password has "
+                "not changed, and this link can be ignored.",
+            ],
+            "preheader": f"Choose a new password. The link works once and expires in {lifetime}.",
+            "link_lifetime": lifetime,
+            "assets": getattr(
+                settings, "PARTNER_EMAIL_ASSET_ORIGIN", "https://www.graysontowncar.com"
+            ).rstrip("/"),
+            "partner_email": getattr(
+                settings, "PARTNER_CONTACT_EMAIL", "reservations@graysontowncar.com"
+            ),
+            "footer_note": (
+                "You received this because a password reset was requested for "
+                "this address. If it was not you, you can safely ignore it."
+            ),
+        }
 
 
 @agent_required
@@ -1018,7 +1091,7 @@ def agency_commission_history(request, agency_id):
     return render(request, "users/agency_commission_history.html", context)
 
 
-class AgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+class LegacyAgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     """Detailed view of a specific agency for agency heads."""
 
     model = Agency
@@ -1233,7 +1306,8 @@ def commission_payout_detail(request, pk):
     has_permission = (
         request.user.is_superuser
         or request.user == agent.user
-        or (agent.agency and agent.agency.heads.filter(id=request.user.id).exists())
+        or (payout.agency_id and payout.agency.is_active and payout.agency.heads.filter(id=request.user.id).exists()
+            and not payout.reservations.exclude(partner_context__agency_id=payout.agency_id).exists())
     )
 
     if not has_permission:
@@ -1282,34 +1356,12 @@ def update_agency_payment(request):
 
 @login_required
 def agency_commission_payout_detail(request, payout_id):
-    """Display detailed information about a specific agency commission payout."""
-    payout = get_object_or_404(AgencyCommissionPayout, id=payout_id)
-    agency = payout.agency
-
-    # Verify user permissions
-    if not request.user.is_superuser and not agency.heads.filter(id=request.user.id).exists():
-        raise Http404("You don't have permission to view this payout")
-
-    # Calculate total reservations across all agent payouts
-    total_reservations = sum(
-        agent_payout.reservations.count() for agent_payout in payout.agent_payouts.all()
-    )
-
-    # Calculate average commission per agent
-    average_commission = (
-        payout.total_amount / payout.agent_payouts.count()
-        if payout.agent_payouts.exists()
-        else 0
-    )
-
-    context = {
-        "agency": agency,
-        "payout": payout,
-        "total_reservations": total_reservations,
-        "average_commission": average_commission,
-    }
-
-    return render(request, "users/agency_commission_detail.html", context)
+    from .partner_services import require_manager
+    payout = get_object_or_404(AgencyCommissionPayout, pk=payout_id)
+    require_manager(request.user, payout.agency)
+    rows = Reservation.objects.filter(commissionpayout__agency_payouts=payout,
+        partner_context__agency=payout.agency).select_related("customer","travel_agent").distinct()
+    return render(request, "users/partners/statement.html", {"payout": payout,"rows": rows})
 
 
 @login_required
@@ -1321,7 +1373,8 @@ def send_agent_commission_statement_email(request, pk):
     # Check permissions - must be the agent, agency head, or staff
     has_permission = (
         request.user == agent.user
-        or (agent.agency and agent.agency.heads.filter(id=request.user.id).exists())
+        or (payout.agency_id and payout.agency.is_active and payout.agency.heads.filter(id=request.user.id).exists()
+            and not payout.reservations.exclude(partner_context__agency_id=payout.agency_id).exists())
         or request.user.is_staff
     )
 
@@ -1363,10 +1416,8 @@ def send_agency_commission_statement_email(request, payout_id):
     agency = payout.agency
 
     # Check permissions - must be an agency head or staff
-    has_permission = (
-        agency.heads.filter(id=request.user.id).exists()
-        or request.user.is_staff
-    )
+    from .partner_services import managed_agencies
+    has_permission = request.user.is_staff or managed_agencies(request.user).filter(pk=agency.pk).exists()
 
     if not has_permission:
         messages.error(request, "Permission denied.")

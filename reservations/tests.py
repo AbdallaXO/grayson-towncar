@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 
 from rates.models import Location, Route, Vehicle, Rate
 from reservations.models import Customer, Leg, Lead, Reservation
-from users.models import TravelAgent
+from users.models import TravelAgent, PartnerIdentity
 from users.signals import travel_agent_email
 from reservations.lead_matching import (
     ReservationIndex, match_lead, norm_phone, recheck_lead_conversions,
@@ -261,6 +261,11 @@ class AgentAutoAttachByEmailTests(TestCase):
         cls.agent = TravelAgent.objects.create(
             user=active_user, agent_name="Jane Doe", phone="555-0100",
             commission_rate=Decimal("15.00"), is_active=True,
+        )
+        # Email-derived attribution requires a verified email (unverified emails
+        # must never attribute a booking); mark this fixture agent verified.
+        PartnerIdentity.objects.create(
+            user=active_user, verified_email=active_user.email, verified_at=timezone.now(),
         )
         inactive_user = User.objects.create_user(username="agentold", email="old@agency.com")
         cls.inactive_agent = TravelAgent.objects.create(

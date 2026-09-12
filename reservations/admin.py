@@ -901,6 +901,8 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
     inlines = [LegInline]
     autocomplete_fields = ("customer", "travel_agent")
     readonly_fields = (
+        "commission_paid",
+        "commission_amount",
         "created_at",
         "updated_at",
         "payment_status_display",

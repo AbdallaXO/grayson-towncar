@@ -1,0 +1,148 @@
+{% extends 'users/partners/base.html' %}{% block partner_content %}
+<div class="partner-wrap">
+
+  <header style="padding:38px 0 6px">
+    <div class="partner-eyebrow">Your partner account</div>
+    <h1>Welcome, {{ agent.agent_name|default:user.username }}.</h1>
+    <p class="partner-lead">You can book now. Complete the steps below to finish your affiliation and commission setup.</p>
+    <div class="partner-actions">
+      <a class="partner-button" href="{% url 'home' %}">Book a trip</a>
+      <a class="partner-button secondary" href="{% url 'agent_dashboard' %}">View my bookings</a>
+    </div>
+  </header>
+
+  <div class="partner-grid">
+    <div>
+      <section class="partner-card">
+        <h2>Your setup</h2>
+
+        <h3>Email</h3>
+        {% if identity.email_verified %}
+          <span class="partner-status is-done">Verified</span>
+        {% else %}
+          <span class="partner-status is-todo">Not verified yet</span>
+          <p class="partner-note">Verify {{ user.email }} to complete setup. Booking remains available.</p>
+          <form method="post" action="{% url 'partner_resend' %}">{% csrf_token %}<button class="secondary">Send verification link</button></form>
+        {% endif %}
+
+        {% for app in applications %}
+          <h3 class="partner-section-label">{{ app.name }}</h3>
+          <span class="partner-status">Agency application: {{ app.state }}</span>
+          {% if app.decision_reason %}<p class="partner-note">{{ app.decision_reason }}</p>{% endif %}
+        {% endfor %}
+
+        <h3 class="partner-section-label">Payout setup</h3>
+        {% if agent.payment_info_complete %}
+          <span class="partner-status is-done">Payment details complete</span>
+        {% else %}
+          <span class="partner-status is-todo">Payment details needed</span>
+        {% endif %}
+
+        {% if membership %}
+          <h3 class="partner-section-label">Current affiliation</h3>
+          <p>{{ membership.agency.name }} · {{ membership.get_payee_display }} payment</p>
+        {% endif %}
+
+        {% for claim in claims %}
+          <h3 class="partner-section-label">{{ claim.name }}</h3>
+          <span class="partner-status">{{ claim.get_state_display }}</span>
+          <p class="partner-note">Requested payment: {{ claim.get_requested_payee_display }}</p>
+          {% if claim.decision_reason %}<p class="partner-note">{{ claim.decision_reason }}</p>{% endif %}
+          {% if claim.state == 'payment_pending' %}
+            <p>Your agency proposes <strong>{{ claim.offered_payee }}</strong> payment. This takes effect only if you accept.</p>
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="action" value="accept_payment">
+              <input type="hidden" name="claim" value="{{ claim.pk }}">
+              <button>Accept payment arrangement</button>
+            </form>
+          {% endif %}
+        {% empty %}
+          {% if membership %}
+            <span class="partner-status is-done">Affiliation confirmed</span>
+          {% else %}
+            <p class="partner-note" style="margin-top:18px">No agency affiliation submitted. Your account is independent.</p>
+          {% endif %}
+        {% endfor %}
+
+        <p class="partner-note" style="margin-top:20px">Unresolved commissions accrue with payout held. Completing setup does not bypass normal trip eligibility.</p>
+      </section>
+
+      <section class="partner-card">
+        <h2>Your profile &amp; direct payout details</h2>
+        <form method="post" id="partner-profile" novalidate>{% csrf_token %}
+          <input type="hidden" name="action" value="profile">
+          {{ profile.non_field_errors }}
+          {% for field in profile %}
+            <div class="partner-field" data-field="{{ field.name }}">
+              {{ field.errors }}{{ field.label_tag }}{{ field }}
+              {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+            </div>
+          {% endfor %}
+          <div class="partner-actions"><button>Save details</button></div>
+        </form>
+      </section>
+    </div>
+
+    <aside>
+      <section class="partner-card">
+        <h2>The agency you work with</h2>
+        <p class="partner-note" style="margin-bottom:20px">If you book through an agency, name it here and we will confirm it with them. There is no public directory — your bookings and earnings stay private either way.</p>
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="action" value="affiliation">
+          {{ affiliation.non_field_errors }}
+          {% for field in affiliation %}
+            <div class="partner-field" data-field="{{ field.name }}">
+              {{ field.errors }}
+              {% if field.field.widget.input_type == 'checkbox' %}
+                <label for="{{ field.id_for_label }}">{{ field }} {{ field.label }}</label>
+              {% else %}{{ field.label_tag }}{{ field }}{% endif %}
+              {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+            </div>
+          {% endfor %}
+          <div class="partner-actions"><button>Save affiliation</button></div>
+        </form>
+        <details>
+          <summary>I work on my own, or this is wrong</summary>
+          <p class="partner-note">Tell us and we will mark your account independent. If an agency was linked to you by mistake, we can put it right without releasing any commission that is in dispute.</p>
+          <form method="post">{% csrf_token %}
+            <input type="hidden" name="action" value="independent">
+            <button class="secondary">I book on my own</button>
+          </form>
+        </details>
+      </section>
+
+      <section class="partner-card quiet">
+        <h2>Agencies you manage</h2>
+        {% for agency in agencies %}
+          <p><a href="{% url 'partner_agency' agency.pk %}">{{ agency.name }}</a></p>
+        {% empty %}
+          <p class="partner-note">No agency management access yet.</p>
+        {% endfor %}
+        <div class="partner-actions"><a class="partner-button secondary" href="{% url 'register_agent' %}?type=agency">Register my agency</a></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* Show only the fields for the payout method actually chosen, so a bank
+   transfer never asks for a Venmo username. */
+(function(){
+  const form=document.getElementById('partner-profile');
+  if(!form)return;
+  const method=form.elements.namedItem('payment_method');
+  if(!method)return;
+  const RAIL_FIELDS={paypal:['paypal_email'],venmo:['venmo_handle'],
+    bank:['bank_account_name','bank_routing_number','bank_account_type','bank_account_number']};
+  function update(){
+    const rail=method.value;
+    Object.entries(RAIL_FIELDS).forEach(([key,names])=>names.forEach(name=>{
+      const wrap=form.querySelector(`[data-field="${name}"]`);
+      if(wrap)wrap.hidden=(key!==rail);
+    }));
+  }
+  method.addEventListener('change',update);
+  update();
+})();
+</script>
+{% endblock %}

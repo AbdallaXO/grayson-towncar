@@ -1,76 +1,102 @@
-{% extends 'main.html' %}
+{% extends 'users/auth_base.html' %}
 {% load static %}
-{% block title %}Travel Agent Login | Grayson Towncar{% endblock %}
+{% block title %}Travel Advisor Sign In | Grayson Towncar{% endblock %}
 
-{% block content %}
-  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+{% block aside_line %}
+  Your clients are already taken care of.
+  <em>Here is the paperwork.</em>
+{% endblock %}
 
-  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+{% block aside_foot %}
+  <ul class="sgn-ledger sgn-up sgn-up-3">
+    <li>
+      <span class="idx">01</span>
+      <span class="txt">Every reservation you have booked, with its status</span>
+    </li>
+    <li>
+      <span class="idx">02</span>
+      <span class="txt">Commission statements and what you are owed</span>
+    </li>
+    <li>
+      <span class="idx">03</span>
+      <span class="txt">Your agency, and the advisors booking under it</span>
+    </li>
+  </ul>
+{% endblock %}
 
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-md-6 col-lg-4">
-        <div class="form-container">
-          <div id="login-form">
-            <p class="title">Travel Agent Portal</p>
-            <p class="text-center text-muted mb-4">Access your reservations and commissions</p>
+{% block auth_main %}
+  <span class="partner-eyebrow">Welcome back</span>
+  <h1 class="sgn-h1">Sign in.</h1>
+  <p class="sgn-sub">
+    Your bookings, commissions and agency details are exactly where you left them.
+  </p>
 
-            <form class="form" method="POST">
-              {% csrf_token %}
-              <div class="input-group">
-                <label for="username">Username</label>
-                <input type="text"
-                       name="username"
-                       id="username"
-                       class="input"
-                       placeholder="Enter username"
-                       required />
-              </div>
-              <div class="input-group">
-                <label for="password">Password</label>
-                <input type="password"
-                       name="password"
-                       id="password"
-                       class="input"
-                       placeholder="Enter password"
-                       required />
-              </div>
-              <div class="button-wrapper">
-                <button type="submit">
-                  Log In
-                  <div class="arrow-wrapper">
-                    <div class="arrow"></div>
-                  </div>
-                </button>
-              </div>
-            </form>
-            <div class="auth__action mt-4">
-              <p>
-                Forgot your password? <a href="{% url 'password_reset' %}">Reset it here</a>
-              </p>
-            </div>
-            <p class="signup mt-4 text-center">
-              New agent?
-              <a href="{% url 'register_agent' %}">Create an account</a>
-            </p>
+  {% if messages %}
+    {% for message in messages %}
+      <div class="sgn-alert {% if 'error' not in message.tags %}is-info{% endif %}"
+           role="alert">
+        <i class="bi {% if 'error' in message.tags %}bi-exclamation-circle{% else %}bi-info-circle{% endif %}"
+           aria-hidden="true"></i>
+        <span>{{ message }}</span>
+      </div>
+    {% endfor %}
+  {% endif %}
 
-            <p class="text-center mt-2">
-              <a href="{% url 'login' %}" class="text-muted">Staff login</a>
-            </p>
-          </div>
-        </div>
+  <form class="sgn-form" method="POST">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.GET.next|default:'' }}" />
+
+    <div class="partner-field">
+      <label for="username">Username or email</label>
+      <input type="text"
+             name="username"
+             id="username"
+             autocomplete="username"
+             placeholder="Username or you@youragency.com"
+             autocapitalize="none"
+             autocorrect="off"
+             spellcheck="false"
+             autofocus
+             required />
+    </div>
+
+    <div class="partner-field">
+      <div class="sgn-label-row">
+        <label for="password">Password</label>
+        <a class="sgn-forgot" href="{% url 'password_reset' %}">Forgot it?</a>
+      </div>
+      <div class="sgn-pw">
+        <input type="password"
+               name="password"
+               id="password"
+               autocomplete="current-password"
+               required />
+        <button type="button"
+                class="sgn-eye"
+                data-pw-toggle="password"
+                aria-label="Show password"
+                aria-pressed="false"
+                hidden>
+          <i class="bi bi-eye" aria-hidden="true"></i>
+        </button>
       </div>
     </div>
-  </div>
-  <footer style="text-align: center;
-                 padding: 20px 0;
-                 margin-top: 40px;
-                 border-top: 1px solid #e5e7eb">
-    <p style="margin: 0; color: #6b7280; font-size: 14px;">
-      Questions? Call us at <a href="tel:407-212-7190" style="color: #3b82f6; text-decoration: none">407-212-7190</a>
+
+    <button type="submit" class="sgn-submit">
+      Sign in <i class="bi bi-arrow-right" aria-hidden="true"></i>
+    </button>
+  </form>
+
+  <div class="sgn-foot">
+    <p>
+      New to Grayson? <a href="{% url 'register_agent' %}">Create your partner account</a>
     </p>
-    <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 12px;">©{% now 'Y' %}Grayson Towncar. All rights reserved.</p>
-  </footer>
+    <p class="sgn-quiet">
+      Staff and dispatchers, <a href="{% url 'login' %}">sign in here</a>.
+    </p>
+  </div>
 {% endblock %}
-{% block footer %}{% endblock %}
-{% block newsletter %}{% endblock %}
+
+{% block extra_js %}
+  {% include 'users/includes/password_toggle.html' %}
+{% endblock %}

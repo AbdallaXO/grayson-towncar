@@ -1,10 +1,18 @@
 # urls.py - Updated URL patterns for multiple agency heads
 from django.urls import path, reverse_lazy
-from . import views
+from . import views, partner_views
 from users.emails import send_reservation_confirmation
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
+    path("partner/draft/", partner_views.save_draft, name="partner_draft"),
+    path("partner/setup/", partner_views.setup, name="partner_setup"),
+    path("partner/continue/<str:token>/", partner_views.continue_inquiry, name="partner_continue"),
+    path("partner/verify/<str:token>/", partner_views.verify, name="partner_verify"),
+    path("partner/resend/", partner_views.resend, name="partner_resend"),
+    path("partner/agencies/<int:pk>/", partner_views.agency_workspace, name="partner_agency"),
+    path("partner/staff/", partner_views.staff_workspace, name="partner_staff"),
+    path("partner/payouts/", partner_views.payout_board, name="partner_payouts"),
     path("", views.partner, name="partner"),
     path("login/", views.loginUser, name="login"),
     path("logout/", views.logoutUser, name="logout"),
@@ -14,7 +22,7 @@ urlpatterns = [
     path(
         "newsletter/subscribe/", views.newsletter_subscribe, name="newsletter_subscribe"
     ),
-    path("agent/register/", views.register_agent, name="register_agent"),
+    path("agent/register/", partner_views.register, name="register_agent"),
     path("agent/dashboard/", views.agent_dashboard, name="agent_dashboard"),
     path(
         "agent/commissions/",
@@ -36,21 +44,21 @@ urlpatterns = [
         views.agent_mark_personal_trip,
         name="agent_mark_personal_trip",
     ),
-    path("agent/profile/", views.agent_profile, name="agent_profile"),
+    path("agent/profile/", partner_views.setup, name="agent_profile"),
     path("agent-login/", views.agent_login, name="agent_login"),
     # Agency management URLs - Updated for multiple heads
     path(
         "agency/dashboard/",
-        views.AgencyDashboardView.as_view(),
+        partner_views.agency_workspace,
         name="agency_dashboard",
     ),
-    path("agency/<int:pk>/", views.AgencyDetailView.as_view(), name="agency_detail"),
+    path("agency/<int:pk>/", partner_views.agency_workspace, name="agency_detail"),
     path(
         "agency/<int:pk>/agents/",
-        views.AgencyAgentsListView.as_view(),
+        partner_views.agency_workspace,
         name="agency_agents_list",
     ),
-    path("agent/<int:pk>/", views.AgentDetailView.as_view(), name="agent_detail"),
+    path("agent/<int:pk>/", partner_views.agent_detail, name="agent_detail"),
     path(
         "commission-payout/<int:pk>/",
         views.commission_payout_detail,
@@ -58,7 +66,7 @@ urlpatterns = [
     ),
     path(
         "agency_commission_history/<agency_id>/",
-        views.agency_commission_history,
+        partner_views.agency_workspace,
         name="agency_commission_history",
     ),
     path(
@@ -79,17 +87,17 @@ urlpatterns = [
     # New agency management URLs
     path(
         "agency/profile/",
-        views.AgencyProfileView.as_view(),
+        partner_views.agency_workspace,
         name="agency_profile",
     ),
     path(
         "agency/guide/",
-        views.AgencyGuideView.as_view(),
+        partner_views.agency_workspace,
         name="agency_guide",
     ),
     path(
         "agency/update-payment/",
-        views.update_agency_payment,
+        partner_views.agency_workspace,
         name="update_agency_payment",
     ),
     # Admin commission report
@@ -122,7 +130,7 @@ urlpatterns = [
     ),
     # Regular agency management URLs
     path("agencies/", views.AgencyListView.as_view(), name="agency_list"),
-    path("agencies/<int:pk>/", views.AgencyDetailView.as_view(), name="agency_detail"),
+    path("agencies/<int:pk>/", partner_views.agency_workspace, name="agency_detail"),
     path(
         "agencies/<int:pk>/edit/",
         views.AgencyUpdateView.as_view(),
@@ -130,7 +138,7 @@ urlpatterns = [
     ),
     path(
         "password-reset/",
-        auth_views.PasswordResetView.as_view(template_name="users/password_reset.html"),
+        views.PartnerPasswordResetView.as_view(),
         name="password_reset",
     ),
     path(

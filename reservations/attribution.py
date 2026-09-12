@@ -268,11 +268,13 @@ def resolve_agent_by_customer_email(reservation):
     if not email:
         return None
     from users.models import TravelAgent
-    return (
-        TravelAgent.objects.filter(is_active=True, user__email__iexact=email)
-        .select_related("user")
-        .first()
-    )
+    matches = list(TravelAgent.objects.filter(is_active=True, user__is_active=True,
+        user__email__iexact=email).select_related("user")[:2])
+    if len(matches) != 1:
+        return None
+    from users.partner_services import email_verified
+    return matches[0] if email_verified(matches[0].user) else None
+
 
 
 def find_booking_source_drift():

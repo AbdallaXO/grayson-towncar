@@ -1,0 +1,396 @@
+/* =====================================================
+   GRAYSON TOWNCAR — PARTNER SIGN-IN
+   The front door to the partner portal. Loads on top of
+   partner-portal.css and inherits every token, field and
+   button from it, so signing in looks like the portal it
+   opens onto. Adds only the composition: a full-height
+   editorial split, ink on the left, paper on the right.
+   Scoped under `.sgn-shell`.
+   ===================================================== */
+
+.partner-shell.sgn-shell {
+  padding: 0;
+  background: var(--paper);
+}
+
+/* ---------- Split ---------- */
+.sgn-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+  min-height: 660px;
+}
+
+/* ---------- Left: the ink panel ---------- */
+.sgn-aside {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--cream);
+  padding: 46px 54px 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 46px;
+}
+
+/* The photograph sits under everything, held back far enough
+   that the type never has to fight it. */
+.sgn-aside-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 58% center;
+  z-index: -2;
+}
+.sgn-aside::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, rgba(15,27,45,.72) 0%, rgba(15,27,45,.80) 42%, rgba(15,27,45,.94) 100%),
+    linear-gradient(100deg, rgba(15,27,45,.88) 0%, rgba(15,27,45,.42) 70%);
+}
+
+/* The gold edge the landing page, portal and emails all carry. */
+.sgn-aside::after {
+  content: "";
+  position: absolute;
+  left: 54px;
+  bottom: 0;
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+
+.sgn-wordmark {
+  position: relative;
+  font-family: var(--sans);
+  font-weight: 700;
+  letter-spacing: 3px;
+  font-size: 15px;
+  text-decoration: none;
+}
+.partner-shell .sgn-wordmark { color: var(--cream); }
+.partner-shell .sgn-wordmark:hover { color: var(--gold-l); }
+.sgn-wordmark span {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 5px;
+  margin-top: 4px;
+  color: var(--gold-l);
+  font-weight: 600;
+}
+
+.sgn-aside-body { position: relative; max-width: 30ch; }
+.sgn-aside-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--gold-l);
+  margin-bottom: 18px;
+}
+.partner-shell .sgn-aside-line {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(27px, 2.5vw, 36px);
+  line-height: 1.24;
+  letter-spacing: -.02em;
+  color: var(--cream);
+  margin: 0;
+}
+.sgn-aside-line em {
+  font-style: italic;
+  color: var(--gold-l);
+}
+
+/* What is actually behind the door — the portal's own sections. */
+.sgn-ledger {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(232,213,183,.18);
+  max-width: 34ch;
+}
+.sgn-ledger li {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(232,213,183,.14);
+}
+.sgn-ledger .idx {
+  flex: none;
+  font-family: var(--serif);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--gold-l);
+  letter-spacing: .06em;
+}
+.sgn-ledger .txt {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(248,242,221,.86);
+}
+
+/* ---------- Reset-flow stepper (ink panel) ---------- */
+.sgn-steps {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(232,213,183,.18);
+  max-width: 34ch;
+  counter-reset: sgn-step;
+}
+.sgn-steps li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(232,213,183,.14);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: rgba(248,242,221,.44);
+  transition: color .25s ease;
+}
+.sgn-steps .mark {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1px solid rgba(232,213,183,.34);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Steps already behind you get a gold tick. */
+.sgn-steps .is-done { color: rgba(248,242,221,.72); }
+.sgn-steps .is-done .mark {
+  border-color: var(--gold-l);
+  background: var(--gold-l);
+}
+.sgn-steps .is-done .mark::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  margin-top: -2px;
+  border-left: 1.5px solid var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+  transform: rotate(-45deg);
+}
+/* The step you are on: full cream, gold ring, quiet pulse. */
+.sgn-steps .is-now { color: var(--cream); font-weight: 500; }
+.sgn-steps .is-now .mark { border-color: var(--gold-l); }
+.sgn-steps .is-now .mark::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold-l);
+  animation: sgn-pulse 2.4s ease-in-out infinite;
+}
+@keyframes sgn-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .55; transform: scale(.82); }
+}
+
+/* ---------- Right: the paper panel ---------- */
+.sgn-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 58px 54px 64px;
+  background: var(--paper);
+}
+.sgn-form-wrap {
+  width: 100%;
+  max-width: 424px;
+}
+
+.partner-shell .sgn-h1 {
+  font-size: clamp(34px, 4vw, 46px);
+  line-height: 1.06;
+  margin: 12px 0 14px;
+}
+.sgn-sub {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 0 0 34px;
+  max-width: 40ch;
+}
+
+/* ---------- Inline sign-in feedback ---------- */
+.sgn-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 13px 16px;
+  border-left: 2px solid var(--error);
+  background: #FBF0EC;
+  color: var(--error);
+  font-size: 13.5px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+.sgn-alert.is-info {
+  border-left-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--ink);
+}
+.sgn-alert .bi { flex: none; margin-top: 1px; }
+
+/* ---------- Fields ---------- */
+.sgn-form { margin: 0; }
+.sgn-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+.sgn-label-row label { margin-bottom: 8px; }
+.partner-shell .sgn-forgot {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: underline;
+}
+.partner-shell .sgn-forgot:hover { color: var(--gold-d); }
+
+.sgn-pw { position: relative; }
+.sgn-pw input { padding-right: 52px; }
+
+/* Opt this one out of the shell's uppercase ink button. */
+.partner-shell button.sgn-eye {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 48px;
+  width: 48px;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  color: var(--muted) !important;
+  font-size: 16px;
+  letter-spacing: 0;
+  transition: color .2s ease;
+}
+.partner-shell button.sgn-eye:hover {
+  background: transparent;
+  color: var(--gold-d) !important;
+}
+.partner-shell button.sgn-eye:active { transform: none; }
+/* An author `display` beats the UA [hidden] rule — put it back. */
+.partner-shell button.sgn-eye[hidden] { display: none; }
+
+.partner-shell button.sgn-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+/* ---------- Foot of the form ---------- */
+.sgn-foot {
+  margin-top: 32px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sgn-foot p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+.partner-shell .sgn-foot a { font-weight: 600; text-underline-offset: 3px; text-decoration: underline; }
+.sgn-quiet { font-size: 12.5px !important; }
+.partner-shell .sgn-quiet a { font-weight: 500; color: var(--muted); }
+.partner-shell .sgn-quiet a:hover { color: var(--gold-d); }
+
+.sgn-support {
+  margin-top: 30px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted-2);
+}
+.partner-shell .sgn-support a { color: var(--muted-2); text-decoration: underline; }
+.partner-shell .sgn-support a:hover { color: var(--gold-d); }
+
+/* ---------- Load ---------- */
+.sgn-up { animation: sgn-up .7s cubic-bezier(.22,.61,.36,1) both; }
+.sgn-up-1 { animation-delay: .06s; }
+.sgn-up-2 { animation-delay: .14s; }
+.sgn-up-3 { animation-delay: .22s; }
+.sgn-up-4 { animation-delay: .30s; }
+@keyframes sgn-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 940px) {
+  .sgn-split { grid-template-columns: 1fr; min-height: 0; }
+  .sgn-aside {
+    padding: 34px 26px 38px;
+    gap: 30px;
+    min-height: 340px;
+  }
+  .sgn-aside::after { left: 26px; }
+  .sgn-aside-body { max-width: none; }
+  .sgn-ledger { display: none; }
+  .sgn-steps { max-width: none; }
+  .sgn-steps li { padding: 11px 0; font-size: 12.5px; gap: 11px; }
+  .sgn-main { padding: 46px 26px 56px; align-items: flex-start; }
+  .sgn-form-wrap { max-width: 460px; margin: 0 auto; }
+}
+
+@media (max-width: 620px) {
+  .sgn-aside { padding: 28px 20px 32px; min-height: 0; }
+  .sgn-aside::after { left: 20px; }
+  .sgn-main { padding: 38px 20px 48px; }
+  .sgn-sub { margin-bottom: 28px; }
+}
+
+/* ---------- Reset-flow paper side ---------- */
+.sgn-hints {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+  border-top: 1px solid var(--line-soft);
+}
+.sgn-hints li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.sgn-hints .bi { flex: none; margin-top: 2px; color: var(--gold-d); font-size: 14px; }
+
+/* Django renders the validator help as a <ul>. */
+.sgn-help { margin-top: 9px; font-size: 12px; line-height: 1.6; color: var(--muted); }
+.sgn-help ul { margin: 0; padding-left: 16px; }
+.sgn-help li { margin-bottom: 3px; }
+.sgn-help li:last-child { margin-bottom: 0; }
+
+/* Where the next action is a link, not a submit. */
+.partner-shell a.partner-button.sgn-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+  color: #fff !important;
+}
+.partner-shell a.partner-button.sgn-submit:hover { color: #fff !important; }

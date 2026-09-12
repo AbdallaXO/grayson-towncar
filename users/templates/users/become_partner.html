@@ -51,7 +51,7 @@
           <i class="bi bi-telephone" aria-hidden="true"></i>
           <span>(407) 212-7190</span>
         </a>
-        <a href="#apply" class="ed-btn ed-btn-ink ed-nav-cta">
+        <a href="{% url 'register_agent' %}" class="ed-btn ed-btn-ink ed-nav-cta">
           <span class="lg-text">Become a Partner</span>
           <span class="sm-text">Apply</span>
         </a>
@@ -87,10 +87,10 @@
           </p>
 
           <div class="ed-hero-cta">
-            <a href="#how" class="ed-btn ed-btn-ink">
-              See how it works <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            <a href="{% url 'register_agent' %}" class="ed-btn ed-btn-ink">
+              Create your partner account <i class="bi bi-arrow-right" aria-hidden="true"></i>
             </a>
-            <a href="#commission" class="ed-btn ed-btn-ghost">See the commission</a>
+            <a href="#apply" class="ed-btn ed-btn-ghost">Talk to our partner team</a>
           </div>
 
           <div class="ed-hero-stats" role="list">
@@ -140,7 +140,7 @@
             <div class="rating">
               5.0<span class="ed-italic">/5</span>
             </div>
-            <div class="sub">Average guest rating across 1,700+ reviews</div>
+            <div class="sub">Average guest rating across 2,400+ reviews</div>
           </aside>
         </div>
       </div>
@@ -297,7 +297,7 @@
           <article class="ed-benefit-tile">
             <div class="icon"><img src="{% static 'images/chat.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
             <h3>Book however you like</h3>
-            <p>Send clients to your branded referral link, reserve on their behalf in the partner dashboard, or pick up the phone. Commission attributes either way.</p>
+            <p>Reserve on your clients’ behalf while signed into your partner dashboard. For phone or email bookings, ask our team to confirm the booking is associated with your account.</p>
           </article>
           <article class="ed-benefit-tile">
             <div class="icon"><img src="{% static 'images/check.webp' %}" alt="" width="32" height="32" loading="lazy" /></div>
@@ -334,13 +334,11 @@
 
         <div class="ed-how-intro ed-up" style="animation-delay: 60ms;">
           <h2 id="how-title">
-            From application to first commission,
-            <span class="ed-italic">in about a fortnight.</span>
+            From your account to your first booking,
+            <span class="ed-italic">at your own pace.</span>
           </h2>
           <p>
-            No quotas. No commitments. No interview circus. Apply Tuesday,
-            send your first transfer Thursday, earn on completion. That&rsquo;s
-            the whole story.
+            Create your account and book immediately. Verify your email and complete payment setup while we confirm any agency affiliation. Commissions are released when the booking and payout requirements are satisfied.
           </p>
         </div>
 
@@ -350,10 +348,10 @@
               <div class="row">
                 <span class="num">01</span>
                 <span class="hairline" aria-hidden="true"></span>
-                <span class="detail">~1 business day · No upfront cost</span>
+                <span class="detail">Book immediately · No upfront cost</span>
               </div>
-              <h3>Apply in two minutes</h3>
-              <p>Fill out the short application below. We review your details within one business day and email back your onboarding kit — branded referral link, your dedicated partner contact, and the full program terms.</p>
+              <h3>Create your partner account</h3>
+              <p>Register as a travel agent or submit your agency for review. Your personal account can book right away. Verify your email and finish your payout details from your dashboard.</p>
             </div>
 
             <div class="ed-how-step pos-tr ed-up" style="animation-delay: 80ms;">
@@ -363,7 +361,7 @@
                 <span class="detail">Phone · Email · Dashboard</span>
               </div>
               <h3>Send your first client</h3>
-              <p>Hand off your branded referral link. Book on their behalf in the partner dashboard. Or forward a request to your reservations contact and we&rsquo;ll quote it back inside the hour.</p>
+              <p>Book on your clients’ behalf in the partner dashboard, or contact our reservations team for help. Agency review and ordinary payout holds do not prevent booking.</p>
             </div>
 
             <div class="ed-how-step pos-bl ed-up" style="animation-delay: 160ms;">
@@ -396,8 +394,8 @@
               <span class="ed-italic">Let&rsquo;s have it ready before they land.</span>
             </h3>
           </div>
-          <a href="#apply" class="ed-btn ed-btn-gold">
-            Apply now <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          <a href="{% url 'register_agent' %}" class="ed-btn ed-btn-gold">
+            Create your partner account <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </a>
         </div>
       </div>
@@ -433,13 +431,13 @@
           <div class="item"><span class="n">02</span><span>Same rate from booking one — no tiers, no quotas, no minimums</span></div>
           <div class="item"><span class="n">03</span><span>Transparent partner dashboard · pending, earned, paid</span></div>
           <div class="item"><span class="n">04</span><span>Regular payout cycle · no statement chasing</span></div>
-          <div class="item"><span class="n">05</span><span>Branded referral link · phone &amp; email attribution</span></div>
-          <div class="item"><span class="n">06</span><span>Multi-seat agency rollups for teams up to 500 agents</span></div>
+          <div class="item"><span class="n">05</span><span>Partner dashboard · staff-assisted booking attribution</span></div>
+          <div class="item"><span class="n">06</span><span>Private agency workspace for confirmed members</span></div>
         </div>
 
         <div class="cta-row ed-up" style="animation-delay: 260ms;">
-          <a href="#apply" class="ed-btn ed-btn-gold">
-            Apply to the program <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          <a href="{% url 'register_agent' %}" class="ed-btn ed-btn-gold">
+            Create your partner account <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </a>
           <a href="mailto:partners@graysontowncar.com" class="ed-btn ed-btn-ghost-light">
             Talk to the partner team
@@ -448,8 +446,7 @@
 
         <div class="disclaimer ed-up" style="animation-delay: 300ms;">
           Want to walk through the partner agreement, attribution rules, or
-          payout cycle before applying? We&rsquo;ll sit down with you on the
-          onboarding call — no surprises, no fine print.
+          payout cycle before registering? Talk to our partner team. Calls are optional.
         </div>
       </div>
     </section>
@@ -569,32 +566,31 @@
           <div class="ed-section-label">
             <span class="chapter">VI.</span>
             <span class="rule" aria-hidden="true"></span>
-            <span class="ed-eyebrow">The application</span>
+            <span class="ed-eyebrow">Talk to our partner team</span>
           </div>
           <h2 id="apply-title">
             Hand off Orlando.<br>
             <span class="ed-italic">Keep planning the trip.</span>
           </h2>
           <p>
-            Tell us a little about your agency. We&rsquo;ll review and follow
-            up within one business day — onboarding kit, branded referral
-            link, and a twenty-minute welcome call with your dedicated
-            partner contact.
+            Create your partner account and start booking immediately. Register your
+            agency for a private team workspace, or use this form if you would
+            like to talk to our partner team. A welcome call is optional.
           </p>
 
           <div class="ed-reassurance">
             <div class="row">
               <span class="icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
               <div>
-                <div class="t">A reply inside one business day</div>
-                <div class="d">Read by a real partner manager, not an inbox bot.</div>
+                <div class="t">Registration without waiting</div>
+                <div class="d">Continue to account setup immediately after submitting.</div>
               </div>
             </div>
             <div class="row">
               <span class="icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
               <div>
                 <div class="t">Your details stay with us</div>
-                <div class="d">We never sell or share what you send. Ever.</div>
+                <div class="d">Agency information is shared for confirmation only with your disclosure during registration.</div>
               </div>
             </div>
             <div class="row">
@@ -814,7 +810,7 @@
               {% endif %}
 
               <button type="submit" class="ed-btn ed-btn-ink ed-submit">
-                Send my application <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                Talk to our partner team <i class="bi bi-arrow-right" aria-hidden="true"></i>
               </button>
 
               <div class="ed-apply-footnote">
@@ -860,7 +856,7 @@
               <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
             </button>
             <div class="ed-faq-panel is-open" id="faq-panel-1" role="region">
-              <div class="inner">A flat 10% on every eligible completed reservation. Same rate for every partner, from your first booking. No tiers to climb. No quotas to hit. No minimum volume. We walk through attribution rules, eligibility, and the payout cycle on your onboarding call.</div>
+              <div class="inner">A flat 10% on every eligible completed reservation. Same rate for every partner, from your first booking. No tiers to climb. No quotas to hit. No minimum volume. Your dashboard shows setup and commission status. Contact our partner team if you would like help with eligibility or payout questions.</div>
             </div>
           </div>
 
@@ -899,7 +895,7 @@
               <span class="toggle" aria-hidden="true"><i class="bi"></i></span>
             </button>
             <div class="ed-faq-panel" id="faq-panel-4" role="region">
-              <div class="inner">Either works. Send them to your branded partner link to book themselves. Reserve on their behalf in your partner dashboard. Or email or call your reservations contact. Phone and email inquiries get attributed to your partner profile by hand — we always confirm attribution before dispatching the trip, so commission never gets lost.</div>
+              <div class="inner">Reserve on their behalf while signed into your partner dashboard. You can also email or call our reservations team and ask them to confirm your booking attribution. A customer’s email alone does not establish an agency relationship.</div>
             </div>
           </div>
 
@@ -972,14 +968,12 @@
         </h2>
 
         <p class="lede ed-up" style="animation-delay: 140ms;">
-          Apply today. We&rsquo;ll be in touch within one business day with
-          onboarding details, your branded referral link, and a real human
-          to call when something comes up at midnight.
+          Create your partner account today and start booking. Verify your email, finish payment setup, and follow agency confirmation from your dashboard. Our team is here whenever you need a hand.
         </p>
 
         <div class="cta-row ed-up" style="animation-delay: 200ms;">
-          <a href="#apply" class="ed-btn ed-btn-ink">
-            Become a Partner <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          <a href="{% url 'register_agent' %}" class="ed-btn ed-btn-ink">
+            Create your partner account <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </a>
           <a href="tel:+14072127190" class="ed-btn ed-btn-ghost">
             <i class="bi bi-telephone" aria-hidden="true"></i> (407) 212-7190

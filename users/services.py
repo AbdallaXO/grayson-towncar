@@ -81,7 +81,7 @@ def process_agent_payout(
             payout,
             payment_reference=payment_reference,
             payment_method_used=payment_method_used,
-            fallback_method=agent.effective_payment_method,
+            fallback_method=agent.payment_method,
         )
         _log_payout_audit(payout, sent_by=sent_by)
 
@@ -191,6 +191,8 @@ def process_bulk_payouts(items, *, sent_by):
                     send_email=email,
                     recipient_email=agent.user.email,
                 )
+                if not payout:
+                    raise ValueError("No direct commissions ready to pay.")
                 results.append({
                     "ok": True, "type": "agent", "id": obj_id,
                     "name": agent.agent_name or agent.user.get_username(),
@@ -205,11 +207,7 @@ def process_bulk_payouts(items, *, sent_by):
                 # unpaid_commissions stat. A stale stat could either incorrectly
                 # block a payout that has Ready items, or claim there are items
                 # when eligibility actually says nothing's Ready.
-                from users.eligibility import sum_ready
-                owing_agents = sum(
-                    1 for a in agency.agents.filter(agency_handles_payment=True)
-                    if sum_ready(a) > 0
-                )
+                owing_agents = preview_agency_payout(agency)['count']
                 if owing_agents == 0:
                     results.append({
                         "ok": False, "type": "agency", "id": obj_id, "name": agency.name,
@@ -228,6 +226,8 @@ def process_bulk_payouts(items, *, sent_by):
                     send_email=email,
                     recipient_email=recipient_email,
                 )
+                if not payout:
+                    raise ValueError("No agency commissions ready to pay.")
                 results.append({
                     "ok": True, "type": "agency", "id": obj_id, "name": agency.name,
                     "amount": str(amount or Decimal("0")),
@@ -247,7 +247,7 @@ def process_bulk_payouts(items, *, sent_by):
     return results
 
 
-def preview_agent_payout(agent):
+def preview_agent_payout(agent, agency=None):
     """
     Read-only preview of what an agent payout would include RIGHT NOW.
 
@@ -257,7 +257,10 @@ def preview_agent_payout(agent):
     """
     from users.eligibility import ready_reservations
 
-    ready_items = list(ready_reservations(agent))
+    from users.partner_services import payee_reservations
+    from users.eligibility import get_commission_eligibility
+    ready_items = [(r, get_commission_eligibility(r)) for r in payee_reservations(agent, agency).filter(commission_paid=False)]
+    ready_items = [(r, e) for r, e in ready_items if e.safe_to_pay]
 
     if not ready_items:
         return {"reservations": [], "total": "0.00", "count": 0}
@@ -299,67 +302,19 @@ def preview_agent_payout(agent):
 
 
 def preview_agency_payout(agency):
-    """
-    Read-only preview of an agency payout with per-agent breakdown.
-
-    Only includes agents who currently have at least one Ready reservation --
-    pulls live via the eligibility helper rather than trusting the cached
-    unpaid_commissions stat (which can drift as time passes).
-    """
-    from users.eligibility import ready_reservations
-
-    # Don't pre-filter on the cached unpaid_commissions stat -- it can be
-    # stale (e.g. a trip just crossed its grace threshold an hour ago and the
-    # stat hasn't been recalculated yet).
-    agents = agency.agents.filter(agency_handles_payment=True).select_related("user")
-
-    if not agents.exists():
-        return {"agents": [], "total": "0.00", "count": 0}
-
+    from users.partner_services import payee_reservations
+    from users.models import TravelAgent
+    ids = payee_reservations(agency=agency).filter(commission_paid=False).values_list('travel_agent_id', flat=True).distinct()
     agents_data = []
-    grand_total = Decimal("0")
-    total_reservations = 0
-
-    for agent in agents:
-        ready_items = list(ready_reservations(agent))
-        if not ready_items:
+    total = Decimal('0')
+    count = 0
+    for agent in TravelAgent.objects.filter(pk__in=ids).select_related('user'):
+        preview = preview_agent_payout(agent, agency)
+        if not preview['count']:
             continue
-
-        agent_total = Decimal("0")
-        res_data = []
-
-        for res, result in ready_items:
-            agent_total += result.commission
-
-            route = ""
-            if res.rate and res.rate.route:
-                route = f"{res.rate.route.origin} to {res.rate.route.destination}"
-
-            res_data.append({
-                "id": res.id,
-                "display_number": res.display_number,
-                "customer": res.customer.get_full_name(),
-                "route": route,
-                "base_price": str(res.base_price),
-                "commission": str(result.commission),
-                "date": res.created_at.strftime("%b %d, %Y"),
-            })
-
-        grand_total += agent_total
-        total_reservations += len(res_data)
-
-        agents_data.append({
-            "agent_name": agent.agent_name or agent.user.username,
-            "email": agent.user.email,
-            "commission_rate": str(agent.commission_rate),
-            "reservations": res_data,
-            "subtotal": str(agent_total.quantize(Decimal("0.01"))),
-            "count": len(res_data),
-        })
-
-    return {
-        "agents": agents_data,
-        "total": str(grand_total.quantize(Decimal("0.01"))),
-        "count": total_reservations,
-        "agents_count": len(agents_data),
-    }
+        total += Decimal(preview['total'])
+        count += preview['count']
+        agents_data.append({'id': agent.pk, 'name': agent.agent_name or agent.user.username,
+            'agent_name': agent.agent_name or agent.user.username, 'total': preview['total'],
+            'reservations': preview['reservations'], 'count': preview['count']})
+    return {'agents': agents_data, 'total': str(total.quantize(Decimal('0.01'))), 'count': count}

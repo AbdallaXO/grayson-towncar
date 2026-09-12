@@ -1,0 +1,64 @@
+{% extends 'main.html' %}
+{% comment %}
+  Shared shell for the partner-facing auth pages — sign in and the whole
+  password reset flow. Built on partner-portal.css so the front door and
+  the portal behind it are one design. Pages fill in the ink panel's line
+  and foot on the left, and the form on the right.
+{% endcomment %}
+{% load static %}
+
+{% block head_extra %}
+  <meta name="robots" content="noindex, nofollow" />
+{% endblock %}
+
+{# Auth feedback belongs beside the fields it refers to, not in a floating
+   toast in the corner. Each page renders its own inline. #}
+{% block messages %}{% endblock %}
+
+{% block content %}
+  <link rel="stylesheet" href="{% static 'css/partner-portal.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/partner-signin.css' %}" />
+
+  <div class="partner-shell sgn-shell">
+    <div class="sgn-split">
+
+      <aside class="sgn-aside">
+        <img class="sgn-aside-photo"
+             src="{% static 'images/chauffeur-door.jpg' %}"
+             alt=""
+             width="1100"
+             height="1375"
+             loading="eager" />
+
+        <a href="{% url 'partner' %}" class="sgn-wordmark sgn-up sgn-up-1">
+          GRAYSON <span>PARTNERS</span>
+        </a>
+
+        <div class="sgn-aside-body sgn-up sgn-up-2">
+          <span class="sgn-aside-eyebrow">{% block aside_eyebrow %}Travel Advisor Portal{% endblock %}</span>
+          <p class="sgn-aside-line">{% block aside_line %}{% endblock %}</p>
+        </div>
+
+        {% block aside_foot %}{% endblock %}
+      </aside>
+
+      <main class="sgn-main">
+        <div class="sgn-form-wrap sgn-up sgn-up-2">
+          {% block auth_main %}{% endblock %}
+
+          {% block auth_support %}
+            <p class="sgn-support">
+              Locked out or something looks wrong? Call
+              <a href="tel:407-212-7190">(407) 212-7190</a>.<br />
+              &copy;{% now 'Y' %} Grayson Towncar. All rights reserved.
+            </p>
+          {% endblock %}
+        </div>
+      </main>
+
+    </div>
+  </div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

@@ -1,0 +1,190 @@
+{% load static %}<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>{{ subject }}</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  /* Client resets. Everything structural is inlined below; this only patches clients. */
+  body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
+  table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse}
+  img{-ms-interpolation-mode:bicubic;border:0;outline:none;text-decoration:none;display:block}
+  a{text-decoration:none}
+  .ExternalClass{width:100%}
+  .ExternalClass,.ExternalClass p,.ExternalClass td,.ExternalClass div{line-height:100%}
+
+  /* Dark mode where the client actually honours it: Apple Mail, iOS Mail,
+     Outlook.com. Gmail's app force-inverts instead and ignores this, which is
+     why the palette below is chosen to invert cleanly on its own. */
+  @media (prefers-color-scheme: dark) {
+    .dm-outer   { background-color:#101215 !important; }
+    .dm-card    { background-color:#1A1D22 !important; }
+    .dm-band    { background-color:#141619 !important; }
+    .dm-ink     { color:#F4F2EE !important; }
+    .dm-body    { color:#C7CBD2 !important; }
+    .dm-muted   { color:#9BA1AA !important; }
+    .dm-rule td { background-color:#2E333B !important; }
+    .dm-panel   { background-color:#15181C !important; border-color:#2E333B !important; }
+  }
+  /* Outlook's own dark mode uses these hooks rather than the media query. */
+  [data-ogsc] .dm-outer { background-color:#101215 !important; }
+  [data-ogsc] .dm-card  { background-color:#1A1D22 !important; }
+  [data-ogsc] .dm-ink   { color:#F4F2EE !important; }
+  [data-ogsc] .dm-body  { color:#C7CBD2 !important; }
+  [data-ogsc] .dm-muted { color:#9BA1AA !important; }
+
+  @media only screen and (max-width:620px){
+    .sm-full{width:100%!important;max-width:100%!important}
+    .sm-pad{padding-left:24px!important;padding-right:24px!important}
+    .sm-h1{font-size:28px!important;line-height:1.2!important}
+    .sm-stack{display:block!important;width:100%!important;padding:0 0 22px 0!important}
+    .sm-stat{display:block!important;width:100%!important;padding:16px 10px!important}
+  }
+</style>
+</head>
+<body class="dm-outer" style="margin:0;padding:0;width:100%;background-color:#EDEDEB;">
+
+<!-- Inbox preview line: shown next to the subject, never rendered in the body. -->
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{{ preheader }}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-outer" style="background-color:#EDEDEB;">
+<tr><td align="center" style="padding:28px 12px;">
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="sm-full dm-card" style="width:600px;max-width:600px;background-color:#FFFFFF;">
+
+    <!-- Masthead. The logo carries its own dark background inside the image,
+         so a client that inverts colours cannot bleach it away. -->
+    <tr><td align="center" class="dm-band" style="background-color:#191919;padding:0;font-size:0;line-height:0;">
+      <img src="{{ assets }}/static/images/grayson_email.png" width="600" alt="Grayson Towncar"
+           style="width:100%;max-width:600px;height:auto;display:block;">
+    </td></tr>
+
+    {% if show_program %}
+    <!-- The arrival itself, before a word of copy. Images are never inverted. -->
+    <tr><td style="font-size:0;line-height:0;">
+      <img src="{{ assets }}/static/images/chauffeur-door.jpg" width="600" alt="A chauffeur holding the door as a guest steps out of a black SUV" style="width:100%;max-width:600px;height:auto;display:block;">
+    </td></tr>
+    {% endif %}
+
+    <!-- A thin gold rule carries the brand across the fold -->
+    <tr><td style="height:3px;line-height:3px;font-size:0;background-color:#C9A227;">&nbsp;</td></tr>
+
+    <!-- The message itself, kept short -->
+    <tr><td class="sm-pad" style="padding:40px 48px 4px 48px;">
+      {% if eyebrow %}<div class="dm-muted" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:2.4px;text-transform:uppercase;color:#8A6A15;padding-bottom:13px;">{{ eyebrow }}</div>{% endif %}
+      <h1 class="sm-h1 dm-ink" style="margin:0 0 18px 0;font-family:Georgia,'Times New Roman',Times,serif;font-size:36px;line-height:1.15;font-weight:400;color:#0F1B2D;letter-spacing:-0.3px;">{{ headline }}</h1>
+      {% for paragraph in paragraphs %}
+      <p class="dm-body" style="margin:0 0 15px 0;font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.68;color:#41474F;">{{ paragraph }}</p>
+      {% endfor %}
+    </td></tr>
+
+    {% if show_program %}
+    <!-- The value, made before the ask -->
+    <tr><td class="sm-pad" style="padding:24px 48px 0 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-rule"><tr>
+        <td style="height:1px;line-height:1px;font-size:0;background-color:#E4E0D6;">&nbsp;</td>
+      </tr></table>
+    </td></tr>
+
+    <tr><td class="sm-pad" style="padding:28px 48px 0 48px;">
+      <p class="dm-ink" style="margin:0;font-family:Georgia,'Times New Roman',Times,serif;font-size:23px;line-height:1.35;color:#0F1B2D;">You plan the trip. We make sure the transportation reflects well on you.</p>
+    </td></tr>
+
+    <!-- Four reasons, two by two -->
+    <tr><td class="sm-pad" style="padding:26px 48px 0 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td class="sm-stack" width="50%" valign="top" style="padding:0 14px 22px 0;">
+            <div class="dm-ink" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0F1B2D;padding-bottom:5px;">Protect your client experience</div>
+            <div class="dm-muted" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.6;color:#5A6470;">Professional, suited chauffeurs. Meet &amp; greet inside baggage claim. Clean, luxury vehicles and attentive service from pickup to drop-off.</div>
+          </td>
+          <td class="sm-stack" width="50%" valign="top" style="padding:0 0 22px 14px;">
+            <div class="dm-ink" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0F1B2D;padding-bottom:5px;">Earn 10% on every completed ride</div>
+            <div class="dm-muted" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.6;color:#5A6470;">Your commission is tracked automatically in your partner dashboard, so you can see your bookings and earnings in one place.</div>
+          </td>
+        </tr>
+        <tr>
+          <td class="sm-stack" width="50%" valign="top" style="padding:0 14px 0 0;">
+            <div class="dm-ink" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0F1B2D;padding-bottom:5px;">Leave the transportation details to us</div>
+            <div class="dm-muted" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.6;color:#5A6470;">Flight tracking, complimentary car seats, schedule changes, delays, and the unexpected—we handle the details so you don&rsquo;t have to.</div>
+          </td>
+          <td class="sm-stack" width="50%" valign="top" style="padding:0 0 0 14px;">
+            <div class="dm-ink" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0F1B2D;padding-bottom:5px;">Reach a real person, 24/7</div>
+            <div class="dm-muted" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.6;color:#5A6470;">When you or your clients need us, our Orlando-based team is available around the clock.</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <!-- The brand's own numbers. Kept dark in both themes so it never inverts
+         into something unreadable. -->
+    <tr><td class="sm-pad" style="padding:28px 48px 0 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#191919;">
+        <tr>
+          <td class="sm-stat" width="33%" align="center" valign="middle" style="padding:22px 12px;">
+            <div style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#D4AF37;line-height:1.25;">10% commission</div>
+            <div style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.5;color:#B6BCC6;padding-top:6px;letter-spacing:.3px;">Every completed ride</div>
+          </td>
+          <td class="sm-stat" width="33%" align="center" valign="middle" style="padding:22px 12px;">
+            <div style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#D4AF37;line-height:1.25;">5.0/5 rating</div>
+            <div style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.5;color:#B6BCC6;padding-top:6px;letter-spacing:.3px;">2,400+ reviews</div>
+          </td>
+          <td class="sm-stat" width="33%" align="center" valign="middle" style="padding:22px 12px;">
+            <div style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#D4AF37;line-height:1.25;">$0 to join</div>
+            <div style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.5;color:#B6BCC6;padding-top:6px;letter-spacing:.3px;">No fees or minimums</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+    {% endif %}
+
+    {% if action_url %}
+    <!-- The ask, once the value has been made. Gold on near-black reads in
+         either theme, because neither end depends on the page background. -->
+    <tr><td class="sm-pad" align="center" style="padding:32px 48px 0 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr><td align="center" bgcolor="#C9A227" style="background-color:#C9A227;">
+          <a href="{{ action_url }}" style="display:block;padding:17px 42px;font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;letter-spacing:.5px;color:#14213A;">{{ action_label }}</a>
+        </td></tr>
+      </table>
+      {% if show_program %}<p class="dm-muted" style="margin:13px 0 0 0;font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6C737C;">Create your account and start booking right away.</p>{% endif %}
+      <p class="dm-muted" style="margin:14px 0 0 0;font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.6;color:#8B9099;">Button not working? <a href="{{ action_url }}" style="color:#8A6A15;word-break:break-all;">{{ action_url }}</a></p>
+    </td></tr>
+    {% endif %}
+
+    <!-- Somewhere to turn -->
+    <tr><td class="sm-pad" style="padding:28px 48px 0 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-rule"><tr>
+        <td style="height:1px;line-height:1px;font-size:0;background-color:#E4E0D6;">&nbsp;</td>
+      </tr></table>
+      <p class="dm-body" style="margin:20px 0 0 0;font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.7;color:#41474F;">
+        Need help getting set up? Email
+        <a href="mailto:{{ partner_email }}" style="color:#8A6A15;font-weight:600;">{{ partner_email }}</a>
+        or call <a href="tel:+14072127190" style="color:#8A6A15;font-weight:600;">(407) 212-7190</a>. A member of our Orlando team is available 24/7.
+      </p>
+    </td></tr>
+
+    <!-- Footer -->
+    <tr><td class="sm-pad" style="padding:26px 48px 36px 48px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-rule"><tr>
+        <td style="height:1px;line-height:1px;font-size:0;background-color:#E4E0D6;">&nbsp;</td>
+      </tr></table>
+      <div class="dm-muted" style="font-family:Montserrat,'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.8;color:#8B9099;padding-top:20px;">
+        <strong class="dm-ink" style="color:#0F1B2D;letter-spacing:1.4px;font-size:11px;text-transform:uppercase;">Grayson Towncar</strong><br>
+        <a class="dm-muted" href="tel:+14072127190" style="color:#8B9099;">(407) 212-7190</a> &nbsp;·&nbsp;
+        <a class="dm-muted" href="mailto:reservations@graysontowncar.com" style="color:#8B9099;">reservations@graysontowncar.com</a><br>
+        <span class="dm-muted" style="color:#A4A9B1;">{{ footer_note }}</span>
+      </div>
+    </td></tr>
+
+  </table>
+
+</td></tr>
+</table>
+</body>
+</html>

@@ -511,7 +511,8 @@ class PartnerFormTurnstileTests(TestCase):
     def test_applicant_unaffected_when_unconfigured(self):
         before = PartnerForm.objects.count()
         response = self.client.post(reverse("partner"), self.APPLICATION)
-        self.assertEqual(response.status_code, 302)
+        self.assertContains(response, "Continue to registration now")
+        self.assertIn("partner_inquiry", self.client.session)
         self.assertEqual(PartnerForm.objects.count(), before + 1)
 
 

@@ -1,0 +1,229 @@
+{% extends 'main.html' %}{% load static %}
+{% comment %}
+  A Grayson staff screen. It borrows the partner design tokens but not the
+  GRAYSON PARTNERS header -- internal tools do not belong inside the
+  agency-facing portal.
+{% endcomment %}
+{% block title %}Partner administration | Grayson{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/partner-portal.css' %}">
+<div class="partner-shell">
+<div class="partner-wrap">
+
+
+<header style="padding:34px 0 4px">
+  <div class="partner-eyebrow">Grayson administration</div>
+  <h1>Partner onboarding.</h1>
+  <p class="partner-lead">Link agents to agencies, review agency applications, and correct records.</p>
+  <div class="partner-tiles">
+    <div class="tile">
+      <div class="k">{{ counts.agency_applications }}</div>
+      <div class="s">Agency applications waiting</div>
+    </div>
+    <div class="tile">
+      <div class="k">{{ counts.held_bookings }}</div>
+      <div class="s">Bookings with commission held</div>
+    </div>
+    <div class="tile">
+      <div class="k">{{ counts.failed_emails }}</div>
+      <div class="s">Emails that failed to send</div>
+    </div>
+  </div>
+  <div class="partner-actions">
+    <a class="partner-button" href="{% url 'affiliate_payments' %}">Commission payouts</a>
+  </div>
+</header>
+
+<!-- Linking agents to agencies lives in dispatching, with the rest of the
+     internal agent tooling. This page does not duplicate it. -->
+<section class="partner-card quiet">
+  <h2>Linking agents to agencies</h2>
+  <p class="partner-note" style="margin:-8px 0 20px">
+    That lives with the rest of the internal agent tools, where you can also set
+    commission rates, change who gets paid, and create an agency that does not exist yet.
+  </p>
+  <div class="partner-actions">
+    <a class="partner-button" href="{% url 'admin_travel_agents' %}">Travel agent management</a>
+    <a class="partner-button secondary" href="{% url 'admin_travel_agencies' %}">Travel agencies</a>
+  </div>
+</section>
+
+<!-- ============ Queues: only shown when there is something to do ============ -->
+<section class="partner-card">
+  <h2>Agency applications</h2>
+  {% for app in applications %}
+    <details>
+      <summary>{{ app.name }} · {{ app.applicant.email }} · {{ app.state }}</summary>
+      <p class="partner-note">Website: {{ app.website }}<br>Address: {{ app.address }}<br>Phone: {{ app.phone }}<br>Authority: {{ app.authority }}</p>
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="action" value="application">
+        <input type="hidden" name="application" value="{{ app.pk }}">
+        <div class="partner-field">
+          <label for="app-agency-{{ app.pk }}">Link to an existing agency, or create this one</label>
+          <select name="agency" id="app-agency-{{ app.pk }}">
+            <option value="">Create the agency they submitted</option>
+            {% for agency in agencies %}<option value="{{ agency.pk }}">{{ agency.name }} (#{{ agency.pk }})</option>{% endfor %}
+          </select>
+        </div>
+        <div class="partner-field">
+          <label for="app-decision-{{ app.pk }}">Decision</label>
+          <select name="decision" id="app-decision-{{ app.pk }}">
+            <option value="approved">Approve the agency and its Owner</option>
+            <option value="information">Ask them for more information</option>
+            <option value="rejected">Reject</option>
+            <option value="pending">Reopen</option>
+          </select>
+        </div>
+        <div class="partner-field">
+          <label for="app-reason-{{ app.pk }}">Evidence / reason</label>
+          <textarea name="reason" id="app-reason-{{ app.pk }}" rows="2" required></textarea>
+        </div>
+        <div class="partner-actions"><button>Save decision</button></div>
+      </form>
+    </details>
+  {% empty %}
+    <p class="partner-note">Nothing waiting. New agency applications show up here.</p>
+  {% endfor %}
+</section>
+
+<section class="partner-card">
+  <h2>Agents who named an agency</h2>
+  <p class="partner-note" style="margin:-8px 0 20px">
+    People who typed an agency name we could not match automatically. Point them at the right one.
+  </p>
+  <div class="partner-table">
+    <table>
+      <thead><tr><th>Agent</th><th>They typed</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for claim in claims %}
+          <tr>
+            <td>{{ claim.agent.agent_name|default:claim.agent.user.username }}<br>
+              <span class="partner-note">{{ claim.agent.user.email }} · #{{ claim.agent_id }}</span></td>
+            <td>{{ claim.name }}</td>
+            <td>{{ claim.state }}{% if claim.escalated_at %}<br><strong>Overdue</strong>{% endif %}
+              {% if claim.decision_reason %}<br><span class="partner-note">{{ claim.decision_reason }}</span>{% endif %}</td>
+            <td>
+              {% if claim.agency_id %}
+                <a href="{% url 'partner_agency' claim.agency_id %}">Open agency</a>
+              {% else %}
+                <form method="post">{% csrf_token %}
+                  <input type="hidden" name="action" value="match">
+                  <input type="hidden" name="claim" value="{{ claim.pk }}">
+                  <select name="agency" aria-label="Agency to match">
+                    {% for agency in agencies %}<option value="{{ agency.pk }}">{{ agency.name }}</option>{% endfor %}
+                  </select>
+                  <input name="reason" required placeholder="Reason" aria-label="Match reason">
+                  <button>Match</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="partner-note">Nobody waiting on a match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if failures %}
+<section class="partner-card">
+  <h2>Emails that failed to send</h2>
+  {% for failure in failures %}
+    <p>{{ failure.subject }} · {{ failure.recipient }}<br><span class="partner-note">{{ failure.last_error }}</span></p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="retry">
+      <input type="hidden" name="outbox" value="{{ failure.pk }}">
+      <div class="partner-field"><label for="retry-{{ failure.pk }}">Reason</label><input name="reason" id="retry-{{ failure.pk }}" required></div>
+      <div class="partner-actions"><button class="secondary">Try again</button></div>
+    </form>
+  {% endfor %}
+</section>
+{% endif %}
+
+<!-- ============ Rarely needed, kept out of the way ============ -->
+<section class="partner-card quiet">
+  <h2>Occasional corrections</h2>
+
+  <details>
+    <summary>Mark an agent as working on their own</summary>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="independent">
+      <div class="partner-field">
+        <label for="ind-agent">Agent</label>
+        <select name="agent" id="ind-agent" required>
+          <option value="">Start typing a name…</option>
+          {% for a in agent_choices %}
+            <option value="{{ a.pk }}">{{ a.agent_name|default:a.user.username }} · {{ a.user.email }} · #{{ a.pk }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="partner-field"><label for="ind-reason">Why</label><textarea name="reason" id="ind-reason" rows="2" required></textarea></div>
+      <div class="partner-actions"><button class="secondary">Confirm independent</button></div>
+    </form>
+    <p class="partner-note">Applies to future bookings. Existing commission holds are handled separately.</p>
+  </details>
+
+  <details>
+    <summary>Add another spelling for an agency name</summary>
+    <p class="partner-note">So "Magical Travel Co." and "Magical Travel Company" both find the same agency.</p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="alias">
+      <div class="partner-field">
+        <label for="alias-agency">Agency</label>
+        <select name="agency" id="alias-agency">
+          {% for agency in agencies %}<option value="{{ agency.pk }}">{{ agency.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="partner-field"><label for="alias-name">Spelling to accept</label><input name="name" id="alias-name" maxlength="200" required></div>
+      <div class="partner-field"><label for="alias-reason">Why</label><input name="reason" id="alias-reason" required></div>
+      <div class="partner-actions"><button class="secondary">Add spelling</button></div>
+    </form>
+  </details>
+
+  <details>
+    <summary>Record a payment or recovery made outside the system</summary>
+    <p class="partner-note">
+      Records money already paid or recovered separately. Positive is extra payment, negative is money recovered.
+      The original payout and booking records stay unchanged. This does not move any money.
+    </p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="adjustment">
+      <div class="partner-field"><label for="adj-payout">Original payout ID</label><input type="number" name="payout" id="adj-payout" required><span class="helptext">For agency-paid agents, use the agency payout's child payout.</span></div>
+      <div class="partner-field"><label for="adj-amount">Amount (negative to recover)</label><input type="number" step="0.01" name="amount" id="adj-amount" required></div>
+      <div class="partner-field"><label for="adj-ref">Payment reference</label><input name="reference" id="adj-ref" maxlength="100" required></div>
+      <div class="partner-field"><label for="adj-reason">Why</label><textarea name="reason" id="adj-reason" rows="2" required></textarea></div>
+      <div class="partner-actions"><button class="secondary">Record it</button></div>
+    </form>
+    {% for adjustment in adjustments %}
+      <p class="partner-note">Payout #{{ adjustment.payout_id }} · {{ adjustment.payout.agency|default:adjustment.payout.agent }} · ${{ adjustment.amount }} · {{ adjustment.reference }}<br>{{ adjustment.reason }}</p>
+    {% endfor %}
+  </details>
+</section>
+
+<section class="partner-card quiet">
+  <h2>Reference</h2>
+  <details>
+    <summary>Records that need tidying</summary>
+    <p>Agents who typed an agency name but are not linked to one: <strong>{{ unlinked }}</strong></p>
+    <h3>Agencies with no Owner signed up</h3>
+    {% for agency in headless %}<p>{{ agency.name }} (#{{ agency.pk }})</p>{% empty %}<p class="partner-note">None.</p>{% endfor %}
+    <h3>Email addresses used by more than one account</h3>
+    {% for duplicate in duplicate_emails %}<p>{{ duplicate.normalized }} · {{ duplicate.total }} accounts</p>{% empty %}<p class="partner-note">None.</p>{% endfor %}
+    <p class="partner-note">Accounts are never merged automatically.</p>
+  </details>
+  <details>
+    <summary>Recent decisions</summary>
+    <div class="partner-table">
+      <table>
+        <thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
+        <tbody>{% for item in events %}<tr><td>{{ item.created_at }}</td><td>{{ item.actor }}</td><td>{{ item.kind }}</td><td>{{ item.details }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </details>
+</section>
+</div>
+</div>
+{% endblock %}
+
+{% block newsletter %}{% endblock %}

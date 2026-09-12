@@ -267,6 +267,11 @@ def reservation_form(
             if reservation.utm_source:
                 reservation.utm_source = _normalize_utm_source(reservation.utm_source)
 
+            # Establish authenticated agent identity before the first save and its
+            # attribution/commission signals; booking-contact email cannot override it.
+            if request.user.is_authenticated:
+                reservation.travel_agent = TravelAgent.objects.filter(user=request.user).first()
+
             # Save the reservation with UTM data (booking_source derived below
             # AFTER travel_agent assignment so agent attribution wins).
             reservation.save()

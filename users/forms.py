@@ -46,6 +46,19 @@ class CustomUserCreationForm(UserCreationForm):
         for field, placeholder in placeholders.items():
             self.fields[field].widget.attrs.update({"placeholder": placeholder})
 
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError('This email already has an account. Sign in to continue.')
+        return email
+
+    def clean_username(self):
+        username = self.cleaned_data['username'].strip().lower()
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError('This username is already in use.')
+        return username
+
+
 
 class PartnerFormSubmission(forms.ModelForm):
     class Meta:
