@@ -106,6 +106,13 @@ INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    # Compress dynamic HTML. Gunicorn is the edge here (Railway does not gzip app
+    # responses), so before this every dispatcher page went over the wire raw: the
+    # legs dashboard for a 190-leg day is 12.2 MB uncompressed and 476 KB gzipped.
+    # That download was most of the 20+ second load on a busy day.
+    # Must sit ABOVE the middleware that build the body and BELOW WhiteNoise, which
+    # short-circuits static files and does its own compression.
+    "django.middleware.gzip.GZipMiddleware",
     # Cap DB query time for web requests before any view (incl. the session query) runs.
     "reservations.middleware.StatementTimeoutMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

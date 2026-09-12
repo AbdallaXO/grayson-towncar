@@ -407,6 +407,27 @@ def index(request):
             affiliate_drivers_list.append(driver)
         driver.dashboard_display_name = display_name
 
+    # ── Driver dropdowns ship as stubs, filled on first click ────────────────
+    # The full roster used to be rendered into every row's <select> — twice per leg
+    # (desktop table + mobile card). On a 190-leg day that was 372 dropdowns holding
+    # 23,000 <option> elements: 4.7 MB of the page's 12.2 MB, and the single biggest
+    # thing the browser had to build before the day was usable.
+    # Now each row carries only the placeholder plus the driver already on the job, and
+    # `driverOptionsTpl` (rendered once, at the foot of the page) is cloned in when a
+    # dispatcher actually opens a dropdown. The stub option has to read EXACTLY like its
+    # counterpart in the full list, or the closed select would reword itself the moment
+    # it was clicked — hence the shared label map rather than re-deriving it in the
+    # template.
+    _driver_option_labels = {}
+    for driver in drivers:
+        _count = driver.day_leg_count
+        _driver_option_labels[driver.id] = (
+            f"{driver.dashboard_display_name} ({_count} leg{'' if _count == 1 else 's'})"
+            if _count > 0 else driver.dashboard_display_name
+        )
+    for _leg in _all_day_legs:
+        _leg.assigned_driver_option_label = _driver_option_labels.get(_leg.driver_id, "")
+
     # Calculate total revenue from legs on this day (only for admins)
     # Use per-leg revenue share (reservation price / number of legs) for accuracy
     _can_view_rev = can_view_revenue(request.user)
@@ -680,7 +701,10 @@ def index(request):
         .exclude(status="cancelled")
         # reservation + flight_information are read by estimate_job_end_time
         # (store_stop, flight arrival) — pull them in to avoid a .get() per leg.
+        # The arrival resolves through the controlling LegFlight first, so that has
+        # to come along too or the flight_information above is never reached.
         .select_related("driver", "reservation", "flight_information")
+        .prefetch_related("legflight_set__flight")
         .order_by("driver_id", "-pickup_time")
     )
     for _pl in _prev_legs:
@@ -970,14 +994,21 @@ def schedule_board(request):
         .exclude(reservation__status="cancelled")
         .exclude(status="cancelled")
         .select_related(
-            "driver", "reservation", "reservation__customer",
+            "driver",
+            # Every assigned leg resolves a driver label (via the draft overlay and
+            # the row headers), and each one walked Driver -> profile on its own:
+            # one auth_user query per leg, ~150 round trips on a busy day.
+            "driver__profile",
+            "reservation", "reservation__customer",
             "reservation__vehicle", "vehicle", "flight_information", "cruise_information",
             "reservation__travel_agent",
             "reservation__travel_agent__agency",  # for Leg.is_vip agency-keyword check (no N+1)
         )
         .prefetch_related(
             "legstop_set",
-            "legflight_set",
+            # `__flight` so Leg.controlling_flight resolves from the prefetch instead
+            # of fetching each flight row on its own.
+            "legflight_set__flight",
             Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp")),
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
             Prefetch(
@@ -1177,7 +1208,11 @@ def schedule_board(request):
     _prev_legs = (
         Leg.objects.filter(pickup_date=prev_day, driver__in=board_drivers)
         .exclude(status="cancelled")
-        .select_related("driver")
+        # estimate_job_end_time() reads the reservation and the controlling flight of
+        # each of these, which was two more round trips per driver just to print one
+        # "cleared at" time in a row header.
+        .select_related("driver", "reservation", "flight_information")
+        .prefetch_related("legflight_set__flight")
         .order_by("driver_id", "-pickup_time")
     )
     for _pl in _prev_legs:
@@ -12202,6 +12237,10 @@ def capacity_planner(request):
             "cruise_information",
         )
         .prefetch_related(
+            # The planner estimates a clearing time for every leg, and an arrival's
+            # estimate is driven by its controlling flight — one query per leg before
+            # this, the planner's largest single source of round trips.
+            "legflight_set__flight",
             Prefetch(
                 "status_history",
                 queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
@@ -12508,7 +12547,10 @@ def capacity_planner(request):
         .exclude(status="cancelled")
         # reservation + flight_information are read by estimate_job_end_time
         # (store_stop, flight arrival) — pull them in to avoid a .get() per leg.
+        # The arrival resolves through the controlling LegFlight first, so that has
+        # to come along too or the flight_information above is never reached.
         .select_related("driver", "reservation", "flight_information")
+        .prefetch_related("legflight_set__flight")
         .order_by("driver_id", "-pickup_time")
     )
     for _cpl in _cp_prev_legs:

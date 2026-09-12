@@ -1739,29 +1739,14 @@
                         {% if is_held and leg.draft_time_changed %}
                           <span class="draft-conflict-badge mb-1" style="background:#7b1fa2;" title="Pickup time changed live since you opened the draft">⏰ TIME CHANGED</span>
                         {% endif %}
+                        {# Stub dropdown — the roster is cloned in from #driverOptionsTpl on
+                           first interaction. See the view for why. #}
                         <select class="form-select form-select-sm mb-1 driver-select"
                                 name="driver"
                                 data-leg-id="{{ leg.id }}"{% if board_locked %} disabled title="Draft is in review — editing is locked"{% endif %}>
                           <option value="">Select Driver</option>
-                          {% if inhouse_drivers_list %}
-                            <optgroup label="In-House">
-                              {% for driver in inhouse_drivers_list %}
-                                <option value="{{ driver.id }}"
-                                        {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                  {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
-                                </option>
-                              {% endfor %}
-                            </optgroup>
-                          {% endif %}
-                          {% if affiliate_drivers_list %}
-                            <optgroup label="Affiliate">
-                              {% for driver in affiliate_drivers_list %}
-                                <option value="{{ driver.id }}"
-                                        {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                  {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
-                                </option>
-                              {% endfor %}
-                            </optgroup>
+                          {% if leg.driver_id %}
+                            <option value="{{ leg.driver_id }}" selected>{{ leg.assigned_driver_option_label }}</option>
                           {% endif %}
                         </select>
                         <select class="form-select form-select-sm status-select"
@@ -2163,29 +2148,13 @@
                                 {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
                               </span>
                             {% endif %}
+                            {# Stub dropdown — see the desktop row above. #}
                             <select class="form-select form-select-sm mb-1 driver-select"
                                     name="driver"
                                     data-leg-id="{{ leg.id }}">
                               <option value="">Select Driver</option>
-                              {% if inhouse_drivers_list %}
-                                <optgroup label="In-House">
-                                  {% for driver in inhouse_drivers_list %}
-                                    <option value="{{ driver.id }}"
-                                            {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                      {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
-                                    </option>
-                                  {% endfor %}
-                                </optgroup>
-                              {% endif %}
-                              {% if affiliate_drivers_list %}
-                                <optgroup label="Affiliate">
-                                  {% for driver in affiliate_drivers_list %}
-                                    <option value="{{ driver.id }}"
-                                            {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                      {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
-                                    </option>
-                                  {% endfor %}
-                                </optgroup>
+                              {% if leg.driver_id %}
+                                <option value="{{ leg.driver_id }}" selected>{{ leg.assigned_driver_option_label }}</option>
                               {% endif %}
                             </select>
                             <select class="form-select form-select-sm status-select"
@@ -2501,6 +2470,40 @@
                       statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
                   });
           }
+
+          // ── Fill a driver dropdown on demand ────────────────────────────────
+          // Rows ship with just the placeholder and whoever is already on the job;
+          // the rest of the roster arrives the first time a dispatcher opens the
+          // dropdown. Rendering all of it up front cost 4.7 MB and 23,000 option
+          // elements on a busy day, which is what made the page slow to open.
+          // Hydration is synchronous and fires before the list can be shown, so a
+          // dispatcher never sees a half-filled dropdown.
+          function hydrateDriverSelect(select) {
+              if (select.dataset.hydrated === '1') return;
+              select.dataset.hydrated = '1';
+              const tpl = document.getElementById('driverOptionsTpl');
+              if (!tpl) return;                       // roster empty — stub stands
+              const current = select.value;
+              select.appendChild(tpl.content.cloneNode(true));
+              if (current) {
+                  // The driver already on the job now appears inside their real
+                  // optgroup, so drop the stub copy — the same person offered twice
+                  // is a way to pick the wrong one. Only drop it once we can see the
+                  // roster genuinely lists them, or a driver who has since come off
+                  // the roster would disappear from their own trip.
+                  const stub = Array.from(select.children).find(
+                      el => el.tagName === 'OPTION' && el.value === current);
+                  const listed = Array.from(select.querySelectorAll('optgroup > option'))
+                      .some(o => o.value === current);
+                  if (stub && listed) stub.remove();
+              }
+              select.value = current;
+          }
+          document.querySelectorAll('.driver-select').forEach(select => {
+              ['mousedown', 'focus', 'keydown', 'touchstart'].forEach(evt => {
+                  select.addEventListener(evt, () => hydrateDriverSelect(select));
+              });
+          });
 
           // Driver and status selection handlers
           document.querySelectorAll('.driver-select, .status-select').forEach(select => {
@@ -4998,6 +5001,25 @@
       })();
 
   </script>
+
+  {# ── Driver roster, rendered once ──────────────────────────────────────────
+     Every row's driver dropdown is filled from this on first interaction. Inside
+     a <template> the browser parses the markup but builds no live DOM for it, so
+     one roster costs what one row's dropdown used to.
+     Keep these option labels identical to `assigned_driver_option_label` in the
+     view — they are two renderings of the same thing. #}
+  <template id="driverOptionsTpl">
+    {% if inhouse_drivers_list %}
+      <optgroup label="In-House">
+        {% for driver in inhouse_drivers_list %}<option value="{{ driver.id }}">{{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}</option>{% endfor %}
+      </optgroup>
+    {% endif %}
+    {% if affiliate_drivers_list %}
+      <optgroup label="Affiliate">
+        {% for driver in affiliate_drivers_list %}<option value="{{ driver.id }}">{{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}</option>{% endfor %}
+      </optgroup>
+    {% endif %}
+  </template>
 
   <!-- Hidden status history data for each leg -->
   {% for leg in legs %}

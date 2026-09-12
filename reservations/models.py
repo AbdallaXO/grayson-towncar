@@ -2642,9 +2642,21 @@ class Leg(models.Model):
           3. None.
         """
         if self.pk is not None:
-            lf = self.legflight_set.filter(is_controlling=True).select_related("flight").first()
-            if lf is not None:
-                return lf.flight
+            # Read the prefetched rows when the caller loaded them. The dispatcher
+            # pages resolve this for every leg on the day (clearing-time estimates,
+            # pickup deadlines), and the filtered query below can't use a prefetch
+            # cache — so it was one round trip per leg, ~250 on a busy board.
+            # Meta.ordering is deterministic and a partial unique constraint allows
+            # only one controlling row, so scanning is the same pick .first() made.
+            rows = self.legflight_set.all()
+            if rows._result_cache is not None:
+                for lf in rows._result_cache:
+                    if lf.is_controlling:
+                        return lf.flight
+            else:
+                lf = self.legflight_set.filter(is_controlling=True).select_related("flight").first()
+                if lf is not None:
+                    return lf.flight
         return self.flight_information
 
     # ── External deep links (Google Maps / flight trackers) ──
