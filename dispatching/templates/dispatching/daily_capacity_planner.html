@@ -32,6 +32,9 @@
     .date-nav a,
     .date-nav .btn { font-size: 0.85rem; }
 
+    /* While the picked day is loading, nothing in the nav takes another click */
+    .date-nav.is-loading { opacity: 0.5; pointer-events: none; }
+
     /* Stat cards inside dark header */
     .stat-card-dark {
         background: rgba(255,255,255,0.06);
@@ -1360,7 +1363,7 @@
         <div class="row align-items-center">
             <div class="col-md-6 mb-2 mb-md-0">
                 <h1 class="fw-bold mb-1">Daily Capacity Planner</h1>
-                <p class="lead mb-0">{{ selected_date|date:"l, F j, Y" }}
+                <p class="lead mb-0" id="plannerDateLine">{{ selected_date|date:"l, F j, Y" }}
                     {% if is_today %}<span class="badge bg-warning text-dark ms-2" style="font-size:0.7rem;">Today</span>{% endif %}
                     {% if is_past %}<span class="badge bg-secondary ms-2" style="font-size:0.7rem;">Past</span>{% endif %}
                 </p>
@@ -1371,6 +1374,7 @@
                         <i class="bi bi-chevron-left"></i>
                     </a>
                     <input type="date" id="datePicker" value="{{ selected_date|date:'Y-m-d' }}"
+                           data-server-date="{{ selected_date|date:'Y-m-d' }}" autocomplete="off"
                            class="form-control form-control-sm" style="max-width: 160px; background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2);">
                     <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline-light btn-sm">
                         <i class="bi bi-chevron-right"></i>
@@ -3058,14 +3062,80 @@
 <script>
     (function() {
         var picker = document.getElementById('datePicker');
-        var currentDate = picker.value;
-        function navigateDate() {
-            if (picker.value && picker.value !== currentDate) {
-                window.location.href = '?date=' + picker.value;
-            }
+        if (!picker) { return; }
+
+        // The day the SERVER rendered — the only trustworthy answer to "what day am I
+        // looking at". Browsers restore the typed value of a date box across a reload or
+        // a Back, so the box can end up showing one day while the page under it shows
+        // another. That is not cosmetic: ten buttons on this page (Suggest Day Setup,
+        // Reset All, Save snapshot, the schedule builder) read this box to decide which
+        // day they act on, and re-picking the day already in the box used to do nothing
+        // at all. Pin the box to the rendered day on load, and compare against that.
+        var serverDate = picker.getAttribute('data-server-date') || '';
+        if (serverDate && picker.value !== serverDate) { picker.value = serverDate; }
+
+        var navTimer = null;
+        var navigating = false;
+        var dateLine = document.getElementById('plannerDateLine');
+        var dateLineHtml = dateLine ? dateLine.innerHTML : '';
+
+        function goToPickedDate() {
+            navTimer = null;
+            var wanted = picker.value;
+            if (navigating || !wanted || wanted === serverDate) { return; }
+            navigating = true;
+            showLoading(wanted);
+            var url = new URL(window.location.href);
+            url.searchParams.set('date', wanted);
+            window.location.assign(url.toString());
         }
-        picker.addEventListener('change', navigateDate);
-        picker.addEventListener('input', navigateDate);
+
+        function queueNavigation() {
+            // A date box fires input/change on every completed edit, so typing 09/12
+            // is briefly a valid 09/01 the moment the "1" lands — and the old handler
+            // left for September 1st before the "2" was ever typed. Wait for the typing
+            // to settle. A pick from the calendar popup still moves in under half a
+            // second, which is nothing next to how long this page takes to build.
+            if (navTimer) { clearTimeout(navTimer); }
+            navTimer = setTimeout(goToPickedDate, 400);
+        }
+
+        // This page is slow to build. Say out loud that the day is on its way, or a
+        // dispatcher picks a date, sees the old numbers sitting there, and picks again.
+        function showLoading(isoDate) {
+            document.querySelector('.date-nav').classList.add('is-loading');
+            if (!dateLine) { return; }
+            var parts = isoDate.split('-');
+            var when = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+            dateLine.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading '
+                + when.toLocaleDateString(undefined, {
+                    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                }) + '\u2026';
+        }
+
+        picker.addEventListener('change', queueNavigation);
+        picker.addEventListener('input', queueNavigation);
+
+        // The arrows and Today are the same trip on the same slow page — say so there too.
+        document.querySelectorAll('.date-nav a[href*="date="]').forEach(function(link) {
+            link.addEventListener('click', function() {
+                navigating = true;
+                var iso = (link.getAttribute('href').split('date=')[1] || '').slice(0, 10);
+                if (iso) { showLoading(iso); }
+            });
+        });
+
+        // Coming Back lands on the page exactly as it was left — frozen at half
+        // opacity, still saying "Loading", and with the box holding the day that was
+        // picked on the way out rather than the day on screen. Put all three back.
+        window.addEventListener('pageshow', function(e) {
+            if (!e.persisted) { return; }
+            navigating = false;
+            if (navTimer) { clearTimeout(navTimer); navTimer = null; }
+            document.querySelector('.date-nav').classList.remove('is-loading');
+            if (dateLine) { dateLine.innerHTML = dateLineHtml; }
+            if (serverDate) { picker.value = serverDate; }
+        });
     })();
 
     /* ── Quick Assign from suggestion ── */
