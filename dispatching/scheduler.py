@@ -1462,18 +1462,30 @@ def build_driver_schedules(legs, drivers, target_date: date, dva_rows=None) -> D
         leg_vtype = leg.effective_vehicle_type
 
         # Build a compact car-seat summary (e.g. "1 rf, 2 ff, 1 b") for popups.
+        # Mirrors Leg.display_carseats (rf/ff/booster + extras, plus the
+        # "not confirmed" fallback) so a leg with only extra seats or an
+        # unconfirmed count still badges instead of showing nothing.
         _carseat_parts = []
         try:
-            if leg.effective_need_carseats:
-                if leg.effective_rf_carseats:
-                    _carseat_parts.append(f"{leg.effective_rf_carseats} rf")
-                if leg.effective_ff_carseats:
-                    _carseat_parts.append(f"{leg.effective_ff_carseats} ff")
-                if leg.effective_booster_seats:
-                    _carseat_parts.append(f"{leg.effective_booster_seats} b")
+            if leg.effective_rf_carseats:
+                _carseat_parts.append(f"{leg.effective_rf_carseats} rf")
+            if leg.effective_ff_carseats:
+                _carseat_parts.append(f"{leg.effective_ff_carseats} ff")
+            if leg.effective_booster_seats:
+                _carseat_parts.append(f"{leg.effective_booster_seats} b")
+            if leg.effective_extra_carseats:
+                _carseat_parts.append(f"{leg.effective_extra_carseats} extra cs")
+            if leg.effective_extra_boosters:
+                _carseat_parts.append(f"{leg.effective_extra_boosters} extra b")
         except Exception:
             pass
         _carseats_short = ", ".join(_carseat_parts)
+        if not _carseats_short:
+            try:
+                if leg.effective_need_carseats:
+                    _carseats_short = "unconfirmed"
+            except Exception:
+                pass
 
         # Count extra stops + secondary flights. Uses the prefetched collection when the
         # caller prefetched the relation (build_driver_schedules runs MANY times across the
@@ -1516,7 +1528,7 @@ def build_driver_schedules(legs, drivers, target_date: date, dva_rows=None) -> D
             luggage=int(leg.effective_luggage_count or 0),
             luggage_type=leg.effective_luggage_type or "",
             carseats_short=_carseats_short,
-            store_stop=bool(leg.reservation.store_stop) if (leg.reservation and leg.get_trip_type() == 'arrival') else False,
+            store_stop=getattr(leg, 'shows_store_stop', False),
             pending_refund=bool(leg.reservation.has_pending_refund) if leg.reservation else False,
             is_vip=leg.is_vip,
             extra_stop_count=_legstop_count,

@@ -1552,19 +1552,30 @@ def schedule_board(request):
         _vtype = leg.effective_vehicle_type or ''
         _vabbr_map = {'towncar': 'TC', 'suv': 'SUV', 'mini_van': 'MV', 'van': 'VAN', 'Van(14 Pax)': 'V14'}
         _vabbr = _vabbr_map.get(str(_vtype), '') if _vtype else ''
-        # Compact car-seat string (e.g. "1 rf, 2 ff, 1 b")
+        # Compact car-seat string (e.g. "1 rf, 2 ff, 1 b") — mirrors
+        # Leg.display_carseats (extras + "unconfirmed" fallback included) so this
+        # matches the driver-row lanes built in scheduler.build_driver_schedules.
         _us_carseat_parts = []
         try:
-            if leg.effective_need_carseats:
-                if leg.effective_rf_carseats:
-                    _us_carseat_parts.append(f"{leg.effective_rf_carseats} rf")
-                if leg.effective_ff_carseats:
-                    _us_carseat_parts.append(f"{leg.effective_ff_carseats} ff")
-                if leg.effective_booster_seats:
-                    _us_carseat_parts.append(f"{leg.effective_booster_seats} b")
+            if leg.effective_rf_carseats:
+                _us_carseat_parts.append(f"{leg.effective_rf_carseats} rf")
+            if leg.effective_ff_carseats:
+                _us_carseat_parts.append(f"{leg.effective_ff_carseats} ff")
+            if leg.effective_booster_seats:
+                _us_carseat_parts.append(f"{leg.effective_booster_seats} b")
+            if leg.effective_extra_carseats:
+                _us_carseat_parts.append(f"{leg.effective_extra_carseats} extra cs")
+            if leg.effective_extra_boosters:
+                _us_carseat_parts.append(f"{leg.effective_extra_boosters} extra b")
         except Exception:
             pass
         _us_carseats = ", ".join(_us_carseat_parts)
+        if not _us_carseats:
+            try:
+                if leg.effective_need_carseats:
+                    _us_carseats = "unconfirmed"
+            except Exception:
+                pass
 
         unassigned_timeline_slots.append({
             'leg_id': leg.id,
@@ -3952,6 +3963,8 @@ def copy_vehicle_assignments(request):
             obj.save()
         copied += 1
         result_map[str(a.driver_id)] = a.vehicle_id
+
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
 
     return JsonResponse({
         "success": True,
