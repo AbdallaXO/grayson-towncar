@@ -38,7 +38,9 @@ from django.views.decorators.http import require_POST
 from reservations.models import Leg, LegKeoi, LegStatus
 
 from .models import Driver
-from .operator_jobs import build_day_text, build_job_fields, build_job_text, short_place
+from .operator_jobs import (
+    build_day_text, build_job_fields, build_job_text, seats_line, short_place,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,10 @@ def _decorate(legs):
         leg.job_text = build_job_text(leg)
         leg.needs_response = leg.operator_accepted_at is None and leg.status == "in-progress"
         leg.trip_kind = leg.get_trip_type()
+        # The queue row needs the seat list too, and it has to be the SAME string
+        # the card and the copy block show — reading Leg.display_carseats here
+        # instead put our internal "extra seat" split back on the page.
+        leg.seats_display = seats_line(leg)
         # Headline route reads as a route, not two Google address strings. The
         # full address is still one click away in the copy fields below it.
         leg.pickup_short = short_place(leg.pickup_location)

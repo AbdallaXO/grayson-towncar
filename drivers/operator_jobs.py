@@ -6,10 +6,13 @@ Every extra minute of re-typing is a chance to transpose a flight number or a
 phone digit, so the portal hands them the job as text they can paste in one go,
 plus per-field values for the systems that want one box at a time.
 
-Deliberately NO money. Not the customer's price, not the operator's rate. The
-operator prices the job against their rate card with us; the copy block exists
-to move TRIP FACTS accurately, and a stray dollar figure pasted into their
-system is worse than useless.
+Deliberately NO money, with ONE exception. Not the customer's price, not the
+operator's rate: the operator prices the job against their rate card with us,
+and a stray dollar figure pasted into their system is worse than useless. The
+exception is the gratuity riding on THIS leg, which is theirs and which their
+driver asks about — so the leg's own note carries it, while the reservation's
+whole-booking gratuity line (a percentage and a total that span every leg) is
+stripped out. See ``_notes_fields``.
 
 ``build_job_fields`` is the single source of truth: ``build_job_text`` is just
 that list rendered. Add a field once and both the per-field copy chips and the
@@ -129,13 +132,70 @@ def _flight_line(leg):
     return f"{ident} - {label} {_fmt_time(timezone.localtime(when))}"
 
 
-def _seats_line(leg):
-    """Car seats spelled out — the single most-missed detail on a farm-out.
+def seats_line(leg):
+    """Car seats as a bring-this-many list — the most-missed detail on a farm-out.
 
-    Delegates to Leg.display_carseats so the operator copies the exact string
-    the chauffeur portal and the board show. One formatter, no drift.
+    Deliberately NOT Leg.display_carseats, which spells out our internal split
+    between the seats included in the booking and the "extra" ones added on top.
+    That split is ours, not theirs: an operator reading "1 Rear-Facing, 1 Extra
+    Car Seat" can't tell whether that means one seat or two, and a miscount here
+    puts a child in a car without a seat. So the extras are ADDED to the counts
+    rather than listed apart — extra boosters are boosters, and an extra car seat
+    of unrecorded type is just a car seat.
     """
-    return leg.display_carseats or ""
+    boosters = (leg.effective_booster_seats or 0) + (leg.effective_extra_boosters or 0)
+    seats = [
+        (leg.effective_rf_carseats or 0, "Rear-Facing"),
+        (leg.effective_ff_carseats or 0, "Forward-Facing"),
+        (boosters, "Booster"),
+        (leg.effective_extra_carseats or 0, "Car Seat"),
+    ]
+    parts = [f"{n} {label}" for n, label in seats if n]
+    if parts:
+        return ", ".join(parts)
+    return "Yes - count not confirmed" if leg.effective_need_carseats else ""
+
+
+# The whole-booking gratuity line that reservations.utils stamps onto
+# special_requests: "20% Gratuity Included ($90.00)". It describes the WHOLE
+# reservation — every leg, both directions — so on a single farmed-out leg it is
+# both wrong and a price disclosure. The per-leg twin ("$45.00 Gratuity
+# Included", written to Leg.private_notes) is the operator's actual number and is
+# deliberately left alone.
+_RESERVATION_GRATUITY_LINE = re.compile(
+    r"^\s*\d+\s*%\s*gratuity\s+included\b.*$", re.IGNORECASE
+)
+
+
+def _clean_notes(raw, drop=None):
+    """Notes as ONE line, with any line matching `drop` removed.
+
+    The block is read as 'Label: value' per line, so an embedded newline would
+    orphan everything after it from its label — hence the flattening.
+    """
+    if not raw:
+        return ""
+    kept = [
+        line.strip() for line in str(raw).splitlines()
+        if line.strip() and not (drop and drop.match(line))
+    ]
+    return "; ".join(kept)
+
+
+def _notes_fields(leg):
+    """[(label, value)] for the two note sources an operator should read.
+
+    Guest/booking notes carry the instructions ("meet inside baggage claim");
+    the leg's own notes carry anything specific to this run, including the
+    gratuity for it. Kept as separate fields so each copies on its own and the
+    gratuity isn't buried mid-paragraph.
+    """
+    reservation = leg.reservation
+    guest = _clean_notes(
+        reservation.special_requests if reservation else "",
+        drop=_RESERVATION_GRATUITY_LINE,
+    )
+    return [("Notes", guest), ("Leg notes", _clean_notes(leg.private_notes))]
 
 
 def _store_stop_line(leg):
@@ -181,8 +241,6 @@ def build_job_fields(leg):
                         (leg.cruise_information.ship_name or "").strip()] if p
         )
 
-    notes = (reservation.special_requests or "").strip() if reservation else ""
-
     candidates = [
         ("Confirmation", reservation.display_number if reservation else ""),
         ("Passenger", passenger),
@@ -196,9 +254,9 @@ def build_job_fields(leg):
         ("Vehicle", vehicle),
         ("Passengers", str(leg.effective_passenger_count or "")),
         ("Luggage", luggage),
-        ("Car seats", _seats_line(leg)),
+        ("Car seats", seats_line(leg)),
         ("Store stop", _store_stop_line(leg)),
-        ("Notes", notes),
+        *_notes_fields(leg),
     ]
     return [
         (label, _ascii_safe(value).strip())
@@ -208,8 +266,21 @@ def build_job_fields(leg):
 
 
 def build_job_text(leg):
-    """The whole job as one pasteable block: 'Label: value' per line."""
-    return "\n".join(f"{label}: {value}" for label, value in build_job_fields(leg))
+    """The whole job as one pasteable block: 'Label: value' per line.
+
+    The block opens with a plain title line, and that line is load-bearing. Every
+    field line is 'Word: value', and a block STARTING with one parses as a URI —
+    "Confirmation:" is a valid scheme. Paste targets that sniff for a URI then
+    percent-escape everything after the scheme, which is how an operator ended up
+    pasting `Confirmation:%205011942%0APassenger:%20...`. A first line with no
+    colon in it leaves nothing to mistake for a scheme.
+    """
+    fields = build_job_fields(leg)
+    if not fields:
+        return ""
+    number = next((v for label, v in fields if label == "Confirmation"), "")
+    title = f"Grayson Towncar job {number}".strip()
+    return "\n".join([title, *(f"{label}: {value}" for label, value in fields)])
 
 
 def build_day_text(legs):

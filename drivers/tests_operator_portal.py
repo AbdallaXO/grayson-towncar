@@ -122,10 +122,15 @@ class JobTextTests(TestCase):
             self.assertIn(expected, text)
 
     def test_car_seats_are_in_the_copy_block(self):
-        """The detail that gets missed on a farm-out, including the 'extra' seats
-        the reservation-level formatter drops."""
+        """The detail that gets missed on a farm-out.
+
+        The 'extra' seats count, but they are ADDED to their own kind rather than
+        listed apart: our included-vs-extra split is meaningless to an operator,
+        and "1 Booster, 1 Extra Booster" reads like it might be one seat.
+        """
         text = build_job_text(self.leg)
-        self.assertIn("Car seats: 1 Rear-Facing, 2 Booster, 1 Extra Booster", text)
+        self.assertIn("Car seats: 1 Rear-Facing, 3 Booster", text)
+        self.assertNotIn("Extra", text)
 
     def test_leg_override_beats_the_reservation(self):
         """Seats edited on ONE leg of a round trip must copy that leg's numbers."""
@@ -137,6 +142,8 @@ class JobTextTests(TestCase):
         self.assertIn("Car seats: 3 Forward-Facing", build_job_text(self.leg))
 
     def test_no_money_anywhere(self):
+        """Our pricing never travels. The leg's own gratuity is the one exception
+        (see GratuityTests) — this job has none, so nothing monetary belongs."""
         text = build_job_text(self.leg)
         self.assertNotIn("$", text)
         for banned in ("price", "rate", "pay", "total"):
@@ -150,7 +157,63 @@ class JobTextTests(TestCase):
     def test_board_renders_the_car_seats(self):
         self.client.force_login(self.operator.profile)
         resp = self.client.get(reverse("operator_board"))
-        self.assertContains(resp, "1 Rear-Facing, 2 Booster, 1 Extra Booster")
+        self.assertContains(resp, "1 Rear-Facing, 3 Booster")
+
+    def test_the_queue_row_agrees_with_the_card(self):
+        """Both render the same leg; a row reading Leg.display_carseats directly
+        put the internal 'Extra Booster' split back in front of the operator."""
+        self.client.force_login(self.operator.profile)
+        resp = self.client.get(reverse("operator_board"))
+        self.assertNotContains(resp, "Extra Booster")
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
+class GratuityTests(TestCase):
+    """The gratuity an operator sees must be THIS leg's, not the booking's.
+
+    reservations.utils stamps two different gratuity notes: a whole-booking line
+    on the reservation ("20% Gratuity Included ($90.00)") and a per-leg split on
+    each leg ("$45.00 Gratuity Included"). Only the second one is the operator's
+    number; the first spans every leg of the trip and discloses our pricing.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.operator = _make_operator("grat_ops")
+        cls.reservation = _bootstrap_reservation(
+            special_requests="Meet inside baggage claim\n20% Gratuity Included ($90.00)",
+        )
+        cls.leg = _make_leg(
+            cls.reservation, cls.operator, pickup_date=timezone.localdate(),
+            private_notes="Gate code 4417\n$45.00 Gratuity Included",
+        )
+
+    def test_the_legs_own_gratuity_is_shown(self):
+        self.assertIn("$45.00 Gratuity Included", build_job_text(self.leg))
+
+    def test_the_bookings_gratuity_line_is_stripped(self):
+        text = build_job_text(self.leg)
+        self.assertNotIn("20% Gratuity", text)
+        self.assertNotIn("$90.00", text)
+
+    def test_every_other_note_survives_the_strip(self):
+        """Dropping the gratuity line must not take the real instructions with it."""
+        text = build_job_text(self.leg)
+        self.assertIn("Meet inside baggage claim", text)
+        self.assertIn("Gate code 4417", text)
+
+    def test_the_board_shows_the_leg_gratuity_not_the_bookings(self):
+        self.client.force_login(self.operator.profile)
+        resp = self.client.get(reverse("operator_board"))
+        self.assertContains(resp, "$45.00 Gratuity Included")
+        self.assertNotContains(resp, "20% Gratuity")
+
+    def test_notes_stay_on_one_line_each(self):
+        """The block is parsed as 'Label: value' per line, so a multi-line note
+        would orphan its tail from the label it belongs to."""
+        labelled = dict(build_job_fields(self.leg))
+        self.assertEqual(labelled["Leg notes"], "Gate code 4417; $45.00 Gratuity Included")
+        self.assertEqual(labelled["Notes"], "Meet inside baggage claim")
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")

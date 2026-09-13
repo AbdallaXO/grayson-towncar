@@ -16,8 +16,8 @@ plus Copy / Accept / Decline. The full detail is one click away in the day view.
       </div>
       <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">
         {{ leg.effective_vehicle }} · {{ leg.effective_passenger_count }} pax
-        {% if leg.display_carseats %}
-          · <span style="color:#b23c00;font-weight:700;">{{ leg.display_carseats }}</span>
+        {% if leg.seats_display %}
+          · <span style="color:#b23c00;font-weight:700;">{{ leg.seats_display }}</span>
         {% endif %}
         {% if leg.shows_store_stop %}
           · <span style="color:#047857;font-weight:700;"><i class="bi bi-shop"></i> Publix stop</span>
