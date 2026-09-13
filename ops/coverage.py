@@ -461,6 +461,16 @@ def _fmt_min(m):
     return f"{h12}:{mm:02d}{ap}" if mm else f"{h12}{ap}"
 
 
+def _hm(m):
+    """Minutes-of-day -> ``"HH:MM"`` for an <input type="time"> value.
+
+    Wraps past midnight so the second half of an overnight shift (stored as
+    sm+1440 by the day builder) still prefills as a real clock time.
+    """
+    h, mm = divmod(m % 1440, 60)
+    return f"{h:02d}:{mm:02d}"
+
+
 def _fmt_min_long(m):
     """Minutes-of-day -> full readable clock: '9:00 AM', '7:30 AM', '12:00 AM'.
 
@@ -680,6 +690,10 @@ def _row_cell(shift, *, day, time_off=None, pending=None, extras=()):
         base = {
             "is_working": True,
             "label": f'{_fmt_min(shift["sm"])}–{_fmt_min(shift["em"])}',
+            # Raw clock times too: the label is display-only ("7:30a–4p"), and the
+            # "change these hours" form needs values an <input type="time"> accepts.
+            "start_hm": _hm(shift["sm"]),
+            "end_hm": _hm(shift["em"]),
             "kind": "work",
             "overnight": shift.get("overnight", False),
             "role": shift.get("role") or "",

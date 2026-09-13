@@ -4620,6 +4620,7 @@ def timeclock_action(request):
 
     shift = get_open_shift(request.user)
     open_break = shift.open_break if shift else None
+
     return JsonResponse({
         "success": True,
         "result": result,
@@ -5388,7 +5389,12 @@ def staffing_board(request):
 @user_passes_test(_is_superuser, login_url="dashboard")
 @require_POST
 def staffing_action(request):
-    """Board-side edits: assign a shift role, and decide/add/cancel time off."""
+    """Board-side edits: shift role and work location, a day's hours, and time off.
+
+    Everything here is dated and one-off by design — changing what somebody works
+    *this Tuesday* must never quietly rewrite what they work every Tuesday. The
+    recurring pattern is edited on the staffer's own schedule page.
+    """
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, AttributeError):
@@ -5553,6 +5559,98 @@ def staffing_action(request):
                       "note": (data.get("note") or "")[:200]},
         )
         return JsonResponse({"success": True})
+
+    if action == "set_hours":
+        # "Luis normally works 7:30–4, but this Tuesday he starts at 10."
+        #
+        # Deliberately a separate action from add_shift rather than a flag on it.
+        # add_shift has to *guess* whether a second window on a day somebody
+        # already works is a split shift or a correction; here the manager clicked
+        # an existing shift and typed new times, so the intent is known: replace
+        # that day's window, leave the standard week alone.
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        date_ = _parse_ymd(data.get("date"))
+        if not date_:
+            return JsonResponse({"success": False, "error": "A date is required."})
+        through = _parse_ymd(data.get("through"))
+        if through and through < date_:
+            return JsonResponse({"success": False, "error": "The last day must be on or after the first."})
+        if through and (through - date_).days > 30:
+            return JsonResponse({"success": False, "error": "Keep an hours change to 31 days or fewer."})
+        start_t, end_t = _parse_hm(data.get("start")), _parse_hm(data.get("end"))
+        if start_t is None or end_t is None:
+            return JsonResponse({"success": False, "error": "A start and end time are required."})
+        if start_t == end_t:
+            return JsonResponse({"success": False, "error": "The start and end times can't match."})
+
+        role = (data.get("role") or "").strip()
+        if role not in dict(STAFF_ROLE_CHOICES):
+            role = ""
+
+        sched_u = User.objects.prefetch_related("weekly_schedule_rows", "schedule_overrides", "extra_shifts").get(pk=u.pk)
+        days = _dates_between(date_, through or date_)
+        clash_days = [d for d in days if scheduling.resolve_staff_schedule(sched_u, d).get("time_off")]
+        if clash_days:
+            when = clash_days[0].strftime("%b %d").replace(" 0", " ")
+            return JsonResponse({"success": False, "error": (
+                f"{u.get_full_name() or u.username} is booked off on {when} — "
+                "remove that time off first.")})
+
+        # One single-date row per day, never a range row, even when the manager
+        # asked for a span. A range override is outranked by any single-date row
+        # already sitting on one of those days (a one-off role note, say), which
+        # would silently drop the new hours for that day; and per-day rows let
+        # them put one day back to normal later without losing the rest.
+        for d in days:
+            ov = (StaffScheduleOverride.objects
+                  .filter(user=u, date=d, end_date__isnull=True, status="approved")
+                  .exclude(kind="off").first())
+            if ov is None:
+                ov = StaffScheduleOverride(user=u, date=d, created_by=request.user)
+            ov.kind = "custom_hours"
+            ov.start_time, ov.end_time = start_t, end_t
+            ov.status, ov.requested_by_staff, ov.reason = "approved", False, ""
+            # Role and work location are day-level facts that outlive an hours
+            # tweak — only overwrite them when this form actually carried one.
+            if role:
+                ov.role = role
+            if data.get("note") is not None:
+                ov.note = (data.get("note") or "")[:200]
+            ov.save()
+        return JsonResponse({"success": True, "days": len(days)})
+
+    if action == "set_off":
+        # The other half of the same week-shuffle: take a day they normally work
+        # off the board. Same rows and the same approval state as the time-off
+        # panel — this is just the one-click way in, from the shift itself.
+        u = _staff(data.get("user_id"))
+        if not u:
+            return JsonResponse({"success": False, "error": "Unknown staff member."}, status=400)
+        date_ = _parse_ymd(data.get("date"))
+        if not date_:
+            return JsonResponse({"success": False, "error": "A date is required."})
+        through = _parse_ymd(data.get("through"))
+        try:
+            timeoff.submit_request(
+                u, date_, through or date_,
+                reason=data.get("reason", ""), note=data.get("note", ""),
+                by=request.user, approved=True,
+            )
+        except timeoff.TimeOffError as e:
+            return JsonResponse({"success": False, "error": str(e)})
+
+        # Clear one-off hours and dated extra shifts across the same days. Left
+        # behind, a stale "changed hours" row would come back the moment the time
+        # off is cancelled, quietly putting them on the wrong window instead of
+        # their normal one.
+        days = _dates_between(date_, through or date_)
+        (StaffScheduleOverride.objects
+         .filter(user=u, date__in=days, end_date__isnull=True, status="approved")
+         .exclude(kind="off").delete())
+        StaffExtraShift.objects.filter(user=u, date__in=days).delete()
+        return JsonResponse({"success": True, "days": len(days)})
 
     if action == "add_recurring_extra":
         # The same split, every week — e.g. Iris works 9–1 and 5–9 every Wednesday.

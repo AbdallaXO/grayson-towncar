@@ -416,7 +416,11 @@ class AddShiftEndpointTests(TestCase):
 
     def test_covering_shift_renders_its_badge_and_remove_hook(self):
         self._add()
-        html = self.client.get(reverse("staffing_board"), {"scope": "week"}).content.decode()
+        # Anchored on the covered date itself. Unanchored, the board renders the
+        # *current* week, and the cover lands in it only on some weekdays — which
+        # made this pass or fail by the calendar rather than by the code.
+        html = self.client.get(reverse("staffing_board"), {
+            "scope": "day", "start": self.friday.strftime("%Y-%m-%d")}).content.decode()
         self.assertIn("covering", html)
         self.assertIn("data-cover-id", html)
 
@@ -899,3 +903,203 @@ class MyTimeOffTests(TestCase):
         html = self.client.get(reverse("my_coverage")).content.decode().lower()
         for banned in ("understaffed", "critical", "coverage gap", "runs thin"):
             self.assertNotIn(banned, html)
+
+
+class OneDayScheduleChangeTests(TestCase):
+    """Editing what somebody works *on a date*, from the board itself.
+
+    The two things a manager actually does mid-week, and the rule both obey:
+    a change to one Tuesday must never become a change to every Tuesday.
+
+      * Luis is normally 7:30–4. This Tuesday he starts at 10.
+      * Luis is off Tuesday and works Saturday instead that one week.
+    """
+
+    def setUp(self):
+        self.url = reverse("staffing_action")
+        self.luis = _staff("luis", "Luis")
+        _weekly(self.luis, 1, time(7, 30), time(16))          # Tuesdays 7:30–4
+        _weekly(self.luis, 5, None, None, is_working=False)   # Saturdays off
+        self.boss = User.objects.create_superuser("boss", "boss@x.com", "pw")
+        self.client.force_login(self.boss)
+        self.tue = MONDAY + timedelta(days=1)
+        self.sat = MONDAY + timedelta(days=5)
+
+    def _post(self, payload):
+        return self.client.post(self.url, data=json.dumps(payload), content_type="application/json")
+
+    def _hours(self, payload):
+        base = {"action": "set_hours", "user_id": self.luis.id,
+                "date": self.tue.strftime("%Y-%m-%d"), "start": "10:00", "end": "16:00"}
+        base.update(payload or {})
+        return self._post(base)
+
+    def _cell(self, d):
+        """Luis's cell on ``d`` — the boss account is on the roster too."""
+        rows = coverage.dated_range([d], _roster(), today=MONDAY)["rows"]
+        row = next(r for r in rows if r["user"].id == self.luis.id)
+        return row["cells"][0]
+
+    # ── Scenario one: different hours on a day they normally work ──
+
+    def test_hours_change_lands_on_that_date(self):
+        self.assertTrue(self._hours(None).json()["success"])
+        ov = StaffScheduleOverride.objects.get(user=self.luis, date=self.tue)
+        self.assertEqual((ov.kind, ov.start_time, ov.end_time, ov.status),
+                         ("custom_hours", time(10), time(16), "approved"))
+
+    def test_the_board_shows_the_new_hours(self):
+        self._hours(None)
+        cell = self._cell(self.tue)
+        self.assertEqual(cell["label"], "10a–4p")
+        # "changed", not "covering" — it is still a day he normally works.
+        self.assertTrue(cell["changed"])
+        self.assertFalse(cell["covering"])
+
+    def test_every_other_tuesday_keeps_the_usual_hours(self):
+        """The whole point. One date moves; the standard week does not."""
+        self._hours(None)
+        row = StaffWeeklySchedule.objects.get(user=self.luis, day_of_week=1)
+        self.assertEqual((row.start_time, row.end_time), (time(7, 30), time(16)))
+        self.assertEqual(self._cell(self.tue + timedelta(days=7))["label"], "7:30a–4p")
+
+    def test_it_replaces_the_shift_rather_than_splitting_the_day(self):
+        """A corrected start time is one shift, not a morning and an evening."""
+        self._hours(None)
+        self.assertEqual(StaffExtraShift.objects.filter(user=self.luis).count(), 0)
+        day = coverage.dated_range([self.tue], _roster(), today=MONDAY)["weekdays"][0]
+        self.assertEqual(day["on_count"], 1)
+
+    def test_changing_twice_edits_the_same_day_instead_of_stacking(self):
+        self._hours(None)
+        self._hours({"start": "11:00"})
+        rows = StaffScheduleOverride.objects.filter(user=self.luis, date=self.tue)
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.first().start_time, time(11))
+
+    def test_an_hours_change_keeps_a_role_already_set_for_that_day(self):
+        self._post({"action": "set_role", "user_id": self.luis.id,
+                    "date": self.tue.strftime("%Y-%m-%d"), "role": "closer"})
+        self._hours(None)
+        ov = StaffScheduleOverride.objects.get(user=self.luis, date=self.tue)
+        self.assertEqual((ov.kind, ov.role), ("custom_hours", "closer"))
+
+    def test_a_span_writes_one_row_per_day_so_each_can_be_undone(self):
+        self._hours({"through": (self.tue + timedelta(days=2)).strftime("%Y-%m-%d")})
+        dates = set(StaffScheduleOverride.objects
+                    .filter(user=self.luis, kind="custom_hours")
+                    .values_list("date", flat=True))
+        self.assertEqual(dates, {self.tue, self.tue + timedelta(days=1), self.tue + timedelta(days=2)})
+        self.assertTrue(all(o.end_date is None for o in StaffScheduleOverride.objects.all()))
+
+    def test_putting_the_day_back_restores_the_usual_hours(self):
+        self._hours(None)
+        ov = StaffScheduleOverride.objects.get(user=self.luis, date=self.tue)
+        self.assertTrue(self._post({"action": "remove_shift", "id": ov.id}).json()["success"])
+        self.assertEqual(self._cell(self.tue)["label"], "7:30a–4p")
+
+    def test_refused_when_they_are_booked_off(self):
+        timeoff.submit_request(self.luis, self.tue, by=self.boss, approved=True)
+        body = self._hours(None).json()
+        self.assertFalse(body["success"])
+        self.assertIn("booked off", body["error"])
+
+    def test_bad_input_returns_a_message_not_a_500(self):
+        self.assertFalse(self._hours({"end": "10:00"}).json()["success"])   # same start and end
+        self.assertFalse(self._hours({"start": ""}).json()["success"])
+        self.assertFalse(self._hours({"date": ""}).json()["success"])
+
+    # ── Scenario two: off one day, working a different one that week ──
+
+    def test_marking_a_scheduled_day_off_clears_the_board(self):
+        resp = self._post({"action": "set_off", "user_id": self.luis.id,
+                           "date": self.tue.strftime("%Y-%m-%d"), "reason": "personal"})
+        self.assertTrue(resp.json()["success"])
+        ov = StaffScheduleOverride.objects.get(user=self.luis, date=self.tue)
+        self.assertEqual((ov.kind, ov.status, ov.reason), ("off", "approved", "personal"))
+        self.assertEqual(self._cell(self.tue)["kind"], "timeoff")
+
+    def test_the_swap_puts_him_on_the_other_day_only_that_week(self):
+        """Off Tuesday, working Saturday — and both are one week only."""
+        self._post({"action": "set_off", "user_id": self.luis.id,
+                    "date": self.tue.strftime("%Y-%m-%d")})
+        self._post({"action": "add_shift", "user_id": self.luis.id,
+                    "date": self.sat.strftime("%Y-%m-%d"), "start": "07:30", "end": "16:00"})
+        self.assertTrue(self._cell(self.sat)["covering"])
+        # Next week both days are back to the standard pattern.
+        self.assertEqual(self._cell(self.tue + timedelta(days=7))["label"], "7:30a–4p")
+        self.assertFalse(self._cell(self.sat + timedelta(days=7))["is_working"])
+
+    def test_marking_off_clears_a_stale_hours_change(self):
+        """Otherwise cancelling the day off would bring back the wrong window."""
+        self._hours(None)
+        self._post({"action": "set_off", "user_id": self.luis.id,
+                    "date": self.tue.strftime("%Y-%m-%d")})
+        self.assertEqual(
+            StaffScheduleOverride.objects.filter(user=self.luis, date=self.tue).count(), 1)
+        off = StaffScheduleOverride.objects.get(user=self.luis, date=self.tue)
+        timeoff.cancel(off)
+        self.assertEqual(self._cell(self.tue)["label"], "7:30a–4p")
+
+    def test_marking_off_takes_a_split_shift_with_it(self):
+        StaffExtraShift.objects.create(user=self.luis, date=self.tue,
+                                       start_time=time(18), end_time=time(21))
+        self._post({"action": "set_off", "user_id": self.luis.id,
+                    "date": self.tue.strftime("%Y-%m-%d")})
+        self.assertEqual(coverage.dated_range([self.tue], _roster(), today=MONDAY)["weekdays"][0]["on_count"], 0)
+
+    def test_marking_off_a_span(self):
+        resp = self._post({"action": "set_off", "user_id": self.luis.id,
+                           "date": self.tue.strftime("%Y-%m-%d"),
+                           "through": (self.tue + timedelta(days=3)).strftime("%Y-%m-%d")})
+        self.assertEqual(resp.json()["days"], 4)
+        ov = StaffScheduleOverride.objects.get(user=self.luis, kind="off")
+        self.assertEqual((ov.date, ov.end_date), (self.tue, self.tue + timedelta(days=3)))
+
+    def test_marking_off_a_day_already_off_says_so(self):
+        self._post({"action": "set_off", "user_id": self.luis.id, "date": self.tue.strftime("%Y-%m-%d")})
+        body = self._post({"action": "set_off", "user_id": self.luis.id,
+                           "date": self.tue.strftime("%Y-%m-%d")}).json()
+        self.assertFalse(body["success"])
+        self.assertIn("already", body["error"])
+
+    def test_a_dispatcher_cannot_do_either(self):
+        self.client.force_login(_staff("plain", "Plain"))
+        for action in ("set_hours", "set_off"):
+            resp = self._post({"action": action, "user_id": self.luis.id,
+                               "date": self.tue.strftime("%Y-%m-%d"),
+                               "start": "10:00", "end": "16:00"})
+            self.assertEqual(resp.status_code, 302)
+        self.assertFalse(StaffScheduleOverride.objects.exists())
+
+
+class ChangeHoursBoardRenderTests(TestCase):
+    """The board has to actually offer these — an action nobody can reach is no action."""
+
+    def setUp(self):
+        self.luis = _staff("luis", "Luis")
+        _weekly(self.luis, timezone.localdate().weekday(), time(7, 30), time(16))
+        self.client.force_login(User.objects.create_superuser("boss", "boss@x.com", "pw"))
+
+    def test_the_shift_offers_an_hours_change_and_a_day_off(self):
+        html = self.client.get(reverse("staffing_board"), {"scope": "week"}).content.decode()
+        self.assertIn("Change the hours for this day", html)
+        self.assertIn("Mark this day off", html)
+        self.assertIn("Back to their usual hours", html)
+
+    def test_the_shift_carries_its_current_hours_for_the_form(self):
+        """Without these the change form opens blank and the times get retyped."""
+        html = self.client.get(reverse("staffing_board"), {"scope": "week"}).content.decode()
+        self.assertIn('data-start-hm="07:30"', html)
+        self.assertIn('data-end-hm="16:00"', html)
+
+    def test_a_changed_day_can_be_put_back(self):
+        """A changed day used to carry no id, so the board could make one and never undo it."""
+        d = timezone.localdate()
+        StaffScheduleOverride.objects.create(user=self.luis, date=d, kind="custom_hours",
+                                             start_time=time(10), end_time=time(16), status="approved")
+        html = self.client.get(reverse("staffing_board"), {"scope": "day",
+                                                           "start": d.strftime("%Y-%m-%d")}).content.decode()
+        self.assertIn("hours changed", html)
+        self.assertIn('data-changed="1"', html)
+        self.assertIn("data-cover-id", html)

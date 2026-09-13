@@ -517,8 +517,10 @@
                       data-user="{{ row.user.id }}" data-name="{{ row.name }}" data-role="{{ c.role }}"
                       data-location="{{ c.location }}"
                       {% if is_dated %}data-date="{{ c.key }}"{% else %}data-dow="{{ c.key }}"{% endif %}
-                      {% if c.covering %}data-cover-id="{{ c.ov_id }}" data-cover-range="{{ c.ov_range }}"{% endif %}
-                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.location == 'remote' %} · working from home{% elif c.location == 'office' %} · in the office{% endif %}{% if c.location_flipped %} (one-day change){% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %} — click for role or work location{% if c.covering %}, or to remove the cover{% endif %}">
+                      data-start-hm="{{ c.start_hm }}" data-end-hm="{{ c.end_hm }}"
+                      {% if c.covering or c.changed %}data-cover-id="{{ c.ov_id }}" data-cover-range="{{ c.ov_range }}"{% endif %}
+                      {% if c.changed %}data-changed="1"{% endif %}
+                      title="{{ row.name }} · {{ c.label }}{% if c.role_label %} · {{ c.role_label }}{% endif %}{% if c.location == 'remote' %} · working from home{% elif c.location == 'office' %} · in the office{% endif %}{% if c.location_flipped %} (one-day change){% endif %}{% if c.covering %} · covering (not their usual day){% elif c.changed %} · changed hours for this date{% endif %} — click to change the hours, the role, or to mark this day off">
                 <span class="sp-chip{% if c.covering %} sp-cover{% endif %}" style="--c-fill:{{ row.color.fill }};--c-line:{{ row.color.line }};--c-ink:{{ row.color.ink }}">
                   {% if c.is_opener %}<svg class="sp-ic" style="color:var(--open)"><use href="#sp-sun"/></svg>{% endif %}
                   {{ c.label }}
@@ -729,10 +731,36 @@
       <button type="button" data-loc="remote"><svg class="sp-ic" style="color:var(--wfh)"><use href="#sp-home"/></svg>Work from home</button>
       <button type="button" data-loc=""><svg class="sp-ic" style="color:var(--faint)"><use href="#sp-dash"/></svg>Clear &mdash; not tracked</button>
       <div class="sp-popsep" data-extras-sep hidden></div>
+      <button type="button" data-edit-hours hidden>
+        <svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>Change the hours for this day</button>
       <button type="button" data-add-second hidden>
         <svg class="sp-ic" style="color:var(--gold)"><use href="#sp-clock"/></svg>Add a second shift this day</button>
+      <button type="button" data-mark-off hidden>
+        <svg class="sp-ic" style="color:var(--toff)"><use href="#sp-away"/></svg>Mark this day off</button>
       <button type="button" class="sp-popdel" data-remove-cover hidden>
         <svg class="sp-ic" style="color:var(--crit)"><use href="#sp-dash"/></svg><span data-remove-label>Remove this one-off shift</span></button>
+    </div>
+
+    {# Take a day they normally work off the board — the other half of a week shuffle. #}
+    <div class="sp-pop sp-pop-form" id="spOffPop" hidden>
+      <h3 data-off-title>Mark the day off</h3>
+      <p class="sp-pophint" data-off-hint>Their standard week is untouched &mdash; only these dates come off the board.</p>
+      <form id="spOffForm">
+        <label class="sp-popfull">Through <span>(optional &mdash; for more than one day)</span>
+          <input type="date" name="through"></label>
+        <label class="sp-popfull">Reason
+          <select name="reason">
+            <option value="">Not given</option>
+            {% for val, lbl in reason_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="sp-popfull">Note <span>(optional)</span>
+          <input type="text" name="note" maxlength="200" placeholder="Swapping to Saturday&hellip;"></label>
+        <div class="sp-popacts">
+          <button type="button" class="sp-btn" data-off-cancel>Cancel</button>
+          <button type="submit" class="sp-btn ok">Mark off</button>
+        </div>
+      </form>
     </div>
 
     {# Add a one-off shift — someone covering a day they don't normally work. #}
@@ -756,7 +784,7 @@
           <input type="text" name="note" maxlength="200" placeholder="Covering for &hellip;"></label>
         <div class="sp-popacts">
           <button type="button" class="sp-btn" data-shift-cancel>Cancel</button>
-          <button type="submit" class="sp-btn ok">Add shift</button>
+          <button type="submit" class="sp-btn ok" data-shift-save>Add shift</button>
         </div>
       </form>
     </div>
@@ -839,10 +867,12 @@
   /* ── Popovers: role picker, and the add-a-shift form ── */
   var pop = document.getElementById('spRolePop'), popFor = null;
   var shiftPop = document.getElementById('spShiftPop'), shiftFor = null;
+  var offPop = document.getElementById('spOffPop'), offFor = null;
 
   function closePop() { if (pop) pop.hidden = true; popFor = null; }
   function closeShift() { if (shiftPop) shiftPop.hidden = true; shiftFor = null; }
-  function closeAll() { closePop(); closeShift(); }
+  function closeOff() { if (offPop) offPop.hidden = true; offFor = null; }
+  function closeAll() { closePop(); closeShift(); closeOff(); }
 
   // Anchor a popover under whatever was clicked, kept inside the viewport.
   function place(el, anchor) {
@@ -859,7 +889,7 @@
 
     if (roleBtn && pop) {
       e.stopPropagation();
-      closeShift();
+      closeShift(); closeOff();
       popFor = roleBtn;
       pop.querySelector('[data-pop-title]').textContent =
         roleBtn.dataset.name + (IS_DATED ? ' · this date' : ' · every week');
@@ -876,27 +906,36 @@
         b.classList.toggle('on', !isExtra && b.dataset.loc === (roleBtn.dataset.location || ''));
       });
       pop.querySelector('[data-loc-sep]').hidden = isExtra;
+      var isChanged = roleBtn.dataset.changed === '1';
       var del = pop.querySelector('[data-remove-cover]');
       del.hidden = !(isCover || isExtra);
+      // Three different undos wear the same button. On a day they don't normally
+      // work, removing the cover empties the cell; on a day they do, it puts the
+      // standard hours back — say which, so nobody deletes a shift by accident.
       del.querySelector('[data-remove-label]').textContent =
-        isExtra ? 'Remove this second shift' : 'Remove this one-off shift';
-      // Offer a second shift only on a dated day, and not from an extra itself.
-      var canSplit = IS_DATED && !isExtra;
-      pop.querySelector('[data-add-second]').hidden = !canSplit;
-      pop.querySelector('[data-extras-sep]').hidden = !(canSplit || isCover || isExtra);
+        isExtra ? 'Remove this second shift'
+                : (isChanged ? 'Back to their usual hours' : 'Remove this one-off shift');
+      // The rest are dated-day edits: there is no single date to hang a one-off
+      // on in the pattern view, and an extra is edited by removing and re-adding.
+      var canEdit = IS_DATED && !isExtra;
+      pop.querySelector('[data-edit-hours]').hidden = !canEdit;
+      pop.querySelector('[data-add-second]').hidden = !canEdit;
+      pop.querySelector('[data-mark-off]').hidden = !(canEdit && !isCover);
+      pop.querySelector('[data-extras-sep]').hidden = !(canEdit || isCover || isExtra);
       place(pop, roleBtn);
       return;
     }
 
     if (addBtn && shiftPop) {
       e.stopPropagation();
-      closePop();
+      closePop(); closeOff();
       shiftFor = addBtn;
       shiftPop.dataset.mode = 'primary';
       shiftPop.querySelector('[data-shift-title]').textContent =
         addBtn.dataset.name + ' · ' + (addBtn.dataset.daylabel || addBtn.dataset.date);
       shiftPop.querySelector('[data-shift-hint]').textContent =
         "A one-off for this date only — their standard week is untouched.";
+      shiftPop.querySelector('[data-shift-save]').textContent = 'Add shift';
       var f = shiftPop.querySelector('#spShiftForm');
       f.reset();
       f.start.value = addBtn.dataset.start || '09:00';
@@ -907,13 +946,55 @@
       return;
     }
 
-    if (!e.target.closest('#spRolePop') && !e.target.closest('#spShiftPop')) closeAll();
+    if (!e.target.closest('#spRolePop') && !e.target.closest('#spShiftPop')
+        && !e.target.closest('#spOffPop')) closeAll();
   });
 
   if (pop) {
     pop.addEventListener('click', function (e) {
       if (!popFor) return;
       var target = popFor;
+
+      // "Change the hours" reuses the add-a-shift form, prefilled with what they
+      // are on for today and flagged to replace that window rather than stack a
+      // second one beside it.
+      if (e.target.closest('[data-edit-hours]')) {
+        closePop();
+        if (!shiftPop) return;
+        shiftFor = target;
+        shiftPop.dataset.mode = 'edit';
+        shiftPop.querySelector('[data-shift-title]').textContent =
+          target.dataset.name + ' · hours for this day';
+        shiftPop.querySelector('[data-shift-hint]').textContent =
+          'Just this date — every other week they keep their standard hours.';
+        shiftPop.querySelector('[data-shift-save]').textContent = 'Save hours';
+        var ef = shiftPop.querySelector('#spShiftForm');
+        ef.reset();
+        ef.start.value = target.dataset.startHm || '09:00';
+        ef.end.value = target.dataset.endHm || '17:00';
+        ef.through.min = target.dataset.date || '';
+        if (target.dataset.role) ef.role.value = target.dataset.role;
+        place(shiftPop, target);
+        ef.start.focus();
+        ef.start.select();
+        return;
+      }
+
+      // "Mark this day off" — the half of a week shuffle that takes them off the
+      // board; putting them on a different day is the "+ shift" cell.
+      if (e.target.closest('[data-mark-off]')) {
+        closePop();
+        if (!offPop) return;
+        offFor = target;
+        offPop.querySelector('[data-off-title]').textContent =
+          target.dataset.name + ' · off this day';
+        var off = offPop.querySelector('#spOffForm');
+        off.reset();
+        off.through.min = target.dataset.date || '';
+        place(offPop, target);
+        off.reason.focus();
+        return;
+      }
 
       // "Add a second shift" hands off to the same form the empty cells use,
       // pre-aimed at this person and date, flagged so it adds rather than replaces.
@@ -926,6 +1007,7 @@
           target.dataset.name + ' · second shift';
         shiftPop.querySelector('[data-shift-hint]').textContent =
           'Added alongside their existing shift that day — the gap in between is simply off.';
+        shiftPop.querySelector('[data-shift-save]').textContent = 'Add shift';
         var sf = shiftPop.querySelector('#spShiftForm');
         sf.reset();
         sf.start.value = '17:00';
@@ -938,10 +1020,16 @@
 
       if (e.target.closest('[data-remove-cover]')) {
         var isExtraRow = !!target.dataset.extraId;
+        var wasChanged = target.dataset.changed === '1';
         var range = target.dataset.extraWhen || target.dataset.coverRange || 'this shift';
         closePop();
-        if (!window.confirm('Remove the ' + (isExtraRow ? 'second shift' : 'one-off shift') +
-                            ' on ' + range + '? Their standard week is unchanged.')) return;
+        // On a day they normally work this is an undo, not a deletion — the shift
+        // stays, it just goes back to their usual hours. Ask for what it does.
+        var ask = wasChanged
+          ? ('Put ' + range + ' back to their usual hours?')
+          : ('Remove the ' + (isExtraRow ? 'second shift' : 'one-off shift') +
+             ' on ' + range + '? Their standard week is unchanged.');
+        if (!window.confirm(ask)) return;
         var body = isExtraRow
           ? { action: 'remove_shift', extra_id: target.dataset.extraId }
           : { action: 'remove_shift', id: target.dataset.coverId };
@@ -982,18 +1070,40 @@
       e.preventDefault();
       if (!shiftFor) return;
       var f = new FormData(e.target), target = shiftFor;
+      var editing = shiftPop.dataset.mode === 'edit';
       post({
-        action: 'add_shift', user_id: target.dataset.user, date: target.dataset.date,
+        action: editing ? 'set_hours' : 'add_shift',
+        user_id: target.dataset.user, date: target.dataset.date,
         start: f.get('start'), end: f.get('end'), through: f.get('through'),
         role: f.get('role'), note: f.get('note'),
         as_extra: shiftPop.dataset.mode === 'extra'
       }).then(function (d) {
-        if (!d.success) { toast(d.error || 'Could not add that shift.', true); return; }
-        toast('Shift added.');
+        if (!d.success) {
+          toast(d.error || (editing ? 'Could not change those hours.' : 'Could not add that shift.'), true);
+          return;
+        }
+        toast(editing ? 'Hours changed for this day.' : 'Shift added.');
         window.location.reload();
       }).catch(function () { toast('Network error.', true); });
     });
   }
+  if (offPop) {
+    offPop.querySelector('[data-off-cancel]').addEventListener('click', closeOff);
+    offPop.querySelector('#spOffForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!offFor) return;
+      var f = new FormData(e.target), target = offFor;
+      post({
+        action: 'set_off', user_id: target.dataset.user, date: target.dataset.date,
+        through: f.get('through'), reason: f.get('reason'), note: f.get('note')
+      }).then(function (d) {
+        if (!d.success) { toast(d.error || 'Could not mark that day off.', true); return; }
+        toast(d.days > 1 ? (d.days + ' days marked off.') : 'Day marked off.');
+        window.location.reload();
+      }).catch(function () { toast('Network error.', true); });
+    });
+  }
+
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(); });
 
   /* ── Time off: approve / decline / remove / add ── */
