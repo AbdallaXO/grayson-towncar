@@ -230,6 +230,40 @@
     .timeline-slot.return { background: #2e7d32; }
     .timeline-slot.cruise { background: #e65100; }
     .timeline-slot.other { background: #6a1b9a; }
+    /* Sanford (SFB) — a different airport from MCO, 40 minutes further north,
+       and the one that used to look identical to an MCO job here. Bootstrap's
+       own cyan ramp, which this page already loads: #0dcaf0 $cyan-500 fill,
+       #0aa2c0 $cyan-600 rim, #032830 $cyan-900 ink. It takes the fill from every
+       trip type (same specificity, declared later) so the day's Sanford work can
+       be planned as its own block. Kept in step with schedule_board.html and
+       legs_filter.html.
+
+       Being the one PALE bar costs: ink flips dark (white is 2.0:1 on this fill,
+       $cyan-900 is 7.9:1 — Bootstrap makes the same call on .btn-info) and a 1px
+       rim gives it an edge against the near-white lane. `border` is the free
+       channel — outline belongs to unpaid/refund and box-shadow to VIP, and both
+       must keep working on a Sanford bar. */
+    .timeline-slot.sanford {
+        background-color: #0dcaf0;
+        color: #032830;
+        border: 1px solid #0aa2c0;
+    }
+    /* The vehicle chip was a white wash meant for a dark bar; it inverts. */
+    .timeline-slot.sanford .slot-vtype { background: rgba(0,0,0,0.55); color: #fff; }
+    /* Bright gold all but disappears on cyan (1.4:1) — deepened to 4.3:1. The
+       gold RING stays, so VIP still reads from across the room. */
+    .timeline-slot.sanford .slot-vip {
+        color: #6b4600; text-shadow: 0 0 2px rgba(255,255,255,0.8);
+    }
+    /* Amber on cyan is 1.1:1 — the unpaid ring and its chip would go quiet on
+       exactly the bars that are easiest to misread. The chip keeps its amber (a
+       colour dispatchers have learned) and gets its edge back from a hairline
+       rim; the ring itself darkens. */
+    .timeline-slot.sanford.unpaid {
+        outline-color: #8a4f00;
+        box-shadow: 0 0 0 1px rgba(107, 70, 0, 0.55);
+    }
+    .timeline-slot.sanford .slot-unpaid { box-shadow: 0 0 0 1px #032830; }
     /* Refund pending — must NOT blend in with normal trips */
     .timeline-slot.refund-pending {
         outline: 2px solid #dc2626; outline-offset: -2px;
@@ -371,6 +405,8 @@
     .tl-popup-header.return { background: #2e7d32; }
     .tl-popup-header.cruise { background: #e65100; }
     .tl-popup-header.other { background: #6a1b9a; }
+    /* Dark ink — the header inherits color:#fff. */
+    .tl-popup-header.sanford { background: #0dcaf0; color: #032830; }
     .tl-popup-body {
         padding: 0.5rem 0.7rem;
     }
@@ -1851,13 +1887,14 @@
                         <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
                         {% endfor %}
                         {% for slot in data.schedule.slots %}
-                        <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}" data-tl-popup
+                        <div class="timeline-slot {{ slot.trip_type }}{% if slot.is_sanford %} sanford{% endif %}{% if not slot.is_paid %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}" data-tl-popup
                              {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                              style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
                              data-leg-id="{{ slot.leg_id }}"
                              data-driver-id="{{ data.driver.id }}"
                              data-pending-refund="{{ slot.pending_refund|yesno:'1,0' }}"
                              data-trip="{{ slot.trip_type }}"
+                             data-sanford="{{ slot.is_sanford|yesno:'1,0' }}"
                              data-time="{{ slot.pickup_time|time:'g:i A' }}"
                              data-cleared="{{ slot.end_time_display }}"
                              data-pickup="{{ slot.pickup_location }}"
@@ -6319,9 +6356,12 @@
 
         function buildJobPopup(el) {
             const trip = el.dataset.trip || 'other';
-            const label = tripLabels[trip] || 'Trip';
-            const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:#ffd54a;margin-right:5px;" title="VIP"></i>' : '';
-            let html = '<div class="tl-popup-header ' + trip + '">' + vipStar + label + ' — ' + (el.dataset.time || '') + '</div>';
+            // Sanford owns the header colour and names the airport — "Arrival"
+            // on its own never said WHICH one.
+            const isSanford = el.dataset.sanford === '1';
+            const label = (isSanford ? 'Sanford (SFB) — ' : '') + (tripLabels[trip] || 'Trip');
+            const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:' + (isSanford ? '#6b4600' : '#ffd54a') + ';margin-right:5px;" title="VIP"></i>' : '';
+            let html = '<div class="tl-popup-header ' + (isSanford ? 'sanford' : trip) + '">' + vipStar + label + ' — ' + (el.dataset.time || '') + '</div>';
             html += '<div class="tl-popup-body">';
             if (el.dataset.pendingRefund === '1') {
                 html += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:0.72rem;padding:4px 6px;border-radius:5px;margin-bottom:5px;"><i class="bi bi-arrow-counterclockwise"></i> REFUND PENDING — do not assign</div>';

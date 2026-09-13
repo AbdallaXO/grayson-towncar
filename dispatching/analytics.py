@@ -308,6 +308,36 @@ def categorize_location(location_text: str) -> str:
 
 
 # ============================================================================
+# SANFORD (SFB)
+# ============================================================================
+
+# The category string ``categorize_location`` returns for Orlando Sanford. Named
+# rather than spelled inline so the board, the planner and the leg list all ask
+# the same question the drive-time buckets already answer.
+SFB_CATEGORY = 'SFB Terminal'
+
+
+def is_sanford_location(location_text: str) -> bool:
+    """True when a free-text location is the Sanford airport (SFB).
+
+    SFB is a DIFFERENT airport from MCO — ~40 minutes further north, its own
+    permit rules, its own drive times — and the two are easy to conflate while a
+    guest is on the phone, because on a board both read as "an airport job".
+    This is the single predicate behind the cyan Sanford colour on every
+    dispatcher surface, so a leg that counts as Sanford in one place counts in
+    all of them.
+
+    Delegates to ``categorize_location`` rather than matching keywords again:
+    that function already resolves the hard cases (a hotel NEAR the airport is
+    not the terminal, a cruise "Terminal A" is not an airport) and is what the
+    scheduler and the farm-out permit rules read.
+    """
+    if not location_text:
+        return False
+    return categorize_location(location_text) == SFB_CATEGORY
+
+
+# ============================================================================
 # TIME CATEGORIZATION
 # ============================================================================
 

@@ -546,6 +546,19 @@ class ScheduleSlot:
         _map = {'towncar': 'TC', 'suv': 'SUV', 'mini_van': 'MV', 'van': 'VAN', 'Van(14 Pax)': 'V14'}
         return _map.get(self.vehicle_type or '', '')
 
+    @property
+    def is_sanford(self) -> bool:
+        """True when either end of this leg is Sanford (SFB) — the board paints
+        those cyan so an SFB run is never mistaken for an MCO one.
+
+        Read off the categories this slot already carries rather than
+        re-inspecting the address: ``pickup_category``/``dropoff_category`` come
+        from the same ``categorize_location`` that ``is_sanford_location`` asks,
+        so the answer matches everywhere else at no extra cost on a 140-leg day.
+        """
+        from dispatching.analytics import SFB_CATEGORY
+        return SFB_CATEGORY in (self.pickup_category, self.dropoff_category)
+
 
 @dataclass
 class DriverDaySchedule:

@@ -7,6 +7,17 @@
 {% block extra_css %}
   {% include "dispatching/includes/_samsara_panel_styles.html" %}
   <style>
+      /* Sanford (SFB) chip. A list is read line by line, not scanned for colour,
+         so here Sanford NAMES itself beside the trip type instead of recolouring
+         the row — but in the same Bootstrap cyan the boards use, so the two
+         surfaces teach the same thing. Trip type is untouched: an SFB run is
+         still an arrival or a return, it is just not the MCO one. */
+      .sfb-chip {
+          display: inline-block; margin-left: 4px;
+          background: #0dcaf0; color: #032830; border: 1px solid #0aa2c0;
+          font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em;
+          padding: 0 5px; border-radius: 4px; vertical-align: baseline;
+      }
       /* Early-flight flag: thin left accent bar instead of a full-row fill */
       tr.leg-flag-alert { box-shadow: inset 4px 0 0 0 #dc3545; }
       tr.leg-flag-watch { box-shadow: inset 4px 0 0 0 #e6a23c; }
@@ -632,7 +643,7 @@
                       <div class="d-flex align-items-center">
                         <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
                         <div>
-                          <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
+                          <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>{% if leg.is_sanford %}<span class="sfb-chip" title="Sanford (SFB) — not Orlando International">SFB</span>{% endif %}
                           <div class="small text-muted">{{ trip_dark.description }}</div>
                         </div>
                       </div>
@@ -946,7 +957,7 @@
                           {% with trip_dark=leg.get_trip_type_display %}
                             <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
                             <div class="small">
-                              <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
+                              <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>{% if leg.is_sanford %}<span class="sfb-chip" title="Sanford (SFB) — not Orlando International">SFB</span>{% endif %}
                               <div class="text-muted">{{ trip_dark.description }}</div>
                             </div>
                           {% endwith %}

@@ -160,6 +160,34 @@
       .timeline-slot.return { background: #2e7d32; }
       .timeline-slot.cruise { background: #e65100; }
       .timeline-slot.other { background: #6a1b9a; }
+      /* Sanford (SFB) — the other airport, 40 minutes north of MCO, and the one
+         that used to look identical to an MCO job on a board of blue arrivals
+         and green returns. Bootstrap's own cyan ramp, which this page already
+         loads: #0dcaf0 $cyan-500 fill, #0aa2c0 $cyan-600 rim, #032830 $cyan-900
+         ink, #6edff6 $cyan-300 KEOI stripe. It wins the fill from every trip
+         type (same specificity, declared later) but yields to .has-keoi below,
+         exactly as the trip colours do. Kept in step with schedule_board.html. */
+      .timeline-slot.sanford { background-color: #0dcaf0; }
+      /* The compensations for being the one PALE bar, and only while it IS pale
+         — a watched Sanford job is black and keeps white-on-dark. Ink goes dark
+         (white is 2.0:1 on this fill, $cyan-900 is 7.9:1; Bootstrap makes the
+         same call on .btn-info) and a 1px rim gives the bar an edge against the
+         near-white lane it sits in. `border` is free here; outline belongs to
+         refund and must keep working. */
+      .timeline-slot.sanford:not(.has-keoi) {
+          color: #032830;
+          border: 1px solid #0aa2c0;
+      }
+      .timeline-slot.sanford:not(.has-keoi) .tl-status-badge.stb-completed { background: rgba(0,0,0,0.55); }
+      /* Two strips are drawn white to read on a dark bar; they keep their
+         meaning in dark ink instead of vanishing. */
+      .timeline-slot.sanford:not(.has-keoi) .tl-status-strip.st-completed { background: #032830; }
+      .timeline-slot.sanford:not(.has-keoi) .tl-status-strip.st-in-progress { background: rgba(0,0,0,0.22); }
+      /* Extra-stop superscript. Its colour lives here rather than inline so the
+         Sanford rule below can reach it — a mid gold falls to 1.2:1 on cyan,
+         and is deepened only on the pale bar. */
+      .tl-stop-sup { color: #d4a017; font-weight: 700; }
+      .timeline-slot.sanford:not(.has-keoi) .tl-stop-sup { color: #6b4600; }
       /* KEOI takes the FILL channel (kept in step with schedule_board.html): being
          the only BLACK bar beats any ring on a dense, saturated timeline. Trip type
          moves to the ::before edge stripe. background-COLOR, not the shorthand, so
@@ -169,6 +197,9 @@
       .timeline-slot.return.has-keoi::before  { background: #4ade80; }
       .timeline-slot.cruise.has-keoi::before  { background: #fb923c; }
       .timeline-slot.other.has-keoi::before   { background: #c084fc; }
+      /* Last, so a watched Sanford job shows SANFORD on its edge — which airport
+         is the thing that gets mixed up, and the black fill already says watch. */
+      .timeline-slot.sanford.has-keoi::before { background: #6edff6; }
       /* Refund pending — must NOT blend in with normal trips */
       .timeline-slot.refund-pending {
           outline: 2px solid #dc2626; outline-offset: -2px;
@@ -339,6 +370,8 @@
       .tl-popup-header.return { background: #2e7d32; }
       .tl-popup-header.cruise { background: #e65100; }
       .tl-popup-header.other { background: #6a1b9a; }
+      /* Dark ink — the header inherits color:#fff. */
+      .tl-popup-header.sanford { background: #0dcaf0; color: #032830; }
       .tl-popup-body { padding: 0.4rem 0.6rem; }
       .tl-popup-row {
           display: flex;
@@ -4663,8 +4696,11 @@
           function showPopup(el, e) {
               if (window._gapPopupActive) return;
               const trip = el.dataset.trip || 'other';
-              const label = tripLabels[trip] || 'Trip';
-              let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
+              // Sanford owns the header colour and says so in words — "Arrival"
+              // on its own never told you WHICH airport.
+              const isSanford = el.dataset.sanford === '1';
+              const label = (isSanford ? 'Sanford (SFB) — ' : '') + (tripLabels[trip] || 'Trip');
+              let html = '<div class="tl-popup-header ' + (isSanford ? 'sanford' : trip) + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
               html += '<div class="tl-popup-body">';
               if (el.dataset.keoiCategoryLabel) {
                   html += '<div class="tl-keoi-banner"><i class="bi bi-binoculars-fill"></i> KEOI · '
@@ -4855,13 +4891,17 @@
                       const pickup = el.getAttribute('data-fit-' + i + '-pickup') || '';
                       const dropoff = el.getAttribute('data-fit-' + i + '-dropoff') || '';
                       const trip = el.getAttribute('data-fit-' + i + '-trip') || '';
+                      // This popup is where a job gets dropped into a gap, so it is
+                      // exactly where a Sanford run must not read as an MCO one.
+                      const fitSanford = el.getAttribute('data-fit-' + i + '-sanford') === '1';
                       const source = el.getAttribute('data-fit-' + i + '-source') || 'unassigned';
                       const affDriver = el.getAttribute('data-fit-' + i + '-driver') || '';
                       const vehicle = el.getAttribute('data-fit-' + i + '-vehicle') || '';
                       const flight = el.getAttribute('data-fit-' + i + '-flight') || '';
                       const pax = el.getAttribute('data-fit-' + i + '-pax') || '';
                       const status = el.getAttribute('data-fit-' + i + '-status') || '';
-                      const dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (tripColors[trip] || '#999') + ';margin-right:4px;"></span>';
+                      const dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (fitSanford ? '#0dcaf0' : (tripColors[trip] || '#999')) + (fitSanford ? ';border:1px solid #0aa2c0' : '') + ';margin-right:4px;"></span>'
+                          + (fitSanford ? '<span style="font-size:0.6rem;background:#0dcaf0;color:#032830;border:1px solid #0aa2c0;padding:0 3px;border-radius:3px;margin-right:4px;font-weight:800;">SFB</span>' : '');
                       const badge = source === 'affiliate'
                           ? '<span style="font-size:0.6rem;background:#f0ad4e;color:#fff;padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:600;">AF</span>'
                           : '<span style="font-size:0.6rem;background:#dc3545;color:#fff;padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:600;">OPEN</span>';

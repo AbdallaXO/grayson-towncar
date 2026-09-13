@@ -2280,6 +2280,26 @@ class Leg(models.Model):
         from dispatching.analytics import is_airport_location
         return is_airport_location(location_lower)
 
+    def is_sanford(self):
+        """True when EITHER end of this leg is the Sanford airport (SFB).
+
+        Sanford is not Orlando International. It is a separate airport about 40
+        minutes further north, and a job there costs a driver most of an extra
+        hour each way — so it has to be stackable with the OTHER Sanford jobs
+        rather than slotted in among the MCO runs. On every dispatcher board a
+        leg that answers True here is painted cyan instead of its trip-type
+        colour, which is what stops an SFB run being assigned as though it were
+        an MCO one.
+
+        Direction is deliberately not part of the answer: pickups AND drop-offs
+        both count, because the thing a dispatcher needs to see at a glance is
+        "this touches the other airport". The direction stays readable in the
+        trip type. Imported lazily for the same reason as ``_is_airport``.
+        """
+        from dispatching.analytics import is_sanford_location
+        return (is_sanford_location(self.pickup_location or "")
+                or is_sanford_location(self.dropoff_location or ""))
+
     def has_flight_time_mismatch(self, threshold_minutes=30):
         """
         For arrival legs with flight info: True if the flight's best available

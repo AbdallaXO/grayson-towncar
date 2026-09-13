@@ -162,6 +162,71 @@
       .timeline-slot.return { background-color: #2e7d32; }
       .timeline-slot.cruise { background-color: #c2410c; }
       .timeline-slot.other { background-color: #6a1b9a; }
+      /* ── Sanford (SFB) ───────────────────────────────────────────────────
+         Sanford is a DIFFERENT airport from MCO — about 40 minutes further
+         north, its own permits, its own drive times. On a board of blue
+         arrivals and green returns an SFB job looked exactly like an MCO one,
+         so it got assigned as though it were one, and the mistake only showed
+         up once the car was already committed. Bootstrap's cyan takes the fill
+         outright: it is the only PALE bar on the board, so Sanford work
+         separates from everything else at a glance and stacks with itself.
+         Direction is not lost — it stays on the popup header and the bar's own
+         pickup/dropoff.
+
+         The whole Sanford ramp is Bootstrap 5's own cyan scale, which this page
+         already loads, so nothing here is an invented colour:
+           #0dcaf0  $cyan-500  the fill (also $info / .bg-info)
+           #0aa2c0  $cyan-600  the rim
+           #032830  $cyan-900  the label ink
+           #6edff6  $cyan-300  the KEOI edge stripe
+
+         Declared after the four trip fills (same specificity) so it wins them,
+         but BEFORE .has-keoi so a watched Sanford job still goes black and
+         hands its colour to the edge stripe, exactly like every trip type. */
+      .timeline-slot.sanford { background-color: #0dcaf0; }
+      /* Everything below is the cost of being the one LIGHT bar, and applies
+         only while the bar actually IS light — a .has-keoi Sanford job is black
+         and keeps the normal white-on-dark treatment.
+           * ink flips dark: white on this fill is 2.0:1, $cyan-900 is 7.9:1.
+             Bootstrap makes the same call on .btn-info, which is dark-on-cyan;
+           * a 1px rim, because a pale bar on the near-white lane (#f8f9fa) has
+             only ~1.9:1 of edge to sit on and reads as a GAP rather than a job.
+             `border` is the free channel here — outline belongs to unpaid/refund
+             and box-shadow to VIP, and both must keep working on a Sanford bar.
+             Bootstrap's border-box keeps the 1px inside the bar's width, so
+             nothing shifts on the time axis. */
+      .timeline-slot.sanford:not(.has-keoi) {
+          color: #032830;
+          border: 1px solid #0aa2c0;
+      }
+      /* The vehicle chip darkens instead of lightening, same reasoning as the
+         rule above it — over cyan the 0.34 black composited to 4.3:1 at 7px,
+         and 0.62 restores it to 9.5:1. */
+      .timeline-slot.sanford:not(.has-keoi) .tl-vehicle-badge { background: rgba(0,0,0,0.62); }
+      .timeline-slot.sanford:not(.has-keoi) .tl-status-badge.stb-completed { background: rgba(0,0,0,0.55); }
+      /* Two status strips are drawn in white to read against a dark bar and
+         vanish against a pale one. They keep their meaning, in dark ink. */
+      .timeline-slot.sanford:not(.has-keoi) .tl-status-strip.st-completed { background: #032830; }
+      .timeline-slot.sanford:not(.has-keoi) .tl-status-strip.st-in-progress { background: rgba(0,0,0,0.22); }
+      /* Overrun tail: its dashed leading rule was white-on-dark. */
+      .timeline-slot.sanford:not(.has-keoi) .tl-overrun-tail { border-left-color: rgba(3,40,48,0.9); }
+      /* The VIP star is a bright gold that all but disappears on cyan (1.4:1).
+         Deepened to 4.3:1 — still gold, and the gold RING around the bar is
+         untouched, so VIP reads the same from across the room. */
+      .timeline-slot.sanford:not(.has-keoi) .tl-vip-star {
+          color: #6b4600; text-shadow: 0 0 2px rgba(255,255,255,0.8);
+      }
+      /* Pale chips lose their EDGE (not their internal contrast) against a pale
+         bar: the amber $ sits at 1.1:1 on cyan. A hairline dark rim gives each
+         one its boundary back without touching the colour a dispatcher has
+         learned, and these three are risk flags that must never go quiet. */
+      .timeline-slot.sanford:not(.has-keoi) .tl-unpaid-flag,
+      .timeline-slot.sanford:not(.has-keoi) .tl-card-flag,
+      .timeline-slot.sanford:not(.has-keoi) .tl-risk-flag {
+          box-shadow: 0 0 0 1px #032830, 0 1px 2px rgba(0,0,0,0.2);
+      }
+      /* Same for the unpaid ring itself — amber on cyan is 1.1:1. */
+      .timeline-slot.sanford:not(.has-keoi).unpaid { outline-color: #8a4f00; }
       /* KEOI takes the FILL channel — the last one free on this bar (outline is
          unpaid/refund, box-shadow is the VIP gold ring, background-image is the
          refund hatch). A black ring was still just another rectangle among ~90
@@ -176,6 +241,10 @@
       .timeline-slot.return.has-keoi::before  { background: #4ade80; }
       .timeline-slot.cruise.has-keoi::before  { background: #fb923c; }
       .timeline-slot.other.has-keoi::before   { background: #c084fc; }
+      /* Last of the stripe rules so a watched Sanford job shows SANFORD on its
+         edge rather than its trip type — which airport is the thing that gets
+         mixed up, and the black fill already says "watch this". */
+      .timeline-slot.sanford.has-keoi::before { background: #6edff6; }
       .timeline-slot .tl-status-strip {
           position: absolute; bottom: 0; left: 0; right: 0;
           height: 5px; border-radius: 0 0 4px 4px;
@@ -252,6 +321,8 @@
       .tl-popup-header.return { background: #2e7d32; }
       .tl-popup-header.cruise { background: #c2410c; }  /* matches the slot fill */
       .tl-popup-header.other { background: #6a1b9a; }
+      /* Cyan needs dark ink here too — the header inherits color:#fff. */
+      .tl-popup-header.sanford { background: #0dcaf0; color: #032830; }
       .tl-popup-body { padding: 7px 11px; }
       .tl-popup-row {
           display: flex; justify-content: space-between; gap: 10px;
@@ -1080,7 +1151,7 @@
                 </div>
                 <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
-                    <div class="timeline-slot tl-chip {{ uslot.trip_type }}{% if uslot.pay_state == 'unpaid' %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}{% if uslot.has_notes %} has-note{% endif %}{% if uslot.keoi_category %} has-keoi{% endif %}" data-tl-popup
+                    <div class="timeline-slot tl-chip {{ uslot.trip_type }}{% if uslot.is_sanford %} sanford{% endif %}{% if uslot.pay_state == 'unpaid' %} unpaid{% endif %}{% if uslot.pending_refund %} refund-pending{% endif %}{% if uslot.is_vip %} vip{% endif %}{% if uslot.is_proposed %} tl-proposed{% endif %}{% if uslot.is_new_attention %} tl-new-attention{% endif %}{% if uslot.live_conflict %} tl-live-conflict{% endif %}{% if uslot.has_notes %} has-note{% endif %}{% if uslot.keoi_category %} has-keoi{% endif %}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ uslot.leg_id }}"
                          data-driver-id="unassigned"
@@ -1088,8 +1159,9 @@
                          data-pending-refund="{{ uslot.pending_refund|yesno:'1,0' }}"
                          data-live-driver="{{ uslot.live_driver_label|default:'' }}"
                          data-proposed="{{ uslot.is_proposed|yesno:'1,0' }}"
-                         style="left:{{ uslot.position_pct }}%; width:{{ uslot.width_pct }}%; top:{{ uslot.lane_top }}px;{% if uslot.is_paid %} border:1px dashed rgba(255,255,255,0.35);{% endif %}"
+                         style="left:{{ uslot.position_pct }}%; width:{{ uslot.width_pct }}%; top:{{ uslot.lane_top }}px;{% if uslot.is_paid %} border:1px dashed {% if uslot.is_sanford %}rgba(3,40,48,0.45){% else %}rgba(255,255,255,0.35){% endif %};{% endif %}"
                          data-trip="{{ uslot.trip_type }}"
+                         data-sanford="{{ uslot.is_sanford|yesno:'1,0' }}"
                          data-time="{{ uslot.pickup_display }}"
                          data-cleared="{{ uslot.end_time_display }}"
                          data-pickup="{{ uslot.pickup_location }}"
@@ -1238,7 +1310,7 @@
                     {% endfor %}
                   {% endif %}
                   {% for slot in data.schedule.slots %}
-                    <div class="timeline-slot {{ slot.trip_type }}{% if slot.pay_state == 'unpaid' %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.has_notes %} has-note{% endif %}{% if slot.keoi_category %} has-keoi{% endif %}{% if slot.overrunning %} tl-overrunning{% endif %}{% if slot.late_start %} tl-late-start{% endif %}{% if slot.risk_tier == 'critical' %} tl-risk-critical{% elif slot.risk_tier == 'watch' %} tl-risk-watch{% endif %}" data-tl-popup
+                    <div class="timeline-slot {{ slot.trip_type }}{% if slot.is_sanford %} sanford{% endif %}{% if slot.pay_state == 'unpaid' %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.has_notes %} has-note{% endif %}{% if slot.keoi_category %} has-keoi{% endif %}{% if slot.overrunning %} tl-overrunning{% endif %}{% if slot.late_start %} tl-late-start{% endif %}{% if slot.risk_tier == 'critical' %} tl-risk-critical{% elif slot.risk_tier == 'watch' %} tl-risk-watch{% endif %}" data-tl-popup
                          {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ slot.leg_id }}"
                          data-driver-id="{{ data.driver.id }}"
@@ -1248,6 +1320,7 @@
                          data-proposed="{{ slot.is_proposed|yesno:'1,0' }}"
                          style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%; top: {{ slot.lane_top }}px;"
                          data-trip="{{ slot.trip_type }}"
+                         data-sanford="{{ slot.is_sanford|yesno:'1,0' }}"
                          data-time="{{ slot.pickup_time|time:'g:i A' }}"
                          data-cleared="{{ slot.end_time_display }}"
                          data-cleared-actual="{{ slot.cleared_is_actual|yesno:'1,0' }}"
@@ -1301,6 +1374,7 @@
           <small><span style="display:inline-block;width:10px;height:10px;background:#2e7d32;border-radius:2px;"></span> Return</small>
           <small><span style="display:inline-block;width:10px;height:10px;background:#e65100;border-radius:2px;"></span> Cruise</small>
           <small><span style="display:inline-block;width:10px;height:10px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
+          <small><span style="display:inline-block;width:10px;height:10px;background:#0dcaf0;border:1px solid #0aa2c0;border-radius:2px;"></span> <strong>Sanford (SFB)</strong> — to or from, any trip type</small>
           <small class="text-muted">|</small>
           <small><span style="display:inline-block;width:10px;height:5px;background:#00e676;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-picked-up" style="font-size:0.5rem;">PU</span> Picked Up</small>
           <small><span style="display:inline-block;width:10px;height:5px;background:#ffea00;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-on-location" style="font-size:0.5rem;">OL</span> On Location</small>
@@ -1314,7 +1388,7 @@
           <small class="text-muted">|</small>
           <small><span class="tl-publix-badge" style="font-size:0.5rem;"><i class="bi bi-cart3"></i></span> Publix stop (arrivals)</small>
           <small class="text-muted">|</small>
-          <small><span style="display:inline-block;width:10px;height:10px;background:#0b1220;border-left:3px solid #4a9eff;border-radius:2px;vertical-align:middle;"></span> <span class="tl-keoi-flag"><i class="bi bi-eye-fill"></i></span> KEOI — black bar (edge = trip type)</small>
+          <small><span style="display:inline-block;width:10px;height:10px;background:#0b1220;border-left:3px solid #4a9eff;border-radius:2px;vertical-align:middle;"></span> <span class="tl-keoi-flag"><i class="bi bi-eye-fill"></i></span> KEOI — black bar (edge = trip type, or Sanford)</small>
           <small class="text-muted">|</small>
           <small class="text-muted"><i class="bi bi-grip-vertical"></i> Drag jobs between drivers</small>
         </div>
@@ -1456,8 +1530,13 @@
 
       function showJobPopup(el, e) {
         const trip = el.dataset.trip || 'other';
-        const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:#ffd54a;margin-right:5px;" title="VIP"></i>' : '';
-        let html = '<div class="tl-popup-header '+trip+'">'+vipStar+tripLabels[trip]+' — '+(el.dataset.time||'')+'</div>';
+        // Sanford takes the header colour, and says so in words — the whole
+        // point is that "Arrival" alone never told you WHICH airport.
+        const isSanford = el.dataset.sanford === '1';
+        const headClass = isSanford ? 'sanford' : trip;
+        const headLabel = (isSanford ? 'Sanford (SFB) — ' : '') + tripLabels[trip];
+        const vipStar = el.dataset.vip === '1' ? '<i class="bi bi-star-fill" style="color:' + (isSanford ? '#6b4600' : '#ffd54a') + ';margin-right:5px;" title="VIP"></i>' : '';
+        let html = '<div class="tl-popup-header '+headClass+'">'+vipStar+headLabel+' — '+(el.dataset.time||'')+'</div>';
         html += '<div class="tl-popup-body">';
         if (el.dataset.pendingRefund === '1') {
             html += '<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-weight:800;font-size:0.72rem;padding:4px 6px;border-radius:5px;margin-bottom:5px;"><i class="bi bi-arrow-counterclockwise"></i> REFUND PENDING — do not assign</div>';

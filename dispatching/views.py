@@ -653,6 +653,7 @@ def index(request):
                 _legflight_total = 0
             _gap_candidates.append({
                 'leg_id': _tleg.id,
+                'is_sanford': _tleg.is_sanford(),
                 'pickup_time': _tleg.pickup_time,
                 'pickup_dt': _pickup_dt,
                 'pickup_display': _tleg.pickup_time.strftime('%I:%M %p').lstrip('0'),
@@ -838,6 +839,7 @@ def index(request):
         _unassigned_timeline_slots.append({
             'leg_id': _gc['leg_id'],
             'trip_type': _gc['trip_type'],
+            'is_sanford': _gc['is_sanford'],
             'pickup_display': _gc['pickup_display'],
             'pickup_time_raw': _gc['pickup_time'].strftime('%I:%M').lstrip('0') if _gc['pickup_time'] else '',
             'customer': _gc['customer'],
@@ -1580,6 +1582,10 @@ def schedule_board(request):
         unassigned_timeline_slots.append({
             'leg_id': leg.id,
             'trip_type': _trip,
+            # Sanford (SFB) legs paint cyan over the trip-type colour — see
+            # Leg.is_sanford. Backlog chips carry it too, because the mix-up this
+            # prevents happens at the moment a job is dragged out of the backlog.
+            'is_sanford': leg.is_sanford(),
             'pickup_display': pt.strftime('%I:%M %p').lstrip('0'),
             # Short form for the CHIP LABEL. The lane rendered the full "6:45 AM"
             # into the same width driver bars use for "6:45", so unassigned chips
