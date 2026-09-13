@@ -274,6 +274,11 @@
         if (action === 'clock_in' && (data.result === 'requested' || data.result === 'pending')) { window.location.reload(); return; }
         // The server accepted it as in-schedule — the page-load warning is stale.
         if (action === 'clock_in') card.dataset.clockinWarning = '';
+        // Whoever is down to open goes straight to the opening checklist.
+        if (action === 'clock_in' && data.opening_url) {
+          window.location.href = data.opening_url;
+          return;
+        }
         state = data.state;
         clockInMs = data.clock_in_ms || null;
         breakStartMs = data.break_start_ms || null;

@@ -154,6 +154,7 @@ TEMPLATES = [
                 "ops.context_processors.pending_task_count",
                 "ops.context_processors.timeclock_status",
                 "ops.context_processors.critical_disruption_count",
+                "ops.context_processors.shift_menu",
                 "drivers.context_processors.pending_timeoff_count",
                 "drivers.context_processors.webpush_public_key",
             ],

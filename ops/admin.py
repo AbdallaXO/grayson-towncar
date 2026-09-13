@@ -9,6 +9,10 @@ from .models import (
     TimeClockBreak,
     TimeClockRequest,
     StaffOnCall,
+    ShiftSettings,
+    ShiftChecklist,
+    ShiftChecklistRow,
+    ShiftException,
 )
 
 
@@ -136,3 +140,68 @@ class StaffOnCallAdmin(admin.ModelAdmin):
         if not obj.created_by_id:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+
+# ── Dispatch Shift System ─────────────────────────────────────────────
+# Registered so an admin can inspect and repair checklist history directly.
+# The floor never works here — they use the Open / Close pages.
+
+
+class ShiftChecklistRowInline(admin.TabularInline):
+    model = ShiftChecklistRow
+    extra = 0
+    fields = ("key", "kind", "state", "last_count", "confirmed_by", "confirmed_at")
+    readonly_fields = ("confirmed_at",)
+    ordering = ("position", "id")
+
+
+class ShiftExceptionInline(admin.TabularInline):
+    model = ShiftException
+    extra = 0
+    fields = ("what", "owner", "next_action", "resolved_at", "carried_from")
+    raw_id_fields = ("owner", "task", "leg", "keoi", "carried_from")
+
+
+@admin.register(ShiftChecklist)
+class ShiftChecklistAdmin(admin.ModelAdmin):
+    list_display = (
+        "date", "kind", "opened_by", "board_safe_at", "completed_by",
+        "completed_at", "reopen_count",
+    )
+    list_filter = ("kind", ("completed_at", admin.EmptyFieldListFilter), "date")
+    date_hierarchy = "date"
+    raw_id_fields = ("opened_by", "completed_by", "reopened_by")
+    readonly_fields = ("created_at", "updated_at", "counts_snapshot", "targets")
+    inlines = [ShiftChecklistRowInline, ShiftExceptionInline]
+
+
+@admin.register(ShiftException)
+class ShiftExceptionAdmin(admin.ModelAdmin):
+    list_display = (
+        "what_short", "owner", "next_action", "checklist", "resolved_at",
+        "acknowledged_at",
+    )
+    list_filter = (("resolved_at", admin.EmptyFieldListFilter), "owner")
+    search_fields = ("what", "next_action")
+    raw_id_fields = (
+        "checklist", "row", "owner", "task", "leg", "keoi", "carried_from",
+        "created_by", "resolved_by", "acknowledged_by",
+    )
+
+    @admin.display(description="Outstanding")
+    def what_short(self, obj):
+        return obj.what[:60]
+
+
+@admin.register(ShiftSettings)
+class ShiftSettingsAdmin(admin.ModelAdmin):
+    """Singleton — the gate times and which rows appear on which shift."""
+
+    list_display = ("__str__", "board_safe_minutes", "board_safe_target",
+                    "open_complete_minutes", "open_complete_target", "close_target")
+
+    def has_add_permission(self, request):
+        return not ShiftSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

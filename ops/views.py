@@ -4621,12 +4621,24 @@ def timeclock_action(request):
     shift = get_open_shift(request.user)
     open_break = shift.open_break if shift else None
 
+    # The opener clocking in goes straight to their opening checklist. Only the
+    # person down to open, only while it is unfinished — nobody else is
+    # interrupted, and a failure here must never cost someone their punch.
+    opening_url = ""
+    if action == "clock_in" and result == "clocked_in":
+        try:
+            from . import shift_services
+            opening_url = shift_services.opening_prompt_for(request.user) or ""
+        except Exception:
+            logger.warning("Could not resolve the opening prompt for %s", request.user)
+
     return JsonResponse({
         "success": True,
         "result": result,
         "state": shift.state if shift else TimeClockShift.State.CLOCKED_OUT,
         "clock_in_ms": int(shift.clock_in_at.timestamp() * 1000) if shift else None,
         "break_start_ms": int(open_break.break_start_at.timestamp() * 1000) if open_break else None,
+        "opening_url": opening_url,
     })
 
 

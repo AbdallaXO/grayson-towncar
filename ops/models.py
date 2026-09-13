@@ -330,6 +330,12 @@ class StaffActivity(models.Model):
         TASK_ASSIGNED = "task_assigned", "Task Assigned"
         COMM_LOGGED = "comm_logged", "Communication Logged"
         FLIGHT_MATCHED = "flight_matched", "Flight Time Matched"
+        # ── Dispatch Shift System ──
+        SHIFT_OPENED = "shift_opened", "Shift Checklist Opened"
+        SHIFT_ROW_CONFIRMED = "shift_row_confirmed", "Checklist Row Confirmed"
+        SHIFT_EXCEPTION_RAISED = "shift_exception", "Shift Exception Raised"
+        SHIFT_COMPLETED = "shift_completed", "Shift Checklist Completed"
+        SHIFT_REOPENED = "shift_reopened", "Shift Checklist Reopened"
 
     user = models.ForeignKey(
         "auth.User", on_delete=models.CASCADE, related_name="staff_activities"
@@ -1057,3 +1063,545 @@ class StaffExtraShift(models.Model):
     def __str__(self):
         return (f"{self.user} — {self.when_display}: extra "
                 f"{self.start_time:%H:%M}–{self.end_time:%H:%M}")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Dispatch Shift System — Open / Close checklists.
+#
+# The operating layer AROUND the dispatch system: who opened the shift, what
+# the four automated checks said at the time, which human-verified queues were
+# confirmed, what was left outstanding and who owns it.
+#
+# THE ONE RULE (docs/dispatch-ops/SHIFT-SYSTEM-AUDIT.md §13): this layer is a
+# READER. It never writes a Leg, a leg status, a vehicle plan, a draft or a
+# scheduler dial. The system rows are COMPUTED at read time from the board and
+# the task queue; `counts_snapshot` below is history, never the live answer.
+# ══════════════════════════════════════════════════════════════════════
+
+
+# Row keys. `system` rows are computed and cannot be ticked; `human` rows are
+# tap-to-confirm because the app cannot see those queues at all (audit §7).
+CHECK_UNASSIGNED = "unassigned"
+CHECK_UNCONFIRMED = "unconfirmed"
+CHECK_FLIGHT = "flight"
+CHECK_CONFLICTS = "conflicts"
+CHECK_MOVES = "moves"
+
+SYSTEM_ROW_LABELS = {
+    CHECK_UNASSIGNED: "Unassigned trips",
+    CHECK_UNCONFIRMED: "Chauffeurs who have not confirmed",
+    CHECK_FLIGHT: "Flight alerts not reviewed",
+    CHECK_CONFLICTS: "Conflict / tight-turn tasks open",
+    CHECK_MOVES: "Turns the new pickup times broke",
+}
+
+# These five are on a person's word because the app genuinely cannot see them:
+# there is no RingCentral integration, no WhatsApp integration, nothing reads
+# the mailbox, and the GoHighLevel inbox is not readable from here either
+# (audit §7). A dispatcher reasonably assumes the app can check anything it can
+# SEND through, so each row says in plain words what is being confirmed rather
+# than leaving them to guess.
+# The WhatsApp row is NOT the same job at both ends of the day, which is why
+# open and close carry different keys rather than sharing one:
+#   * opening  — you announce you're on, then READ the overnight backlog;
+#   * closing  — you WRITE what the next shift is walking into.
+# Sharing a key put "Opening message sent" on the close checklist.
+HUMAN_ROW_LABELS = {
+    # ── Open ──
+    # RingCentral comes first: if nobody is signed in, calls are being missed
+    # right now, which outranks whether a queue is tidy.
+    "phone": "RingCentral logged in, ringer on",
+    # WhatsApp is the team's channel (audit §7.7) — the same place the close
+    # summary gets pasted. The row named "texts" before, which sent openers to
+    # the wrong app.
+    "triage": "Opening message sent on WhatsApp, chat skimmed",
+    # ── Close ──
+    # No "ringer on" at the close: the opener set that hours ago, and asking
+    # again teaches people to tick past a row they already did. What matters
+    # now is that the line is still up as you hand it over.
+    "phone_close": "RingCentral logged in and working",
+    "handover": "Closing message sent on WhatsApp, with any notes",
+    # ── Both ──
+    "sms": "RingCentral texts at zero",
+    "email": "Email at zero",
+    "ghl": "GoHighLevel at zero",
+}
+
+HUMAN_ROW_HINTS = {
+    "phone": "Signed in to RingCentral on this machine, and you can hear it ring.",
+    "triage": (
+        "Post that you're opening in the WhatsApp group, then scan back over "
+        "anything that came in overnight \u2014 changes, cancellations, notes "
+        "someone left you. A quick scan, not a reply: the inboxes are the last "
+        "step."
+    ),
+    "phone_close": "Still signed in and taking calls as you hand the line over.",
+    "handover": (
+        "The last thing you do. Finishing the close writes the message for "
+        "you \u2014 hit Copy, paste it into the WhatsApp group, and add anything "
+        "the next shift needs to know."
+    ),
+    "sms": "Nobody left waiting on a reply.",
+    "email": "Nothing in the inbox still needs answering.",
+    "ghl": "No conversation still waiting on us.",
+}
+
+# Founder direction 2026-09-12: the open-task count is a CLOSE check, not an
+# OPEN one. Measured at ~71 conflict/tight-turn tasks a day with ~66% of closes
+# buying nothing (docs/scheduling-redesign/06_DAY_MANAGER.md §0.2), it is noise
+# at a 7:15 AM gate. Conflicts still show red on the board the opener works.
+# The Opener SOP's own running order: unassigned (step 1), confirmations
+# (step 2), flights (step 3), then the conflicts the new pickup times created
+# (step 4). Conflicts are on the open BECAUSE the SOP gates "today is protected"
+# behind them — a flight that moves 40 minutes makes a turn that was fine at
+# 6:30 impossible by 7:00, and that is exactly what step 4 sweeps for.
+DEFAULT_OPEN_SYSTEM_ROWS = [CHECK_UNASSIGNED, CHECK_UNCONFIRMED, CHECK_FLIGHT,
+                            CHECK_MOVES]
+DEFAULT_CLOSE_SYSTEM_ROWS = [CHECK_UNASSIGNED, CHECK_UNCONFIRMED, CHECK_FLIGHT,
+                             CHECK_CONFLICTS]
+# OPEN: systems up and the WhatsApp opening post come first (SOP "opener on"
+# and step 0); the three inboxes come last, in the SOP's strict order — texts,
+# then email, then GoHighLevel, one at a time.
+DEFAULT_OPEN_HUMAN_ROWS = ["phone", "triage", "sms", "email", "ghl"]
+# CLOSE: the same inboxes, but the WhatsApp post moves to the END. At the open
+# it is the FIRST thing because it tells you what you are walking into; at the
+# close it is the LAST thing because it reports what you are handing over, and
+# it cannot be written until everything above it is settled.
+DEFAULT_CLOSE_HUMAN_ROWS = ["phone_close", "sms", "email", "ghl", "handover"]
+
+# Rows that were once on the list. A checklist created before a row was retired
+# still carries it, and a raw key like "missed_calls" rendering on the floor is
+# worse than the row itself ever was. (Missed calls folded into the phone row —
+# it read as a second RingCentral line.)
+RETIRED_ROW_LABELS = {
+    "missed_calls": "Missed calls returned",
+}
+
+
+class ShiftSettings(models.Model):
+    """Singleton (pk=1) for the shift layer's operator-editable numbers.
+
+    Mirrors the established pattern of ``dispatching.SchedulerSettings`` —
+    one row, defaults in the model, edited from a page rather than code — with
+    one deliberate difference: **no module-global cache.** SchedulerSettings
+    memoises itself per process, so under three gunicorn workers a save reaches
+    only the worker that served it until restart. This row is small and indexed;
+    read it per request.
+    """
+
+    board_safe_target = models.TimeField(
+        default=time(7, 15),
+        help_text="Eastern wall-clock backstop. The board is safe by this time however late the open started.",
+    )
+    open_complete_target = models.TimeField(
+        default=time(8, 0),
+        help_text="Eastern wall-clock backstop. Opening is fully done by this time.",
+    )
+    board_safe_minutes = models.PositiveSmallIntegerField(
+        default=45,
+        help_text="Opener SOP: minutes from starting the open to a safe board. 0 = wall-clock only.",
+    )
+    open_complete_minutes = models.PositiveSmallIntegerField(
+        default=90,
+        help_text="Opener SOP: minutes from starting the open to a finished open. 0 = wall-clock only.",
+    )
+    close_target = models.TimeField(
+        null=True, blank=True, default=time(21, 0),
+        help_text="Eastern wall-clock target for finishing the close. Blank = untimed.",
+    )
+
+    open_system_rows = models.JSONField(
+        default=list, blank=True,
+        help_text="System row keys shown on Open Shift. Blank = the built-in default.",
+    )
+    close_system_rows = models.JSONField(
+        default=list, blank=True,
+        help_text="System row keys shown on Close Shift. Blank = the built-in default.",
+    )
+    open_human_rows = models.JSONField(
+        default=list, blank=True,
+        help_text="Human-verified row keys on Open Shift. Blank = the built-in default.",
+    )
+    close_human_rows = models.JSONField(
+        default=list, blank=True,
+        help_text="Human-verified row keys on Close Shift. Blank = the built-in default.",
+    )
+
+    summary_intro = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Optional first line prepended to the pasteable completion message.",
+    )
+
+    class Meta:
+        verbose_name = "Shift Settings"
+        verbose_name_plural = "Shift Settings"
+
+    def __str__(self):
+        return "Shift Settings"
+
+    @classmethod
+    def load(cls):
+        """The singleton row, created with defaults on first access."""
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def rows_for(self, kind):
+        """(system_row_keys, human_row_keys) for 'open' or 'close'.
+
+        Human rows are per-kind for the same reason the system rows are: the
+        two shifts ask different questions. Sharing one list is what put
+        "Opening message sent" on the close checklist.
+        """
+        if kind == ShiftChecklist.Kind.OPEN:
+            system = self.open_system_rows or DEFAULT_OPEN_SYSTEM_ROWS
+            human = self.open_human_rows or DEFAULT_OPEN_HUMAN_ROWS
+        else:
+            system = self.close_system_rows or DEFAULT_CLOSE_SYSTEM_ROWS
+            human = self.close_human_rows or DEFAULT_CLOSE_HUMAN_ROWS
+        return list(system), list(human)
+
+    def targets_for(self, kind):
+        """The gate times in force, frozen onto a checklist when it opens."""
+        if kind == ShiftChecklist.Kind.OPEN:
+            return {
+                "board_safe": self.board_safe_target.strftime("%H:%M"),
+                "open_complete": self.open_complete_target.strftime("%H:%M"),
+                "board_safe_min": self.board_safe_minutes,
+                "open_complete_min": self.open_complete_minutes,
+            }
+        return {"close": self.close_target.strftime("%H:%M") if self.close_target else ""}
+
+
+class ShiftChecklist(models.Model):
+    """One Open or Close checklist for one service date.
+
+    Open looks at TODAY, Close looks at TOMORROW — ``target_date`` below is the
+    date the system rows are counted against, which is not the same as ``date``
+    (the shift's own calendar day) for a close.
+    """
+
+    class Kind(models.TextChoices):
+        OPEN = "open", "Open Shift"
+        CLOSE = "close", "Close Shift"
+
+    date = models.DateField(db_index=True, help_text="The shift's own calendar day (Eastern).")
+    kind = models.CharField(max_length=5, choices=Kind.choices)
+
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_checklists_opened",
+    )
+    opened_at = models.DateTimeField(null=True, blank=True)
+
+    board_safe_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Stamped when every system row is clear or documented and carried notes are owned.",
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_checklists_completed",
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    reopened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_checklists_reopened",
+    )
+    reopened_at = models.DateTimeField(null=True, blank=True)
+    reopen_count = models.PositiveSmallIntegerField(default=0)
+
+    #: The gate times in force when this checklist opened. Frozen so a later
+    #: settings change can never turn a hit into a miss retroactively — the same
+    #: honesty DayPlan.bookings_as_of keeps.
+    targets = models.JSONField(default=dict, blank=True)
+    #: The system counts at completion. HISTORY ONLY — never read as the live
+    #: answer (audit §13.4).
+    counts_snapshot = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "kind"]
+        constraints = [
+            models.UniqueConstraint(fields=["date", "kind"], name="uniq_shift_checklist_per_day"),
+        ]
+        indexes = [
+            models.Index(fields=["-date", "kind"], name="idx_shiftlist_date_kind"),
+        ]
+        permissions = [
+            ("review_checklists", "Can review shift checklist history"),
+            ("reopen_checklist", "Can reopen a completed shift checklist"),
+            ("edit_exception_owner", "Can change who owns a shift exception"),
+        ]
+        verbose_name = "Shift Checklist"
+        verbose_name_plural = "Shift Checklists"
+
+    def __str__(self):
+        return f"{self.get_kind_display()} {self.date:%Y-%m-%d}"
+
+    # ── State ──
+    @property
+    def is_complete(self):
+        return self.completed_at is not None
+
+    @property
+    def target_date(self):
+        """The service date the system rows count against."""
+        from datetime import timedelta
+        return self.date + timedelta(days=1) if self.kind == self.Kind.CLOSE else self.date
+
+    def _target_dt(self, key):
+        """The gate time in force: whichever of the two limits lands first.
+
+        The SOP sets an allowance measured from the moment the open starts
+        (45 minutes to a safe board, 90 to a finished open). The wall-clock
+        target is the backstop underneath it, because a 7 AM pickup does not
+        care what time the opener sat down. Start an hour early and the
+        allowance binds; start late and the wall clock does.
+        """
+        from datetime import datetime, timedelta
+        targets = self.targets or {}
+
+        wall = None
+        raw = targets.get(key)
+        if raw:
+            try:
+                hh, mm = (int(part) for part in raw.split(":"))
+                wall = timezone.make_aware(
+                    datetime.combine(self.date, time(hh, mm)),
+                    timezone.get_current_timezone(),
+                )
+            except (ValueError, AttributeError, TypeError):
+                wall = None
+
+        elapsed = None
+        minutes = targets.get(f"{key}_min")
+        start = self._allowance_start()
+        if minutes and start:
+            try:
+                elapsed = start + timedelta(minutes=int(minutes))
+            except (ValueError, TypeError):
+                elapsed = None
+
+        if wall and elapsed:
+            return min(wall, elapsed)
+        return wall or elapsed
+
+    def _allowance_start(self):
+        """When the SOP's clock starts, or None if it does not apply.
+
+        The allowance is "45 minutes from sitting down", which only means
+        something when the checklist is being worked on its own day. Opened
+        ahead of time — a close pointed at tomorrow, a day backfilled — it would
+        anchor to the wrong date and judge a gate against a time on another
+        day entirely. Then only the wall clock applies.
+        """
+        start = self.opened_at or self.created_at
+        if start is None:
+            return None
+        if timezone.localtime(start).date() != self.date:
+            return None
+        return start
+
+    def target_basis(self, key):
+        """'allowance' | 'clock' | '' — which limit is setting the gate."""
+        from datetime import datetime, timedelta
+        targets = self.targets or {}
+        minutes = targets.get(f"{key}_min")
+        start = self._allowance_start()
+        if not (minutes and start):
+            return "clock" if targets.get(key) else ""
+        effective = self._target_dt(key)
+        if effective is None:
+            return ""
+        return "allowance" if effective == start + timedelta(minutes=int(minutes)) else "clock"
+
+    def gate_status(self, key, stamped_at):
+        """'on_time' | 'late' | 'pending' for a frozen target against a stamp."""
+        target = self._target_dt(key)
+        if stamped_at is None:
+            return "pending"
+        if target is None:
+            return "on_time"
+        return "on_time" if stamped_at <= target else "late"
+
+    @property
+    def board_safe_status(self):
+        return self.gate_status("board_safe", self.board_safe_at)
+
+    @property
+    def complete_status(self):
+        key = "open_complete" if self.kind == self.Kind.OPEN else "close"
+        return self.gate_status(key, self.completed_at)
+
+
+class ShiftChecklistRow(models.Model):
+    """One check on one checklist.
+
+    A ``system`` row's state is DERIVED from a live count and is persisted only
+    so a completed checklist keeps its history. It can never be confirmed by
+    hand — the view rejects that, because a row a dispatcher can tick is a row
+    that stops meaning anything.
+    """
+
+    class Kind(models.TextChoices):
+        SYSTEM = "system", "System-verified"
+        HUMAN = "human", "Human-verified"
+
+    class State(models.TextChoices):
+        OPEN = "open", "Outstanding"
+        CLEAR = "clear", "Clear"
+        DOCUMENTED = "documented", "Documented exception"
+
+    checklist = models.ForeignKey(
+        ShiftChecklist, on_delete=models.CASCADE, related_name="rows",
+    )
+    key = models.CharField(max_length=24)
+    kind = models.CharField(max_length=6, choices=Kind.choices)
+    state = models.CharField(max_length=12, choices=State.choices, default=State.OPEN)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_rows_confirmed",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=200, blank=True, default="")
+
+    #: Last computed count for a system row, refreshed on every page render.
+    #: Display convenience only — the live count is always recomputed.
+    last_count = models.IntegerField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["checklist", "key"], name="uniq_shift_row_per_checklist"),
+        ]
+        verbose_name = "Shift Checklist Row"
+        verbose_name_plural = "Shift Checklist Rows"
+
+    def __str__(self):
+        return f"{self.checklist} · {self.key} ({self.state})"
+
+    @property
+    def label(self):
+        return (
+            SYSTEM_ROW_LABELS.get(self.key)
+            or HUMAN_ROW_LABELS.get(self.key)
+            or RETIRED_ROW_LABELS.get(self.key)
+            or self.key.replace("_", " ").capitalize()
+        )
+
+    @property
+    def is_system(self):
+        return self.kind == self.Kind.SYSTEM
+
+
+class ShiftException(models.Model):
+    """Something outstanding at completion, with an owner and a next action.
+
+    NO SILENT EXCEPTIONS: a checklist cannot complete while a row is neither
+    clear nor covered by one of these.
+
+    It REFERENCES existing objects rather than restating them — a conflict lives
+    in ``OperationalTask``, a watch item in ``LegKeoi``, a trip in ``Leg``.
+    Copying their text would create a second version that drifts (audit §13.4).
+    """
+
+    checklist = models.ForeignKey(
+        ShiftChecklist, on_delete=models.CASCADE, related_name="exceptions",
+    )
+    row = models.ForeignKey(
+        ShiftChecklistRow, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="exceptions",
+    )
+
+    what = models.TextField(help_text="What is outstanding.")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="shift_exceptions_owned",
+        help_text="The person who owns it. Never blank — that is the whole point.",
+    )
+    next_action = models.CharField(max_length=200, help_text="What happens next.")
+    next_action_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the next action is due, if it has a time.",
+    )
+
+    # ── References, never copies ──
+    task = models.ForeignKey(
+        "ops.OperationalTask", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_exceptions",
+    )
+    leg = models.ForeignKey(
+        "reservations.Leg", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_exceptions",
+    )
+    keoi = models.ForeignKey(
+        "reservations.LegKeoi", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_exceptions",
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_exceptions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_exceptions_resolved",
+    )
+    resolution_note = models.CharField(max_length=200, blank=True, default="")
+
+    # ── Carry-forward ──
+    carried_from = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="carried_to",
+        help_text="The exception on the previous shift this one continues.",
+    )
+    acknowledged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="shift_exceptions_acknowledged",
+    )
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["checklist"], name="idx_shiftexc_checklist"),
+            models.Index(
+                fields=["resolved_at"],
+                name="idx_shiftexc_open",
+                condition=models.Q(resolved_at__isnull=True),
+            ),
+        ]
+        verbose_name = "Shift Exception"
+        verbose_name_plural = "Shift Exceptions"
+
+    def __str__(self):
+        state = "open" if self.resolved_at is None else "resolved"
+        return f"{self.what[:50]} — {self.owner} ({state})"
+
+    @property
+    def is_open(self):
+        return self.resolved_at is None
+
+    @property
+    def needs_acknowledgement(self):
+        """A carried-forward note nobody has taken ownership of yet."""
+        return self.carried_from_id is not None and self.acknowledged_at is None
+
+    @property
+    def carry_depth(self):
+        """How many shifts this has been carried across. 0 = raised here."""
+        depth, node, guard = 0, self, 0
+        while node.carried_from_id and guard < 20:
+            depth += 1
+            node = node.carried_from
+            guard += 1
+        return depth

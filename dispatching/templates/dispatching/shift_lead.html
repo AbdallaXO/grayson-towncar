@@ -1,0 +1,158 @@
+{% extends 'main.html' %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Dispatch Lead — how the last N days actually ran. Light-only by design. */
+.sl-wrap { max-width: 1080px; margin: 1.5rem auto 3rem; }
+.sl-title { font-size:1.5rem; font-weight:800; color:#111827; margin:0 0 .2rem; }
+.sl-sub { color:#6b7280; font-size:.88rem; margin:0 0 1.1rem; }
+.sl-card { background:#fff; border:1px solid #e5e7eb; border-radius:1rem; box-shadow:0 6px 24px rgba(0,0,0,.06); padding:1.3rem 1.4rem; margin-bottom:1.1rem; }
+.sl-stats { display:flex; gap:1.6rem; flex-wrap:wrap; }
+.sl-stat b { display:block; font-size:1.45rem; font-weight:800; color:#111827; font-variant-numeric:tabular-nums; line-height:1.15; }
+.sl-stat span { font-size:.76rem; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+.sl-stat.warn b { color:#8f2430; }
+.sl-table { width:100%; font-size:.86rem; border-collapse:collapse; }
+.sl-table th { text-align:left; font-size:.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#6b7280; padding:0 .7rem .6rem 0; border-bottom:1px solid #e5e7eb; white-space:nowrap; }
+.sl-table td { padding:.7rem .7rem .7rem 0; border-bottom:1px solid #f1f3f5; vertical-align:top; }
+.sl-day { font-weight:700; color:#111827; white-space:nowrap; }
+.sl-day small { display:block; font-weight:500; color:#9ca3af; }
+.sl-chip { display:inline-block; font-size:.68rem; font-weight:800; padding:.1rem .48rem; border-radius:999px; white-space:nowrap; }
+.sl-chip.on_time { background:#e6f6ec; color:#1e6b34; }
+.sl-chip.late { background:#fdeceb; color:#8f2430; }
+.sl-chip.pending { background:#eef0f2; color:#6b7280; }
+.sl-missing { color:#b91c1c; font-weight:700; }
+.sl-none { color:#cbd5e1; }
+.sl-exc { margin:0; padding-left:1rem; font-size:.82rem; color:#4b5563; }
+.sl-exc li { margin-bottom:.2rem; }
+.sl-carried { font-size:.68rem; font-weight:800; color:#8f2430; background:#fdeceb; padding:.05rem .4rem; border-radius:999px; }
+.sl-range a { font-size:.82rem; }
+.sl-scroll { overflow-x:auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+<div class="container sl-wrap">
+  <h1 class="sl-title">How the shifts ran</h1>
+  <p class="sl-sub">
+    {{ start_date|date:"j M" }} – {{ end_date|date:"j M Y" }}. Newest first.
+  </p>
+
+  <div class="sl-card">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div class="sl-stats">
+        <div class="sl-stat">
+          <b>{{ totals.opens_done }}/{{ totals.days }}</b><span>Openings done</span>
+        </div>
+        <div class="sl-stat">
+          <b>{{ totals.closes_done }}/{{ totals.days }}</b><span>Closings done</span>
+        </div>
+        <div class="sl-stat {% if totals.board_safe_late %}warn{% endif %}">
+          <b>{{ totals.board_safe_late }}</b><span>Board safe late</span>
+        </div>
+        <div class="sl-stat {% if totals.outstanding %}warn{% endif %}">
+          <b>{{ totals.outstanding }}</b><span>Still outstanding</span>
+        </div>
+        <div class="sl-stat {% if totals.carried %}warn{% endif %}">
+          <b>{{ totals.carried }}</b><span>Carried over</span>
+        </div>
+      </div>
+      <div class="sl-range">
+        <a class="btn btn-sm btn-outline-secondary" href="?range=7">7 days</a>
+        <a class="btn btn-sm btn-outline-secondary" href="?range=14">14 days</a>
+        <a class="btn btn-sm btn-outline-secondary" href="?range=30">30 days</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="sl-card sl-scroll">
+    <table class="sl-table">
+      <thead>
+        <tr>
+          <th>Day</th>
+          <th>Opened by</th>
+          <th>Board safe</th>
+          <th>Open done</th>
+          <th>Closed by</th>
+          <th>Close done</th>
+          <th>Left outstanding</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="sl-day">
+            {{ row.date|date:"D" }}<small>{{ row.date|date:"j M" }}</small>
+          </td>
+
+          <td>
+            {% if row.open and row.open.completed_by %}
+              {{ row.open.completed_by.get_full_name|default:row.open.completed_by.username }}
+            {% elif row.open %}
+              <span class="sl-missing">not finished</span>
+            {% else %}
+              <span class="sl-missing">no opening</span>
+            {% endif %}
+          </td>
+
+          <td>
+            {% if row.open and row.open.board_safe_at %}
+              {{ row.open.board_safe_at|time:"g:i A" }}
+              <span class="sl-chip {{ row.open.board_safe_status }}">
+                {% if row.open.board_safe_status == 'late' %}late{% else %}on time{% endif %}
+              </span>
+            {% else %}<span class="sl-none">—</span>{% endif %}
+          </td>
+
+          <td>
+            {% if row.open and row.open.completed_at %}
+              {{ row.open.completed_at|time:"g:i A" }}
+              <span class="sl-chip {{ row.open.complete_status }}">
+                {% if row.open.complete_status == 'late' %}late{% else %}on time{% endif %}
+              </span>
+              {% if row.open.reopen_count %}<span class="sl-carried">reopened</span>{% endif %}
+            {% else %}<span class="sl-none">—</span>{% endif %}
+          </td>
+
+          <td>
+            {% if row.close and row.close.completed_by %}
+              {{ row.close.completed_by.get_full_name|default:row.close.completed_by.username }}
+            {% elif row.close %}
+              <span class="sl-missing">not finished</span>
+            {% else %}
+              <span class="sl-missing">no closing</span>
+            {% endif %}
+          </td>
+
+          <td>
+            {% if row.close and row.close.completed_at %}
+              {{ row.close.completed_at|time:"g:i A" }}
+              {% if row.close.reopen_count %}<span class="sl-carried">reopened</span>{% endif %}
+            {% else %}<span class="sl-none">—</span>{% endif %}
+          </td>
+
+          <td>
+            {% if row.outstanding %}
+              <ul class="sl-exc">
+                {% for e in row.outstanding %}
+                  <li>
+                    {{ e.what|truncatechars:70 }}
+                    <b>{{ e.owner.get_full_name|default:e.owner.username }}</b>
+                    {% if e.carry_depth %}<span class="sl-carried">carried {{ e.carry_depth }}</span>{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}<span class="sl-none">Nothing</span>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="sl-none">Nothing recorded in this range yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

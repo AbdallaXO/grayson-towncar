@@ -1,0 +1,680 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ══ Open / Close shift ══════════════════════════════════════════════
+   A control panel, not a report. One screen at 1280.
+
+   Warm paper ground so the white cards carry the content, with green / amber /
+   red used ONLY as state — clear, noted, outstanding. Montserrat is the
+   dispatcher UI's own face (main.html); numbers run in a system mono so times
+   and counts line up in columns.
+
+   LIGHT-ONLY on purpose: this UI has no dark mode, and an OS dark setting
+   firing against a half-built one wrecks the page. No prefers-color-scheme
+   block here, deliberately.
+   ══════════════════════════════════════════════════════════════════ */
+/* The ground is the page, not the column. Scoped to this template's own style
+   block, so no other dispatcher page is affected. */
+body { background:#f6f4ef; }
+
+.sh {
+  --paper:#f6f4ef; --card:#ffffff;
+  --ink:#1b1c1a; --ink-2:#5c5f58; --ink-3:#9a9d94;
+  --line:#e6e3da; --line-2:#d6d2c6;
+  --green:#1f7a4d; --green-bg:#e7f4ec; --green-line:#bfe0cc;
+  --red:#b8342c;   --red-bg:#fbeceb;
+  --amber:#a8650b; --amber-bg:#fbf1dc; --amber-line:#ecd9ae;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:14px;
+
+  background:var(--paper); color:var(--ink); font-size:15px; line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  margin:0 auto; max-width:1160px; padding:28px 28px 80px;
+  min-height:calc(100vh - 120px);
+}
+.sh *{box-sizing:border-box}
+
+/* header */
+.sh-head{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;margin-bottom:22px}
+.sh h1{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px;color:var(--ink)}
+.sh .sub{color:var(--ink-2);font-size:14px}
+.sh .sub b{color:var(--ink);font-weight:600}
+.sh .gates{display:flex;gap:12px;flex-wrap:wrap}
+.sh .gate{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;min-width:200px;position:relative;overflow:hidden}
+.sh .gate small{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:6px}
+.sh .gate .t{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.02em}
+.sh .gate .u{font-size:12px;color:var(--ink-2);margin-top:2px}
+.sh .gate.running .t{color:var(--amber)}
+.sh .gate.ok .t{color:var(--green)}
+.sh .gate.late .t{color:var(--red)}
+.sh .gate .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--line-2)}
+.sh .gate.running .bar{background:var(--amber)}
+.sh .gate.ok .bar{background:var(--green)}
+.sh .gate.late .bar{background:var(--red)}
+
+/* cards */
+.sh .shc{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
+.sh .shc-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.sh .shc-h .sop{flex-basis:100%;margin:6px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.5;font-style:italic}
+.sh .shc-h h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sh .pill{font-family:var(--mono);font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--paper);color:var(--ink-2);border:1px solid var(--line);white-space:nowrap}
+.sh .pill.ok{background:var(--green-bg);color:var(--green);border-color:var(--green-line)}
+.sh .prog{height:4px;background:var(--line);border-radius:2px;width:140px;overflow:hidden}
+.sh .prog i{display:block;height:100%;background:var(--green);border-radius:2px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+
+/* a row */
+.sh .shr{display:grid;grid-template-columns:32px 1fr auto;gap:14px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);transition:background .35s}
+.sh .shr:last-child{border-bottom:0}
+.sh .shr.done{background:var(--green-bg)}
+.sh .shr .lbl{font-weight:700;font-size:15px}
+.sh .shr.done .lbl{color:var(--green)}
+.sh .shr .meta{font-size:13px;color:var(--ink-2);margin-left:10px;font-weight:500}
+.sh .shr.done .meta{color:var(--green);opacity:.8}
+.sh .shr.noted{background:#fdf8ec}
+.sh .shr.noted .lbl{color:var(--amber)}
+.sh .shr.noted .st{border-color:var(--amber);background:var(--amber);color:#fff}
+
+/* status disc */
+.sh .st{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:13px;border:1.5px solid var(--line-2);color:var(--ink-2);background:var(--card);transition:all .35s}
+.sh .st.red{border-color:var(--red);color:var(--red);background:var(--red-bg)}
+.sh .st.amber{border-color:var(--amber);color:var(--amber);background:var(--amber-bg)}
+.sh .st.ok{border-color:var(--green);background:var(--green);color:#fff}
+.sh .st svg{width:16px;height:16px}
+.sh .st.ok svg path{stroke-dasharray:24;stroke-dashoffset:24;animation:sh-draw .45s .05s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes sh-draw{to{stroke-dashoffset:0}}
+
+/* checkbox */
+.sh .chk{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line-2);background:var(--card);display:grid;place-items:center;cursor:pointer;transition:all .25s;margin-left:4px}
+.sh .chk svg{width:14px;height:14px;opacity:0;transform:scale(.6);transition:all .25s}
+.sh .shr.done .chk{background:var(--green);border-color:var(--green)}
+.sh .shr.done .chk svg{opacity:1;transform:scale(1)}
+.sh .shr.done .chk svg path{stroke-dasharray:24;stroke-dashoffset:24;animation:sh-draw .4s .05s ease-out forwards}
+.sh .chk:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+/* The box is a 22px target. The row is the whole width, so let people hit that
+   instead — buttons, links and the note form inside it still win the click. */
+.sh .shr.human,.sh .shr.carry{cursor:pointer}
+.sh .shr.human:hover,.sh .shr.carry:hover{background:#fbfaf6}
+.sh .shr.human.done:hover,.sh .shr.carry.done:hover{background:#dff0e6}
+
+/* buttons */
+.sh .acts{display:flex;gap:8px;flex-wrap:wrap}
+.sh button,.sh a.shb{font:inherit;font-weight:700;font-size:13px;padding:7px 13px;border-radius:9px;border:1px solid var(--line-2);background:var(--card);color:var(--ink);cursor:pointer;transition:all .15s;text-decoration:none;display:inline-block;line-height:1.3}
+.sh button:hover,.sh a.shb:hover{border-color:var(--ink);transform:translateY(-1px)}
+.sh button.ghost,.sh a.shb.ghost{border-color:transparent;color:var(--ink-2)}
+.sh button.ghost:hover,.sh a.shb.ghost:hover{background:var(--paper);color:var(--ink);border-color:var(--line-2)}
+.sh button:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.sh button.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:12px 22px;font-size:14px;border-radius:11px}
+.sh button.primary:disabled{background:var(--line);border-color:var(--line);color:var(--ink-3);cursor:not-allowed;transform:none}
+.sh button.primary.go{background:var(--green);border-color:var(--green)}
+
+/* items under a row */
+.sh .items{grid-column:2/4;display:grid;gap:6px;margin-top:-2px}
+.sh .item{display:grid;grid-template-columns:64px 1fr auto;gap:12px;align-items:center;padding:9px 12px;background:var(--paper);border-radius:10px;font-size:14px}
+.sh .item .tm{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-weight:600}
+.sh .item b{font-weight:700}
+.sh .item .d{color:var(--ink-2)}
+.sh .item.past{background:transparent;color:var(--ink-3);font-size:13px;padding:4px 12px;grid-template-columns:1fr}
+.sh .item .delta{font-family:var(--mono);font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--amber-bg);color:var(--amber);margin-left:8px}
+.sh .item .delta.red{background:var(--red-bg);color:var(--red)}
+.sh .more{grid-column:2/4;font-size:13px;color:var(--ink-3);padding:2px 12px}
+
+/* note form */
+.sh .note{grid-column:2/4;display:none;gap:10px;grid-template-columns:2fr 1fr 1fr auto;padding:10px 12px;background:var(--amber-bg);border-radius:10px;border:1px solid var(--amber-line)}
+.sh .note.open{display:grid}
+.sh .note input,.sh .note select{font:inherit;font-size:13px;padding:8px 10px;border-radius:8px;border:1px solid var(--line-2);background:#fff;width:100%}
+.sh .note .err{grid-column:1/-1;color:var(--red);font-size:12px;font-weight:600}
+
+/* confirm dialog — the page's own, not the browser's */
+.sh-mask{position:fixed;inset:0;background:rgba(27,28,26,.42);display:grid;place-items:center;z-index:1080;padding:20px;animation:sh-fade .14s ease both}
+.sh-mask[hidden]{display:none}
+.sh-dlg{background:#fff;border:1px solid #e6e3da;border-radius:16px;padding:22px 24px 18px;max-width:420px;width:100%;box-shadow:0 18px 50px rgba(27,28,26,.22);animation:sh-pop .18s cubic-bezier(.2,.8,.2,1) both}
+.sh-dlg h3{margin:0 0 8px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.sh-dlg p{margin:0 0 18px;font-size:14px;color:#5c5f58;line-height:1.5;white-space:pre-line}
+.sh-dlg .acts{justify-content:flex-end;align-items:stretch}
+/* Cancel and the confirm sit at one height — the page's primary button is sized
+   for a footer, not for a dialog row. */
+.sh .sh-dlg button{padding:10px 18px;font-size:14px;border-radius:10px}
+.sh .sh-dlg button.ghost{border-color:var(--line-2)}
+@keyframes sh-fade{from{opacity:0}to{opacity:1}}
+@keyframes sh-pop{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+
+/* footer */
+.sh footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);position:sticky;bottom:16px;flex-wrap:wrap}
+.sh .ring{width:44px;height:44px;position:relative;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:600}
+.sh .ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.sh .ring circle{fill:none;stroke-width:4}
+.sh .ring .bg{stroke:var(--line)}
+.sh .ring .fg{stroke:var(--green);stroke-linecap:round;transition:stroke-dashoffset .5s cubic-bezier(.2,.8,.2,1)}
+.sh .fl{display:flex;align-items:center;gap:14px}
+.sh .fl .s{font-weight:700}
+.sh .fl .s span{color:var(--red)}
+.sh .fl.all .s span{color:var(--green)}
+.sh .fl .h{font-size:13px;color:var(--ink-2)}
+.sh .summary{font-family:var(--mono);font-size:13px;white-space:pre-wrap;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0;line-height:1.6;color:var(--ink-2)}
+
+.sh .shc,.sh .gate,.sh .sh-head{animation:sh-up .5s cubic-bezier(.2,.8,.2,1) both}
+.sh .shc:nth-of-type(2){animation-delay:.06s}
+.sh .shc:nth-of-type(3){animation-delay:.12s}
+.sh .shc:nth-of-type(4){animation-delay:.18s}
+@keyframes sh-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+@media (max-width:820px){
+  .sh{padding:20px 16px 80px}
+  .sh-head{grid-template-columns:1fr}
+  .sh .gates{width:100%}
+  .sh .gate{flex:1;min-width:0}
+  .sh .shr{grid-template-columns:32px 1fr;gap:10px}
+  .sh .acts{grid-column:1/-1;padding-left:46px}
+  .sh .items,.sh .note,.sh .more{grid-column:1/-1}
+  .sh .note{grid-template-columns:1fr}
+  .sh footer{position:static}
+}
+@media (prefers-reduced-motion:reduce){.sh *{animation:none !important;transition:none !important}}
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+{% spaceless %}
+<div class="sh" id="shiftPanel" data-checklist="{{ checklist.id }}"
+     data-me="{{ viewer_name }}" data-complete="{% if checklist.is_complete %}1{% else %}0{% endif %}">
+
+  <div class="sh-head">
+    <div>
+      <h1>{% if is_open_shift %}Open{% else %}Close{% endif %} · {{ checklist.date|date:"l j F" }}</h1>
+      <div class="sub">
+        {% if checklist.opened_by %}Started by <b>{{ checklist.opened_by.get_full_name|default:checklist.opened_by.username }}</b>
+          at {{ checklist.opened_at|time:"g:i A" }} · {% endif %}
+        now <b>{{ now_local|time:"g:i A" }}</b>
+        {% if not is_open_shift %} · checking {{ target_date|date:"l j M" }}{% endif %}
+        {% if is_open_shift and opener %} ·
+          {% if viewer_is_opener %}you're the opener{% else %}{{ opener.get_full_name|default:opener.username }} is the opener{% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="gates">
+      {% for g in gates %}
+        <div class="gate {{ g.state }}">
+          <small>{{ g.label }} {{ g.target }}{% if g.basis_note %} · {{ g.basis_note }}{% endif %}</small>
+          <div class="t">{{ g.value }}</div>
+          <div class="u">{{ g.note }}</div>
+          <div class="bar" style="width:{{ g.pct }}%"></div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if carried %}
+  <section class="shc">
+    <div class="shc-h">
+      <h2>From last {% if is_open_shift %}night's close{% else %}shift's open{% endif %}
+        {% if previous and previous.completed_by %}
+          <span class="pill">{{ previous.completed_by.get_full_name|default:previous.completed_by.username }} · {{ previous.completed_at|time:"g:i A" }}</span>
+        {% endif %}
+      </h2>
+      <span class="pill" data-pill="carried">0 / {{ carried|length }}</span>
+    </div>
+    {% for e in carried %}
+      <div class="shr carry {% if e.acknowledged_at %}done{% endif %}" data-group="carried">
+        <div class="chk" tabindex="0" role="checkbox"
+             aria-checked="{% if e.acknowledged_at %}true{% else %}false{% endif %}"
+             data-ack="{{ e.id }}"
+             data-ask-title="Take this on?"
+             data-ask-body="{{ e.what|escapejs }}&#10;&#10;It becomes yours until it's sorted."
+             data-ask-yes="I've got it">
+          <svg viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <span class="lbl">{{ e.what }}</span>
+          <span class="meta">{% if e.acknowledged_at %}{{ e.acknowledged_by.get_full_name|default:e.acknowledged_by.username }} · {{ e.acknowledged_at|time:"g:i A" }}{% else %}{{ e.owner.get_full_name|default:e.owner.username }} → {{ e.next_action }}{% if e.carry_depth > 1 %} · carried {{ e.carry_depth }} shifts{% endif %}{% endif %}</span>
+        </div>
+        <div class="acts">
+          {% if e.owner_phone %}<a class="shb" href="tel:{{ e.owner_phone }}">Call</a>{% endif %}
+          {% if not checklist.is_complete %}
+            <button class="ghost" data-shift-action="resolve" data-exception="{{ e.id }}">Sorted</button>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <section class="shc">
+    <div class="shc-h">
+      <h2>System checked · {% if is_open_shift %}today{% else %}tomorrow{% endif %}
+        <span class="pill">live off the board</span></h2>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="pill" data-pill="system">0 / {{ system_rows|length }}</span>
+        <div class="prog"><i data-bar="system" style="width:0%"></i></div>
+      </div>
+    </div>
+
+    {% for row in system_rows %}
+      <div class="shr sys {% if row.state == 'clear' %}done{% elif row.state == 'documented' %}noted{% endif %}"
+           data-group="system" data-key="{{ row.key }}">
+        {% if row.unknown %}
+          <div class="st">?</div>
+        {% elif row.count == 0 %}
+          <div class="st ok"><svg viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        {% else %}
+          <div class="st {{ row.tone }}">{{ row.count }}</div>
+        {% endif %}
+        <div>
+          <span class="lbl">{{ row.label }}</span>
+          <span class="meta">
+            {% if row.unknown %}couldn't count — open the board
+            {% elif row.count == 0 %}nothing outstanding
+            {% elif row.aside %}{{ row.aside }}
+            {% else %}{{ row.hint_line }}{% endif %}
+          </span>
+        </div>
+        <div class="acts">
+          {% if row.count and not checklist.is_complete %}
+            {% if row.aside_action %}
+              <button class="ghost" data-shift-action="{{ row.aside_action }}"
+                      data-ask-title="Acknowledge all {{ row.aside_count }}?"
+                      data-ask-body="Only do this once you've looked at them. It marks every moved pickup as seen."
+                      data-ask-yes="Acknowledge all">Acknowledge all {{ row.aside_count }}</button>
+            {% endif %}
+            <a class="shb ghost" href="{{ row.url }}" target="_blank" rel="noopener">{{ row.url_label|default:"Board" }}</a>
+            <button class="ghost" data-note-for="{{ row.key }}">Note</button>
+          {% endif %}
+        </div>
+
+        {% if row.items or row.aside_items %}
+        <div class="items">
+          {% for it in row.items %}
+            <div class="item">
+              <span class="tm">{{ it.when }}</span>
+              <span>
+                {% if row.key == 'unassigned' %}<b>{{ it.who }}</b> <span class="d">· {{ it.where }}</span>{% if it.until %}<span class="delta{% if it.urgent %} red{% endif %}">{{ it.until }}</span>{% endif %}
+                {% elif row.key == 'unconfirmed' %}<b>{{ it.who }}</b> <span class="d">· {{ it.trips }} trip{{ it.trips|pluralize }} · first job</span>{% if it.until %}<span class="delta{% if it.urgent %} red{% endif %}">{{ it.until }}</span>{% endif %}
+                {% elif row.key == 'flight' %}<b>{{ it.flight }}</b> <span class="d">· {{ it.who }}</span>{% if it.delta %}<span class="delta">{{ it.delta }}</span>{% endif %}
+                {% elif row.key == 'moves' %}<b>{{ it.who }}</b> <span class="d">· {{ it.where }}</span>{% if it.late %}<span class="delta{% if not it.tight %} red{% endif %}">{{ it.late }}</span>{% endif %}
+                {% else %}<b>{{ it.who }}</b>{% if it.late %}<span class="delta red">{{ it.late }}</span>{% endif %}{% endif %}
+              </span>
+              <div class="acts">
+                {% if it.phone %}<a class="shb" href="tel:{{ it.phone }}">Call</a>{% endif %}
+                <a class="shb {% if it.phone %}ghost{% endif %}" href="{{ it.action_url }}" target="_blank" rel="noopener">{{ it.action }}</a>
+              </div>
+            </div>
+          {% endfor %}
+          {% for it in row.aside_items %}
+            <div class="item">
+              <span class="tm">{{ it.when }}</span>
+              <span><b>{{ it.who }}</b> <span class="d">{% if it.was %}· was {{ it.was }}{% endif %} · {{ it.driver }}</span>{% if it.day_moved %}<span class="delta red">moved day</span>{% endif %}</span>
+              <div class="acts">
+                <a class="shb ghost" href="{{ it.action_url }}" target="_blank" rel="noopener">Open</a>
+                {% if not checklist.is_complete %}
+                  <button data-ack-leg="{{ it.leg_id }}">Got it</button>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if row.more %}<div class="more">and {{ row.more }} more — open the board</div>{% endif %}
+
+        <div class="note" data-form-for="{{ row.key }}">
+          <input type="text" data-f="what" maxlength="300" placeholder="What's outstanding">
+          <select data-f="owner">
+            <option value="">Owner…</option>
+            {% for person in staff %}<option value="{{ person.id }}">{{ person.get_full_name|default:person.username }}</option>{% endfor %}
+          </select>
+          <input type="text" data-f="next" maxlength="200" placeholder="Next action">
+          <button data-note-save="{{ row.key }}">Save</button>
+          <div class="err" data-f="err"></div>
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="shc">
+    <div class="shc-h">
+      <h2>Only you can check <span class="pill">tap when it's clear</span></h2>
+      {% comment %}
+        Open and close are opposite jobs, so the standing order differs. The
+        open line read "a 7 AM pickup can't" on BOTH, which is nonsense on a
+        checklist you work at the end of the day.
+      {% endcomment %}
+      <p class="sop">{% if is_open_shift %}Protect today first. The inboxes can wait ten minutes — a 7 AM pickup can't.
+        One channel at a time, oldest first: texts, then email, then GoHighLevel.{% else %}Leave it clean for whoever opens. One channel at a time, oldest first:
+        texts, then email, then GoHighLevel — then post the closing message.{% endif %}</p>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="pill" data-pill="human">0 / {{ human_rows|length }}</span>
+        <div class="prog"><i data-bar="human" style="width:0%"></i></div>
+      </div>
+    </div>
+    {% for row in human_rows %}
+      <div class="shr human {% if row.state == 'clear' %}done{% elif row.state == 'documented' %}noted{% endif %}"
+           data-group="human" data-key="{{ row.key }}">
+        <div class="chk" tabindex="0" role="checkbox"
+             aria-checked="{% if row.state == 'clear' %}true{% else %}false{% endif %}"
+             data-row="{{ row.key }}"
+             data-ask-title="{{ row.label }}"
+             data-ask-body="{{ row.hint|escapejs }}&#10;&#10;You've actually checked?"
+             data-ask-yes="Yes, it's clear">
+          <svg viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <span class="lbl">{{ row.label }}</span>
+          <span class="meta">{% if row.confirmed_by %}{{ row.confirmed_by }} · {{ row.confirmed_at|time:"g:i A" }}{% elif row.state == 'documented' %}handed on{% else %}{{ row.hint }}{% endif %}</span>
+        </div>
+        <div class="acts">
+          {% if row.state != 'clear' and not checklist.is_complete %}
+            <button class="ghost" data-note-for="{{ row.key }}">Note</button>
+          {% endif %}
+        </div>
+        <div class="note" data-form-for="{{ row.key }}">
+          <input type="text" data-f="what" maxlength="300" placeholder="What's outstanding · e.g. 18 texts open">
+          <select data-f="owner">
+            <option value="">Owner…</option>
+            {% for person in staff %}<option value="{{ person.id }}">{{ person.get_full_name|default:person.username }}</option>{% endfor %}
+          </select>
+          <input type="text" data-f="next" maxlength="200" placeholder="Next action">
+          <button data-note-save="{{ row.key }}">Save</button>
+          <div class="err" data-f="err"></div>
+        </div>
+      </div>
+    {% endfor %}
+  </section>
+
+  {% if exceptions %}
+  <section class="shc">
+    <div class="shc-h"><h2>Handed on from this shift</h2></div>
+    {% for e in exceptions %}
+      <div class="shr">
+        <div class="st amber">!</div>
+        <div><span class="lbl">{{ e.what }}</span><span class="meta">{{ e.owner.get_full_name|default:e.owner.username }} → {{ e.next_action }}</span></div>
+        <div class="acts">{% if not checklist.is_complete %}<button class="ghost" data-shift-action="resolve" data-exception="{{ e.id }}">Sorted</button>{% endif %}</div>
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if checklist.is_complete %}
+    <section class="shc">
+      <div class="shc-h"><h2>Done <span class="pill ok">{{ checklist.completed_by.get_full_name|default:checklist.completed_by.username }} · {{ checklist.completed_at|time:"g:i A" }}</span></h2></div>
+      <div style="padding:16px 20px">
+        <div class="summary" id="shiftSummary">{{ summary }}</div>
+        <div class="acts">
+          <button id="shiftCopy">Copy message</button>
+          {% if can_reopen %}<button class="ghost" data-shift-action="reopen"
+              data-ask-title="Reopen this checklist?"
+              data-ask-body="It goes back into play and the reopening is recorded against you."
+              data-ask-yes="Reopen">Reopen</button>{% endif %}
+        </div>
+      </div>
+    </section>
+  {% else %}
+    <footer>
+      <div class="fl" id="shFl">
+        <div class="ring">
+          <svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"/><circle class="fg" id="shRing" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="119.4"/></svg>
+          <span id="shRingTxt">0/0</span>
+        </div>
+        <div>
+          <div class="s" id="shSum"></div>
+          <div class="h" id="shHint"></div>
+        </div>
+      </div>
+      <button class="primary" id="shGo" data-shift-action="complete" disabled
+              data-ask-title="Complete the {% if is_open_shift %}open{% else %}close{% endif %}?"
+              data-ask-body="It gets recorded under your name, with the time. Anything still outstanding is handed on with its note."
+              data-ask-yes="Complete">Complete {% if is_open_shift %}open{% else %}close{% endif %}</button>
+    </footer>
+  {% endif %}
+
+  <div class="sh-mask" id="shAsk" hidden>
+    <div class="sh-dlg" role="dialog" aria-modal="true" aria-labelledby="shAskT">
+      <h3 id="shAskT"></h3>
+      <p id="shAskB"></p>
+      <div class="acts">
+        <button class="ghost" id="shAskNo">Cancel</button>
+        <button class="primary" id="shAskYes">Yes</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endspaceless %}
+
+<script>
+// Bootstrap's bundle loads at the FOOT of main.html, after this block is parsed.
+// Nothing here needs Bootstrap, but the same ordering trap once silently killed
+// every handler on this page, so it still waits for the document.
+document.addEventListener('DOMContentLoaded', function () {
+  var panel = document.getElementById('shiftPanel');
+  if (!panel) { return; }
+  var URL_ACTION = "{% url 'shift_action' %}";
+  var ID = panel.dataset.checklist;
+  var ME = panel.dataset.me;
+
+  function csrf(){ var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+
+  // The page's own confirm. The browser's native one is a jarring flash that
+  // steals focus and looks nothing like the rest of the app.
+  var mask = document.getElementById('shAsk');
+  var askT = document.getElementById('shAskT');
+  var askB = document.getElementById('shAskB');
+  var askYes = document.getElementById('shAskYes');
+  var askNo = document.getElementById('shAskNo');
+  var askResolve = null, askLastFocus = null;
+
+  function closeAsk(answer){
+    if (!askResolve) { return; }
+    var done = askResolve; askResolve = null;
+    mask.hidden = true;
+    if (askLastFocus && askLastFocus.focus) { askLastFocus.focus(); }
+    done(answer);
+  }
+
+  function ask(title, body, yesLabel){
+    if (!mask) { return Promise.resolve(window.confirm(title)); }
+    return new Promise(function(resolve){
+      closeAsk(false);
+      askLastFocus = document.activeElement;
+      askT.textContent = title;
+      askB.textContent = body || '';
+      askB.style.display = body ? '' : 'none';
+      askYes.textContent = yesLabel || 'Yes';
+      askResolve = resolve;
+      mask.hidden = false;
+      askYes.focus();
+    });
+  }
+
+  if (mask) {
+    askYes.addEventListener('click', function(){ closeAsk(true); });
+    askNo.addEventListener('click', function(){ closeAsk(false); });
+    mask.addEventListener('click', function(e){ if (e.target === mask) { closeAsk(false); } });
+    document.addEventListener('keydown', function(e){
+      if (mask.hidden) { return; }
+      if (e.key === 'Escape') { e.preventDefault(); closeAsk(false); }
+      if (e.key === 'Tab') {   // keep focus inside the dialog
+        e.preventDefault();
+        (document.activeElement === askYes ? askNo : askYes).focus();
+      }
+    });
+  }
+  function hhmm(){ var d = new Date(); var h = d.getHours(), ap = h < 12 ? 'AM' : 'PM';
+    h = h % 12 || 12; return h + ':' + String(d.getMinutes()).padStart(2,'0') + ' ' + ap; }
+
+  function post(payload){
+    payload.checklist_id = ID;
+    return fetch(URL_ACTION, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},
+      body:JSON.stringify(payload)
+    }).then(function(r){ return r.json(); });
+  }
+
+  // ── tick: records who and when ──
+  function bindTick(el, action, undo){
+    function apply(turningOn){
+      var row = el.closest('.shr');
+      var meta = row.querySelector('.meta');
+      row.classList.toggle('done', turningOn);
+      row.classList.remove('noted');
+      el.setAttribute('aria-checked', turningOn ? 'true' : 'false');
+      el.dataset.busy = '1';
+      if (turningOn) {
+        if (meta) { meta.dataset.prev = meta.dataset.prev || meta.textContent; meta.textContent = ME + ' · ' + hhmm(); }
+      } else if (meta && meta.dataset.prev) { meta.textContent = meta.dataset.prev; }
+      refresh();
+      post({ action: turningOn ? action : undo, key: el.dataset.row || '', exception_id: el.dataset.ack || '' })
+        .then(function(d){ delete el.dataset.busy; if (!d.success) { window.location.reload(); } })
+        .catch(function(){ window.location.reload(); });
+    }
+
+    function go(){
+      if (el.dataset.busy) { return; }
+      var row = el.closest('.shr');
+      var turningOn = !row.classList.contains('done');
+      if (!turningOn && !undo) { return; }
+      if (turningOn && el.dataset.askTitle) {
+        ask(el.dataset.askTitle, el.dataset.askBody, el.dataset.askYes || 'Confirm')
+          .then(function(ok){ if (ok) { apply(true); } });
+        return;
+      }
+      apply(turningOn);
+    }
+    el.addEventListener('click', go);
+    el.addEventListener('keydown', function(e){ if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); go(); } });
+  }
+  panel.querySelectorAll('.chk[data-row]').forEach(function(el){ bindTick(el, 'confirm_row', 'unconfirm_row'); });
+  panel.querySelectorAll('.chk[data-ack]').forEach(function(el){ bindTick(el, 'acknowledge', null); });
+
+  // Clicking anywhere on the row ticks it. Anything genuinely interactive
+  // inside the row — a Call link, the Note button, the note form — keeps its
+  // own click.
+  panel.querySelectorAll('.shr.human, .shr.carry').forEach(function(row){
+    var box = row.querySelector('.chk');
+    if (!box) { return; }
+    row.addEventListener('click', function(e){
+      if (e.target.closest('button, a, input, select, textarea, .chk, .note')) { return; }
+      box.click();
+    });
+  });
+
+  // ── note: the "what" field is required ──
+  panel.querySelectorAll('[data-note-for]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var form = panel.querySelector('.note[data-form-for="' + btn.dataset.noteFor + '"]');
+      if (!form) { return; }
+      var opening = !form.classList.contains('open');
+      panel.querySelectorAll('.note.open').forEach(function(f){ f.classList.remove('open'); });
+      form.classList.toggle('open', opening);
+      if (opening) { form.querySelector('[data-f=what]').focus(); }
+    });
+  });
+  panel.querySelectorAll('[data-note-save]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var form = btn.closest('.note');
+      var what = form.querySelector('[data-f=what]');
+      var owner = form.querySelector('[data-f=owner]');
+      var next = form.querySelector('[data-f=next]');
+      var err = form.querySelector('[data-f=err]');
+      err.textContent = '';
+      if (!what.value.trim()) { what.style.borderColor = 'var(--red)'; what.focus(); return; }
+      if (!owner.value || !next.value.trim()) {
+        err.textContent = "Needs an owner and a next action too.";
+        return;
+      }
+      btn.disabled = true;
+      post({ action:'document', key: btn.dataset.noteSave, what: what.value.trim(),
+             owner_id: owner.value, next_action: next.value.trim() })
+        .then(function(d){
+          if (!d.success) { err.textContent = d.error || 'That did not go through.'; btn.disabled = false; return; }
+          window.location.reload();
+        })
+        .catch(function(){ err.textContent = 'That did not go through.'; btn.disabled = false; });
+    });
+  });
+
+  // ── plain actions ──
+  panel.querySelectorAll('[data-shift-action]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var action = btn.getAttribute('data-shift-action');
+      function fire(){
+        btn.disabled = true;
+        post({ action: action, exception_id: btn.getAttribute('data-exception') || '' })
+          .then(function(d){ if (d.success) { window.location.reload(); }
+                             else { ask('That did not go through', d.error || '', 'OK'); btn.disabled = false; } })
+          .catch(function(){ ask('That did not go through', 'Try again in a moment.', 'OK'); btn.disabled = false; });
+      }
+      var t = btn.getAttribute('data-ask-title');
+      if (t) {
+        ask(t, btn.getAttribute('data-ask-body'), btn.getAttribute('data-ask-yes') || 'Confirm')
+          .then(function(ok){ if (ok) { fire(); } });
+        return;
+      }
+      fire();
+    });
+  });
+  panel.querySelectorAll('[data-ack-leg]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      btn.disabled = true;
+      post({ action:'acknowledge_pickup_changes', leg_id: btn.dataset.ackLeg })
+        .then(function(){ window.location.reload(); });
+    });
+  });
+
+  // ── the running tally ──
+  function refresh(){
+    var rows = [].slice.call(panel.querySelectorAll('.shr[data-group]'));
+    var ok = rows.filter(function(r){ return r.classList.contains('done') || r.classList.contains('noted'); }).length;
+    var total = rows.length, left = total - ok;
+
+    var ring = document.getElementById('shRing'), txt = document.getElementById('shRingTxt');
+    if (ring && total) { ring.style.strokeDashoffset = (119.4 * (1 - ok / total)).toFixed(1); }
+    if (txt) { txt.textContent = ok + '/' + total; }
+
+    var sum = document.getElementById('shSum');
+    if (sum) {
+      sum.innerHTML = ok + ' of ' + total + ' · <span>' +
+        (left ? left + ' need work or a note' : 'all clear') + '</span>';
+    }
+    var fl = document.getElementById('shFl');
+    if (fl) { fl.classList.toggle('all', !left); }
+
+    var go = document.getElementById('shGo');
+    if (go) { go.disabled = !!left; go.classList.toggle('go', !left); }
+
+    var hint = document.getElementById('shHint');
+    if (hint) {
+      hint.textContent = left
+        ? 'Counted rows clear themselves as you work the board. Anything you cannot clear can be handed on with a note.'
+        : 'Everything is green or owned. Completing writes the message for the group.';
+    }
+
+    ['carried','system','human'].forEach(function(g){
+      var rs = rows.filter(function(r){ return r.dataset.group === g; });
+      if (!rs.length) { return; }
+      var d = rs.filter(function(r){ return r.classList.contains('done') || r.classList.contains('noted'); }).length;
+      var pill = panel.querySelector('[data-pill="' + g + '"]');
+      if (pill) { pill.textContent = d + ' / ' + rs.length; pill.classList.toggle('ok', d === rs.length); }
+      var bar = panel.querySelector('[data-bar="' + g + '"]');
+      if (bar) { bar.style.width = (100 * d / rs.length) + '%'; }
+    });
+  }
+  refresh();
+
+  // ── copy the message ──
+  var copy = document.getElementById('shiftCopy');
+  if (copy) {
+    copy.addEventListener('click', function(){
+      var text = document.getElementById('shiftSummary').textContent;
+      var done = function(){ copy.textContent = 'Copied'; setTimeout(function(){ copy.textContent = 'Copy message'; }, 1800); };
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, done); }
+      else { var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+             try { document.execCommand('copy'); } catch(e){} document.body.removeChild(ta); done(); }
+    });
+  }
+});
+</script>
+{% endblock %}

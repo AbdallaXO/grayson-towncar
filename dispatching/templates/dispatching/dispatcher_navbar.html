@@ -59,6 +59,40 @@
              href="{% url 'my_coverage' %}" title="Your week & who you're on with"><i class="bi bi-calendar-week me-1"></i>My Schedule</a>
         </li>
         {% endif %}
+        <!-- Dispatch Shift System: Open / Close checklists -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'shift_open' or request.resolver_match.url_name == 'shift_close' or request.resolver_match.url_name == 'shift_lead' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-check2-square me-1"></i>Shift</a>
+          {% comment %}
+            You are offered the checklist you are down to work — the opener the
+            open, the closer the close. Two links that both look equally like
+            yours is how the close gets filled in as though it were an open.
+            The lead, and anyone the roster names for neither duty, still see
+            both; see ops/context_processors.shift_menu for every case.
+          {% endcomment %}
+          <ul class="dropdown-menu">
+            {% if show_open_shift %}
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'shift_open' %}active{% endif %}"
+                 href="{% url 'shift_open' %}"><i class="bi bi-sunrise me-2"></i>Open Shift</a>
+            </li>
+            {% endif %}
+            {% if show_close_shift %}
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'shift_close' %}active{% endif %}"
+                 href="{% url 'shift_close' %}"><i class="bi bi-sunset me-2"></i>Close Shift</a>
+            </li>
+            {% endif %}
+            {% if perms.ops.review_checklists or request.user.is_superuser %}
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'shift_lead' %}active{% endif %}"
+                 href="{% url 'shift_lead' %}"><i class="bi bi-clipboard2-check me-2"></i>How shifts ran</a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
         {% if request.user.is_superuser %}
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'staffing_board' %}active{% endif %}"

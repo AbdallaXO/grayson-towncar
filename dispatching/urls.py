@@ -12,6 +12,7 @@ from . import passenger_search
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 from ops import views as ops_views
 from ops import leads_board as ops_leads
+from ops import shift_views as ops_shift
 
 urlpatterns = [
     path("", views.index, name="dashboard"),
@@ -559,6 +560,11 @@ urlpatterns = [
     path("timeclock/manage/schedule/", ops_views.staff_schedule_get, name="staff_schedule_get"),
     path("timeclock/manage/schedule/action/", ops_views.staff_schedule_action, name="staff_schedule_action"),
     path("timeclock/manage/oncall/action/", ops_views.timeclock_oncall_action, name="timeclock_oncall_action"),
+    # ── Dispatch Shift System: Open / Close checklists ──
+    path("shift/open/", ops_shift.shift_open, name="shift_open"),
+    path("shift/close/", ops_shift.shift_close, name="shift_close"),
+    path("shift/action/", ops_shift.shift_action, name="shift_action"),
+    path("shift/lead/", ops_shift.shift_lead, name="shift_lead"),
     # ── Dispatcher Staffing & Coverage board (superuser) ──
     path("staffing/", ops_views.staffing_board, name="staffing_board"),
     path("staffing/action/", ops_views.staffing_action, name="staffing_action"),
