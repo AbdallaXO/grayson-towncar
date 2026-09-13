@@ -19,6 +19,9 @@ plus Copy / Accept / Decline. The full detail is one click away in the day view.
         {% if leg.display_carseats %}
           · <span style="color:#b23c00;font-weight:700;">{{ leg.display_carseats }}</span>
         {% endif %}
+        {% if leg.shows_store_stop %}
+          · <span style="color:#047857;font-weight:700;"><i class="bi bi-shop"></i> Publix stop</span>
+        {% endif %}
       </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">

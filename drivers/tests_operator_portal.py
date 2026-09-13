@@ -154,6 +154,47 @@ class JobTextTests(TestCase):
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")
+class StoreStopTests(TestCase):
+    """The Publix stop has to survive the re-key — their driver makes it.
+
+    It was missing from the copy block entirely, so an operator dispatched a
+    grocery run nobody told them about (and lost the 20 minutes it takes).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.operator = _make_operator("store_ops")
+        cls.reservation = _bootstrap_reservation(store_stop=True)
+        cls.leg = _make_leg(cls.reservation, cls.operator, pickup_date=timezone.localdate())
+
+    def test_store_stop_is_in_the_copy_block(self):
+        self.assertIn("Store stop: Publix @9930 Universal Blvd (20 min)",
+                      build_job_text(self.leg))
+
+    def test_board_renders_the_store_stop(self):
+        self.client.force_login(self.operator.profile)
+        resp = self.client.get(reverse("operator_board"))
+        self.assertContains(resp, "Publix @9930 Universal Blvd (20 min)")
+
+    def test_no_store_stop_means_no_line(self):
+        """A job without the grocery stop must not grow a blank one."""
+        plain = _bootstrap_reservation(store_stop=False)
+        leg = _make_leg(plain, self.operator, pickup_date=timezone.localdate(),
+                        pickup_time=time(15, 0))
+        self.assertNotIn("Store stop", build_job_text(leg))
+
+    def test_the_return_leg_does_not_carry_the_stop(self):
+        """The grocery run happens on the way INTO town, never on the way out."""
+        ret = _make_leg(self.reservation, self.operator,
+                        pickup_date=timezone.localdate(), pickup_time=time(17, 0))
+        ret.pickup_location = "Disney World"
+        ret.dropoff_location = "MCO"
+        ret.save()
+        labels = [label for label, _ in build_job_fields(ret)]
+        self.assertNotIn("Store stop", labels)
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
 class AcceptDeclineTests(TestCase):
     def setUp(self):
         self.operator = _make_operator("ad_ops")

@@ -110,6 +110,17 @@ def _seats_line(leg):
     return leg.display_carseats or ""
 
 
+def _store_stop_line(leg):
+    """The Publix grocery stop, on the one leg it actually rides on.
+
+    An operator's driver has to make this stop and budget the 20 minutes for it,
+    so it has to survive the re-key like any other trip fact. Gated on
+    Leg.shows_store_stop (not the reservation flag) so it lands on the leg into
+    town and not on the return.
+    """
+    return "Publix @9930 Universal Blvd (20 min)" if leg.shows_store_stop else ""
+
+
 def build_job_fields(leg):
     """[(label, value), ...] for one leg — the facts an operator re-keys.
 
@@ -158,6 +169,7 @@ def build_job_fields(leg):
         ("Passengers", str(leg.effective_passenger_count or "")),
         ("Luggage", luggage),
         ("Car seats", _seats_line(leg)),
+        ("Store stop", _store_stop_line(leg)),
         ("Notes", notes),
     ]
     return [(label, str(value).strip()) for label, value in candidates if str(value or "").strip()]
