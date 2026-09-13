@@ -1,0 +1,58 @@
+{% comment %}
+  One line: what the refresh changed, when, and the controls to work through it.
+
+  Deliberately not a list any more. The detail belongs ON the board now — row
+  markers, ghosts at the old times, brackets over the turns that broke — so a
+  banner repeating it would be a second place to read the same thing, and the
+  two would drift. This says how many and gets out of the way.
+
+  Computed by ops/move_impact.py once per refresh (cache key carries the moves'
+  own stamp) and positioned by dispatching/board_changes.py.
+{% endcomment %}
+{% if move_changes and not move_changes.is_empty %}
+<div class="alert border-0 shadow-sm mb-2 py-2 px-3 mv-alert" role="alert" id="movesBanner"
+     data-break-count="{{ move_breaks|length }}"
+     data-chg-stamp="{{ move_changes.fingerprint }}">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <i class="bi bi-exclamation-diamond-fill mv-icon"></i>
+    <span class="fw-bold">
+      {% if move_changes.break_count %}
+        {{ move_changes.break_count }} turn{{ move_changes.break_count|pluralize }} broken
+      {% else %}
+        Nothing broken
+      {% endif %}
+    </span>
+    <span class="mv-sub">
+      · {{ move_changes.moved_count }} pickup{{ move_changes.moved_count|pluralize }} moved
+      {% if move_changes.refreshed_at %}· last refresh {{ move_changes.refreshed_at|time:"g:i A" }}{% endif %}
+    </span>
+    <span class="flex-grow-1"></span>
+    {% if move_breaks %}
+      <span class="mv-step" id="movesStep" aria-live="polite"></span>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Step through the breaks">
+        <button type="button" class="btn btn-outline-danger" id="movesPrev" title="Previous break">
+          <i class="bi bi-chevron-up"></i>
+        </button>
+        <button type="button" class="btn btn-outline-danger" id="movesNext" title="Next break">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+    {% endif %}
+    {% comment %}
+      Dismissed by our own handler, not Bootstrap's. The stamp is the refresh
+      it belongs to, so hiding it hides THIS refresh and the next one that
+      actually moves something brings it straight back.
+    {% endcomment %}
+    <button type="button" class="btn-close" id="movesDismiss" aria-label="Dismiss"></button>
+  </div>
+  <div class="visually-hidden" id="movesAnchors">{% for b in move_breaks %}{{ b.anchor }}{% if not forloop.last %},{% endif %}{% endfor %}</div>
+</div>
+<style>
+  /* Bootstrap's .alert carries its own display; make sure hidden wins. */
+  #movesBanner[hidden]{display:none !important}
+  .mv-alert{background:#fbeceb;border-left:4px solid #b8342c !important;color:#1b1c1a}
+  .mv-icon{font-size:16px;color:#b8342c}
+  .mv-sub{font-size:12.5px;color:#5c5f58}
+  .mv-step{font-size:12px;font-weight:700;color:#8f2620;font-variant-numeric:tabular-nums}
+</style>
+{% endif %}

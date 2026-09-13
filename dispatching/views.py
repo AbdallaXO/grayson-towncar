@@ -1785,6 +1785,35 @@ def schedule_board(request):
                 ),
             }
 
+    # ── What the flight matches just broke ──────────────────────────────────
+    # Applying a match moves a pickup and stops there; nothing recomputes the
+    # turnarounds until the 30-minute scanner cycle. So between clicking Match
+    # and the next sweep, the only thing that knows a 20-minute move wrecked a
+    # turn is a dispatcher reading the board line by line. This asks instead.
+    #
+    # In-house only — affiliates run their own acceptance and the detector
+    # skips them. Never allowed to cost anyone the board: a banner that fails
+    # to draw is a nuisance, a board that fails to load is a day.
+    move_changes = None
+    move_breaks = []
+    if not is_affiliate_board:
+        try:
+            from ops.move_impact import change_set
+            from dispatching.board_changes import annotate as _annotate_changes
+
+            move_changes = change_set(selected_date)
+            move_breaks = _annotate_changes(
+                inhouse_timeline, move_changes,
+                selected_date=selected_date,
+                day_left_dt=_day_left_dt,
+                total_display_minutes=total_display_minutes,
+            )
+        except Exception:
+            logger.exception(
+                "Could not work out the move impact for %s", selected_date
+            )
+            move_changes, move_breaks = None, []
+
     context = {
         "selected_date": selected_date,
         "prev_date": prev_date,
@@ -1824,6 +1853,8 @@ def schedule_board(request):
         "unassigned_count": unassigned_count,
         "available_no_jobs": available_no_jobs,
         "overnight_tail_legs": overnight_tail_legs,
+        "move_changes": move_changes,
+        "move_breaks": move_breaks,
         # ── Sandbox draft context (banner, review modal, controls) ──
         **_draft_ctx,
     }

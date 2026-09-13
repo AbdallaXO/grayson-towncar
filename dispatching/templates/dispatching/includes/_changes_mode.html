@@ -1,0 +1,99 @@
+{% comment %}
+  Changes mode: how much of the board recedes while you deal with what a flight
+  refresh moved, plus stepping through the broken turns in board order.
+
+  Pure presentation. It toggles one class on the rows wrapper and scrolls. It
+  never filters data, never posts, and never touches a leg — if this script
+  fails to load, the board is exactly the board.
+{% endcomment %}
+{% if move_changes and not move_changes.is_empty %}
+<script>
+(function () {
+  'use strict';
+  var rows = document.getElementById('boardRows');
+  if (!rows) { return; }
+
+  // A stored mode that is no longer offered (the old 'only') falls through the
+  // hasOwnProperty guard in setMode and lands on 'all', so a dispatcher who left
+  // it set last session just gets the ordinary board back.
+  var MODES = { all: '', highlight: 'board-mode-highlight' };
+  var STORE = 'boardChangesMode';
+
+  function setMode(mode, remember) {
+    if (!MODES.hasOwnProperty(mode)) { mode = 'all'; }
+    Object.keys(MODES).forEach(function (m) {
+      if (MODES[m]) { rows.classList.remove(MODES[m]); }
+    });
+    if (MODES[mode]) { rows.classList.add(MODES[mode]); }
+    document.querySelectorAll('#boardModes .board-mode-btn').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.boardMode === mode);
+    });
+    if (remember) {
+      // Per-viewer convenience only. A browser that refuses storage just means
+      // the board opens on All rows, which is the honest default anyway.
+      try { sessionStorage.setItem(STORE, mode); } catch (e) {}
+    }
+  }
+
+  document.querySelectorAll('[data-board-mode]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setMode(btn.dataset.boardMode, true);
+    });
+  });
+
+  var saved = null;
+  try { saved = sessionStorage.getItem(STORE); } catch (e) {}
+  if (saved) { setMode(saved, false); }
+
+  // ── Dismissing the strip ──
+  // Not data-bs-dismiss: this page loads Bootstrap at the foot of main.html,
+  // and a strip that will not close is worse than no strip. Keyed on the
+  // refresh it describes, so it stays shut until something moves again.
+  var banner = document.getElementById('movesBanner');
+  var DISMISS = 'boardChangesDismissed';
+  if (banner) {
+    var stamp = banner.dataset.chgStamp || '';
+    var seen = null;
+    try { seen = sessionStorage.getItem(DISMISS); } catch (e) {}
+    if (stamp && seen === stamp) { banner.hidden = true; }
+
+    var close = document.getElementById('movesDismiss');
+    if (close) {
+      close.addEventListener('click', function () {
+        banner.hidden = true;
+        try { sessionStorage.setItem(DISMISS, stamp); } catch (e) {}
+      });
+    }
+  }
+
+  // ── Stepping through the breaks, in the order the rows are drawn ──
+  var listEl = document.getElementById('movesAnchors');
+  var anchors = (listEl && listEl.textContent ? listEl.textContent.split(',') : [])
+                  .map(function (a) { return a.trim(); })
+                  .filter(Boolean);
+  var stepEl = document.getElementById('movesStep');
+  var at = -1;
+
+  function show(i) {
+    if (!anchors.length) { return; }
+    at = ((i % anchors.length) + anchors.length) % anchors.length;
+    var el = document.getElementById(anchors[at]);
+    if (stepEl) { stepEl.textContent = (at + 1) + ' of ' + anchors.length; }
+    if (!el) { return; }
+    // No mode hides rows any more — Highlight only dims them — so a break is
+    // always scrollable and there is nothing to put back first.
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.querySelectorAll('.chg-bracket.chg-flash').forEach(function (b) {
+      b.classList.remove('chg-flash');
+    });
+    void el.offsetWidth;
+    el.classList.add('chg-flash');
+  }
+
+  var next = document.getElementById('movesNext');
+  var prev = document.getElementById('movesPrev');
+  if (next) { next.addEventListener('click', function () { show(at + 1); }); }
+  if (prev) { prev.addEventListener('click', function () { show(at - 1); }); }
+})();
+</script>
+{% endif %}

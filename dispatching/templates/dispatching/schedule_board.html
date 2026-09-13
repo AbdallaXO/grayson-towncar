@@ -384,6 +384,100 @@
           padding: 2px 5px; border-radius: 4px;
           letter-spacing: 0.02em; white-space: nowrap;
       }
+      /* ══ Changes mode ══════════════════════════════════════════════════
+         What a flight refresh did to the board. Light-only, like the rest of
+         this page, and built so a dispatcher can find every affected row from
+         the driver column alone. Amber = something moved. Red = a turn broke.
+         ══════════════════════════════════════════════════════════════════ */
+      .chg-row { position: relative; }
+      .chg-row > .driver-name-col { box-shadow: inset 3px 0 0 #d4a017; }
+      .chg-row-break > .driver-name-col { box-shadow: inset 3px 0 0 #b8342c; }
+      .chg-badge {
+        display: inline-block; margin-left: 5px; padding: 0 5px;
+        border-radius: 8px; font-size: 0.55rem; font-weight: 700;
+        line-height: 13px; background: #fbf1dc; color: #8a6a1c;
+        border: 1px solid #ecd9ae; vertical-align: middle; white-space: nowrap;
+        letter-spacing: .01em; flex: none;
+      }
+      /* A break count is a number worth seeing from across the column. */
+      .chg-badge-break { font-size: 0.62rem; line-height: 15px; padding: 0 6px; }
+      .chg-badge-break { background: #fbeceb; color: #8f2620; border-color: #f0c4c0; }
+
+      /* Where it used to be, and the line to where it is now. Outline only —
+         a ghost that carries its own time label puts a second layer of numbers
+         across the day, and on a 240-leg board that is unreadable. The old time
+         is in the tooltip and in the hover popup, where there is room for it. */
+      .chg-ghost {
+        position: absolute; height: 30px; margin-top: 2px;
+        border: 1px dashed rgba(176,138,58,.85); border-radius: 4px;
+        background: repeating-linear-gradient(
+          -45deg, rgba(212,160,23,.10) 0 3px, transparent 3px 7px);
+        pointer-events: none; z-index: 1;
+      }
+      .chg-link {
+        position: absolute; height: 30px; margin-top: 2px;
+        pointer-events: none; z-index: 1;
+      }
+      .chg-link::before {
+        content: ""; position: absolute; top: 50%; left: 0; right: 0;
+        border-top: 1px dashed rgba(176,138,58,.85);
+      }
+      .chg-link::after {
+        content: ""; position: absolute; top: 50%; width: 0; height: 0;
+        transform: translateY(-50%);
+        border-top: 3px solid transparent; border-bottom: 3px solid transparent;
+      }
+      .chg-link-right::after { right: 0; border-left: 4px solid #b08a3a; }
+      .chg-link-left::after  { left: 0;  border-right: 4px solid #b08a3a; }
+
+      .timeline-slot.chg-moved { box-shadow: 0 0 0 2px #d4a017; }
+      .timeline-slot.chg-in-break { box-shadow: 0 0 0 2px #b8342c; }
+      .chg-delta {
+        margin-left: 2px; padding: 0 3px; border-radius: 3px; flex: none;
+        background: rgba(0,0,0,.32); color: #ffe9a8;
+        font-size: 0.55rem; font-weight: 700; font-variant-numeric: tabular-nums;
+      }
+
+      /* The part of the turn that no longer works.
+         Its OWN band under the pills — see board_changes.BRACKET_LANE_H. A lane
+         is 30px of pill with a 2px gap, so a labelled bracket drawn at a lane's
+         bottom edge lands on the next chauffeur's jobs. The row grows instead. */
+      .chg-bracket {
+        position: absolute; height: 15px; z-index: 4;
+        border: 1.5px solid #b8342c; border-top: none;
+        border-radius: 0 0 3px 3px;
+        display: flex; align-items: center; justify-content: center;
+        overflow: visible;
+      }
+      .chg-bracket-amber { border-color: #a8650b; }
+      .chg-bracket span {
+        background: #b8342c; color: #fff; font-size: 0.55rem; font-weight: 700;
+        line-height: 12px; padding: 0 5px; border-radius: 7px;
+        white-space: nowrap; max-width: 100%; overflow: hidden;
+        text-overflow: ellipsis; pointer-events: none;
+      }
+      .chg-bracket-amber span { background: #a8650b; }
+      .chg-bracket.chg-flash { animation: chgFlash 1.1s ease-out 2; }
+      @keyframes chgFlash {
+        0%, 100% { filter: none; }
+        35% { filter: drop-shadow(0 0 7px rgba(184,52,44,.95)); }
+      }
+
+      /* ── The two view modes ── */
+      /* Highlight: everything unaffected recedes, nothing disappears. Receding
+         rather than HIDING is the whole design here — a board with rows removed
+         stops being the day, and you lose the context that tells you where the
+         moved job could go instead. */
+      .board-mode-highlight .driver-timeline-row:not(.chg-row) { opacity: .32; }
+      .board-mode-highlight .chg-row .timeline-slot:not(.chg-moved):not(.chg-in-break) {
+        opacity: .34;
+      }
+
+      .board-mode-btn.active { font-weight: 700; }
+      .chg-empty-note {
+        font-size: 0.78rem; color: #6c757d; padding: 10px 14px;
+      }
+
       .shift-badge.sb-morning  { background: #fff7ed; color: #9a3412; }
       .shift-badge.sb-midday   { background: #fefce8; color: #854d0e; }
       .shift-badge.sb-evening  { background: #f5f3ff; color: #5b21b6; }
@@ -974,6 +1068,17 @@
           <a href="?date={{ next_date|date:'Y-m-d' }}&view={{ board_view }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-chevron-right"></i></a>
         </div>
         <!-- Board switch: two separate boards over the same day, never mixed -->
+        {% if move_changes and not move_changes.is_empty %}
+          {% comment %}
+            Two ways to read the same board after a refresh. Nothing here
+            filters the DATA — the day is the day; this only decides how much
+            of it recedes while you deal with what moved.
+          {% endcomment %}
+          <div class="btn-group btn-group-sm" role="group" aria-label="What to show" id="boardModes">
+            <button type="button" class="btn btn-outline-secondary board-mode-btn active" data-board-mode="all">All rows</button>
+            <button type="button" class="btn btn-outline-secondary board-mode-btn" data-board-mode="highlight">Highlight changes</button>
+          </div>
+        {% endif %}
         <div class="btn-group btn-group-sm board-switch" role="group" aria-label="Board">
           <a href="?date={{ selected_date|date:'Y-m-d' }}&view=inhouse"
              class="btn {% if not is_affiliate_board %}btn-gold active{% else %}btn-outline-secondary{% endif %}">
@@ -1099,6 +1204,7 @@
       {% endif %}
     {% endif %}
 
+    {% include 'dispatching/includes/_moves_banner.html' %}
     {% include 'dispatching/includes/_draft_banner.html' %}
 
     <!-- Timeline Card -->
@@ -1135,7 +1241,7 @@
             {% endfor %}
           </div>
 
-          <div class="timeline-rows"{% if is_held and draft_state == 'in_review' and not is_manager %} data-board-locked="1"{% endif %}>
+          <div class="timeline-rows" id="boardRows"{% if is_held and draft_state == 'in_review' and not is_manager %} data-board-locked="1"{% endif %}>
             <!-- Unassigned row (always visible as drop target) -->
               <div class="driver-timeline-row dnd-unassigned-row" data-driver-id="unassigned" data-driver-name="Unassigned">
                 <div class="driver-name-col">
@@ -1218,11 +1324,12 @@
                   <span><i class="bi bi-person-check me-1"></i>Available — no vehicle assigned</span>
                 </div>
               {% endif %}
-              <div class="driver-timeline-row {% if is_affiliate_board %}affiliate-row{% if not data.total_legs %} affiliate-idle{% endif %}{% else %}driver-status-{{ data.avail_status }}{% if not data.has_vehicle %} no-vehicle{% endif %}{% endif %}" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
+              <div class="driver-timeline-row {% if is_affiliate_board %}affiliate-row{% if not data.total_legs %} affiliate-idle{% endif %}{% else %}driver-status-{{ data.avail_status }}{% if not data.has_vehicle %} no-vehicle{% endif %}{% endif %}{% if data.chg_marked %} chg-row{% if data.chg_breaks %} chg-row-break{% endif %}{% endif %}" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}" data-chg-breaks="{{ data.chg_breaks|default:0 }}" data-chg-moved="{{ data.chg_moved|yesno:'1,0' }}">
                 <div class="driver-name-col">
                   <div class="d-flex align-items-center">
                     {% if data.vehicle_number %}<span class="vehicle-num{% if data.vehicle_oos_label %} veh-oos{% endif %}"{% if data.vehicle_oos_label %} title="OUT OF SERVICE — {{ data.vehicle_oos_label }}"{% endif %}>#{{ data.vehicle_number }}</span>{% endif %}
                     <strong>{{ data.driver }}</strong>
+                    {% if data.chg_badge %}<span class="chg-badge{% if data.chg_breaks %} chg-badge-break{% endif %}" title="{{ data.chg_badge_title }}">{{ data.chg_badge }}</span>{% endif %}
                     {% if data.vehicle_oos_label %}<span class="veh-oos-tag" title="{{ data.vehicle_oos_label }}"><i class="bi bi-cone-striped"></i>Car out of service</span>{% endif %}
                   </div>
                   {% if is_affiliate_board %}
@@ -1298,7 +1405,7 @@
                     <div style="color:#ff9100;font-size:0.68rem;font-weight:600;margin-top:1px;" title="Last job cleared previous night"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
                   {% endif %}
                 </div>
-                <div class="timeline-bar"{% if data.row_lanes > 1 %} style="height:{{ data.row_bar_height }}px;"{% endif %}>
+                <div class="timeline-bar"{% if data.row_lanes > 1 or data.chg_needs_height %} style="height:{{ data.row_bar_height }}px;"{% endif %}>
                   {% comment %}
                     Affiliates have no shift on file with us — they're contractors, so the
                     weekly-schedule fallback would paint an invented 6a-10p band. Bands are
@@ -1309,8 +1416,19 @@
                       <div class="tl-unavail-band" style="left:{{ b.left_pct }}%; width:{{ b.width_pct }}%;" title="{{ data.avail_tooltip }}"><span>{{ b.label }}</span></div>
                     {% endfor %}
                   {% endif %}
+                  {% comment %}
+                    Where each moved leg USED to sit, and the line to where it is
+                    now. Drawn before the pills so a ghost never covers a real job.
+                  {% endcomment %}
                   {% for slot in data.schedule.slots %}
-                    <div class="timeline-slot {{ slot.trip_type }}{% if slot.is_sanford %} sanford{% endif %}{% if slot.pay_state == 'unpaid' %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.has_notes %} has-note{% endif %}{% if slot.keoi_category %} has-keoi{% endif %}{% if slot.overrunning %} tl-overrunning{% endif %}{% if slot.late_start %} tl-late-start{% endif %}{% if slot.risk_tier == 'critical' %} tl-risk-critical{% elif slot.risk_tier == 'watch' %} tl-risk-watch{% endif %}" data-tl-popup
+                    {% if slot.chg_ghost %}
+                      <div class="chg-ghost" style="left:{{ slot.chg_ghost.left_pct }}%; width:{{ slot.chg_ghost.width_pct }}%; top:{{ slot.lane_top }}px;"
+                           title="Original time {{ slot.chg_was_label }}"></div>
+                      <div class="chg-link chg-link-{{ slot.chg_link.direction }}" style="left:{{ slot.chg_link.left_pct }}%; width:{{ slot.chg_link.width_pct }}%; top:{{ slot.lane_top }}px;"></div>
+                    {% endif %}
+                  {% endfor %}
+                  {% for slot in data.schedule.slots %}
+                    <div class="timeline-slot {{ slot.trip_type }}{% if slot.is_sanford %} sanford{% endif %}{% if slot.pay_state == 'unpaid' %} unpaid{% endif %}{% if slot.pending_refund %} refund-pending{% endif %}{% if slot.is_vip %} vip{% endif %}{% if slot.is_proposed %} tl-proposed{% endif %}{% if slot.live_conflict %} tl-live-conflict{% endif %}{% if slot.time_changed %} tl-time-changed{% endif %}{% if slot.chg_moved %} chg-moved{% endif %}{% if slot.chg_in_break %} chg-in-break{% endif %}{% if slot.has_notes %} has-note{% endif %}{% if slot.keoi_category %} has-keoi{% endif %}{% if slot.overrunning %} tl-overrunning{% endif %}{% if slot.late_start %} tl-late-start{% endif %}{% if slot.risk_tier == 'critical' %} tl-risk-critical{% elif slot.risk_tier == 'watch' %} tl-risk-watch{% endif %}" data-tl-popup
                          {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ slot.leg_id }}"
                          data-driver-id="{{ data.driver.id }}"
@@ -1322,6 +1440,8 @@
                          data-trip="{{ slot.trip_type }}"
                          data-sanford="{{ slot.is_sanford|yesno:'1,0' }}"
                          data-time="{{ slot.pickup_time|time:'g:i A' }}"
+                         data-chg-was="{{ slot.chg_was_label }}"
+                         data-chg-delta="{{ slot.chg_delta_label }}"
                          data-cleared="{{ slot.end_time_display }}"
                          data-cleared-actual="{{ slot.cleared_is_actual|yesno:'1,0' }}"
                          data-late-mins="{{ slot.late_start_mins }}"
@@ -1357,10 +1477,15 @@
                          data-keoi-category-label="{{ slot.keoi_category_label }}"
                          data-keoi-status-label="{{ slot.keoi_status_label }}"
                          data-keoi-desc="{{ slot.keoi_desc }}">
-                      {% if slot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.late_start %}<span class="tl-late-flag" title="Picked up {{ slot.late_start_mins }} min late — actual pickup {{ slot.actual_pickup_display }}">&#9650;{{ slot.late_start_mins }}</span>{% endif %}{% if slot.risk_tier %}<span class="tl-risk-flag" title="{{ slot.risk_reason }}"><i class="bi {% if slot.risk_source == 'gps' %}bi-geo-alt-fill{% else %}bi-alarm-fill{% endif %}"></i>{{ slot.risk_label }}</span>{% endif %}{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if slot.pay_state == 'unpaid' %}<span class="tl-unpaid-flag" title="Unpaid — no card on file">$</span>{% elif slot.pay_state == 'card_saved' %}<span class="tl-card-flag" title="Card on file — not charged yet"><i class="bi bi-credit-card-fill"></i></span>{% endif %}{% if slot.keoi_category %}<span class="tl-keoi-flag" title="KEOI — {{ slot.keoi_category_label }}"><i class="bi bi-eye-fill"></i></span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                      {% if slot.is_vip %}<span class="tl-vip-star" title="VIP reservation">★</span>{% endif %}<span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.chg_delta_label %}<span class="chg-delta" title="Original time {{ slot.chg_was_label }}">{{ slot.chg_delta_label }}</span>{% endif %}{% if slot.late_start %}<span class="tl-late-flag" title="Picked up {{ slot.late_start_mins }} min late — actual pickup {{ slot.actual_pickup_display }}">&#9650;{{ slot.late_start_mins }}</span>{% endif %}{% if slot.risk_tier %}<span class="tl-risk-flag" title="{{ slot.risk_reason }}"><i class="bi {% if slot.risk_source == 'gps' %}bi-geo-alt-fill{% else %}bi-alarm-fill{% endif %}"></i>{{ slot.risk_label }}</span>{% endif %}{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if slot.extra_stop_count %}<span class="tl-publix-badge" title="{{ slot.extra_stop_count }} extra stop{{ slot.extra_stop_count|pluralize }}" style="background:#d4a017;color:#fff;">+{{ slot.extra_stop_count }}</span>{% endif %}{% if slot.secondary_flight_count %}<span class="tl-publix-badge" title="{{ slot.secondary_flight_count }} secondary flight{{ slot.secondary_flight_count|pluralize }}" style="background:#0d6efd;color:#fff;"><i class="bi bi-airplane-fill"></i>×{{ slot.secondary_flight_count|add:1 }}</span>{% endif %}{% if slot.pay_state == 'unpaid' %}<span class="tl-unpaid-flag" title="Unpaid — no card on file">$</span>{% elif slot.pay_state == 'card_saved' %}<span class="tl-card-flag" title="Card on file — not charged yet"><i class="bi bi-credit-card-fill"></i></span>{% endif %}{% if slot.keoi_category %}<span class="tl-keoi-flag" title="KEOI — {{ slot.keoi_category_label }}"><i class="bi bi-eye-fill"></i></span>{% endif %}{% if slot.pending_refund %}<span class="tl-refund-flag" title="Refund pending — do not assign">↩</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       {% if slot.overrunning %}<span class="tl-overrun-tail" style="left: {{ slot.overrun_from_pct }}%;" title="Running {{ slot.overrun_mins }} min past estimate — still on this leg"></span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
+                  {% endfor %}
+                  {% for br in data.chg_brackets %}
+                    <div class="chg-bracket chg-bracket-{{ br.tier }}" id="{{ br.anchor }}"
+                         style="left:{{ br.left_pct }}%; width:{{ br.width_pct }}%; top:{{ br.top_px }}px;"
+                         title="{{ br.title }}"><span>{{ br.label }}</span></div>
                   {% endfor %}
                 </div>
               </div>
@@ -1579,6 +1704,15 @@
           html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="color:'+sc+';">'+statusHtml+'</span></div>';
         }
         // Clearing read-out — reality once we know it (no tilde), estimate while projected.
+        // Where this pickup came from. A dispatcher reading the pill wants the
+        // old time without having to find the ghost it belongs to.
+        if (el.dataset.chgWas) {
+          html += '<div class="tl-popup-row"><span class="tl-label">Original time</span>'
+               +  '<span class="tl-value" style="color:#7a4a06;font-weight:700;">'
+               +  el.dataset.chgWas
+               +  (el.dataset.chgDelta ? ' <span style="opacity:.75;">('+el.dataset.chgDelta+' min)</span>' : '')
+               +  '</span></div>';
+        }
         var _clearedActual = el.dataset.clearedActual === '1';
         if (el.dataset.cleared) {
           html += '<div class="tl-popup-row"><span class="tl-label">'+(_clearedActual ? 'Cleared' : 'Clearing')+'</span>'
@@ -2182,4 +2316,5 @@
 {% block extra_js %}
   {# Right-click any trip row for Mapping / Flight Tracker #}
   {% include "dispatching/includes/_trip_context_menu.html" %}
+  {% include "dispatching/includes/_changes_mode.html" %}
 {% endblock %}
