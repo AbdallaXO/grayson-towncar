@@ -5,6 +5,8 @@ __pycache__/
 
 # Local scratch / production-derived audit artifacts (never commit)
 /scratch/
+# City permit export dropped in the repo root — production data, never commit
+/vehicle list.csv
 # Artifact-render temp files + failed-verification screenshots (build junk)
 *.tmp-*.verification-failure.png
 *.html.tmp-*
