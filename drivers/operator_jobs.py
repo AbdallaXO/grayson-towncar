@@ -20,6 +20,34 @@ import re
 
 from django.utils import timezone
 
+# Typographic characters -> their plain-ASCII equivalent. The copy block leaves
+# our site and lands in somebody else's dispatch system, and those are routinely
+# not UTF-8 clean: a pasted en dash or curly apostrophe comes back as %E2%80%93
+# style percent codes or mojibake, which is how an operator ends up reading a
+# job full of punctuation garbage. Everything we generate ourselves (the flight
+# line's separator, "Yes - count not confirmed") and everything a dispatcher
+# pastes into the notes from an email goes through this on the way out.
+# Letters keep their accents — mangling a guest's name is worse than a stray
+# character, and a name is the one field the operator reads rather than parses.
+_ASCII_PUNCT = {
+    "·": "-",   # ·  middle dot
+    "•": "-",   # •  bullet
+    "–": "-",   # –  en dash
+    "—": "-",   # —  em dash
+    "‘": "'",   # '  left single quote
+    "’": "'",   # '  right single quote / apostrophe
+    "“": '"',   # "  left double quote
+    "”": '"',   # "  right double quote
+    "…": "...",  # …  ellipsis
+    " ": " ",   # non-breaking space
+}
+_ASCII_TABLE = str.maketrans(_ASCII_PUNCT)
+
+
+def _ascii_safe(value):
+    """Swap typographic punctuation for ASCII so a paste survives the trip."""
+    return str(value).translate(_ASCII_TABLE)
+
 
 def _fmt_time(t):
     if not t:
@@ -98,7 +126,7 @@ def _flight_line(leg):
     if not when:
         return ident
     label = "est. lands" if est and est != sched else "lands"
-    return f"{ident} · {label} {_fmt_time(timezone.localtime(when))}"
+    return f"{ident} - {label} {_fmt_time(timezone.localtime(when))}"
 
 
 def _seats_line(leg):
@@ -172,7 +200,11 @@ def build_job_fields(leg):
         ("Store stop", _store_stop_line(leg)),
         ("Notes", notes),
     ]
-    return [(label, str(value).strip()) for label, value in candidates if str(value or "").strip()]
+    return [
+        (label, _ascii_safe(value).strip())
+        for label, value in candidates
+        if str(value or "").strip()
+    ]
 
 
 def build_job_text(leg):

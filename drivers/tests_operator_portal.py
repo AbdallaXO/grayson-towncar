@@ -154,6 +154,56 @@ class JobTextTests(TestCase):
 
 
 @override_settings(GOOGLE_MAPS_API_KEY="")
+class PasteSafetyTests(TestCase):
+    """The copy block has to arrive intact in somebody else's system.
+
+    Typographic punctuation was reaching the clipboard — a middle dot in the
+    flight line, an em dash in the car-seat fallback, and whatever smart quotes
+    a dispatcher pasted into the notes from an email. Systems that aren't UTF-8
+    clean turned those into percent codes, so an operator pasted a job peppered
+    with %E2%80%9C instead of readable punctuation.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.operator = _make_operator("paste_ops")
+
+    def _text_for(self, **res_kwargs):
+        reservation = _bootstrap_reservation(**res_kwargs)
+        leg = _make_leg(reservation, self.operator, pickup_date=timezone.localdate())
+        return build_job_text(leg)
+
+    def assertPureAscii(self, text):
+        stray = sorted({c for c in text if ord(c) > 127})
+        self.assertEqual(stray, [], f"non-ASCII reached the clipboard: {stray}")
+
+    def test_smart_punctuation_in_notes_is_flattened(self):
+        text = self._text_for(
+            special_requests="Guest said “meet us inside” – stroller too…"
+        )
+        self.assertPureAscii(text)
+        self.assertIn('Notes: Guest said "meet us inside" - stroller too...', text)
+
+    def test_unconfirmed_carseat_count_has_no_em_dash(self):
+        text = self._text_for(need_carseats=True)
+        self.assertPureAscii(text)
+        self.assertIn("Car seats: Yes - count not confirmed", text)
+
+    def test_flight_line_separator_is_ascii(self):
+        from reservations.models import Flight
+        reservation = _bootstrap_reservation()
+        leg = _make_leg(reservation, self.operator, pickup_date=timezone.localdate())
+        leg.flight_information = Flight.objects.create(
+            flight_type="arrival", airline="DL", flight_number="1234",
+            scheduled_arrival_local=timezone.now() + timedelta(hours=3),
+        )
+        leg.save()
+        text = build_job_text(leg)
+        self.assertPureAscii(text)
+        self.assertIn("Flight: DL 1234 - lands", text)
+
+
+@override_settings(GOOGLE_MAPS_API_KEY="")
 class StoreStopTests(TestCase):
     """The Publix stop has to survive the re-key — their driver makes it.
 
