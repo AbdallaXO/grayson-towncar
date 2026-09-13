@@ -1,9 +1,10 @@
 {% extends "admin/change_list.html" %}
-{# The scorecard sits ABOVE the rows: the question is almost always "is this
-   thing any good", and the rows are the evidence you drill into afterwards.
+{% comment %}The scorecard sits ABOVE the rows: the question is almost always "is
+   this thing any good", and the rows are the evidence you drill into afterwards.
    Numbers come from advisor_events.scorecard() — the same call the
    advisor_scorecard management command makes, so a browser and a terminal
-   cannot disagree. #}
+   cannot disagree.
+{% endcomment %}
 {% block result_list %}
   <div style="margin:0 0 18px;padding:14px 16px;border:1px solid var(--hairline-color,#e0e0e0);border-radius:6px;background:var(--darkened-bg,#f8f8f8);">
     <h2 style="margin:0 0 4px;font-size:15px;">Is the advisor right often enough?</h2>

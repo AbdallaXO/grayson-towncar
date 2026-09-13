@@ -1739,8 +1739,9 @@
                         {% if is_held and leg.draft_time_changed %}
                           <span class="draft-conflict-badge mb-1" style="background:#7b1fa2;" title="Pickup time changed live since you opened the draft">⏰ TIME CHANGED</span>
                         {% endif %}
-                        {# Stub dropdown — the roster is cloned in from #driverOptionsTpl on
-                           first interaction. See the view for why. #}
+                        {% comment %}Stub dropdown — the roster is cloned in from
+                          #driverOptionsTpl on first interaction. See the view for why.
+                        {% endcomment %}
                         <select class="form-select form-select-sm mb-1 driver-select"
                                 name="driver"
                                 data-leg-id="{{ leg.id }}"{% if board_locked %} disabled title="Draft is in review — editing is locked"{% endif %}>
@@ -5002,12 +5003,13 @@
 
   </script>
 
-  {# ── Driver roster, rendered once ──────────────────────────────────────────
+  {% comment %}── Driver roster, rendered once ──────────────────────────────────
      Every row's driver dropdown is filled from this on first interaction. Inside
-     a <template> the browser parses the markup but builds no live DOM for it, so
-     one roster costs what one row's dropdown used to.
+     a template element the browser parses the markup but builds no live DOM for
+     it, so one roster costs what one row's dropdown used to.
      Keep these option labels identical to `assigned_driver_option_label` in the
-     view — they are two renderings of the same thing. #}
+     view — they are two renderings of the same thing.
+  {% endcomment %}
   <template id="driverOptionsTpl">
     {% if inhouse_drivers_list %}
       <optgroup label="In-House">

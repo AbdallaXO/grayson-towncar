@@ -305,9 +305,10 @@
     <h1><i class="bi bi-cash-stack"></i>Driver Pay Rates</h1>
 
   {% if unzoned_places %}
-  {# Loud on purpose. A place with no zone prices nothing, and the way it
-     happens — a name that no longer matches what the seeding looked for —
-     leaves no other trace. #}
+  {% comment %}Loud on purpose. A place with no zone prices nothing, and the way
+     it happens — a name that no longer matches what the seeding looked for —
+     leaves no other trace.
+  {% endcomment %}
   <div class="unzoned-banner">
     <strong><i class="bi bi-exclamation-triangle me-2"></i>{{ unzoned_count }} place{{ unzoned_count|pluralize }} with no zone.</strong>
     Trips through {{ unzoned_count|pluralize:"it,these" }} cannot be priced and will keep asking every payroll run.
