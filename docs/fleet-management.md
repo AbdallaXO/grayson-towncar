@@ -162,6 +162,11 @@ that never existed on main.
   migration). It also added a single out-of-service window on the row, which
   **migration 0055 removed** in favour of the `VehicleDowntime` ledger below —
   the two open windows at the time were carried across as closed history.
+  **Migration 0056 re-added the three columns, nullable and unused**, after a
+  Railway rollback on deploy night put pre-ledger code on the new schema and
+  every vehicle-loading page failed with `UndefinedColumn`. Nothing reads or
+  writes them; they exist so a rollback can boot. Drop them again only when a
+  rollback to a pre-ledger build is no longer plausible.
 - **`VehicleDowntime`** (0055) — one row per shop visit / breakdown: category,
   reason, shop, `starts_on`, `expected_back_on` (first day BACK), `ended_on`
   (actual, NULL while open), who opened and closed it, and the demand verdict

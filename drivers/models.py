@@ -872,6 +872,27 @@ class FleetVehicle(models.Model):
     # The helpers below (is_out_of_service_on / out_of_service_label) keep the
     # per-DATE contract every scheduling surface was built on: a car in the shop
     # this week is a normal car on next week's board.
+    #
+    # ROLLBACK SAFETY — the three legacy columns below exist so that a Railway
+    # rollback to pre-ledger code can still boot. Migration 0055 dropped them;
+    # the founder rolled the app back the same evening and every page that
+    # loads a vehicle failed with "column out_of_service_from does not exist"
+    # (2026-09-14). Migration 0056 re-adds them, nullable and empty. Nothing in
+    # the current code reads or writes them: the ledger is the only truth.
+    # Old code sees NULL and treats every unit as in service. Remove them only
+    # once a rollback to 9d680e53 or earlier is no longer plausible.
+    out_of_service_from = models.DateField(
+        null=True, blank=True, editable=False,
+        help_text="LEGACY, unused. Kept so pre-ledger code can boot. See VehicleDowntime.",
+    )
+    out_of_service_until = models.DateField(
+        null=True, blank=True, editable=False,
+        help_text="LEGACY, unused. Kept so pre-ledger code can boot.",
+    )
+    out_of_service_reason = models.CharField(
+        max_length=200, blank=True, default="", editable=False,
+        help_text="LEGACY, unused. Kept so pre-ledger code can boot.",
+    )
 
     # --- Operating permits ------------------------------------------------
     # Central Florida ground transport is permitted per VEHICLE, not per company:
