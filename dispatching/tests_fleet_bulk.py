@@ -12,8 +12,8 @@ the ones that make it safe to point at every car at once:
   * ALL OR NOTHING: if any selected unit fails validation, nothing is written.
     Half a batch applied is the worst outcome for someone typing from paper —
     they can't tell what landed and what didn't.
-  * THE ERROR NAMES THE UNIT: "#12: the out-of-service end date is before the
-    start date" is actionable. "Invalid input" is not.
+  * THE ERROR NAMES WHAT WAS REFUSED: a key that isn't bulk-editable is named
+    in the message rather than silently dropped.
   * PER-CAR IDENTITY IS NOT BULK-EDITABLE: one transponder number stamped onto
     twelve cars is twelve wrong toll attributions, and a bulk note overwrite
     destroys writing nobody can get back. Both are refused BY NAME rather than
@@ -176,78 +176,22 @@ class BulkComplianceTests(_BulkFixture):
 
 
 class BulkOutOfServiceTests(_BulkFixture):
-    """The one bulk field that removes units from the scheduling pool."""
+    """Out of service is not bulk-editable any more: a downtime carries a
+    reason, a shop and a return date PER CAR, in the ledger. The old keys are
+    refused by name so nothing is silently dropped."""
 
-    def test_takes_a_batch_out_of_service_with_a_reason(self):
-        self.bulk([self.a, self.b], {
+    def test_out_of_service_keys_are_refused_by_name(self):
+        resp = self.bulk([self.a, self.b], {
             "out_of_service_from": TODAY.isoformat(),
             "out_of_service_until": (TODAY + timedelta(days=3)).isoformat(),
             "out_of_service_reason": "Recall — dealer",
         })
-        for vehicle in (self.a, self.b):
-            vehicle.refresh_from_db()
-            self.assertTrue(vehicle.is_out_of_service_on(TODAY))
-            self.assertIn("Recall", vehicle.out_of_service_label(TODAY))
-
-    def test_putting_a_batch_back_in_service_clears_the_whole_window(self):
-        for vehicle in (self.a, self.b):
-            vehicle.out_of_service_from = TODAY
-            vehicle.out_of_service_until = TODAY + timedelta(days=5)
-            vehicle.out_of_service_reason = "Transmission"
-            vehicle.save()
-
-        self.bulk([self.a, self.b], {
-            "out_of_service_from": "", "out_of_service_until": "",
-            "out_of_service_reason": "",
-        })
-
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("out_of_service_from", resp.json()["error"])
         for vehicle in (self.a, self.b):
             vehicle.refresh_from_db()
             self.assertFalse(vehicle.is_out_of_service_on(TODAY))
-            self.assertEqual(vehicle.out_of_service_reason, "")
-
-    def test_a_backwards_window_is_refused_and_nothing_is_written(self):
-        resp = self.bulk([self.a, self.b], {
-            "out_of_service_from": (TODAY + timedelta(days=5)).isoformat(),
-            "out_of_service_until": TODAY.isoformat(),
-        })
-        self.assertEqual(resp.status_code, 400)
-        for vehicle in (self.a, self.b):
-            vehicle.refresh_from_db()
-            self.assertIsNone(vehicle.out_of_service_from)
-
-    def test_the_refusal_names_the_offending_unit(self):
-        """One bad car in a batch of twelve has to be findable.
-
-        Both units get an end date; only #002's existing start date sits after
-        it, so #002 is the one that must be named.
-        """
-        self.a.out_of_service_from = TODAY
-        self.a.save()
-        self.b.out_of_service_from = TODAY + timedelta(days=10)
-        self.b.save()
-
-        resp = self.bulk([self.a, self.b], {
-            "out_of_service_until": (TODAY + timedelta(days=2)).isoformat(),
-        })
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("#002", resp.json()["error"])
-        # ...and the unit that was fine is still untouched.
-        self.a.refresh_from_db()
-        self.assertIsNone(self.a.out_of_service_until)
-
-    def test_one_bad_unit_blocks_the_whole_batch(self):
-        """Atomicity. A half-applied batch is unrecoverable by eye."""
-        self.a.out_of_service_from = TODAY
-        self.a.save()
-        resp = self.bulk([self.a, self.b], {
-            "out_of_service_until": (TODAY + timedelta(days=4)).isoformat(),
-        })
-        # #002 has no start date, so the end date would gate nothing.
-        self.assertEqual(resp.status_code, 400)
-        self.a.refresh_from_db()
-        self.assertIsNone(self.a.out_of_service_until)
-        self.assertIn("Nothing was changed", resp.json()["error"])
+            self.assertFalse(vehicle.downtimes.exists())
 
 
 class BulkRefusalTests(_BulkFixture):

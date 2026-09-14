@@ -156,6 +156,7 @@ TEMPLATES = [
                 "ops.context_processors.critical_disruption_count",
                 "ops.context_processors.shift_menu",
                 "drivers.context_processors.pending_timeoff_count",
+                "drivers.context_processors.fleet_nav",
                 "drivers.context_processors.webpush_public_key",
             ],
         },
@@ -369,6 +370,18 @@ WAKEUP_NOTIFY_PHONES = [
 DOCUMENT_UPLOAD_NOTIFY_PHONES = [
     p.strip() for p in os.environ.get("DOCUMENT_UPLOAD_NOTIFY_PHONES", "").split(",") if p.strip()
 ] or TIMEOFF_NOTIFY_PHONES
+
+# ── Fleet alerts ─────────────────────────────────────────────────────────
+# Two texts, to the fleet manager: a vehicle issue the moment dispatch files
+# it, and a morning digest of what needs attention (only on days there is
+# something). Recipients are the user profiles flagged is_fleet_manager plus
+# FLEET_NOTIFY_PHONES. Master switch defaults OFF for the same reason the
+# wake-up calls do: a developer's copy of the database carries real numbers.
+# The in-app Fleet desk works regardless of this switch.
+FLEET_ALERTS_ENABLED = os.environ.get("FLEET_ALERTS_ENABLED", "False").lower() == "true"
+FLEET_NOTIFY_PHONES = [
+    p.strip() for p in os.environ.get("FLEET_NOTIFY_PHONES", "").split(",") if p.strip()
+]
 
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")

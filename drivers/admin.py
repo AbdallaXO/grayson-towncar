@@ -6,8 +6,8 @@ from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
 from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride, DriverPaymentExport, DriverPayoutAdjustment, AffiliateProfile, DriverPushSubscription, DriverWakeupCheck
 from .models import (
-    FleetSyncState, VehicleDayReading, VehicleFault, VehicleServiceRecord,
-    VehicleServiceSchedule,
+    FleetSyncState, VehicleDayReading, VehicleDowntime, VehicleFault, VehicleIssue,
+    VehicleServiceRecord, VehicleServiceSchedule,
 )
 from reservations.models import Leg
 from decimal import Decimal
@@ -1125,6 +1125,29 @@ class VehicleServiceRecordAdmin(admin.ModelAdmin):
         if not change and not obj.created_by_id:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(VehicleDowntime)
+class VehicleDowntimeAdmin(admin.ModelAdmin):
+    """The ledger. Editable here as a backstop, but the fleet pages are where
+    it is meant to be worked — they run the demand check and keep the audit
+    fields (who opened it, who closed it) filled in."""
+    list_display = ["vehicle", "category", "reason", "starts_on", "expected_back_on",
+                    "ended_on", "demand_verdict", "vendor"]
+    list_filter = ["category", "demand_verdict", "vehicle"]
+    search_fields = ["vehicle__vehicle_number", "reason", "vendor", "notes"]
+    date_hierarchy = "starts_on"
+    readonly_fields = ["created_by", "created_at", "closed_by", "closed_at", "demand_snapshot"]
+
+
+@admin.register(VehicleIssue)
+class VehicleIssueAdmin(admin.ModelAdmin):
+    list_display = ["vehicle", "title", "severity", "source", "reported_by", "reported_at",
+                    "resolved_at"]
+    list_filter = ["severity", "source", "vehicle"]
+    search_fields = ["vehicle__vehicle_number", "title", "details", "resolution"]
+    date_hierarchy = "reported_at"
+    readonly_fields = ["reported_by", "reported_at", "resolved_by", "resolved_at"]
 
 
 @admin.register(VehicleDayReading)

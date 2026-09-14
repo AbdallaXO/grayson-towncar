@@ -5,16 +5,9 @@
 
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_css.html" %}
 <style>
   .fleet-table-wrap { overflow-x: auto; }
-
-  .fleet-chip {
-    display: inline-block; padding: 3px 10px; margin: 2px 4px 2px 0;
-    border-radius: 999px; font-size: .76rem; font-weight: 600; white-space: nowrap;
-  }
-  .fleet-chip.critical { background: #fdeaea; color: #a12020; border: 1px solid #f3c9c9; }
-  .fleet-chip.warn     { background: #fef6e7; color: #8a5b00; border: 1px solid #f3e0b8; }
-  .fleet-chip.info     { background: #eef2f7; color: #44546a; border: 1px solid #dbe3ec; }
 
   .fleet-src {
     font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
@@ -127,11 +120,7 @@
         {% if in_shop %} · <strong>In shop</strong>{% endif %}
       </div>
     </div>
-    <div class="tap-tab-row">
-      <a href="{% url 'fleet_list' %}" class="tap-tab">
-        <i class="bi bi-arrow-left"></i> All vehicles
-      </a>
-    </div>
+    {% include "dispatching/includes/_fleet_shell.html" %}
   </div>
 
   <div class="fleet-feed-line {{ feed.level }}">
@@ -210,25 +199,68 @@
       </div>
 
       {% comment %}
-        Out of service gets its own panel, not a row in Compliance. It is the one
-        piece of vehicle state that changes what dispatch can do, so it has to be
-        impossible to miss on the unit's own page.
+        Downtime gets its own panel, not a row in Compliance. It is the one
+        piece of vehicle state that changes what dispatch can do, so it has to
+        be impossible to miss on the unit's own page. One row per shop visit:
+        live, overdue-back, or planned. Closing one is what makes it history.
       {% endcomment %}
-      {% if oos_label %}
-      <div class="fleet-panel oos-panel">
+      <div class="fleet-panel {% if oos_label %}oos-panel{% endif %}" id="downtime">
         <div class="fleet-panel-head">
-          <h2 class="oos-title"><i class="bi bi-cone-striped me-1"></i>Out of service</h2>
-          <button class="fleet-mini-btn" data-bs-toggle="modal" data-bs-target="#detailsModal">
-            <i class="bi bi-pencil"></i> Edit
-          </button>
+          <h2 class="{% if oos_label %}oos-title{% endif %}"><i class="bi bi-cone-striped me-1"></i>Out of service</h2>
+          <span>
+            <button class="fleet-mini-btn" onclick="openIssue()"><i class="bi bi-flag"></i> Report a problem</button>
+            <button class="fleet-mini-btn {% if not oos_label %}primary{% endif %}" onclick="openDowntime()"><i class="bi bi-cone-striped"></i> Take out of service</button>
+          </span>
         </div>
-        <div class="oos-body">{{ oos_label }}</div>
-        <div class="oos-note">
-          Pulled from the planner's vehicle pool and skipped by Day Setup.
-          A dispatcher can still force the assignment if this is wrong.
-        </div>
+        {% if oos_label %}<div class="oos-body mb-2">{{ oos_label }}</div>{% endif %}
+        {% if oos_notice and not oos_label %}
+          <div class="mb-2" style="font-size:.86rem;color:#9a4b00;font-weight:600;"><i class="bi bi-question-circle me-1"></i>{{ oos_notice }}</div>
+        {% endif %}
+        {% for d in downtimes_open %}
+          <div class="dt-row {{ d.state }}">
+            <div class="dt-head">
+              <div>
+                <div class="dt-reason">{{ d.reason }}</div>
+                <div class="dt-meta">
+                  {{ d.get_category_display }}{% if d.vendor %} · {{ d.vendor }}{% endif %}
+                  · from {{ d.starts_on|date:"D M j" }}
+                  {% if d.expected_back_on %}· expected back {{ d.expected_back_on|date:"D M j" }}{% else %}· no return date{% endif %}
+                  {% if d.state == "overdue" %}· <strong>not confirmed back</strong>{% endif %}
+                  {% if d.state == "planned" %}· planned{% endif %}
+                  {% if d.demand_verdict %}· <span class="verdict-{{ d.demand_verdict }}">{{ d.demand_verdict }}</span> when planned{% endif %}
+                </div>
+                {% if d.notes %}<div class="dt-meta">{{ d.notes|linebreaksbr }}</div>{% endif %}
+              </div>
+              <div style="white-space:nowrap;">
+                {% if d.state != "planned" %}
+                  <button class="fleet-mini-btn primary" onclick="openClose({{ d.id }}, '{{ d.expected_back_on|date:"Y-m-d" }}', {% if d.issue_id %}true{% else %}false{% endif %})">It's back</button>
+                {% endif %}
+                <button class="fleet-mini-btn" onclick='openDowntime({{ d.id }}, "{{ d.category }}", "{{ d.reason|escapejs }}", "{{ d.vendor|escapejs }}", "{{ d.starts_on|date:"Y-m-d" }}", "{{ d.expected_back_on|date:"Y-m-d" }}", "{{ d.notes|escapejs }}")'>Edit</button>
+                {% if d.starts_on >= today_date %}
+                  <button class="fleet-mini-btn danger" onclick="deleteDowntime({{ d.id }})">Remove</button>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="tap-sub">On the road. Taking it out of service here pulls it from the planner's pool for those dates and tells dispatch why.</div>
+        {% endfor %}
+        {% if downtimes_closed %}
+          <details class="mt-2">
+            <summary class="tap-sub" style="cursor:pointer;">History — {{ downtime_days_90 }} day{{ downtime_days_90|pluralize }} down in the last 90</summary>
+            {% for d in downtimes_closed %}
+              <div class="dt-row closed">
+                <div class="dt-reason" style="font-weight:500;">{{ d.reason }}</div>
+                <div class="dt-meta">
+                  {{ d.get_category_display }}{% if d.vendor %} · {{ d.vendor }}{% endif %}
+                  · {{ d.starts_on|date:"M j" }} → back {{ d.ended_on|date:"M j" }} · {{ d.days }} day{{ d.days|pluralize }}
+                  {% if d.expected_back_on and d.ended_on > d.expected_back_on %}· <span style="color:#9a4b00;">late by {{ d.ended_on|timeuntil:d.expected_back_on }}</span>{% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </details>
+        {% endif %}
       </div>
-      {% endif %}
 
       <div class="fleet-panel">
         <h2>Notes</h2>
@@ -433,13 +465,57 @@
       <div class="tap-sub">
         No service intervals set for this vehicle. Without at least an oil
         interval, the odometer we collect has nothing to feed —
-        <a href="#" onclick="openSchedule(); return false;">add one</a>.
+        <a href="#" onclick="openSchedule(); return false;">add one</a>, or
+        <a href="#" onclick="applyStandardIntervals(); return false;">use the standard set</a>
+        ({% for t, miles, days in standard_intervals %}{{ t }}{% if miles %} {{ miles|intcomma }} mi{% endif %}{% if miles and days %} /{% endif %}{% if days %} {{ days }} d{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %})
+        clocked from today's odometer.
       </div>
     {% endif %}
   </div>
 
   <div class="row">
     <div class="col-lg-6">
+      <div class="fleet-panel" id="issues">
+        <div class="fleet-panel-head">
+          <h2>Reported problems</h2>
+          <button class="fleet-mini-btn" onclick="openIssue()"><i class="bi bi-flag"></i> Report</button>
+        </div>
+        {% for i in issues_open %}
+          <div class="dt-row">
+            <div class="dt-head">
+              <div>
+                <div class="dt-reason">
+                  <span class="fleet-chip {% if i.severity == 'ground' %}critical{% elif i.severity == 'soon' %}warn{% else %}info{% endif %}">{{ i.get_severity_display }}</span>
+                  {{ i.title }}
+                </div>
+                <div class="dt-meta">
+                  {{ i.get_source_display }}{% if i.reported_by %} · {{ i.reported_by.get_full_name|default:i.reported_by.username }}{% endif %}
+                  · {{ i.reported_at|date:"M j, g:i A" }}
+                </div>
+                {% if i.details %}<div class="dt-meta">{{ i.details|linebreaksbr }}</div>{% endif %}
+              </div>
+              <div style="white-space:nowrap;">
+                <button class="fleet-mini-btn" onclick="openDowntime(null, 'repair', '{{ i.title|escapejs }}', '', '', '', '', {{ i.id }})">Take down</button>
+                <button class="fleet-mini-btn primary" onclick="resolveIssue({{ i.id }})">Resolve</button>
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="tap-sub">Nothing reported. Dispatch can flag a noise, a warning light or a "do not drive" here and fleet hears about it without a call.</div>
+        {% endfor %}
+        {% if issues_resolved %}
+          <details class="mt-2">
+            <summary class="tap-sub" style="cursor:pointer;">Resolved — last {{ issues_resolved|length }}</summary>
+            {% for i in issues_resolved %}
+              <div class="dt-row closed">
+                <div class="dt-reason" style="font-weight:500;">{{ i.title }}</div>
+                <div class="dt-meta">{{ i.reported_at|date:"M j" }} → {{ i.resolved_at|date:"M j" }}{% if i.resolution %} · {{ i.resolution }}{% endif %}</div>
+              </div>
+            {% endfor %}
+          </details>
+        {% endif %}
+      </div>
+
       <div class="fleet-panel">
         <h2>Faults</h2>
         {% for fault in open_faults %}
@@ -632,42 +708,6 @@
           <div class="col-12"><hr class="my-1"></div>
 
           {% comment %}
-            Out of service — the only field on this page that takes a unit out of
-            the scheduling pool, so it's labelled as such rather than sitting
-            quietly among the compliance dates.
-          {% endcomment %}
-          <div class="col-12">
-            <label class="fw-bold" style="color:#b02a37;">
-              <i class="bi bi-cone-striped me-1"></i>Out of service
-            </label>
-          </div>
-          <div class="col-6">
-            <label>Down from</label>
-            <input type="date" id="f_out_of_service_from" class="form-control"
-                   value="{{ vehicle.out_of_service_from|date:'Y-m-d' }}">
-          </div>
-          <div class="col-6">
-            <label>Back on the road after</label>
-            <input type="date" id="f_out_of_service_until" class="form-control"
-                   value="{{ vehicle.out_of_service_until|date:'Y-m-d' }}">
-          </div>
-          <div class="col-12">
-            <label>Reason</label>
-            <input type="text" id="f_out_of_service_reason" class="form-control"
-                   maxlength="200" value="{{ vehicle.out_of_service_reason }}"
-                   placeholder="Transmission, at Bob's · Rear-ended 8/3 · Waiting on a part">
-          </div>
-          <div class="col-12">
-            <div class="fleet-form-hint">
-              A unit with a start date is pulled from the planner's vehicle pool and
-              Day Setup will not propose it. Leave the end date blank if you don't
-              know when it's back. Clear the start date to put it back in service.
-            </div>
-          </div>
-
-          <div class="col-12"><hr class="my-1"></div>
-
-          {% comment %}
             Permits are per-vehicle in Central Florida — the decal is on the car,
             not the company. Advisory: a missing permit warns at assignment time,
             it never blocks.
@@ -846,6 +886,8 @@
     details:  "{% url 'fleet_update_details' vehicle.pk %}",
     schedule: "{% url 'fleet_save_schedule' vehicle.pk %}",
     service:  "{% url 'fleet_add_service' vehicle.pk %}",
+    downtime: "{% url 'fleet_save_downtime' vehicle.pk %}",
+    issue:    "{% url 'fleet_report_issue' vehicle.pk %}",
   };
 
   function toast(msg, ok) {
@@ -880,9 +922,6 @@
       next_inspection_on: val('f_next_inspection_on'),
       transponder_number: val('f_transponder_number'),
       transponder_type: document.getElementById('f_transponder_type').value,
-      out_of_service_from: val('f_out_of_service_from'),
-      out_of_service_until: val('f_out_of_service_until'),
-      out_of_service_reason: val('f_out_of_service_reason'),
       notes: document.getElementById('f_notes').value,
     };
     // Permit keys come from the server's own list, so adding a permit is a
@@ -949,8 +988,310 @@
     post("{% url 'fleet_delete_service' 0 %}".replace('/0/', '/' + id + '/'), {})
       .then(d => d.success ? done('Record deleted') : toast(d.error || 'Could not delete', false));
   };
+
+  window.applyStandardIntervals = function () {
+    post("{% url 'fleet_apply_standard_intervals' vehicle.pk %}", {})
+      .then(d => d.success ? done('Standard intervals added') : toast(d.error || 'Could not add', false));
+  };
+
+  // ── Downtime ─────────────────────────────────────────────────────────
+  // The demand check runs as the dates are typed, so the person choosing a
+  // shop day sees "tight on Saturday" before they commit, not after.
+  const CHECK_URL = "{% url 'fleet_check_window' vehicle.pk %}";
+  let editingDowntime = null;
+  let checkTimer = null;
+
+  function renderCheck(box, d) {
+    if (!d || !d.success) {
+      box.className = 'check-box';
+      box.innerHTML = d && d.error ? d.error : 'Pick a start date to see whether dispatch can spare this car.';
+      return;
+    }
+    box.className = 'check-box ' + d.level;
+    let html = '<strong>' + d.level.charAt(0).toUpperCase() + d.level.slice(1) + '.</strong> ' + d.summary;
+    html += '<div class="check-days">' + d.days.map(r =>
+      '<span class="check-day ' + r.level + '" title="' + r.legs + ' trips · peak ' + r.peak
+      + (r.peak_at ? ' at ' + r.peak_at : '') + ' · ' + r.available + ' cars'
+      + (r.reasons.length ? ' · ' + r.reasons.join(' · ') : '')
+      + (r.worsened ? ' · this car tips it' : (r.level !== 'clear' ? ' · already ' + r.level + ' with every car' : ''))
+      + '">' + r.label + (r.worsened ? '*' : '') + '</span>').join('') + '</div>';
+    box.innerHTML = html;
+  }
+
+  function runCheck() {
+    const from = val('d_starts_on'), back = val('d_expected_back_on');
+    const box = document.getElementById('d_check');
+    if (!from) { renderCheck(box, null); return; }
+    let url = CHECK_URL + '?from=' + from + (back ? '&back=' + back : '');
+    if (editingDowntime) url += '&ignore=' + editingDowntime;
+    fetch(url).then(r => r.json()).then(d => renderCheck(box, d)).catch(() => renderCheck(box, null));
+  }
+  function scheduleCheck() { clearTimeout(checkTimer); checkTimer = setTimeout(runCheck, 250); }
+  // The modals sit below this script in the document, so bind once the page
+  // has finished parsing — a listener on a null element is a silent dead form.
+  document.addEventListener('DOMContentLoaded', function () {
+    ['d_starts_on', 'd_expected_back_on'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', scheduleCheck);
+    });
+    const takeDown = document.getElementById('i_take_down');
+    if (takeDown) takeDown.addEventListener('change', function () {
+      document.getElementById('i_back_wrap').style.display = this.checked ? '' : 'none';
+    });
+    // Arriving from the Outlook with a window already chosen.
+    const params = new URLSearchParams(location.search);
+    if (params.get('downtime_from')) {
+      openDowntime(null, 'maintenance', '', '', params.get('downtime_from'), params.get('downtime_back') || '', '');
+    }
+  });
+
+  window.openDowntime = function (id, category, reason, vendor, startsOn, back, notes, issueId) {
+    editingDowntime = id || null;
+    document.getElementById('downtimeTitle').textContent = id ? 'Edit downtime' : 'Take #{{ vehicle.vehicle_number }} out of service';
+    document.getElementById('d_category').value = category || 'repair';
+    document.getElementById('d_reason').value = reason || '';
+    document.getElementById('d_vendor').value = vendor || '';
+    document.getElementById('d_starts_on').value = startsOn || new Date().toISOString().slice(0, 10);
+    document.getElementById('d_expected_back_on').value = back || '';
+    document.getElementById('d_notes').value = notes || '';
+    document.getElementById('d_issue_id').value = issueId || '';
+    document.getElementById('d_ack').checked = false;
+    document.getElementById('d_ack_wrap').style.display = 'none';
+    runCheck();
+    new bootstrap.Modal(document.getElementById('downtimeModal')).show();
+  };
+
+  window.saveDowntime = function () {
+    const payload = {
+      category: document.getElementById('d_category').value,
+      reason: val('d_reason'),
+      vendor: val('d_vendor'),
+      starts_on: val('d_starts_on'),
+      expected_back_on: val('d_expected_back_on'),
+      notes: document.getElementById('d_notes').value,
+      issue_id: val('d_issue_id') || null,
+      acknowledge: document.getElementById('d_ack').checked,
+    };
+    const url = editingDowntime
+      ? "{% url 'fleet_update_downtime' 0 %}".replace('/0/', '/' + editingDowntime + '/')
+      : URLS.downtime;
+    post(url, payload).then(d => {
+      if (d.success) return done(editingDowntime ? 'Downtime updated' : 'Out of service — dispatch can see it');
+      if (d.needs_ack) {
+        // Short on a day: say so, and let a person decide.
+        renderCheck(document.getElementById('d_check'), {success: true, level: d.level, summary: d.summary, days: d.days});
+        document.getElementById('d_ack_wrap').style.display = '';
+        toast('Dispatch would be short — tick the box to save anyway', false);
+        return;
+      }
+      toast(d.error || 'Could not save', false);
+    });
+  };
+
+  window.deleteDowntime = function (id) {
+    if (!confirm('Remove this downtime? Only for one entered by mistake — a car that has been off the road is closed, not removed.')) return;
+    post("{% url 'fleet_delete_downtime' 0 %}".replace('/0/', '/' + id + '/'), {})
+      .then(d => d.success ? done('Downtime removed') : toast(d.error || 'Could not remove', false));
+  };
+
+  window.openClose = function (id, expected, hasIssue) {
+    document.getElementById('c_downtime_id').value = id;
+    const today = new Date().toISOString().slice(0, 10);
+    // If the expected date has passed the car has been working since then;
+    // otherwise it came back early — today.
+    document.getElementById('c_ended_on').value = (expected && expected <= today) ? expected : today;
+    document.getElementById('c_notes').value = '';
+    document.getElementById('c_resolve_wrap').style.display = hasIssue ? '' : 'none';
+    document.getElementById('c_resolve').checked = !!hasIssue;
+    new bootstrap.Modal(document.getElementById('closeModal')).show();
+  };
+
+  window.saveClose = function () {
+    const id = document.getElementById('c_downtime_id').value;
+    post("{% url 'fleet_close_downtime' 0 %}".replace('/0/', '/' + id + '/'), {
+      ended_on: val('c_ended_on'),
+      notes: document.getElementById('c_notes').value,
+      resolve_issue: document.getElementById('c_resolve').checked,
+      resolution: document.getElementById('c_notes').value,
+    }).then(d => d.success ? done('Back in service') : toast(d.error || 'Could not close', false));
+  };
+
+  // ── Reported problems ────────────────────────────────────────────────
+  window.openIssue = function () {
+    document.getElementById('i_title').value = '';
+    document.getElementById('i_details').value = '';
+    document.getElementById('i_severity').value = 'soon';
+    document.getElementById('i_source').value = 'dispatch';
+    document.getElementById('i_take_down').checked = false;
+    document.getElementById('i_back_wrap').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('issueModal')).show();
+  };
+  window.saveIssue = function () {
+    post(URLS.issue, {
+      title: val('i_title'),
+      details: document.getElementById('i_details').value,
+      severity: document.getElementById('i_severity').value,
+      source: document.getElementById('i_source').value,
+      take_down: document.getElementById('i_take_down').checked,
+      expected_back_on: val('i_expected_back_on'),
+    }).then(d => {
+      if (!d.success) return toast(d.error || 'Could not save', false);
+      done(d.downtime_id ? 'Reported and taken out of service' : (d.notified ? 'Reported — fleet texted' : 'Reported'));
+    });
+  };
+  window.resolveIssue = function (id) {
+    const what = prompt('What was done about it? (kept with the car\'s record)');
+    if (what === null) return;
+    post("{% url 'fleet_resolve_issue' 0 %}".replace('/0/', '/' + id + '/'), {resolution: what.trim()})
+      .then(d => d.success ? done('Resolved') : toast(d.error || 'Could not resolve', false));
+  };
 })();
 </script>
+
+{# ── Take out of service / edit a downtime ─────────────────────────────── #}
+<div class="modal fade" id="downtimeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="downtimeTitle">Take out of service</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="d_issue_id">
+        <div class="row g-2">
+          <div class="col-6">
+            <label>What kind</label>
+            <select id="d_category" class="form-select">
+              {% for value, label in downtime_categories %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label>Shop / dealer</label>
+            <input type="text" id="d_vendor" class="form-control" maxlength="120" placeholder="Bob's Transmission">
+          </div>
+          <div class="col-12">
+            <label>Why — dispatch reads this on the board</label>
+            <input type="text" id="d_reason" class="form-control" maxlength="200"
+                   placeholder="Transmission, at Bob's · Rear-ended 8/3 · Brakes and rotors">
+          </div>
+          <div class="col-6">
+            <label>Down from</label>
+            <input type="date" id="d_starts_on" class="form-control">
+          </div>
+          <div class="col-6">
+            <label>Expected back on the road</label>
+            <input type="date" id="d_expected_back_on" class="form-control">
+            <div class="fleet-form-hint">First day dispatch can plan on it. Blank = no date yet.</div>
+          </div>
+          <div class="col-12">
+            <div class="check-box" id="d_check">Pick a start date to see whether dispatch can spare this car.</div>
+          </div>
+          <div class="col-12" id="d_ack_wrap" style="display:none;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="d_ack">
+              <label class="form-check-label" for="d_ack" style="font-size:.84rem;color:#a12020;">
+                Save anyway — dispatch will be short and knows to farm out or move work.
+              </label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label>Notes</label>
+            <textarea id="d_notes" class="form-control" rows="2" placeholder="Waiting on a part · quoted $1,200 · loaner available"></textarea>
+          </div>
+        </div>
+        <div class="fleet-form-hint mt-2">
+          Pulled from the planner's pool for those dates; Day Setup won't propose it. Dispatch can still force it if they know better.
+          On the expected date it goes back in the pool by itself — confirm it's back here so the record closes with the real date.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" onclick="saveDowntime()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── It's back ─────────────────────────────────────────────────────────── #}
+<div class="modal fade" id="closeModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Back on the road</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="c_downtime_id">
+        <label>First day it was usable</label>
+        <input type="date" id="c_ended_on" class="form-control">
+        <label class="mt-2">What was done</label>
+        <textarea id="c_notes" class="form-control" rows="2" placeholder="New rotors and pads, $640"></textarea>
+        <div class="form-check mt-2" id="c_resolve_wrap">
+          <input class="form-check-input" type="checkbox" id="c_resolve">
+          <label class="form-check-label" for="c_resolve" style="font-size:.84rem;">Also resolve the reported problem behind this</label>
+        </div>
+        <div class="fleet-form-hint mt-2">Log the service itself under Service history if there's a receipt — that's what resets the interval.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" onclick="saveClose()">It's back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Report a problem ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="issueModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Report a problem with #{{ vehicle.vehicle_number }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-12">
+            <label>What's wrong</label>
+            <input type="text" id="i_title" class="form-control" maxlength="200" placeholder="Brakes grinding at low speed · AC blowing warm · Check-engine light">
+          </div>
+          <div class="col-6">
+            <label>How urgent</label>
+            <select id="i_severity" class="form-select">
+              {% for value, label in issue_severities %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label>Who noticed</label>
+            <select id="i_source" class="form-select">
+              {% for value, label in issue_sources %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label>Details</label>
+            <textarea id="i_details" class="form-control" rows="2" placeholder="When it happens, what the chauffeur said, anything the shop should know"></textarea>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="i_take_down">
+              <label class="form-check-label" for="i_take_down" style="font-size:.86rem;font-weight:600;color:#b02a37;">
+                Take it out of service now
+              </label>
+            </div>
+          </div>
+          <div class="col-6" id="i_back_wrap" style="display:none;">
+            <label>Expected back (if known)</label>
+            <input type="date" id="i_expected_back_on" class="form-control">
+          </div>
+        </div>
+        <div class="fleet-form-hint mt-2">Goes straight to the Fleet desk, and texts the fleet manager if alerts are on. No phone call needed.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-dark" onclick="saveIssue()">Report</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {# Right-click the header to see where it has actually been. #}
 {% include "dispatching/includes/_trip_context_menu.html" %}

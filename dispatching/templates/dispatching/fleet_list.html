@@ -156,11 +156,12 @@
 
   <div class="tap-page-head">
     <div>
-      <h1 class="tap-title">Fleet</h1>
+      <h1 class="tap-title">Vehicles</h1>
       <div class="tap-subtitle">
-        Every vehicle, its condition, and what needs attention before tomorrow morning.
+        Every unit, its condition and paperwork. The desk says what to do first; this is the full table.
       </div>
     </div>
+    {% include "dispatching/includes/_fleet_shell.html" %}
   </div>
 
   {# Feed health. The one line that would have caught a silent 25-day outage. #}
@@ -538,45 +539,7 @@
           </div>
         </div>
 
-        {# ── Out of service ─────────────────────────────────────────────── #}
-        <div class="bulk-field off" data-group="oos">
-          <div class="form-check">
-            <input class="form-check-input bulk-group" type="checkbox" id="b_use_oos">
-            <label class="form-check-label bulk-toggle" for="b_use_oos" style="color:#b02a37;">
-              <i class="bi bi-cone-striped me-1"></i>Out of service
-            </label>
-          </div>
-          <div class="bulk-inputs">
-            <select class="form-select form-select-sm bulk-input mb-2" id="b_oos_mode"
-                    style="max-width: 300px;" disabled>
-              <option value="set">Take out of service</option>
-              <option value="clear">Put back in service</option>
-            </select>
-            <div class="row g-2" id="b_oos_window">
-              <div class="col-md-4">
-                <label>Down from</label>
-                <input type="date" class="form-control form-control-sm bulk-input"
-                       id="b_out_of_service_from" disabled>
-              </div>
-              <div class="col-md-4">
-                <label>Back on the road after</label>
-                <input type="date" class="form-control form-control-sm bulk-input"
-                       id="b_out_of_service_until" disabled>
-              </div>
-              <div class="col-md-4">
-                <label>Reason</label>
-                <input type="text" maxlength="200" class="form-control form-control-sm bulk-input"
-                       id="b_out_of_service_reason" disabled
-                       placeholder="Recall — dealer, week of the 14th">
-              </div>
-            </div>
-            <div class="bulk-hint">
-              These units drop out of the planner's vehicle pool and Day Setup
-              stops proposing them. Leave the end date blank if you don't know
-              when they're back.
-            </div>
-          </div>
-        </div>
+        {# Out of service is per car — reason, shop, return date — so it lives on the vehicle's own page as a downtime. #}
 
         <div class="bulk-field">
           <div class="bulk-preview empty" id="bulkPreview">
@@ -736,12 +699,6 @@
     });
   });
 
-  $('b_oos_mode').addEventListener('change', function () {
-    const setting = this.value === 'set';
-    $('b_oos_window').style.display = setting ? '' : 'none';
-    preview();
-  });
-
   document.querySelectorAll('.bulk-input').forEach(input => {
     input.addEventListener('change', preview);
     input.addEventListener('input', preview);
@@ -791,26 +748,6 @@
       says.push(value ? 'Set the toll network to ' + label
                       : '<span class="warn">Clear the toll network</span>');
       if (!value) destructive = true;
-    }
-
-    if ($('b_use_oos').checked) {
-      if ($('b_oos_mode').value === 'clear') {
-        fields.out_of_service_from = '';
-        fields.out_of_service_until = '';
-        fields.out_of_service_reason = '';
-        says.push('Put them <strong>back in service</strong>');
-      } else {
-        const from = $('b_out_of_service_from').value;
-        const until = $('b_out_of_service_until').value;
-        fields.out_of_service_from = from;
-        fields.out_of_service_until = until;
-        fields.out_of_service_reason = $('b_out_of_service_reason').value;
-        destructive = true;
-        says.push('<span class="warn">Take them out of service'
-                  + (from ? ' from ' + pretty(from) : '')
-                  + (until ? ' until ' + pretty(until) : from ? ', with no return date' : '')
-                  + '</span> — they drop out of the planner\'s vehicle pool');
-      }
     }
 
     return {fields: fields, says: says, destructive: destructive};

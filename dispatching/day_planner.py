@@ -684,7 +684,7 @@ def build_day_plan(target_date, *, epsilon=None, runtime_budget_s=None):
 
         held_unit_ids = {r.vehicle_id for r in dva_all if r.vehicle_id}
         free_units = [u for u in FleetVehicle.objects.filter(is_active=True)
-                      .select_related("vehicle_type")
+                      .select_related("vehicle_type").with_open_downtimes()
                       if u.id not in held_unit_ids
                       and not u.is_out_of_service_on(target_date)]
         roster_ids = {d.id for d in drivers}

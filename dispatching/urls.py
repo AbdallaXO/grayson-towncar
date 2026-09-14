@@ -87,8 +87,32 @@ urlpatterns = [
 
     # Fleet Management — vehicle condition, mileage, maintenance. Distinct from
     # fleet-intel/ above, which is a revenue-leak report, not a vehicle view.
-    path("fleet/", fleet_views.fleet_list, name="fleet_list"),
+    # The desk is the fleet manager's home; the vehicle table moved one level in.
+    path("fleet/", fleet_views.fleet_desk, name="fleet_desk"),
+    path("fleet/vehicles/", fleet_views.fleet_list, name="fleet_list"),
+    path("fleet/outlook/", fleet_views.fleet_outlook, name="fleet_outlook"),
+    path("fleet/report/", fleet_views.fleet_report, name="fleet_report"),
     path("fleet/<int:pk>/", fleet_views.fleet_detail, name="fleet_detail"),
+    # Downtime ledger: the demand check, then take down / edit / bring back.
+    path("fleet/<int:pk>/check-window/", fleet_views.fleet_check_window,
+         name="fleet_check_window"),
+    path("fleet/<int:pk>/downtime/", fleet_views.fleet_save_downtime,
+         name="fleet_save_downtime"),
+    path("fleet/downtime/<int:pk>/update/", fleet_views.fleet_update_downtime,
+         name="fleet_update_downtime"),
+    path("fleet/downtime/<int:pk>/close/", fleet_views.fleet_close_downtime,
+         name="fleet_close_downtime"),
+    path("fleet/downtime/<int:pk>/delete/", fleet_views.fleet_delete_downtime,
+         name="fleet_delete_downtime"),
+    # Reported issues: the dispatch-to-fleet handoff.
+    path("fleet/<int:pk>/issue/", fleet_views.fleet_report_issue, name="fleet_report_issue"),
+    path("fleet/issue/<int:pk>/resolve/", fleet_views.fleet_resolve_issue,
+         name="fleet_resolve_issue"),
+    # Standard service intervals, per unit or fleet-wide.
+    path("fleet/<int:pk>/standard-intervals/", fleet_views.fleet_apply_standard_intervals,
+         name="fleet_apply_standard_intervals"),
+    path("fleet/standard-intervals/", fleet_views.fleet_apply_standard_intervals_all,
+         name="fleet_apply_standard_intervals_all"),
     # In-page editing so the fleet job never needs the Django admin.
     path("fleet/<int:pk>/details/", fleet_views.fleet_update_details,
          name="fleet_update_details"),

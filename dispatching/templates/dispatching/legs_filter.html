@@ -1064,6 +1064,9 @@
             <div class="va-vehicles-row px-3 pt-3 pb-2">
               <div class="d-flex align-items-center gap-2 mb-2">
                 <span class="text-muted small fw-semibold"><i class="bi bi-grip-vertical me-1"></i>Drag a vehicle onto a driver</span>
+                <a href="{% url 'fleet_desk' %}" target="_blank" rel="noopener" class="small text-decoration-none ms-auto" style="color:#9aa3ae;" title="Fleet desk — why a car is down, when it's back, report a problem">
+                  <i class="bi bi-wrench-adjustable"></i> Fleet
+                </a>
               </div>
               <div class="d-flex flex-wrap gap-2" id="vaVehiclePool">
                 {% for vehicle in inhouse_vehicles %}
@@ -1094,6 +1097,8 @@
                   {% endif %}
                   {% if vehicle.oos_label %}
                     <span class="va-oos-tag"><i class="bi bi-cone-striped"></i>Out of service</span>
+                  {% elif vehicle.oos_notice %}
+                    <span class="va-oos-tag" style="background:#fff3e0;color:#9a4b00;border-color:#f3d5a8;" title="{{ vehicle.oos_notice }}"><i class="bi bi-question-circle"></i> back? not confirmed</span>
                   {% else %}
                     <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
                   {% endif %}

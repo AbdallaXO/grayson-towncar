@@ -1540,6 +1540,10 @@
                     <i class="bi bi-cone-striped"></i>{{ out_of_service_count }} out of service
                   </span>
                 {% endif %}
+                {# Why is it down, when is it back, or "this car is making a noise" — all on the fleet page, no phone call. #}
+                <a href="{% url 'fleet_desk' %}" target="_blank" rel="noopener" class="ms-2" style="font-size:.74rem;color:#9aa3ae;text-decoration:none;" title="Fleet desk — why a car is down, when it's back, report a problem">
+                  <i class="bi bi-wrench-adjustable"></i> Fleet
+                </a>
             </div>
             <div class="va-pool-cards" id="pVehiclePool">
                 {% for vehicle in inhouse_vehicles %}
@@ -1570,6 +1574,9 @@
                   {% endif %}
                   {% if vehicle.oos_label %}
                     <span class="va-oos-tag"><i class="bi bi-cone-striped"></i>{{ vehicle.oos_label }}</span>
+                  {% elif vehicle.oos_notice %}
+                    {# Usable, but fleet hasn't confirmed it's back. Amber, not red: it doesn't block. #}
+                    <span class="va-oos-tag" style="background:#fff3e0;color:#9a4b00;border-color:#f3d5a8;" title="{{ vehicle.oos_notice }}"><i class="bi bi-question-circle"></i> back? not confirmed</span>
                   {% else %}
                     <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
                     {% comment %}

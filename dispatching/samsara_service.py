@@ -380,6 +380,112 @@ def _count_faults(faults):
     return (total if answered else None), sampled
 
 
+def extract_fault_codes(faults):
+    """
+    ``(codes, answered)`` from a faultCodes block — the individual codes behind
+    the count ``_count_faults`` produces, so the fleet page can say WHAT is
+    wrong ("P0420 — catalyst efficiency below threshold") rather than "3 faults".
+
+    ``answered`` is False when the type was absent from the response. The
+    caller must not resolve any open episode on an absent answer: an empty
+    list because Samsara 500'd is indistinguishable from "all clear" otherwise.
+
+    Each code: ``{"external_id", "code", "description", "bus", "severity", "raw"}``.
+    ``external_id`` is the idempotency key for a VehicleFault episode and is
+    built from the bus and the code, never generated — the same code seen on
+    a thousand polls must land on one row. Same nesting rules as
+    ``_count_faults``: obdii entries are ECUs holding DTC buckets (pending
+    codes skipped), j1939 entries are the faults themselves.
+    """
+    if faults is None:
+        return [], False
+
+    codes = []
+    if isinstance(faults, list):  # already a flat list of faults
+        for entry in faults:
+            if isinstance(entry, dict):
+                codes.append(_obd_code(entry, mil=False))
+        return _unique_codes(codes), True
+
+    if not isinstance(faults, dict):
+        return [], False
+
+    answered = False
+    for key, bus in faults.items():
+        if key == "time" or not isinstance(bus, dict):
+            continue
+        entries = bus.get("diagnosticTroubleCodes")
+        if not isinstance(entries, list):
+            continue
+        answered = True
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            if any(k in entry for k in _ACTIVE_DTC_KEYS):
+                mil = bool(entry.get("milStatus"))
+                found = 0
+                for dtc_key in _ACTIVE_DTC_KEYS:
+                    for dtc in entry.get(dtc_key) or []:
+                        if isinstance(dtc, dict):
+                            codes.append(_obd_code(dtc, mil=mil))
+                            found += 1
+                if mil and not found:
+                    codes.append({
+                        "external_id": "obdii:MIL", "code": "MIL",
+                        "description": "Check-engine light on, no readable code",
+                        "bus": "obdii", "severity": "critical", "raw": entry,
+                    })
+            else:
+                codes.append(_j1939_code(entry))
+    return _unique_codes(codes), answered
+
+
+def _obd_code(dtc, *, mil):
+    code = (dtc.get("dtcShortCode") or "").strip()
+    if not code and dtc.get("dtcId") is not None:
+        code = f"DTC {dtc.get('dtcId')}"
+    code = code or "fault"
+    return {
+        "external_id": f"obdii:{code}"[:64],
+        "code": code[:32],
+        "description": str(dtc.get("dtcDescription") or "")[:255],
+        "bus": "obdii",
+        "severity": "critical" if mil else "warning",
+        "raw": dtc,
+    }
+
+
+def _j1939_code(entry):
+    spn, fmi = entry.get("spnId"), entry.get("fmiId")
+    if spn is not None:
+        code = f"SPN {spn} FMI {fmi}" if fmi is not None else f"SPN {spn}"
+        external_id = f"j1939:{spn}/{fmi}"
+    else:
+        code = (entry.get("dtcShortCode") or "fault").strip()
+        external_id = f"j1939:{code}"
+    description = " — ".join(
+        s for s in (entry.get("spnDescription"), entry.get("fmiDescription")) if s
+    )
+    return {
+        "external_id": external_id[:64],
+        "code": code[:32],
+        "description": description[:255],
+        "bus": "j1939",
+        "severity": "critical" if entry.get("milStatus") else "warning",
+        "raw": entry,
+    }
+
+
+def _unique_codes(codes):
+    seen, out = set(), []
+    for c in codes:
+        if c["external_id"] in seen:
+            continue
+        seen.add(c["external_id"])
+        out.append(c)
+    return out
+
+
 def resolve_assigned_fleet_vehicle(leg):
     """
     The FleetVehicle a leg's driver is in on the leg's pickup date, via the

@@ -36,15 +36,20 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
-from dispatching import fleet_health
+from dispatching import fleet_capacity, fleet_health, fleet_notify
+# Aliased: the views below are named fleet_desk / fleet_report after their URLs,
+# and a bare module import would be shadowed by the function definitions.
+from dispatching import fleet_desk as fleet_desk_loader
+from dispatching import fleet_report as fleet_reporting
 from dispatching.fleet_sync import FEED_NIGHTLY, FEED_VEHICLE_STATS
 from dispatching.mileage import days_to_cover, meters_to_miles, usage_rate
 from dispatching.samsara_service import EXTENDED_STAT_TYPES
 from drivers.models import (
     DriverVehicleAssignment, FleetSyncState, FleetVehicle, VehicleDayReading,
-    VehicleFault, VehicleServiceRecord, VehicleServiceSchedule,
+    VehicleDowntime, VehicleFault, VehicleIssue, VehicleServiceRecord,
+    VehicleServiceSchedule,
 )
 
 # How much recent history the detail page shows. Small on purpose — this is an
@@ -76,7 +81,7 @@ def fleet_list(request):
     now = timezone.now()
     today = timezone.localdate(now)
 
-    vehicles_qs = FleetVehicle.objects.select_related("vehicle_type")
+    vehicles_qs = FleetVehicle.objects.select_related("vehicle_type").with_open_downtimes()
 
     if status == "active":
         vehicles_qs = vehicles_qs.filter(is_active=True)
@@ -222,6 +227,7 @@ def fleet_list(request):
         # confirmation sentence all pick it up.
         "permit_types": FleetVehicle.PERMITS,
         "transponder_types": FleetVehicle.TRANSPONDER_TYPE_CHOICES,
+        "fleet_page": "vehicles",
     }
     return render(request, "dispatching/fleet_list.html", context)
 
@@ -234,7 +240,7 @@ def fleet_detail(request, pk):
     today = timezone.localdate(now)
 
     vehicle = get_object_or_404(
-        FleetVehicle.objects.select_related("vehicle_type"), pk=pk
+        FleetVehicle.objects.select_related("vehicle_type").with_open_downtimes(), pk=pk
     )
 
     service_records = list(
@@ -242,6 +248,30 @@ def fleet_detail(request, pk):
         .select_related("created_by")[:25]
     )
     in_shop = fleet_health.is_in_shop(service_records, today)
+
+    # ── Downtime ledger + reported issues ────────────────────────────────
+    downtimes_open = vehicle.open_downtimes()
+    downtimes_closed = list(
+        VehicleDowntime.objects.filter(vehicle=vehicle, ended_on__isnull=False)
+        .select_related("closed_by")[:10]
+    )
+    for d in downtimes_open + downtimes_closed:
+        d.days = d.days_down(today)
+        d.state = ("overdue" if d.is_overdue(today) else "planned" if d.is_planned(today)
+                   else "live" if d.is_live(today) else "closed")
+    issues_open = list(
+        VehicleIssue.objects.filter(vehicle=vehicle, resolved_at__isnull=True)
+        .select_related("reported_by")
+    )
+    issues_resolved = list(
+        VehicleIssue.objects.filter(vehicle=vehicle, resolved_at__isnull=False)
+        .select_related("reported_by", "resolved_by")[:10]
+    )
+    downtime_days_90 = sum(
+        d.days_down(today) or 0
+        for d in VehicleDowntime.objects.filter(
+            vehicle=vehicle, starts_on__gte=today - timedelta(days=90), starts_on__lte=today)
+    )
 
     open_faults = list(
         VehicleFault.objects.filter(vehicle=vehicle, resolved_at__isnull=True)
@@ -339,6 +369,18 @@ def fleet_detail(request, pk):
         # and every scheduling surface answer the same question the same way.
         "vehicle_permits": vehicle.permits(),
         "oos_label": vehicle.out_of_service_label(),
+        "oos_notice": vehicle.downtime_notice(),
+        "downtimes_open": downtimes_open,
+        "downtimes_closed": downtimes_closed,
+        "issues_open": issues_open,
+        "issues_resolved": issues_resolved,
+        "downtime_days_90": downtime_days_90,
+        "downtime_categories": VehicleDowntime.CATEGORY_CHOICES,
+        "issue_severities": VehicleIssue.SEVERITY_CHOICES,
+        "issue_sources": VehicleIssue.SOURCE_CHOICES,
+        "standard_intervals": STANDARD_INTERVALS,
+        "today_date": today,
+        "fleet_page": "vehicles",
         # Derived from what we actually ASK Samsara for, so these labels stay
         # true on their own — drop a type from EXTENDED_STAT_TYPES and the page
         # starts saying "not reported" instead of showing an em-dash that would
@@ -448,20 +490,12 @@ def _collect_vehicle_fields(data):
             return None, "Unknown transponder type."
         fields["transponder_type"] = transponder_type
 
-    # ── Out of service ───────────────────────────────────────────────────
-    # The one field here that removes a unit from the scheduling pool, so it's
-    # the one field that gets validated hard.
-    for key, label in (("out_of_service_from", "Out-of-service start"),
-                       ("out_of_service_until", "Out-of-service end")):
-        if key not in data:
-            continue
-        value, message = _opt_date(data.get(key), label)
-        if message:
-            return None, message
-        fields[key] = value
-    if "out_of_service_reason" in data:
-        fields["out_of_service_reason"] = (
-            data.get("out_of_service_reason") or "").strip()[:200]
+    # Out of service is NOT here any more: it lives in the downtime ledger
+    # (fleet_save_downtime / fleet_close_downtime), one row per shop visit.
+    for key in ("out_of_service_from", "out_of_service_until", "out_of_service_reason"):
+        if key in data:
+            return None, ("Out of service is recorded as a downtime now — use "
+                          "'Take out of service' on the vehicle page.")
 
     # ── Permits ──────────────────────────────────────────────────────────
     for key, label, _category in FleetVehicle.PERMITS:
@@ -480,25 +514,6 @@ def _collect_vehicle_fields(data):
             fields[expiry_field] = None
 
     return fields, None
-
-
-def _oos_window_error(vehicle, fields):
-    """
-    The out-of-service window this edit would leave on ``vehicle``, checked
-    against what's already stored. Returns a sentence, or None when it's sound.
-
-    A backwards window would silently never match any date — the unit would look
-    blocked on the form and stay bookable everywhere else.
-    """
-    start = fields.get("out_of_service_from", vehicle.out_of_service_from)
-    end = fields.get("out_of_service_until", vehicle.out_of_service_until)
-    if start and end and end < start:
-        return "the out-of-service end date is before the start date."
-    # An end date with no start is not a window — it gates nothing and would sit
-    # on the record looking meaningful. Refuse it rather than store a no-op.
-    if end and not start:
-        return "it needs an out-of-service start date, or a cleared end date."
-    return None
 
 
 @login_required
@@ -523,12 +538,6 @@ def fleet_update_details(request, pk):
     if not fields:
         return JsonResponse({"success": False, "error": "Nothing to update."}, status=400)
 
-    message = _oos_window_error(vehicle, fields)
-    if message:
-        # Single-vehicle: the dispatcher is looking at the car, so don't name it.
-        return JsonResponse(
-            {"success": False, "error": message[0].upper() + message[1:]}, status=400)
-
     for key, value in fields.items():
         setattr(vehicle, key, value)
     vehicle.save(update_fields=list(fields))
@@ -542,11 +551,12 @@ def fleet_update_details(request, pk):
 #   * notes is free text somebody already wrote. A bulk overwrite destroys it
 #     with no undo and no way to tell which cars had something worth keeping.
 # Everything left is a fact that genuinely IS the same across a batch: a decal
-# run bought together, a policy renewed on one date, a shop closure.
+# run bought together, a policy renewed on one date.
+#   * out of service is not here either: a downtime carries a reason, a shop
+#     and a return date PER CAR, and is recorded on the vehicle's own page.
 BULK_EDITABLE = frozenset(
     ["in_service_since", "registration_expires_on", "insurance_expires_on",
-     "next_inspection_on", "transponder_type",
-     "out_of_service_from", "out_of_service_until", "out_of_service_reason"]
+     "next_inspection_on", "transponder_type"]
     + [f"permit_{key}" for key, _l, _c in FleetVehicle.PERMITS]
     + [f"permit_{key}_expires_on" for key, _l, _c in FleetVehicle.PERMITS]
 )
@@ -625,15 +635,6 @@ def fleet_bulk_update(request):
         return JsonResponse(
             {"success": False, "error": "Those vehicles no longer exist. Reload the page."},
             status=400)
-
-    for vehicle in vehicles:
-        message = _oos_window_error(vehicle, fields)
-        if message:
-            return JsonResponse({
-                "success": False,
-                "error": f"#{vehicle.vehicle_number}: {message} "
-                         f"Nothing was changed.",
-            }, status=400)
 
     with transaction.atomic():
         updated = FleetVehicle.objects.filter(
@@ -840,3 +841,569 @@ def fleet_delete_service(request, pk):
     record = get_object_or_404(VehicleServiceRecord, pk=pk)
     record.delete()
     return JsonResponse({"success": True})
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# The Fleet desk — the fleet manager's home
+# ════════════════════════════════════════════════════════════════════════════
+
+@login_required
+@staff_member_required
+def fleet_desk(request):
+    """What needs attention, what's ready, what's down and why, what's coming.
+
+    Everything is loaded by ``fleet_desk.load_desk`` and judged by pure code
+    (``fleet_attention``, ``fleet_capacity``), so the page, the morning text
+    and the tests read one picture. DB-only, like every fleet page.
+    """
+    desk = fleet_desk_loader.load_desk()
+    context = {
+        **desk,
+        "fleet_page": "desk",
+        "downtime_categories": VehicleDowntime.CATEGORY_CHOICES,
+        "issue_severities": VehicleIssue.SEVERITY_CHOICES,
+    }
+    return render(request, "dispatching/fleet_desk.html", context)
+
+
+@login_required
+@staff_member_required
+def fleet_outlook(request):
+    """Four weeks of demand against the fleet, day by day — and, when a unit
+    and a window are chosen, whether taking that unit down then leaves
+    dispatch short. The page fleet plans shop time from."""
+    today = timezone.localdate()
+    start = parse_date(request.GET.get("start") or "") or today
+    if start < today - timedelta(days=7):
+        start = today
+    try:
+        days = max(7, min(int(request.GET.get("days") or fleet_capacity.DEFAULT_OUTLOOK_DAYS), 56))
+    except ValueError:
+        days = fleet_capacity.DEFAULT_OUTLOOK_DAYS
+
+    units = fleet_capacity.fleet_units()
+    rows = fleet_capacity.outlook(start, days, units, today=today)
+
+    # Optional: check a unit over a window, and offer the best windows for it.
+    unit = None
+    check = None
+    suggestions = []
+    try:
+        unit_id = int(request.GET.get("unit") or 0)
+    except ValueError:
+        unit_id = 0
+    if unit_id:
+        unit = next((u for u in units if u.id == unit_id), None)
+    check_from = parse_date(request.GET.get("from") or "")
+    check_back = parse_date(request.GET.get("back") or "")
+    try:
+        length = max(1, min(int(request.GET.get("length") or 1), 14))
+    except ValueError:
+        length = 1
+    if unit is not None:
+        if check_from:
+            check = fleet_capacity.check_window(unit, check_from, check_back, units, today=today)
+        suggestions = fleet_capacity.suggest_windows(unit, length, units, today=today,
+                                                     horizon_days=days)
+
+    context = {
+        "fleet_page": "outlook",
+        "today": today,
+        "start": start,
+        "days": days,
+        "rows": rows,
+        "units": units,
+        "unit": unit,
+        "check": check,
+        "check_from": check_from,
+        "check_back": check_back,
+        "length": length,
+        "suggestions": suggestions,
+        "type_labels": [(t, fleet_capacity.type_label(t)) for t in fleet_capacity.VEHICLE_TIER_ORDER],
+        "prev_start": start - timedelta(days=days),
+        "next_start": start + timedelta(days=days),
+        "typical_weeks": fleet_capacity.TYPICAL_USE_WEEKS,
+    }
+    return render(request, "dispatching/fleet_outlook.html", context)
+
+
+@login_required
+@staff_member_required
+@require_GET
+def fleet_check_window(request, pk):
+    """JSON: would this unit being down from ``from`` until ``back`` leave
+    dispatch short? Read by the downtime form as the dates are typed."""
+    vehicle = get_object_or_404(FleetVehicle, pk=pk)
+    starts_on = parse_date(request.GET.get("from") or "")
+    if starts_on is None:
+        return JsonResponse({"success": False, "error": "Pick a start date."}, status=400)
+    back = parse_date(request.GET.get("back") or "")
+    if back is not None and back <= starts_on:
+        return JsonResponse(
+            {"success": False, "error": "The return date has to be after the start date."},
+            status=400)
+    try:
+        ignore = int(request.GET.get("ignore") or 0) or None
+    except ValueError:
+        ignore = None
+
+    units = fleet_capacity.fleet_units()
+    unit = next((u for u in units if u.id == vehicle.id), vehicle)
+    result = fleet_capacity.check_window(unit, starts_on, back, units, ignore_downtime_id=ignore)
+    return JsonResponse({"success": True, **_check_payload(result)})
+
+
+def _check_payload(result):
+    return {
+        "level": result["level"],
+        "caused": result.get("caused", False),
+        "summary": result["summary"],
+        "days": [{
+            "date": r["date"].isoformat(),
+            "label": r["date"].strftime("%a %d"),
+            "level": r["level"],
+            "baseline_level": r.get("baseline_level", r["level"]),
+            "worsened": r.get("worsened", False),
+            "busyness": r["busyness"],
+            "peak": r["peak"],
+            "peak_at": r["peak_at"],
+            "legs": r["legs"],
+            "available": r["available"],
+            "typical": r["typical_units"],
+            "reasons": r["reasons"],
+        } for r in result["days"]],
+    }
+
+
+def _compact_snapshot(result):
+    """What the verdict rested on, small enough to keep on the row."""
+    return {
+        "summary": result["summary"],
+        "days": [{
+            "date": r["date"].isoformat(), "level": r["level"], "peak": r["peak"],
+            "legs": r["legs"], "available": r["available"], "typical": r["typical_units"],
+        } for r in result["days"]],
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Downtime — take a unit off the road, bring it back
+# ════════════════════════════════════════════════════════════════════════════
+
+def _downtime_fields(data, *, today, existing=None):
+    """Validate a downtime payload. Returns (fields, error_sentence)."""
+    fields = {}
+
+    category = (data.get("category") or (existing.category if existing else "repair")).strip()
+    if category not in {c[0] for c in VehicleDowntime.CATEGORY_CHOICES}:
+        return None, "Pick what kind of downtime this is."
+    fields["category"] = category
+
+    reason = (data.get("reason") if "reason" in data else (existing.reason if existing else "")) or ""
+    reason = reason.strip()[:200]
+    if not reason:
+        return None, "Say why it's down — dispatch reads this on the board."
+    fields["reason"] = reason
+
+    if "vendor" in data or existing is None:
+        fields["vendor"] = (data.get("vendor") or "").strip()[:120]
+    if "notes" in data or existing is None:
+        fields["notes"] = (data.get("notes") or "").strip()
+
+    starts_on, message = _opt_date(data.get("starts_on"), "Start date")
+    if message:
+        return None, message
+    if starts_on is None:
+        starts_on = existing.starts_on if existing else today
+    fields["starts_on"] = starts_on
+
+    if "expected_back_on" in data:
+        back, message = _opt_date(data.get("expected_back_on"), "Expected-back date")
+        if message:
+            return None, message
+    else:
+        back = existing.expected_back_on if existing else None
+    if back is not None and back <= starts_on:
+        return None, "The expected-back date has to be after the start date."
+    fields["expected_back_on"] = back
+    return fields, None
+
+
+def _judge_downtime(vehicle, fields, *, ignore_id=None):
+    units = fleet_capacity.fleet_units()
+    unit = next((u for u in units if u.id == vehicle.id), vehicle)
+    return fleet_capacity.check_window(
+        unit, fields["starts_on"], fields["expected_back_on"], units,
+        ignore_downtime_id=ignore_id)
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_save_downtime(request, pk):
+    """
+    JSON: take a unit out of service (now or on a future date).
+
+    Runs the demand check first. A window that leaves dispatch SHORT on some
+    day comes back as 409 with ``needs_ack`` and the reason, and is saved only
+    when the caller sends ``acknowledge: true`` — the founder's rule is that
+    the system informs and a person decides, so nothing here refuses outright.
+    The verdict is kept on the row so the report can say how often downtime
+    landed on a clear day.
+    """
+    vehicle = get_object_or_404(FleetVehicle.objects.with_open_downtimes(), pk=pk)
+    data, error = _body(request)
+    if error:
+        return error
+    today = timezone.localdate()
+    fields, message = _downtime_fields(data, today=today)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    # Two open windows over the same day would be one downtime with two
+    # reasons. Extend the existing one instead.
+    for other in vehicle.open_downtimes():
+        end = fields["expected_back_on"]
+        other_end = other.expected_back_on
+        overlap = (other_end is None or fields["starts_on"] < other_end) and \
+                  (end is None or other.starts_on < end)
+        if overlap and not other.is_overdue(today):
+            return JsonResponse({
+                "success": False,
+                "error": (f"#{vehicle.vehicle_number} already has a downtime covering "
+                          f"those dates ({other.label()}). Edit that one instead."),
+            }, status=400)
+
+    verdict = _judge_downtime(vehicle, fields)
+    # The tick box is for the case where THIS car tips a day into short. A day
+    # that is short with every car is dispatch's Saturday, not this decision.
+    if verdict["caused"] and not data.get("acknowledge"):
+        return JsonResponse({
+            "success": False, "needs_ack": True, **_check_payload(verdict),
+            "error": verdict["summary"],
+        }, status=409)
+
+    issue = None
+    if data.get("issue_id"):
+        issue = VehicleIssue.objects.filter(pk=data.get("issue_id"), vehicle=vehicle).first()
+
+    downtime = VehicleDowntime.objects.create(
+        vehicle=vehicle, created_by=request.user, issue=issue,
+        demand_verdict=verdict["level"], demand_snapshot=_compact_snapshot(verdict),
+        **fields,
+    )
+    _touch_planner_cache(fields["starts_on"], fields["expected_back_on"])
+    return JsonResponse({
+        "success": True, "id": downtime.id, "label": downtime.label(),
+        **_check_payload(verdict),
+    })
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_update_downtime(request, pk):
+    """JSON: change the dates, reason, shop or category of an OPEN downtime.
+    Re-judged against the fleet without its old self."""
+    downtime = get_object_or_404(VehicleDowntime.objects.select_related("vehicle"), pk=pk)
+    if downtime.ended_on is not None:
+        return JsonResponse(
+            {"success": False, "error": "That downtime is closed — it's history now."},
+            status=400)
+    data, error = _body(request)
+    if error:
+        return error
+    today = timezone.localdate()
+    fields, message = _downtime_fields(data, today=today, existing=downtime)
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    vehicle = FleetVehicle.objects.with_open_downtimes().get(pk=downtime.vehicle_id)
+    verdict = _judge_downtime(vehicle, fields, ignore_id=downtime.id)
+    if verdict["caused"] and not data.get("acknowledge"):
+        return JsonResponse({
+            "success": False, "needs_ack": True, **_check_payload(verdict),
+            "error": verdict["summary"],
+        }, status=409)
+
+    old_start, old_back = downtime.starts_on, downtime.expected_back_on
+    for key, value in fields.items():
+        setattr(downtime, key, value)
+    downtime.demand_verdict = verdict["level"]
+    downtime.demand_snapshot = _compact_snapshot(verdict)
+    downtime.save()
+    _touch_planner_cache(min(old_start, fields["starts_on"]),
+                         _latest(old_back, fields["expected_back_on"]))
+    return JsonResponse({"success": True, "label": downtime.label(), **_check_payload(verdict)})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_close_downtime(request, pk):
+    """
+    JSON: the unit is back. ``ended_on`` is the first day it was usable again
+    (defaults to today; to the expected date if that has already passed, since
+    the car has been on the road since then). Optionally resolves the issue
+    that caused it, in the same click.
+    """
+    downtime = get_object_or_404(VehicleDowntime.objects.select_related("vehicle", "issue"), pk=pk)
+    if downtime.ended_on is not None:
+        return JsonResponse({"success": False, "error": "Already closed."}, status=400)
+    data, error = _body(request)
+    if error:
+        return error
+    today = timezone.localdate()
+    ended_on, message = _opt_date(data.get("ended_on"), "Back-on-the-road date")
+    if message:
+        return JsonResponse({"success": False, "error": message}, status=400)
+    if ended_on is None:
+        ended_on = today
+    if ended_on < downtime.starts_on:
+        return JsonResponse(
+            {"success": False, "error": "It can't be back before it went down."}, status=400)
+    if ended_on > today + timedelta(days=1):
+        return JsonResponse(
+            {"success": False,
+             "error": "That's in the future — push the expected-back date out instead."},
+            status=400)
+
+    downtime.ended_on = ended_on
+    downtime.closed_by = request.user
+    downtime.closed_at = timezone.now()
+    note = (data.get("notes") or "").strip()
+    if note:
+        downtime.notes = (downtime.notes + "\n" if downtime.notes else "") + note
+    downtime.save(update_fields=["ended_on", "closed_by", "closed_at", "notes"])
+
+    resolved_issue = False
+    if data.get("resolve_issue") and downtime.issue and downtime.issue.resolved_at is None:
+        issue = downtime.issue
+        issue.resolved_at = timezone.now()
+        issue.resolved_by = request.user
+        issue.resolution = (data.get("resolution") or note or "Fixed — see downtime.").strip()
+        issue.save(update_fields=["resolved_at", "resolved_by", "resolution"])
+        resolved_issue = True
+
+    _touch_planner_cache(downtime.starts_on, downtime.expected_back_on)
+    return JsonResponse({"success": True, "resolved_issue": resolved_issue,
+                         "days_down": downtime.days_down(today)})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_delete_downtime(request, pk):
+    """JSON: remove a downtime entered by mistake. Only while it hasn't
+    started (or started today) — once a car has been off the road for days
+    the row is history, and history is closed, not deleted."""
+    downtime = get_object_or_404(VehicleDowntime, pk=pk)
+    today = timezone.localdate()
+    if downtime.ended_on is not None or downtime.starts_on < today:
+        return JsonResponse({
+            "success": False,
+            "error": "This downtime has already cost days — close it with the real "
+                     "return date instead of deleting it.",
+        }, status=400)
+    start, back = downtime.starts_on, downtime.expected_back_on
+    downtime.delete()
+    _touch_planner_cache(start, back)
+    return JsonResponse({"success": True})
+
+
+def _latest(a, b):
+    if a is None or b is None:
+        return None
+    return max(a, b)
+
+
+def _touch_planner_cache(start, back):
+    """The capacity planner caches its heavy pass per date for 60s. A car
+    going down (or coming back) should show on the next load, not the one
+    after — same courtesy the vehicle-assignment endpoints extend."""
+    from django.core.cache import cache
+
+    end = back or (start + timedelta(days=7))
+    day = start
+    while day < end and (day - start).days < 60:
+        cache.delete(f"capacity_planner_{day.isoformat()}")
+        day += timedelta(days=1)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Reported issues — the dispatch-to-fleet handoff
+# ════════════════════════════════════════════════════════════════════════════
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_report_issue(request, pk):
+    """
+    JSON: "something is wrong with this car". Any staff member can file one —
+    that is the point; the fleet manager should hear about the grinding noise
+    from the system, not from a phone call three days later.
+
+    ``take_down: true`` also opens a downtime starting today (with the same
+    reason), for the car that must not go out. The fleet manager is texted
+    when alerts are switched on.
+    """
+    vehicle = get_object_or_404(FleetVehicle.objects.with_open_downtimes(), pk=pk)
+    data, error = _body(request)
+    if error:
+        return error
+    title = (data.get("title") or "").strip()[:200]
+    if not title:
+        return JsonResponse({"success": False, "error": "Say what's wrong, in a line."}, status=400)
+    severity = (data.get("severity") or "soon").strip()
+    if severity not in {s[0] for s in VehicleIssue.SEVERITY_CHOICES}:
+        return JsonResponse({"success": False, "error": "Pick how urgent it is."}, status=400)
+    source = (data.get("source") or "dispatch").strip()
+    if source not in {s[0] for s in VehicleIssue.SOURCE_CHOICES}:
+        source = "dispatch"
+
+    issue = VehicleIssue.objects.create(
+        vehicle=vehicle, title=title, details=(data.get("details") or "").strip(),
+        severity=severity, source=source, reported_by=request.user,
+    )
+
+    downtime = None
+    if data.get("take_down"):
+        today = timezone.localdate()
+        if vehicle.is_out_of_service_on(today):
+            downtime = vehicle.downtime_on(today)
+        else:
+            back, message = _opt_date(data.get("expected_back_on"), "Expected-back date")
+            if message:
+                return JsonResponse({"success": False, "error": message}, status=400)
+            if back is not None and back <= today:
+                back = None
+            downtime = VehicleDowntime.objects.create(
+                vehicle=vehicle, category="repair", reason=title, starts_on=today,
+                expected_back_on=back, issue=issue, created_by=request.user,
+                demand_verdict="", demand_snapshot=None,
+            )
+            _touch_planner_cache(today, back)
+
+    notify = fleet_notify.notify_issue_reported(issue)
+    return JsonResponse({
+        "success": True, "id": issue.id,
+        "downtime_id": downtime.id if downtime else None,
+        "notified": notify.get("sent", 0),
+    })
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_resolve_issue(request, pk):
+    """JSON: close a reported issue with what was done."""
+    issue = get_object_or_404(VehicleIssue, pk=pk)
+    if issue.resolved_at is not None:
+        return JsonResponse({"success": False, "error": "Already resolved."}, status=400)
+    data, error = _body(request)
+    if error:
+        return error
+    resolution = (data.get("resolution") or "").strip()
+    if not resolution:
+        return JsonResponse(
+            {"success": False, "error": "Say what was done — that's the part worth keeping."},
+            status=400)
+    issue.resolution = resolution
+    issue.resolved_at = timezone.now()
+    issue.resolved_by = request.user
+    issue.save(update_fields=["resolution", "resolved_at", "resolved_by"])
+    return JsonResponse({"success": True})
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Standard intervals — get the maintenance layer out of its inert state
+# ════════════════════════════════════════════════════════════════════════════
+
+# A conservative starting set for a heavily-worked light-duty fleet. These are
+# a STARTING POINT, not a manufacturer schedule: the Sprinters' diesel oil
+# interval is longer than a Suburban's, and the fleet manager is expected to
+# correct each car's row. The baseline is set to TODAY and the current
+# odometer, which means "start the clock now" — if the last service is known,
+# log it and the interval moves to the real date.
+STANDARD_INTERVALS = (
+    ("oil", 5_000, 180),
+    ("tires", 7_500, None),
+    ("brakes", 15_000, None),
+    ("inspection", None, 365),
+)
+
+
+def _apply_standard_intervals(vehicle, today):
+    """Add the standard intervals this vehicle doesn't already have. Returns
+    the service types created."""
+    existing = set(
+        VehicleServiceSchedule.objects.filter(vehicle=vehicle).values_list("service_type", flat=True)
+    )
+    odometer = vehicle.odometer_miles
+    created = []
+    for service_type, miles, days in STANDARD_INTERVALS:
+        if service_type in existing:
+            continue
+        VehicleServiceSchedule.objects.create(
+            vehicle=vehicle, service_type=service_type,
+            interval_miles=miles, interval_days=days,
+            last_done_on=today,
+            last_done_odometer_miles=Decimal(odometer) if odometer is not None else None,
+            notes="Standard interval. Baseline set to today's odometer — log the real "
+                  "last service to correct it.",
+        )
+        created.append(service_type)
+    return created
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_apply_standard_intervals(request, pk):
+    vehicle = get_object_or_404(FleetVehicle, pk=pk)
+    created = _apply_standard_intervals(vehicle, timezone.localdate())
+    return JsonResponse({"success": True, "created": created})
+
+
+@login_required
+@staff_member_required
+@require_POST
+def fleet_apply_standard_intervals_all(request):
+    """Every active unit gets whichever standard intervals it lacks."""
+    today = timezone.localdate()
+    touched = {}
+    for vehicle in FleetVehicle.objects.filter(is_active=True):
+        created = _apply_standard_intervals(vehicle, today)
+        if created:
+            touched[vehicle.vehicle_number] = created
+    return JsonResponse({"success": True, "vehicles": len(touched), "detail": touched})
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Report — fleet performance over a window
+# ════════════════════════════════════════════════════════════════════════════
+
+REPORT_WINDOWS = ((30, "Last 30 days"), (90, "Last 90 days"), (365, "Last 12 months"))
+
+
+@login_required
+@staff_member_required
+def fleet_report(request):
+    today = timezone.localdate()
+    try:
+        days = int(request.GET.get("days") or 30)
+    except ValueError:
+        days = 30
+    if days not in {d for d, _ in REPORT_WINDOWS}:
+        days = 30
+    end = today
+    start = today - timedelta(days=days - 1)
+    report = fleet_reporting.build_report(start, end, today)
+    context = {
+        "fleet_page": "report",
+        "days": days,
+        "windows": REPORT_WINDOWS,
+        "report": report,
+        "today": today,
+    }
+    return render(request, "dispatching/fleet_report.html", context)

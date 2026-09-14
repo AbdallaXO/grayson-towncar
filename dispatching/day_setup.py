@@ -342,7 +342,8 @@ def suggest_day_setup(target_date: date, ignore_existing: bool = False,
     # a shop isn't a weaker suggestion, it's a wrong one. Named in `warnings` so the
     # dispatcher sees WHY the fleet looks a unit short today.
     all_units = sorted(
-        FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"), key=_unit_sort_key)
+        FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type")
+        .with_open_downtimes(), key=_unit_sort_key)
     oos_units = [u for u in all_units if u.is_out_of_service_on(target_date)]
     all_units = [u for u in all_units if u not in oos_units]
     oos_warnings = [
@@ -1113,7 +1114,7 @@ def _split_shift_extras(target_date, legs, all_units, oos_units,
     dva_day = {r.driver_id: r.vehicle_id for r in dva_rows}
     from drivers.models import FleetVehicle
     fleet, oos_ids = {}, set()
-    for u in FleetVehicle.objects.all().select_related("vehicle_type"):
+    for u in FleetVehicle.objects.all().select_related("vehicle_type").with_open_downtimes():
         raw = u.vehicle_type.vehicle_type if u.vehicle_type else None
         fleet[u.id] = {"active": bool(u.is_active),
                        "tier": sm.VEHICLE_TIER.get(raw, sm.VEHICLE_TIER_DEFAULT)}

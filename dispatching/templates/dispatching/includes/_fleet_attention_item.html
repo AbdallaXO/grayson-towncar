@@ -1,0 +1,11 @@
+{% comment %} One line of the Fleet desk's attention list. Expects `it`. {% endcomment %}
+<div class="att-item {{ it.level }}">
+  <div class="att-dot"></div>
+  <div>
+    <div class="att-title">
+      {% if it.href %}<a href="{{ it.href }}">{{ it.title }}</a>{% else %}{{ it.title }}{% endif %}
+    </div>
+    {% if it.detail %}<div class="att-detail">{{ it.detail }}</div>{% endif %}
+    {% if it.action %}<div class="att-action">{{ it.action }}</div>{% endif %}
+  </div>
+</div>

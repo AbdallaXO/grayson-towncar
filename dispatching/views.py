@@ -125,6 +125,12 @@ def index(request):
     """
     if not request.user.is_staff:
         return redirect("home")
+    # The fleet manager's home is the Fleet desk, not the dispatch board. A
+    # founder flagged as fleet manager keeps landing here — they run both.
+    _profile = getattr(request.user, "profile", None)
+    if (_profile is not None and getattr(_profile, "is_fleet_manager", False)
+            and not request.user.is_superuser):
+        return redirect("fleet_desk")
 
     # PERF TEMP START — dispatching index checkpoints
     import time as _time; _t0 = _time.monotonic()
@@ -463,7 +469,8 @@ def index(request):
 
     inhouse_vehicles = _annotate_vehicle_status(
         sorted(
-            FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type"),
+            FleetVehicle.objects.filter(is_active=True).select_related("vehicle_type")
+            .with_open_downtimes(),
             key=_vehicle_sort_key,
         ),
         selected_date,
@@ -3202,6 +3209,9 @@ def _annotate_vehicle_status(vehicles, on_date):
     """
     for vehicle in vehicles:
         vehicle.oos_label = vehicle.out_of_service_label(on_date)
+        # Soft, non-blocking: the car was expected back by this date and fleet
+        # hasn't confirmed it. Usable, but worth a glance before a 4 AM run.
+        vehicle.oos_notice = vehicle.downtime_notice(on_date)
         vehicle.permit_rows = vehicle.permits(day=on_date)
     return vehicles
 
@@ -12363,7 +12373,8 @@ def capacity_planner(request):
     # the shop this week still appears normally on next week's board.
     inhouse_vehicles = _annotate_vehicle_status(
         list(FleetVehicle.objects.filter(is_active=True)
-             .select_related("vehicle_type").order_by("vehicle_number")),
+             .select_related("vehicle_type").with_open_downtimes()
+             .order_by("vehicle_number")),
         selected_date,
     )
     # Down units sort last but stay in the pool — see the card markup for why.

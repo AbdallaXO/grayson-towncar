@@ -181,6 +181,12 @@ def _apply_extended_stats(service, by_samsara_id, to_update):
             if vehicle is None:
                 continue
             fields = parse_stats_record(record)
+            if "faultCodes" in record:
+                # The codes behind the count — one open episode per code, so
+                # the fleet page can say WHAT is lit. Guarded like everything
+                # else in this loop: a bad payload must not cost the GPS sync.
+                _sync_fault_episodes(vehicle, record.get("faultCodes"),
+                                     fields.get("samsara_faults_at"))
             if not fields:
                 continue
             for attr, value in fields.items():
@@ -191,6 +197,22 @@ def _apply_extended_stats(service, by_samsara_id, to_update):
                 already.add(id(vehicle))
 
     return len(touched_ids)
+
+
+def _sync_fault_episodes(vehicle, faults_block, sampled_at):
+    """Open / refresh / resolve VehicleFault episodes from one stats record.
+    Never raises. Never resolves on an absent answer (see extract_fault_codes)."""
+    try:
+        from dispatching.fleet_sync import upsert_fault_episodes
+        from dispatching.samsara_service import extract_fault_codes
+
+        codes, answered = extract_fault_codes(faults_block)
+        if not answered or not getattr(vehicle, "id", None):
+            return
+        upsert_fault_episodes(vehicle, codes, sampled_at=sampled_at)
+    except Exception as e:
+        logger.error("Fault episode sync failed for vehicle %s: %s",
+                     getattr(vehicle, "vehicle_number", "?"), e, exc_info=True)
 
 
 _ETA_FIELDS = [
@@ -352,6 +374,16 @@ def _run_fleet_work():
             reconcile_fleet()
     except Exception as e:
         logger.error(f"Fleet nightly reconcile failed: {e}", exc_info=True)
+
+    # The fleet manager's morning text. Free unless FLEET_ALERTS_ENABLED —
+    # should_send_digest() returns False before touching the DB otherwise.
+    try:
+        from dispatching.fleet_sync import send_fleet_digest, should_send_digest
+
+        if should_send_digest():
+            send_fleet_digest()
+    except Exception as e:
+        logger.error(f"Fleet digest failed: {e}", exc_info=True)
 
 
 def _run_advisor_log():

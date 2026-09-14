@@ -1,0 +1,226 @@
+{% extends 'main.html' %}
+{% load humanize %}
+{% load ops_filters %}
+
+{% block title %}Fleet outlook{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_css.html" %}
+<style>
+  .outlook-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .outlook-controls label { font-size: .72rem; color: #7a7a7a; font-weight: 600; display: block; margin-bottom: 2px; }
+  .outlook-controls .form-control, .outlook-controls .form-select { font-size: .84rem; }
+  .check-result { border-radius: 10px; padding: 14px 16px; border: 1px solid #e3e7ec; margin-bottom: 14px; }
+  .check-result.clear { background: #f0f7f2; border-color: #d6e8dc; }
+  .check-result.tight { background: #fef6e7; border-color: #f3e0b8; }
+  .check-result.conflict { background: #fdeaea; border-color: #f3c9c9; }
+  .check-result .headline { font-weight: 700; font-size: .95rem; color: #1a2332; }
+  .sugg-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0f1f3; font-size: .86rem; align-items: center; }
+  .sugg-row:last-child { border-bottom: 0; }
+  .type-cell { font-size: .78rem; color: #5b6570; white-space: nowrap; }
+  .reason-cell { font-size: .78rem; color: #8a5b00; }
+  .fleet-table-wrap { overflow-x: auto; }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">Outlook</h1>
+      <div class="tap-subtitle">
+        Booked trips against the fleet, day by day. Pick shop days from here — the check below says whether a unit can be spared.
+      </div>
+    </div>
+    {% include "dispatching/includes/_fleet_shell.html" %}
+  </div>
+
+  <div class="fleet-panel">
+    <form method="get" class="outlook-controls">
+      <div>
+        <label>From</label>
+        <input type="date" name="start" value="{{ start|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div>
+        <label>Days</label>
+        <select name="days" class="form-select">
+          <option value="14" {% if days == 14 %}selected{% endif %}>14</option>
+          <option value="28" {% if days == 28 %}selected{% endif %}>28</option>
+          <option value="56" {% if days == 56 %}selected{% endif %}>56</option>
+        </select>
+      </div>
+      <div style="border-left:1px solid #e3e7ec;padding-left:10px;">
+        <label>Check a unit</label>
+        <select name="unit" class="form-select">
+          <option value="">— none —</option>
+          {% for u in units %}
+            <option value="{{ u.id }}" {% if unit and unit.id == u.id %}selected{% endif %}>#{{ u.vehicle_number }} · {{ u.vehicle_type|default:"untyped" }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Down from</label>
+        <input type="date" name="from" value="{{ check_from|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div>
+        <label>Back on</label>
+        <input type="date" name="back" value="{{ check_back|date:'Y-m-d' }}" class="form-control">
+      </div>
+      <div>
+        <label>Or find a gap of</label>
+        <select name="length" class="form-select">
+          {% for n in "12357"|make_list %}
+            <option value="{{ n }}" {% if length == n|add:0 %}selected{% endif %}>{{ n }} day{{ n|add:0|pluralize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <button class="btn btn-dark" type="submit"><i class="bi bi-search me-1"></i>Show</button>
+      </div>
+      <div class="ms-auto tap-sub">
+        <a href="?start={{ prev_start|date:'Y-m-d' }}&days={{ days }}{% if unit %}&unit={{ unit.id }}&length={{ length }}{% endif %}">&larr; earlier</a>
+        &nbsp;·&nbsp;
+        <a href="?start={{ next_start|date:'Y-m-d' }}&days={{ days }}{% if unit %}&unit={{ unit.id }}&length={{ length }}{% endif %}">later &rarr;</a>
+      </div>
+    </form>
+  </div>
+
+  {% if unit %}
+  <div class="row">
+    <div class="col-lg-6">
+      {% if check %}
+        <div class="check-result {{ check.level }}">
+          <div class="headline">
+            #{{ unit.vehicle_number }} down {{ check_from|date:"D M j" }}{% if check_back %} → back {{ check_back|date:"D M j" }}{% else %}, no return date{% endif %}:
+            <span class="verdict-{{ check.level }}">{{ check.level }}</span>
+          </div>
+          <div style="font-size:.88rem;margin-top:4px;">{{ check.summary }}</div>
+          <div class="check-box mt-2" style="background:#fff;">
+            <div class="check-days">
+              {% for r in check.days %}
+                <span class="check-day {{ r.level }}" title="{{ r.legs }} trips · peak {{ r.peak }}{% if r.peak_at %} at {{ r.peak_at }}{% endif %} · {{ r.available }} cars{% for why in r.reasons %} · {{ why }}{% endfor %}{% if r.worsened %} · this car tips it{% elif r.level != 'clear' %} · already {{ r.level }} with every car{% endif %}">{{ r.date|date:"D j" }}{% if r.worsened %}*{% endif %}</span>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="mt-2">
+            <a class="fleet-mini-btn primary" href="{% url 'fleet_detail' unit.pk %}?downtime_from={{ check_from|date:'Y-m-d' }}{% if check_back %}&downtime_back={{ check_back|date:'Y-m-d' }}{% endif %}">
+              <i class="bi bi-cone-striped me-1"></i>Plan this downtime
+            </a>
+          </div>
+        </div>
+      {% else %}
+        <div class="fleet-panel">
+          <h2>Check #{{ unit.vehicle_number }}</h2>
+          <div class="tap-sub">Enter a "down from" date above to check a specific window, or use the gaps on the right.</div>
+        </div>
+      {% endif %}
+    </div>
+    <div class="col-lg-6">
+      <div class="fleet-panel">
+        <h2>Best gaps for #{{ unit.vehicle_number }} — {{ length }} day{{ length|pluralize }}</h2>
+        {% for s in suggestions %}
+          <div class="sugg-row">
+            <div>
+              <strong>{{ s.starts_on|date:"D M j" }}</strong>
+              {% if length > 1 %}→ back {{ s.expected_back_on|date:"D M j" }}{% endif %}
+              <div class="tap-sub">fleet {{ s.utilisation|floatformat:0 }}% busy at the peak, on average</div>
+            </div>
+            <div style="white-space:nowrap;">
+              <span class="verdict-{{ s.level }}">{{ s.level }}</span>
+              <a class="fleet-mini-btn ms-1" href="{% url 'fleet_detail' unit.pk %}?downtime_from={{ s.starts_on|date:'Y-m-d' }}&downtime_back={{ s.expected_back_on|date:'Y-m-d' }}">Plan</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="tap-sub">No gap of that length in the window.</div>
+        {% endfor %}
+        <div class="tap-sub mt-2">Never earlier than tomorrow. Clear first, then the quietest, then the soonest.</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="fleet-panel">
+    <h2>{{ start|date:"M j" }} – {{ rows|last|get_item:"date"|date:"M j" }}</h2>
+    <div class="day-strip">
+      {% for r in rows %}
+        <a class="day-tile busy-{{ r.busyness }} level-{{ r.level }} {% if r.date == today %}today{% endif %}" href="#d{{ r.date|date:'Ymd' }}"
+           title="{% for why in r.reasons %}{{ why }} · {% endfor %}{{ r.legs }} trips, peak {{ r.peak }}{% if r.peak_at %} at {{ r.peak_at }}{% endif %}">
+          <div class="band"></div>
+          <div class="dow">{{ r.date|date:"D" }}</div>
+          <div class="dom">{{ r.date|date:"j" }}</div>
+          <div class="legs">{{ r.legs }} trips</div>
+          <div class="cars">peak <b>{{ r.peak }}</b> · <b>{{ r.available }}</b> cars</div>
+          {% if r.level != "clear" %}<div class="down"><span class="verdict-{{ r.level }}">{{ r.level }}</span></div>{% endif %}
+          {% if r.down %}<div class="down">{% for x in r.down %}#{{ x.unit.vehicle_number }}{% if x.hypothetical %}?{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %} down</div>{% endif %}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="fleet-panel">
+    <h2>Day by day</h2>
+    <div class="tap-table-wrap fleet-table-wrap">
+      <table class="tap-table">
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Trips</th>
+            <th>Peak in flight</th>
+            <th class="text-end">Cars</th>
+            <th class="text-end" title="Median distinct units the board ran on this weekday over the last {{ typical_weeks }} weeks">Usually runs</th>
+            <th>Verdict</th>
+            <th>Down</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr id="d{{ r.date|date:'Ymd' }}" {% if r.date == today %}style="background:#fffaf0;"{% endif %}>
+            <td>
+              <div class="tap-name">{{ r.date|date:"D M j" }}</div>
+              <div class="busy-word {{ r.busyness }}">{{ r.busyness }}</div>
+            </td>
+            <td>
+              <div><strong>{{ r.legs }}</strong></div>
+              <div class="type-cell">
+                {% for label, n in r.per_type_rows %}{{ n }} {{ label }}{% if not forloop.last %} · {% endif %}{% endfor %}
+              </div>
+            </td>
+            <td>
+              <strong>{{ r.peak }}</strong>{% if r.peak_at %} <span class="tap-sub">at {{ r.peak_at }}</span>{% endif %}
+              <div class="type-cell">
+                {% for row in r.rows %}{% if row.need %}{{ row.need }} {{ row.label }}{{ row.need|pluralize }}{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}
+              </div>
+            </td>
+            <td class="text-end"><strong>{{ r.available }}</strong></td>
+            <td class="text-end">{% if r.typical_units %}{{ r.typical_units }}{% else %}<span class="fleet-unknown">—</span>{% endif %}</td>
+            <td>
+              <span class="verdict-{{ r.level }}">{{ r.level }}</span>
+              {% for why in r.reasons %}<div class="reason-cell">{{ why }}</div>{% endfor %}
+            </td>
+            <td class="tap-sub">
+              {% for x in r.down %}
+                <div>#{{ x.unit.vehicle_number }}{% if x.downtime %} — {{ x.downtime.reason }}{% else %} <em>(if taken down)</em>{% endif %}</div>
+              {% empty %}—{% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="tap-sub mt-2">
+      "Peak in flight" is the most trips under way at one moment, by vehicle type — a Sprinter can cover an SUV trip, not the other way round,
+      so each type is checked against the units of that type and above. "Usually runs" is what the board actually used on that weekday lately;
+      bookings keep arriving until the day, so far-out days will fill in.
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

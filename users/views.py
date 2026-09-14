@@ -276,8 +276,14 @@ def loginUser(request):
             request.session["login_type"] = "main"
             messages.success(request, "Successfully logged in", extra_tags="success")
 
-            # Role-based redirection for non-agents
-            return redirect("dashboard" if user.is_superuser else "schedule")
+            # Role-based redirection for non-agents. The fleet manager's home
+            # is the Fleet desk; a founder who is also flagged keeps the dashboard.
+            if user.is_superuser:
+                return redirect("dashboard")
+            _profile = getattr(user, "profile", None)
+            if _profile is not None and getattr(_profile, "is_fleet_manager", False):
+                return redirect("fleet_desk")
+            return redirect("schedule")
         else:
             messages.error(
                 request, "Please Enter Valid Credentials", extra_tags="danger"

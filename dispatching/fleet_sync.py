@@ -44,6 +44,120 @@ GAP_MINUTES = 90
 FEED_NIGHTLY = "nightly_reconcile"
 FEED_VEHICLE_STATS = "vehicle_stats"
 FEED_FAULTS = "faults"
+FEED_DIGEST = "fleet_digest"
+
+# Local-clock window for the fleet manager's morning digest. Same shape as the
+# nightly gate: wide, DB-stamped, so a worker recycle can't skip or double it.
+DIGEST_HOUR_START = 6
+DIGEST_HOUR_END = 9
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Fault episodes — one row per code per stretch it stays lit
+# ════════════════════════════════════════════════════════════════════════════
+
+def upsert_fault_episodes(vehicle, codes, sampled_at=None, now=None) -> dict:
+    """
+    Reconcile the open VehicleFault episodes on ``vehicle`` against the codes
+    the car is reporting RIGHT NOW.
+
+    A code already open is refreshed (last seen, count); a new one opens an
+    episode; an open episode whose code is no longer reported is resolved.
+    Only call this with a real answer — ``extract_fault_codes`` says whether
+    the type was present. Never on a failed or absent response: resolving
+    every fault because Samsara 500'd is exactly the failure that makes
+    people stop trusting the page.
+    """
+    from django.db import IntegrityError
+    from drivers.models import VehicleFault
+
+    now = now or timezone.now()
+    first_seen = sampled_at or now
+    open_rows = {
+        f.external_id: f
+        for f in VehicleFault.objects.filter(
+            vehicle=vehicle, source="obd_fault", resolved_at__isnull=True)
+    }
+    current, to_update = set(), []
+    opened = refreshed = resolved = 0
+
+    for code in codes:
+        ext = code["external_id"]
+        current.add(ext)
+        row = open_rows.get(ext)
+        if row is None:
+            try:
+                VehicleFault.objects.create(
+                    vehicle=vehicle, source="obd_fault", external_id=ext,
+                    code=code.get("code", "")[:32], severity=code.get("severity", "warning"),
+                    description=code.get("description", "")[:255],
+                    first_seen_at=first_seen, last_seen_at=now, occurrence_count=1,
+                    raw=code.get("raw"),
+                )
+                opened += 1
+            except IntegrityError:
+                # Two workers racing the same cycle; the other one's row wins.
+                continue
+        else:
+            row.last_seen_at = now
+            row.occurrence_count = (row.occurrence_count or 0) + 1
+            if code.get("description") and not row.description:
+                row.description = code["description"][:255]
+            if code.get("severity") == "critical" and row.severity != "critical":
+                row.severity = "critical"
+            to_update.append(row)
+            refreshed += 1
+
+    for ext, row in open_rows.items():
+        if ext not in current:
+            row.resolved_at = now
+            to_update.append(row)
+            resolved += 1
+
+    if to_update:
+        VehicleFault.objects.bulk_update(
+            to_update, ["last_seen_at", "occurrence_count", "description", "severity",
+                        "resolved_at"])
+    return {"opened": opened, "refreshed": refreshed, "resolved": resolved}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Morning digest
+# ════════════════════════════════════════════════════════════════════════════
+
+def should_send_digest(now=None) -> bool:
+    """True inside the morning window when today's digest hasn't gone, and
+    only when alerts are switched on at all — otherwise this is free."""
+    from dispatching import fleet_notify
+    from drivers.models import FleetSyncState
+
+    if not fleet_notify.alerts_enabled():
+        return False
+    now = now or timezone.now()
+    local = timezone.localtime(now)
+    if not (DIGEST_HOUR_START <= local.hour < DIGEST_HOUR_END):
+        return False
+    state = FleetSyncState.objects.filter(feed=FEED_DIGEST).first()
+    if state is None or state.last_success_at is None:
+        return True
+    return timezone.localtime(state.last_success_at).date() < local.date()
+
+
+def send_fleet_digest(now=None) -> dict:
+    """Build today's attention list and text it to the fleet manager(s).
+    Stamped as done for the day whether or not there was anything to say."""
+    from dispatching import fleet_notify
+    from dispatching.fleet_desk import load_attention
+
+    now = now or timezone.now()
+    today = timezone.localdate(now)
+    if not fleet_notify.recipients():
+        record_feed_result(FEED_DIGEST, "success", now=now)
+        return {"status": "skipped", "reason": "no_recipients"}
+    attention = load_attention(today=today, now=now)
+    result = fleet_notify.send_digest(attention, today)
+    record_feed_result(FEED_DIGEST, "success", now=now)
+    return {"status": "success", **result}
 
 
 # ════════════════════════════════════════════════════════════════════════════

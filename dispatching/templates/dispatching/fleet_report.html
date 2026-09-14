@@ -1,0 +1,223 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}Fleet report{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_css.html" %}
+<style>
+  .rep-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 900px) { .rep-tiles { grid-template-columns: repeat(2, 1fr); } }
+  .rep-tile { background: #1a1d21; color: #fff; border-radius: 10px; padding: 16px; position: relative; overflow: hidden; }
+  .rep-tile::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #C9A227, transparent); }
+  .rep-tile .lab { font-size: .66rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.55); font-weight: 500; }
+  .rep-tile .val { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; margin-top: 4px; }
+  .rep-tile .val.gold { color: #C9A227; }
+  .rep-tile .sub { font-size: .7rem; color: rgba(255,255,255,.55); margin-top: 3px; }
+  .rep-list { list-style: none; padding: 0; margin: 0; }
+  .rep-list li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f1f3; font-size: .86rem; }
+  .rep-list li:last-child { border-bottom: 0; }
+  .rep-list a { color: #1a2332; font-weight: 600; text-decoration: none; }
+  .rep-list a:hover { color: #9c7a12; }
+  .rep-note { font-size: .78rem; color: #8a8a8a; }
+  .flag { color: #a12020; font-weight: 700; }
+  .fleet-table-wrap { overflow-x: auto; }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">Fleet report</h1>
+      <div class="tap-subtitle">
+        {{ report.start|date:"M j" }} – {{ report.end|date:"M j, Y" }} · {{ report.window_days }} days · {{ report.units }} active units.
+        Built from the downtime, service, issue and mileage records as they stand — correct a record and the report follows.
+      </div>
+    </div>
+    {% include "dispatching/includes/_fleet_shell.html" %}
+  </div>
+
+  <div class="mb-3">
+    {% for d, label in windows %}
+      <a class="tap-tab {% if d == days %}active{% endif %}" href="?days={{ d }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  <div class="rep-tiles">
+    <div class="rep-tile">
+      <div class="lab">Fleet available</div>
+      <div class="val gold">{% if report.availability_pct is not None %}{{ report.availability_pct }}%{% else %}—{% endif %}</div>
+      <div class="sub">{{ report.total_down_days }} unit-days down of {{ report.total_unit_days|intcomma }}</div>
+    </div>
+    <div class="rep-tile">
+      <div class="lab">Downtime</div>
+      <div class="val">{{ report.total_down_days }} <span style="font-size:.9rem;">days</span></div>
+      <div class="sub">{% if report.down_by_category %}mostly {{ report.down_by_category.0.label|lower }}{% else %}none recorded{% endif %}</div>
+    </div>
+    <div class="rep-tile">
+      <div class="lab">Maintenance spend</div>
+      <div class="val">${{ report.service_cost_total|floatformat:0|intcomma }}</div>
+      <div class="sub">across every service logged with a cost</div>
+    </div>
+    <div class="rep-tile">
+      <div class="lab">Preventative on time</div>
+      <div class="val {% if report.pm.late %}{% else %}gold{% endif %}">
+        {% if report.pm.total %}{{ report.pm.on_time }}/{{ report.pm.on_time|add:report.pm.late }}{% else %}—{% endif %}
+      </div>
+      <div class="sub">
+        {% if report.pm.total %}{{ report.pm.unknown }} couldn't be judged (first of their kind){% if report.pm.median_late_by_miles %} · late ones by ~{{ report.pm.median_late_by_miles|intcomma }} mi{% endif %}{% else %}no preventative service logged in the window{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="fleet-panel">
+        <h2>What causes downtime</h2>
+        <ul class="rep-list">
+          {% for c in report.down_by_category %}
+            <li><span>{{ c.label }}</span><strong>{{ c.days }} day{{ c.days|pluralize }}</strong></li>
+          {% empty %}<li class="rep-note">No downtime recorded in this window.</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="fleet-panel">
+        <h2>Most days down</h2>
+        <ul class="rep-list">
+          {% for r in report.most_down %}
+            <li>
+              <span><a href="{% url 'fleet_detail' r.vehicle.pk %}">#{{ r.vehicle.vehicle_number }}</a>
+                <span class="rep-note">{{ r.down_episodes }} time{{ r.down_episodes|pluralize }}</span></span>
+              <strong>{{ r.down_days }} day{{ r.down_days|pluralize }}</strong>
+            </li>
+          {% empty %}<li class="rep-note">Nothing was down.</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="fleet-panel">
+        <h2>Most maintenance</h2>
+        <ul class="rep-list">
+          {% for r in report.most_maintenance %}
+            <li>
+              <span><a href="{% url 'fleet_detail' r.vehicle.pk %}">#{{ r.vehicle.vehicle_number }}</a>
+                <span class="rep-note">{{ r.service_events }} service{{ r.service_events|pluralize }}{% if r.repairs %}, {{ r.repairs }} repair{{ r.repairs|pluralize }}{% endif %}</span></span>
+              <strong>${{ r.service_cost|floatformat:0|intcomma }}</strong>
+            </li>
+          {% empty %}<li class="rep-note">No service logged in this window.</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="fleet-panel">
+        <h2>Becoming unreliable</h2>
+        <div class="rep-note mb-2">Downtimes, repairs, reported issues and fault episodes, weighted.</div>
+        <ul class="rep-list">
+          {% for r in report.least_reliable %}
+            <li>
+              <span><a href="{% url 'fleet_detail' r.vehicle.pk %}">#{{ r.vehicle.vehicle_number }}</a>
+                <span class="rep-note">{{ r.down_episodes }} down · {{ r.repairs }} repair{{ r.repairs|pluralize }} · {{ r.issues }} reported · {{ r.fault_episodes }} fault{{ r.fault_episodes|pluralize }}</span></span>
+              <strong>{{ r.trouble_score }}</strong>
+            </li>
+          {% empty %}<li class="rep-note">No trouble recorded.</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="fleet-panel">
+        <h2>Downtime around demand</h2>
+        {% if report.placement.total %}
+          <ul class="rep-list">
+            <li><span>Planned downtimes started</span><strong>{{ report.placement.total }}</strong></li>
+            <li><span>Checked clear when planned</span><strong>{{ report.placement.clear }}</strong></li>
+            <li><span>Checked tight</span><strong>{{ report.placement.tight }}</strong></li>
+            <li><span>Saved over a conflict</span><strong class="{% if report.placement.conflict %}flag{% endif %}">{{ report.placement.conflict }}</strong></li>
+            <li><span>Not checked</span><strong>{{ report.placement.unchecked }}</strong></li>
+            {% if report.legs_median %}
+            <li><span>Started on a slower-than-median day</span><strong>{{ report.placement.on_quiet_day }} of {{ report.placement.total }}</strong></li>
+            {% endif %}
+          </ul>
+          <div class="rep-note mt-2">Maintenance, tyres, inspections and recalls — the downtimes somebody chose a day for. Repairs land where they land.</div>
+        {% else %}
+          <div class="rep-note">No planned downtime started in this window.</div>
+        {% endif %}
+      </div>
+      <div class="fleet-panel">
+        <h2>Mileage balance</h2>
+        <ul class="rep-list">
+          {% for i in report.imbalance %}
+            <li>
+              <span>{{ i.label }} <span class="rep-note">({{ i.units }} units)</span>
+                <div class="rep-note">#{{ i.hardest.vehicle.vehicle_number }} {{ i.hardest.miles_per_day|floatformat:0 }}/day vs #{{ i.lightest.vehicle.vehicle_number }} {{ i.lightest.miles_per_day|floatformat:0 }}/day</div></span>
+              <strong class="{% if i.flag %}flag{% endif %}">{% if i.ratio %}{{ i.ratio }}×{% else %}—{% endif %}</strong>
+            </li>
+          {% empty %}<li class="rep-note">Needs at least two units of a type with mileage readings.</li>{% endfor %}
+        </ul>
+        <div class="rep-note mt-2">Flagged at 1.5× or more. Rotate the hardest-worked unit's regular chauffeur onto the lightest for a while.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fleet-panel">
+    <h2>What keeps repeating</h2>
+    <ul class="rep-list">
+      {% for x in report.repeats %}
+        <li>
+          <span><a href="{% url 'fleet_detail' x.vehicle.pk %}">#{{ x.vehicle.vehicle_number }}</a> — {{ x.what }} <span class="rep-note">({{ x.kind }})</span></span>
+          <strong>{{ x.times }}×</strong>
+        </li>
+      {% empty %}<li class="rep-note">No issue or fault code came back twice in this window.</li>{% endfor %}
+    </ul>
+  </div>
+
+  <div class="fleet-panel">
+    <h2>Every unit</h2>
+    <div class="tap-table-wrap fleet-table-wrap">
+      <table class="tap-table">
+        <thead>
+          <tr>
+            <th>Unit</th><th>Type</th>
+            <th class="text-end">Available</th>
+            <th class="text-end">Days down</th>
+            <th class="text-end">Miles</th>
+            <th class="text-end">Miles/day</th>
+            <th class="text-end">Services</th>
+            <th class="text-end">Spend</th>
+            <th class="text-end">PM late</th>
+            <th class="text-end">Reported</th>
+            <th class="text-end">Faults</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in report.rows %}
+          <tr>
+            <td><a href="{% url 'fleet_detail' r.vehicle.pk %}" class="row-link"><span class="tap-name">#{{ r.vehicle.vehicle_number }}</span></a></td>
+            <td class="tap-sub">{{ r.type_label }}</td>
+            <td class="text-end">{% if r.availability_pct is not None %}{{ r.availability_pct }}%{% else %}—{% endif %}</td>
+            <td class="text-end">{{ r.down_days }}{% if r.down_episodes %} <span class="tap-sub">({{ r.down_episodes }}×)</span>{% endif %}</td>
+            <td class="text-end">{% if r.miles is None %}<span class="fleet-unknown">—</span>{% else %}{{ r.miles|floatformat:0|intcomma }}{% if r.known_days != r.reading_days or r.known_days < report.window_days %} <span class="tap-sub">({{ r.known_days }}d)</span>{% endif %}{% endif %}</td>
+            <td class="text-end">{% if r.miles_per_day is None %}<span class="fleet-unknown">—</span>{% else %}{{ r.miles_per_day|floatformat:0 }}{% endif %}</td>
+            <td class="text-end">{{ r.service_events }}</td>
+            <td class="text-end">{% if r.service_cost %}${{ r.service_cost|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if r.pm_events %}{{ r.pm_late }}/{{ r.pm_events }}{% else %}—{% endif %}</td>
+            <td class="text-end">{{ r.issues }}{% if r.issues_open %} <span class="tap-sub">({{ r.issues_open }} open)</span>{% endif %}</td>
+            <td class="text-end">{{ r.fault_episodes }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="tap-sub mt-2">
+      Miles show the days with a reading in brackets when the window isn't fully covered — an em-dash is no reading, not zero.
+      "PM late" counts preventative services done past the interval since the previous one of the same kind.
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

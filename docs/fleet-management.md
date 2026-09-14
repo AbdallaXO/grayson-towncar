@@ -3,11 +3,18 @@
 Vehicle condition, mileage, maintenance and compliance for the in-house fleet,
 backed by Samsara telematics.
 
-**Status:** Phase 1 shipped 2026-08-05, running against the live Samsara account
-locally. Not yet deployed — see [Before you deploy](#before-you-deploy).
+**Status:** Phase 1 (vehicle table, telemetry, intervals) shipped 2026-08-05.
+Phase 2 — the **Fleet desk** for the first dedicated fleet manager: the downtime
+ledger, the demand-aware outlook, reported issues, fault-code episodes, alerts,
+the report, and the fleet-manager role — shipped 2026-09-14. See
+[Before you deploy](#before-you-deploy) for the two switches it needs.
 
-**Pages:** `/dispatching/fleet/` (list) · `/dispatching/fleet/<pk>/` (detail)
-Nav: Analytics dropdown → Fleet.
+**Pages:**
+`/dispatching/fleet/` (desk) · `/dispatching/fleet/vehicles/` (table) ·
+`/dispatching/fleet/outlook/` (demand vs fleet, day by day) ·
+`/dispatching/fleet/report/` (management) · `/dispatching/fleet/<pk>/` (one car)
+Nav: **Fleet** is a top-level entry for every staff user. A profile flagged
+`is_fleet_manager` gets a fleet-only top bar and lands on the desk after login.
 
 ---
 
@@ -35,9 +42,21 @@ page, not in the Django admin.
    tables + a partial unique constraint on `samsara_vehicle_id`, verified to
    have no duplicates), but know that it happens.
 3. **Seed something.** The maintenance layer is inert until each active vehicle
-   has at least an oil interval. Fleet detail → Maintenance schedule → Add
-   interval. Compliance dates and transponder numbers are also worth 20 minutes
-   of data entry — the module is only as useful as what's in it.
+   has at least an oil interval. The desk's *Setup* fold offers "give every unit
+   the standard intervals it's missing" (oil 5,000 mi / 180 d, tyres 7,500 mi,
+   brakes 15,000 mi, inspection 365 d — a starting point clocked from today's
+   odometer, NOT a manufacturer schedule; correct each car). Compliance dates
+   and transponder numbers are also worth 20 minutes of data entry.
+4. **Flag the fleet manager.** Django admin → User profiles → tick
+   `is_fleet_manager` on their profile and make sure the phone number is set.
+   That is what gives them the fleet top bar, the desk as their landing page,
+   and the alert texts. Every staff user can still open every fleet page.
+5. **Decide on alerts.** `FLEET_ALERTS_ENABLED=true` on Railway switches on the
+   two texts (a reported issue the moment it's filed; a morning digest on days
+   there is something in the NOW group). Off by default for the same reason the
+   wake-up calls are — a dev copy of the DB carries real numbers. Extra
+   recipients: `FLEET_NOTIFY_PHONES` (comma-separated). The in-app desk works
+   either way.
 
 ---
 
@@ -138,11 +157,21 @@ that never existed on main.
   poller-written telemetry block. Plus a **partial unique constraint** on
   `samsara_vehicle_id` excluding blank: a duplicate ID silently maps two cars to
   one feed and the poller's `{id: vehicle}` dict drops one.
-  Migration 0047 adds the out-of-service window
-  (`out_of_service_from`/`_until`/`_reason`) and the three pickup permits with
-  their expiries — see "Readiness is advisory" below for why one gates and the
-  other doesn't. Permits are flat fields rather than a related model (three
-  fixed permits, no prefetch on a pool render); a fourth is a migration.
+  Migration 0047 added the three pickup permits with their expiries (flat
+  fields: three fixed permits, no prefetch on a pool render; a fourth is a
+  migration). It also added a single out-of-service window on the row, which
+  **migration 0055 removed** in favour of the `VehicleDowntime` ledger below —
+  the two open windows at the time were carried across as closed history.
+- **`VehicleDowntime`** (0055) — one row per shop visit / breakdown: category,
+  reason, shop, `starts_on`, `expected_back_on` (first day BACK), `ended_on`
+  (actual, NULL while open), who opened and closed it, and the demand verdict
+  saved when it was planned. This is BOTH the live scheduling state
+  (`FleetVehicle.is_out_of_service_on` reads it) and the downtime ledger the
+  report counts. See [How downtime gates](#how-downtime-gates).
+- **`VehicleIssue`** (0055) — a problem a person noticed: title, severity
+  (do-not-drive / fix-soon / watch), who reported it, and the resolution when
+  closed. The dispatch-to-fleet handoff that used to be a phone call.
+- **`UserProfile.is_fleet_manager`** (users 0034) — the role flag.
 - **`VehicleDayReading`** — one row per vehicle per **local** day. Unique on
   `(vehicle, date)`.
 - **`VehicleServiceSchedule`** — recurring interval, miles and/or days.
@@ -220,7 +249,7 @@ no `miles += delta` anywhere; an accumulator can't be repaired once it drifts.
 keys present in the payload, so a GPS-only gateway leaves other columns alone.
 Stale-but-real beats fresh-and-null; the `*_at` timestamps let the UI age it.
 
-**Readiness is advisory, always — with exactly one exception, added later.**
+**Readiness is advisory, always — with exactly one exception.**
 No chip, fault, service-record window, or permit ever blocks an assignment,
 removes a unit from a pool, or subtracts capacity. Guard A — an assignment-time
 per-vehicle check — was built and deliberately removed for firing false
@@ -228,29 +257,40 @@ positives off stale data (`feasibility_guards.py:140-144`), and
 `day_setup.py:33-36` records the founder ruling that "there is no such thing as
 a car not working today".
 
-The exception is `FleetVehicle.out_of_service_from/until/reason`, added on the
-founder's explicit request so a car on a lift stops being scheduled. It is
-allowed to gate **because it is not machine inference**: a human who knows the
-car is down sets it by hand, with a reason and a date window. That is a
-different class of fact from a fault code, and the Guard A reasoning — stale
-telemetry producing false positives — does not reach it.
+The exception is the **downtime ledger** (`VehicleDowntime`), the successor to
+the single out-of-service window. It is allowed to gate **because it is not
+machine inference**: a human who knows the car is down says so, by hand, with
+a reason and dates. That is a different class of fact from a fault code, and
+the Guard A reasoning does not reach it.
 
-Three properties keep it from becoming Guard A again, and they are load-bearing:
+### How downtime gates
 
-1. **Date-windowed, not a status flag.** Every surface asks
-   `is_out_of_service_on(date)`. A car in the shop this week is untouched on
-   next week's board. There is still no vehicle status enum.
-2. **Overridable at assignment time.** `update_inhouse_vehicle_assignment`
-   answers `409` with `can_override: true`; the planner offers to force it. A
-   forgotten flag can never strand a car that came back early.
-3. **Visible, not hidden.** The unit stays in the planner pool, greyed with its
-   reason, and Day Setup names it in `warnings` rather than quietly coming up a
-   unit short.
+Three rules, each load-bearing (they are also the docstring on the model):
 
-The bulk paths differ deliberately: `apply_day_setup` refuses the whole batch
-(409, no override — an override there would silently apply to every pair in the
-payload), and `copy_vehicle_assignments` skips the broken unit and reports it in
-`skipped_out_of_service` so one bad car doesn't cost you the day's plan.
+1. **Blocked from `starts_on` up to — not including — the return.** The return
+   is `ended_on` once closed, or `expected_back_on` while open. So a planned
+   Tuesday–Wednesday slot releases the car on Thursday's board **by itself**;
+   fleet does not have to be at a keyboard at 5 AM for dispatch to have it.
+2. **An open row past its expected-back day is a question, not a block.** The
+   unit is usable, the pool shows a soft amber *"back? not confirmed"* tag
+   (`FleetVehicle.downtime_notice`), the Fleet desk lists it at the top as
+   *"expected back Tue — not confirmed"*, and it stays there until someone
+   closes the row with the real return date or pushes the expected date out
+   (which re-blocks). A forgotten row costs a nag, never a car.
+3. **Overridable at assignment time**, exactly as before:
+   `update_inhouse_vehicle_assignment` answers `409` with `can_override: true`.
+   The desk shows an override as *"#7 is marked down but George has it today"*
+   — the strongest hint to close the row.
+
+Every question is per DATE (`is_out_of_service_on(day)`), never "now": the
+planner schedules future dates, and a car in the shop this week is a normal car
+on next week's board. Pool renders load units through
+`FleetVehicle.objects.with_open_downtimes()` so 17 units cost one extra query.
+
+The bulk paths are unchanged: `apply_day_setup` refuses the whole batch (409, no
+override), and `copy_vehicle_assignments` skips the broken unit and reports it
+in `skipped_out_of_service`. Out of service is **no longer a bulk-edit field** —
+a downtime carries a reason, a shop and a return date per car.
 
 **Permits stay advisory.** `permit_mco` / `permit_sanford` /
 `permit_port_canaveral` (+ `*_expires_on`) record the per-vehicle pickup decals
@@ -280,11 +320,19 @@ endpoints in `fleet_views.py`, staff-only, house shape (`{"success": bool}`):
 
 | Endpoint | What |
 |---|---|
-| `fleet/<pk>/details/` | compliance dates, notes, transponder |
+| `fleet/<pk>/details/` | compliance dates, notes, transponder, permits (out of service is refused here by name — it's a downtime now) |
 | `fleet/<pk>/schedule/` | upsert an interval (on `(vehicle, service_type)`) |
 | `fleet/schedule/<pk>/delete/` | remove an interval |
 | `fleet/<pk>/service/` | log a service |
 | `fleet/service/<pk>/delete/` | remove a record |
+| `fleet/<pk>/check-window/` (GET) | the demand check: `?from=&back=&ignore=` → clear / tight / conflict per day |
+| `fleet/<pk>/downtime/` | open a downtime; `409 needs_ack` when a day is short, saved with `acknowledge: true` |
+| `fleet/downtime/<pk>/update/` | move or re-describe an open one (re-judged without its old self) |
+| `fleet/downtime/<pk>/close/` | it's back: `ended_on`, optional note, optionally resolves the linked issue |
+| `fleet/downtime/<pk>/delete/` | only while it hasn't cost a day; otherwise close it |
+| `fleet/<pk>/issue/` | report a problem; `take_down: true` opens a downtime in the same click; texts fleet |
+| `fleet/issue/<pk>/resolve/` | close it with what was done |
+| `fleet/<pk>/standard-intervals/`, `fleet/standard-intervals/` | add the standard intervals a unit (or every unit) lacks |
 
 **Logging a service auto-advances the matching interval's baseline** — log an
 oil change at 58,293 and the oil interval resets to next-due 63,293, no second
@@ -465,6 +513,100 @@ The research does not have to be repeated if it ever comes back:
 
 ---
 
+## The Fleet desk
+
+`/dispatching/fleet/` — `fleet_views.fleet_desk` → `fleet_desk.load_desk()`
+(the only place that queries) → `fleet_attention` (pure) + `fleet_capacity`
+(pure arithmetic over loaded legs). One picture for the page, the morning text
+and the tests.
+
+What it shows, top to bottom, and why nothing else:
+
+- **Needs attention**, in three groups — *Now* (wrong today), *This week*
+  (wrong within days), *Coming up* (worth knowing) — plus a collapsed *Setup*
+  fold. Rules and fatigue limits are in `fleet_attention.py`'s docstring: fuel
+  is never here (a dispatcher's evening problem, already on the table), one
+  service line per unit, one paperwork line per unit, many quiet gateways
+  collapse to one line, and nothing fires twice for the same fact.
+- **In the shop / Planned downtime / Room to work** — open downtimes with an
+  *It's back* button; planned ones with the verdict they were saved under;
+  units with no chauffeur today ("a quick job fits without touching the
+  board") and the quietest clear days ahead.
+- **Next 14 days** — the outlook strip.
+- **Every unit** — state (down / unconfirmed / watch / planned / ready), why,
+  who has it today, where it is (from the poller's columns), odometer.
+
+The navbar pill (`fleet_now_count`) is NOT the desk computation: four cheap
+counts (overdue returns, open ground/soon issues, units with a lit code,
+expired paperwork), cached a minute, shown only to fleet managers and founders.
+
+## Planning downtime around demand
+
+`fleet_capacity.py`. Two measures, deliberately, because each is wrong alone:
+
+- **Booked peak** — the most legs in flight at one moment per vehicle tier,
+  from `day_setup.peak_concurrency` (the founder's roster-sizing rule). Exact
+  for what is booked; a floor three weeks out, because bookings keep arriving.
+- **Typical use** — median distinct units the board actually ran on that
+  weekday over the last 8 weeks (`DriverVehicleAssignment`). Blind to bookings;
+  knows a Saturday needs sixteen cars before Saturday's bookings do.
+
+A day is *clear* when both leave a spare car, *tight* when one lands exactly on
+the fleet, *conflict* when one needs more cars than would be left. Tier
+arithmetic is the scheduler's nested compatibility: for every tier t, legs
+needing tier ≥ t must fit in units of tier ≥ t (a Sprinter runs an SUV job, not
+the reverse). Reasons read the way the office talks: "Sprinters: 5 needed at
+9:30 AM, 4 left", "SUV or bigger: …", "Any car: …" — and only for the tier that
+actually adds demand, so "any car: 2" never restates "Sprinters: 2".
+
+The window is judged twice — as the fleet stands, and with this unit gone —
+and the difference is the answer: a Saturday that is short with every car is
+dispatch's Saturday, not this decision, so the summary says *"already short with
+every car — this car doesn't change that"* rather than crying wolf. The verdict
+**informs, never blocks**: the downtime form runs it live as the dates are
+typed, a day that **this car** tips into short comes back `409 needs_ack`, and a
+tick saves it anyway — the system informs, a person decides. The verdict is stored on the row
+so the report can say how often downtime landed on a clear day *given what was
+known at the time*. The Outlook page also suggests the best gaps for a 1–7 day
+job (clear first, then quietest, then soonest, never earlier than tomorrow) and
+links straight into the car's downtime form with the dates filled.
+
+Demand for a window is cached 15 minutes (`OUTLOOK_CACHE_SECONDS`); supply (the
+ledger) never is, so the page that edits it sees its own edit.
+
+## Fault episodes
+
+`samsara_service.extract_fault_codes` pulls the individual codes out of the
+`faultCodes` block (same ECU-nesting rules as `_count_faults`; pending codes
+skipped; a lit lamp with no readable code is `MIL`), and
+`fleet_sync.upsert_fault_episodes` keeps one open `VehicleFault` row per code:
+new code → open, still lit → refresh, gone → resolve. Wired into the poller's
+extended-stats pass; **never resolves on an absent answer** (a 500 from Samsara
+is not "all clear"). A code that opens three episodes in 30 days is called out
+as *recurring*. A fault is a line on the desk, not a text — transient codes
+would train everyone to ignore the number.
+
+## Alerts
+
+`fleet_notify.py`. Two texts only: a reported issue the moment it's filed, and
+a morning digest (window 6–9 AM local, DB-stamped like the nightly, only on days
+the NOW group is non-empty, top four lines). Recipients: profiles flagged
+`is_fleet_manager` + `FLEET_NOTIFY_PHONES`. Master switch `FLEET_ALERTS_ENABLED`
+(default off); inert under `TESTING`. `should_send_digest()` returns before any
+query when alerts are off, so the poller pays nothing for it.
+
+## Report
+
+`/dispatching/fleet/report/` — `fleet_report.build_report(start, end, today)`,
+30 / 90 / 365 days. Availability = 1 − down unit-days / active unit-days;
+downtime by category; most-down, most-maintenance (cost), least-reliable
+(weighted trouble score); PM adherence (each preventative record vs the previous
+one of its kind and the car's interval — the first of a kind is *unknown*, not
+guessed); downtime placement (saved verdicts + whether it started on a
+slower-than-median day); mileage balance within a type (flag at 1.5×); what
+keeps repeating (issue titles and fault codes seen twice). Every figure says
+its coverage; an em-dash is no reading, never zero.
+
 ## Not built yet
 
 Ordered by value.
@@ -485,9 +627,10 @@ Ordered by value.
    Our #004 and #015 aren't in Samsara at all.
 4. **Per-vehicle cost.** `VehicleServiceRecord.cost` exists but nothing
    aggregates it. Natural home is the existing `vehicle_profit_report`.
-5. **Fault episodes.** `VehicleFault` is modelled and admin-registered but the
-   sync only writes the *count* to `FleetVehicle.samsara_open_fault_count`;
-   nothing populates the episode table yet.
+5. **Issues from the driver app.** Today a chauffeur's "it's making a noise"
+   is relayed by a dispatcher (source = *Chauffeur (relayed)*). A report button
+   in the driver portal would cut the middle step — but that is a driver-app
+   change and needs its own conversation (see the no-driver-automation rule).
 6. **Webhook.** Deliberately cut. Samsara webhooks carry alerts/events, not stat
    updates, so the "vehicle updates" half isn't deliverable that way. The signing
    scheme is unverified and there's no HMAC helper in the repo to copy. Revisit
@@ -502,8 +645,14 @@ Ordered by value.
 
 ```bash
 ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_mileage \
-    dispatching.tests_fleet dispatching.tests_samsara
+    dispatching.tests_fleet dispatching.tests_samsara dispatching.tests_fleet_desk \
+    dispatching.tests_vehicle_status dispatching.tests_vehicle_status_wiring \
+    dispatching.tests_fleet_bulk
 ```
+
+`tests_fleet_desk` covers the ledger endpoints, the demand check (pure and
+against real legs), the attention rules, fault episodes, alerts, the report and
+the fleet-manager experience (landing, top bar, login redirect).
 
 241 tests. Full suite: 1824 tests, **5 pre-existing errors** unrelated to this
 work (3 × missing `pywebpush`, 1 × GHL creds, 1 × a Windows-only `%-d` strftime

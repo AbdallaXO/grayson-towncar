@@ -709,10 +709,30 @@ class DriverDateOverride(models.Model):
         ).order_by("id")
 
 
+class FleetVehicleQuerySet(models.QuerySet):
+    def with_open_downtimes(self):
+        """Prefetch the open downtime rows every pool render asks about.
+
+        Populates the same instance cache ``FleetVehicle.open_downtimes()``
+        reads, so a pool of N units answers ``is_out_of_service_on`` for every
+        date with one extra query instead of N.
+        """
+        from django.db.models import Prefetch
+
+        return self.prefetch_related(Prefetch(
+            "downtimes",
+            queryset=VehicleDowntime.objects.filter(ended_on__isnull=True)
+            .order_by("starts_on", "id"),
+            to_attr="_open_downtimes",
+        ))
+
+
 class FleetVehicle(models.Model):
     # A live GPS sample older than this is considered stale (the vehicle is
     # mapped to Samsara but we're not getting fresh telemetry).
     SAMSARA_FRESH_MINUTES = 15
+
+    objects = FleetVehicleQuerySet.as_manager()
 
     vehicle_number = models.CharField(max_length=50, unique=True)
     vehicle_type = models.ForeignKey(
@@ -833,40 +853,25 @@ class FleetVehicle(models.Model):
     insurance_expires_on = models.DateField(null=True, blank=True)
     next_inspection_on = models.DateField(null=True, blank=True)
 
-    # --- Out of service (manual, human-set, DOES gate scheduling) ---------
-    # Read the rule above before touching this. "Readiness is advisory, always"
-    # (docs/fleet-management.md) is about MACHINE inference — a readiness chip or
-    # fault code deciding a car can't work. Guard A died because stale per-vehicle
-    # telemetry produced false positives, and that reasoning still stands.
+    # --- Out of service ---------------------------------------------------
+    # Lives in the VehicleDowntime LEDGER (below), not on this row. One row per
+    # shop visit or breakdown, with a planned window, an actual return date and
+    # a category, so a unit can carry a repair this week AND a planned tyre slot
+    # next month, and so "how often is #007 down, and why" has an answer.
     #
-    # This is a different class of fact: a human who knows the car is on a lift
-    # says so, by hand, with a reason. It cannot be stale in the way a sensor is,
-    # and the person setting it is the person who knows. So this one — and ONLY
-    # this one — is allowed to remove a unit from the pool. The block is
-    # overridable at assignment time precisely so a wrong flag can never strand a
-    # car that came back early.
+    # Read the rule in VehicleDowntime before touching how it gates. "Readiness
+    # is advisory, always" (docs/fleet-management.md) is about MACHINE inference
+    # — a readiness chip or fault code deciding a car can't work. Guard A died
+    # because stale per-vehicle telemetry produced false positives, and that
+    # reasoning still stands. A downtime is a different class of fact: a human
+    # who knows the car is on a lift says so, by hand, with a reason. So this —
+    # and ONLY this — is allowed to remove a unit from the pool, and the block
+    # is overridable at assignment time so a wrong or forgotten row can never
+    # strand a car that came back early.
     #
-    # Date-windowed rather than a boolean, because the planner schedules FUTURE
-    # dates: a car in the shop this week must still be assignable next week.
-    # NULL `from`      = in service.
-    # `from`, no `until` = down indefinitely (no ETA).
-    # `from` + `until`   = a closed window; the car is back on `until` + 1 day.
-    # (VehicleServiceRecord.out_of_service_from/to is the HISTORICAL log of a
-    # service that happened. This is the live scheduling state. Different jobs.)
-    out_of_service_from = models.DateField(
-        null=True, blank=True, db_index=True,
-        help_text="First date the unit is unavailable. Blank = in service.",
-    )
-    out_of_service_until = models.DateField(
-        null=True, blank=True,
-        help_text="Last date unavailable (inclusive). Blank with a start date "
-                  "means down indefinitely — no return date known.",
-    )
-    out_of_service_reason = models.CharField(
-        max_length=200, blank=True, default="",
-        help_text="Why it's down, in the dispatcher's words — 'transmission, at "
-                  "Bob's', 'rear-ended 8/3'. Shown wherever the unit is blocked.",
-    )
+    # The helpers below (is_out_of_service_on / out_of_service_label) keep the
+    # per-DATE contract every scheduling surface was built on: a car in the shop
+    # this week is a normal car on next week's board.
 
     # --- Operating permits ------------------------------------------------
     # Central Florida ground transport is permitted per VEHICLE, not per company:
@@ -991,19 +996,40 @@ class FleetVehicle(models.Model):
         return self.samsara_odometer_source == "gps"
 
     # ── Out of service ───────────────────────────────────────────────────
+    # Backed by the VehicleDowntime ledger. Every question is asked about a
+    # DAY, never "now", because every scheduling surface works on a chosen date.
+    def open_downtimes(self):
+        """Every unclosed VehicleDowntime on this unit, oldest first.
+
+        Cached on the instance. Pool renders should load vehicles through
+        ``FleetVehicle.objects.with_open_downtimes()`` so a 17-unit pool costs
+        one query rather than seventeen; a single-vehicle path (an assignment
+        check) can simply let this fetch.
+        """
+        cached = getattr(self, "_open_downtimes", None)
+        if cached is None:
+            cached = list(
+                self.downtimes.filter(ended_on__isnull=True).order_by("starts_on", "id")
+            )
+            self._open_downtimes = cached
+        return cached
+
+    def downtime_on(self, day):
+        """The open downtime that BLOCKS this unit on ``day``, or None."""
+        if day is None:
+            return None
+        for downtime in self.open_downtimes():
+            if downtime.blocks_on(day):
+                return downtime
+        return None
+
     def is_out_of_service_on(self, day) -> bool:
         """Is this unit unavailable on ``day``?
 
         Asked per-date, never "right now", because every scheduling surface works
         on a chosen date — a unit in the shop this week is fine next week.
         """
-        if not self.out_of_service_from or day is None:
-            return False
-        if day < self.out_of_service_from:
-            return False
-        if self.out_of_service_until and day > self.out_of_service_until:
-            return False
-        return True
+        return self.downtime_on(day) is not None
 
     @property
     def is_out_of_service_now(self) -> bool:
@@ -1013,13 +1039,18 @@ class FleetVehicle(models.Model):
         """One line naming the reason and the return date, for the pool and the
         blocked-assignment message. Empty when the unit is available."""
         day = timezone.localdate() if day is None else day
-        if not self.is_out_of_service_on(day):
-            return ""
-        reason = self.out_of_service_reason.strip() or "Out of service"
-        if self.out_of_service_until:
-            back = self.out_of_service_until + timedelta(days=1)
-            return f"{reason} — back {strf(back, '%a %b %-d')}"
-        return f"{reason} — no return date"
+        downtime = self.downtime_on(day)
+        return downtime.label() if downtime else ""
+
+    def downtime_notice(self, day=None) -> str:
+        """A soft, NON-blocking heads-up for a day the unit is usable but its
+        downtime hasn't been signed off — it was expected back and nobody has
+        confirmed it. Dispatch may use the car; fleet should close the row."""
+        day = timezone.localdate() if day is None else day
+        for downtime in self.open_downtimes():
+            if downtime.is_unconfirmed_on(day):
+                return downtime.notice_label()
+        return ""
 
     # ── Permits ──────────────────────────────────────────────────────────
     # categorize_location() values -> the permit that covers picking up there.
@@ -1951,6 +1982,273 @@ class VehicleFault(models.Model):
     @property
     def is_open(self) -> bool:
         return self.resolved_at is None
+
+
+class VehicleIssue(models.Model):
+    """
+    Something wrong with a car that a PERSON noticed — a chauffeur's "brakes are
+    grinding", a dispatcher's "AC blowing warm", the fleet manager's own note
+    from a walk-around. The dispatch-to-fleet handoff that used to be a phone
+    call, and the "recurring problems" record Samsara can't give us (it sees
+    fault codes, not a rattle).
+
+    Open until the fleet manager resolves it, with what was done. Optionally
+    the thing that caused a downtime (``VehicleDowntime.issue``) or that a
+    service record fixed (``service_record``), so a problem, the days it cost
+    and the repair that closed it read as one story.
+    """
+
+    SEVERITY_CHOICES = [
+        ("ground", "Do not drive"),
+        ("soon", "Fix soon"),
+        ("watch", "Keep an eye on it"),
+    ]
+    SOURCE_CHOICES = [
+        ("dispatch", "Dispatch"),
+        ("driver", "Chauffeur (relayed)"),
+        ("fleet", "Fleet"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.PROTECT, related_name="issues"
+    )
+    title = models.CharField(
+        max_length=200, help_text="What's wrong, in one line: 'brakes grinding at low speed'."
+    )
+    details = models.TextField(blank=True)
+    severity = models.CharField(
+        max_length=8, choices=SEVERITY_CHOICES, default="soon", db_index=True,
+        help_text="'Do not drive' is a statement, not a gate — take the car out "
+                  "of service with a downtime if it must not be assigned.",
+    )
+    source = models.CharField(max_length=12, choices=SOURCE_CHOICES, default="dispatch")
+
+    reported_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="reported_vehicle_issues",
+    )
+    reported_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    resolved_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="resolved_vehicle_issues",
+    )
+    resolution = models.TextField(
+        blank=True, help_text="What was done about it. Kept with the issue so the "
+                              "next time this car makes the same noise, the fix is on record.",
+    )
+    service_record = models.ForeignKey(
+        VehicleServiceRecord, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="issues",
+    )
+
+    class Meta:
+        ordering = ["-reported_at"]
+        indexes = [models.Index(fields=["vehicle", "resolved_at"])]
+
+    def __str__(self):
+        state = "open" if self.resolved_at is None else "resolved"
+        return f"{self.vehicle.vehicle_number}: {self.title} ({state})"
+
+    @property
+    def is_open(self) -> bool:
+        return self.resolved_at is None
+
+
+class VehicleDowntime(models.Model):
+    """
+    One period a unit is (or will be) unavailable to dispatch: a shop visit, a
+    breakdown, bodywork after a bump, a planned tyre slot.
+
+    This is the LIVE scheduling state — ``FleetVehicle.is_out_of_service_on``
+    reads it — and the historical ledger at the same time, which is the point:
+    the moment a window is closed with the day the car actually came back, it
+    becomes a downtime record management can count, without anyone copying it
+    anywhere.
+
+    Dates, and what they mean:
+      ``starts_on``         first day the unit is unavailable.
+      ``expected_back_on``  the day fleet EXPECTS it back on the road — the
+                            first day dispatch may plan on it again. Blank
+                            means down with no return date.
+      ``ended_on``          the day it ACTUALLY came back. NULL = the row is
+                            open. Set by closing the downtime, never inferred.
+
+    How it gates, in three rules that are load-bearing:
+
+      1. A unit is blocked on every day from ``starts_on`` up to (not
+         including) ``ended_on``, or ``expected_back_on`` while the row is
+         still open. So a planned Tuesday–Wednesday slot releases the car on
+         Thursday's board by itself: fleet does not have to be at a keyboard at
+         5 AM for dispatch to have the car back.
+      2. An open row whose expected-back day has passed is NOT a block — it is
+         a question. The unit is usable, the pool shows a soft "expected back
+         Tue, not confirmed by fleet" notice, and the Fleet desk nags until
+         someone either closes the row (with the real return date) or pushes
+         the expected date out (which re-blocks). A forgotten row therefore
+         costs a nag, never a car.
+      3. Overridable at assignment time, exactly as before: a dispatcher who
+         knows the car is back can force it. The override is visible on the
+         Fleet desk as "dispatch is using this car anyway", which is the
+         strongest possible hint to close the row.
+
+    ``demand_verdict`` is what the demand check said when the window was
+    planned — clear / tight / conflict — kept so "do we schedule maintenance
+    around demand" can be answered from what fleet KNEW at the time, not from
+    how the bookings later turned out.
+    """
+
+    CATEGORY_CHOICES = [
+        ("maintenance", "Scheduled maintenance"),
+        ("repair", "Repair"),
+        ("tires", "Tires"),
+        ("bodywork", "Body / accident"),
+        ("inspection", "Inspection"),
+        ("recall", "Recall / dealer"),
+        ("other", "Other"),
+    ]
+    VERDICT_CHOICES = [
+        ("clear", "Clear"),
+        ("tight", "Tight"),
+        ("conflict", "Conflict"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.PROTECT, related_name="downtimes"
+    )
+    category = models.CharField(
+        max_length=16, choices=CATEGORY_CHOICES, default="repair", db_index=True
+    )
+    reason = models.CharField(
+        max_length=200,
+        help_text="Why it's down, in plain words — 'transmission, at Bob's', "
+                  "'rear-ended 8/3'. Shown wherever the unit is blocked.",
+    )
+    vendor = models.CharField(max_length=120, blank=True, help_text="Shop or dealer.")
+    notes = models.TextField(blank=True)
+
+    starts_on = models.DateField(db_index=True)
+    expected_back_on = models.DateField(
+        null=True, blank=True,
+        help_text="First day the unit is expected back on the road. Blank = no ETA.",
+    )
+    ended_on = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="First day it was actually back. NULL while the downtime is open.",
+    )
+
+    demand_verdict = models.CharField(
+        max_length=12, choices=VERDICT_CHOICES, blank=True, default="",
+        help_text="What the demand check said when this window was planned.",
+    )
+    demand_snapshot = models.JSONField(
+        null=True, blank=True,
+        help_text="Per-day detail behind the verdict, as it stood at planning time.",
+    )
+
+    issue = models.ForeignKey(
+        VehicleIssue, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="downtimes", help_text="The reported problem that caused this.",
+    )
+    service_record = models.ForeignKey(
+        VehicleServiceRecord, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="downtimes", help_text="The service that closed it, if logged.",
+    )
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="created_vehicle_downtimes",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    closed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="closed_vehicle_downtimes",
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-starts_on", "-id"]
+        indexes = [
+            models.Index(fields=["vehicle", "ended_on"]),
+            models.Index(fields=["starts_on", "ended_on"]),
+        ]
+        constraints = [
+            # A window that ends before it starts matches no date at all — it
+            # would look set on the form and gate nothing anywhere else.
+            models.CheckConstraint(
+                condition=Q(expected_back_on__isnull=True)
+                | Q(expected_back_on__gt=models.F("starts_on")),
+                name="downtime_expected_after_start",
+            ),
+            models.CheckConstraint(
+                condition=Q(ended_on__isnull=True) | Q(ended_on__gte=models.F("starts_on")),
+                name="downtime_ended_not_before_start",
+            ),
+        ]
+
+    def __str__(self):
+        state = "open" if self.ended_on is None else f"back {self.ended_on}"
+        return (f"{self.vehicle.vehicle_number} {self.get_category_display()} "
+                f"from {self.starts_on} ({state})")
+
+    # ── State ────────────────────────────────────────────────────────────
+    @property
+    def is_open(self) -> bool:
+        return self.ended_on is None
+
+    def blocks_on(self, day) -> bool:
+        """Rule 1: blocked from starts_on up to the actual or expected return."""
+        if day is None or day < self.starts_on:
+            return False
+        end = self.ended_on if self.ended_on is not None else self.expected_back_on
+        return end is None or day < end
+
+    def is_unconfirmed_on(self, day) -> bool:
+        """Rule 2: open, expected back by ``day``, nobody has said so."""
+        return (self.ended_on is None and self.expected_back_on is not None
+                and day is not None and day >= self.expected_back_on)
+
+    def is_overdue(self, today) -> bool:
+        return self.is_unconfirmed_on(today)
+
+    def is_planned(self, today) -> bool:
+        """Booked for a future date — nothing is on a lift yet."""
+        return self.ended_on is None and self.starts_on > today
+
+    def is_live(self, today) -> bool:
+        """Down right now: started, not back, not overdue."""
+        return (self.ended_on is None and self.starts_on <= today
+                and not self.is_overdue(today))
+
+    def days_down(self, today):
+        """Calendar days this downtime has cost (or will cost), counting today
+        while it is still open. A downtime is at least one day: the unit was
+        blocked for the day it started even if it came back that afternoon."""
+        if self.ended_on is not None:
+            return max(1, (self.ended_on - self.starts_on).days)
+        if self.starts_on > today:
+            end = self.expected_back_on
+            return (end - self.starts_on).days if end else None
+        return max(1, (today - self.starts_on).days + 1)
+
+    def planned_days(self):
+        """Days the window was PLANNED to cost, or None when open-ended."""
+        if self.expected_back_on is None:
+            return None
+        return max(1, (self.expected_back_on - self.starts_on).days)
+
+    # ── Labels ───────────────────────────────────────────────────────────
+    def label(self) -> str:
+        reason = (self.reason or "").strip() or self.get_category_display()
+        if self.expected_back_on:
+            return f"{reason} — back {strf(self.expected_back_on, '%a %b %-d')}"
+        return f"{reason} — no return date"
+
+    def notice_label(self) -> str:
+        reason = (self.reason or "").strip() or self.get_category_display()
+        when = strf(self.expected_back_on, "%a %b %-d") if self.expected_back_on else "—"
+        return f"{reason} — expected back {when}, not yet confirmed by fleet"
 
 
 class FleetSyncState(models.Model):

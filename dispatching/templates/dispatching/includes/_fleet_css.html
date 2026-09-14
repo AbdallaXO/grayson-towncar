@@ -1,0 +1,180 @@
+{% comment %}
+  Styles shared by the fleet pages. Layered on _travel_admin_css.html (DM Sans,
+  the dark/gold house palette). Kept in one place so a chip on the desk and a
+  chip on the vehicle page can never disagree about what "critical" looks like.
+{% endcomment %}
+<style>
+  .fleet-tabs .tap-tab i { font-size: .85rem; }
+
+  .fleet-chip {
+    display: inline-block; padding: 2px 8px; margin: 1px 2px 1px 0;
+    border-radius: 999px; font-size: .72rem; font-weight: 600;
+    white-space: nowrap; line-height: 1.5;
+  }
+  .fleet-chip.critical { background: #fdeaea; color: #a12020; border: 1px solid #f3c9c9; }
+  .fleet-chip.warn     { background: #fef6e7; color: #8a5b00; border: 1px solid #f3e0b8; }
+  .fleet-chip.info     { background: #eef2f7; color: #44546a; border: 1px solid #dbe3ec; }
+  .fleet-chip.ok       { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+
+  .fleet-panel {
+    background: #fff; border: 1px solid #e6e6e6; border-radius: 10px;
+    padding: 18px 20px; margin-bottom: 18px;
+  }
+  .fleet-panel h2 {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .07em;
+    color: #7a7a7a; margin: 0 0 14px; font-weight: 700;
+  }
+  .fleet-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .fleet-panel-head h2 { margin-bottom: 14px; }
+  .fleet-mini-btn {
+    border: 1px solid #d8d8d8; background: #fff; border-radius: 6px;
+    font-size: .74rem; padding: 3px 10px; color: #333; cursor: pointer;
+    white-space: nowrap; text-decoration: none; display: inline-block;
+  }
+  .fleet-mini-btn:hover { background: #f5f5f5; border-color: #bbb; color: #111; }
+  .fleet-mini-btn.danger { color: #a12020; border-color: #eccaca; }
+  .fleet-mini-btn.danger:hover { background: #fdf3f3; }
+  .fleet-mini-btn.primary { background: #1a1d21; border-color: #1a1d21; color: #fff; }
+  .fleet-mini-btn.primary:hover { background: #2b3036; color: #fff; }
+  .fleet-unknown { color: #b0b0b0; }
+  .fleet-src {
+    font-size: .62rem; text-transform: uppercase; letter-spacing: .04em;
+    padding: 1px 4px; border-radius: 3px; margin-left: 4px; vertical-align: 1px;
+  }
+  .fleet-src.obd { background: #e8f1ea; color: #3d6b4a; }
+  .fleet-src.gps { background: #f1f1f1; color: #8a8a8a; }
+
+  /* Feed line — the single most important pixel on any fleet page. */
+  .fleet-feed {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; border-radius: 8px; margin-bottom: 16px;
+    font-size: .84rem; border: 1px solid transparent;
+  }
+  .fleet-feed .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+  .fleet-feed.ok       { background: #f0f7f2; border-color: #d6e8dc; color: #2f5c40; }
+  .fleet-feed.ok .dot  { background: #3d8b5a; }
+  .fleet-feed.warn     { background: #fef6e7; border-color: #f3e0b8; color: #8a5b00; }
+  .fleet-feed.warn .dot{ background: #d69a1a; }
+  .fleet-feed.critical { background: #fdeaea; border-color: #f3c9c9; color: #a12020; }
+  .fleet-feed.critical .dot { background: #c0392b; }
+  .fleet-feed .feed-label { font-weight: 700; }
+  .fleet-feed .feed-fix { margin-left: auto; font-size: .78rem; opacity: .85; }
+
+  /* ── Attention list ──────────────────────────────────────────────────── */
+  .att-group { margin-bottom: 18px; }
+  .att-group-title {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
+    color: #7a7a7a; font-weight: 700;
+  }
+  .att-group-title .n { color: #23282e; font-size: .8rem; }
+  .att-item {
+    display: grid; grid-template-columns: 12px 1fr; gap: 12px;
+    padding: 9px 4px; border-bottom: 1px solid #f0f1f3;
+  }
+  .att-item:last-child { border-bottom: 0; }
+  .att-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+  .att-item.critical .att-dot { background: #c0392b; box-shadow: 0 0 0 3px #fdeaea; }
+  .att-item.warn .att-dot     { background: #d69a1a; box-shadow: 0 0 0 3px #fef6e7; }
+  .att-item.info .att-dot     { background: #8fa3bd; box-shadow: 0 0 0 3px #eef2f7; }
+  .att-title { font-size: .9rem; font-weight: 600; color: #1a2332; line-height: 1.35; }
+  .att-title a { color: inherit; text-decoration: none; }
+  .att-title a:hover { color: #9c7a12; }
+  .att-detail { font-size: .8rem; color: #5b6570; margin-top: 1px; }
+  .att-action { font-size: .76rem; color: #8a8a8a; margin-top: 3px; font-style: italic; }
+  .att-empty { font-size: .86rem; color: #3d6b4a; padding: 10px 4px; }
+  .att-setup { border-top: 1px dashed #e3e7ec; margin-top: 8px; padding-top: 10px; }
+  .att-setup summary { cursor: pointer; font-size: .8rem; color: #7a7a7a; font-weight: 600; }
+
+  /* ── Status board ────────────────────────────────────────────────────── */
+  .state-pill {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px;
+    border-radius: 999px; font-size: .7rem; font-weight: 700; letter-spacing: .03em;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  .state-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; }
+  .state-ready       { background: #e8f5e9; color: #1b5e20; }
+  .state-ready::before { background: #3d8b5a; }
+  .state-watch       { background: #fef6e7; color: #8a5b00; }
+  .state-watch::before { background: #d69a1a; }
+  .state-planned     { background: #eef2f7; color: #44546a; }
+  .state-planned::before { background: #8fa3bd; }
+  .state-unconfirmed { background: #fff3e0; color: #9a4b00; }
+  .state-unconfirmed::before { background: #e08a1e; }
+  .state-down        { background: #b02a37; color: #fff; }
+  .state-down::before { background: #fff; }
+  .board-headline { font-weight: 600; color: #1a2332; font-size: .86rem; }
+  .board-sub { font-size: .76rem; color: #7a7a7a; }
+  .board-free { color: #2f6b45; font-weight: 600; font-size: .8rem; }
+  .board-pos { font-size: .78rem; color: #5b6570; }
+  .board-pos .age { color: #9aa3ae; }
+  .board-pos.stale { color: #9aa3ae; font-style: italic; }
+
+  /* ── Day strip (outlook) ─────────────────────────────────────────────── */
+  .day-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  @media (max-width: 900px) { .day-strip { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 560px) { .day-strip { grid-template-columns: repeat(2, 1fr); } }
+  .day-tile {
+    border: 1px solid #e3e7ec; border-radius: 8px; padding: 8px 9px;
+    background: #fff; min-width: 0; position: relative; text-decoration: none; color: inherit;
+    display: block;
+  }
+  .day-tile:hover { border-color: #c9a227; color: inherit; }
+  .day-tile.today { box-shadow: inset 0 0 0 2px #c9a227; }
+  .day-tile .dow { font-size: .66rem; text-transform: uppercase; letter-spacing: .06em; color: #8a8a8a; font-weight: 700; }
+  .day-tile .dom { font-size: 1.05rem; font-weight: 700; color: #1a2332; line-height: 1.1; }
+  .day-tile .legs { font-size: .74rem; color: #5b6570; margin-top: 3px; }
+  .day-tile .cars { font-size: .74rem; color: #5b6570; }
+  .day-tile .cars b { color: #1a2332; }
+  .day-tile .down { font-size: .68rem; color: #a12020; margin-top: 3px; line-height: 1.3; }
+  .day-tile .band { position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 8px 8px 0 0; }
+  .busy-quiet  .band { background: #a5d6a7; }
+  .busy-normal .band { background: #dbe3ec; }
+  .busy-busy   .band { background: #f3c96b; }
+  .busy-over   .band { background: #c0392b; }
+  .day-tile.level-tight { border-color: #f3e0b8; background: #fffaf0; }
+  .day-tile.level-conflict { border-color: #f3c9c9; background: #fdf6f6; }
+  .verdict-clear, .verdict-tight, .verdict-conflict {
+    display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .72rem; font-weight: 700;
+  }
+  .verdict-clear    { background: #e8f5e9; color: #1b5e20; }
+  .verdict-tight    { background: #fef6e7; color: #8a5b00; }
+  .verdict-conflict { background: #fdeaea; color: #a12020; }
+  .busy-word { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .busy-word.quiet { color: #2f6b45; } .busy-word.normal { color: #7a7a7a; }
+  .busy-word.busy { color: #8a5b00; } .busy-word.over { color: #a12020; }
+
+  /* ── Downtime rows (vehicle page) ────────────────────────────────────── */
+  .dt-row { padding: 9px 0; border-bottom: 1px solid #f0f1f3; font-size: .88rem; }
+  .dt-row:last-child { border-bottom: 0; }
+  .dt-row .dt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .dt-row .dt-reason { font-weight: 600; color: #1a2332; }
+  .dt-row .dt-meta { font-size: .76rem; color: #7a7a7a; }
+  .dt-row.overdue .dt-reason { color: #9a4b00; }
+  .dt-row.live .dt-reason { color: #8a1c13; }
+
+  .fleet-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 11px 20px; border-radius: 8px; font-size: .88rem; font-weight: 600;
+    color: #fff; opacity: 0; pointer-events: none; transition: opacity .2s;
+    z-index: 3000;
+  }
+  .fleet-toast.show { opacity: 1; }
+  .fleet-toast.ok { background: #2f6b45; }
+  .fleet-toast.err { background: #a12020; }
+
+  .modal-body label { font-size: .78rem; color: #666; font-weight: 600; margin-bottom: 3px; }
+  .modal-body .form-control, .modal-body .form-select { font-size: .9rem; }
+  .fleet-form-hint { font-size: .74rem; color: #8a8a8a; margin-top: 3px; }
+  /* The live demand check inside the downtime form. */
+  .check-box { border-radius: 8px; padding: 10px 12px; font-size: .84rem; border: 1px solid #e3e7ec; background: #f7f8fa; }
+  .check-box.clear { background: #f0f7f2; border-color: #d6e8dc; color: #2f5c40; }
+  .check-box.tight { background: #fef6e7; border-color: #f3e0b8; color: #8a5b00; }
+  .check-box.conflict { background: #fdeaea; border-color: #f3c9c9; color: #a12020; }
+  .check-box .check-days { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .check-box .check-day {
+    font-size: .68rem; padding: 1px 6px; border-radius: 4px; background: #fff; border: 1px solid #e3e7ec; color: #5b6570;
+  }
+  .check-box .check-day.tight { border-color: #f3e0b8; color: #8a5b00; }
+  .check-box .check-day.conflict { border-color: #f3c9c9; color: #a12020; font-weight: 700; }
+</style>

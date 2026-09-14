@@ -1,0 +1,367 @@
+{% extends 'main.html' %}
+{% load humanize %}
+{% load ops_filters %}
+
+{% block title %}Fleet desk{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_css.html" %}
+<style>
+  .desk-summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 900px) { .desk-summary { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 560px) { .desk-summary { grid-template-columns: repeat(2, 1fr); } }
+  .desk-tile {
+    background: #fff; border: 1px solid #e6e6e6; border-radius: 10px; padding: 12px 14px;
+    text-decoration: none; color: inherit; display: block;
+  }
+  .desk-tile:hover { border-color: #c9a227; color: inherit; }
+  .desk-tile .lab { font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; color: #8a8a8a; font-weight: 700; }
+  .desk-tile .val { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 500; line-height: 1.2; color: #1a2332; }
+  .desk-tile .val.red { color: #a12020; }
+  .desk-tile .val.amber { color: #8a5b00; }
+  .desk-tile .val.green { color: #2f6b45; }
+  .desk-tile .val.muted { color: #9aa3ae; }
+  .desk-tile .sub { font-size: .72rem; color: #7a7a7a; margin-top: 2px; }
+
+  .side-row { padding: 8px 0; border-bottom: 1px solid #f0f1f3; font-size: .86rem; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .side-row:last-child { border-bottom: 0; }
+  .side-row .unit { font-weight: 700; color: #1a2332; text-decoration: none; }
+  .side-row .unit:hover { color: #9c7a12; }
+  .side-row .why { color: #5b6570; }
+  .side-row .when { font-size: .76rem; color: #7a7a7a; white-space: nowrap; text-align: right; }
+  .side-row .when.overdue { color: #9a4b00; font-weight: 700; }
+  .side-empty { font-size: .84rem; color: #9aa3ae; }
+  .quiet-day { display: flex; justify-content: space-between; font-size: .86rem; padding: 6px 0; border-bottom: 1px solid #f0f1f3; }
+  .quiet-day:last-child { border-bottom: 0; }
+  .quiet-day a { color: #1a2332; font-weight: 600; text-decoration: none; }
+  .quiet-day a:hover { color: #9c7a12; }
+  .idle-chip { display: inline-block; padding: 2px 9px; margin: 2px 4px 2px 0; border-radius: 6px; background: #f0f7f2; color: #2f5c40; font-weight: 700; font-size: .78rem; text-decoration: none; border: 1px solid #d6e8dc; }
+  .idle-chip:hover { border-color: #3d8b5a; color: #2f5c40; }
+  .board-table td { vertical-align: top; }
+  .fleet-table-wrap { overflow-x: auto; }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">Fleet desk</h1>
+      <div class="tap-subtitle">
+        {{ today|date:"l, F j" }} — what needs attention, what's ready, what's down and why, and where the gaps are.
+      </div>
+    </div>
+    {% include "dispatching/includes/_fleet_shell.html" %}
+  </div>
+
+  <div class="fleet-feed {{ feed.level }}">
+    <span class="dot"></span>
+    <span class="feed-label">Samsara: {{ feed.label }}</span>
+    <span>{{ feed.detail }}</span>
+    {% if feed.level == "critical" %}
+      <span class="feed-fix">Check SAMSARA_API_TOKEN, then run <code>manage.py fleet_probe</code></span>
+    {% endif %}
+  </div>
+
+  {# ── The five numbers that describe the fleet this morning ─────────────── #}
+  <div class="desk-summary">
+    <a class="desk-tile" href="#board">
+      <div class="lab">Ready</div>
+      <div class="val green">{{ summary.ready }}</div>
+      <div class="sub">of {{ summary.units }} active units</div>
+    </a>
+    <a class="desk-tile" href="#board">
+      <div class="lab">Watch</div>
+      <div class="val {% if summary.watch %}amber{% else %}muted{% endif %}">{{ summary.watch }}</div>
+      <div class="sub">working, with something open</div>
+    </a>
+    <a class="desk-tile" href="#shop">
+      <div class="lab">Down</div>
+      <div class="val {% if summary.down %}red{% else %}muted{% endif %}">{{ summary.down }}</div>
+      <div class="sub">{% if summary.unconfirmed %}+{{ summary.unconfirmed }} expected back, unconfirmed{% else %}off the road today{% endif %}</div>
+    </a>
+    <a class="desk-tile" href="#planned">
+      <div class="lab">Planned</div>
+      <div class="val {% if summary.planned %}{% else %}muted{% endif %}">{{ summary.planned }}</div>
+      <div class="sub">downtimes booked ahead</div>
+    </a>
+    <a class="desk-tile" href="#free">
+      <div class="lab">Free today</div>
+      <div class="val {% if summary.idle_today %}green{% else %}muted{% endif %}">{{ summary.idle_today }}</div>
+      <div class="sub">no chauffeur on them — a quick job fits</div>
+    </a>
+  </div>
+
+  <div class="row">
+    {# ── Left: the list ──────────────────────────────────────────────────── #}
+    <div class="col-lg-7">
+      <div class="fleet-panel">
+        <div class="fleet-panel-head">
+          <h2>Needs attention</h2>
+          <span class="tap-sub">
+            {% if attention.counts.critical %}<span class="fleet-chip critical">{{ attention.counts.critical }} critical</span>{% endif %}
+            {% if attention.counts.warn %}<span class="fleet-chip warn">{{ attention.counts.warn }} soon</span>{% endif %}
+          </span>
+        </div>
+
+        <div class="att-group">
+          <div class="att-group-title">Now <span class="n">{{ attention.now|length }}</span></div>
+          {% for it in attention.now %}
+            {% include "dispatching/includes/_fleet_attention_item.html" with it=it %}
+          {% empty %}
+            <div class="att-empty"><i class="bi bi-check2-circle me-1"></i>Nothing is wrong today.</div>
+          {% endfor %}
+        </div>
+
+        <div class="att-group">
+          <div class="att-group-title">This week <span class="n">{{ attention.week|length }}</span></div>
+          {% for it in attention.week %}
+            {% include "dispatching/includes/_fleet_attention_item.html" with it=it %}
+          {% empty %}
+            <div class="att-empty" style="color:#7a7a7a;">Nothing coming due this week.</div>
+          {% endfor %}
+        </div>
+
+        {% if attention.later %}
+        <div class="att-group">
+          <div class="att-group-title">Coming up <span class="n">{{ attention.later|length }}</span></div>
+          {% for it in attention.later %}
+            {% include "dispatching/includes/_fleet_attention_item.html" with it=it %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if attention.setup %}
+        <details class="att-setup">
+          <summary>Not fully switched on yet — {{ attention.setup|length }} setup item{{ attention.setup|length|pluralize }}</summary>
+          {% for it in attention.setup %}
+            {% include "dispatching/includes/_fleet_attention_item.html" with it=it %}
+          {% endfor %}
+          <div class="mt-2">
+            <button class="fleet-mini-btn" onclick="applyStandardIntervalsAll()">
+              <i class="bi bi-magic me-1"></i>Give every unit the standard intervals it's missing
+            </button>
+            <div class="fleet-form-hint">
+              Oil 5,000 mi / 6 months · tyres 7,500 mi · brakes 15,000 mi · inspection yearly.
+              A starting point, clocked from today — correct any car that differs on its own page.
+            </div>
+          </div>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Right: in the shop, planned, opportunities ─────────────────────── #}
+    <div class="col-lg-5">
+      <div class="fleet-panel" id="shop">
+        <div class="fleet-panel-head">
+          <h2>In the shop</h2>
+          <span class="tap-sub">{{ in_shop|length }}</span>
+        </div>
+        {% for d in in_shop %}
+          <div class="side-row">
+            <div>
+              <a class="unit" href="{% url 'fleet_detail' d.vehicle.pk %}">#{{ d.vehicle.vehicle_number }}</a>
+              <span class="why">{{ d.reason }}{% if d.vendor %} · {{ d.vendor }}{% endif %}</span>
+              <div class="tap-sub">{{ d.get_category_display }} · since {{ d.starts_on|date:"D M j" }}</div>
+            </div>
+            <div class="when {% if d.expected_back_on and d.expected_back_on <= today %}overdue{% endif %}">
+              {% if d.expected_back_on %}
+                {% if d.expected_back_on <= today %}
+                  Expected {{ d.expected_back_on|date:"D M j" }}<br>
+                  <button class="fleet-mini-btn primary mt-1" onclick="closeDowntime({{ d.id }}, '#{{ d.vehicle.vehicle_number }}', '{{ d.expected_back_on|date:"Y-m-d" }}')">It's back</button>
+                {% else %}
+                  back {{ d.expected_back_on|date:"D M j" }}<br>
+                  <button class="fleet-mini-btn mt-1" onclick="closeDowntime({{ d.id }}, '#{{ d.vehicle.vehicle_number }}', '{{ today|date:"Y-m-d" }}')">Back early</button>
+                {% endif %}
+              {% else %}
+                no return date<br>
+                <button class="fleet-mini-btn mt-1" onclick="closeDowntime({{ d.id }}, '#{{ d.vehicle.vehicle_number }}', '{{ today|date:"Y-m-d" }}')">It's back</button>
+              {% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <div class="side-empty">Every unit is on the road.</div>
+        {% endfor %}
+      </div>
+
+      <div class="fleet-panel" id="planned">
+        <div class="fleet-panel-head">
+          <h2>Planned downtime</h2>
+          <a class="fleet-mini-btn" href="{% url 'fleet_outlook' %}"><i class="bi bi-calendar3-range me-1"></i>Find a gap</a>
+        </div>
+        {% for d in planned %}
+          <div class="side-row">
+            <div>
+              <a class="unit" href="{% url 'fleet_detail' d.vehicle.pk %}">#{{ d.vehicle.vehicle_number }}</a>
+              <span class="why">{{ d.get_category_display|lower }} — {{ d.reason }}</span>
+            </div>
+            <div class="when">
+              {{ d.starts_on|date:"D M j" }}{% if d.expected_back_on %} → {{ d.expected_back_on|date:"D M j" }}{% endif %}<br>
+              {% with v=downtime_verdicts|get_item:d.id %}
+                {% if v %}<span class="verdict-{{ v }}">{{ v }}</span>{% endif %}
+              {% endwith %}
+            </div>
+          </div>
+        {% empty %}
+          <div class="side-empty">Nothing booked ahead. The outlook shows where the quiet days are.</div>
+        {% endfor %}
+      </div>
+
+      <div class="fleet-panel" id="free">
+        <h2>Room to work</h2>
+        {% if idle_today %}
+          <div class="tap-sub mb-1">No chauffeur on these today — a quick service fits without touching the board:</div>
+          <div class="mb-3">
+            {% for r in idle_today %}
+              <a class="idle-chip" href="{{ r.href }}" title="{{ r.headline }}">#{{ r.vehicle.vehicle_number }}</a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="side-empty mb-3">Every unit has a chauffeur today.</div>
+        {% endif %}
+        <div class="tap-sub mb-1">Quietest clear days in the next {{ outlook_days }}:</div>
+        {% for r in quiet_days %}
+          <div class="quiet-day">
+            <a href="{% url 'fleet_outlook' %}?start={{ r.date|date:'Y-m-d' }}&days=7">{{ r.date|date:"D M j" }}</a>
+            <span class="tap-sub">{{ r.legs }} trips · peak {{ r.peak }} of {{ r.available }} cars{% if r.peak_at %} at {{ r.peak_at }}{% endif %}</span>
+          </div>
+        {% empty %}
+          <div class="side-empty">No clear day in the window — every day is tight or short with the fleet as it stands.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── The next two weeks ───────────────────────────────────────────────── #}
+  <div class="fleet-panel">
+    <div class="fleet-panel-head">
+      <h2>Next {{ outlook_days }} days</h2>
+      <a class="fleet-mini-btn" href="{% url 'fleet_outlook' %}">Full outlook <i class="bi bi-arrow-right"></i></a>
+    </div>
+    <div class="day-strip">
+      {% for r in outlook %}
+        <a class="day-tile busy-{{ r.busyness }} level-{{ r.level }} {% if r.date == today %}today{% endif %}"
+           href="{% url 'fleet_outlook' %}?start={{ r.date|date:'Y-m-d' }}&days=7"
+           title="{{ r.legs }} trips · peak {{ r.peak }} in flight{% if r.peak_at %} at {{ r.peak_at }}{% endif %} · {{ r.available }} cars available{% if r.typical_units %} · {{ r.date|date:'l' }}s have run {{ r.typical_units }}{% endif %}{% for why in r.reasons %} · {{ why }}{% endfor %}">
+          <div class="band"></div>
+          <div class="dow">{{ r.date|date:"D" }}</div>
+          <div class="dom">{{ r.date|date:"j" }}</div>
+          <div class="legs">{{ r.legs }} trips</div>
+          <div class="cars">peak <b>{{ r.peak }}</b> · <b>{{ r.available }}</b> cars</div>
+          {% if r.level != "clear" %}<div class="down"><span class="verdict-{{ r.level }}">{{ r.level }}</span></div>{% endif %}
+          {% if r.down %}
+            <div class="down">{% for x in r.down %}#{{ x.unit.vehicle_number }}{% if not forloop.last %} · {% endif %}{% endfor %} down</div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+    <div class="tap-sub mt-2">
+      Colour is how much of the fleet the busiest moment needs: green under 60%, amber over 85%, red over 100%.
+      A day reads <em>tight</em> when a vehicle type has exactly enough units, <em>short</em> when it doesn't — including
+      against what that weekday has actually run lately.
+    </div>
+  </div>
+
+  {# ── Every unit ───────────────────────────────────────────────────────── #}
+  <div class="fleet-panel" id="board">
+    <div class="fleet-panel-head">
+      <h2>Every unit</h2>
+      <a class="fleet-mini-btn" href="{% url 'fleet_list' %}">Full table <i class="bi bi-arrow-right"></i></a>
+    </div>
+    <div class="tap-table-wrap fleet-table-wrap">
+      <table class="tap-table board-table">
+        <thead>
+          <tr>
+            <th>Unit</th><th>State</th><th>What</th><th>Today</th><th>Where</th><th class="text-end">Odometer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in board %}
+          <tr data-fleet-vehicle-id="{{ r.vehicle.pk }}">
+            <td>
+              <a href="{{ r.href }}" class="row-link">
+                <div class="tap-name">#{{ r.vehicle.vehicle_number }}</div>
+                <div class="tap-sub">{{ r.vehicle.year }} {{ r.vehicle.make }} {{ r.vehicle.model }}</div>
+              </a>
+            </td>
+            <td><span class="state-pill state-{{ r.state }}">{{ r.state }}</span></td>
+            <td>
+              <div class="board-headline">{{ r.headline }}</div>
+              {% if r.sub %}<div class="board-sub">{{ r.sub }}</div>{% endif %}
+              {% for f in r.flags %}<div class="board-sub">{{ f }}</div>{% endfor %}
+            </td>
+            <td>
+              {% if r.driver %}{{ r.driver }}
+              {% elif r.state == "down" %}<span class="tap-sub">—</span>
+              {% else %}<span class="board-free">free</span>{% endif %}
+            </td>
+            <td>
+              {% if r.position %}
+                <div class="board-pos {% if not r.fresh %}stale{% endif %}">
+                  {% if r.moving %}<i class="bi bi-arrow-right-circle-fill" style="color:#3d8b5a;"></i>{% endif %}
+                  {{ r.position }} <span class="age">{{ r.age }}</span>
+                </div>
+              {% else %}<span class="fleet-unknown">—</span>{% endif %}
+            </td>
+            <td class="text-end">
+              {% if r.odometer is None %}<span class="fleet-unknown">—</span>{% else %}{{ r.odometer|intcomma }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="fleet-toast" id="fleetToast"></div>
+
+<script>
+(function () {
+  const CSRF = '{{ csrf_token }}';
+  function toast(msg, ok) {
+    const t = document.getElementById('fleetToast');
+    t.textContent = msg;
+    t.className = 'fleet-toast ' + (ok ? 'ok' : 'err') + ' show';
+    setTimeout(() => t.classList.remove('show'), 2600);
+  }
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(body),
+    }).then(r => r.json().catch(() => ({success: false, error: 'Server error'})));
+  }
+  function done(msg) { toast(msg, true); setTimeout(() => location.reload(), 650); }
+
+  // Closing from the desk: one question — which day was it back? — defaulting
+  // to the expected date when that has passed (the car has been working since)
+  // and to today otherwise.
+  window.closeDowntime = function (id, unit, suggested) {
+    const day = prompt(unit + ' is back on the road. First day it was usable (YYYY-MM-DD):', suggested);
+    if (day === null) return;
+    post("{% url 'fleet_close_downtime' 0 %}".replace('/0/', '/' + id + '/'), {ended_on: day.trim()})
+      .then(d => d.success ? done(unit + ' back in service') : toast(d.error || 'Could not close', false));
+  };
+
+  window.applyStandardIntervalsAll = function () {
+    if (!confirm('Add the standard intervals to every active unit that lacks them? Baselines start from today\'s odometer.')) return;
+    post("{% url 'fleet_apply_standard_intervals_all' %}", {})
+      .then(d => d.success ? done('Intervals added on ' + d.vehicles + ' unit' + (d.vehicles === 1 ? '' : 's'))
+                           : toast(d.error || 'Could not apply', false));
+  };
+})();
+</script>
+
+{% include "dispatching/includes/_trip_context_menu.html" %}
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

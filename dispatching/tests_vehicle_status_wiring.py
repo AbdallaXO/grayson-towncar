@@ -26,7 +26,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from dispatching.day_setup import suggest_day_setup
-from drivers.models import Driver, DriverVehicleAssignment, FleetVehicle
+from drivers.models import Driver, DriverVehicleAssignment, FleetVehicle, VehicleDowntime
 from rates.models import Location, Rate, Route, Vehicle
 from reservations.models import Customer, Leg, Reservation
 
@@ -67,11 +67,11 @@ class _WiringFixture(TestCase):
             make="Chevrolet", model="Suburban", **kw)
 
     def _down(self, unit, reason="Transmission, at Bob's", until=None):
-        unit.out_of_service_from = DAY - timedelta(days=1)
-        unit.out_of_service_until = until
-        unit.out_of_service_reason = reason
-        unit.save()
-        return unit
+        """Open a downtime from yesterday. ``until`` is the first day BACK."""
+        VehicleDowntime.objects.create(
+            vehicle=unit, starts_on=DAY - timedelta(days=1), expected_back_on=until,
+            reason=reason)
+        return FleetVehicle.objects.get(pk=unit.pk)
 
     def _assign(self, driver, unit, override=False):
         return self.client.post(
@@ -131,10 +131,9 @@ class AssignmentBlockTests(_WiringFixture):
     def test_the_block_is_per_date_not_per_vehicle(self):
         """In the shop this week, back next week — next week must still work."""
         unit = self._unit()
-        unit.out_of_service_from = DAY
-        unit.out_of_service_until = DAY
-        unit.out_of_service_reason = "Oil change"
-        unit.save()
+        VehicleDowntime.objects.create(
+            vehicle=unit, starts_on=DAY, expected_back_on=DAY + timedelta(days=1),
+            reason="Oil change")
         blocked = self._assign(self.george, unit)
         self.assertEqual(blocked.status_code, 409)
         later = self.client.post(
@@ -327,36 +326,18 @@ class FleetEditEndpointTests(_WiringFixture):
             reverse("fleet_update_details", args=[unit.pk]),
             payload, content_type="application/json")
 
-    def test_setting_an_out_of_service_window(self):
+    def test_out_of_service_is_no_longer_a_details_field(self):
+        """It lives in the downtime ledger now; the old keys are refused by
+        name rather than silently dropped, so a stale client hears why."""
         unit = self._unit()
         resp = self._save(unit, out_of_service_from=DAY.isoformat(),
                           out_of_service_until=(DAY + timedelta(days=2)).isoformat(),
                           out_of_service_reason="Transmission")
-        self.assertTrue(resp.json()["success"], resp.content)
-        unit.refresh_from_db()
-        self.assertTrue(unit.is_out_of_service_on(DAY))
-        self.assertEqual(unit.out_of_service_reason, "Transmission")
-
-    def test_clearing_the_start_date_puts_the_unit_back_in_service(self):
-        unit = self._down(self._unit())
-        self._save(unit, out_of_service_from="", out_of_service_until="")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("downtime", resp.json()["error"].lower())
+        self.assertFalse(VehicleDowntime.objects.filter(vehicle=unit).exists())
         unit.refresh_from_db()
         self.assertFalse(unit.is_out_of_service_on(DAY))
-
-    def test_a_backwards_window_is_refused(self):
-        """It would match no date at all — the form would look set and the unit
-        would stay bookable everywhere else."""
-        unit = self._unit()
-        resp = self._save(unit, out_of_service_from=DAY.isoformat(),
-                          out_of_service_until=(DAY - timedelta(days=3)).isoformat())
-        self.assertEqual(resp.status_code, 400)
-        unit.refresh_from_db()
-        self.assertIsNone(unit.out_of_service_from)
-
-    def test_an_end_date_with_no_start_is_refused(self):
-        unit = self._unit()
-        resp = self._save(unit, out_of_service_until=DAY.isoformat())
-        self.assertEqual(resp.status_code, 400)
 
     def test_saving_permits_and_expiries(self):
         unit = self._unit()
@@ -389,10 +370,10 @@ class FleetEditEndpointTests(_WiringFixture):
         unit = self._unit()
         self.client.force_login(
             User.objects.create_user("vw_grunt", password="x"))
-        resp = self._save(unit, out_of_service_from=DAY.isoformat())
+        resp = self._save(unit, registration_expires_on=DAY.isoformat())
         self.assertIn(resp.status_code, (302, 403))
         unit.refresh_from_db()
-        self.assertIsNone(unit.out_of_service_from)
+        self.assertIsNone(unit.registration_expires_on)
 
 
 def body_ok(response):

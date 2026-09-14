@@ -17,6 +17,16 @@ class UserProfile(models.Model):
     phone_number = models.CharField(max_length=25)
     is_driver = models.BooleanField(default=False)
     is_travel_agent = models.BooleanField(default=False)
+    # The fleet manager / coordinator. A ROLE flag, like the two above, not a
+    # permission: it decides what the person lands on and what the top bar
+    # shows them (the Fleet desk, not the dispatch dashboard), and who the
+    # fleet alerts go to. Every staff user can still open the fleet pages —
+    # a dispatcher marking a car down at 9 PM must never need this flag.
+    is_fleet_manager = models.BooleanField(
+        default=False,
+        help_text="Runs the fleet. Lands on the Fleet desk after login, sees the "
+                  "fleet top bar, and receives the fleet alert texts (if enabled).",
+    )
 
     def __str__(self):
         return self.user.email

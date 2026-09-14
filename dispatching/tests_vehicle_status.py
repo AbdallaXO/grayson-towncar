@@ -12,6 +12,8 @@ What must hold:
     specific day.
   * OPEN-ENDED IS A REAL STATE: "down, no ETA" must be expressible and must not
     read as "available".
+  * ONE ROW PER SHOP VISIT: the VehicleDowntime ledger, so two windows can
+    coexist and a closed one is history rather than an overwritten column.
   * AN EXPIRED PERMIT IS NOT A PERMIT: a lapsed decal is worth exactly as much
     as no decal, and must never render as a tick.
   * PICKUP ONLY: a car with no decal may still DROP at MCO / SFB / the Port.
@@ -21,7 +23,7 @@ from datetime import timedelta
 from django.test import TestCase
 from django.utils import timezone
 
-from drivers.models import FleetVehicle
+from drivers.models import FleetVehicle, VehicleDowntime
 from rates.models import Vehicle
 from business.datefmt import strf
 
@@ -41,6 +43,13 @@ class _VehicleFixture(TestCase):
 
 
 class OutOfServiceWindowTests(_VehicleFixture):
+    """The downtime ledger, read through the same per-date questions every
+    scheduling surface asks. ``expected_back_on`` is the FIRST DAY BACK."""
+
+    def _down(self, v, starts_on, back=None, reason="Transmission", **kw):
+        return VehicleDowntime.objects.create(
+            vehicle=v, starts_on=starts_on, expected_back_on=back, reason=reason, **kw)
+
     def test_a_healthy_unit_is_never_out_of_service(self):
         v = self._unit()
         self.assertFalse(v.is_out_of_service_on(TODAY))
@@ -48,74 +57,160 @@ class OutOfServiceWindowTests(_VehicleFixture):
         self.assertEqual(v.out_of_service_label(TODAY), "")
 
     def test_open_ended_window_covers_today_and_every_day_after(self):
-        v = self._unit(out_of_service_from=TODAY, out_of_service_reason="Transmission")
+        v = self._unit()
+        self._down(v, TODAY)
         self.assertTrue(v.is_out_of_service_on(TODAY))
         self.assertTrue(v.is_out_of_service_on(TODAY + timedelta(days=90)))
         self.assertTrue(v.is_out_of_service_now)
 
     def test_a_window_does_not_reach_back_before_it_starts(self):
         """Yesterday's board must not retroactively lose a car that broke today."""
-        v = self._unit(out_of_service_from=TODAY)
+        v = self._unit()
+        self._down(v, TODAY)
         self.assertFalse(v.is_out_of_service_on(TODAY - timedelta(days=1)))
 
-    def test_closed_window_is_inclusive_at_both_ends(self):
-        v = self._unit(
-            out_of_service_from=TODAY + timedelta(days=1),
-            out_of_service_until=TODAY + timedelta(days=3))
+    def test_blocked_up_to_but_not_including_the_expected_return_day(self):
+        v = self._unit()
+        self._down(v, TODAY + timedelta(days=1), back=TODAY + timedelta(days=4))
         self.assertFalse(v.is_out_of_service_on(TODAY))
         self.assertTrue(v.is_out_of_service_on(TODAY + timedelta(days=1)))
         self.assertTrue(v.is_out_of_service_on(TODAY + timedelta(days=3)))
+        self.assertFalse(v.is_out_of_service_on(TODAY + timedelta(days=4)),
+                         "the expected-back day is the first day dispatch can plan on it")
 
-    def test_the_unit_is_back_the_day_after_the_window_closes(self):
-        v = self._unit(
-            out_of_service_from=TODAY, out_of_service_until=TODAY + timedelta(days=2))
-        self.assertFalse(v.is_out_of_service_on(TODAY + timedelta(days=3)),
-                         "a closed window must release the unit, not strand it")
+    def test_a_planned_window_releases_the_car_by_itself(self):
+        """Fleet must not have to be at a keyboard at 5 AM for dispatch to
+        have the car back on the day it was promised."""
+        v = self._unit()
+        self._down(v, TODAY, back=TODAY + timedelta(days=2))
+        self.assertFalse(v.is_out_of_service_on(TODAY + timedelta(days=2)))
+        self.assertFalse(v.is_out_of_service_on(TODAY + timedelta(days=30)))
 
     def test_a_future_window_leaves_the_unit_usable_today(self):
         """Booking a shop slot for next week must not take the car off this week."""
-        v = self._unit(
-            out_of_service_from=TODAY + timedelta(days=7),
-            out_of_service_until=TODAY + timedelta(days=9))
+        v = self._unit()
+        self._down(v, TODAY + timedelta(days=7), back=TODAY + timedelta(days=10))
         self.assertFalse(v.is_out_of_service_on(TODAY))
         self.assertFalse(v.is_out_of_service_now)
 
-    def test_until_without_from_means_in_service(self):
-        """A stray end date with no start is not a window — it must not gate."""
-        v = self._unit(out_of_service_until=TODAY + timedelta(days=5))
+    def test_a_closed_downtime_never_blocks(self):
+        """History is history — once closed it must not touch any board."""
+        v = self._unit()
+        self._down(v, TODAY - timedelta(days=5), back=TODAY + timedelta(days=5),
+                   ended_on=TODAY - timedelta(days=1))
         self.assertFalse(v.is_out_of_service_on(TODAY))
+        self.assertFalse(v.is_out_of_service_on(TODAY + timedelta(days=2)))
+
+    def test_closing_early_releases_the_car_from_that_day(self):
+        v = self._unit()
+        d = self._down(v, TODAY - timedelta(days=3), back=TODAY + timedelta(days=3))
+        self.assertTrue(v.is_out_of_service_on(TODAY))
+        d.ended_on = TODAY
+        d.save()
+        v = FleetVehicle.objects.get(pk=v.pk)  # drop the instance cache
+        self.assertFalse(v.is_out_of_service_on(TODAY))
+        self.assertTrue(v.is_out_of_service_on(TODAY - timedelta(days=1)) is False,
+                        "closed rows are not consulted for any day")
+
+    def test_two_windows_on_one_unit_each_gate_their_own_dates(self):
+        """A repair this week AND a tyre slot next month — the reason the
+        single-window columns were replaced."""
+        v = self._unit()
+        self._down(v, TODAY, back=TODAY + timedelta(days=2), reason="Brakes")
+        self._down(v, TODAY + timedelta(days=20), back=TODAY + timedelta(days=22),
+                   reason="Tyres", category="tires")
+        self.assertTrue(v.is_out_of_service_on(TODAY))
+        self.assertFalse(v.is_out_of_service_on(TODAY + timedelta(days=5)))
+        self.assertTrue(v.is_out_of_service_on(TODAY + timedelta(days=21)))
+        self.assertIn("Tyres", v.out_of_service_label(TODAY + timedelta(days=21)))
+        self.assertIn("Brakes", v.out_of_service_label(TODAY))
 
     def test_a_null_day_never_reports_out_of_service(self):
-        v = self._unit(out_of_service_from=TODAY)
+        v = self._unit()
+        self._down(v, TODAY)
         self.assertFalse(v.is_out_of_service_on(None))
+
+    def test_prefetched_and_lazy_answers_agree(self):
+        v = self._unit()
+        self._down(v, TODAY, back=TODAY + timedelta(days=2))
+        lazy = FleetVehicle.objects.get(pk=v.pk)
+        eager = FleetVehicle.objects.with_open_downtimes().get(pk=v.pk)
+        for offset in range(-1, 4):
+            day = TODAY + timedelta(days=offset)
+            self.assertEqual(lazy.is_out_of_service_on(day), eager.is_out_of_service_on(day))
+
+
+class UnconfirmedReturnTests(_VehicleFixture):
+    """Rule 2: an open row past its expected-back day is a question, not a block."""
+
+    def test_past_the_expected_day_the_unit_is_usable_with_a_notice(self):
+        v = self._unit()
+        VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY - timedelta(days=4),
+            expected_back_on=TODAY - timedelta(days=1), reason="Transmission")
+        self.assertFalse(v.is_out_of_service_on(TODAY),
+                         "a forgotten row must cost a nag, never a car")
+        self.assertEqual(v.out_of_service_label(TODAY), "")
+        notice = v.downtime_notice(TODAY)
+        self.assertIn("Transmission", notice)
+        self.assertIn("not yet confirmed", notice)
+
+    def test_no_notice_while_still_inside_the_window(self):
+        v = self._unit()
+        VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY, expected_back_on=TODAY + timedelta(days=2),
+            reason="Transmission")
+        self.assertEqual(v.downtime_notice(TODAY), "")
+
+    def test_state_helpers(self):
+        v = self._unit()
+        live = VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY - timedelta(days=1),
+            expected_back_on=TODAY + timedelta(days=1), reason="a")
+        overdue = VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY - timedelta(days=5),
+            expected_back_on=TODAY, reason="b")
+        planned = VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY + timedelta(days=3), reason="c")
+        self.assertTrue(live.is_live(TODAY))
+        self.assertFalse(live.is_overdue(TODAY))
+        self.assertTrue(overdue.is_overdue(TODAY))
+        self.assertFalse(overdue.is_live(TODAY))
+        self.assertTrue(planned.is_planned(TODAY))
+        self.assertEqual(live.days_down(TODAY), 2)
+        self.assertEqual(planned.days_down(TODAY), None)
+        self.assertEqual(planned.planned_days(), None)
 
 
 class OutOfServiceLabelTests(_VehicleFixture):
     def test_label_names_the_reason_and_the_return_date(self):
-        v = self._unit(
-            out_of_service_from=TODAY,
-            out_of_service_until=TODAY + timedelta(days=2),
-            out_of_service_reason="Transmission, at Bob's")
+        v = self._unit()
+        back = TODAY + timedelta(days=3)
+        VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY, expected_back_on=back,
+            reason="Transmission, at Bob's")
         label = v.out_of_service_label(TODAY)
         self.assertIn("Transmission, at Bob's", label)
         self.assertIn("back", label)
-        back = strf(TODAY + timedelta(days=3), "%a %b %-d")
-        self.assertIn(back, label, "the car is back the day AFTER the window ends")
+        self.assertIn(strf(back, "%a %b %-d"), label)
 
     def test_open_ended_label_says_there_is_no_return_date(self):
-        v = self._unit(out_of_service_from=TODAY, out_of_service_reason="Rear-ended 8/3")
+        v = self._unit()
+        VehicleDowntime.objects.create(vehicle=v, starts_on=TODAY, reason="Rear-ended 8/3")
         label = v.out_of_service_label(TODAY)
         self.assertIn("Rear-ended 8/3", label)
         self.assertIn("no return date", label)
 
-    def test_label_falls_back_when_no_reason_was_given(self):
-        v = self._unit(out_of_service_from=TODAY)
-        self.assertIn("Out of service", v.out_of_service_label(TODAY))
+    def test_label_falls_back_to_the_category_when_no_reason_was_given(self):
+        v = self._unit()
+        VehicleDowntime.objects.create(vehicle=v, starts_on=TODAY, reason="", category="repair")
+        self.assertIn("Repair", v.out_of_service_label(TODAY))
 
     def test_no_label_on_a_day_the_window_does_not_cover(self):
-        v = self._unit(
-            out_of_service_from=TODAY, out_of_service_until=TODAY,
-            out_of_service_reason="Oil change")
+        v = self._unit()
+        VehicleDowntime.objects.create(
+            vehicle=v, starts_on=TODAY, expected_back_on=TODAY + timedelta(days=1),
+            reason="Oil change")
         self.assertEqual(v.out_of_service_label(TODAY + timedelta(days=1)), "")
 
 
