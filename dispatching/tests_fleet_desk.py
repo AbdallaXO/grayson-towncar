@@ -727,6 +727,21 @@ class PageTests(_FleetFixture):
         resp = self.client.get(reverse("fleet_desk"))
         self.assertIn(resp.status_code, (302, 403))
 
+    def test_logged_out_lands_on_the_real_login_page(self):
+        """Django's default /accounts/login/ is a 404 on this site. A fleet
+        manager whose session expired must land on the login page, not a 404,
+        from every fleet URL — the desk is their home page."""
+        self.client.logout()
+        for name, args in (("fleet_desk", []), ("fleet_list", []), ("fleet_outlook", []),
+                           ("fleet_report", []), ("fleet_detail", [self.unit("1").pk])):
+            resp = self.client.get(reverse(name, args=args))
+            self.assertEqual(resp.status_code, 302, name)
+            self.assertTrue(resp.url.startswith(reverse("login")), (name, resp.url))
+        resp = self.client.post(reverse("fleet_save_downtime", args=[FleetVehicle.objects.get().pk]),
+                                data="{}", content_type="application/json")
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.url.startswith(reverse("login")))
+
 
 class FleetManagerExperienceTests(_FleetFixture):
     def _fleet_user(self, superuser=False):

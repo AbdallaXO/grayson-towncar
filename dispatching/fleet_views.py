@@ -69,7 +69,7 @@ def _natural_key(vehicle_number):
     return (0, int(digits), number) if digits else (1, 0, number)
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 def fleet_list(request):
     """Every vehicle in one searchable, filterable list."""
@@ -232,7 +232,7 @@ def fleet_list(request):
     return render(request, "dispatching/fleet_list.html", context)
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 def fleet_detail(request, pk):
     """Everything known about one physical car."""
@@ -516,7 +516,7 @@ def _collect_vehicle_fields(data):
     return fields, None
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_update_details(request, pk):
@@ -565,7 +565,7 @@ BULK_EDITABLE = frozenset(
 BULK_LIMIT = 500
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_bulk_update(request):
@@ -649,7 +649,7 @@ def fleet_bulk_update(request):
     })
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_save_schedule(request, pk):
@@ -708,7 +708,7 @@ def fleet_save_schedule(request, pk):
     return JsonResponse({"success": True, "created": created, "id": schedule.id})
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_delete_schedule(request, pk):
@@ -718,7 +718,7 @@ def fleet_delete_schedule(request, pk):
     return JsonResponse({"success": True})
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_add_service(request, pk):
@@ -827,7 +827,7 @@ def _advance_schedule(vehicle, service_type, performed_on, odometer):
     return True
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_delete_service(request, pk):
@@ -847,7 +847,7 @@ def fleet_delete_service(request, pk):
 # The Fleet desk — the fleet manager's home
 # ════════════════════════════════════════════════════════════════════════════
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 def fleet_desk(request):
     """What needs attention, what's ready, what's down and why, what's coming.
@@ -866,7 +866,7 @@ def fleet_desk(request):
     return render(request, "dispatching/fleet_desk.html", context)
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 def fleet_outlook(request):
     """Four weeks of demand against the fleet, day by day — and, when a unit
@@ -927,7 +927,7 @@ def fleet_outlook(request):
     return render(request, "dispatching/fleet_outlook.html", context)
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_GET
 def fleet_check_window(request, pk):
@@ -1037,7 +1037,7 @@ def _judge_downtime(vehicle, fields, *, ignore_id=None):
         ignore_downtime_id=ignore_id)
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_save_downtime(request, pk):
@@ -1099,7 +1099,7 @@ def fleet_save_downtime(request, pk):
     })
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_update_downtime(request, pk):
@@ -1137,7 +1137,7 @@ def fleet_update_downtime(request, pk):
     return JsonResponse({"success": True, "label": downtime.label(), **_check_payload(verdict)})
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_close_downtime(request, pk):
@@ -1190,7 +1190,7 @@ def fleet_close_downtime(request, pk):
                          "days_down": downtime.days_down(today)})
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_delete_downtime(request, pk):
@@ -1234,7 +1234,7 @@ def _touch_planner_cache(start, back):
 # Reported issues — the dispatch-to-fleet handoff
 # ════════════════════════════════════════════════════════════════════════════
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_report_issue(request, pk):
@@ -1292,7 +1292,7 @@ def fleet_report_issue(request, pk):
     })
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_resolve_issue(request, pk):
@@ -1356,7 +1356,7 @@ def _apply_standard_intervals(vehicle, today):
     return created
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_apply_standard_intervals(request, pk):
@@ -1365,7 +1365,7 @@ def fleet_apply_standard_intervals(request, pk):
     return JsonResponse({"success": True, "created": created})
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 @require_POST
 def fleet_apply_standard_intervals_all(request):
@@ -1386,7 +1386,7 @@ def fleet_apply_standard_intervals_all(request):
 REPORT_WINDOWS = ((30, "Last 30 days"), (90, "Last 90 days"), (365, "Last 12 months"))
 
 
-@login_required
+@login_required(login_url="login")
 @staff_member_required
 def fleet_report(request):
     today = timezone.localdate()
