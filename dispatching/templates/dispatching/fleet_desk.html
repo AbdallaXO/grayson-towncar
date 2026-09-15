@@ -148,6 +148,20 @@
     </div>
 
     <div style="min-width:0;">
+      {# ── This week's round ─────────────────────────────────────────── #}
+      <div class="fl-side-block">
+        <div class="fl-section-head">
+          <h2 class="fl-section-title">This week&rsquo;s round</h2>
+          <a class="fl-section-link" href="{% url 'fleet_inspections' %}">Inspections &rarr;</a>
+        </div>
+        <div class="fl-round {% if inspection.complete %}done{% elif inspection.late %}late{% elif inspection.behind %}behind{% endif %}">
+          <div class="fl-round-bar"><span style="width:{% widthratio inspection.done inspection.total 100 %}%"></span></div>
+          <div class="fl-round-t">{{ inspection.text }}</div>
+          {% if inspection.pace %}<div class="fl-round-s">{{ inspection.pace }}</div>
+          {% elif inspection.complete %}<div class="fl-round-s">Nothing due until Monday.</div>{% endif %}
+        </div>
+      </div>
+
       <div class="fl-side-block">
         <div class="fl-section-head">
           <h2 class="fl-section-title">Paperwork</h2>
@@ -179,12 +193,63 @@
     </div>
   </div>
 
+  {% comment %}
+    Coming up — attention's WEEK and LATER groups, which the module has built on
+    every desk load since it shipped and nothing has ever rendered.
+
+    Two rules, both learned the hard way on this page. NOW is left out: "Do now"
+    above is the same facts grouped per CAR, and printing them twice teaches you
+    to skim. And the groups are folded by fleet_attention.collapse before they
+    get here, with paperwork dropped entirely, because they are per-UNIT facts —
+    raw, today's WEEK group is seventeen copies of one permit expiry.
+
+    {# #} is single-line in Django. A multi-line one prints onto the page.
+  {% endcomment %}
+  {% if horizon.week or horizon.later %}
+  <div class="fl-horizon">
+    <div class="fl-section-head">
+      <h2 class="fl-section-title">Coming up</h2>
+      <div class="fl-section-meta">Not today &mdash; but do not be surprised by it</div>
+    </div>
+    <div class="fl-horizon-cols">
+      <div>
+        <div class="fl-horizon-cap">This week</div>
+        {% if horizon.week %}
+          {% for it in horizon.week %}
+          <div class="fl-hz {{ it.level }}">
+            <div class="t">{% if it.href %}<a href="{{ it.href }}">{{ it.title }}</a>{% else %}{{ it.title }}{% endif %}</div>
+            {% if it.detail %}<div class="d">{{ it.detail }}</div>{% endif %}
+            {% if it.action %}<div class="a">{{ it.action }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          {# Never "nothing due": the paperwork block above is carrying it. #}
+          <div class="fl-hz-empty">Nothing this week beyond the paperwork above.</div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="fl-horizon-cap">Later</div>
+        {% if horizon.later %}
+          {% for it in horizon.later %}
+          <div class="fl-hz {{ it.level }}">
+            <div class="t">{% if it.href %}<a href="{{ it.href }}">{{ it.title }}</a>{% else %}{{ it.title }}{% endif %}</div>
+            {% if it.detail %}<div class="d">{{ it.detail }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="fl-hz-empty">Nothing on the horizon.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# ── When can I take a car down? ───────────────────────────────────── #}
   <div class="fl-finder" id="fw-section">
     <div class="fl-section-head end">
       <div>
         <h2 class="fl-section-title">When can I take a car down?</h2>
-        <div class="fl-section-sub">Shop hours 7:00 AM – 5:00 PM. Pick any square to choose a window yourself.</div>
+        <div class="fl-section-sub">Monday to Friday, 7:00 AM – 5:00 PM. Pick any square to choose a window yourself.</div>
       </div>
       <a class="fl-section-link" id="fw-outlook-link" href="{% url 'fleet_outlook' %}">Full outlook →</a>
     </div>

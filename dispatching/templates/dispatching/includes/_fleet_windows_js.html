@@ -46,6 +46,7 @@
     function unitDown(u, day) { return u.down.indexOf(day.date) >= 0; }
     function startable(day, start, hours) {
       if (start + hours > SLOTS) return false;
+      if (day.shop_open === false) return false;               // shut at the weekend
       if (day.is_today && start <= P.now_slot) return false;   // the hour under way is gone
       return true;
     }
@@ -59,6 +60,10 @@
       var out = [];
       days.forEach(function (day) {
         if (unitDown(u, day)) return;
+        // The shop is shut at the weekend. Demand alone would keep picking
+        // Saturday — it is the emptiest-looking day on the grid for a unit that
+        // is not needed, and the busiest day this fleet actually runs.
+        if (day.shop_open === false) return;
         for (var s = 0; s + hours <= SLOTS; s++) {
           if (!startable(day, s, hours)) continue;
           var c = cost(day, u.tier, s, hours);
@@ -117,6 +122,12 @@
       var w = words(u);
       var trips = need(day, u.tier)[i], cap = have(day, u.tier);
       var when = day.wd + ' ' + day.dom + ', ' + fmtHour(i) + ' — ';
+      // A closed day still shows its demand — Saturday being the busiest day is
+      // worth seeing — but it must never read as a window going spare.
+      if (day.shop_open === false) {
+        return day.wd + ' ' + day.dom + ' — the shop is closed at the weekend. '
+          + trips + (trips === 1 ? ' trip needs' : ' trips need') + ' a ' + w.one + ' this hour.';
+      }
       if (trips > cap) {
         var over = trips - cap;
         return when + trips + ' trips need a ' + w.one + ' but ' + cap + (cap === 1 ? ' is' : ' are') + ' on the road, so '
@@ -445,8 +456,11 @@
           + '<button type="button" class="ol-day-btn" data-day="' + day.idx + '"><span class="wd">' + esc(day.wd) + '</span><span class="dm">' + esc(day.dom) + '</span>'
           + (day.is_today ? '<span class="today">today</span>' : '') + '</button>'
           + cellsHTML(M, u, day, w.shown, hours, 'ol-cell')
-          + '<div class="ol-right"><span class="ol-total">' + day.trips + '</span><span class="fl-verdict ' + v.cls + '" title="' + esc(v.hint) + '">' + esc(v.label) + '</span></div>'
-          + '</div>';
+          + '<div class="ol-right"><span class="ol-total">' + day.trips + '</span>'
+          + (day.shop_open === false
+              ? '<span class="fl-verdict closed" title="The shop is closed at the weekend.">Shop closed</span>'
+              : '<span class="fl-verdict ' + v.cls + '" title="' + esc(v.hint) + '">' + esc(v.label) + '</span>')
+          + '</div></div>';
         if (state.openDay === day.idx) {
           var body;
           if (!day.trips) body = 'Nothing is booked for this day yet. ';

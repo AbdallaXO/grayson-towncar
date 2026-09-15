@@ -6,7 +6,7 @@ Run with:  ENABLE_DEBUG_TOOLBAR=0 ./manage.py test dispatching.tests_fleet_windo
 Leg end times are pinned to pickup + 90 minutes here so the squares are
 arithmetic, not a drive-time estimate.
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 from django.urls import reverse
@@ -248,3 +248,52 @@ class PageTests(_FleetFixture):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["days"], 14)
         self.assertEqual(resp.context["hours"], 4)
+
+
+class ShopWeekdayTests(_FleetFixture):
+    """The shop is shut at the weekend, so the finder must never offer one.
+
+    Demand arithmetic alone kept recommending Saturday: for a unit that is not
+    needed it looks like the emptiest day on the grid, while being the day this
+    fleet actually runs hardest.
+    """
+
+    def _payload(self, days=14):
+        from dispatching import fleet_capacity
+        self.unit("1")
+        return fleet_windows.window_payload(
+            TODAY, days, fleet_capacity.fleet_units(), today=TODAY, use_cache=False)
+
+    def test_every_day_says_whether_the_shop_is_open(self):
+        payload = self._payload()
+        for day in payload["days"]:
+            weekday = date.fromisoformat(day["date"]).weekday()
+            self.assertEqual(day["shop_open"], weekday < 5, day["date"])
+
+    def test_saturday_and_sunday_are_closed_and_weekdays_are_not(self):
+        payload = self._payload()
+        by_wd = {}
+        for day in payload["days"]:
+            by_wd.setdefault(date.fromisoformat(day["date"]).weekday(), []).append(day["shop_open"])
+        self.assertEqual(set(by_wd[5]), {False}, "Saturday must be closed")
+        self.assertEqual(set(by_wd[6]), {False}, "Sunday must be closed")
+        for weekday in range(5):
+            self.assertEqual(set(by_wd[weekday]), {True}, f"weekday {weekday} must be open")
+
+    def test_the_helper_agrees_with_the_payload(self):
+        for offset in range(14):
+            day = TODAY + timedelta(days=offset)
+            self.assertEqual(fleet_windows.shop_is_open(day), day.weekday() < 5, day)
+
+    def test_a_closed_day_still_reports_its_demand(self):
+        """Closing the day must not blank it. Saturday being the busiest day is
+        the thing he most needs to see when choosing a weekday instead."""
+        saturday = next(TODAY + timedelta(days=n) for n in range(14)
+                        if (TODAY + timedelta(days=n)).weekday() == 5)
+        for hour in (9, 9, 10):
+            self.leg(saturday, hour)
+        payload = self._payload()
+        row = next(d for d in payload["days"] if d["date"] == saturday.isoformat())
+        self.assertFalse(row["shop_open"])
+        self.assertEqual(row["trips"], 3)
+        self.assertGreater(max(row["by_tier"]["suv"]["need"]), 0)

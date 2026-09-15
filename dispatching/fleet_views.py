@@ -908,6 +908,16 @@ def fleet_inspect_vehicle(request, pk):
     if request.method == "POST":
         return _save_inspection(request, vehicle, day, existing)
 
+    # Carry the last sticker forward even from an earlier week — the service
+    # figure does not change until someone services the car, so making him read
+    # it off the windshield again every Monday is asking to be told a wrong
+    # number or left blank.
+    last_known = existing if (existing and existing.service_due_miles is not None) else (
+        VehicleInspection.objects
+        .filter(vehicle=vehicle, service_due_miles__isnull=False)
+        .order_by("-week_start").first()
+    )
+    rate = fleet_inspection.vehicle_rate(vehicle, today)
     return render(request, "dispatching/fleet_inspect.html", {
         "fleet_page": "inspections",
         "vehicle": vehicle,
@@ -918,6 +928,14 @@ def fleet_inspect_vehicle(request, pk):
         "sections": fleet_inspection.form_sections(existing),
         "issue_severities": VehicleIssue.SEVERITY_CHOICES,
         "vehicle_type": fleet_capacity.type_label(fleet_capacity.unit_type(vehicle)),
+        "last_known": last_known,
+        "carried_forward": last_known is not None and last_known != existing,
+        "forecast": fleet_inspection.service_forecast(last_known, vehicle, today, rate=rate),
+        "rate": rate,
+        # What the tracker last read, so the dash figure can be sanity-checked
+        # rather than typed blind. None on the two units with no gateway — which
+        # is exactly why their inspection odometer matters.
+        "odometer_hint": vehicle.odometer_miles,
     })
 
 
@@ -941,6 +959,11 @@ def _save_inspection(request, vehicle, day, existing):
     if message:
         messages.error(request, message, extra_tags="danger")
         return redirect("fleet_inspect_vehicle", pk=vehicle.pk)
+    service_due, message = _opt_decimal(request.POST.get("service_due_miles"),
+                                        "Next service due", minimum=0)
+    if message:
+        messages.error(request, message, extra_tags="danger")
+        return redirect("fleet_inspect_vehicle", pk=vehicle.pk)
 
     found = bool(request.POST.get("found_something"))
     notes = (request.POST.get("notes") or "").strip()
@@ -952,6 +975,7 @@ def _save_inspection(request, vehicle, day, existing):
     inspection.outcome = (VehicleInspection.OUTCOME_FOUND if found
                           else VehicleInspection.OUTCOME_OK)
     inspection.odometer_miles = odometer
+    inspection.service_due_miles = service_due
     inspection.notes = notes
     inspection.results = results
     inspection.save()

@@ -67,25 +67,21 @@ CHECKLIST = [
         ],
     },
     {
-        "key": "equipment",
-        "title": "Equipment",
-        "items": [
-            {"key": "amenities", "label": "Water and amenities stocked"},
-            {"key": "chargers", "label": "Phone chargers present"},
-            {"key": "carseats", "label": "Car seats present and undamaged"},
-            {"key": "spare", "label": "Spare, jack and warning triangle"},
-        ],
-    },
-    {
         "key": "paperwork",
-        "title": "Paperwork in the car",
+        "title": "In the car",
         "items": [
             {"key": "registration", "label": "Registration"},
             {"key": "insurance", "label": "Insurance card"},
             {"key": "permit", "label": "MCO permit displayed"},
+            {"key": "carseats", "label": "Car seats present and undamaged"},
         ],
     },
 ]
+
+# Dropped 2026-09-15 on the founder's call: water/amenities, phone chargers,
+# and the spare/jack. Their keys are kept out of CHECKLIST but any inspection
+# already carrying them still renders, because results are stored by key and
+# item_labels() falls back to the key.
 
 # How many cars the manager aims to walk in a day. Nineteen active units across
 # five working days is four a day; five leaves room to fall a day behind and
@@ -173,6 +169,50 @@ def last_seen_map(units):
             .values("vehicle_id")
             .annotate(last=Max("week_start")))
     return {row["vehicle_id"]: row["last"] for row in rows}
+
+
+def week_summary(day, units):
+    """Just the week's numbers, for the Desk — one query, no tiles.
+
+    ``build_week`` is the Inspections page: it needs every tile, the suggestion
+    order and the day's schedule behind it. The Desk needs one sentence, and
+    paying for the whole board to print it would put the round's cost on every
+    desk load.
+
+    Counts on the same rule the board uses, so the two can never disagree: a
+    unit in the shop on ``day`` is not walkable and is not counted as missed.
+    """
+    from drivers.models import VehicleInspection
+
+    start = week_start_for(day)
+    walkable = [u for u in units if u.downtime_on(day) is None]
+    done = (VehicleInspection.objects
+            .filter(week_start=start, vehicle_id__in=[u.id for u in walkable])
+            .count())
+    total = len(walkable)
+    remaining = max(0, total - done)
+    days_left = max(1, 7 - day.weekday())
+    per_day = -(-remaining // days_left) if remaining else 0
+
+    if not total:
+        text = "No active units to inspect."
+    elif not remaining:
+        text = f"All {total} walked this week."
+    else:
+        # Just the count. The pace line underneath carries "N to go"; saying it
+        # in both reads as a stutter.
+        text = f"{done} of {total} walked this week"
+
+    return {
+        "done": done, "total": total, "remaining": remaining,
+        "per_day": per_day, "days_left": days_left,
+        "complete": remaining == 0 and total > 0,
+        "behind": bool(remaining) and per_day > DAILY_TARGET,
+        "late": bool(remaining) and day.weekday() >= 5,
+        "text": text,
+        "pace": _pace(remaining, days_left, day),
+        "in_shop": len(units) - total,
+    }
 
 
 def build_week(loaded, day_rows=None, last_seen=None):
@@ -349,3 +389,78 @@ def form_sections(inspection=None):
             })
         out.append({"key": section["key"], "title": section["title"], "items": items})
     return out
+
+# ════════════════════════════════════════════════════════════════════════════
+# The sticker, turned into a date that is actually true for this fleet
+# ════════════════════════════════════════════════════════════════════════════
+
+# How much history to average a unit's daily mileage over.
+RATE_WINDOW_DAYS = 30
+
+
+def vehicle_rate(vehicle, today, window=RATE_WINDOW_DAYS):
+    """Measured miles per day for one unit, or None if we cannot know.
+
+    Straight through ``mileage.usage_rate`` — the module docstring there is
+    explicit that nothing else in the codebase may compute a mileage figure,
+    because the unknown-day (gateway offline) versus parked-day (car provably
+    did not move) distinction is what makes the number plannable.
+    """
+    from dispatching.mileage import usage_rate
+    from drivers.models import VehicleDayReading
+
+    rows = (VehicleDayReading.objects
+            .filter(vehicle=vehicle, date__gte=today - timedelta(days=window),
+                    date__lt=today)
+            .order_by("date")
+            .values_list("miles_driven", flat=True))
+    return usage_rate(list(rows), total_days=window)
+
+
+def service_forecast(inspection, vehicle, today, rate=None):
+    """When the sticker's mileage actually arrives, for THIS car.
+
+    The founder's point, and the reason no date is stored: a shop writes "or by
+    <date>" for a car doing 30 miles a day. These run 190-350, so the mileage
+    lands first and the printed date is fiction. This converts the one number
+    worth reading off the sticker into the only date worth planning around.
+
+    Returns None when any input is missing, and ``days`` is None when the car's
+    rate is unknown or it is parked — ``days_to_cover`` refuses rather than
+    projecting, and so does this.
+    """
+    from dispatching.mileage import days_to_cover
+
+    if inspection is None or inspection.service_due_miles is None:
+        return None
+    remaining = inspection.miles_to_service
+    if remaining is None:
+        return None
+
+    rate = rate if rate is not None else vehicle_rate(vehicle, today)
+    per_day = getattr(rate, "per_day", None)
+    days = days_to_cover(remaining, per_day)
+
+    out = {
+        "due_at": inspection.service_due_miles,
+        "odometer": inspection.odometer_miles,
+        "remaining": remaining,
+        "per_day": per_day,
+        "days": days,
+        "on": (today + timedelta(days=days)) if days is not None else None,
+        "overdue": remaining <= 0,
+    }
+    out["text"] = _forecast_text(out)
+    return out
+
+
+def _forecast_text(f):
+    if f["overdue"]:
+        return f"Past due — the sticker said {f['due_at']:,.0f} mi."
+    miles = f"{f['remaining']:,.0f} mi to go"
+    if f["days"] is None:
+        # No measured rate: say the miles and stop. A guess here would be a
+        # date someone books a shop day around.
+        return f"{miles}. Not enough mileage history to say when."
+    when = "today" if f["days"] == 0 else f"in about {f['days']} day{'s' if f['days'] != 1 else ''}"
+    return f"{miles} — {when} at {f['per_day']:,.0f} mi/day."

@@ -165,6 +165,19 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         units, today, list_href=reverse("fleet_list"), href_for=_href)
     setup_intervals = next(
         (it for it in attention["setup"] if it["kind"] == "setup_intervals"), None)
+    # The week's round, as one sentence. The Desk is the page he lives on, and
+    # until this landed the fleet's largest recurring obligation was reachable
+    # only by remembering to open a tab.
+    from dispatching import fleet_inspection
+    inspection = fleet_inspection.week_summary(today, units)
+
+    # The forward view. Folded, and with paperwork dropped because the Paperwork
+    # block on the same page already groups it fleet-wide — rendering both is
+    # how the first version of this desk ended up with 17 copies of one fact.
+    horizon = {
+        "week": fleet_attention.collapse(attention["week"], covered=("paperwork",)),
+        "later": fleet_attention.collapse(attention["later"], covered=("paperwork",)),
+    }
 
     summary = {
         "units": len(units),
@@ -199,6 +212,8 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         "shop": shop,
         "paperwork": paperwork,
         "setup_intervals": setup_intervals,
+        "inspection": inspection,
+        "horizon": horizon,
     }
 
 

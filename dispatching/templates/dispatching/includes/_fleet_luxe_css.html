@@ -266,4 +266,55 @@
   .fl-toast.show { opacity: 1; }
   .fl-toast.ok { background: var(--fl-good); }
   .fl-toast.err { background: var(--fl-critical); }
+
+  /* ── This week's round (desk strip) ─────────────────────────────────── */
+  .fl-round { padding: 2px 0 4px; }
+  .fl-round-bar { height: 6px; border-radius: 50px; background: var(--fl-hair-soft); overflow: hidden; margin-bottom: 11px; }
+  .fl-round-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--fl-gold), var(--fl-gold-light)); transition: width .4s ease; }
+  .fl-round-t { font-size: 0.86rem; font-weight: 600; color: var(--fl-ink); }
+  .fl-round-s { font-size: 0.75rem; color: var(--fl-muted); margin-top: 4px; }
+  .fl-round.behind .fl-round-s, .fl-round.late .fl-round-s { color: var(--fl-caution); font-weight: 600; }
+  .fl-round.late .fl-round-bar span { background: var(--fl-critical); }
+  .fl-round.done .fl-round-bar span { background: var(--fl-good); }
+  .fl-round.done .fl-round-s { color: var(--fl-good); font-weight: 600; }
+
+  /* ── Coming up: attention's WEEK and LATER groups ───────────────────── */
+  .fl-horizon { margin-top: 38px; padding-top: 4px; }
+  .fl-horizon-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; margin-top: 20px; }
+  @media (max-width: 760px) { .fl-horizon-cols { grid-template-columns: 1fr; gap: 26px; } }
+  .fl-horizon-cap { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+                    color: var(--fl-muted-light); padding-bottom: 9px; border-bottom: 1px solid var(--fl-hair-soft); }
+  .fl-hz { padding: 12px 0 12px 13px; border-bottom: 1px solid var(--fl-hair-softest);
+           border-left: 2px solid var(--fl-hair); }
+  .fl-hz:last-child { border-bottom: 0; }
+  .fl-hz.critical { border-left-color: var(--fl-critical); }
+  .fl-hz.warn { border-left-color: var(--fl-gold); }
+  .fl-hz.info { border-left-color: var(--fl-hair); }
+  .fl-hz .t { font-size: 0.86rem; font-weight: 600; color: var(--fl-ink); }
+  .fl-hz .d { font-size: 0.75rem; color: var(--fl-muted); margin-top: 3px; }
+  .fl-hz .a { font-size: 0.75rem; color: var(--fl-settled); margin-top: 5px; }
+  .fl-hz-empty { padding: 14px 0 0 13px; font-size: 0.8rem; color: var(--fl-muted-light); font-style: italic; }
+
+  /* ── Buttons rendered as links ──────────────────────────────────────────
+     `.fl-page a` is (0,1,1) and every .fl-btn-* class is (0,1,0), so an anchor
+     wearing a button class loses its own colour to the page's link colour. On
+     .fl-btn-primary that is ink text on an ink pill — an invisible button, which
+     is exactly what "Check the tracker" was on the Do-now queue's GPS row.
+     _fleet_queue_action.html emits <a> or <button> from the same class, so the
+     colours have to hold for both. */
+  .fl-page a.fl-btn-primary { color: #fff; }
+  .fl-page a.fl-btn-primary:hover { color: var(--fl-ink); }
+  .fl-page a.fl-btn-secondary { color: var(--fl-muted); }
+  .fl-page a.fl-btn-secondary:hover { color: var(--fl-ink); }
+  .fl-page a.fl-btn-small, .fl-page a.fl-btn-danger { color: #fff; }
+  .fl-page a.fl-btn-danger-ghost { color: var(--fl-muted); }
+  .fl-page a.fl-btn-outline-sm { color: var(--fl-ink); }
+  .fl-page a.fl-btn-ghost-dark { color: rgba(255,255,255,0.72); }
+
+  /* ── Shop closed (weekend) ──────────────────────────────────────────────
+     The squares keep their demand colour: Saturday being the fleet's busiest
+     day is worth seeing. What changes is that nothing on the day is offerable —
+     every cell renders .off, so it cannot be clicked or ranked. */
+  .fl-verdict.closed { background: var(--fl-hair-soft); color: var(--fl-muted); border-color: var(--fl-hair); }
+  .fl-cell.off { opacity: 0.38; cursor: default; }
 </style>

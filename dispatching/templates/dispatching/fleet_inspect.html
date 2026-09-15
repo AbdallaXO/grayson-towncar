@@ -64,7 +64,18 @@
   .fx-save { padding: 13px 30px; border: 0; border-radius: 50px; background: var(--fl-ink); color: #fff;
              font-weight: 600; font-size: 0.86rem; letter-spacing: 0.02em; transition: var(--fl-t); }
   .fx-save:hover { background: var(--fl-gold); color: var(--fl-ink); }
-  .fx-hint { font-size: 0.74rem; color: var(--fl-muted); }
+  .fx-hint { font-size: 0.74rem; color: var(--fl-muted); margin-top: 5px; }
+  .fx-numbers { display: flex; gap: 18px; flex-wrap: wrap; }
+  .fx-numbers .fx-field { flex: 1 1 220px; }
+  .fx-forecast { margin-top: 16px; padding: 12px 15px; border-radius: 0.6rem; font-size: 0.84rem;
+                 background: #fff; border: 1px solid var(--fl-gold); color: var(--fl-ink); }
+  .fx-forecast .lab { display: block; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em;
+                      text-transform: uppercase; color: var(--fl-gold); margin-bottom: 4px; }
+  .fx-forecast strong { font-weight: 700; }
+  .fx-forecast.late { border-color: var(--fl-critical); background: var(--fl-critical-tint); color: var(--fl-critical); }
+  .fx-forecast.late .lab { color: var(--fl-critical); }
+  .fx-forecast.quiet { border-color: var(--fl-hair); background: #fff; color: var(--fl-muted); }
+  .fx-forecast.quiet .lab { color: var(--fl-muted-light); }
 </style>
 {% endblock %}
 
@@ -135,16 +146,44 @@
     <div class="fx-panel">
       <h2>Finishing up</h2>
 
-      <div class="fx-field">
-        <label class="cap" for="odo">Odometer</label>
-        <input type="number" step="1" min="0" id="odo" name="odometer_miles"
-               value="{{ existing.odometer_miles|default_if_none:'' }}"
-               placeholder="Miles on the dash">
-        <div class="fx-hint" style="margin-top:5px;">
-          Optional — but for the two units with no tracker fitted this is the only
-          mileage the system ever sees, and it is what makes their service intervals work.
+      <div class="fx-numbers">
+        <div class="fx-field">
+          <label class="cap" for="odo">Miles on the dash</label>
+          <input type="number" step="1" min="0" id="odo" name="odometer_miles"
+                 value="{{ existing.odometer_miles|default_if_none:'' }}"
+                 placeholder="e.g. 84231">
+          <div class="fx-hint">
+            {% if odometer_hint %}Tracker last read {{ odometer_hint|floatformat:0 }} mi.
+            {% else %}No tracker on this one — this is the only mileage the system gets.{% endif %}
+          </div>
+        </div>
+
+        <div class="fx-field">
+          <label class="cap" for="due">Next service due at</label>
+          <input type="number" step="1" min="0" id="due" name="service_due_miles"
+                 value="{{ last_known.service_due_miles|default_if_none:'' }}"
+                 placeholder="e.g. 87500">
+          <div class="fx-hint">
+            The mileage off the windshield sticker.
+            {% if carried_forward %}Carried over from {{ last_known.week_start|date:"j M" }}.{% endif %}
+          </div>
         </div>
       </div>
+
+      {% if forecast %}
+      <div class="fx-forecast {% if forecast.overdue %}late{% endif %}">
+        <span class="lab">Which means</span>
+        {{ forecast.text }}
+        {% if forecast.on %}<strong>Around {{ forecast.on|date:"D j M" }}.</strong>{% endif %}
+      </div>
+      {% elif rate.per_day %}
+      <div class="fx-forecast quiet">
+        <span class="lab">Note</span>
+        This car averages {{ rate.per_day|floatformat:0 }} miles a day. Put the sticker's
+        mileage in and the system works out when that actually lands — the date printed
+        on the sticker assumes a car that does thirty.
+      </div>
+      {% endif %}
 
       <div class="fx-field">
         <label class="cap" for="notes">Anything worth writing down</label>

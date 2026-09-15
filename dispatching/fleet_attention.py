@@ -81,6 +81,47 @@ def _day(d):
 # The list
 # ════════════════════════════════════════════════════════════════════════════
 
+def collapse(items, *, covered=(), fold_at=3):
+    """Fold a horizon group down to what a person can read in one glance.
+
+    The groups are per-UNIT facts by design — that is what the morning digest
+    needs. A page is different: seventeen rows of "MCO permit due" is seventeen
+    copies of one fact, which is the exact wall the desk redesign removed and
+    which ``paperwork_rows`` already collapses on this very page.
+
+    So: drop kinds the page shows elsewhere (``covered``), and fold any kind
+    with ``fold_at`` or more items into a single line naming the units. A kind
+    with one or two items keeps its own rows, because "#005 battery drifting"
+    is worth reading as itself.
+    """
+    by_kind = {}
+    for it in items:
+        if it["kind"] in covered:
+            continue
+        by_kind.setdefault(it["kind"], []).append(it)
+
+    rank = {CRITICAL: 0, WARN: 1, INFO: 2}
+    out = []
+    for kind, group in by_kind.items():
+        if len(group) < fold_at:
+            out.extend(group)
+            continue
+        units = [_unit(i["vehicle"]) for i in group if i.get("vehicle") is not None]
+        worst = min((g["level"] for g in group), key=lambda lv: rank.get(lv, 9))
+        head = group[0]["title"]
+        # "#001 paperwork: MCO permit due (in 15d)" -> "MCO permit due (in 15d)"
+        if ":" in head:
+            head = head.split(":", 1)[1].strip()
+        out.append(_item(
+            worst, group[0]["group"], kind,
+            f"{head} — {len(group)} units",
+            ", ".join(units[:6]) + (f" and {len(units) - 6} more" if len(units) > 6 else ""),
+            action=group[0].get("action", ""),
+        ))
+    out.sort(key=lambda i: (rank.get(i["level"], 9), i["title"]))
+    return out
+
+
 def build_attention(*, today, now, vehicles, downtimes_open, issues_open,
                     faults_open, faults_recent, schedules, feed, assigned_today,
                     downtime_verdicts=None, projected_dates=None, href_for=None):

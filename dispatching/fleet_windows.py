@@ -41,6 +41,20 @@ from dispatching.scheduler import VEHICLE_TIER_ORDER, get_vehicle_tier
 SHOP_START_HOUR = 7
 SHOP_END_HOUR = 17
 SLOTS = SHOP_END_HOUR - SHOP_START_HOUR
+
+# The days a shop will take the car. Monday-Friday: the yards this fleet uses are
+# shut at the weekend, so a Saturday window is not a cheap window, it is a closed
+# one — and Saturday is this fleet's busiest day anyway, which is exactly why the
+# demand arithmetic alone kept recommending it.
+#
+# This governs what the finder OFFERS. It deliberately does not touch the downtime
+# ledger: a car that breaks down on a Sunday still has to be recordable, and a shop
+# visit booked for Friday may well run through the weekend.
+SHOP_WEEKDAYS = (0, 1, 2, 3, 4)
+
+
+def shop_is_open(day):
+    return day.weekday() in SHOP_WEEKDAYS
 HOUR_LABELS = ["7a", "8", "9", "10", "11", "12", "1p", "2", "3", "4"]
 DURATIONS = (2, 3, 4, 6, 8)
 
@@ -259,6 +273,8 @@ def window_payload(start, days, units, *, today=None, now=None, use_cache=True,
             "short": strf(day, "%-d"),
             "is_today": day == today,
             "weekend": day.weekday() >= 5,
+            # Rendered, but never offered — see SHOP_WEEKDAYS.
+            "shop_open": shop_is_open(day),
             "trips": h["trips"],
             "peak": h["peak"],
             "peak_at": h["peak_at"],

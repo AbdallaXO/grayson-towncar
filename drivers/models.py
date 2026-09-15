@@ -2364,6 +2364,15 @@ class VehicleInspection(models.Model):
                   "this is the only mileage the system ever gets, which is what "
                   "makes their service intervals work at all.",
     )
+    service_due_miles = models.DecimalField(
+        max_digits=10, decimal_places=1, null=True, blank=True,
+        help_text="The odometer figure on the windshield sticker — the mileage "
+                  "the next service is due at. MILES, deliberately, with no "
+                  "companion date field: these cars run 190-350 miles a day, so "
+                  "a shop's 'or by <date>' is written for a car that does 30 and "
+                  "is meaningless here. The date is DERIVED from this number and "
+                  "the unit's own measured daily mileage.",
+    )
     notes = models.TextField(blank=True)
     results = models.JSONField(default=dict, blank=True)
     issue = models.ForeignKey(
@@ -2388,6 +2397,14 @@ class VehicleInspection(models.Model):
         """The checklist keys the inspector marked as not right."""
         return [key for key, value in (self.results or {}).items()
                 if isinstance(value, dict) and value.get("state") == "flag"]
+
+    @property
+    def miles_to_service(self):
+        """Miles left until the sticker's figure, or None if either half is
+        missing. Negative means already past it."""
+        if self.service_due_miles is None or self.odometer_miles is None:
+            return None
+        return self.service_due_miles - self.odometer_miles
 
 
 def inspection_photo_path(instance, filename):
