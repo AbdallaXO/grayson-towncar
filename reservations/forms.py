@@ -3,7 +3,6 @@
 from django import forms
 from .models import Reservation, Customer, Leg, Flight, Cruise, Lead
 from django.utils import timezone
-from django.db.models import Q
 from typing import override
 from .validator import validate_vehicle_constraints
 
@@ -58,21 +57,44 @@ class CustomerForm(forms.ModelForm):
 
     @override
     def save(self, commit=True):
-        obj, created = Customer.objects.filter(
-            Q(email=self.instance.email),
-            Q(phone_number=self.instance.phone_number),
-        ).get_or_create(
+        """Reuse the matching customer row, or make one.
+
+        MATCH ON ALL FIVE FIELDS, and do not be tempted to narrow it to email +
+        phone. A household books on one email and one phone under different
+        passenger names: ``miranda.munch@gmail.com`` carries Miranda Talley,
+        Jeff Munch and Charlene Pappani, and 398 email+phone pairs in the table
+        look like that. Matching on email+phone alone would fold three real
+        people into one and rewrite the name on their past trips.
+
+        ``.first()``, not ``get_or_create()``. The old code ran ``get()`` under
+        the hood, so the 34 groups of byte-identical rows already in the table
+        raised ``MultipleObjectsReturned`` and 500ed the reservation editor
+        (2026-09-15). Duplicates are not a reason to refuse the edit — the
+        oldest row wins, deterministically, and the dispatcher gets on with it.
+        """
+        match = (
+            Customer.objects.filter(
+                email=self.instance.email,
+                phone_number=self.instance.phone_number,
+                first_name=self.instance.first_name,
+                last_name=self.instance.last_name,
+                zipcode=self.instance.zipcode,
+            )
+            .order_by("pk")
+            .first()
+        )
+        if match is not None:
+            match.is_returning = True
+            match.save(update_fields=["is_returning", "updated_at"])
+            return match
+
+        return Customer.objects.create(
             email=self.instance.email,
             phone_number=self.instance.phone_number,
             first_name=self.instance.first_name,
             last_name=self.instance.last_name,
             zipcode=self.instance.zipcode,
         )
-        if not created:
-            obj.is_returning = True
-            obj.save()
-
-        return obj
 
 
 class ReservationForm(forms.ModelForm):
