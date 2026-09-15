@@ -28,8 +28,16 @@
              href="{% url 'fleet_desk' %}"><i class="bi bi-clipboard2-pulse me-1"></i>Desk{% if fleet_now_count %} <span class="badge bg-danger rounded-pill" style="font-size: 0.65rem;" title="Needs attention now">{{ fleet_now_count }}</span>{% endif %}</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_day' %}active{% endif %}"
+             href="{% url 'fleet_day' %}" title="What each car has on today"><i class="bi bi-calendar-day me-1"></i>The day</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_list' or request.resolver_match.url_name == 'fleet_detail' %}active{% endif %}"
              href="{% url 'fleet_list' %}"><i class="bi bi-truck me-1"></i>Vehicles</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_inspections' or request.resolver_match.url_name == 'fleet_inspect_vehicle' %}active{% endif %}"
+             href="{% url 'fleet_inspections' %}" title="This week's inspection round"><i class="bi bi-clipboard2-check me-1"></i>Inspections</a>
         </li>
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'fleet_outlook' %}active{% endif %}"

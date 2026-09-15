@@ -544,9 +544,87 @@ What it shows, top to bottom (redesigned 2026-09-14 to the handoff in
 - **When can I take a car down?** — the shop-window finder, seven days, see
   [Planning downtime around demand](#planning-downtime-around-demand).
 
-Left out on purpose because nothing in the data backs them: the weekly
-inspection walk, the fault-code dictionary, a "restricted use" state. The
-vehicle table is the Vehicles tab, not repeated on the desk.
+Left out on purpose because nothing in the data backs them: the fault-code
+dictionary, a "restricted use" state. The vehicle table is the Vehicles tab,
+not repeated on the desk. (The weekly inspection walk was on this list until
+2026-09-15 — see [The day](#the-day) and [Inspections](#inspections).)
+
+## The day
+
+`/dispatching/fleet/day/` — `fleet_views.fleet_day` → `fleet_day.load_car_day()`
+(the only place that queries) → `fleet_day.build_day()` (pure). One row per
+CAR, its trips across a shared clock, the holes between them named.
+
+A leg has no FK to a physical car — `Leg.vehicle` is a `rates.Vehicle`, a
+pricing class. The only link is the chauffeur:
+
+    FleetVehicle -> DriverVehicleAssignment(date) -> Driver -> that driver's Legs
+
+`DriverVehicleAssignment` is unique on (driver, date), NOT (vehicle, date), so a
+car can carry several chauffeurs in a day (the Day Setup AM/PM share). Every
+unit merges all its holders' slots; the seam between two of them is a HANDOFF
+and is never offered as shop time.
+
+**The honesty rule, which is the reason the page exists.** An unbuilt day and an
+empty car are the same absence of rows, and only one of them means the car is
+free — that was bug 2 in the Phase 3 audit. A boolean "is it built" is not
+enough either, because the board fills in as a GRADIENT: measured 2026-09-15,
+97% of that day's legs carried a chauffeur, 85% the next day, 62% the day after,
+0% beyond. So the page leads with its assignment coverage and softens every
+empty car below `CONFIDENT_COVERAGE` (90%) to "not assigned yet".
+
+Four states that must never collapse into each other: **not built** (page-level),
+**chauffeur but no trips**, **no chauffeur**, **in the shop**.
+
+Slot ends come from `scheduler.estimate_job_end_time` — the same estimator
+`fleet_windows.hourly_need` uses, so this page and the shop grid can never
+disagree about when a job is over. That estimator is a p75 planning number and
+is never used for feasibility anywhere; the same rule applies here. The page
+prints no turnaround verdict: labelling a gap "tight" is the feasibility
+engine's job. It states the gap's LENGTH and marks only whether a window is long
+enough for shop work (90 min + 30 min to get the car there, plus 60 more behind
+an airport arrival, whose pickup time moves with the flight).
+
+The axis is derived from the day's own data as DATETIMES, never `.hour`
+arithmetic — real days run 04:30–22:30 and a 23:44 pickup clears after midnight.
+It is deliberately NOT the 7a–5p shop axis, which would crop both ends silently.
+
+Capped at three days out (`DAY_CHOICES`), because that is as far as the board is
+genuinely built.
+
+## Inspections
+
+`/dispatching/fleet/inspections/` — `fleet_views.fleet_inspections` →
+`fleet_inspection.load_week()` → `build_week()` (pure). One car, one week, one
+walk-around; `VehicleInspection` is unique on (vehicle, week_start).
+
+**The reset is the schema.** `week_start` is the Monday of the ISO week, so
+asking about a different week is what empties the round. No job runs, nothing is
+cleared down, and last week's record is kept rather than overwritten. "Is the
+fleet inspected this week" is one COUNT.
+
+**The checklist lives in one list** at the top of `dispatching/fleet_inspection.py`
+in plain English, and can be edited without a migration. Answers are stored by
+KEY in a JSONField, so an item later removed still reads back on an old record.
+Every item is good / flag / n-a, with an optional note and photos
+(`VehicleInspectionPhoto` — a JSON field cannot hold a file). `clean_results`
+treats the browser payload as untrusted: unknown keys and invented states are
+dropped.
+
+**The suggestion composes `fleet_day`.** A car out on a run all day cannot be
+walked, so the daily handful is ordered: no chauffeur today, then the longest
+genuinely USABLE window (not the longest raw hole — a three-hour gap behind an
+airport arrival is not three hours you can hold a car for), then whoever has
+gone longest unseen. `DAILY_TARGET` is 5; 19 active units needs about 4 a day.
+A unit in the shop all week is marked as such and is NOT counted as missed.
+
+Finding something files a `VehicleIssue` with source `fleet`. It never takes the
+car off the road — only the downtime ledger does that.
+
+Two deviations from the Phase 3 audit, both on the founder's instruction
+(2026-09-15): per-item checklists and photos were on its "do not build" list, and
+the per-car windows got their own page rather than a column on the Vehicles
+table.
 
 The navbar pill (`fleet_now_count`) is NOT the desk computation: four cheap
 counts (overdue returns, open ground/soon issues, units with a lit code,
@@ -671,7 +749,8 @@ Ordered by value.
 ENABLE_DEBUG_TOOLBAR=0 python manage.py test dispatching.tests_mileage \
     dispatching.tests_fleet dispatching.tests_samsara dispatching.tests_fleet_desk \
     dispatching.tests_vehicle_status dispatching.tests_vehicle_status_wiring \
-    dispatching.tests_fleet_bulk
+    dispatching.tests_fleet_bulk dispatching.tests_fleet_windows \
+    dispatching.tests_fleet_day dispatching.tests_fleet_inspection
 ```
 
 `tests_fleet_desk` covers the ledger endpoints, the demand check (pure and

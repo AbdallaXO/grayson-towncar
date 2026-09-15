@@ -2,13 +2,18 @@
   Shared chrome for every fleet page: the four tabs and the styles the desk,
   the vehicle table, the outlook and the report all use. Included INSIDE the
   page head so the tabs sit beside the title. Expects `fleet_page` in
-  ("desk", "vehicles", "outlook", "report").
+  ("desk", "day", "vehicles", "inspections", "outlook",
+  "report").
 {% endcomment %}
 <div class="tap-tab-row fleet-tabs">
   <a href="{% url 'fleet_desk' %}" class="tap-tab {% if fleet_page == 'desk' %}active{% endif %}">
     <i class="bi bi-clipboard2-pulse"></i> Desk</a>
+  <a href="{% url 'fleet_day' %}" class="tap-tab {% if fleet_page == 'day' %}active{% endif %}">
+    <i class="bi bi-calendar-day"></i> The day</a>
   <a href="{% url 'fleet_list' %}" class="tap-tab {% if fleet_page == 'vehicles' %}active{% endif %}">
     <i class="bi bi-truck"></i> Vehicles</a>
+  <a href="{% url 'fleet_inspections' %}" class="tap-tab {% if fleet_page == 'inspections' %}active{% endif %}">
+    <i class="bi bi-clipboard2-check"></i> Inspections</a>
   <a href="{% url 'fleet_outlook' %}" class="tap-tab {% if fleet_page == 'outlook' %}active{% endif %}">
     <i class="bi bi-calendar3-range"></i> Outlook</a>
   <a href="{% url 'fleet_report' %}" class="tap-tab {% if fleet_page == 'report' %}active{% endif %}">

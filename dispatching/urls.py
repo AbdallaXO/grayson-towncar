@@ -90,6 +90,11 @@ urlpatterns = [
     # The desk is the fleet manager's home; the vehicle table moved one level in.
     path("fleet/", fleet_views.fleet_desk, name="fleet_desk"),
     path("fleet/vehicles/", fleet_views.fleet_list, name="fleet_list"),
+    path("fleet/day/", fleet_views.fleet_day, name="fleet_day"),
+    # The weekly inspection round: a few cars a day, the fleet by Sunday.
+    path("fleet/inspections/", fleet_views.fleet_inspections, name="fleet_inspections"),
+    path("fleet/inspections/<int:pk>/", fleet_views.fleet_inspect_vehicle,
+         name="fleet_inspect_vehicle"),
     path("fleet/outlook/", fleet_views.fleet_outlook, name="fleet_outlook"),
     path("fleet/report/", fleet_views.fleet_report, name="fleet_report"),
     path("fleet/<int:pk>/", fleet_views.fleet_detail, name="fleet_detail"),

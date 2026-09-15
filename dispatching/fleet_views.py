@@ -25,15 +25,17 @@ Rendering rules enforced here and in the templates:
   * Every total states its coverage.
 """
 import json
+import logging
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
@@ -42,16 +44,21 @@ from dispatching import fleet_capacity, fleet_health, fleet_notify
 from dispatching import fleet_windows
 # Aliased: the views below are named fleet_desk / fleet_report after their URLs,
 # and a bare module import would be shadowed by the function definitions.
+from dispatching import fleet_day as fleet_day_builder
+from dispatching import fleet_inspection
 from dispatching import fleet_desk as fleet_desk_loader
 from dispatching import fleet_report as fleet_reporting
 from dispatching.fleet_sync import FEED_NIGHTLY, FEED_VEHICLE_STATS
 from dispatching.mileage import days_to_cover, meters_to_miles, usage_rate
 from dispatching.samsara_service import EXTENDED_STAT_TYPES
+from drivers.context_processors import invalidate_fleet_now_count
 from drivers.models import (
     DriverVehicleAssignment, FleetSyncState, FleetVehicle, VehicleDayReading,
-    VehicleDowntime, VehicleFault, VehicleIssue, VehicleServiceRecord,
-    VehicleServiceSchedule,
+    VehicleDowntime, VehicleFault, VehicleInspection, VehicleInspectionPhoto,
+    VehicleIssue, VehicleServiceRecord, VehicleServiceSchedule,
 )
+
+logger = logging.getLogger(__name__)
 
 # How much recent history the detail page shows. Small on purpose — this is an
 # operations page, not an analytics tool.
@@ -848,6 +855,167 @@ def fleet_delete_service(request, pk):
 # The Fleet desk — the fleet manager's home
 # ════════════════════════════════════════════════════════════════════════════
 
+# ════════════════════════════════════════════════════════════════════════════
+# The weekly inspection round
+# ════════════════════════════════════════════════════════════════════════════
+
+@login_required(login_url="login")
+@staff_member_required
+def fleet_inspections(request):
+    """The week's round: who has been walked, who is still due, and the handful
+    to do today.
+
+    The suggestion is ordered by ``fleet_day`` — a car can only be inspected if
+    it is on the lot — but the round does not DEPEND on the board being built:
+    without it the tiles are simply ordered by who has gone longest unseen.
+    """
+    today = timezone.localdate()
+    day = fleet_day_builder.parse_day(request.GET.get("date"), today)
+    loaded = fleet_inspection.load_week(day)
+    try:
+        day_rows = fleet_day_builder.build_day(
+            fleet_day_builder.load_car_day(day))["rows"]
+    except Exception:
+        logger.exception("fleet_inspections: day rows unavailable for %s", day)
+        day_rows = None
+    week = fleet_inspection.build_week(
+        loaded, day_rows=day_rows,
+        last_seen=fleet_inspection.last_seen_map(loaded["units"]))
+    return render(request, "dispatching/fleet_inspections.html", {
+        "fleet_page": "inspections",
+        "day": day,
+        "today": today,
+        "week": week,
+        "daily_target": fleet_inspection.DAILY_TARGET,
+    })
+
+
+@login_required(login_url="login")
+@staff_member_required
+def fleet_inspect_vehicle(request, pk):
+    """One car's walk-around: the checklist, a note and a photo per item.
+
+    GET renders the form, pre-filled if this car has already been walked this
+    week (so a half-finished one can be picked back up). POST is a normal form
+    post rather than JSON because it carries files.
+    """
+    vehicle = get_object_or_404(
+        FleetVehicle.objects.with_open_downtimes().select_related("vehicle_type"), pk=pk)
+    today = timezone.localdate()
+    day = fleet_day_builder.parse_day(request.GET.get("date"), today)
+    existing = fleet_inspection.existing_for(vehicle, day)
+
+    if request.method == "POST":
+        return _save_inspection(request, vehicle, day, existing)
+
+    return render(request, "dispatching/fleet_inspect.html", {
+        "fleet_page": "inspections",
+        "vehicle": vehicle,
+        "day": day,
+        "week_start": fleet_inspection.week_start_for(day),
+        "week_end": fleet_inspection.week_end_for(day),
+        "existing": existing,
+        "sections": fleet_inspection.form_sections(existing),
+        "issue_severities": VehicleIssue.SEVERITY_CHOICES,
+        "vehicle_type": fleet_capacity.type_label(fleet_capacity.unit_type(vehicle)),
+    })
+
+
+def _save_inspection(request, vehicle, day, existing):
+    """Write the walk-around, and file an issue if it found something.
+
+    One row per (vehicle, week) — walking the same car twice in a week UPDATES
+    rather than failing on the unique constraint or quietly making a second row
+    the count would double.
+    """
+    results = {}
+    for item in fleet_inspection.all_items():
+        state = (request.POST.get(f"state_{item['key']}") or "").strip()
+        note = (request.POST.get(f"note_{item['key']}") or "").strip()
+        if state:
+            results[item["key"]] = {"state": state, "note": note}
+    results = fleet_inspection.clean_results(results)
+
+    odometer, message = _opt_decimal(request.POST.get("odometer_miles"),
+                                     "Odometer", minimum=0)
+    if message:
+        messages.error(request, message, extra_tags="danger")
+        return redirect("fleet_inspect_vehicle", pk=vehicle.pk)
+
+    found = bool(request.POST.get("found_something"))
+    notes = (request.POST.get("notes") or "").strip()
+    week_start = fleet_inspection.week_start_for(day)
+
+    inspection = existing or VehicleInspection(vehicle=vehicle, week_start=week_start)
+    inspection.inspected_on = day
+    inspection.inspected_by = request.user
+    inspection.outcome = (VehicleInspection.OUTCOME_FOUND if found
+                          else VehicleInspection.OUTCOME_OK)
+    inspection.odometer_miles = odometer
+    inspection.notes = notes
+    inspection.results = results
+    inspection.save()
+
+    # Found something -> the existing issue workflow, with the severity the
+    # inspector chose. The inspection itself never takes a car off the road.
+    if found and inspection.issue is None:
+        title = (request.POST.get("issue_title") or "").strip()[:200]
+        if not title:
+            flagged = inspection.flagged_items()
+            labels = fleet_inspection.item_labels()
+            title = (", ".join(labels.get(k, k) for k in flagged[:2])[:200]
+                     or f"Something found on #{vehicle.vehicle_number}")
+        severity = (request.POST.get("issue_severity") or "soon").strip()
+        if severity not in {s[0] for s in VehicleIssue.SEVERITY_CHOICES}:
+            severity = "soon"
+        issue = VehicleIssue.objects.create(
+            vehicle=vehicle, title=title, details=notes, severity=severity,
+            source="fleet", reported_by=request.user)
+        inspection.issue = issue
+        inspection.save(update_fields=["issue"])
+        invalidate_fleet_now_count()
+
+    for key in list(request.FILES.keys()):
+        if not key.startswith("photo_"):
+            continue
+        item_key = key[len("photo_"):][:64]
+        for upload in request.FILES.getlist(key):
+            VehicleInspectionPhoto.objects.create(
+                inspection=inspection, item_key=item_key, image=upload)
+
+    messages.success(
+        request,
+        f"#{vehicle.vehicle_number} inspected." + (" Problem reported." if found else ""),
+        extra_tags="success")
+    return redirect("fleet_inspections")
+
+
+@login_required(login_url="login")
+@staff_member_required
+def fleet_day(request):
+    """What each car has for the day — one row per unit across a shared clock.
+
+    The fleet manager's own read of the dispatch board: the board itself is a
+    per-driver screen behind a nav the fleet role does not carry, and the
+    question asked in the yard is about a CAR, not a chauffeur.
+
+    The page leads with how much of the day dispatch has actually assigned,
+    because an unbuilt day and an empty car are the same absence of rows and
+    only one of them means the car is free. Everything else is
+    ``fleet_day.build_day`` over one loader. DB-only, like every fleet page.
+    """
+    today = timezone.localdate()
+    day = fleet_day_builder.parse_day(request.GET.get("date"), today)
+    payload = fleet_day_builder.build_day(fleet_day_builder.load_car_day(day))
+    return render(request, "dispatching/fleet_day.html", {
+        "fleet_page": "day",
+        "day": day,
+        "today": today,
+        "payload": payload,
+        "day_options": fleet_day_builder.day_options(today),
+    })
+
+
 @login_required(login_url="login")
 @staff_member_required
 def fleet_desk(request):
@@ -886,7 +1054,10 @@ def fleet_desk(request):
         "finder_payload": payload,
         "finder_default_unit": default_unit,
         "finder_default_hours": default_hours,
-        "show_idle_block": bool(shop["idle"]) and bool(shop["booked"] or shop["down"]),
+        # On an unbuilt day the block carries the honest sentence instead of a
+        # list, so it must not be hidden just because the list is empty.
+        "show_idle_block": (bool(shop["booked"] or shop["down"])
+                            and (bool(shop["idle"]) or not shop.get("built", True))),
         "warn_days": fleet_health.EXPIRY_WARN_DAYS,
         "downtime_categories": VehicleDowntime.CATEGORY_CHOICES,
         "issue_severities": VehicleIssue.SEVERITY_CHOICES,

@@ -1,0 +1,165 @@
+{% extends 'main.html' %}
+
+{% comment %}
+  The week's inspection round. One tile per active unit, the week's progress in
+  the header, and the handful suggested for today at the top — ordered by which
+  cars are actually standing still, because a car out on a run cannot be walked.
+  Monday resets it by construction: the week_start changes, so every tile is due
+  again without anything being cleared down.
+{% endcomment %}
+
+{% block title %}Fleet · Inspections{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
+<style>
+  .fi-progress { margin-top: 24px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .fi-bar { flex: 1 1 260px; height: 8px; border-radius: 50px; background: var(--fl-hair-soft); overflow: hidden; min-width: 200px; }
+  .fi-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--fl-gold) 0%, var(--fl-gold-light) 100%); transition: width .4s ease; }
+  .fi-count { font-family: var(--fl-serif); font-size: 1.5rem; font-weight: 600; white-space: nowrap; }
+  .fi-count .of { color: var(--fl-muted-light); font-size: 1rem; }
+  .fi-pace { font-size: 0.8rem; color: var(--fl-muted); }
+  .fi-pace.done { color: var(--fl-good); font-weight: 600; }
+  .fi-pace.late { color: var(--fl-critical); font-weight: 600; }
+
+  .fi-today { margin-top: 30px; border: 1px solid var(--fl-gold); border-radius: 1rem;
+              background: linear-gradient(180deg, rgba(201,162,39,0.06) 0%, #fff 100%); padding: 22px 24px; }
+  .fi-today h2 { font-family: var(--fl-serif); font-size: 1.22rem; font-weight: 600; }
+  .fi-today .sub { font-size: 0.78rem; color: var(--fl-muted); margin-top: 4px; }
+
+  .fi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 18px; }
+  .fi-card { display: block; border: 1px solid var(--fl-hair); border-radius: 0.8rem; padding: 14px 16px;
+             background: #fff; transition: var(--fl-t); }
+  .fi-card:hover { border-color: var(--fl-gold); transform: translateY(-1px); }
+  .fi-card .num { font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
+  .fi-card .num .vt { font-weight: 500; color: var(--fl-muted-light); font-size: 0.7rem; margin-left: 5px; }
+  .fi-card .when { font-size: 0.71rem; color: var(--fl-muted); margin-top: 5px; }
+  .fi-card .badge-line { margin-top: 8px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  .fi-card.due { border-left: 3px solid var(--fl-gold); }
+  .fi-card.due .badge-line { color: var(--fl-caution); }
+  .fi-card.done { background: var(--fl-good-tint); border-color: var(--fl-good-border); opacity: 0.72; }
+  .fi-card.done .badge-line { color: var(--fl-good); }
+  .fi-card.done:hover { opacity: 1; }
+  .fi-card.found { background: var(--fl-caution-tint); border-color: #E6D9AC; border-left: 3px solid var(--fl-caution); }
+  .fi-card.found .badge-line { color: var(--fl-caution); }
+  .fi-card.shop { background: var(--fl-cream); border-style: dashed; color: var(--fl-muted); }
+  .fi-card.shop .badge-line { color: var(--fl-muted-light); }
+  .fi-card .idle { color: var(--fl-good-deep); font-weight: 600; }
+
+  .fi-section-head { display: flex; align-items: baseline; justify-content: space-between;
+                     gap: 16px; margin-top: 34px; padding-bottom: 12px; border-bottom: 1px solid var(--fl-hair); }
+  .fi-section-head h2 { font-family: var(--fl-serif); font-size: 1.2rem; font-weight: 600; }
+  .fi-section-head .meta { font-size: 0.76rem; color: var(--fl-muted); }
+  .fi-foot { margin-top: 16px; font-size: 0.76rem; color: var(--fl-muted); }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="fl-page">
+<div class="fl-inner">
+
+  <div class="fl-head">
+    <div>
+      <div class="fl-eyebrow">Fleet</div>
+      <h1 class="fl-title">Inspections</h1>
+      <div class="fl-date">Week of {{ week.week_start|date:"F j" }} – {{ week.week_end|date:"F j" }}</div>
+    </div>
+    <div class="fl-head-right">
+      {% include "dispatching/includes/_fleet_pills.html" %}
+    </div>
+  </div>
+
+  {# ── This week at a glance ─────────────────────────────────────────── #}
+  <div class="fi-progress">
+    <div class="fi-count fl-num">{{ week.done_count }} <span class="of">/ {{ week.total }}</span></div>
+    <div class="fi-bar">
+      <span style="width:{% widthratio week.done_count week.total 100 %}%"></span>
+    </div>
+    <div>
+      <div style="font-size:0.84rem;font-weight:600;">{{ week.headline }}</div>
+      {% if week.complete %}
+        <div class="fi-pace done">Whole fleet walked this week.</div>
+      {% elif week.pace %}
+        <div class="fi-pace {% if 'above the usual' in week.pace or 'nearly out' in week.pace %}late{% endif %}">{{ week.pace }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Today's handful ───────────────────────────────────────────────── #}
+  {% if week.suggested %}
+  <div class="fi-today">
+    <h2>Do these today</h2>
+    <div class="sub">
+      Cars standing still come first — a unit out on a run all day cannot be walked.
+      Pick any other car below if it suits you better.
+    </div>
+    <div class="fi-grid">
+      {% for tile in week.suggested %}
+      <a class="fi-card due" href="{{ tile.href }}">
+        <div class="num">#{{ tile.number }}<span class="vt">{{ tile.vehicle_type }}</span></div>
+        <div class="when {% if tile.idle_today %}idle{% endif %}">{{ tile.today|default:"—" }}</div>
+        <div class="badge-line">Inspect</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% elif week.complete %}
+  <div class="fi-today">
+    <h2>Nothing due</h2>
+    <div class="sub">Every active unit has been walked this week. It resets Monday.</div>
+  </div>
+  {% endif %}
+
+  {# ── The whole fleet ───────────────────────────────────────────────── #}
+  <div class="fi-section-head">
+    <h2>Every unit this week</h2>
+    <div class="meta">
+      {{ week.due_count }} still due{% if week.in_shop %} · {{ week.in_shop }} in the shop, not counted{% endif %}
+    </div>
+  </div>
+  <div class="fi-grid">
+    {% for tile in week.tiles %}
+    {% if tile.state == 'shop' %}
+      <div class="fi-card shop">
+        <div class="num">#{{ tile.number }}<span class="vt">{{ tile.vehicle_type }}</span></div>
+        <div class="when">{{ tile.today }}</div>
+        <div class="badge-line">In the shop</div>
+      </div>
+    {% else %}
+      <a class="fi-card {{ tile.state }}" href="{{ tile.href }}">
+        <div class="num">#{{ tile.number }}<span class="vt">{{ tile.vehicle_type }}</span></div>
+        {% if tile.inspection %}
+          <div class="when">
+            {{ tile.inspection.inspected_on|date:"D j M" }}{% if tile.inspection.inspected_by %} · {{ tile.inspection.inspected_by|title }}{% endif %}
+          </div>
+          {% if tile.state == 'found' %}
+            <div class="badge-line">{{ tile.inspection.issue.title|default:"Found something"|truncatechars:34 }}</div>
+          {% else %}
+            <div class="badge-line">Done</div>
+          {% endif %}
+        {% else %}
+          <div class="when {% if tile.idle_today %}idle{% endif %}">{{ tile.today|default:"—" }}</div>
+          <div class="badge-line">Due</div>
+        {% endif %}
+      </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="fi-foot">
+    The round resets every Monday. A car in the shop for the whole week is not counted
+    as missed. Finding something files a problem report — it never takes the car off
+    the road on its own; use <strong>Take off road</strong> on the desk for that.
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

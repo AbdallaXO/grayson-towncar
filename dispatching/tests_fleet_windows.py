@@ -13,7 +13,9 @@ from django.urls import reverse
 
 from dispatching import fleet_desk, fleet_queue, fleet_windows
 from dispatching.tests_fleet_desk import DAY, TODAY, _FleetFixture
-from drivers.models import VehicleDowntime, VehicleFault, VehicleIssue
+from drivers.models import (
+    DriverVehicleAssignment, VehicleDowntime, VehicleFault, VehicleIssue,
+)
 
 
 def _ninety_minutes(leg, target_date):
@@ -163,6 +165,17 @@ class QueueTests(_FleetFixture):
         self.assertEqual(rows[0]["tag"], fleet_queue.NEEDS_SHOP)
         self.assertEqual(rows[0]["title"], "#5 — brakes grinding")
         self.assertIn("reported by fd_staff today", rows[0]["meaning"])
+        # Nobody has built today's board here, so the queue must NOT claim the car
+        # has no chauffeur — before Day Setup runs that is true of every unit, and
+        # saying it per car reads as "the whole fleet is free" (audit bug 2).
+        self.assertNotIn("No chauffeur on it today", rows[0]["meaning"])
+
+        # Give the day a board, with this car left without a driver, and the
+        # sentence is earned.
+        other = self.unit("6")
+        DriverVehicleAssignment.objects.create(
+            driver=self.george, vehicle=other, date=TODAY)
+        rows = self._desk()["queue"]["rows"]
         self.assertIn("No chauffeur on it today", rows[0]["meaning"])
         VehicleDowntime.objects.create(vehicle=v, starts_on=TODAY + timedelta(days=2),
                                        expected_back_on=TODAY + timedelta(days=3), reason="brakes")

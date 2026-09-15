@@ -1,11 +1,14 @@
 {% comment %}
-  The tab row on the redesigned fleet screens: Desk · Vehicles · Outlook · Report
-  as pills. Expects `fleet_page` in ("desk", "vehicles", "outlook", "report").
+  The tab row on the redesigned fleet screens: Desk · The day · Vehicles · Outlook ·
+  Report as pills. Expects `fleet_page` in ("desk", "day", "vehicles",
+  "inspections", "outlook", "report").
   The older `_fleet_shell.html` stays for the pages not yet redesigned.
 {% endcomment %}
 <div class="fl-pills">
   <a href="{% url 'fleet_desk' %}" class="fl-pill {% if fleet_page == 'desk' %}active{% endif %}">Desk</a>
+  <a href="{% url 'fleet_day' %}" class="fl-pill {% if fleet_page == 'day' %}active{% endif %}">The day</a>
   <a href="{% url 'fleet_list' %}" class="fl-pill {% if fleet_page == 'vehicles' %}active{% endif %}">Vehicles</a>
+  <a href="{% url 'fleet_inspections' %}" class="fl-pill {% if fleet_page == 'inspections' %}active{% endif %}">Inspections</a>
   <a href="{% url 'fleet_outlook' %}" class="fl-pill {% if fleet_page == 'outlook' %}active{% endif %}">Outlook</a>
   <a href="{% url 'fleet_report' %}" class="fl-pill {% if fleet_page == 'report' %}active{% endif %}">Report</a>
 </div>

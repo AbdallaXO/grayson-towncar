@@ -109,7 +109,7 @@ def _who(name):
 
 def build_queue(*, today, now, vehicles, downtimes_open, issues_open, faults_open,
                 faults_recent, schedules, assigned_today, downtime_verdicts=None,
-                href_for=None):
+                href_for=None, built=True):
     """One row per unit with something to decide, open rows first.
 
     Returns ``{"rows": [...], "summary": {"open", "urgent", "handled", "text"}}``.
@@ -119,6 +119,9 @@ def build_queue(*, today, now, vehicles, downtimes_open, issues_open, faults_ope
     """
     downtime_verdicts = downtime_verdicts or {}
     href_for = href_for or (lambda v: "")
+    # ``built``: has Dispatch assigned cars for today yet? Before Day Setup runs,
+    # EVERY unit has no chauffeur, and saying so unit by unit reads as "the whole
+    # fleet is free" — audit bug 2. An unbuilt day says nothing about a car.
 
     downtimes_by, issues_by, faults_by, schedules_by = {}, {}, {}, {}
     for d in downtimes_open:
@@ -141,6 +144,7 @@ def build_queue(*, today, now, vehicles, downtimes_open, issues_open, faults_ope
             schedules=schedules_by.get(v.id, []),
             driver=_who(assigned_today.get(v.id, "")),
             verdicts=downtime_verdicts, recurring=recurring, href=href_for(v),
+            built=built,
         )
         if row is not None:
             rows.append(row)
@@ -162,7 +166,7 @@ def build_queue(*, today, now, vehicles, downtimes_open, issues_open, faults_ope
 
 
 def _row_for(v, *, today, now, downtimes, issues, faults, schedules, driver,
-             verdicts, recurring, href):
+             verdicts, recurring, href, built=True):
     number = v.vehicle_number
     base = {
         "unit": v, "number": number, "unit_id": v.id, "href": href,
@@ -267,7 +271,7 @@ def _row_for(v, *, today, now, downtimes, issues, faults, schedules, driver,
     if first["kind"] != "gps":
         if driver:
             meaning.append(f"{driver} has it today.")
-        else:
+        elif built:
             meaning.append("No chauffeur on it today — nothing is stopping this one.")
     facts = _facts(v)
     if facts:
@@ -441,7 +445,8 @@ def state_bar(board):
     ]
 
 
-def shop_panel(*, today, in_shop, planned, idle_today, downtime_verdicts=None):
+def shop_panel(*, today, in_shop, planned, idle_today, downtime_verdicts=None,
+               built=True):
     """What the shop panel says: bookings held, units off the road now, and
     which units have no chauffeur today."""
     downtime_verdicts = downtime_verdicts or {}
@@ -462,13 +467,21 @@ def shop_panel(*, today, in_shop, planned, idle_today, downtime_verdicts=None):
             "back": _day(d.expected_back_on) if d.expected_back_on else "",
             "overdue": d.is_overdue(today),
         })
+    # Gate BEFORE the idle/else split, not inside it: an empty idle list on an
+    # unbuilt day would otherwise fall through to "Every unit has a chauffeur
+    # today", which is the same lie with the sign flipped.
+    if not built:
+        return {"booked": booked, "down": down, "idle": [], "built": False,
+                "idle_text": "Dispatch has not built today's board yet — nothing "
+                             "here says a car is free."}
     idle = [_unit(r["vehicle"]) for r in idle_today]
     if idle:
         idle_text = (f"{_list(idle)} {'has' if len(idle) == 1 else 'have'} no chauffeur today — "
                      f"a service fits without touching Dispatch.")
     else:
         idle_text = "Every unit has a chauffeur today."
-    return {"booked": booked, "down": down, "idle": idle, "idle_text": idle_text}
+    return {"booked": booked, "down": down, "idle": idle, "idle_text": idle_text,
+            "built": True}
 
 
 PAPERWORK = (

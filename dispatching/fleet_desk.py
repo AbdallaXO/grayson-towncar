@@ -136,7 +136,12 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         [r for r in outlook_rows[1:] if r["level"] == "clear"],
         key=lambda r: (r["utilisation"], r["date"]),
     )[:OPPORTUNITY_COUNT]
-    idle_today = [r for r in board if r["idle_today"] and r["state"] != "down"]
+    # Has Dispatch built today yet? No assignment rows at all means every unit
+    # reads as having no chauffeur, which is not the same as being free — see
+    # fleet_day for the same rule and the measured gradient behind it.
+    built = bool(assigned_today)
+    idle_today = ([r for r in board if r["idle_today"] and r["state"] != "down"]
+                  if built else [])
 
     in_shop = [d for d in downtimes_open if d.is_live(today) or d.is_overdue(today)]
     in_shop.sort(key=lambda d: (d.expected_back_on or today + timedelta(days=3650), d.starts_on))
@@ -150,11 +155,12 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         today=today, now=now, vehicles=units, downtimes_open=downtimes_open,
         issues_open=issues_open, faults_open=faults_open, faults_recent=faults_recent,
         schedules=schedules, assigned_today=assigned_today,
-        downtime_verdicts=downtime_verdicts, href_for=_href,
+        downtime_verdicts=downtime_verdicts, href_for=_href, built=built,
     )
     state_bar = fleet_queue.state_bar(board)
     shop = fleet_queue.shop_panel(today=today, in_shop=in_shop, planned=planned,
-                                  idle_today=idle_today, downtime_verdicts=downtime_verdicts)
+                                  idle_today=idle_today, downtime_verdicts=downtime_verdicts,
+                                  built=built)
     paperwork = fleet_queue.paperwork_rows(
         units, today, list_href=reverse("fleet_list"), href_for=_href)
     setup_intervals = next(
@@ -168,11 +174,13 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         "unconfirmed": sum(1 for r in board if r["state"] == "unconfirmed"),
         "planned": len(planned),
         "idle_today": len(idle_today),
+        "built": built,
     }
 
     return {
         "today": today,
         "now": now,
+        "built": built,
         "units": units,
         "feed": feed,
         "attention": attention,

@@ -1,0 +1,193 @@
+{% extends 'main.html' %}
+
+{% comment %}
+  What each car has for the day. One row per unit, its jobs laid on a shared
+  time axis, the holes between them named. The page's first sentence is about
+  how much of the day dispatch has actually built — everything below it is only
+  as true as that number, and a car with an empty strip on a half-built day is
+  NOT a free car.
+{% endcomment %}
+
+{% block title %}Fleet · The day{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
+<style>
+  /* ── The day strip ────────────────────────────────────────────────── */
+  .fd-note { margin-top: 20px; padding: 14px 18px; border-radius: 0.7rem; font-size: 0.86rem;
+             border: 1px solid var(--fl-hair); background: var(--fl-cream); color: var(--fl-ink); }
+  .fd-note.warn { background: var(--fl-caution-tint); border-color: #E6D9AC; color: var(--fl-caution); font-weight: 500; }
+  .fd-note.stop { background: var(--fl-critical-tint); border-color: var(--fl-critical-border); color: var(--fl-critical); font-weight: 500; }
+
+  .fd-controls { display: flex; align-items: center; justify-content: space-between;
+                 gap: 16px; flex-wrap: wrap; margin-top: 26px; }
+  .fd-days { display: flex; gap: 4px; }
+  .fd-day { padding: 8px 15px; border-radius: 50px; border: 1px solid var(--fl-hair);
+            font-size: 0.76rem; font-weight: 600; background: #fff; color: var(--fl-ink); transition: var(--fl-t); }
+  .fd-day:hover { border-color: var(--fl-gold); }
+  .fd-day.active { background: var(--fl-ink); color: #fff; border-color: var(--fl-ink); }
+  .fd-day.active:hover { color: #fff; }
+  .fd-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.72rem; color: var(--fl-muted); }
+  .fd-legend .sw { width: 22px; height: 9px; border-radius: 2px; display: inline-block;
+                   vertical-align: middle; margin-right: 6px; }
+
+  .fd-board { margin-top: 18px; border: 1px solid var(--fl-hair); border-radius: 1rem; overflow: hidden; background: #fff; }
+  .fd-axis { display: flex; padding: 9px 0 9px 176px; border-bottom: 1px solid var(--fl-hair);
+             background: var(--fl-cream); position: relative; height: 32px; }
+  .fd-tick { position: absolute; font-size: 0.64rem; font-weight: 600; color: var(--fl-muted-light);
+             letter-spacing: 0.04em; transform: translateX(-50%); top: 9px; }
+
+  .fd-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--fl-hair-softest); min-height: 58px; }
+  .fd-row:last-child { border-bottom: 0; }
+  .fd-row:hover { background: #FCFBF8; }
+  .fd-row.is-down { background: var(--fl-critical-tint); }
+  .fd-row.is-unknown { background: #FCFCFB; }
+
+  .fd-label { flex: 0 0 176px; padding: 10px 14px; border-right: 1px solid var(--fl-hair-soft); min-width: 0; }
+  .fd-unit { font-weight: 700; font-size: 0.92rem; letter-spacing: -0.01em; }
+  .fd-unit .vt { font-weight: 500; color: var(--fl-muted-light); font-size: 0.72rem; margin-left: 5px; }
+  .fd-who { font-size: 0.72rem; color: var(--fl-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fd-who .share { color: var(--fl-settled); font-weight: 600; }
+
+  .fd-track { flex: 1 1 auto; position: relative; margin: 10px 16px 10px 0; min-width: 0; }
+  .fd-job { position: absolute; top: 0; height: 30px; border-radius: 4px; overflow: hidden;
+            background: var(--fl-good-tint-strong); border: 1px solid var(--fl-good-border);
+            font-size: 0.66rem; line-height: 28px; padding: 0 6px; white-space: nowrap;
+            color: var(--fl-good-deep); font-weight: 600; transition: var(--fl-t); }
+  .fd-job:hover { border-color: var(--fl-gold); z-index: 5; }
+  .fd-job.arrival { background: #E7EEF6; border-color: #C9D8E8; color: var(--fl-settled); }
+  .fd-job.sanford { background: #E3F1F3; border-color: #BFDDE2; color: #1F5A63; }
+  .fd-gap { position: absolute; top: 8px; height: 14px; border-radius: 3px;
+            border: 1px dashed var(--fl-chip-border); }
+  .fd-gap.usable { border: 1px solid var(--fl-gold); background: rgba(201,162,39,0.16);
+                   top: 4px; height: 22px; }
+  .fd-gap-label { position: absolute; top: 33px; font-size: 0.6rem; color: var(--fl-caution);
+                  white-space: nowrap; font-weight: 700; letter-spacing: 0.02em; }
+  .fd-fact { font-size: 0.68rem; color: var(--fl-muted-light); margin-top: 2px;
+             font-variant-numeric: tabular-nums; }
+  .fd-empty { position: absolute; top: 6px; left: 0; font-size: 0.74rem; color: var(--fl-muted); font-style: italic; }
+  .fd-flag { display: inline-block; margin-left: 6px; font-size: 0.6rem; font-weight: 700;
+             color: var(--fl-critical); letter-spacing: 0.05em; }
+
+  .fd-foot { margin-top: 14px; font-size: 0.76rem; color: var(--fl-muted); }
+  @media (max-width: 1000px) { .fd-tick.minor { display: none; } }
+  @media (max-width: 800px) {
+    .fd-axis { padding-left: 128px; }
+    .fd-label { flex-basis: 128px; }
+    .fd-tick { left: auto; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="fl-page">
+<div class="fl-inner">
+
+  {# ── Header ────────────────────────────────────────────────────────── #}
+  <div class="fl-head">
+    <div>
+      <div class="fl-eyebrow">Fleet</div>
+      <h1 class="fl-title">The day</h1>
+      <div class="fl-date">{{ day|date:"l, F j" }}</div>
+    </div>
+    <div class="fl-head-right">
+      {% include "dispatching/includes/_fleet_pills.html" %}
+    </div>
+  </div>
+
+  {# ── How much of this day is real ──────────────────────────────────── #}
+  <div class="fd-note {% if not payload.built %}stop{% elif not payload.confident %}warn{% endif %}">
+    {{ payload.headline }}
+  </div>
+
+  {# ── Date + legend ─────────────────────────────────────────────────── #}
+  <div class="fd-controls">
+    <div class="fd-days">
+      {% for option in day_options %}
+        <a class="fd-day {% if option.date == day %}active{% endif %}"
+           href="?date={{ option.value }}">{{ option.label }}</a>
+      {% endfor %}
+    </div>
+    <div class="fd-legend">
+      <span><span class="sw" style="background:#DCEAE2;border:1px solid #CFE2D8;"></span>On a trip</span>
+      <span><span class="sw" style="background:#E7EEF6;border:1px solid #C9D8E8;"></span>Airport arrival</span>
+      <span><span class="sw" style="background:rgba(201,162,39,0.10);border:1px solid #C9A227;"></span>Room for shop work</span>
+    </div>
+  </div>
+
+  {# ── The board ─────────────────────────────────────────────────────── #}
+  <div class="fd-board">
+    <div class="fd-axis">
+      {% for tick in payload.hours %}
+        <span class="fd-tick {% if tick.minor %}minor{% endif %}"
+              style="left:calc(176px + (100% - 192px) * {{ tick.pct }} / 100);">{{ tick.label }}</span>
+      {% endfor %}
+    </div>
+
+    {% for row in payload.rows %}
+    <div class="fd-row {% if row.state == 'down' %}is-down{% elif row.state == 'unknown' %}is-unknown{% endif %}">
+      <div class="fd-label">
+        <div class="fd-unit">
+          <a href="{{ row.href }}">#{{ row.number }}</a>
+          <span class="vt">{{ row.vehicle_type }}</span>
+        </div>
+        <div class="fd-who" title="{{ row.drivers|join:', ' }}">
+          {% if row.drivers %}
+            {% if row.shared %}<span class="share">Shared:</span> {% endif %}{{ row.drivers|join:", " }}
+          {% else %}
+            <em>&mdash;</em>
+          {% endif %}
+        </div>
+        {% if row.state == 'working' %}
+          <div class="fd-fact">{{ row.trips }} trip{{ row.trips|pluralize }} &middot; {{ row.first_label }} – {{ row.last_label }}</div>
+        {% endif %}
+      </div>
+
+      <div class="fd-track">
+        {% if row.state == 'down' %}
+          <div class="fd-empty">{{ row.note }}</div>
+        {% elif not row.jobs %}
+          <div class="fd-empty">{{ row.note }}</div>
+        {% else %}
+          {% for gap in row.gaps %}
+            <div class="fd-gap {% if gap.usable %}usable{% endif %}"
+                 style="left:{{ gap.left }}%;width:{{ gap.width }}%;"
+                 title="{{ gap.span }} — {{ gap.from_label }} to {{ gap.to_label }}{% if gap.handoff %} (car changes hands){% endif %}{% if gap.flight_dependent %} — starts after an airport arrival, so it moves with the flight{% endif %}"></div>
+            {% if gap.usable %}
+              <span class="fd-gap-label" style="left:{{ gap.left }}%;">{{ gap.span }} free</span>
+            {% endif %}
+          {% endfor %}
+          {% for job in row.jobs %}
+            <div class="fd-job {% if job.trip_type == 'arrival' %}arrival{% endif %} {% if job.is_sanford %}sanford{% endif %}"
+                 style="left:{{ job.left }}%;width:{{ job.width }}%;"
+                 title="{{ job.start_label }} – {{ job.end_label }} · {{ job.customer }}&#10;{{ job.pickup }} → {{ job.dropoff }}&#10;{{ job.driver }}{% if job.flight_info %}&#10;{{ job.flight_info }}{% endif %}">{% if job.show_label %}{{ job.start_label }}{% endif %}</div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="fd-foot">
+    {{ payload.working }} car{{ payload.working|pluralize }} working ·
+    {{ payload.open_units }} sitting still ·
+    {{ payload.down }} in the shop.
+    {% if payload.unplaced %}
+      {{ payload.unplaced }} trip{{ payload.unplaced|pluralize }} on this date sit on no in-house car —
+      farmed out, or not assigned yet.
+    {% endif %}
+    <br>
+    Trip end times are planning estimates, the same ones the shop-window finder uses.
+    An airport arrival's pickup time moves with the flight.
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

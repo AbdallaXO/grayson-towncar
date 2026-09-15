@@ -2309,3 +2309,112 @@ class FleetSyncState(models.Model):
 
     def __str__(self):
         return f"{self.feed}: {self.last_status or 'never run'}"
+
+
+class VehicleInspection(models.Model):
+    """One car, one week, one walk-around.
+
+    The fleet manager inspects a handful of cars each day so that every active
+    unit has been looked at by the end of the week. The WEEK is the unit of
+    accountability, not the day: ``week_start`` is the Monday of the ISO week,
+    and (vehicle, week_start) is unique — so the round resets itself every
+    Monday by construction, with no job to run and nothing to clear down.
+
+    "Did we inspect the fleet this week" is then one COUNT, and a car that was
+    missed is visible the day it is missed rather than at the end of the month.
+
+    ``results`` holds the checklist as ``{item_key: {"state": ..., "note": ...}}``
+    — the item definitions live in ``dispatching.fleet_inspection`` so the list
+    can be edited in one place without a migration. The JSON is a RECORD of what
+    was ticked, so an item later removed from the checklist still reads back on
+    an old inspection instead of vanishing from the history.
+
+    Finding something does not take the car off the road. This row is a note;
+    ``issue`` links to the VehicleIssue that carries severity, and only the
+    downtime ledger ever removes a unit from the pool.
+    """
+
+    OUTCOME_OK = "ok"
+    OUTCOME_FOUND = "found"
+    OUTCOME_CHOICES = [
+        (OUTCOME_OK, "All good"),
+        (OUTCOME_FOUND, "Found something"),
+    ]
+
+    vehicle = models.ForeignKey(
+        FleetVehicle, on_delete=models.CASCADE, related_name="inspections"
+    )
+    week_start = models.DateField(
+        db_index=True,
+        help_text="Monday of the ISO week this inspection counts for.",
+    )
+    inspected_on = models.DateField(db_index=True)
+    inspected_at = models.DateTimeField(auto_now_add=True)
+    inspected_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="vehicle_inspections",
+    )
+
+    outcome = models.CharField(
+        max_length=8, choices=OUTCOME_CHOICES, default=OUTCOME_OK, db_index=True
+    )
+    odometer_miles = models.DecimalField(
+        max_digits=10, decimal_places=1, null=True, blank=True,
+        help_text="Read off the dash. For the two units with no Samsara gateway "
+                  "this is the only mileage the system ever gets, which is what "
+                  "makes their service intervals work at all.",
+    )
+    notes = models.TextField(blank=True)
+    results = models.JSONField(default=dict, blank=True)
+    issue = models.ForeignKey(
+        "VehicleIssue", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="inspections",
+        help_text="The problem this inspection raised, if it raised one.",
+    )
+
+    class Meta:
+        unique_together = ("vehicle", "week_start")
+        ordering = ["-week_start", "vehicle"]
+        indexes = [models.Index(fields=["week_start", "outcome"])]
+
+    def __str__(self):
+        return f"#{self.vehicle.vehicle_number} week of {self.week_start}"
+
+    @property
+    def found_something(self):
+        return self.outcome == self.OUTCOME_FOUND
+
+    def flagged_items(self):
+        """The checklist keys the inspector marked as not right."""
+        return [key for key, value in (self.results or {}).items()
+                if isinstance(value, dict) and value.get("state") == "flag"]
+
+
+def inspection_photo_path(instance, filename):
+    week = instance.inspection.week_start
+    return f"inspections/{week:%Y-%m-%d}/{instance.inspection.vehicle_id}/{filename}"
+
+
+class VehicleInspectionPhoto(models.Model):
+    """A picture taken during a walk-around, optionally pinned to one checklist
+    item. Kept in its own table rather than inside ``results`` because a JSON
+    field cannot hold a file — and because a photo is worth finding again by
+    vehicle later, which a blob inside a dict is not."""
+
+    inspection = models.ForeignKey(
+        VehicleInspection, on_delete=models.CASCADE, related_name="photos"
+    )
+    item_key = models.CharField(
+        max_length=64, blank=True,
+        help_text="The checklist item this shows, or blank for the walk-around "
+                  "in general.",
+    )
+    image = models.ImageField(upload_to=inspection_photo_path)
+    caption = models.CharField(max_length=200, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["item_key", "id"]
+
+    def __str__(self):
+        return f"{self.inspection} · {self.item_key or 'general'}"

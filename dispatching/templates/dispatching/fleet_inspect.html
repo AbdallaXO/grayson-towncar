@@ -1,0 +1,208 @@
+{% extends 'main.html' %}
+
+{% comment %}
+  One car's walk-around. Every checklist item is good / problem / not-applicable,
+  and every item takes a note and photos without being declared as such — the
+  items themselves live in dispatching/fleet_inspection.py, which is the one
+  place to edit them.
+
+  A normal form post, not JSON: it carries files.
+{% endcomment %}
+
+{% block title %}Inspect #{{ vehicle.vehicle_number }}{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
+<style>
+  .fx-wrap { max-width: 860px; }
+  .fx-back { font-size: 0.76rem; color: var(--fl-muted); }
+  .fx-done { margin-top: 20px; padding: 13px 17px; border-radius: 0.7rem; font-size: 0.84rem;
+             background: var(--fl-good-tint); border: 1px solid var(--fl-good-border); color: var(--fl-good-deep); }
+
+  .fx-section { margin-top: 28px; }
+  .fx-section > h2 { font-family: var(--fl-serif); font-size: 1.1rem; font-weight: 600;
+                     padding-bottom: 10px; border-bottom: 1px solid var(--fl-hair); }
+
+  .fx-item { padding: 13px 0; border-bottom: 1px solid var(--fl-hair-softest); }
+  .fx-item:last-child { border-bottom: 0; }
+  .fx-item-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .fx-label { font-size: 0.9rem; font-weight: 500; flex: 1 1 260px; }
+  .fx-states { display: flex; gap: 4px; flex: 0 0 auto; }
+  .fx-states input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .fx-states label { padding: 6px 13px; border: 1px solid var(--fl-hair); border-radius: 50px;
+                     font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: var(--fl-t);
+                     background: #fff; color: var(--fl-muted); user-select: none; }
+  .fx-states label:hover { border-color: var(--fl-gold); }
+  .fx-states input:checked + label.ok { background: var(--fl-good); border-color: var(--fl-good); color: #fff; }
+  .fx-states input:checked + label.flag { background: var(--fl-critical); border-color: var(--fl-critical); color: #fff; }
+  .fx-states input:checked + label.na { background: var(--fl-muted); border-color: var(--fl-muted); color: #fff; }
+  .fx-states input:focus-visible + label { outline: 2px solid var(--fl-gold); outline-offset: 2px; }
+
+  .fx-extra { margin-top: 9px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .fx-extra input[type=text] { flex: 1 1 280px; padding: 7px 11px; border: 1px solid var(--fl-hair);
+                               border-radius: 0.45rem; font-size: 0.8rem; font-family: var(--fl-sans); }
+  .fx-extra input[type=text]:focus { outline: none; border-color: var(--fl-gold); }
+  .fx-photo { font-size: 0.7rem; color: var(--fl-muted); }
+  .fx-photo input { font-size: 0.7rem; max-width: 210px; }
+
+  .fx-panel { margin-top: 30px; border: 1px solid var(--fl-hair); border-radius: 1rem; padding: 22px 24px; background: var(--fl-cream); }
+  .fx-panel h2 { font-family: var(--fl-serif); font-size: 1.1rem; font-weight: 600; }
+  .fx-field { margin-top: 14px; }
+  .fx-field label.cap { display: block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+                        letter-spacing: 0.08em; color: var(--fl-muted); margin-bottom: 5px; }
+  .fx-field input[type=text], .fx-field input[type=number], .fx-field textarea, .fx-field select {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--fl-hair); border-radius: 0.5rem;
+      font-size: 0.86rem; font-family: var(--fl-sans); background: #fff; }
+  .fx-field textarea { min-height: 76px; resize: vertical; }
+  .fx-check { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 0.86rem; }
+  .fx-check input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--fl-critical); }
+  .fx-found { margin-top: 16px; padding: 16px; border-radius: 0.7rem;
+              background: var(--fl-critical-tint); border: 1px solid var(--fl-critical-border); }
+
+  .fx-actions { margin-top: 26px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .fx-save { padding: 13px 30px; border: 0; border-radius: 50px; background: var(--fl-ink); color: #fff;
+             font-weight: 600; font-size: 0.86rem; letter-spacing: 0.02em; transition: var(--fl-t); }
+  .fx-save:hover { background: var(--fl-gold); color: var(--fl-ink); }
+  .fx-hint { font-size: 0.74rem; color: var(--fl-muted); }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="fl-page">
+<div class="fl-inner fx-wrap">
+
+  <div class="fl-head">
+    <div>
+      <div class="fl-eyebrow">Inspection</div>
+      <h1 class="fl-title">#{{ vehicle.vehicle_number }}</h1>
+      <div class="fl-date">
+        {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }} · {{ vehicle_type }} ·
+        week of {{ week_start|date:"F j" }}
+      </div>
+    </div>
+    <div class="fl-head-right">
+      <a class="fx-back" href="{% url 'fleet_inspections' %}">← Back to the round</a>
+    </div>
+  </div>
+
+  {% if existing %}
+  <div class="fx-done">
+    Already walked this week — {{ existing.inspected_on|date:"l j F" }}{% if existing.inspected_by %}
+    by {{ existing.inspected_by|title }}{% endif %}. Saving again updates that record rather
+    than adding a second one.
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" action="{% url 'fleet_inspect_vehicle' vehicle.pk %}">
+    {% csrf_token %}
+
+    {% for section in sections %}
+    <div class="fx-section">
+      <h2>{{ section.title }}</h2>
+      {% for item in section.items %}
+      <div class="fx-item">
+        <div class="fx-item-top">
+          <div class="fx-label">{{ item.label }}</div>
+          <div class="fx-states">
+            <input type="radio" id="s_{{ item.key }}_ok" name="state_{{ item.key }}" value="ok"
+                   {% if item.state == 'ok' %}checked{% endif %}>
+            <label class="ok" for="s_{{ item.key }}_ok">Good</label>
+            <input type="radio" id="s_{{ item.key }}_flag" name="state_{{ item.key }}" value="flag"
+                   {% if item.state == 'flag' %}checked{% endif %}>
+            <label class="flag" for="s_{{ item.key }}_flag">Problem</label>
+            <input type="radio" id="s_{{ item.key }}_na" name="state_{{ item.key }}" value="na"
+                   {% if item.state == 'na' %}checked{% endif %}>
+            <label class="na" for="s_{{ item.key }}_na">N/A</label>
+          </div>
+        </div>
+        <div class="fx-extra">
+          <input type="text" name="note_{{ item.key }}" value="{{ item.note }}"
+                 placeholder="Note (optional)" maxlength="500">
+          <span class="fx-photo">
+            <input type="file" name="photo_{{ item.key }}" accept="image/*" capture="environment" multiple>
+          </span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    {# ── The car, and what to do about it ────────────────────────────── #}
+    <div class="fx-panel">
+      <h2>Finishing up</h2>
+
+      <div class="fx-field">
+        <label class="cap" for="odo">Odometer</label>
+        <input type="number" step="1" min="0" id="odo" name="odometer_miles"
+               value="{{ existing.odometer_miles|default_if_none:'' }}"
+               placeholder="Miles on the dash">
+        <div class="fx-hint" style="margin-top:5px;">
+          Optional — but for the two units with no tracker fitted this is the only
+          mileage the system ever sees, and it is what makes their service intervals work.
+        </div>
+      </div>
+
+      <div class="fx-field">
+        <label class="cap" for="notes">Anything worth writing down</label>
+        <textarea id="notes" name="notes" placeholder="Free text — what you noticed, what you did.">{{ existing.notes }}</textarea>
+      </div>
+
+      <label class="fx-check">
+        <input type="checkbox" name="found_something" id="found"
+               {% if existing.found_something %}checked{% endif %}>
+        <span>I found something that needs fixing</span>
+      </label>
+
+      <div class="fx-found" id="foundPanel" hidden>
+        <div class="fx-field" style="margin-top:0;">
+          <label class="cap" for="issue_title">What's wrong, in one line</label>
+          <input type="text" id="issue_title" name="issue_title" maxlength="200"
+                 placeholder="e.g. rear passenger tire down to the wear bars">
+        </div>
+        <div class="fx-field">
+          <label class="cap" for="issue_severity">How urgent</label>
+          <select id="issue_severity" name="issue_severity">
+            {% for value, label in issue_severities %}
+              <option value="{{ value }}" {% if value == 'soon' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fx-hint">
+          This files a problem report for the car. It does <strong>not</strong> take it off
+          the road — if it must not go out, use <strong>Take off road</strong> on the desk.
+        </div>
+      </div>
+    </div>
+
+    <div class="fx-actions">
+      <button type="submit" class="fx-save">Save inspection</button>
+      <span class="fx-hint">Items you leave blank are simply not recorded.</span>
+    </div>
+  </form>
+
+</div>
+</div>
+
+<script>
+  (function () {
+    var box = document.getElementById('found');
+    var panel = document.getElementById('foundPanel');
+    function sync() { panel.hidden = !box.checked; }
+    box.addEventListener('change', sync);
+    // Ticking any item "Problem" is the same statement — offer the report.
+    document.querySelectorAll('input[value="flag"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        if (radio.checked && !box.checked) { box.checked = true; sync(); }
+      });
+    });
+    sync();
+  })();
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
