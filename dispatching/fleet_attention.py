@@ -408,6 +408,23 @@ def build_attention(*, today, now, vehicles, downtimes_open, issues_open,
             action="Nothing can come due on a car with no interval. Use the standard "
                    "set to start, then correct any that differ.",
         ))
+    # Seeding intervals without a baseline is honest, but it must not make the
+    # desk go QUIET about maintenance — a car with an interval and no baseline
+    # still cannot tell you anything is due. This is the second half of that
+    # story, and it replaces the first as soon as the intervals exist.
+    baseline_ids = {s.vehicle_id for s in schedules
+                    if s.last_done_on is not None or s.last_done_odometer_miles is not None}
+    no_baseline = [v for v in vehicles
+                   if v.id in scheduled_ids and v.id not in baseline_ids]
+    if no_baseline:
+        items.append(_item(
+            INFO, SETUP, "setup_baselines",
+            f"{len(no_baseline)} unit{'s' if len(no_baseline) != 1 else ''} have intervals but no baseline",
+            ", ".join(_unit(v) for v in no_baseline),
+            sort_key="0b",
+            action="Nothing can come due until one is set. Read the windshield sticker "
+                   "into the next walk-around, or log the last service.",
+        ))
     no_dates = [v for v in vehicles if not (v.registration_expires_on or v.insurance_expires_on
                                             or v.next_inspection_on)]
     if no_dates:

@@ -318,6 +318,11 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             "start": start,
             "end": end,
             "start_label": _fmt(start),
+            # Inside the block, the meridiem is dead weight: the hour gridlines
+            # and the axis already say which half of the day this is, and
+            # "11:18 AM" needs half again the width of "11:18" to avoid being
+            # clipped to "11:18 A".
+            "short_label": strf(start, "%-I:%M"),
             "end_label": _fmt(end),
             "left": left,
             "width": width,
@@ -329,9 +334,11 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             "has_flight": slot.has_flight,
             "flight_info": slot.flight_info,
             "is_sanford": getattr(slot, "is_sanford", False),
-            # A 4%-wide block cannot hold "10:45 AM"; the clipped text reads as a
-            # rendering fault. Narrow blocks carry the tooltip and nothing else.
-            "show_label": width >= 6.0,
+            # A narrow block cannot hold a time; clipped text reads as a
+            # rendering fault, and the row is more legible with a clean mark than
+            # with "11:18 A". Measured against the short label at 0.66rem inside
+            # 12px of padding, ~8% of a typical axis is where it starts to fit.
+            "show_label": width >= 8.0,
         })
 
     gaps = gaps_between(entries, day)
@@ -432,6 +439,9 @@ def build_day(loaded):
         "axis_start": axis_start,
         "axis_end": axis_end,
         "hours": axis_hours(axis_start, axis_end),
+        # One hour as a percentage of the axis, so the board's gridlines land on
+        # the same hours the header labels do however long the day turns out.
+        "hour_pct": round(100.0 / max(1, int((axis_end - axis_start).total_seconds() // 3600)), 4),
         "working": sum(1 for r in rows if r["state"] == "working"),
         "open_units": sum(1 for r in rows if r["state"] == "open"),
         "down": sum(1 for r in rows if r["state"] == "down"),

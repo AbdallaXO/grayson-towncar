@@ -18,7 +18,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from dispatching import fleet_attention, fleet_capacity, fleet_notify, fleet_report
+from dispatching import (
+    fleet_attention, fleet_capacity, fleet_desk, fleet_notify, fleet_report,
+)
 from dispatching.fleet_sync import upsert_fault_episodes
 from dispatching.samsara_service import extract_fault_codes
 from drivers.models import (
@@ -641,8 +643,50 @@ class StandardIntervalTests(_FleetFixture):
         oil = VehicleServiceSchedule.objects.get(vehicle=v, service_type="oil")
         self.assertEqual(oil.interval_miles, 7500)  # untouched
         tires = VehicleServiceSchedule.objects.get(vehicle=v, service_type="tires")
-        self.assertEqual(tires.last_done_on, TODAY)
-        self.assertEqual(tires.last_done_odometer_miles, Decimal("100000"))
+        # NO BASELINE. Stamping today's date invents a service history: press the
+        # button fleet-wide and all nineteen cars come due in the same fortnight
+        # on dates nobody serviced anything on.
+        self.assertIsNone(tires.last_done_on)
+        self.assertIsNone(tires.last_done_odometer_miles)
+
+    def test_a_seeded_interval_is_inert_until_it_has_a_baseline(self):
+        """An interval with no baseline must produce no due date at all —
+        "an invented due date is worse than none, because someone will plan a
+        shop day around it" (fleet_health.service_findings)."""
+        from dispatching import fleet_health
+        v = self.unit("7", samsara_vehicle_id="s1", samsara_odometer_meters=Decimal("160934000"))
+        self.post_json("fleet_apply_standard_intervals", [v.pk], {})
+        for schedule in VehicleServiceSchedule.objects.filter(vehicle=v):
+            self.assertEqual(
+                fleet_health.service_findings(schedule, v.odometer_miles, TODAY), [],
+                schedule.service_type)
+
+    def test_a_diesel_sprinter_gets_a_longer_oil_interval(self):
+        """One table for the whole fleet put a diesel Sprinter on a Suburban's
+        5,000-mile oil interval — at 190-350 miles a day that is a shop visit a
+        fortnight the van never needed."""
+        suv = self.unit("7")
+        sprinter = self.unit("8", vtype=self.sprinter)
+        for unit in (suv, sprinter):
+            self.post_json("fleet_apply_standard_intervals", [unit.pk], {})
+        self.assertEqual(
+            VehicleServiceSchedule.objects.get(vehicle=suv, service_type="oil").interval_miles, 5_000)
+        self.assertEqual(
+            VehicleServiceSchedule.objects.get(vehicle=sprinter, service_type="oil").interval_miles, 10_000)
+
+    def test_the_desk_does_not_go_quiet_once_intervals_exist(self):
+        """Removing the fabricated baseline must not make the maintenance half
+        of the desk silent — silence and health look identical."""
+        v = self.unit("7")
+        desk = fleet_desk.load_desk(today=TODAY, use_cache=False)
+        self.assertIsNotNone(desk["setup_intervals"])
+        self.assertIsNone(desk["setup_baselines"])
+
+        self.post_json("fleet_apply_standard_intervals", [v.pk], {})
+        desk = fleet_desk.load_desk(today=TODAY, use_cache=False)
+        self.assertIsNone(desk["setup_intervals"])
+        self.assertIsNotNone(desk["setup_baselines"])
+        self.assertIn("no baseline", desk["setup_baselines"]["title"])
 
     def test_fleet_wide(self):
         self.unit("7")
@@ -997,3 +1041,60 @@ class ReportTests(_FleetFixture):
         self.assertEqual(report["repeats"][0]["times"], 2)
         self.assertEqual(report["imbalance"][0]["ratio"], Decimal("3.0"))
         self.assertTrue(report["imbalance"][0]["flag"])
+
+
+class ReportHonestyTests(_FleetFixture):
+    """100% available, no downtime and $0 spend is what a perfect month looks
+    like AND what a ledger nobody has filled looks like. Shown to a manager the
+    second reads as the first, which made this the most misleading screen in the
+    product."""
+
+    def _report(self):
+        return fleet_report.build_report(TODAY - timedelta(days=29), TODAY, TODAY)
+
+    def test_an_untouched_ledger_is_not_reported_as_a_perfect_month(self):
+        self.unit("1")
+        self.unit("2")
+        ledger = self._report()["ledger"]
+        self.assertFalse(ledger["started"])
+        self.assertFalse(ledger["has_downtime"])
+        self.assertFalse(ledger["has_service"])
+        self.assertTrue(ledger["measured_only"])
+
+    def test_the_page_says_so_rather_than_printing_a_number(self):
+        self.unit("1")
+        resp = self.client.get(reverse("fleet_report"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "cannot be calculated")
+        self.assertNotContains(resp, "100.0%")
+
+    def test_the_flags_are_per_dependency_not_one_switch(self):
+        """A reported issue does not make AVAILABILITY meaningful, and an oil
+        change logged does not make DOWNTIME meaningful."""
+        unit = self.unit("1")
+        VehicleIssue.objects.create(vehicle=unit, title="AC warm", severity="soon")
+        ledger = self._report()["ledger"]
+        self.assertEqual(ledger["issues"], 1)
+        self.assertFalse(ledger["has_downtime"])
+        self.assertFalse(ledger["has_service"])
+        self.assertFalse(ledger["started"])
+
+    def test_one_downtime_unlocks_availability_but_not_spend(self):
+        unit = self.unit("1")
+        VehicleDowntime.objects.create(
+            vehicle=unit, category="repair", reason="Brakes",
+            starts_on=TODAY - timedelta(days=3), ended_on=TODAY - timedelta(days=1))
+        ledger = self._report()["ledger"]
+        self.assertTrue(ledger["has_downtime"])
+        self.assertFalse(ledger["has_service"])
+        self.assertTrue(ledger["started"])
+        resp = self.client.get(reverse("fleet_report"))
+        self.assertNotContains(resp, "cannot be calculated")
+
+    def test_the_measured_sections_are_never_suppressed(self):
+        """Mileage balance and becoming-unreliable come from the trackers, not
+        from paperwork, so they are real on day one and must keep working."""
+        self.unit("1")
+        resp = self.client.get(reverse("fleet_report"))
+        self.assertContains(resp, "Mileage balance")
+        self.assertContains(resp, "Becoming unreliable")

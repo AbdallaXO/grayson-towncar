@@ -390,6 +390,54 @@ def form_sections(inspection=None):
         out.append({"key": section["key"], "title": section["title"], "items": items})
     return out
 
+def seed_baseline_from_sticker(inspection, vehicle):
+    """Turn the windshield sticker into a real service baseline.
+
+    The sticker says when the next oil change is DUE. A schedule stores when the
+    last one was DONE. Those are the same fact either side of the interval:
+
+        last_done_odometer = due_at_odometer - interval_miles
+
+    So reading one number off a windscreen produces a baseline nobody had to
+    invent — which is the honest replacement for the fleet-wide button that used
+    to stamp today's date on all nineteen cars.
+
+    Only touches an oil schedule that has NO baseline. It never corrects a real
+    logged service: a service record is somebody saying what they did, and a
+    sticker is an estimate written by whoever last held a marker.
+
+    Returns the schedule it seeded, or None.
+    """
+    from drivers.models import VehicleServiceSchedule
+
+    if inspection is None or inspection.service_due_miles is None:
+        return None
+
+    schedule = (VehicleServiceSchedule.objects
+                .filter(vehicle=vehicle, service_type="oil", is_active=True,
+                        last_done_odometer_miles__isnull=True,
+                        interval_miles__isnull=False)
+                .first())
+    if schedule is None:
+        return None
+
+    baseline = inspection.service_due_miles - schedule.interval_miles
+    if baseline <= 0:
+        # The sticker is inside one interval of zero — almost certainly a typo,
+        # and a negative odometer would poison every later calculation.
+        return None
+
+    schedule.last_done_odometer_miles = baseline
+    schedule.notes = (
+        (schedule.notes + " " if schedule.notes else "")
+        + f"Baseline derived from the windshield sticker "
+          f"({inspection.service_due_miles:,.0f} mi due) on "
+          f"{inspection.inspected_on:%d %b %Y}."
+    ).strip()
+    schedule.save(update_fields=["last_done_odometer_miles", "notes"])
+    return schedule
+
+
 # ════════════════════════════════════════════════════════════════════════════
 # The sticker, turned into a date that is actually true for this fleet
 # ════════════════════════════════════════════════════════════════════════════

@@ -327,3 +327,74 @@ class PageTests(_InspectFixture):
             resp = self.client.get(reverse(name, args=args))
             self.assertEqual(resp.status_code, 302, name)
             self.assertTrue(resp.url.startswith(reverse("login")), (name, resp.url))
+
+
+class StickerBaselineTests(_InspectFixture):
+    """The windshield sticker is the only real service record this fleet has.
+
+    It says when the next oil change is DUE; a schedule stores when the last one
+    was DONE. Those are the same fact either side of the interval, so reading one
+    number off a windscreen produces a baseline nobody had to invent — which is
+    what makes the old fleet-wide "stamp today on everything" button unnecessary
+    rather than merely removed.
+    """
+
+    def _oil(self, unit, interval=5000, **kw):
+        from drivers.models import VehicleServiceSchedule
+        return VehicleServiceSchedule.objects.create(
+            vehicle=unit, service_type="oil", interval_miles=interval, **kw)
+
+    def test_the_sticker_becomes_the_baseline(self):
+        unit = self.unit("1")
+        schedule = self._oil(unit)
+        url = reverse("fleet_inspect_vehicle", args=[unit.pk])
+        self.client.post(url, {"state_oil": "ok", "odometer_miles": "157690",
+                               "service_due_miles": "162000"})
+        schedule.refresh_from_db()
+        # due 162,000 minus a 5,000 interval = last done at 157,000
+        self.assertEqual(schedule.last_done_odometer_miles, Decimal("157000"))
+        self.assertIn("windshield sticker", schedule.notes)
+
+    def test_the_interval_length_is_respected(self):
+        unit = self.unit("1", vtype=self.sprinter)
+        schedule = self._oil(unit, interval=10000)
+        self.client.post(reverse("fleet_inspect_vehicle", args=[unit.pk]),
+                         {"state_oil": "ok", "service_due_miles": "162000"})
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_done_odometer_miles, Decimal("152000"))
+
+    def test_a_real_logged_service_is_never_overwritten(self):
+        """A service record is somebody saying what they did. A sticker is an
+        estimate written by whoever last held a marker."""
+        unit = self.unit("1")
+        schedule = self._oil(unit, last_done_odometer_miles=Decimal("150000"),
+                             last_done_on=WED)
+        self.client.post(reverse("fleet_inspect_vehicle", args=[unit.pk]),
+                         {"state_oil": "ok", "service_due_miles": "162000"})
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_done_odometer_miles, Decimal("150000"))
+
+    def test_a_sticker_below_one_interval_is_refused(self):
+        """Almost certainly a typo, and a negative baseline would poison every
+        later calculation."""
+        unit = self.unit("1")
+        schedule = self._oil(unit, interval=5000)
+        self.client.post(reverse("fleet_inspect_vehicle", args=[unit.pk]),
+                         {"state_oil": "ok", "service_due_miles": "4000"})
+        schedule.refresh_from_db()
+        self.assertIsNone(schedule.last_done_odometer_miles)
+
+    def test_no_sticker_changes_nothing(self):
+        unit = self.unit("1")
+        schedule = self._oil(unit)
+        self.client.post(reverse("fleet_inspect_vehicle", args=[unit.pk]),
+                         {"state_oil": "ok", "odometer_miles": "157690"})
+        schedule.refresh_from_db()
+        self.assertIsNone(schedule.last_done_odometer_miles)
+
+    def test_a_car_with_no_oil_schedule_is_left_alone(self):
+        unit = self.unit("1")
+        resp = self.client.post(reverse("fleet_inspect_vehicle", args=[unit.pk]),
+                                {"state_oil": "ok", "service_due_miles": "162000"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(VehicleInspection.objects.filter(vehicle=unit).exists())

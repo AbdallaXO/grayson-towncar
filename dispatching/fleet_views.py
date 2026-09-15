@@ -980,6 +980,11 @@ def _save_inspection(request, vehicle, day, existing):
     inspection.results = results
     inspection.save()
 
+    # The sticker is the only real service record this fleet has. If the oil
+    # schedule is still sitting without a baseline, this fills it — which is why
+    # the standard-interval button no longer needs to invent one.
+    fleet_inspection.seed_baseline_from_sticker(inspection, vehicle)
+
     # Found something -> the existing issue workflow, with the severity the
     # inspector chose. The inspection itself never takes a car off the road.
     if found and inspection.issue is None:
@@ -1537,12 +1542,13 @@ def fleet_resolve_issue(request, pk):
 # Standard intervals — get the maintenance layer out of its inert state
 # ════════════════════════════════════════════════════════════════════════════
 
-# A conservative starting set for a heavily-worked light-duty fleet. These are
-# a STARTING POINT, not a manufacturer schedule: the Sprinters' diesel oil
-# interval is longer than a Suburban's, and the fleet manager is expected to
-# correct each car's row. The baseline is set to TODAY and the current
-# odometer, which means "start the clock now" — if the last service is known,
-# log it and the interval moves to the real date.
+# A conservative starting set for a heavily-worked light-duty fleet. A STARTING
+# POINT, not a manufacturer schedule — the fleet manager corrects each car.
+#
+# TYPE-AWARE, because one table for the whole fleet was wrong in a way that
+# mattered: a diesel Sprinter on a Suburban's 5,000-mile oil interval comes due
+# twice as often as it should, and at 190-350 miles a day that is a shop visit a
+# fortnight the van did not need.
 STANDARD_INTERVALS = (
     ("oil", 5_000, 180),
     ("tires", 7_500, None),
@@ -1550,25 +1556,55 @@ STANDARD_INTERVALS = (
     ("inspection", None, 365),
 )
 
+# Diesel Sprinters. Mercedes' own service interval is far longer than a petrol
+# V8's; 10,000 miles is still conservative for one.
+DIESEL_INTERVALS = (
+    ("oil", 10_000, 365),
+    ("tires", 7_500, None),
+    ("brakes", 15_000, None),
+    ("inspection", None, 365),
+)
+
+DIESEL_TYPES = {"Van(14 Pax)"}
+
+
+def standard_intervals_for(vehicle):
+    """The starting interval table for this unit's type."""
+    if fleet_capacity.unit_type(vehicle) in DIESEL_TYPES:
+        return DIESEL_INTERVALS
+    return STANDARD_INTERVALS
+
 
 def _apply_standard_intervals(vehicle, today):
-    """Add the standard intervals this vehicle doesn't already have. Returns
-    the service types created."""
+    """Add the standard intervals this vehicle doesn't already have.
+
+    Created with NO BASELINE, deliberately. The old version stamped
+    ``last_done_on=today`` and the current odometer, which invents a service
+    history: press the button fleet-wide and all nineteen cars come due in the
+    same fortnight, on dates nobody has ever serviced anything on. Two of the
+    units have no odometer at all, so theirs were fabricated as NULL anyway.
+
+    ``fleet_health.service_findings`` already returns nothing for a schedule with
+    no usable baseline — "an invented due date is worse than none, because
+    someone will plan a shop day around it". So an interval without one is
+    honest and inert until a real service is logged, or until the windshield
+    sticker is read off during a walk-around (see fleet_inspection).
+
+    Returns the service types created.
+    """
     existing = set(
         VehicleServiceSchedule.objects.filter(vehicle=vehicle).values_list("service_type", flat=True)
     )
-    odometer = vehicle.odometer_miles
     created = []
-    for service_type, miles, days in STANDARD_INTERVALS:
+    for service_type, miles, days in standard_intervals_for(vehicle):
         if service_type in existing:
             continue
         VehicleServiceSchedule.objects.create(
             vehicle=vehicle, service_type=service_type,
             interval_miles=miles, interval_days=days,
-            last_done_on=today,
-            last_done_odometer_miles=Decimal(odometer) if odometer is not None else None,
-            notes="Standard interval. Baseline set to today's odometer — log the real "
-                  "last service to correct it.",
+            last_done_on=None, last_done_odometer_miles=None,
+            notes="Standard interval, no baseline yet. Log the last service, or "
+                  "read the windshield sticker into the next walk-around.",
         )
         created.append(service_type)
     return created

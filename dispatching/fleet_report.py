@@ -171,9 +171,38 @@ def build_report(start, end, today):
     imbalance = _mileage_imbalance(rows)
     repeats = _repeats(rows, issue_titles, fault_codes, per)
 
+    # ── Has the ledger ever been used at all? ────────────────────────────
+    # 100% available / $0 spend / no downtime is what a PERFECT month looks
+    # like and also what an UNTOUCHED LEDGER looks like, and they are wildly
+    # different things to tell a manager. The distinguishing question is not
+    # "was anything recorded in this window" but "has anything ever been
+    # recorded" — so this looks at all time, not the window.
+    ledger = {
+        "downtimes": VehicleDowntime.objects.filter(vehicle_id__in=unit_ids).count(),
+        "services": VehicleServiceRecord.objects.filter(vehicle_id__in=unit_ids).count(),
+        "issues": VehicleIssue.objects.filter(vehicle_id__in=unit_ids).count(),
+    }
+    # Per-dependency, not one flag: a single reported issue does not make
+    # AVAILABILITY meaningful, and logging one oil change does not make DOWNTIME
+    # meaningful. Each half of the report is only as true as the records it is
+    # actually built from.
+    #
+    #   availability, downtime days, what-causes-downtime, placement  <- downtimes
+    #   spend, PM adherence, most-maintenance                         <- service records
+    #
+    # Becoming-unreliable and mileage balance are measured by the telemetry
+    # poller rather than by anyone remembering to fill a form in, so they stay
+    # trustworthy either way — which is exactly why they lead when the rest
+    # cannot.
+    ledger["has_downtime"] = ledger["downtimes"] > 0
+    ledger["has_service"] = ledger["services"] > 0
+    ledger["started"] = ledger["has_downtime"] or ledger["has_service"]
+    ledger["measured_only"] = not ledger["started"]
+
     return {
         "start": start, "end": end, "today": today, "window_days": window_days,
         "units": len(units),
+        "ledger": ledger,
         "availability_pct": _pct(total_unit_days - total_down, total_unit_days),
         "total_down_days": total_down,
         "total_unit_days": total_unit_days,

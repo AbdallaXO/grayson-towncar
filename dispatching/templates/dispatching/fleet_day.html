@@ -33,6 +33,12 @@
                    vertical-align: middle; margin-right: 6px; }
 
   .fd-board { margin-top: 18px; border: 1px solid var(--fl-hair); border-radius: 1rem; overflow: hidden; background: #fff; }
+  /* Hour rules behind every row. With these you read WHEN a block sits from the
+     grid rather than from a label inside it — which is what lets a 20-minute
+     transfer be a small quiet mark instead of a clipped word. */
+  .fd-track::before { content: ''; position: absolute; inset: -10px 0 -10px 0; pointer-events: none;
+    background: repeating-linear-gradient(to right,
+      var(--fl-hair-softest) 0 1px, transparent 1px var(--fd-hour, 8.333%)); }
   .fd-axis { display: flex; padding: 9px 0 9px 176px; border-bottom: 1px solid var(--fl-hair);
              background: var(--fl-cream); position: relative; height: 32px; }
   .fd-tick { position: absolute; font-size: 0.64rem; font-weight: 600; color: var(--fl-muted-light);
@@ -51,17 +57,22 @@
   .fd-who .share { color: var(--fl-settled); font-weight: 600; }
 
   .fd-track { flex: 1 1 auto; position: relative; margin: 10px 16px 10px 0; min-width: 0; }
-  .fd-job { position: absolute; top: 0; height: 30px; border-radius: 4px; overflow: hidden;
+  .fd-job { position: absolute; top: 3px; height: 24px; border-radius: 3px; overflow: hidden;
             background: var(--fl-good-tint-strong); border: 1px solid var(--fl-good-border);
-            font-size: 0.66rem; line-height: 28px; padding: 0 6px; white-space: nowrap;
-            color: var(--fl-good-deep); font-weight: 600; transition: var(--fl-t); }
-  .fd-job:hover { border-color: var(--fl-gold); z-index: 5; }
+            font-size: 0.66rem; line-height: 22px; padding: 0 6px; white-space: nowrap;
+            color: var(--fl-good-deep); font-weight: 600; transition: var(--fl-t); z-index: 2;
+            text-overflow: clip; }
+  .fd-job:hover { border-color: var(--fl-gold); z-index: 6; }
   .fd-job.arrival { background: #E7EEF6; border-color: #C9D8E8; color: var(--fl-settled); }
   .fd-job.sanford { background: #E3F1F3; border-color: #BFDDE2; color: #1F5A63; }
-  .fd-gap { position: absolute; top: 8px; height: 14px; border-radius: 3px;
-            border: 1px dashed var(--fl-chip-border); }
-  .fd-gap.usable { border: 1px solid var(--fl-gold); background: rgba(201,162,39,0.16);
-                   top: 4px; height: 22px; }
+  /* Plain gaps are drawn by NOT drawing anything. The dashed connectors that
+     used to run between every pair of trips tripled the marks on the row and
+     said nothing — the space between two blocks is already the gap. */
+  .fd-gap { display: none; }                      /* an ordinary hole draws nothing */
+  .fd-gap.usable { display: block; position: absolute; top: 3px; height: 24px; z-index: 1;
+                   border: 1px solid var(--fl-gold); border-radius: 3px;
+                   background: repeating-linear-gradient(45deg,
+                     rgba(201,162,39,0.13) 0 6px, rgba(201,162,39,0.05) 6px 12px); }
   .fd-gap-label { position: absolute; top: 33px; font-size: 0.6rem; color: var(--fl-caution);
                   white-space: nowrap; font-weight: 700; letter-spacing: 0.02em; }
   .fd-fact { font-size: 0.68rem; color: var(--fl-muted-light); margin-top: 2px;
@@ -147,7 +158,7 @@
         {% endif %}
       </div>
 
-      <div class="fd-track">
+      <div class="fd-track" style="--fd-hour:{{ payload.hour_pct }}%;">
         {% if row.state == 'down' %}
           <div class="fd-empty">{{ row.note }}</div>
         {% elif not row.jobs %}
@@ -164,7 +175,7 @@
           {% for job in row.jobs %}
             <div class="fd-job {% if job.trip_type == 'arrival' %}arrival{% endif %} {% if job.is_sanford %}sanford{% endif %}"
                  style="left:{{ job.left }}%;width:{{ job.width }}%;"
-                 title="{{ job.start_label }} – {{ job.end_label }} · {{ job.customer }}&#10;{{ job.pickup }} → {{ job.dropoff }}&#10;{{ job.driver }}{% if job.flight_info %}&#10;{{ job.flight_info }}{% endif %}">{% if job.show_label %}{{ job.start_label }}{% endif %}</div>
+                 title="{{ job.start_label }} – {{ job.end_label }} · {{ job.customer }}&#10;{{ job.pickup }} → {{ job.dropoff }}&#10;{{ job.driver }}{% if job.flight_info %}&#10;{{ job.flight_info }}{% endif %}">{% if job.show_label %}{{ job.short_label }}{% endif %}</div>
           {% endfor %}
         {% endif %}
       </div>

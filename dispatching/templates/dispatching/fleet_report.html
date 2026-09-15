@@ -11,6 +11,17 @@
   @media (max-width: 900px) { .rep-tiles { grid-template-columns: repeat(2, 1fr); } }
   .rep-tile { background: #1a1d21; color: #fff; border-radius: 10px; padding: 16px; position: relative; overflow: hidden; }
   .rep-tile::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #C9A227, transparent); }
+  /* A tile whose records do not exist: dimmed, and stripped of its gold rule so
+     it never reads as a good number. Deliberately does not repeat the banner's
+     wording — a CSS comment ships inside <style> and is findable in the page. */
+  .rep-tile.rep-unknown { background: #232730; }
+  .rep-tile.rep-unknown::after { background: rgba(255,255,255,.12); }
+  .rep-tile.rep-unknown .val { color: rgba(255,255,255,.4); }
+  .rep-empty { border: 1px solid #E8DBAE; background: #FAF3DF; border-radius: 10px;
+               padding: 16px 18px; margin-bottom: 18px; }
+  .rep-empty .t { font-weight: 600; font-size: .95rem; color: #7A5E12; }
+  .rep-empty .s { font-size: .82rem; color: #6B7280; margin-top: 6px; max-width: 78ch; line-height: 1.55; }
+  .rep-empty .s strong { color: #1a1d21; }
   .rep-tile .lab { font-size: .66rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.55); font-weight: 500; }
   .rep-tile .val { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; margin-top: 4px; }
   .rep-tile .val.gold { color: #C9A227; }
@@ -49,29 +60,49 @@
     {% endfor %}
   </div>
 
+  {% comment %}
+    100% available, no downtime and no spend is what a perfect month looks like
+    AND what a ledger nobody has filled looks like. Shown to a manager, the
+    second reads as the first. So when the records those figures are built from
+    do not exist, the tiles say so instead of reporting a number.
+  {% endcomment %}
+  {% if not report.ledger.started %}
+  <div class="rep-empty">
+    <div class="t">Nothing has been recorded yet, so most of this report cannot be calculated.</div>
+    <div class="s">
+      No shop visit, no service and no downtime has ever been logged against any of the
+      {{ report.units }} active units. Availability, spend and preventative adherence are
+      blank below rather than flattering — they are not measurements of a healthy fleet,
+      they are an empty table.
+      <strong>Becoming unreliable</strong> and <strong>Mileage balance</strong> further down
+      are measured from the trackers rather than from paperwork, so those are real today.
+    </div>
+  </div>
+  {% endif %}
+
   <div class="rep-tiles">
-    <div class="rep-tile">
+    <div class="rep-tile {% if not report.ledger.has_downtime %}rep-unknown{% endif %}">
       <div class="lab">Fleet available</div>
-      <div class="val gold">{% if report.availability_pct is not None %}{{ report.availability_pct }}%{% else %}—{% endif %}</div>
-      <div class="sub">{{ report.total_down_days }} unit-days down of {{ report.total_unit_days|intcomma }}</div>
+      <div class="val gold">{% if report.ledger.has_downtime %}{% if report.availability_pct is not None %}{{ report.availability_pct }}%{% else %}—{% endif %}{% else %}—{% endif %}</div>
+      <div class="sub">{% if report.ledger.has_downtime %}{{ report.total_down_days }} unit-days down of {{ report.total_unit_days|intcomma }}{% else %}no downtime has ever been logged{% endif %}</div>
     </div>
-    <div class="rep-tile">
+    <div class="rep-tile {% if not report.ledger.has_downtime %}rep-unknown{% endif %}">
       <div class="lab">Downtime</div>
-      <div class="val">{{ report.total_down_days }} <span style="font-size:.9rem;">days</span></div>
-      <div class="sub">{% if report.down_by_category %}mostly {{ report.down_by_category.0.label|lower }}{% else %}none recorded{% endif %}</div>
+      <div class="val">{% if report.ledger.has_downtime %}{{ report.total_down_days }} <span style="font-size:.9rem;">days</span>{% else %}—{% endif %}</div>
+      <div class="sub">{% if report.down_by_category %}mostly {{ report.down_by_category.0.label|lower }}{% elif report.ledger.has_downtime %}none in this window{% else %}nothing recorded, ever{% endif %}</div>
     </div>
-    <div class="rep-tile">
+    <div class="rep-tile {% if not report.ledger.has_service %}rep-unknown{% endif %}">
       <div class="lab">Maintenance spend</div>
-      <div class="val">${{ report.service_cost_total|floatformat:0|intcomma }}</div>
-      <div class="sub">across every service logged with a cost</div>
+      <div class="val">{% if report.ledger.has_service %}${{ report.service_cost_total|floatformat:0|intcomma }}{% else %}—{% endif %}</div>
+      <div class="sub">{% if report.ledger.has_service %}across every service logged with a cost{% else %}no service has ever been logged{% endif %}</div>
     </div>
-    <div class="rep-tile">
+    <div class="rep-tile {% if not report.ledger.has_service %}rep-unknown{% endif %}">
       <div class="lab">Preventative on time</div>
       <div class="val {% if report.pm.late %}{% else %}gold{% endif %}">
         {% if report.pm.total %}{{ report.pm.on_time }}/{{ report.pm.on_time|add:report.pm.late }}{% else %}—{% endif %}
       </div>
       <div class="sub">
-        {% if report.pm.total %}{{ report.pm.unknown }} couldn't be judged (first of their kind){% if report.pm.median_late_by_miles %} · late ones by ~{{ report.pm.median_late_by_miles|intcomma }} mi{% endif %}{% else %}no preventative service logged in the window{% endif %}
+        {% if report.pm.total %}{{ report.pm.unknown }} couldn't be judged (first of their kind){% if report.pm.median_late_by_miles %} · late ones by ~{{ report.pm.median_late_by_miles|intcomma }} mi{% endif %}{% elif report.ledger.has_service %}no preventative service logged in the window{% else %}no service has ever been logged{% endif %}
       </div>
     </div>
   </div>
@@ -196,7 +227,8 @@
           <tr>
             <td><a href="{% url 'fleet_detail' r.vehicle.pk %}" class="row-link"><span class="tap-name">#{{ r.vehicle.vehicle_number }}</span></a></td>
             <td class="tap-sub">{{ r.type_label }}</td>
-            <td class="text-end">{% if r.availability_pct is not None %}{{ r.availability_pct }}%{% else %}—{% endif %}</td>
+            {# Same rule as the tile: without a downtime ledger, 100% per car is an empty table, not a fact. #}
+            <td class="text-end">{% if report.ledger.has_downtime and r.availability_pct is not None %}{{ r.availability_pct }}%{% else %}—{% endif %}</td>
             <td class="text-end">{{ r.down_days }}{% if r.down_episodes %} <span class="tap-sub">({{ r.down_episodes }}×)</span>{% endif %}</td>
             <td class="text-end">{% if r.miles is None %}<span class="fleet-unknown">—</span>{% else %}{{ r.miles|floatformat:0|intcomma }}{% if r.known_days != r.reading_days or r.known_days < report.window_days %} <span class="tap-sub">({{ r.known_days }}d)</span>{% endif %}{% endif %}</td>
             <td class="text-end">{% if r.miles_per_day is None %}<span class="fleet-unknown">—</span>{% else %}{{ r.miles_per_day|floatformat:0 }}{% endif %}</td>

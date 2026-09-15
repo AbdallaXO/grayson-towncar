@@ -151,8 +151,21 @@
 
       {% if setup_intervals %}
       <div class="fl-setup">
-        <div class="t"><strong>No service intervals set</strong> on {{ setup_intervals.title|cut:" have no service intervals"|cut:" has no service intervals" }}, so nothing can ever come due.</div>
-        <button type="button" class="fl-btn-small" id="applyStandard">Apply standard set</button>
+        <div class="t">
+          <strong>No service intervals set</strong> on {{ setup_intervals.title|cut:" have no service intervals"|cut:" has no service intervals" }}, so nothing can ever come due.
+          <span class="s">Adds oil, tires, brakes and inspection at sensible distances &mdash;
+          longer oil on the Sprinters. No dates are invented: each car stays quiet until
+          its last service is logged or its windshield sticker is read in.</span>
+        </div>
+        <button type="button" class="fl-btn-small" id="applyStandard">Add the intervals</button>
+      </div>
+      {% elif setup_baselines %}
+      <div class="fl-setup">
+        <div class="t">
+          <strong>{{ setup_baselines.title|cut:" have intervals but no baseline"|cut:" has intervals but no baseline" }} have intervals but no baseline</strong>, so nothing can come due yet.
+          <span class="s">{{ setup_baselines.action }}</span>
+        </div>
+        <a class="fl-btn-small" href="{% url 'fleet_inspections' %}">Start a walk-around</a>
       </div>
       {% endif %}
     </div>

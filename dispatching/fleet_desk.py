@@ -165,6 +165,8 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         units, today, list_href=reverse("fleet_list"), href_for=_href)
     setup_intervals = next(
         (it for it in attention["setup"] if it["kind"] == "setup_intervals"), None)
+    setup_baselines = next(
+        (it for it in attention["setup"] if it["kind"] == "setup_baselines"), None)
     # The week's round, as one sentence. The Desk is the page he lives on, and
     # until this landed the fleet's largest recurring obligation was reachable
     # only by remembering to open a tab.
@@ -212,6 +214,7 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         "shop": shop,
         "paperwork": paperwork,
         "setup_intervals": setup_intervals,
+        "setup_baselines": setup_baselines,
         "inspection": inspection,
         "horizon": horizon,
     }
