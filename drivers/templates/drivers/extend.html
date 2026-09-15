@@ -2,187 +2,242 @@
 {% load static %}
 {% load humanize %}
 
+{% block title %}Driver directory{% endblock %}
+
 {% block extra_css %}
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
+    {% include "drivers/_comms_admin_palette.html" %}
     :root {
-      --gt-gold: #C9A227;
-      --gt-bg: #0d1117;
-      --gt-surface: #161b22;
-      --gt-surface-2: #1c2128;
-      --gt-border: #2a313a;
-      --gt-text: #e6edf3;
-      --gt-muted: #8b949e;
+      --dir-green: #4ade80; --dir-amber: #fbbf24; --dir-red: #f87171; --dir-blue: #60a5fa;
+      --dir-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+      --dir-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --dir-ease: cubic-bezier(.2,.7,.2,1);
     }
     body { background: var(--gt-bg) !important; }
-    .directory-page { background: var(--gt-bg); color: var(--gt-text); min-height: calc(100vh - 80px); padding: 1.5rem 0 3rem; margin-top: 0; }
+    .directory-page {
+      background:
+        radial-gradient(900px 340px at 12% -8%, rgba(201,162,39,0.10), transparent 62%),
+        var(--gt-bg);
+      color: var(--gt-text); min-height: calc(100vh - 80px); padding: 2rem 0 4rem;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
     .directory-page .container-fluid { max-width: 1500px; }
-    .directory-page h1 { color: var(--gt-text); }
-    .directory-page .text-muted-dark { color: var(--gt-muted) !important; }
+    .directory-page a { transition: color .18s var(--dir-ease), border-color .18s var(--dir-ease), background .18s var(--dir-ease); }
+    .num { font-family: var(--dir-mono); font-variant-numeric: tabular-nums; }
 
-    /* Stat tiles */
-    .stat-tile {
-      background: var(--gt-surface); border: 1px solid var(--gt-border);
-      border-radius: 10px; padding: 0.85rem 1rem; height: 100%;
-    }
-    .stat-tile .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gt-muted); font-weight: 600; }
-    .stat-tile .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; margin-top: 0.3rem; font-family: 'JetBrains Mono', ui-monospace, monospace; color: var(--gt-text); }
-    .stat-tile.accent-gold .stat-value { color: var(--gt-gold); }
-    .stat-tile.accent-green .stat-value { color: #4ade80; }
-    .stat-tile.accent-blue .stat-value { color: #60a5fa; }
+    /* Page-load reveal: one staggered rise, nothing else moves on its own. */
+    @keyframes dir-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .reveal { animation: dir-rise .55s var(--dir-ease) both; }
+    .reveal.d1 { animation-delay: .08s; } .reveal.d2 { animation-delay: .16s; } .reveal.d3 { animation-delay: .24s; }
+    @media (prefers-reduced-motion: reduce) { .reveal { animation: none; } }
 
-    /* Filter card */
-    .filter-card {
-      background: var(--gt-surface); border: 1px solid var(--gt-border);
-      border-radius: 10px; padding: 1rem; margin-bottom: 1rem;
-    }
-    .filter-card .form-control, .filter-card .form-select {
-      background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);
-    }
-    .filter-card .form-control::placeholder { color: var(--gt-muted); }
-    .filter-card .form-control:focus, .filter-card .form-select:focus {
-      background: var(--gt-surface-2); color: var(--gt-text); border-color: var(--gt-gold);
-      box-shadow: 0 0 0 0.15rem rgba(201,162,39,0.15);
-    }
-    .filter-card .form-label { color: var(--gt-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
-    .filter-card .btn-filter {
-      background: var(--gt-gold); color: #0d1117; border: none; font-weight: 600;
-    }
-    .filter-card .btn-filter:hover { background: #b48a1c; color: #0d1117; }
+    /* ── Head ─────────────────────────────────────────────────────────── */
+    .dir-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; padding-bottom: 1.25rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--gt-border); }
+    .dir-eyebrow { font-size: .66rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--gt-gold); margin-bottom: .45rem; }
+    .dir-title { font-family: var(--dir-serif); font-size: 2.25rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; margin: 0; color: var(--gt-text); }
+    .dir-lede { font-size: .84rem; color: var(--gt-muted); margin-top: .5rem; }
+    .dir-lede b { color: var(--gt-text); font-weight: 600; }
 
-    /* Tab pills */
-    .dir-tabs {
-      display: inline-flex; background: var(--gt-surface-2); padding: 4px;
-      border-radius: 999px; gap: 2px; border: 1px solid var(--gt-border);
-    }
-    .dir-tab {
-      color: var(--gt-muted); background: transparent; border: none;
-      padding: 0.45rem 1.1rem; border-radius: 999px; font-size: 0.85rem;
-      font-weight: 600; letter-spacing: 0.02em; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      transition: background 0.18s ease, color 0.18s ease;
-    }
-    .dir-tab:hover { color: var(--gt-text); background: rgba(255,255,255,0.06); }
-    .dir-tab.active {
-      background: var(--gt-gold); color: #0d1117;
-      box-shadow: 0 1px 4px rgba(201,162,39,0.4);
-    }
-    .dir-tab .tab-count {
-      font-size: 0.7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
-      background: rgba(255,255,255,0.1); color: inherit;
-    }
-    .dir-tab.active .tab-count { background: rgba(13,17,23,0.18); color: #0d1117; }
+    .dir-btn { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; padding: .5rem .95rem; border-radius: 8px; text-decoration: none; border: 1px solid var(--gt-border); background: var(--gt-surface-2); color: var(--gt-text); white-space: nowrap; }
+    .dir-btn:hover { color: var(--gt-gold); border-color: rgba(201,162,39,.45); background: rgba(201,162,39,.08); }
+    .dir-btn.gold { background: var(--gt-gold); border-color: var(--gt-gold); color: #0d1117; }
+    .dir-btn.gold:hover { background: #d9b33a; border-color: #d9b33a; color: #0d1117; }
+    .dir-btn.small { font-size: .7rem; padding: .32rem .6rem; }
 
-    /* Driver table */
-    .driver-table-card {
-      background: var(--gt-surface); border: 1px solid var(--gt-border);
-      border-radius: 10px; overflow: hidden;
+    /* ── Paperwork band ───────────────────────────────────────────────── */
+    .paper-band {
+      display: grid; grid-template-columns: minmax(280px, 4fr) minmax(0, 8fr); gap: 2rem;
+      background: linear-gradient(135deg, #161b22 0%, #182033 100%);
+      border: 1px solid var(--gt-border); border-radius: 14px; padding: 1.35rem 1.5rem 1.4rem;
+      position: relative; overflow: hidden; margin-bottom: 1.25rem;
     }
-    .driver-table { width: 100%; margin: 0; color: var(--gt-text); }
-    .driver-table thead th {
-      background: var(--gt-surface-2); color: var(--gt-muted);
-      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-      padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--gt-border); white-space: nowrap;
-    }
-    .driver-table tbody td {
-      padding: 0.7rem 0.75rem; border-bottom: 1px solid var(--gt-border); vertical-align: middle;
-    }
-    .driver-table tbody tr:hover { background: rgba(201,162,39,0.06); }
-    .driver-table tbody tr:last-child td { border-bottom: 0; }
-    .driver-name-link {
-      color: var(--gt-text); font-weight: 600; text-decoration: none;
-      border-bottom: 1px dotted transparent; transition: color 0.15s ease, border-color 0.15s ease;
-    }
-    .driver-name-link:hover { color: var(--gt-gold); border-bottom-color: var(--gt-gold); }
-    .driver-username { color: var(--gt-muted); font-size: 0.7rem; display: block; }
-    /* Inactive drivers stay in the directory but are visually de-emphasized */
-    .driver-inactive-row { opacity: 0.55; }
-    .driver-inactive-row:hover { opacity: 0.85; }
-    /* Driver "tribal knowledge" pills: vehicle capability + preferences */
-    .driver-knowledge { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 3px; }
-    .driver-knowledge .cap-pill {
-        display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d;
-        border: 1px solid #86efac; font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
-    }
-    .driver-knowledge .pref-veh-pill {
-        display: inline-flex; align-items: center; gap: 3px; background: #eff6ff; color: #1d4ed8;
-        border: 1px solid #bfdbfe; font-size: 0.62rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
-    }
-    .driver-knowledge .shift-pref-text { color: #6366f1; font-size: 0.62rem; font-weight: 600; }
-    .driver-knowledge .cred-alert-pill {
-        display: inline-flex; align-items: center; gap: 3px; background: #fee2e2; color: #991b1b;
-        border: 1px solid #fecaca; font-size: 0.62rem; font-weight: 700; padding: 1px 6px; border-radius: 4px;
-    }
+    .paper-band::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--gt-gold) 0%, #E8D5B7 45%, transparent 100%); }
+    .band-eyebrow { font-size: .64rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: rgba(232,213,183,.75); margin-bottom: .9rem; }
+    .meter-row { display: grid; grid-template-columns: 118px 1fr auto; align-items: center; gap: .8rem; padding: .42rem 0; }
+    .meter-row + .meter-row { border-top: 1px solid rgba(255,255,255,.05); }
+    .meter-label { font-size: .78rem; font-weight: 600; color: var(--gt-text); }
+    .meter-bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+    .meter-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #b48a1c, var(--gt-gold)); transform-origin: left; animation: meter-grow .9s var(--dir-ease) both; animation-delay: .35s; }
+    .meter-row.optional .meter-fill { background: rgba(255,255,255,.28); }
+    @keyframes meter-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @media (prefers-reduced-motion: reduce) { .meter-fill { animation: none; } }
+    .meter-count { font-size: .78rem; color: var(--gt-muted); white-space: nowrap; }
+    .meter-count b { color: var(--gt-text); font-family: var(--dir-mono); font-weight: 700; }
+    .band-foot { font-size: .68rem; color: var(--gt-muted); margin-top: .85rem; line-height: 1.5; }
 
-    /* Type badges */
-    .type-badge {
-      display: inline-block; font-size: 0.65rem; font-weight: 700;
-      padding: 2px 8px; border-radius: 999px; letter-spacing: 0.04em;
+    .paper-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .6rem; align-content: start; }
+    .paper-tile {
+      display: flex; flex-direction: column; gap: .15rem; text-decoration: none;
+      background: rgba(13,17,23,.55); border: 1px solid var(--gt-border); border-radius: 10px; padding: .8rem .85rem .75rem;
+      color: var(--gt-text); min-height: 100%;
     }
-    .type-badge.inhouse { background: rgba(13,110,253,0.18); color: #60a5fa; }
-    .type-badge.affiliate { background: rgba(124,58,237,0.18); color: #a78bfa; }
+    .paper-tile:hover { border-color: rgba(201,162,39,.55); color: var(--gt-text); background: rgba(13,17,23,.8); }
+    .paper-tile.active { border-color: var(--gt-gold); box-shadow: 0 0 0 1px rgba(201,162,39,.35), 0 8px 24px -12px rgba(201,162,39,.5); background: rgba(201,162,39,.08); }
+    .tile-val { font-family: var(--dir-mono); font-size: 1.55rem; font-weight: 700; line-height: 1.1; }
+    .paper-tile.tone-amber .tile-val { color: var(--dir-amber); }
+    .paper-tile.tone-red .tile-val { color: var(--dir-red); }
+    .paper-tile.tone-green .tile-val { color: var(--dir-green); }
+    .paper-tile.tone-muted .tile-val { color: var(--gt-muted); }
+    .tile-label { font-size: .76rem; font-weight: 600; margin-top: .2rem; }
+    .tile-sub { font-size: .64rem; color: var(--gt-muted); line-height: 1.35; }
+    .paper-tile.active .tile-label::after { content: ' · showing'; color: var(--gt-gold); font-weight: 600; }
 
-    /* Availability badges in Today cell */
-    .avail-pill {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    /* ── Toolbar ──────────────────────────────────────────────────────── */
+    .dir-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .dir-tabs { display: inline-flex; background: var(--gt-surface-2); padding: 4px; border-radius: 999px; gap: 2px; border: 1px solid var(--gt-border); }
+    .dir-tab { color: var(--gt-muted); padding: .42rem 1rem; border-radius: 999px; font-size: .8rem; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: .4rem; }
+    .dir-tab:hover { color: var(--gt-text); background: rgba(255,255,255,.06); }
+    .dir-tab.active { background: var(--gt-gold); color: #0d1117; box-shadow: 0 1px 4px rgba(201,162,39,.4); }
+    .tab-count { font-family: var(--dir-mono); font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.1); color: inherit; }
+    .dir-tab.active .tab-count { background: rgba(13,17,23,.18); }
+
+    .dir-filters { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+    .dir-filters .form-control, .dir-filters .form-select {
+      background-color: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);
+      font-size: .8rem; border-radius: 8px; padding: .48rem .75rem; height: auto; box-shadow: none;
     }
-    .avail-pill.free { background: rgba(34,197,94,0.15); color: #4ade80; }
-    .avail-pill.busy { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .dir-filters .form-select { width: auto; flex: 0 0 auto; padding-right: 2rem; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%238b949e' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+    .dir-filters .form-control::placeholder { color: var(--gt-muted); }
+    .dir-filters .form-control:focus, .dir-filters .form-select:focus { border-color: var(--gt-gold); box-shadow: 0 0 0 .15rem rgba(201,162,39,.18); background-color: var(--gt-surface-2); color: var(--gt-text); }
+    .dir-search { position: relative; }
+    .dir-search .bi { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--gt-muted); font-size: .8rem; pointer-events: none; }
+    .dir-search .form-control { padding-left: 2rem; min-width: 250px; width: auto; }
+    .dir-check { display: inline-flex; align-items: center; gap: .45rem; font-size: .78rem; color: var(--gt-text); cursor: pointer; margin: 0; padding: .4rem .6rem; border-radius: 8px; border: 1px solid transparent; }
+    .dir-check:hover { border-color: var(--gt-border); }
+    .dir-check input { accent-color: var(--gt-gold); width: 14px; height: 14px; margin: 0; }
+    .dir-check .muted { color: var(--gt-muted); font-size: .7rem; }
+    .btn-filter { background: var(--gt-gold); color: #0d1117; border: 1px solid var(--gt-gold); font-weight: 700; font-size: .78rem; padding: .48rem .95rem; border-radius: 8px; }
+    .btn-filter:hover { background: #d9b33a; border-color: #d9b33a; }
 
-    /* Phone / email links */
-    .contact-link { color: #60a5fa; text-decoration: none; white-space: nowrap; }
+    .dir-result { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .78rem; color: var(--gt-muted); margin-bottom: .6rem; padding: 0 .25rem; }
+    .dir-result b { color: var(--gt-text); font-family: var(--dir-mono); }
+    .dir-result .chip { display: inline-flex; align-items: center; gap: .3rem; background: rgba(201,162,39,.12); color: var(--gt-gold); border: 1px solid rgba(201,162,39,.35); border-radius: 999px; padding: 1px 9px; font-weight: 600; }
+    .dir-result a { color: var(--gt-muted); text-decoration: underline dotted; }
+    .dir-result a:hover { color: var(--gt-gold); }
+
+    /* ── Table ────────────────────────────────────────────────────────── */
+    .dir-table-card { background: var(--gt-surface); border: 1px solid var(--gt-border); border-radius: 12px; overflow: hidden; }
+    .dir-table { width: 100%; margin: 0; color: var(--gt-text); border-collapse: collapse; }
+    .dir-table thead th { font-size: .64rem; text-transform: uppercase; letter-spacing: .09em; color: var(--gt-muted); font-weight: 600; padding: .8rem .9rem; background: var(--gt-surface-2); border-bottom: 1px solid var(--gt-border); white-space: nowrap; }
+    .dir-table tbody td { padding: .85rem .9rem; border-bottom: 1px solid var(--gt-border); vertical-align: top; font-size: .84rem; }
+    .dir-table tbody tr:last-child td { border-bottom: 0; }
+    .dir-table tbody tr { transition: background .15s var(--dir-ease); }
+    .dir-table tbody tr:hover { background: rgba(201,162,39,.05); }
+    .dir-row.accent-red td:first-child { box-shadow: inset 3px 0 0 var(--dir-red); }
+    .dir-row.accent-amber td:first-child { box-shadow: inset 3px 0 0 var(--dir-amber); }
+    .dir-row.is-inactive { opacity: .5; }
+    .dir-row.is-inactive:hover { opacity: .9; }
+    .muted { color: var(--gt-muted); }
+
+    /* Driver cell */
+    .drv-head { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+    .drv-name { color: var(--gt-text); font-weight: 600; font-size: .95rem; text-decoration: none; border-bottom: 1px dotted transparent; }
+    .drv-name:hover { color: var(--gt-gold); border-bottom-color: var(--gt-gold); }
+    .mini-badge { display: inline-block; font-size: .58rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; line-height: 1.3; }
+    .mini-badge.inhouse { background: rgba(96,165,250,.16); color: var(--dir-blue); }
+    .mini-badge.affiliate { background: rgba(167,139,250,.16); color: #a78bfa; }
+    .mini-badge.operator { background: rgba(232,213,183,.14); color: #E8D5B7; }
+    .mini-badge.inactive { background: rgba(248,113,113,.16); color: var(--dir-red); }
+    .drv-sub { display: flex; align-items: center; gap: .5rem; color: var(--gt-muted); font-size: .7rem; margin-top: .15rem; }
+    .timing-toggle { cursor: pointer; font-size: .85rem; }
+    .drv-know { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: .4rem; }
+    .drv-know .cap-pill { display: inline-flex; align-items: center; gap: 3px; background: rgba(74,222,128,.14); color: var(--dir-green); border: 1px solid rgba(74,222,128,.3); font-size: .6rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+    .drv-know .pref-veh-pill { display: inline-flex; align-items: center; gap: 3px; background: rgba(96,165,250,.14); color: var(--dir-blue); border: 1px solid rgba(96,165,250,.3); font-size: .6rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+    .drv-know .shift-pref-text { color: #a5b4fc; font-size: .62rem; font-weight: 600; }
+
+    /* Paperwork cell */
+    .cell-paper { min-width: 250px; }
+    .paper-list { list-style: none; margin: 0; padding: 0; }
+    .paper-row { display: flex; align-items: baseline; gap: .5rem; font-size: .76rem; line-height: 1.35; padding: 2px 0; }
+    .paper-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; position: relative; top: -1px; border: 1.5px solid rgba(255,255,255,.22); background: transparent; }
+    .state-on_file .paper-dot { background: var(--dir-green); border-color: var(--dir-green); }
+    .state-expiring .paper-dot { background: var(--dir-amber); border-color: var(--dir-amber); }
+    .state-expired .paper-dot, .has-mismatch .paper-dot { background: var(--dir-red); border-color: var(--dir-red); }
+    .state-photo_only .paper-dot { border-color: var(--dir-amber); border-width: 2px; }
+    .paper-doc { flex: 0 0 68px; white-space: nowrap; font-size: .62rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--gt-muted); }
+    .paper-detail { color: var(--gt-text); }
+    .state-missing .paper-detail { color: var(--gt-muted); }
+    .state-photo_only .paper-detail, .state-expiring .paper-detail { color: var(--dir-amber); font-weight: 600; }
+    .state-expired .paper-detail, .has-mismatch .paper-detail { color: var(--dir-red); font-weight: 600; }
+    .paper-scan { color: var(--gt-muted); font-size: .8rem; text-decoration: none; margin-left: .1rem; }
+    .paper-scan:hover { color: var(--gt-gold); }
+    .paper-ask { display: inline-flex; align-items: center; gap: .35rem; margin-top: .4rem; font-size: .72rem; font-weight: 600; color: var(--gt-gold); text-decoration: none; border-bottom: 1px dotted rgba(201,162,39,.5); }
+    .paper-ask:hover { color: #e6c65a; border-bottom-color: #e6c65a; }
+    .paper-na { font-size: .74rem; color: var(--gt-muted); line-height: 1.4; display: block; max-width: 240px; }
+
+    /* Contact cell */
+    .contact-link { color: var(--dir-blue); text-decoration: none; white-space: nowrap; font-size: .84rem; }
     .contact-link:hover { color: var(--gt-gold); text-decoration: underline; }
+    .contact-email { display: block; max-width: 210px; overflow: hidden; text-overflow: ellipsis; font-size: .74rem; margin-top: .15rem; }
+    .no-phone { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; color: #d3a93b; }
 
-    /* Status badges in next-trip detail */
-    .status-mini { font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-    .status-mini.confirmed { background: rgba(124,58,237,0.18); color: #a78bfa; }
-    .status-mini.in-progress, .status-mini.on-the-way, .status-mini.on-location, .status-mini.picked-up { background: rgba(59,130,246,0.18); color: #60a5fa; }
+    /* Today cell */
+    .avail-pill { display: inline-flex; align-items: center; gap: .3rem; font-size: .7rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+    .avail-pill.free { background: rgba(74,222,128,.14); color: var(--dir-green); }
+    .avail-pill.busy { background: rgba(251,191,36,.14); color: var(--dir-amber); }
+    .status-mini { font-size: .62rem; padding: 1px 6px; border-radius: 3px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .status-mini.confirmed { background: rgba(167,139,250,.18); color: #a78bfa; }
+    .status-mini.in-progress, .status-mini.on-the-way, .status-mini.on-location, .status-mini.picked-up { background: rgba(96,165,250,.18); color: var(--dir-blue); }
+    .next-trip { font-size: .7rem; color: var(--gt-muted); max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: .2rem; }
 
-    /* Total paid cell */
-    .total-paid-cell .paid-amount {
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      font-weight: 700;
-      color: #4ade80;
-      font-size: 0.95rem;
-      line-height: 1.1;
-    }
-    .total-paid-cell .paid-sub {
-      font-size: 0.6rem;
-      color: var(--gt-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 0.15rem;
-    }
+    /* Vehicle & schedule cell */
+    .veh { font-weight: 600; font-size: .84rem; }
+    .veh.muted { font-weight: 500; }
+    .sched { font-size: .72rem; color: var(--gt-muted); white-space: pre-line; line-height: 1.4; margin-top: .2rem; }
 
-    /* Action buttons */
-    .row-actions .btn {
-      font-size: 0.72rem; padding: 0.25rem 0.55rem; font-weight: 600;
-      background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);
-    }
-    .row-actions .btn-profile { background: var(--gt-gold); color: #0d1117; border-color: var(--gt-gold); }
-    .row-actions .btn-profile:hover { background: #b48a1c; border-color: #b48a1c; color: #0d1117; }
-    .row-actions .btn:not(.btn-profile):hover { background: rgba(201,162,39,0.12); color: var(--gt-gold); border-color: rgba(201,162,39,0.3); }
+    /* Pay cell */
+    .cell-pay { text-align: right; white-space: nowrap; }
+    .paid-amount { font-family: var(--dir-mono); font-weight: 700; color: var(--dir-green); font-size: .92rem; line-height: 1.1; }
 
-    /* Empty state */
-    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--gt-muted); }
-    .empty-state i { font-size: 2rem; display: block; margin-bottom: 0.5rem; opacity: 0.5; }
-
-    /* Notes icon contrast */
-    .notes-icon { color: var(--gt-muted); }
+    /* Actions cell */
+    .cell-actions { text-align: right; white-space: nowrap; }
+    .cell-actions .acts { display: inline-flex; align-items: center; gap: .35rem; justify-content: flex-end; }
+    .notes-icon { color: var(--gt-muted); cursor: pointer; font-size: 1.05rem; padding: .25rem .4rem; border-radius: 6px; }
+    .notes-icon:hover { color: var(--gt-gold); background: rgba(201,162,39,.1); }
     .notes-icon.bi-sticky-fill { color: var(--gt-gold); }
 
-    .schedule-text {
-      font-size: 0.78rem; color: var(--gt-text); white-space: pre-line; line-height: 1.4;
-    }
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--gt-muted); font-size: .9rem; }
+    .empty-state i { font-size: 1.8rem; display: block; margin-bottom: .5rem; color: var(--gt-gold); opacity: .8; }
+    .empty-state a { color: var(--gt-gold); }
 
-    /* Responsive: keep table scrollable horizontally on small screens */
+    /* ── Narrow screens: the table becomes a stack of cards ───────────── */
+    @media (max-width: 1199.98px) {
+      .paper-band { grid-template-columns: 1fr; }
+      .paper-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
     @media (max-width: 991.98px) {
-      .driver-table thead { display: none; }
-      .driver-table, .driver-table tbody, .driver-table tr, .driver-table td { display: block; width: 100%; }
-      .driver-table tr { border-bottom: 1px solid var(--gt-border); padding: 0.5rem 0.25rem; }
-      .driver-table td { border-bottom: 0; padding: 0.35rem 0.5rem; }
-      .driver-table td::before { content: attr(data-label); display: block; color: var(--gt-muted); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-bottom: 0.15rem; }
+      .directory-page { padding-top: 1.25rem; }
+      .dir-title { font-size: 1.8rem; }
+      .paper-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .meter-row { grid-template-columns: 100px 1fr auto; }
+      .dir-toolbar { align-items: stretch; }
+      .dir-filters { width: 100%; }
+      .dir-search { flex: 1 1 100%; }
+      .dir-search .form-control { min-width: 0; width: 100%; }
+      .dir-filters .form-select { flex: 1 1 40%; width: auto; }
+      .dir-table thead { display: none; }
+      .dir-table, .dir-table tbody, .dir-table tr, .dir-table td { display: block; width: 100%; }
+      .dir-table tbody tr { padding: .35rem .25rem .6rem; border-bottom: 1px solid var(--gt-border); }
+      .dir-table tbody td { border-bottom: 0; padding: .4rem .65rem; }
+      .dir-row.accent-red td:first-child, .dir-row.accent-amber td:first-child { box-shadow: none; }
+      .dir-row.accent-red { box-shadow: inset 3px 0 0 var(--dir-red); }
+      .dir-row.accent-amber { box-shadow: inset 3px 0 0 var(--dir-amber); }
+      .dir-table td::before { content: attr(data-label); display: block; color: var(--gt-muted); font-size: .6rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-bottom: .2rem; }
+      .dir-table td.cell-driver::before { display: none; }
+      .cell-paper { min-width: 0; }
+      .cell-pay, .cell-actions { text-align: left; }
+      .cell-actions .acts { justify-content: flex-start; }
+      .contact-email, .next-trip { max-width: 100%; }
+    }
+    @media (max-width: 575.98px) {
+      .paper-tiles { grid-template-columns: 1fr 1fr; }
+      .paper-band { padding: 1.1rem 1rem 1.2rem; }
+      .meter-row { grid-template-columns: 1fr; gap: .3rem; }
+      .meter-count { justify-self: start; }
     }
   </style>
 {% endblock extra_css %}
@@ -196,257 +251,259 @@
 {% block content %}
   {% block navbar %}{% endblock %}
   {% include "dispatching/dispatcher_navbar.html" %}
-  
+
   <div class="directory-page">
     <div class="container-fluid">
 
-      {# Header #}
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-        <h1 class="h3 mb-0">
-          <i class="bi bi-people-fill me-2" style="color: var(--gt-gold);"></i>Driver Directory
-        </h1>
-        <a href="{% url 'dashboard' %}" class="btn" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);">
-          <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
-        </a>
-      </div>
-
-      {# Stat tiles #}
-      <div class="row g-3 mb-3">
-        <div class="col-6 col-md-3">
-          <div class="stat-tile">
-            <div class="stat-label">Total Drivers</div>
-            <div class="stat-value">{{ all_count_total }}</div>
+      {# ── Head ─────────────────────────────────────────────────────── #}
+      <header class="dir-head reveal">
+        <div>
+          <div class="dir-eyebrow">Dispatch · Drivers</div>
+          <h1 class="dir-title">Driver directory</h1>
+          <div class="dir-lede">
+            <b>{{ active_total }}</b> active driver{{ active_total|pluralize }}
+            &middot; <b>{{ driving_today }}</b> on the road today
+            &middot; {{ today|date:"l, F j" }}
           </div>
         </div>
-        <div class="col-6 col-md-3">
-          <div class="stat-tile accent-blue">
-            <div class="stat-label">In-House</div>
-            <div class="stat-value">{{ inhouse_count_total }}</div>
+        <a href="{% url 'dashboard' %}" class="dir-btn"><i class="bi bi-arrow-left"></i>Dashboard</a>
+      </header>
+
+      {# ── Paperwork band: who has sent what, and the five filters ─────── #}
+      <section class="paper-band reveal d1" aria-label="Paperwork on file">
+        <div class="paper-cover">
+          <div class="band-eyebrow">Paperwork on file &middot; {{ chauffeur_total }} active chauffeur{{ chauffeur_total|pluralize }}</div>
+          <div class="meter-row">
+            <span class="meter-label">Driver's license</span>
+            <span class="meter-bar"><span class="meter-fill" style="width: {{ paperwork_pct.license }}%"></span></span>
+            <span class="meter-count"><b>{{ paperwork_on_file.license }}</b> of {{ chauffeur_total }}</span>
+          </div>
+          <div class="meter-row">
+            <span class="meter-label">Chauffeur permit</span>
+            <span class="meter-bar"><span class="meter-fill" style="width: {{ paperwork_pct.permit }}%"></span></span>
+            <span class="meter-count"><b>{{ paperwork_on_file.permit }}</b> of {{ chauffeur_total }}</span>
+          </div>
+          <div class="meter-row optional">
+            <span class="meter-label">DOT medical card</span>
+            <span class="meter-bar"><span class="meter-fill" style="width: {{ paperwork_pct.dot }}%"></span></span>
+            <span class="meter-count"><b>{{ paperwork_on_file.dot }}</b> on file &middot; optional</span>
+          </div>
+          <div class="band-foot">
+            "On file" means the expiry date has been entered, whether or not a photo is attached.
+            Counts cover active chauffeurs only; operators and inactive drivers are left out.
           </div>
         </div>
-        <div class="col-6 col-md-3">
-          <div class="stat-tile accent-gold">
-            <div class="stat-label">Affiliate</div>
-            <div class="stat-value">{{ affiliate_count_total }}</div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="stat-tile accent-green">
-            <div class="stat-label">Available Now</div>
-            <div class="stat-value">{{ available_count }}</div>
-          </div>
-        </div>
-      </div>
+        <nav class="paper-tiles" aria-label="Filter by paperwork">
+          {% for t in paperwork_tiles %}
+            <a class="paper-tile tone-{{ t.tone }}{% if t.active %} active{% endif %}" href="?{{ t.href }}"{% if t.active %} aria-current="true"{% endif %}>
+              <span class="tile-val">{{ t.count }}</span>
+              <span class="tile-label">{{ t.label }}</span>
+              <span class="tile-sub">{{ t.sub }}</span>
+            </a>
+          {% endfor %}
+        </nav>
+      </section>
 
-      {# Tab pills #}
-      <div class="d-flex justify-content-center mb-3">
-        <div class="dir-tabs" role="tablist" aria-label="Driver type filter">
-          <a href="?tab=all{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if active_only %}&active_only=1{% endif %}"
-             class="dir-tab {% if active_tab == 'all' %}active{% endif %}">
-            <i class="bi bi-grid-fill"></i> All <span class="tab-count">{{ all_count_total }}</span>
-          </a>
-          <a href="?tab=inhouse{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if active_only %}&active_only=1{% endif %}"
-             class="dir-tab {% if active_tab == 'inhouse' %}active{% endif %}">
-            <i class="bi bi-building"></i> In-House <span class="tab-count">{{ inhouse_count_total }}</span>
-          </a>
-          <a href="?tab=affiliate{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}{% if active_only %}&active_only=1{% endif %}"
-             class="dir-tab {% if active_tab == 'affiliate' %}active{% endif %}">
-            <i class="bi bi-person-badge"></i> Affiliate <span class="tab-count">{{ affiliate_count_total }}</span>
-          </a>
+      {# ── Toolbar: type tabs + filters ─────────────────────────────── #}
+      <div class="dir-toolbar reveal d2">
+        <div class="dir-tabs" role="tablist" aria-label="Driver type">
+          <a href="?{{ tab_links.all }}" class="dir-tab {% if active_tab == 'all' %}active{% endif %}">All <span class="tab-count">{{ all_count_total }}</span></a>
+          <a href="?{{ tab_links.inhouse }}" class="dir-tab {% if active_tab == 'inhouse' %}active{% endif %}">In-house <span class="tab-count">{{ inhouse_count_total }}</span></a>
+          <a href="?{{ tab_links.affiliate }}" class="dir-tab {% if active_tab == 'affiliate' %}active{% endif %}">Affiliate <span class="tab-count">{{ affiliate_count_total }}</span></a>
         </div>
-      </div>
 
-      {# Active-only filter (inactive drivers are listed here by default, marked Inactive) #}
-      <div class="d-flex justify-content-center mb-3">
-        {% if active_only %}
-          <a href="?tab={{ active_tab }}{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}"
-             class="btn btn-sm" style="background: var(--gt-surface-2); color: var(--gt-text-secondary); border: 1px solid var(--gt-border);">
-            <i class="bi bi-eye me-1"></i>Show inactive drivers
-            {% if inactive_count_total %}<span class="badge ms-1" style="background: var(--gt-border); color: var(--gt-text);">{{ inactive_count_total }}</span>{% endif %}
-          </a>
-        {% else %}
-          <a href="?tab={{ active_tab }}{% if search_query %}&search={{ search_query }}{% endif %}{% if availability_filter %}&availability={{ availability_filter }}{% endif %}&active_only=1"
-             class="btn btn-sm" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);">
-            <i class="bi bi-eye-slash me-1"></i>Active only
-            {% if inactive_count_total %}<span class="badge ms-1" style="background: var(--gt-border); color: var(--gt-text);">{{ inactive_count_total }} inactive</span>{% endif %}
-          </a>
-        {% endif %}
-      </div>
-
-      {# Filters #}
-      <div class="filter-card">
-        <form method="get" action="{% url 'drivers_extend' %}" class="row g-2 align-items-end">
+        <form method="get" action="{% url 'drivers_extend' %}" class="dir-filters" id="dirFilters">
           <input type="hidden" name="tab" value="{{ active_tab }}">
-          <div class="col-md-6">
-            <label for="search" class="form-label">Search</label>
-            <input type="text" class="form-control" id="search" name="search"
-                   placeholder="Name, username, or vehicle..." value="{{ search_query }}">
+          <div class="dir-search">
+            <i class="bi bi-search"></i>
+            <input type="search" class="form-control" id="search" name="search" placeholder="Name, phone, email, or vehicle" value="{{ search_query }}" aria-label="Search drivers">
           </div>
-          <div class="col-md-3">
-            <label for="availability" class="form-label">Availability (next 7d)</label>
-            <select class="form-select" id="availability" name="availability">
-              <option value="">All</option>
-              <option value="available" {% if availability_filter == "available" %}selected{% endif %}>Available</option>
-              <option value="busy" {% if availability_filter == "busy" %}selected{% endif %}>Busy</option>
-            </select>
-          </div>
-          <div class="col-md-3 d-flex gap-2">
-            <button type="submit" class="btn btn-filter w-100">
-              <i class="bi bi-funnel me-1"></i>Filter
-            </button>
-            {% if search_query or availability_filter %}
-              <a href="?tab={{ active_tab }}" class="btn" style="background: var(--gt-surface-2); color: var(--gt-text); border: 1px solid var(--gt-border);" title="Reset filters">
-                <i class="bi bi-x-circle"></i>
-              </a>
-            {% endif %}
-          </div>
+          <select class="form-select" name="paperwork" aria-label="Paperwork" data-autosubmit>
+            <option value="">Paperwork: any</option>
+            {% for key, label in paperwork_filters %}
+              <option value="{{ key }}" {% if paperwork_filter == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <select class="form-select" name="availability" aria-label="Next 7 days" data-autosubmit>
+            <option value="">Next 7 days: any</option>
+            <option value="available" {% if availability_filter == "available" %}selected{% endif %}>Nothing booked</option>
+            <option value="busy" {% if availability_filter == "busy" %}selected{% endif %}>Has trips</option>
+          </select>
+          <label class="dir-check">
+            <input type="checkbox" name="active_only" value="1" {% if active_only %}checked{% endif %} data-autosubmit>
+            Active only
+            {% if inactive_count_total %}<span class="muted">&middot; {{ inactive_count_total }} inactive</span>{% endif %}
+          </label>
+          <button type="submit" class="btn-filter"><i class="bi bi-funnel me-1"></i>Filter</button>
+          {% if has_filters %}<a href="?{{ clear_link }}" class="dir-btn" title="Clear search and filters"><i class="bi bi-x-lg"></i>Clear</a>{% endif %}
         </form>
       </div>
 
-      {# Driver Table #}
-      <div class="driver-table-card">
+      <div class="dir-result">
+        Showing <b>{{ total_drivers }}</b> driver{{ total_drivers|pluralize }}
+        {% if paperwork_filter %}<span class="chip"><i class="bi bi-card-checklist"></i>{{ paperwork_filter_label }}</span>{% endif %}
+        {% if search_query %}<span>matching &ldquo;{{ search_query }}&rdquo;</span>{% endif %}
+        {% if availability_filter == "available" %}<span>&middot; nothing booked in the next 7 days</span>{% elif availability_filter == "busy" %}<span>&middot; with trips in the next 7 days</span>{% endif %}
+        {% if has_filters %}<a href="?{{ clear_link }}">clear</a>{% endif %}
+      </div>
+
+      {# ── The roster ───────────────────────────────────────────────── #}
+      <div class="dir-table-card reveal d3">
         <div class="table-responsive">
-          <table class="driver-table">
+          <table class="dir-table">
             <thead>
               <tr>
                 <th>Driver</th>
-                <th>Type</th>
+                <th>Paperwork</th>
                 <th>Contact</th>
-                <th>Vehicle</th>
-                <th>Schedule</th>
                 <th>Today</th>
-                <th class="text-end">Total Paid</th>
-                <th class="text-center">Notes</th>
-                <th class="text-end">Actions</th>
+                <th>Vehicle &amp; schedule</th>
+                <th class="text-end">Paid all-time</th>
+                <th class="text-end"><span class="visually-hidden">Actions</span></th>
               </tr>
             </thead>
             <tbody>
               {% for driver in drivers %}
-                <tr{% if not driver.is_active %} class="driver-inactive-row"{% endif %}>
-                  <td data-label="Driver">
-                    <a href="{% url 'driver_profile' driver.id %}" class="driver-name-link">
-                      {% if driver.profile.first_name %}
-                        {{ driver.profile.first_name }} {{ driver.profile.last_name }}
+                {% firstof driver.profile.get_full_name driver.profile.username as driver_name %}
+                <tr class="dir-row{% if not driver.is_active %} is-inactive{% endif %}{% if driver.paperwork.accent %} accent-{{ driver.paperwork.accent }}{% endif %}">
+
+                  <td data-label="Driver" class="cell-driver">
+                    <div class="drv-head">
+                      <a href="{% url 'driver_profile' driver.id %}" class="drv-name">{{ driver_name }}</a>
+                      {% if driver.driver_type == 'inhouse' %}
+                        <span class="mini-badge inhouse">In-house</span>
                       {% else %}
-                        {{ driver.profile.username }}
+                        <span class="mini-badge affiliate">Affiliate</span>
                       {% endif %}
-                    </a>
-                    {% if not driver.is_active %}
-                      <span class="badge ms-1" style="background: #fee2e2; color: #991b1b; font-weight: 700; letter-spacing: 0.04em;" title="This driver is marked inactive — hidden from the planner, board, and vehicle assignment. Shown here in the directory only.">INACTIVE</span>
-                    {% endif %}
-                    <span class="driver-username">@{{ driver.profile.username }}</span>
-                    {% with alerts=driver.credential_alerts %}
-                    {% if driver.cert_labels or driver.preferred_vehicle_label or driver.shift_pref_label or alerts %}
-                    <div class="driver-knowledge">
-                      {% for c in driver.cert_labels %}<span class="cap-pill" title="Cleared to drive the {{ c }}"><i class="bi bi-patch-check-fill"></i> {{ c }}</span>{% endfor %}
-                      {% if driver.preferred_vehicle_label %}<span class="pref-veh-pill" title="Preferred vehicle"><i class="bi bi-car-front-fill"></i> {{ driver.preferred_vehicle_label }}</span>{% endif %}
-                      {% if driver.shift_pref_label %}<span class="shift-pref-text">{{ driver.shift_pref_label }}</span>{% endif %}
-                      {% if alerts %}
-                        <span class="cred-alert-pill" title="{% for a in alerts %}{{ a.label }}: {% if a.status == 'expired' %}expired{% elif a.status == 'expiring' %}expires soon{% else %}mismatch{% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}">
-                          <i class="bi bi-exclamation-triangle-fill"></i> {{ alerts|length }} credential{{ alerts|length|pluralize }}
-                        </span>
+                      {% if driver.is_operator_row %}<span class="mini-badge operator" title="A partner company that sends its own drivers on our jobs">Operator</span>{% endif %}
+                      {% if not driver.is_active %}
+                        <span class="mini-badge inactive" title="Marked inactive — hidden from the planner, board, and vehicle assignment. Listed here only.">Inactive</span>
                       {% endif %}
                     </div>
+                    <div class="drv-sub">
+                      <span>@{{ driver.profile.username }}</span>
+                      {% if driver.driver_type == 'inhouse' %}
+                        <i class="bi bi-stopwatch{% if not driver.exclude_from_timing %}-fill{% endif %} timing-toggle"
+                           style="color:{% if driver.exclude_from_timing %}#6c757d{% else %}#4ade80{% endif %};"
+                           data-driver-id="{{ driver.id }}"
+                           data-excluded="{{ driver.exclude_from_timing|yesno:'true,false' }}"
+                           role="button" tabindex="0"
+                           title="{% if driver.exclude_from_timing %}Left out of route timing — click to count {{ driver.display_first }}'s drives{% else %}Counted in route timing — click to leave {{ driver.display_first }}'s drives out{% endif %}"></i>
+                      {% endif %}
+                    </div>
+                    {% with certs=driver.cert_labels pref=driver.preferred_vehicle_label %}
+                    {% if certs or pref or driver.shift_pref_label %}
+                      <div class="drv-know">
+                        {% for c in certs %}<span class="cap-pill" title="Cleared to drive the {{ c }}"><i class="bi bi-patch-check-fill"></i> {{ c }}</span>{% endfor %}
+                        {% if pref %}<span class="pref-veh-pill" title="Preferred vehicle"><i class="bi bi-car-front-fill"></i> {{ pref }}</span>{% endif %}
+                        {% if driver.shift_pref_label %}<span class="shift-pref-text">{{ driver.shift_pref_label }}</span>{% endif %}
+                      </div>
                     {% endif %}
                     {% endwith %}
                   </td>
-                  <td data-label="Type">
-                    {% if driver.driver_type == 'inhouse' %}
-                      <span class="type-badge inhouse"><i class="bi bi-building me-1"></i>IN-HOUSE</span>
+
+                  <td data-label="Paperwork" class="cell-paper">
+                    {% if driver.is_operator_row %}
+                      <span class="paper-na">Operator &mdash; sends their own drivers. No paperwork is tracked here.</span>
                     {% else %}
-                      <span class="type-badge affiliate"><i class="bi bi-person-badge me-1"></i>AFFILIATE</span>
-                    {% endif %}
-                    {% if driver.driver_type == 'inhouse' %}
-                      <i class="bi bi-stopwatch{% if not driver.exclude_from_timing %}-fill{% endif %} ms-1 timing-toggle"
-                         style="cursor:pointer; font-size:0.9rem; color:{% if driver.exclude_from_timing %}#6c757d{% else %}#4ade80{% endif %};"
-                         data-driver-id="{{ driver.id }}"
-                         data-excluded="{{ driver.exclude_from_timing|yesno:'true,false' }}"
-                         title="{% if driver.exclude_from_timing %}Excluded from route timing — click to include{% else %}Included in route timing — click to exclude{% endif %}"></i>
+                      <ul class="paper-list">
+                        {% for doc in driver.paperwork.docs %}
+                          <li class="paper-row state-{{ doc.state }}{% if doc.mismatch %} has-mismatch{% endif %}">
+                            <span class="paper-dot" aria-hidden="true"></span>
+                            <span class="paper-doc">{{ doc.label }}</span>
+                            <span class="paper-detail">{{ doc.detail }}</span>
+                            {% if doc.scan_url %}
+                              <a class="paper-scan" href="{{ doc.scan_url }}" target="_blank" rel="noopener" title="Open the {{ doc.long }} photo" aria-label="Open {{ driver.display_first }}'s {{ doc.long }} photo"><i class="bi bi-image"></i></a>
+                            {% endif %}
+                          </li>
+                        {% endfor %}
+                      </ul>
+                      {% if driver.ask_href %}
+                        <a class="paper-ask" href="{{ driver.ask_href }}" title="Opens your Messages app with the request written out. Nothing is sent until you hit send.">
+                          <i class="bi bi-chat-dots"></i>Text {{ driver.display_first }} to ask
+                        </a>
+                      {% endif %}
                     {% endif %}
                   </td>
+
                   <td data-label="Contact">
                     {% if driver.phone_number %}
-                      <div><a href="tel:{{ driver.phone_number }}" class="contact-link"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}</a></div>
+                      <a href="tel:{{ driver.phone_number }}" class="contact-link"><i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}</a>
+                    {% else %}
+                      <span class="no-phone" title="No phone number on this driver's profile"><i class="bi bi-telephone-x"></i>No phone on file</span>
                     {% endif %}
                     {% if driver.profile.email %}
-                      <div style="font-size: 0.78rem;"><a href="mailto:{{ driver.profile.email }}" class="contact-link"><i class="bi bi-envelope me-1"></i>{{ driver.profile.email|truncatechars:28 }}</a></div>
-                    {% endif %}
-                    {% if not driver.phone_number and not driver.profile.email %}
-                      <span class="text-muted-dark">—</span>
+                      <a href="mailto:{{ driver.profile.email }}" class="contact-link contact-email" title="{{ driver.profile.email }}"><i class="bi bi-envelope me-1"></i>{{ driver.profile.email }}</a>
                     {% endif %}
                   </td>
-                  <td data-label="Vehicle">
-                    <strong>{{ driver.vehicle_display }}</strong>
-                  </td>
-                  <td data-label="Schedule">
-                    {% if driver.get_schedule_display %}
-                      <span class="schedule-text">{{ driver.get_schedule_display }}</span>
-                    {% else %}
-                      <span class="text-muted-dark">—</span>
-                    {% endif %}
-                  </td>
+
                   <td data-label="Today">
                     {% if driver.today_trip_count %}
-                      <div>
-                        <span class="avail-pill busy"><i class="bi bi-clock-fill"></i>{{ driver.today_trip_count }} trip{{ driver.today_trip_count|pluralize }}</span>
-                      </div>
-                      <div class="mt-1" style="font-size: 0.72rem;">
+                      <span class="avail-pill busy"><i class="bi bi-clock-fill"></i>{{ driver.today_trip_count }} trip{{ driver.today_trip_count|pluralize }}</span>
+                      <div class="mt-1" style="font-size: .72rem;">
                         <span class="status-mini {{ driver.next_trip_status }}">{{ driver.next_trip_status }}</span>
-                        <span class="text-muted-dark ms-1">{{ driver.next_trip_time|date:"g:i A" }}</span>
+                        <span class="muted ms-1">{{ driver.next_trip_time|date:"g:i A" }}</span>
                       </div>
-                      <div class="text-muted-dark" style="font-size: 0.7rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ driver.next_trip_pickup }} → {{ driver.next_trip_dropoff }}">
-                        {{ driver.next_trip_pickup|truncatechars:22 }} → {{ driver.next_trip_dropoff|truncatechars:22 }}
+                      <div class="next-trip" title="{{ driver.next_trip_pickup }} → {{ driver.next_trip_dropoff }}">
+                        {{ driver.next_trip_pickup|truncatechars:24 }} → {{ driver.next_trip_dropoff|truncatechars:24 }}
                       </div>
                     {% else %}
-                      <span class="avail-pill free"><i class="bi bi-check-circle-fill"></i>Available</span>
+                      <span class="avail-pill free"><i class="bi bi-check-circle-fill"></i>Free today</span>
                     {% endif %}
                   </td>
-                  <td data-label="Total Paid" class="text-end total-paid-cell">
+
+                  <td data-label="Vehicle &amp; schedule">
+                    {% if driver.vehicle %}
+                      <div class="veh">{{ driver.vehicle }}</div>
+                    {% elif driver.driver_type == 'inhouse' %}
+                      <div class="veh muted">Any company car</div>
+                    {% else %}
+                      <div class="veh muted">Own vehicle, not specified</div>
+                    {% endif %}
+                    {% if driver.get_schedule_display %}
+                      <div class="sched">{{ driver.get_schedule_display }}</div>
+                    {% endif %}
+                  </td>
+
+                  <td data-label="Paid all-time" class="cell-pay">
                     {% if driver.lifetime_paid and driver.lifetime_paid > 0 %}
-                      <div class="paid-amount" title="${{ driver.lifetime_paid|floatformat:2|intcomma }} paid all-time">
-                        ${{ driver.lifetime_paid|floatformat:0|intcomma }}
-                      </div>
-                      <div class="paid-sub">all-time</div>
+                      <div class="paid-amount" title="${{ driver.lifetime_paid|floatformat:2|intcomma }} paid all-time">${{ driver.lifetime_paid|floatformat:0|intcomma }}</div>
                     {% else %}
-                      <span class="text-muted-dark">—</span>
+                      <span class="muted">&mdash;</span>
                     {% endif %}
                   </td>
-                  <td data-label="Notes" class="text-center">
-                    {% if driver.notes %}
-                      <i class="bi bi-sticky-fill notes-icon"
-                         data-bs-toggle="tooltip"
-                         data-bs-placement="left"
-                         data-bs-html="true"
-                         title="{{ driver.notes|escape|linebreaksbr }}"
-                         data-driver-id="{{ driver.id }}"
-                         data-driver-name="{% if driver.profile.first_name %}{{ driver.profile.first_name }} {{ driver.profile.last_name }}{% else %}{{ driver.profile.username }}{% endif %}"
-                         data-notes="{{ driver.notes|escape }}"
-                         style="cursor: pointer; font-size: 1.15rem;"></i>
-                    {% else %}
-                      <i class="bi bi-sticky notes-icon"
-                         data-driver-id="{{ driver.id }}"
-                         data-driver-name="{% if driver.profile.first_name %}{{ driver.profile.first_name }} {{ driver.profile.last_name }}{% else %}{{ driver.profile.username }}{% endif %}"
-                         data-notes=""
-                         style="cursor: pointer; font-size: 1.15rem;"></i>
-                    {% endif %}
-                  </td>
-                  <td data-label="Actions" class="text-end row-actions">
-                    <div class="d-inline-flex flex-wrap gap-1 justify-content-end">
-                      <a href="{% url 'driver_profile' driver.id %}" class="btn btn-profile">
-                        <i class="bi bi-person-circle me-1"></i>Profile
-                      </a>
-                      <a href="{% url 'driver_statement_list' driver.id %}" class="btn">
-                        <i class="bi bi-receipt me-1"></i>Statements
-                      </a>
+
+                  <td data-label="Actions" class="cell-actions">
+                    <div class="acts">
+                      {% if driver.notes %}
+                        <i class="bi bi-sticky-fill notes-icon"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="left"
+                           data-bs-html="true"
+                           title="{{ driver.notes|escape|linebreaksbr }}"
+                           data-driver-id="{{ driver.id }}"
+                           data-driver-name="{{ driver_name }}"
+                           data-notes="{{ driver.notes|escape }}"
+                           role="button" tabindex="0" aria-label="Edit notes for {{ driver_name }}"></i>
+                      {% else %}
+                        <i class="bi bi-sticky notes-icon"
+                           data-driver-id="{{ driver.id }}"
+                           data-driver-name="{{ driver_name }}"
+                           data-notes=""
+                           role="button" tabindex="0" aria-label="Add notes for {{ driver_name }}" title="Add a note"></i>
+                      {% endif %}
+                      <a href="{% url 'driver_profile' driver.id %}" class="dir-btn gold small"><i class="bi bi-person-circle"></i>Profile</a>
+                      <a href="{% url 'driver_statement_list' driver.id %}" class="dir-btn small"><i class="bi bi-receipt"></i>Statements</a>
                     </div>
                   </td>
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="9">
+                  <td colspan="7">
                     <div class="empty-state">
-                      <i class="bi bi-search"></i>
-                      <div>No drivers found matching your filters.</div>
+                      <i class="bi {% if paperwork_filter %}bi-check2-circle{% else %}bi-search{% endif %}"></i>
+                      <div>{{ empty_message }}</div>
+                      {% if has_filters %}<div class="mt-2"><a href="?{{ clear_link }}">Show everyone</a></div>{% endif %}
                     </div>
                   </td>
                 </tr>
@@ -502,7 +559,7 @@
       </div>
     </div>
   </div>
-  
+
   <script>
     // Get CSRF token helper function
     function getCookie(name) {
@@ -532,7 +589,7 @@
       });
 
       toastMessage.textContent = message;
-      
+
       if (type === 'success') {
         toastTitle.textContent = 'Success';
         toastIcon.className = 'bi bi-check-circle-fill text-success me-2';
@@ -548,10 +605,16 @@
       toast.show();
     }
 
-    // Initialize Bootstrap tooltips for notes (hover)
     document.addEventListener('DOMContentLoaded', function() {
+      // Selects and the Active-only box apply themselves; the search box still
+      // waits for Enter or the Filter button so a half-typed name doesn't reload.
+      const filterForm = document.getElementById('dirFilters');
+      filterForm.querySelectorAll('[data-autosubmit]').forEach(function(el) {
+        el.addEventListener('change', function() { filterForm.submit(); });
+      });
+
       var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
       });
 
@@ -563,16 +626,16 @@
       const saveNotesBtn = document.getElementById('saveNotesBtn');
       let currentDriverId = null;
 
+      function openNotes(icon) {
+        currentDriverId = icon.getAttribute('data-driver-id');
+        modalDriverName.textContent = icon.getAttribute('data-driver-name');
+        notesTextarea.value = icon.getAttribute('data-notes') || '';
+        notesModal.show();
+      }
       notesIcons.forEach(function(icon) {
-        icon.addEventListener('click', function(e) {
-          e.preventDefault();
-          currentDriverId = this.getAttribute('data-driver-id');
-          const driverName = this.getAttribute('data-driver-name');
-          const notes = this.getAttribute('data-notes') || '';
-
-          modalDriverName.textContent = driverName;
-          notesTextarea.value = notes;
-          notesModal.show();
+        icon.addEventListener('click', function(e) { e.preventDefault(); openNotes(this); });
+        icon.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotes(this); }
         });
       });
 
@@ -580,58 +643,41 @@
       saveNotesBtn.addEventListener('click', function() {
         const notes = notesTextarea.value.trim();
         const originalText = this.innerHTML;
-        
-        // Disable button and show loading
+
         this.disabled = true;
         this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
 
         const csrftoken = getCookie('csrftoken');
 
-        // Send AJAX request
         fetch(`/drivers/update_notes/${currentDriverId}/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrftoken
           },
-          body: JSON.stringify({
-            notes: notes
-          })
+          body: JSON.stringify({ notes: notes })
         })
         .then(response => response.json())
         .then(data => {
           if (data.success) {
-            // Update the icon and data attributes
             const icon = document.querySelector(`.notes-icon[data-driver-id="${currentDriverId}"]`);
             if (icon) {
               icon.setAttribute('data-notes', notes);
-              
-              // Update icon appearance based on whether notes exist
+              const existing = bootstrap.Tooltip.getInstance(icon);
+              if (existing) { existing.dispose(); }
               if (notes) {
-                icon.className = 'bi bi-sticky-fill text-primary notes-icon';
+                icon.className = 'bi bi-sticky-fill notes-icon';
                 icon.setAttribute('data-bs-toggle', 'tooltip');
+                icon.setAttribute('data-bs-html', 'true');
                 icon.setAttribute('title', notes.replace(/\n/g, '<br>'));
-                // Reinitialize tooltip
-                const tooltip = bootstrap.Tooltip.getInstance(icon);
-                if (tooltip) {
-                  tooltip.dispose();
-                }
                 new bootstrap.Tooltip(icon);
               } else {
-                icon.className = 'bi bi-sticky text-muted notes-icon';
+                icon.className = 'bi bi-sticky notes-icon';
                 icon.removeAttribute('data-bs-toggle');
-                icon.removeAttribute('title');
-                const tooltip = bootstrap.Tooltip.getInstance(icon);
-                if (tooltip) {
-                  tooltip.dispose();
-                }
+                icon.setAttribute('title', 'Add a note');
               }
             }
-
-            // Close modal
             notesModal.hide();
-            
-            // Show success toast
             showToast('Notes saved successfully!', 'success');
           } else {
             showToast('Error saving notes: ' + (data.error || 'Unknown error'), 'error');
@@ -642,13 +688,12 @@
           showToast('Error saving notes. Please try again.', 'error');
         })
         .finally(() => {
-          // Re-enable button
           this.disabled = false;
           this.innerHTML = originalText;
         });
       });
 
-      // Timing toggle click handler
+      // Route-timing include/exclude toggle (in-house drivers only)
       document.querySelectorAll('.timing-toggle').forEach(function(icon) {
         icon.addEventListener('click', function() {
           const driverId = this.dataset.driverId;
@@ -669,13 +714,13 @@
             if (data.success) {
               el.dataset.excluded = String(newExcluded);
               if (newExcluded) {
-                el.className = 'bi bi-stopwatch ms-1 timing-toggle';
-                el.style.color = '#ccc';
-                el.title = 'Excluded from route timing — click to include';
+                el.className = 'bi bi-stopwatch timing-toggle';
+                el.style.color = '#6c757d';
+                el.title = 'Left out of route timing — click to count their drives';
               } else {
-                el.className = 'bi bi-stopwatch-fill ms-1 timing-toggle';
-                el.style.color = '#2e7d32';
-                el.title = 'Included in route timing — click to exclude';
+                el.className = 'bi bi-stopwatch-fill timing-toggle';
+                el.style.color = '#4ade80';
+                el.title = 'Counted in route timing — click to leave their drives out';
               }
               showToast(data.message, 'success');
             }

@@ -25,13 +25,15 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import FileResponse, HttpResponse
 from dispatching.aeroapi_service import AeroAPIService
 import json
+from urllib.parse import urlencode
 import os
 from django.conf import settings
 from django.contrib import messages
-from django.db.models import Q, Prefetch, Count, Sum, Value, DecimalField, Subquery, OuterRef
+from django.db.models import Q, Prefetch, Count, Sum, Value, DecimalField, IntegerField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from drivers.utils import get_drive_time as google_drive_time
 from drivers.availability import format_shift_preference
+from drivers import paperwork
 from dispatching.scheduler import (
     estimate_job_end_time,
     get_drive_time as scheduler_drive_time,
@@ -987,13 +989,20 @@ def service_worker(request):
 @login_required(login_url="login")
 def extend(request):
     """
-    Extended driver list view for dispatchers
-    Shows all drivers with phone numbers, schedules, vehicles, and availability
+    Driver directory for dispatchers.
+
+    Every driver with contact details, paperwork (license / chauffeur permit /
+    DOT card), today's trips, vehicle, schedule and lifetime pay. Staff-only.
+
+    The paperwork tiles and the `paperwork` filter come from drivers.paperwork.
+    This is the one screen that shows who has NOT sent a document yet —
+    Driver.credential_alerts() deliberately never flags a blank, so without
+    this a driver who never sent a license looked identical to one who did.
     """
     if not request.user.is_staff:
         return redirect("home")
-    
-    # Get filter parameters. `tab` is the new pill-bar param; `type` kept for
+
+    # Get filter parameters. `tab` is the pill-bar param; `type` kept for
     # backward compatibility with old links/bookmarks.
     tab_param = request.GET.get("tab", "")
     if tab_param in ("inhouse", "affiliate"):
@@ -1005,14 +1014,14 @@ def extend(request):
     else:
         driver_type_filter = request.GET.get("type", "")  # "inhouse" or "affiliate"
         active_tab = driver_type_filter or "all"
-    search_query = request.GET.get("search", "")
+    search_query = request.GET.get("search", "").strip()
     availability_filter = request.GET.get("availability", "")  # "available" or "busy"
     active_only = request.GET.get("active_only", "") == "1"
+    paperwork_filter = request.GET.get("paperwork", "")
+    if paperwork_filter not in paperwork.FILTER_KEYS:
+        paperwork_filter = ""
 
-    # Get all drivers with related profile data
-    drivers = Driver.objects.select_related(
-        "profile"
-    ).all()
+    drivers = Driver.objects.select_related("profile").all()
 
     # Inactive drivers (departed / on extended leave) stay listed in the directory,
     # marked Inactive — the directory is the one place they remain visible. They are
@@ -1021,25 +1030,39 @@ def extend(request):
     if active_only:
         drivers = drivers.filter(is_active=True)
 
-    # Apply filters
     if driver_type_filter:
         drivers = drivers.filter(driver_type=driver_type_filter)
-    
+
     if search_query:
         drivers = drivers.filter(
-            Q(profile__first_name__icontains=search_query) |
-            Q(profile__last_name__icontains=search_query) |
-            Q(profile__username__icontains=search_query) |
-            Q(vehicle__icontains=search_query)
+            Q(profile__first_name__icontains=search_query)
+            | Q(profile__last_name__icontains=search_query)
+            | Q(profile__username__icontains=search_query)
+            | Q(profile__email__icontains=search_query)
+            | Q(phone_number__icontains=search_query)
+            | Q(vehicle__icontains=search_query)
         )
-    
-    # Get upcoming legs for each driver (next 7 days)
+
     today = timezone.localdate()
     next_week = today + timedelta(days=7)
-    
-    # Annotate with upcoming leg counts and lifetime total paid.
-    # `lifetime_paid` is computed via subquery to avoid being inflated by the
-    # legs join below (a Sum + Count in the same annotate() multiplies rows).
+    live_statuses = ["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
+
+    # Both per-driver numbers are correlated subqueries. The previous
+    # Count("legs", filter=...) LEFT JOINed every leg a driver ever ran and
+    # filtered afterwards — most of this page's time on a 60-driver roster,
+    # growing with the legs table.
+    upcoming_sq = (
+        Leg.objects.filter(
+            driver=OuterRef("pk"),
+            pickup_date__gte=today,
+            pickup_date__lte=next_week,
+            status__in=live_statuses,
+        )
+        .order_by()
+        .values("driver")
+        .annotate(n=Count("id"))
+        .values("n")
+    )
     lifetime_paid_sq = (
         DriverPayment.objects
         .filter(driver=OuterRef("pk"))
@@ -1048,67 +1071,51 @@ def extend(request):
         .values("total")
     )
     drivers = drivers.annotate(
-        upcoming_count=Count(
-            "legs",
-            filter=Q(
-                legs__pickup_date__gte=today,
-                legs__pickup_date__lte=next_week,
-                legs__status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
-            ),
+        upcoming_count=Coalesce(
+            Subquery(upcoming_sq, output_field=IntegerField()),
+            Value(0, output_field=IntegerField()),
         ),
         lifetime_paid=Coalesce(
             Subquery(lifetime_paid_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
             Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
         ),
     )
-    
-    # Apply availability filter
+
     if availability_filter == "available":
         drivers = drivers.filter(upcoming_count=0)
     elif availability_filter == "busy":
         drivers = drivers.filter(upcoming_count__gt=0)
-    
+
     # Order: active drivers first, then inhouse before affiliate, then by name
     # (inactive drivers sink to the bottom of the directory).
     drivers = drivers.order_by("-is_active", "-driver_type", "profile__first_name", "profile__last_name")
-    
-    # Prefetch today's active legs for mini-schedule display
+
     today_legs_prefetch = Prefetch(
-        'legs',
+        "legs",
         queryset=Leg.objects.filter(
             pickup_date=today,
-            status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"],
+            status__in=live_statuses,
         ).select_related("reservation__customer").order_by("pickup_time"),
-        to_attr='todays_legs',
+        to_attr="todays_legs",
     )
     drivers = drivers.prefetch_related(
         today_legs_prefetch,
         "certified_vehicle_types", "preferred_vehicle_types", "preferred_vehicles",
     )
 
-    # Evaluate queryset once as a list to avoid repeated DB hits
     drivers_list = list(drivers)
-    available_count = 0
-    inhouse_count = 0
-
     for driver in drivers_list:
-        # vehicle_display is pure Python — no DB query
         driver.vehicle_display = driver.get_vehicle_display()
+        driver.is_operator_row = driver.portal_role == "operator"
+        driver.display_first = paperwork.first_name_for(driver)
 
-        # Plain-language default shift preference (e.g. "Flexible · prefers mornings")
+        # Plain-language default shift preference (e.g. "Prefers mornings")
         driver.shift_pref_label = format_shift_preference({
             "is_available": True,
             "flexible": driver.default_flexible,
             "preferred_shift": driver.default_preferred_shift,
         })
 
-        # Count stats using the already-annotated upcoming_count
-        if driver.upcoming_count == 0:
-            available_count += 1
-        if driver.driver_type == "inhouse":
-            inhouse_count += 1
-
-        # Build mini-schedule summary for today
         if driver.todays_legs:
             next_leg = driver.todays_legs[0]
             driver.next_trip_time = next_leg.pickup_time
@@ -1116,6 +1123,49 @@ def extend(request):
             driver.next_trip_dropoff = next_leg.dropoff_location
             driver.next_trip_status = next_leg.status
             driver.today_trip_count = len(driver.todays_legs)
+
+        # Paperwork reads only fields already on the row — no extra queries.
+        # Operators never drive, so nothing is asked of them; inactive drivers
+        # show their paperwork but are never chased for it.
+        driver.paperwork = paperwork.summarize(driver, today)
+        driver.ask_href = ""
+        if driver.is_active and not driver.is_operator_row:
+            driver.ask_href = paperwork.ask_sms_href(driver, driver.paperwork)
+
+    if paperwork_filter:
+        drivers_list = [
+            d for d in drivers_list
+            if not d.is_operator_row and paperwork_filter in d.paperwork["flags"]
+        ]
+
+    # Tile numbers describe the active chauffeurs, whatever tab or search is
+    # applied — a tile is a fact about the roster, and clicking it shows
+    # exactly the drivers it counted (active only, every type).
+    roster = Driver.objects.filter(is_active=True, portal_role="driver").select_related("profile")
+    paperwork_counts = paperwork.roster_counts(
+        [paperwork.summarize(d, today, with_urls=False) for d in roster]
+    )
+    chauffeur_total = paperwork_counts["total"]
+
+    def _pct(n):
+        return round(100 * n / chauffeur_total) if chauffeur_total else 0
+
+    tone_for = {
+        "missing_license": "amber", "missing_permit": "amber",
+        "expiring": "red", "attention": "amber", "complete": "green",
+    }
+    paperwork_tiles = [
+        {
+            "key": key,
+            "label": label,
+            "sub": paperwork.FILTER_SUBTITLES[key],
+            "count": paperwork_counts["filters"][key],
+            "tone": tone_for[key] if paperwork_counts["filters"][key] else "muted",
+            "href": urlencode({"paperwork": key, "active_only": "1"}),
+            "active": paperwork_filter == key,
+        }
+        for key, label in paperwork.FILTERS
+    ]
 
     # Counts for tab pills — these reflect the *type* split across the roster
     # visible under the current "show inactive" state, so tab labels stay
@@ -1125,6 +1175,28 @@ def extend(request):
     inhouse_count_total = base_count_qs.filter(driver_type="inhouse").count()
     affiliate_count_total = all_count_total - inhouse_count_total
     inactive_count_total = Driver.objects.filter(is_active=False).count()
+    active_total = Driver.objects.filter(is_active=True).count()
+    driving_today = (
+        Leg.objects.filter(pickup_date=today, status__in=live_statuses, driver__is_active=True)
+        .values("driver").distinct().count()
+    )
+
+    def _qs(**overrides):
+        params = {
+            "tab": active_tab,
+            "search": search_query,
+            "availability": availability_filter,
+            "paperwork": paperwork_filter,
+            "active_only": "1" if active_only else "",
+        }
+        params.update(overrides)
+        return urlencode({k: v for k, v in params.items() if v})
+
+    has_filters = bool(search_query or availability_filter or paperwork_filter)
+    if paperwork_filter and not (search_query or availability_filter or driver_type_filter):
+        empty_message = paperwork.FILTER_EMPTY_MESSAGES[paperwork_filter]
+    else:
+        empty_message = "No drivers match these filters."
 
     context = {
         "drivers": drivers_list,
@@ -1135,13 +1207,27 @@ def extend(request):
         "today": today,
         "next_week": next_week,
         "total_drivers": len(drivers_list),
-        "available_count": available_count,
-        "inhouse_count": inhouse_count,
         "all_count_total": all_count_total,
         "inhouse_count_total": inhouse_count_total,
         "affiliate_count_total": affiliate_count_total,
         "inactive_count_total": inactive_count_total,
         "active_only": active_only,
+        "active_total": active_total,
+        "driving_today": driving_today,
+        # Paperwork strip + filter
+        "chauffeur_total": chauffeur_total,
+        "paperwork_on_file": paperwork_counts["on_file"],
+        "paperwork_pct": {k: _pct(v) for k, v in paperwork_counts["on_file"].items()},
+        "paperwork_tiles": paperwork_tiles,
+        "paperwork_filters": paperwork.FILTERS,
+        "paperwork_filter": paperwork_filter,
+        "paperwork_filter_label": paperwork.FILTER_LABELS.get(paperwork_filter, ""),
+        # Links that keep the rest of the current filters
+        "tab_links": {t: _qs(tab=t) for t in ("all", "inhouse", "affiliate")},
+        "active_toggle_link": _qs(active_only="" if active_only else "1"),
+        "clear_link": _qs(search="", availability="", paperwork=""),
+        "has_filters": has_filters,
+        "empty_message": empty_message,
     }
 
     return render(request, "drivers/extend.html", context)
