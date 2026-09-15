@@ -1,0 +1,515 @@
+{% comment %}
+  The shop-window model shared by the Fleet desk and the Fleet outlook,
+  inlined like every other dispatching page script so it ships with the
+  page and needs no collectstatic. Wrapped in verbatim: it is JavaScript,
+  not a template.
+{% endcomment %}
+<script>
+{% verbatim %}
+/* Shared shop-window model for the Fleet desk and the Fleet outlook.
+ *
+ * One model, two screens — a window recommended on the desk is the window the
+ * outlook shows. The numbers come from dispatching/fleet_windows.py (real leg
+ * times, the ledger already applied); this file only ranks them and turns
+ * them into words. Nothing about capacity is a fixed sentence: every line of
+ * copy is derived from the squares it sits beside.
+ */
+(function () {
+  'use strict';
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function model(P) {
+    var SLOTS = P.slots;
+    var tiers = {};
+    P.tiers.forEach(function (t) { tiers[t.key] = t; });
+
+    function unit(id) {
+      for (var i = 0; i < P.units.length; i++) if (String(P.units[i].id) === String(id)) return P.units[i];
+      return P.units[0] || null;
+    }
+    function words(u) { return tiers[u.tier] || { one: 'car', many: 'cars', owned: 0, phrase: 'Any car' }; }
+    function fmtHour(i) {
+      var h = P.shop_start + i;
+      return h < 12 ? h + ':00 AM' : (h === 12 ? '12:00 PM' : (h - 12) + ':00 PM');
+    }
+    function need(day, tier) { return day.by_tier[tier].need; }
+    function have(day, tier) { return day.by_tier[tier].have; }
+    function spare(day, tier) {
+      var c = have(day, tier);
+      return need(day, tier).map(function (n) { return c - n; });
+    }
+    function unitDown(u, day) { return u.down.indexOf(day.date) >= 0; }
+    function startable(day, start, hours) {
+      if (start + hours > SLOTS) return false;
+      if (day.is_today && start <= P.now_slot) return false;   // the hour under way is gone
+      return true;
+    }
+    function cost(day, tier, start, hours) {
+      var sp = spare(day, tier).slice(start, start + hours);
+      var extra = 0, tightest = Infinity;
+      sp.forEach(function (s) { if (s <= 0) extra += 1; if (s < tightest) tightest = s; });
+      return { extra: extra, tightest: tightest };
+    }
+    function rank(u, hours, days) {
+      var out = [];
+      days.forEach(function (day) {
+        if (unitDown(u, day)) return;
+        for (var s = 0; s + hours <= SLOTS; s++) {
+          if (!startable(day, s, hours)) continue;
+          var c = cost(day, u.tier, s, hours);
+          out.push({ day: day, start: s, extra: c.extra, tightest: c.tightest });
+        }
+      });
+      // Days this unit tips into short or tight rank after days it doesn't,
+      // whatever their squares say — booking one asks for an acknowledgement.
+      out.sort(function (a, b) {
+        return (tips(a.day, u) - tips(b.day, u)) || (a.extra - b.extra) || (b.tightest - a.tightest)
+          || (a.day.idx - b.day.idx) || (a.start - b.start);
+      });
+      return out;
+    }
+    function tips(day, u) { return day.by_tier[u.tier].if_down.worsened ? 1 : 0; }
+    function bestByDay(ranked) {
+      var seen = {}, out = [];
+      ranked.forEach(function (r) { if (!seen[r.day.idx]) { seen[r.day.idx] = true; out.push(r); } });
+      return out;
+    }
+    // The whole-day verdict with one more unit of this tier gone — the same
+    // check the downtime form runs when a window is saved.
+    function verdict(day, u) {
+      var w = words(u);
+      if (unitDown(u, day)) {
+        return { label: 'Down', cls: 'down', reasons: [], worsened: false, hint: '#' + u.number + ' is already off the road this day.' };
+      }
+      var v = day.by_tier[u.tier].if_down;
+      var reasons = v.reasons || [];
+      if (v.worsened) {
+        // This car is what tips the day — the same check the downtime form runs.
+        var label = v.level === 'conflict' ? 'Short' : 'Tight';
+        return { label: label, cls: label.toLowerCase(), reasons: reasons, worsened: true,
+          hint: (label === 'Short' ? 'Short because of #' : 'Tight because of #') + u.number + ': ' + reasons.join('; ') + '.' };
+      }
+      // Otherwise the squares decide: the sign of the spare for this car's own pool.
+      var sp = spare(day, u.tier), worst = Math.min.apply(null, sp);
+      var lab = worst < 0 ? 'Short' : (worst === 0 ? 'Tight' : 'Clear');
+      var hint = lab === 'Clear' ? 'A ' + w.one + ' is spare every shop hour of this day.'
+        : (lab === 'Tight' ? 'At its tightest shop hour every ' + w.one + ' is on a trip, with none to spare.'
+          : 'This day already needs more ' + w.many + ' than are on the road.');
+      var base = day.baseline || { level: 'clear', reasons: [] };
+      if (base.level !== 'clear') {
+        hint += ' Dispatch is already ' + (base.level === 'conflict' ? 'short' : 'tight') + ' that day with every car'
+          + (base.reasons && base.reasons.length ? ' (' + base.reasons.join('; ') + ')' : '') + ' — #' + u.number + ' does not change that.';
+      }
+      return { label: lab, cls: lab.toLowerCase(), reasons: reasons, worsened: false, hint: hint };
+    }
+    function cellClass(sp) {
+      if (sp < 0) return 'sp-neg';
+      if (sp === 0) return 'sp-0';
+      if (sp === 1) return 'sp-1';
+      return 'sp-2';
+    }
+    function cellHint(day, u, i) {
+      var w = words(u);
+      var trips = need(day, u.tier)[i], cap = have(day, u.tier);
+      var when = day.wd + ' ' + day.dom + ', ' + fmtHour(i) + ' — ';
+      if (trips > cap) {
+        var over = trips - cap;
+        return when + trips + ' trips need a ' + w.one + ' but ' + cap + (cap === 1 ? ' is' : ' are') + ' on the road, so '
+          + over + (over === 1 ? ' goes' : ' go') + ' to an affiliate.';
+      }
+      var free = cap - trips;
+      var busy = trips === 1 ? '1 of your ' + cap + ' ' + w.many + ' is on a trip'
+        : trips + ' of your ' + cap + ' ' + w.many + ' are on trips';
+      return when + busy + ', ' + free + ' free.';
+    }
+    // Plain-English shape of the day, from its own peak hour.
+    function crunch(day) {
+      if (!day.trips) return 'Nothing is booked for this day yet.';
+      if (day.peak_slot < 0) {
+        return 'The busiest moment' + (day.peak_at ? ' (' + day.peak_at + ')' : '') + ' falls outside shop hours, so the shop day itself is the easier part.';
+      }
+      if (day.peak_slot <= 3) return 'The crunch is first thing; the squares open up from early afternoon.';
+      if (day.peak_slot <= 5) return 'The squeeze runs late morning into midday, with the edges of the day easier.';
+      return 'This one is back-loaded — the morning is the open part and it tightens after 1:00 PM.';
+    }
+    function impactLine(r, u) {
+      var w = words(u);
+      var left = r.tightest - 1;   // spare at the tightest hour once this unit is out
+      var line;
+      if (r.extra === 0) {
+        if (left > 0) {
+          line = left + ' ' + (left === 1 ? w.one : w.many) + ' still spare at the tightest hour with #' + u.number
+            + ' out. Dispatch loses nothing and no job gets farmed out.';
+        } else {
+          line = 'Every ' + w.one + ' is committed at the tightest hour once #' + u.number
+            + ' is out, but none is double-booked. Nothing extra gets farmed out.';
+        }
+      } else {
+        line = 'For ' + r.extra + (r.extra === 1 ? ' hour' : ' hours') + ' of this window every ' + w.one
+          + ' is already on a trip, so pulling #' + u.number + ' adds about ' + r.extra
+          + (r.extra === 1 ? ' farmed-out job.' : ' farmed-out jobs.');
+      }
+      var v = r.day.by_tier[u.tier].if_down;
+      if (v.worsened && v.reasons && v.reasons.length) {
+        line += ' Whole-day check: ' + v.reasons.join('; ') + ' — booking this will ask you to confirm.';
+      }
+      return line;
+    }
+    function describe(r, u, hours) {
+      return {
+        day: r.day.wd + ' ' + r.day.dom,
+        time: fmtHour(r.start) + ' – ' + fmtHour(r.start + hours),
+        impact: impactLine(r, u),
+        r: r
+      };
+    }
+    function capLabel(u) {
+      var w = words(u);
+      return w.owned + ' ' + (w.owned === 1 ? w.one : w.many);
+    }
+    function nextDay(iso) {
+      var d = new Date(iso + 'T12:00:00');
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().slice(0, 10);
+    }
+    return {
+      P: P, SLOTS: SLOTS, unit: unit, words: words, fmtHour: fmtHour, need: need, have: have, spare: spare,
+      unitDown: unitDown, startable: startable, cost: cost, rank: rank, bestByDay: bestByDay, verdict: verdict,
+      cellClass: cellClass, cellHint: cellHint, crunch: crunch, impactLine: impactLine, describe: describe,
+      capLabel: capLabel, nextDay: nextDay
+    };
+  }
+
+  // ── Server round trips ────────────────────────────────────────────────
+  function post(url, body, csrf) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      return r.json().catch(function () { return { success: false, error: 'Server error' }; })
+        .then(function (d) { d._status = r.status; return d; });
+    });
+  }
+  function toast(msg, ok) {
+    var t = document.getElementById('fleetToast');
+    if (!t) return;
+    t.textContent = msg;
+    t.className = 'fl-toast ' + (ok ? 'ok' : 'err') + ' show';
+    setTimeout(function () { t.classList.remove('show'); }, 2800);
+  }
+  function url(template, id) { return template.replace('/0/', '/' + id + '/'); }
+
+  // Book a unit into a window: one downtime for that day, the hours in the
+  // reason so dispatch reads "shop 7:00 AM – 11:00 AM" on the board. A day
+  // this car tips into short comes back 409; the second click acknowledges.
+  function book(cfg, M, u, desc, state, btn, noteEl) {
+    var reason = 'Shop ' + desc.time + (u.codes && u.codes.length ? ' · ' + u.codes.join(', ') : '');
+    var payload = {
+      starts_on: desc.r.day.date,
+      expected_back_on: M.nextDay(desc.r.day.date),
+      category: u.category || 'maintenance',
+      reason: reason.slice(0, 200),
+      notes: 'Booked from the fleet ' + (cfg.page || 'desk') + ' window finder.',
+      acknowledge: !!state.ack
+    };
+    btn.disabled = true;
+    return post(url(cfg.urls.downtime, u.id), payload, cfg.csrf).then(function (d) {
+      btn.disabled = false;
+      if (d.success) {
+        toast('#' + u.number + ' booked in for ' + desc.day, true);
+        setTimeout(function () { window.location.reload(); }, 600);
+        return;
+      }
+      if (d.needs_ack) {
+        state.ack = true;
+        if (noteEl) noteEl.textContent = d.summary + ' Book it anyway?';
+        btn.textContent = 'Book anyway — dispatch will be short';
+        btn.classList.add('ack');
+        return;
+      }
+      toast(d.error || 'Could not book it', false);
+    });
+  }
+
+  // ── The grid + answer panel, rendered from state ──────────────────────
+  function shownWindow(M, u, hours, days, state) {
+    var ranked = M.rank(u, hours, days);
+    var rec = ranked[0] || null;
+    var picked = state.pickDay !== null && state.pickDay !== undefined;
+    var shown = rec;
+    if (picked) {
+      var d = days[state.pickDay] || days[0];
+      var start = Math.min(state.pickStart, M.SLOTS - hours);
+      var c = M.cost(d, u.tier, start, hours);
+      shown = { day: d, start: start, extra: c.extra, tightest: c.tightest };
+    }
+    return { ranked: ranked, rec: rec, shown: shown, picked: picked, byDay: M.bestByDay(ranked) };
+  }
+
+  function cellsHTML(M, u, day, shown, hours, cls) {
+    var sp = M.spare(day, u.tier), nd = M.need(day, u.tier);
+    var html = '';
+    for (var i = 0; i < M.SLOTS; i++) {
+      var inShown = shown && shown.day.idx === day.idx && i >= shown.start && i < shown.start + hours;
+      var off = !M.startable(day, Math.min(i, M.SLOTS - hours), hours) && !inShown;
+      html += '<button type="button" class="fl-cell ' + cls + ' ' + M.cellClass(sp[i]) + (inShown ? ' shown' : '') + (off ? ' off' : '')
+        + '" data-day="' + day.idx + '" data-slot="' + i + '" title="' + esc(M.cellHint(day, u, i)) + '">' + nd[i] + '</button>';
+    }
+    return html;
+  }
+
+  // ── Desk ──────────────────────────────────────────────────────────────
+  function desk(cfg) {
+    var M = model(cfg.payload);
+    var days = M.P.days;
+    var state = { unitId: cfg.defaultUnit, hours: cfg.defaultHours || 4, pickDay: null, pickStart: null, showWhy: false, ack: false };
+    var elGrid = document.getElementById('fw-grid');
+    var elAnswer = document.getElementById('fw-answer');
+    var elUnit = document.getElementById('fw-unit');
+    var elHours = document.getElementById('fw-hours');
+    var elCap = document.getElementById('fw-cap');
+    var elLink = document.getElementById('fw-outlook-link');
+    if (!elGrid || !elAnswer || !M.P.units.length) return null;
+
+    function render() {
+      var u = M.unit(state.unitId);
+      if (!u) return;
+      var hours = state.hours;
+      var w = shownWindow(M, u, hours, days, state);
+      if (elUnit) elUnit.value = String(u.id);
+      if (elHours) {
+        Array.prototype.forEach.call(elHours.querySelectorAll('.fl-seg-btn'), function (b) {
+          b.classList.toggle('active', Number(b.getAttribute('data-hours')) === hours);
+        });
+      }
+      if (elCap) elCap.textContent = M.capLabel(u);
+      if (elLink) elLink.href = cfg.urls.outlook + '?unit=' + u.id + '&hours=' + hours;
+
+      var html = '<div class="fl-grid-row head"><div></div>';
+      M.P.hours.forEach(function (h) { html += '<div class="fl-grid-head">' + esc(h) + '</div>'; });
+      html += '</div>';
+      days.forEach(function (day) {
+        html += '<div class="fl-grid-row"><div class="fl-grid-label">' + esc(day.wd + ' ' + day.short)
+          + (M.unitDown(u, day) ? '<small>#' + esc(u.number) + ' down</small>' : (day.is_today ? '<small>today</small>' : ''))
+          + '</div>' + cellsHTML(M, u, day, w.shown, hours, '') + '</div>';
+      });
+      elGrid.innerHTML = html;
+
+      var a = '';
+      if (!w.shown) {
+        a += '<div class="fl-answer-eyebrow">No window this week</div>'
+          + '<div class="fl-none">Every square this week is spoken for, or #' + esc(u.number) + ' is already down. The full outlook goes 28 days out.</div>';
+      } else {
+        var desc = M.describe(w.shown, u, hours);
+        var booked = u.booked;
+        a += '<div class="fl-answer-eyebrow">' + (w.picked ? 'Your window' : 'Best window this week') + '</div>'
+          + '<div class="fl-answer-day">' + esc(desc.day) + '</div>'
+          + '<div class="fl-answer-time">' + esc(desc.time) + '</div>'
+          + '<div class="fl-answer-impact">' + esc(desc.impact) + '</div>';
+        if (booked) {
+          a += '<button type="button" class="fl-book booked" id="fw-book" data-booked="1">Booked · ' + esc(booked.day) + '</button>'
+            + '<div class="fl-none" style="margin-top:8px;font-size:0.76rem;">A shop slot is already held for #' + esc(u.number) + '. Cancel it in the band above to book a different one.</div>';
+        } else {
+          a += '<button type="button" class="fl-book' + (state.ack ? ' ack' : '') + '" id="fw-book">'
+            + (state.ack ? 'Book anyway — dispatch will be short' : 'Book #' + esc(u.number) + ' into this window') + '</button>'
+            + '<div class="fl-book-note" id="fw-book-note"></div>';
+        }
+        if (w.picked) a += '<button type="button" class="fl-link-btn" id="fw-clear">Back to the recommended window</button>';
+        var alts = w.byDay.filter(function (r) { return r.day.idx !== w.shown.day.idx; }).slice(0, 3);
+        if (alts.length) {
+          a += '<div class="fl-alt-title">Next best</div>';
+          alts.forEach(function (r) {
+            var d2 = M.describe(r, u, hours);
+            a += '<button type="button" class="fl-alt" data-day="' + r.day.idx + '" data-slot="' + r.start + '"><span class="d">' + esc(d2.day) + '</span><span class="t">' + esc(d2.time) + '</span></button>';
+          });
+        }
+        if (w.rec) {
+          a += '<button type="button" class="fl-link-btn" id="fw-why">' + (state.showWhy ? 'Hide the reasoning' : 'Why this window?') + '</button>';
+          if (state.showWhy) {
+            var wd = M.words(u);
+            a += '<div class="fl-why">' + esc(M.crunch(w.rec.day) + ' ' + w.rec.day.wd + ' ' + w.rec.day.dom
+              + ' has the most room for a ' + wd.one + ' of the seven days, which is why it beats the other clear days. The full outlook goes 28 days out.') + '</div>';
+          }
+        }
+      }
+      elAnswer.innerHTML = a;
+    }
+
+    elGrid.addEventListener('click', function (e) {
+      var b = e.target.closest('.fl-cell');
+      if (!b || b.classList.contains('off')) return;
+      state.pickDay = Number(b.getAttribute('data-day'));
+      state.pickStart = Math.min(Number(b.getAttribute('data-slot')), M.SLOTS - state.hours);
+      state.ack = false;
+      render();
+    });
+    elAnswer.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.id === 'fw-clear') { state.pickDay = null; state.pickStart = null; state.ack = false; render(); return; }
+      if (t.id === 'fw-why') { state.showWhy = !state.showWhy; render(); return; }
+      var alt = t.closest('.fl-alt');
+      if (alt) { state.pickDay = Number(alt.getAttribute('data-day')); state.pickStart = Number(alt.getAttribute('data-slot')); state.ack = false; render(); return; }
+      if (t.id === 'fw-book' && !t.getAttribute('data-booked')) {
+        var u = M.unit(state.unitId);
+        var w = shownWindow(M, u, state.hours, days, state);
+        if (!w.shown) return;
+        book(cfg, M, u, M.describe(w.shown, u, state.hours), state, t, document.getElementById('fw-book-note'));
+      }
+    });
+    if (elUnit) elUnit.addEventListener('change', function () { state.unitId = elUnit.value; state.pickDay = null; state.pickStart = null; state.ack = false; render(); });
+    if (elHours) elHours.addEventListener('click', function (e) {
+      var b = e.target.closest('.fl-seg-btn');
+      if (!b) return;
+      state.hours = Number(b.getAttribute('data-hours')); state.pickDay = null; state.pickStart = null; state.ack = false; render();
+    });
+
+    render();
+    return {
+      focus: function (unitId, hours) {
+        state.unitId = unitId; state.hours = hours || state.hours; state.pickDay = null; state.pickStart = null; state.ack = false;
+        render();
+        var sec = document.getElementById('fw-section');
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+      state: state
+    };
+  }
+
+  // ── Outlook ───────────────────────────────────────────────────────────
+  function outlook(cfg) {
+    var M = model(cfg.payload);
+    var days = M.P.days;
+    var state = { unitId: cfg.defaultUnit, hours: cfg.defaultHours || 4, pickDay: null, pickStart: null, openDay: null, ack: false };
+    var elAnswer = document.getElementById('ol-answer');
+    var elDays = document.getElementById('ol-days');
+    var elUnit = document.getElementById('ol-unit');
+    var elHours = document.getElementById('ol-hours');
+    var elCap = document.getElementById('ol-cap');
+    if (!elAnswer || !elDays || !M.P.units.length) return null;
+
+    function render() {
+      var u = M.unit(state.unitId);
+      var hours = state.hours;
+      var w = shownWindow(M, u, hours, days, state);
+      if (elUnit) elUnit.value = String(u.id);
+      if (elHours) {
+        Array.prototype.forEach.call(elHours.querySelectorAll('.fl-seg-btn'), function (b) {
+          b.classList.toggle('active', Number(b.getAttribute('data-hours')) === hours);
+        });
+      }
+      if (elCap) elCap.textContent = M.capLabel(u);
+
+      var a = '<div class="ol-answer"><div style="min-width:0;">';
+      if (!w.shown) {
+        a += '<div class="fl-answer-eyebrow">No window for #' + esc(u.number) + '</div>'
+          + '<div class="ol-impact">Every square in this range is spoken for, or #' + esc(u.number) + ' is already down. Try a shorter window or the 28-day view.</div></div>';
+      } else {
+        var desc = M.describe(w.shown, u, hours);
+        a += '<div class="fl-answer-eyebrow">' + (w.picked ? 'Your window' : 'Best window for #' + esc(u.number)) + '</div>'
+          + '<div class="ol-answer-day">' + esc(desc.day) + '</div>'
+          + '<div class="ol-answer-time">' + esc(desc.time) + '</div>'
+          + '<div class="ol-impact">' + esc(desc.impact) + '</div>'
+          + '<div class="ol-actions">';
+        if (u.booked) {
+          a += '<button type="button" class="fl-gold-btn booked" data-booked="1">Booked · ' + esc(u.booked.day) + '</button>';
+        } else {
+          a += '<button type="button" class="fl-gold-btn' + (state.ack ? ' ack' : '') + '" id="ol-book">'
+            + (state.ack ? 'Book anyway — dispatch will be short' : 'Book #' + esc(u.number) + ' in') + '</button>';
+        }
+        if (w.picked) a += '<button type="button" class="ol-ghost" id="ol-clear">Back to the best window</button>';
+        a += '</div><div class="ol-note" id="ol-book-note"></div></div>';
+      }
+      var zero = w.byDay.filter(function (r) { return r.extra === 0; }).length;
+      var alts = w.byDay.filter(function (r) { return !w.shown || r.day.idx !== w.shown.day.idx; }).slice(0, 4);
+      a += '<div class="ol-alts"><div class="fl-band-eyebrow">' + (zero > 1 ? 'Other windows that cost nothing' : 'Next best windows') + '</div>';
+      if (!alts.length) a += '<div class="fl-shop-note">Nothing else in this range.</div>';
+      alts.forEach(function (r) {
+        var d2 = M.describe(r, u, hours);
+        a += '<button type="button" class="ol-alt" data-day="' + r.day.idx + '" data-slot="' + r.start + '"><span class="d">' + esc(d2.day) + '</span><span class="t">' + esc(d2.time) + '</span></button>';
+      });
+      a += '</div></div>';
+      elAnswer.innerHTML = a;
+
+      var html = '<div class="ol-row head"><div></div>';
+      M.P.hours.forEach(function (h) { html += '<div class="fl-grid-head">' + esc(h) + '</div>'; });
+      html += '<div class="ol-total-head">Trips all day</div></div>';
+      days.forEach(function (day) {
+        var v = M.verdict(day, u);
+        html += '<div class="ol-day' + (day.weekend ? ' weekend' : '') + (day.is_today ? ' is-today' : '') + '"><div class="ol-row">'
+          + '<button type="button" class="ol-day-btn" data-day="' + day.idx + '"><span class="wd">' + esc(day.wd) + '</span><span class="dm">' + esc(day.dom) + '</span>'
+          + (day.is_today ? '<span class="today">today</span>' : '') + '</button>'
+          + cellsHTML(M, u, day, w.shown, hours, 'ol-cell')
+          + '<div class="ol-right"><span class="ol-total">' + day.trips + '</span><span class="fl-verdict ' + v.cls + '" title="' + esc(v.hint) + '">' + esc(v.label) + '</span></div>'
+          + '</div>';
+        if (state.openDay === day.idx) {
+          var body;
+          if (!day.trips) body = 'Nothing is booked for this day yet. ';
+          else if (day.peak > day.available) {
+            body = 'The board already needs ' + day.peak + ' cars at the busiest moment and ' + day.available + ' are on the road, so around '
+              + (day.peak - day.available) + ' jobs go to affiliates that hour whatever you do about maintenance. ';
+          } else {
+            body = 'The busiest moment needs ' + day.peak + ' of ' + day.available + ' cars, so the fleet covers the day on its own. ';
+          }
+          body += M.crunch(day);
+          if (v.worsened && v.reasons.length) body += ' Taking #' + u.number + ' down tips it: ' + v.reasons.join('; ') + '.';
+          if (day.down.length) body += ' Already down: ' + day.down.join(', ') + '.';
+          html += '<div class="ol-detail"><div class="t">' + esc(day.wd + ' ' + day.dom + ' — ' + day.trips + (day.trips === 1 ? ' trip' : ' trips')
+            + (day.trips ? ', ' + day.peak + ' running at once' + (day.peak_at ? ' around ' + day.peak_at : '') : '')) + '</div>'
+            + '<div class="p">' + esc(body) + '</div><div class="ol-types">';
+          M.P.tiers.forEach(function (t) {
+            var sp = M.spare(day, t.key);
+            var worst = Math.min.apply(null, sp);
+            var val = worst > 0 ? worst + ' spare' : (worst === 0 ? 'all in use' : Math.abs(worst) + ' short');
+            var cls = worst > 0 ? 'good' : (worst === 0 ? 'tight' : 'short');
+            html += '<div class="ol-type"><div class="n">' + esc(t.phrase) + '</div><div class="v ' + cls + '">' + esc(val) + '</div></div>';
+          });
+          html += '</div></div>';
+        }
+        html += '</div>';
+      });
+      elDays.innerHTML = html;
+    }
+
+    elDays.addEventListener('click', function (e) {
+      var d = e.target.closest('.ol-day-btn');
+      if (d) { var idx = Number(d.getAttribute('data-day')); state.openDay = state.openDay === idx ? null : idx; render(); return; }
+      var b = e.target.closest('.fl-cell');
+      if (!b || b.classList.contains('off')) return;
+      state.pickDay = Number(b.getAttribute('data-day'));
+      state.pickStart = Math.min(Number(b.getAttribute('data-slot')), M.SLOTS - state.hours);
+      state.ack = false;
+      render();
+    });
+    elAnswer.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t.id === 'ol-clear') { state.pickDay = null; state.pickStart = null; state.ack = false; render(); return; }
+      var alt = t.closest('.ol-alt');
+      if (alt) { state.pickDay = Number(alt.getAttribute('data-day')); state.pickStart = Number(alt.getAttribute('data-slot')); state.ack = false; render(); return; }
+      if (t.id === 'ol-book') {
+        var u = M.unit(state.unitId);
+        var w = shownWindow(M, u, state.hours, days, state);
+        if (!w.shown) return;
+        book(cfg, M, u, M.describe(w.shown, u, state.hours), state, t, document.getElementById('ol-book-note'));
+      }
+    });
+    if (elUnit) elUnit.addEventListener('change', function () { state.unitId = elUnit.value; state.pickDay = null; state.pickStart = null; state.ack = false; render(); });
+    if (elHours) elHours.addEventListener('click', function (e) {
+      var b = e.target.closest('.fl-seg-btn');
+      if (!b) return;
+      state.hours = Number(b.getAttribute('data-hours')); state.pickDay = null; state.pickStart = null; state.ack = false; render();
+    });
+
+    render();
+    return { state: state };
+  }
+
+  window.FleetWindows = { model: model, desk: desk, outlook: outlook, post: post, toast: toast, url: url, esc: esc };
+})();
+{% endverbatim %}
+</script>

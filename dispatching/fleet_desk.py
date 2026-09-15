@@ -17,7 +17,7 @@ from decimal import Decimal
 from django.urls import reverse
 from django.utils import timezone
 
-from dispatching import fleet_attention, fleet_capacity, fleet_health
+from dispatching import fleet_attention, fleet_capacity, fleet_health, fleet_queue
 from dispatching.fleet_sync import FEED_VEHICLE_STATS
 from dispatching.mileage import days_to_cover, usage_rate
 
@@ -143,6 +143,23 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
     planned = [d for d in downtimes_open if d.is_planned(today)]
     planned.sort(key=lambda d: d.starts_on)
 
+    # The redesigned desk: one row per unit with a decision on it, and the
+    # three small pictures beside it. Same loaded rows, so the queue and the
+    # digest can never disagree about what is open.
+    queue = fleet_queue.build_queue(
+        today=today, now=now, vehicles=units, downtimes_open=downtimes_open,
+        issues_open=issues_open, faults_open=faults_open, faults_recent=faults_recent,
+        schedules=schedules, assigned_today=assigned_today,
+        downtime_verdicts=downtime_verdicts, href_for=_href,
+    )
+    state_bar = fleet_queue.state_bar(board)
+    shop = fleet_queue.shop_panel(today=today, in_shop=in_shop, planned=planned,
+                                  idle_today=idle_today, downtime_verdicts=downtime_verdicts)
+    paperwork = fleet_queue.paperwork_rows(
+        units, today, list_href=reverse("fleet_list"), href_for=_href)
+    setup_intervals = next(
+        (it for it in attention["setup"] if it["kind"] == "setup_intervals"), None)
+
     summary = {
         "units": len(units),
         "ready": sum(1 for r in board if r["state"] == "ready"),
@@ -169,6 +186,11 @@ def load_desk(today=None, now=None, *, outlook_days=DESK_OUTLOOK_DAYS, use_cache
         "planned": planned,
         "downtime_verdicts": downtime_verdicts,
         "issues_open": issues_open,
+        "queue": queue,
+        "state_bar": state_bar,
+        "shop": shop,
+        "paperwork": paperwork,
+        "setup_intervals": setup_intervals,
     }
 
 

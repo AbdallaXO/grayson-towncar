@@ -525,21 +525,28 @@ The research does not have to be repeated if it ever comes back:
 (pure arithmetic over loaded legs). One picture for the page, the morning text
 and the tests.
 
-What it shows, top to bottom, and why nothing else:
+What it shows, top to bottom (redesigned 2026-09-14 to the handoff in
+`design_handoff_fleet_manager/`), and why nothing else:
 
-- **Needs attention**, in three groups — *Now* (wrong today), *This week*
-  (wrong within days), *Coming up* (worth knowing) — plus a collapsed *Setup*
-  fold. Rules and fatigue limits are in `fleet_attention.py`'s docstring: fuel
-  is never here (a dispatcher's evening problem, already on the table), one
-  service line per unit, one paperwork line per unit, many quiet gateways
-  collapse to one line, and nothing fires twice for the same fact.
-- **In the shop / Planned downtime / Room to work** — open downtimes with an
-  *It's back* button; planned ones with the verdict they were saved under;
-  units with no chauffeur today ("a quick job fits without touching the
-  board") and the quietest clear days ahead.
-- **Next 14 days** — the outlook strip.
-- **Every unit** — state (down / unconfirmed / watch / planned / ready), why,
-  who has it today, where it is (from the poller's columns), odometer.
+- **The state band** — every active unit in exactly one of five states (ready,
+  watch, booked in, back-but-unconfirmed, off the road), plus the shop panel:
+  bookings held, units down now, or which units have no chauffeur today.
+- **Do now** — one row per UNIT with a decision on it, from `fleet_queue.py`
+  (pure, same loaded rows as the digest). Five tags only: Needs the shop /
+  Watch / Not confirmed back / Booked in / Off the road. Handled rows sink and
+  take the settled colour. Fault codes are chips (code + the car's own
+  description — there is no plain-English dictionary yet); every row carries
+  its action: Find a window, Take off road (same-day downtime), Mark back on
+  the road, Cancel the booking.
+- **Paperwork** — grouped by document and state ("MCO airport permits — 17 of
+  19 units", "Registration, insurance and inspection dates — #17, #18, #19"),
+  never one line per car.
+- **When can I take a car down?** — the shop-window finder, seven days, see
+  [Planning downtime around demand](#planning-downtime-around-demand).
+
+Left out on purpose because nothing in the data backs them: the weekly
+inspection walk, the fault-code dictionary, a "restricted use" state. The
+vehicle table is the Vehicles tab, not repeated on the desk.
 
 The navbar pill (`fleet_now_count`) is NOT the desk computation: four cheap
 counts (overdue returns, open ground/soon issues, units with a lit code,
@@ -572,9 +579,21 @@ every car — this car doesn't change that"* rather than crying wolf. The verdic
 typed, a day that **this car** tips into short comes back `409 needs_ack`, and a
 tick saves it anyway — the system informs, a person decides. The verdict is stored on the row
 so the report can say how often downtime landed on a clear day *given what was
-known at the time*. The Outlook page also suggests the best gaps for a 1–7 day
-job (clear first, then quietest, then soonest, never earlier than tomorrow) and
-links straight into the car's downtime form with the dates filled.
+known at the time*. The Outlook and the desk's window finder work by the HOUR
+(`fleet_windows.py`): for every day, every shop square (7 AM – 5 PM) and every
+tier, the most legs in flight at once that need that tier or bigger — the same
+event sweep and the same `estimate_job_end_time` as `peak_concurrency`, so a
+square can never disagree with the planner. Both screens read ONE payload
+(`window_payload`) and one JS model (`includes/_fleet_windows_js.html`, inlined like every other dispatching page script)
+ranks the windows: cost = squares where spare ≤ 0, then the tightest square,
+then soonest; days this unit *tips* into short or tight rank last. The badge
+beside an Outlook day is `judge_day` with one unit of that tier removed — the
+downtime form's own check — and reads Short/Tight only when the unit worsens
+the day (`if_down.worsened`); otherwise the squares' spare sign decides, so a
+Saturday that is short with every car does not cry wolf at a Sprinter. "Book
+it in" creates a normal day-level `VehicleDowntime` (the board plans by day)
+with the hours in `reason`, through `fleet_save_downtime` and its `409
+needs_ack` flow.
 
 Demand for a window is cached 15 minutes (`OUTLOOK_CACHE_SECONDS`); supply (the
 ledger) never is, so the page that edits it sees its own edit.

@@ -1,0 +1,2 @@
+{% comment %} One action button on a Do-now row. Expects `a` (the action) and `cls`. {% endcomment %}
+{% if a.kind == "link" %}<a class="{{ cls }}" href="{{ a.href }}">{{ a.label }}</a>{% else %}<button type="button" class="{{ cls }}" data-action="{{ a.kind }}"{% if a.hours %} data-hours="{{ a.hours }}"{% endif %}{% if a.default_date %} data-date="{{ a.default_date }}"{% endif %}>{{ a.label }}</button>{% endif %}

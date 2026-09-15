@@ -39,6 +39,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_POST
 
 from dispatching import fleet_capacity, fleet_health, fleet_notify
+from dispatching import fleet_windows
 # Aliased: the views below are named fleet_desk / fleet_report after their URLs,
 # and a bare module import would be shadowed by the function definitions.
 from dispatching import fleet_desk as fleet_desk_loader
@@ -850,16 +851,43 @@ def fleet_delete_service(request, pk):
 @login_required(login_url="login")
 @staff_member_required
 def fleet_desk(request):
-    """What needs attention, what's ready, what's down and why, what's coming.
+    """The fleet manager's landing page: the state of the fleet in one band,
+    a queue of units that need a decision (each with its own action), the
+    paperwork grouped fleet-wide, and the shop-window finder.
 
     Everything is loaded by ``fleet_desk.load_desk`` and judged by pure code
-    (``fleet_attention``, ``fleet_capacity``), so the page, the morning text
-    and the tests read one picture. DB-only, like every fleet page.
+    (``fleet_queue``, ``fleet_attention``, ``fleet_capacity``), so the page,
+    the morning text and the tests read one picture. The finder's numbers
+    come from ``fleet_windows`` — the same payload the Outlook draws, so both
+    screens recommend the same window. DB-only, like every fleet page.
     """
     desk = fleet_desk_loader.load_desk()
+    rows = desk["queue"]["rows"]
+    extras = {
+        r["unit_id"]: {"category": r["category"], "codes": [c["code"] for c in r["codes"]]}
+        for r in rows
+    }
+    payload = fleet_windows.window_payload(
+        desk["today"], fleet_windows.DESK_DAYS, desk["units"],
+        today=desk["today"], now=desk["now"], unit_extras=extras)
+    offered = {u["id"] for u in payload["units"]}
+    first_open = next((r for r in rows if not r["handled"] and r["unit_id"] in offered), None)
+    if first_open is not None:
+        default_unit, default_hours = first_open["unit_id"], first_open["hours"]
+    elif payload["units"]:
+        default_unit, default_hours = payload["units"][0]["id"], 4
+    else:
+        default_unit, default_hours = None, 4
+    shop = desk["shop"]
     context = {
         **desk,
         "fleet_page": "desk",
+        "tomorrow": desk["today"] + timedelta(days=1),
+        "finder_payload": payload,
+        "finder_default_unit": default_unit,
+        "finder_default_hours": default_hours,
+        "show_idle_block": bool(shop["idle"]) and bool(shop["booked"] or shop["down"]),
+        "warn_days": fleet_health.EXPIRY_WARN_DAYS,
         "downtime_categories": VehicleDowntime.CATEGORY_CHOICES,
         "issue_severities": VehicleIssue.SEVERITY_CHOICES,
     }
@@ -869,60 +897,55 @@ def fleet_desk(request):
 @login_required(login_url="login")
 @staff_member_required
 def fleet_outlook(request):
-    """Four weeks of demand against the fleet, day by day — and, when a unit
-    and a window are chosen, whether taking that unit down then leaves
-    dispatch short. The page fleet plans shop time from."""
+    """The scheduling screen: when can THIS unit come down for N hours, which
+    day is safest, can it come down on THAT day. Fourteen or twenty-eight days
+    of shop squares, one per hour, from real leg times; the whole-day badge
+    beside each row is the downtime form's own check, so booking from here
+    never contradicts saving there."""
+    from business.datefmt import strf
+    from drivers.models import VehicleFault
+
     today = timezone.localdate()
-    start = parse_date(request.GET.get("start") or "") or today
-    if start < today - timedelta(days=7):
-        start = today
     try:
-        days = max(7, min(int(request.GET.get("days") or fleet_capacity.DEFAULT_OUTLOOK_DAYS), 56))
+        days = int(request.GET.get("days") or fleet_windows.OUTLOOK_HORIZONS[0])
     except ValueError:
-        days = fleet_capacity.DEFAULT_OUTLOOK_DAYS
+        days = fleet_windows.OUTLOOK_HORIZONS[0]
+    if days not in fleet_windows.OUTLOOK_HORIZONS:
+        days = fleet_windows.OUTLOOK_HORIZONS[0]
+    try:
+        hours = int(request.GET.get("hours") or 4)
+    except ValueError:
+        hours = 4
+    if hours not in fleet_windows.DURATIONS:
+        hours = 4
 
     units = fleet_capacity.fleet_units()
-    rows = fleet_capacity.outlook(start, days, units, today=today)
+    # What a booking from here would be for: a repair with these codes, or
+    # plain maintenance — the same reason line the desk writes.
+    extras = {}
+    for f in VehicleFault.objects.filter(vehicle__in=units, resolved_at__isnull=True).order_by("first_seen_at"):
+        row = extras.setdefault(f.vehicle_id, {"category": "repair", "codes": []})
+        row["codes"].append(f.code or "fault")
+    payload = fleet_windows.window_payload(today, days, units, today=today, unit_extras=extras)
 
-    # Optional: check a unit over a window, and offer the best windows for it.
-    unit = None
-    check = None
-    suggestions = []
     try:
         unit_id = int(request.GET.get("unit") or 0)
     except ValueError:
         unit_id = 0
-    if unit_id:
-        unit = next((u for u in units if u.id == unit_id), None)
-    check_from = parse_date(request.GET.get("from") or "")
-    check_back = parse_date(request.GET.get("back") or "")
-    try:
-        length = max(1, min(int(request.GET.get("length") or 1), 14))
-    except ValueError:
-        length = 1
-    if unit is not None:
-        if check_from:
-            check = fleet_capacity.check_window(unit, check_from, check_back, units, today=today)
-        suggestions = fleet_capacity.suggest_windows(unit, length, units, today=today,
-                                                     horizon_days=days)
+    if not any(u["id"] == unit_id for u in payload["units"]):
+        unit_id = payload["units"][0]["id"] if payload["units"] else None
 
+    end = today + timedelta(days=days - 1)
     context = {
         "fleet_page": "outlook",
         "today": today,
-        "start": start,
         "days": days,
-        "rows": rows,
-        "units": units,
-        "unit": unit,
-        "check": check,
-        "check_from": check_from,
-        "check_back": check_back,
-        "length": length,
-        "suggestions": suggestions,
-        "type_labels": [(t, fleet_capacity.type_label(t)) for t in fleet_capacity.VEHICLE_TIER_ORDER],
-        "prev_start": start - timedelta(days=days),
-        "next_start": start + timedelta(days=days),
-        "typical_weeks": fleet_capacity.TYPICAL_USE_WEEKS,
+        "hours": hours,
+        "unit_id": unit_id,
+        "payload": payload,
+        "unit_count": len(units),
+        "horizons": fleet_windows.OUTLOOK_HORIZONS,
+        "range_label": f"{strf(today, '%b %-d')} – {strf(end, '%b %-d')}",
     }
     return render(request, "dispatching/fleet_outlook.html", context)
 

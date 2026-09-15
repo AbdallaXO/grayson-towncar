@@ -670,7 +670,7 @@ class PageTests(_FleetFixture):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Transmission, at Bob")
         self.assertContains(resp, "AC warm")
-        self.assertContains(resp, "Needs attention")
+        self.assertContains(resp, "Do now")
         self.assertEqual(resp.context["summary"]["down"], 1)
         self.assertEqual(resp.context["summary"]["watch"], 1)
 
@@ -686,14 +686,14 @@ class PageTests(_FleetFixture):
         resp = self.client.get(reverse("fleet_desk"))
         self.assertEqual(resp.context["attention"]["now"][0]["kind"], "feed")
 
-    def test_outlook_renders_and_checks_a_unit(self):
+    def test_outlook_renders_for_a_unit(self):
         v = self.unit("1")
         self.unit("2")
         self.leg(DAY, 9)
-        resp = self.client.get(reverse("fleet_outlook") + f"?unit={v.id}&from={DAY.isoformat()}&length=2")
+        resp = self.client.get(reverse("fleet_outlook") + f"?unit={v.id}&hours=4")
         self.assertEqual(resp.status_code, 200)
-        self.assertIsNotNone(resp.context["check"])
-        self.assertContains(resp, "Best gaps for #1")
+        self.assertEqual(resp.context["unit_id"], v.id)
+        self.assertContains(resp, "#1 · 2024 Chevrolet Suburban")
 
     def test_report_renders(self):
         v = self.unit("1")
