@@ -110,11 +110,21 @@
           </div>
           {% for c in r.codes %}
           <div class="fl-code-detail" data-code-detail="{{ c.code }}" hidden>
-            <div class="t"><code>{{ c.code }}</code>{{ c.description }}</div>
-            <div class="p">Reported by the car as a {{ c.severity|lower }}, {{ c.since }}, seen on {{ c.seen }} poll{{ c.seen|pluralize }}.{% if c.recurring %} It has come back more than once this month — worth a proper look, not a reset.{% endif %}</div>
+            {% comment %}Plain English first; the car's own wording is kept
+            underneath, because that is what gets read down the phone to the
+            shop. {# #} is single-line in Django — a multi-line one prints.
+            {% endcomment %}
+            <div class="t">
+              <span class="fl-verdict {{ c.meaning.tone }}">{{ c.meaning.label }}</span>
+              {% if c.meaning.system %}<strong>{{ c.meaning.system }}</strong>{% endif %}
+            </div>
+            {% if c.meaning.plain %}<div class="p">{{ c.meaning.plain }}</div>{% endif %}
+            {% if c.meaning.consequence %}<div class="p">{{ c.meaning.consequence }}</div>{% endif %}
+            {% if c.meaning.note %}<div class="p fl-code-note">{{ c.meaning.note }}</div>{% endif %}
+            <div class="p fl-code-raw"><code>{{ c.code }}</code> {{ c.description }}</div>
             <div class="b">
               <span class="fl-badge {% if c.recurring or c.severity == 'Critical' %}critical{% else %}caution{% endif %}">{% if c.recurring %}Recurring{% else %}{{ c.severity }}{% endif %}</span>
-              <span>Full history on the car's page.</span>
+              <span>Reported {{ c.since }}, seen on {{ c.seen }} poll{{ c.seen|pluralize }}. Full history on the car's page.</span>
             </div>
           </div>
           {% endfor %}

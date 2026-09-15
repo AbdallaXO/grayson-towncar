@@ -317,4 +317,15 @@
      every cell renders .off, so it cannot be clicked or ranked. */
   .fl-verdict.closed { background: var(--fl-hair-soft); color: var(--fl-muted); border-color: var(--fl-hair); }
   .fl-cell.off { opacity: 0.38; cursor: default; }
+
+  /* ── A fault code, in English ───────────────────────────────────────────
+     The ECU string stays, demoted: it is what you read down the phone to the
+     shop. What leads is whether a guest can get in the car this morning. */
+  .fl-code-detail .t { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .fl-code-detail .fl-verdict { flex: 0 0 auto; }
+  .fl-verdict.good { background: var(--fl-good-tint); color: var(--fl-good); border-color: var(--fl-good-border); }
+  .fl-code-note { color: var(--fl-caution) !important; font-weight: 500; }
+  .fl-code-raw { font-size: 0.72rem !important; color: var(--fl-muted-light) !important; }
+  .fl-code-raw code { font-family: var(--fl-mono); font-size: 0.7rem; margin-right: 6px;
+                      padding: 1px 5px; border-radius: 3px; background: var(--fl-hair-softest); }
 </style>

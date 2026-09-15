@@ -34,7 +34,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from business.datefmt import strf
-from dispatching import fleet_health
+from dispatching import fault_codes, fleet_health
 from dispatching.fleet_attention import RECURRING_EPISODES, RECURRING_WINDOW_DAYS, _natural
 
 NEEDS_SHOP, WATCH, UNCONFIRMED, BOOKED, DOWN = (
@@ -327,20 +327,33 @@ def _problems(v, *, today, now, issues, faults, schedules, recurring):
         codes = [f.code or "fault" for f in faults]
         again = sorted({c for c in codes if recurring.get((v.id, c), 0) >= RECURRING_EPISODES})
         critical = any(f.severity == "critical" for f in faults) or n > 1
+        # Say what it MEANS, not "go and read it". The plain-English read is the
+        # whole point: the ECU string ("Reductant Injection Valve Circuit
+        # Range/Performance Bank 1 Unit 1") is an instruction he cannot follow.
+        meanings = [fault_codes.explain(f.code, f.description, f.severity) for f in faults]
+        top = fault_codes.worst(meanings)
+        lead = fault_codes.summarise(meanings)
         if again:
-            note = (f"{_list(again)} {'has' if len(again) == 1 else 'have'} come back "
+            note = (f"{lead} {_list(again)} {'has' if len(again) == 1 else 'have'} come back "
                     f"{recurring[(v.id, again[0])]} times in {RECURRING_WINDOW_DAYS} days — "
                     f"worth a proper look, not a reset.")
-        elif n > 1:
-            note = f"{n} codes lit at once — read them before the next assignment."
-        elif faults[0].severity == "critical":
-            note = "The car flags this one as serious — read it before the next assignment."
         else:
-            note = "Logged as a warning by the car. Driveable, but keep it off the long runs until someone looks at it."
+            detail = top["plain"] if top["confident"] else ""
+            note = f"{lead} {detail}".strip()
+            if top["consequence"]:
+                note = f"{note} {top['consequence']}"
+        if top["note"]:
+            note = f"{note} {top['note']}"
+        # A "don't send it out" is a statement on a screen, never a gate — only
+        # the downtime ledger takes a car off the road (fleet_health, day_setup).
+        critical = critical or top["verdict"] == fault_codes.HOLD
         first_seen = min(f.first_seen_at for f in faults)
         out.append({
             "rank": 1, "kind": "fault",
-            "part": f"{n} fault code{'s' if n != 1 else ''} lit" + (" — recurring" if again else ""),
+            "part": (top["system"] or f"{n} fault code{'s' if n != 1 else ''} lit")
+                    + (" — recurring" if again else ""),
+            "verdict": top["verdict"], "verdict_label": top["label"],
+            "verdict_tone": top["tone"],
             "note": note, "age": _age(first_seen, now, today), "critical": critical,
             "category": "repair", "reason": f"{n} fault code{'s' if n != 1 else ''}: {', '.join(codes)}",
         })
@@ -407,6 +420,7 @@ def _chips(faults, today, now, recurring):
     chips = []
     for f in sorted(faults, key=lambda f: f.first_seen_at):
         code = f.code or f.get_source_display()
+        meaning = fault_codes.explain(f.code, f.description, f.severity)
         chips.append({
             "code": code,
             "description": f.description or "No description from the car.",
@@ -414,6 +428,8 @@ def _chips(faults, today, now, recurring):
             "seen": f.occurrence_count,
             "severity": f.get_severity_display(),
             "recurring": recurring.get((f.vehicle_id, f.code), 0) >= RECURRING_EPISODES,
+            # What it means for a car with guests in it this morning.
+            "meaning": meaning,
         })
     return chips
 

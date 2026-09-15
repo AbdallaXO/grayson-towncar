@@ -125,7 +125,9 @@ class QueueTests(_FleetFixture):
         shop = self.unit("4")
         _fault(shop, "P202E"); _fault(shop, "P208E")          # two codes -> needs the shop
         watch = self.unit("10")
-        _fault(watch, "P0299")                                 # one warning -> watch
+        # A catalyst code: the car runs and feels normal, it just fails emissions.
+        # Deliberately NOT P0299 — see test_a_code_can_outrank_the_cars_own_severity.
+        _fault(watch, "P0420")                                 # one warning -> watch
         down = self.unit("12")
         VehicleDowntime.objects.create(vehicle=down, starts_on=TODAY - timedelta(days=2),
                                        expected_back_on=TODAY + timedelta(days=2), reason="Out of service")
@@ -156,6 +158,54 @@ class QueueTests(_FleetFixture):
         self.assertEqual(by_unit["12"]["tag"], fleet_queue.DOWN)
         self.assertEqual(by_unit["12"]["primary"]["kind"], "close")
         self.assertEqual(q["summary"]["text"], "3 open · 1 can't wait · 2 handled")
+
+    def test_a_code_can_outrank_the_cars_own_severity(self):
+        """The dictionary knows more than the generic severity flag.
+
+        A turbo underboost arrives from Samsara as an ordinary warning. On a
+        Sprinter that cannot accelerate onto I-4 with guests aboard it is not a
+        "watch", so the plain-English read escalates the row. The reverse never
+        happens: a known answer is never softened by the vehicle's own flag.
+        """
+        turbo = self.unit("20")
+        _fault(turbo, "P0299", severity="warning")
+        catalyst = self.unit("21")
+        _fault(catalyst, "P0420", severity="warning")
+
+        by_unit = {r["number"]: r for r in self._desk()["queue"]["rows"]}
+        self.assertEqual(by_unit["20"]["tag"], fleet_queue.NEEDS_SHOP)
+        self.assertIn("Don't send it out", by_unit["20"]["meaning"])
+        self.assertEqual(by_unit["21"]["tag"], fleet_queue.WATCH)
+        self.assertIn("book the shop", by_unit["21"]["meaning"])
+
+    def test_the_row_says_what_the_code_means_not_to_go_and_read_it(self):
+        """The whole point. "Read them before the next assignment" followed by
+        "Reductant Injection Valve Circuit Range/Performance Bank 1 Unit 1" is an
+        instruction the fleet manager cannot act on."""
+        van = self.unit("22")
+        for code in ("P202E", "P208E", "P20EA", "P20F4"):
+            _fault(van, code)
+        row = {r["number"]: r for r in self._desk()["queue"]["rows"]}["22"]
+
+        self.assertIn("Diesel exhaust fluid", row["title"])
+        self.assertIn("It will run, but book the shop", row["meaning"])
+        self.assertNotIn("read them before the next assignment", row["meaning"])
+        # Four DEF codes are one problem with four chips, not four problems.
+        self.assertEqual(len(row["codes"]), 4)
+        self.assertIn("one problem, not four", row["meaning"])
+        # The car's own wording survives on every chip — it is what gets read
+        # down the phone to the shop.
+        for chip in row["codes"]:
+            self.assertTrue(chip["description"])
+            self.assertTrue(chip["meaning"]["plain"])
+
+    def test_an_unknown_code_says_so_rather_than_inventing_an_answer(self):
+        odd = self.unit("23")
+        _fault(odd, "P1A2B", severity="warning")
+        row = {r["number"]: r for r in self._desk()["queue"]["rows"]}["23"]
+        chip = row["codes"][0]
+        self.assertFalse(chip["meaning"]["confident"])
+        self.assertIn("ring the shop", chip["meaning"]["consequence"])
 
     def test_a_reported_issue_names_who_and_a_booked_problem_car_reads_booked(self):
         v = self.unit("5")
