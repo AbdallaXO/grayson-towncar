@@ -50,7 +50,7 @@
   <div class="fl-section-head end ol-grid-head">
     <div>
       <h2 class="fl-section-title">Day by day</h2>
-      <div class="fl-section-sub" style="max-width:640px;">Each square is one hour of the shop day. The number is how many of your <strong id="ol-cap"></strong> are still free that hour — hover a square for the detail, or tap a day for the whole picture. A minus number means more trips than cars.</div>
+      <div class="fl-section-sub" style="max-width:640px;">Each square is one hour of the shop day. The number is how many <strong>booked trips</strong> need one of your <strong id="ol-cap"></strong> that hour — trips, not drivers, so it reads the same on a day whose schedule is not built yet. The colour says whether you have cars to spare. Hover a square for the detail, or tap a day for the whole picture.</div>
     </div>
     <div class="fl-legend" style="padding-top:0;">
       <span><span class="sw" style="background:#DCEAE2;"></span>Cars to spare</span>
@@ -86,7 +86,8 @@
   var payload = JSON.parse(document.getElementById('fleetWindowsData').textContent);
   var ctl = FW.outlook({
     payload: payload, csrf: '{{ csrf_token }}', page: 'outlook',
-    urls: { downtime: "{% url 'fleet_save_downtime' 0 %}" },
+    urls: { downtime: "{% url 'fleet_save_downtime' 0 %}",
+            today: "{% url 'fleet_car_today' 0 %}" },
     defaultUnit: {% if unit_id %}{{ unit_id }}{% else %}null{% endif %},
     defaultHours: {{ hours }}
   });

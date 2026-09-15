@@ -13,6 +13,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -63,6 +64,12 @@ class _FleetFixture(TestCase):
             driver_type="inhouse")
 
     def setUp(self):
+        # The demand check caches typical-units-by-weekday and the day outlook
+        # in Django's cache, which is NOT rolled back between tests. One class
+        # warming it with its own fixture silently changed the verdict a later
+        # class asserted on — a 409 quietly became a 200. Cheap insurance, and
+        # it makes this module independent of the order it runs in.
+        cache.clear()
         self.client.force_login(self.staff)
 
     def unit(self, number, vtype=None, **kw):
@@ -470,6 +477,98 @@ class StatusBoardTests(_FleetFixture):
 # ════════════════════════════════════════════════════════════════════════════
 # Endpoints
 # ════════════════════════════════════════════════════════════════════════════
+
+class BookingOverAssignedJobsTests(_FleetFixture):
+    """Booking a car into the shop on a day it is already working.
+
+    Found on the live board 2026-09-16: #004 was booked into a Wednesday shop
+    window while it carried seven assigned trips that Wednesday, with no
+    warning anywhere. The fleet-wide demand check cannot catch it — pulling one
+    of five Sprinters never makes the fleet short — so the guard has to ask
+    about THIS unit's own assignments, in the endpoint every booking path
+    shares.
+    """
+
+    def _booked_day(self, unit, day, hours=(7, 9, 11)):
+        """Put a chauffeur on the car for ``day`` and give them some legs."""
+        from drivers.models import Driver, DriverVehicleAssignment
+
+        driver = Driver.objects.create(
+            profile=User.objects.create_user("busy_holder", first_name="Roberto"),
+            driver_type="inhouse")
+        DriverVehicleAssignment.objects.create(driver=driver, vehicle=unit, date=day)
+        for hour in hours:
+            leg = self.leg(day, hour=hour)
+            leg.driver = driver
+            leg.save(update_fields=["driver"])
+        return driver
+
+    def test_it_refuses_to_book_silently_over_assigned_jobs(self):
+        v = self.unit("4")
+        self._booked_day(v, DAY)
+        resp = self.post_json("fleet_save_downtime", [v.pk], {
+            "category": "maintenance", "reason": "Shop 7:00 AM - 11:00 AM",
+            "starts_on": DAY.isoformat(),
+            "expected_back_on": (DAY + timedelta(days=1)).isoformat(),
+        })
+        self.assertEqual(resp.status_code, 409)
+        body = resp.json()
+        self.assertTrue(body["needs_ack"])
+        self.assertIn("3 trips", body["summary"])
+        self.assertIn("Roberto", body["summary"])
+        self.assertEqual(VehicleDowntime.objects.count(), 0)
+
+    def test_it_informs_and_never_refuses(self):
+        """The founder's rule: a person decides. The tick saves it anyway."""
+        v = self.unit("4")
+        self._booked_day(v, DAY)
+        resp = self.post_json("fleet_save_downtime", [v.pk], {
+            "category": "maintenance", "reason": "Shop 7:00 AM - 11:00 AM",
+            "starts_on": DAY.isoformat(),
+            "expected_back_on": (DAY + timedelta(days=1)).isoformat(),
+            "acknowledge": True,
+        })
+        self.assertTrue(resp.json()["success"], resp.content)
+        self.assertEqual(VehicleDowntime.objects.count(), 1)
+
+    def test_a_car_with_nothing_on_it_still_books_in_one_click(self):
+        v = self.unit("4")
+        resp = self.post_json("fleet_save_downtime", [v.pk], {
+            "category": "maintenance", "reason": "Shop 7:00 AM - 11:00 AM",
+            "starts_on": DAY.isoformat(),
+            "expected_back_on": (DAY + timedelta(days=1)).isoformat(),
+        })
+        self.assertTrue(resp.json()["success"], resp.content)
+
+    def test_moving_a_window_onto_a_busy_day_asks_too(self):
+        v = self.unit("4")
+        quiet = DAY + timedelta(days=4)
+        row = VehicleDowntime.objects.create(
+            vehicle=v, starts_on=quiet, expected_back_on=quiet + timedelta(days=1),
+            category="maintenance", reason="Shop")
+        self._booked_day(v, DAY)
+        resp = self.post_json("fleet_update_downtime", [row.pk], {
+            "category": "maintenance", "reason": "Shop",
+            "starts_on": DAY.isoformat(),
+            "expected_back_on": (DAY + timedelta(days=1)).isoformat(),
+        })
+        self.assertEqual(resp.status_code, 409)
+        self.assertTrue(resp.json()["needs_ack"])
+        row.refresh_from_db()
+        self.assertEqual(row.starts_on, quiet)
+
+    def test_the_days_it_names_are_only_the_days_it_blocks(self):
+        """The return date is the first day BACK, so it is not itself blocked."""
+        v = self.unit("4")
+        self._booked_day(v, DAY + timedelta(days=1))
+        resp = self.post_json("fleet_save_downtime", [v.pk], {
+            "category": "maintenance", "reason": "Shop",
+            "starts_on": DAY.isoformat(),
+            "expected_back_on": (DAY + timedelta(days=1)).isoformat(),
+        })
+        # The jobs sit on the return day, which the car is back for.
+        self.assertTrue(resp.json()["success"], resp.content)
+
 
 class DowntimeEndpointTests(_FleetFixture):
     def test_take_out_of_service_and_dispatch_sees_it(self):

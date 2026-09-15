@@ -122,6 +122,16 @@
   .fl-badge.settled { color: var(--fl-settled); background: #E9EEF4; }
   .fl-confirm { background: var(--fl-critical-tint); border-radius: 0.75rem; padding: 14px 16px; margin-top: 12px; }
   .fl-confirm .l { font-size: 0.84rem; font-weight: 600; color: var(--fl-critical); }
+  /* What this car is already carrying across the window being offered. Empty
+     until the server answers, so it never flashes a wrong number. */
+  .fl-car-load:empty { display: none; }
+  .fl-car-load { margin-top: 10px; padding: 9px 12px; border-radius: 0.5rem;
+                 font-size: 0.78rem; line-height: 1.5; font-weight: 500; }
+  .fl-car-load.busy { background: var(--fl-caution-tint); border: 1px solid #E6D9AC;
+                      color: var(--fl-caution); font-weight: 600; }
+  .fl-car-load.free { background: var(--fl-good-tint); border: 1px solid var(--fl-good-border);
+                      color: var(--fl-good-deep); }
+
   /* When is it back? A takedown with no return date is the ledger's rule 1
      working blind — the car releases itself on that date whether or not
      anyone is at a keyboard, so it has to be chosen, not assumed. */

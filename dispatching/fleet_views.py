@@ -1305,6 +1305,35 @@ def _judge_downtime(vehicle, fields, *, ignore_id=None):
         ignore_downtime_id=ignore_id)
 
 
+def _jobs_in_the_way(vehicle, fields):
+    """What THIS unit is already carrying across the days a downtime blocks.
+
+    The demand check answers whether the FLEET goes short, which is a different
+    question and misses the one that actually bites: pulling one of five
+    Sprinters never makes the fleet short, so a car with seven jobs on Wednesday
+    could be booked into the shop for Wednesday with nothing said. Dispatch then
+    found the car gone from under seven assigned trips.
+    """
+    return fleet_day_builder.car_range(
+        vehicle, fields["starts_on"], fields["expected_back_on"])
+
+
+def _needs_acknowledgement(verdict, booked):
+    """(should_ask, what to say) — the two reasons a downtime asks before saving.
+
+    Informs, never refuses: both are confirmations on a human action with an
+    override, exactly as the demand check has always been. Neither is a gate,
+    and neither reads machine-inferred condition — this is the board's own
+    assignment rows, which a person put there.
+    """
+    reasons = []
+    if verdict.get("caused"):
+        reasons.append(verdict["summary"])
+    if booked.get("total_left"):
+        reasons.append(booked["line"])
+    return bool(reasons), " ".join(reasons)
+
+
 @login_required(login_url="login")
 @staff_member_required
 @require_POST
@@ -1343,12 +1372,12 @@ def fleet_save_downtime(request, pk):
             }, status=400)
 
     verdict = _judge_downtime(vehicle, fields)
-    # The tick box is for the case where THIS car tips a day into short. A day
-    # that is short with every car is dispatch's Saturday, not this decision.
-    if verdict["caused"] and not data.get("acknowledge"):
+    booked = _jobs_in_the_way(vehicle, fields)
+    ack, summary = _needs_acknowledgement(verdict, booked)
+    if ack and not data.get("acknowledge"):
         return JsonResponse({
             "success": False, "needs_ack": True, **_check_payload(verdict),
-            "error": verdict["summary"],
+            "car": booked, "error": summary, "summary": summary,
         }, status=409)
 
     issue = None
@@ -1388,10 +1417,14 @@ def fleet_update_downtime(request, pk):
 
     vehicle = FleetVehicle.objects.with_open_downtimes().get(pk=downtime.vehicle_id)
     verdict = _judge_downtime(vehicle, fields, ignore_id=downtime.id)
-    if verdict["caused"] and not data.get("acknowledge"):
+    # Moving a window onto a day the car is booked solid is the same decision
+    # as booking it there in the first place, so it asks the same question.
+    booked = _jobs_in_the_way(vehicle, fields)
+    ack, summary = _needs_acknowledgement(verdict, booked)
+    if ack and not data.get("acknowledge"):
         return JsonResponse({
             "success": False, "needs_ack": True, **_check_payload(verdict),
-            "error": verdict["summary"],
+            "car": booked, "error": summary, "summary": summary,
         }, status=409)
 
     old_start, old_back = downtime.starts_on, downtime.expected_back_on

@@ -152,12 +152,20 @@
       if (sp === 1) return 'sp-1';
       return 'sp-2';
     }
-    // Every square counts cars SPARE, never cars busy. The colour already says
-    // spare (green) / none left (amber) / short (red), and a square that read
-    // "5" while the panel beside it said "10 still spare" made the eye invert
-    // the number before it meant anything. A deficit keeps its minus sign so
-    // "2 short" cannot be misread as two going free.
-    function cellLabel(sp) { return sp < 0 ? '−' + Math.abs(sp) : String(sp); }
+    // The number in a square is JOBS — how many trips need a unit of this tier
+    // or bigger in that hour. Not cars free.
+    //
+    // Both come from the same arithmetic, but only one of them is honest on
+    // every day the grid shows. "Cars free" reads as a statement about who is
+    // working, and on a day whose schedule has not been built nobody is
+    // rostered yet, so the number would be describing a roster that does not
+    // exist. The jobs count is booked demand: it is true whether or not
+    // dispatch has assigned that day.
+    //
+    // The COLOUR still carries the judgement — green cars to spare, amber all
+    // in use, red more trips than cars — so the useful signal survives without
+    // the number claiming something it cannot know.
+    function cellLabel(jobs) { return String(jobs); }
     function cellHint(day, u, i) {
       var w = words(u);
       var trips = need(day, u.tier)[i], cap = have(day, u.tier);
@@ -259,6 +267,34 @@
   }
   function url(template, id) { return template.replace('/0/', '/' + id + '/'); }
 
+  // What is this car already carrying across the window being offered?
+  //
+  // The demand check beside it answers whether the FLEET goes short, which is a
+  // different question and misses the one that bites: pulling one of five
+  // Sprinters never makes the fleet short, so a car with seven jobs on
+  // Wednesday could be booked into the shop for Wednesday in silence. The
+  // server refuses that save with needs_ack now; this is so the answer is on
+  // screen before the button is pressed rather than after.
+  var carCache = {};
+  function carLoad(cfg, unitId, from, back, done) {
+    var key = unitId + '|' + from + '|' + back;
+    if (carCache[key]) { done(carCache[key]); return; }
+    fetch(url(cfg.urls.today, unitId) + '?date=' + from + '&back=' + back,
+          { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.success) { carCache[key] = d; done(d); } })
+      .catch(function () { /* the panel simply stays quiet */ });
+  }
+  function paintCar(cfg, M, u, desc, el) {
+    if (!el || !cfg.urls || !cfg.urls.today) return;
+    var from = desc.r.day.date, back = M.nextDay(from);
+    carLoad(cfg, u.id, from, back, function (d) {
+      if (el.getAttribute('data-for') !== from) return;   // the panel moved on
+      el.textContent = d.line || '';
+      el.className = 'fl-car-load' + (d.total_left ? ' busy' : ' free');
+    });
+  }
+
   // Book a unit into a window: one downtime for that day, the hours in the
   // reason so dispatch reads "shop 7:00 AM – 11:00 AM" on the board. A day
   // this car tips into short comes back 409; the second click acknowledges.
@@ -281,9 +317,23 @@
         return;
       }
       if (d.needs_ack) {
+        // The summary carries the reason — dispatch going short, this car's own
+        // jobs having to move, or both. The button must not name one of them.
         state.ack = true;
-        if (noteEl) noteEl.textContent = d.summary + ' Book it anyway?';
-        btn.textContent = 'Book anyway — dispatch will be short';
+        if (noteEl) {
+          // The amber line above may already carry part of this. Printing the
+          // whole summary again under the button just says it twice.
+          var shown = (btn.closest('#fw-answer, .ol-answer') || document)
+            .querySelector('[data-car-load]');
+          var said = shown ? (shown.textContent || '').trim() : '';
+          var full = (d.summary || d.error || '').trim();
+          var rest = said && full.indexOf(said) >= 0
+            ? full.replace(said, '').trim() : full;
+          // The button already asks. The note only earns its place when it has
+          // something the amber line above did not already say.
+          noteEl.textContent = rest ? rest + ' Book it anyway?' : '';
+        }
+        btn.textContent = 'Book it anyway';
         btn.classList.add('ack');
         return;
       }
@@ -307,13 +357,13 @@
   }
 
   function cellsHTML(M, u, day, shown, hours, cls) {
-    var sp = M.spare(day, u.tier);
+    var sp = M.spare(day, u.tier), nd = M.need(day, u.tier);
     var html = '';
     for (var i = 0; i < M.SLOTS; i++) {
       var inShown = shown && shown.day.idx === day.idx && i >= shown.start && i < shown.start + hours;
       var off = !M.startable(day, Math.min(i, M.SLOTS - hours), hours) && !inShown;
       html += '<button type="button" class="fl-cell ' + cls + ' ' + M.cellClass(sp[i]) + (inShown ? ' shown' : '') + (off ? ' off' : '')
-        + '" data-day="' + day.idx + '" data-slot="' + i + '" title="' + esc(M.cellHint(day, u, i)) + '">' + esc(M.cellLabel(sp[i])) + '</button>';
+        + '" data-day="' + day.idx + '" data-slot="' + i + '" title="' + esc(M.cellHint(day, u, i)) + '">' + esc(M.cellLabel(nd[i])) + '</button>';
     }
     return html;
   }
@@ -370,7 +420,8 @@
         a += '<div class="fl-answer-eyebrow">' + (w.picked ? 'Your window' : 'Best window this week') + '</div>'
           + '<div class="fl-answer-day">' + esc(desc.day) + '</div>'
           + '<div class="fl-answer-time">' + esc(desc.time) + '</div>'
-          + '<div class="fl-answer-impact">' + esc(desc.impact) + '</div>';
+          + '<div class="fl-answer-impact">' + esc(desc.impact) + '</div>'
+          + '<div class="fl-car-load" data-car-load data-for="' + esc(desc.r.day.date) + '"></div>';
         if (booked) {
           a += '<button type="button" class="fl-book booked" id="fw-book" data-booked="1">Booked · ' + esc(booked.day) + '</button>'
             + '<div class="fl-none" style="margin-top:8px;font-size:0.76rem;">A shop slot is already held for #' + esc(u.number) + '. Cancel it in the band above to book a different one.</div>';
@@ -404,6 +455,8 @@
         }
       }
       elAnswer.innerHTML = a;
+      if (w.shown) paintCar(cfg, M, u, M.describe(w.shown, u, hours),
+                            elAnswer.querySelector('[data-car-load]'));
     }
 
     elGrid.addEventListener('click', function (e) {
@@ -480,6 +533,7 @@
           + '<div class="ol-answer-day">' + esc(desc.day) + '</div>'
           + '<div class="ol-answer-time">' + esc(desc.time) + '</div>'
           + '<div class="ol-impact">' + esc(desc.impact) + '</div>'
+          + '<div class="fl-car-load" data-car-load data-for="' + esc(desc.r.day.date) + '"></div>'
           + '<div class="ol-actions">';
         if (u.booked) {
           a += '<button type="button" class="fl-gold-btn booked" data-booked="1">Booked · ' + esc(u.booked.day) + '</button>';
@@ -500,6 +554,8 @@
       });
       a += '</div></div>';
       elAnswer.innerHTML = a;
+      if (w.shown) paintCar(cfg, M, u, M.describe(w.shown, u, hours),
+                            elAnswer.querySelector('[data-car-load]'));
 
       var html = '<div class="ol-row head"><div></div>';
       M.P.hours.forEach(function (h) { html += '<div class="fl-grid-head">' + esc(h) + '</div>'; });

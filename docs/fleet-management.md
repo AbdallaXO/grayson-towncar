@@ -740,10 +740,14 @@ tightest hour counts as equally comfortable, and among those the soonest wins.
 Tipping days still rank last. `fillingNote()` says when a far day is still
 filling, from `typical_units` — the same median `judge_day` reads.
 
-**One polarity.** Every grid square counts cars SPARE, never cars busy; a
-deficit keeps a minus sign. A square reading "5" beside a panel saying "10 still
-spare" made the eye invert the number before it meant anything. Closed weekend
-rows are labelled on the desk as they already were on the outlook.
+**A square counts JOBS, not free cars.** Both come from the same arithmetic and
+a "cars free" square was built and pulled the same day on the founder's call:
+it reads as a statement about who is WORKING, and on a day whose schedule has
+not been built nobody is rostered, so the number would describe a roster that
+does not exist. Booked demand is true on every day the grid shows. The COLOUR
+carries the spare/short judgement, so the useful signal survives without the
+number claiming what it cannot know. Closed weekend rows are labelled on the
+desk as they already were on the outlook.
 
 ## Taking a car off the road
 
@@ -765,6 +769,30 @@ two questions it used to assume:
 The fleet-wide `check-window` line stays, below it. It answers a different
 question — what the whole fleet loses — and it is not the one being asked with a
 thumb over the button.
+
+### The guard lives in the endpoint, not in a screen
+
+`fleet_save_downtime` and `fleet_update_downtime` both run `_jobs_in_the_way()`
+(`car_range` over the blocked dates) and `_needs_acknowledgement()`, so **every**
+path that books a downtime asks the same question: the desk takedown, the desk
+window finder, the Outlook, the vehicle-page modal, and moving an existing
+window onto a different day.
+
+This exists because a car WAS booked into a Wednesday shop window while carrying
+seven assigned trips that Wednesday, in silence — the demand check asks whether
+the FLEET goes short, and pulling one of five Sprinters never does. The first
+version of the fix was wired into the desk takedown panel only, which left the
+other three paths exactly as they were. Hence: one guard, in the one place they
+all pass through.
+
+It informs and never refuses — 409 `needs_ack` with a reason, saved on the
+second press, the same shape the demand check has always had. It reads the
+board's own assignment rows, which a person put there, so the Guard A reasoning
+does not reach it.
+
+The window finder also paints the same sentence into its answer panel BEFORE the
+button is pressed (`paintCar`, fed by `fleet_car_today` with a `back` date), so
+the heads-up arrives with the recommendation rather than after a refusal.
 
 Cost is bounded by how much of the range is built: a day with no chauffeur on
 this unit returns before loading any legs.

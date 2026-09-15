@@ -567,11 +567,23 @@ def car_today(unit, day, *, now=None):
         if a.driver and a.driver.is_active and a.driver.driver_type == "inhouse"
     ]
     drivers = {a.driver_id: a.driver for a in dva_rows}
-    names = [str(d).strip() for d in drivers.values()]
+    # Capitalise the first letter only — .title() would turn "MiguelT" into
+    # "Miguelt". A Driver with no surname also str()s with a trailing space,
+    # which printed "Roberto 's".
+    names = [_name(d) for d in drivers.values()]
     if not drivers:
-        return {"line": f"No chauffeur is on {number} today, so taking it off the "
-                        f"road now costs Dispatch nothing.",
-                "trips": 0, "left": 0, "drivers": [], "last_label": "", "free": True}
+        # "Nobody is on this car" and "nobody is on ANY car yet" look identical
+        # from one unit's rows and mean opposite things — the first is a free
+        # car, the second is a day dispatch has not reached. One cheap indexed
+        # existence check separates them, and only on the ambiguous path.
+        day_built = DriverVehicleAssignment.objects.filter(date=day).exists()
+        line = (f"No chauffeur is on {number} today, so taking it off the road "
+                f"now costs Dispatch nothing."
+                if day_built else
+                f"{strf(day, '%a %-d %b')} has no chauffeurs on it yet, so what "
+                f"{number} picks up then is not known.")
+        return {"line": line, "trips": 0, "left": 0, "drivers": [],
+                "last_label": "", "free": True, "day_built": day_built}
 
     legs = list(
         Leg.objects.filter(pickup_date=day, driver_id__in=list(drivers))
@@ -587,7 +599,7 @@ def car_today(unit, day, *, now=None):
     if not legs:
         return {"line": f"{who} {'have' if len(names) > 1 else 'has'} {number} today "
                         f"but nothing is booked on it, so nothing moves.",
-                "trips": 0, "left": 0, "drivers": names, "last_label": "", "free": True}
+                "trips": 0, "left": 0, "drivers": names, "last_label": "", "free": True, "day_built": True}
 
     preloaded_here = scheduler._timing_cache is None
     if preloaded_here:
@@ -607,7 +619,7 @@ def car_today(unit, day, *, now=None):
     if not spans:
         return {"line": f"{who} {'have' if len(names) > 1 else 'has'} {number} today "
                         f"but nothing is booked on it, so nothing moves.",
-                "trips": 0, "left": 0, "drivers": names, "last_label": "", "free": True}
+                "trips": 0, "left": 0, "drivers": names, "last_label": "", "free": True, "day_built": True}
 
     last_end = max(end for _s, end in spans)
     # "Left" is measured against the clock only when the day in question is
@@ -624,7 +636,7 @@ def car_today(unit, day, *, now=None):
                         f"{trips} trip{'s' if trips != 1 else ''}, the last ending "
                         f"{last_label}. Nothing is left to move.",
                 "trips": trips, "left": 0, "drivers": names,
-                "last_label": last_label, "free": True}
+                "last_label": last_label, "free": True, "day_built": True}
 
     plural = "s" if trips != 1 else ""
     if left == trips:
@@ -636,7 +648,7 @@ def car_today(unit, day, *, now=None):
         "line": (f"{lead} still to run, the last ending {last_label}. "
                  f"Taking it off now moves {moves}."),
         "trips": trips, "left": left, "drivers": names,
-        "last_label": last_label, "free": False,
+        "last_label": last_label, "free": False, "day_built": True,
     }
 
 
@@ -655,7 +667,13 @@ def car_range(unit, start, back, *, now=None, detail_days=7):
     chauffeur on this car returns before it loads any legs, and the board is
     only assigned about three days out.
     """
-    if back is None or back <= start:
+    # An open-ended downtime has no return date yet, so there is no span to
+    # count. Look as far as the board is ever built and say it that way —
+    # "across those 7 days" would be inventing a length nobody chose.
+    open_ended = back is None
+    if open_ended:
+        back = start + timedelta(days=detail_days)
+    elif back <= start:
         back = start + timedelta(days=1)
     span = (back - start).days
 
@@ -666,41 +684,71 @@ def car_range(unit, start, back, *, now=None, detail_days=7):
         label = "today" if day == _today_of(now) else strf(day, "%a %-d %b")
         days.append({"date": day.isoformat(), "label": label,
                      "trips": row["trips"], "left": row["left"],
+                     "drivers": row["drivers"],
                      "line": row["line"], "free": row["free"]})
         total_left += row["left"]
-        if not row["trips"] and not row["drivers"]:
+        if not row.get("day_built", True):
             unbuilt.append(label)
 
     booked = [d for d in days if d["left"]]
     if not booked:
         head = f"#{unit.vehicle_number} has nothing of its own to move"
-        head += " on that day." if span == 1 else f" across those {span} days."
+        if open_ended:
+            head += " over the days the board is built for."
+        else:
+            head += " on that day." if span == 1 else f" across those {span} days."
     else:
         parts = []
         for d in booked:
             word = "trip" if d["left"] == 1 else "trips"
             parts.append(f"{d['left']} {word} {d['label']}")
+        # "move to another car", not just "move": the impact line beside this one
+        # can correctly say no job gets FARMED OUT — the rest of the fleet covers
+        # them — and the two read as a contradiction unless this one says what
+        # actually happens to the work.
         head = (f"#{unit.vehicle_number} has {_and_list(parts)} — "
-                f"{total_left} job{'s' if total_left != 1 else ''} move.")
+                f"{total_left} job{'s' if total_left != 1 else ''} "
+                f"{'that' if total_left == 1 else 'that'} would have to move to "
+                f"another car.")
+        # Whose work it is, when the answer is short enough to be worth saying.
+        # A chauffeur's name is what turns "12 jobs" into a phone call.
+        who = sorted({name for d in booked for name in d["drivers"]})
+        if len(who) == 1:
+            head += f" {who[0]} is on it."
+        elif 1 < len(who) <= 3:
+            head += f" {_and_list(who)} are on it."
 
     # Days nobody has assigned yet are NOT "no trips on this car" — the board
     # simply has not reached them, and saying nothing here would read as a
     # promise the page cannot make.
     if unbuilt:
-        head += (f" {_and_list(unbuilt).capitalize()} "
-                 f"{'is' if len(unbuilt) == 1 else 'are'} not assigned yet, so "
-                 f"what this car picks up then is not known.")
-    if span > detail_days:
+        # Naming five dates is noise; the point is only that the board has not
+        # reached them. str.capitalize() would lowercase the month names too.
+        if len(unbuilt) > 2:
+            head += (f" The other {len(unbuilt)} days are not assigned yet, so "
+                     f"what this car picks up then is not known.")
+        else:
+            named = _and_list(unbuilt)
+            head += (f" {named[:1].upper()}{named[1:]} "
+                     f"{'is' if len(unbuilt) == 1 else 'are'} not assigned yet, so "
+                     f"what this car picks up then is not known.")
+    if not open_ended and span > detail_days:
         head += f" The window runs {span} days in all."
 
     return {"line": head, "days": days, "total_left": total_left,
-            "span_days": span, "free": total_left == 0}
+            "span_days": None if open_ended else span,
+            "open_ended": open_ended, "free": total_left == 0}
 
 
 def _today_of(now):
     if now is None:
         return timezone.localdate()
     return now.date() if hasattr(now, "date") else now
+
+
+def _name(driver):
+    text = str(driver).strip()
+    return f"{text[:1].upper()}{text[1:]}" if text else ""
 
 
 def _and_list(names):
