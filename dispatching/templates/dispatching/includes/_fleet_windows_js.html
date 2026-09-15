@@ -56,6 +56,20 @@
       sp.forEach(function (s) { if (s <= 0) extra += 1; if (s < tightest) tightest = s; });
       return { extra: extra, tightest: tightest };
     }
+    // Once a window costs nothing, a wider margin at its tightest hour stops
+    // being worth waiting for. Anything leaving COMFORT_SPARE cars still free
+    // counts as equally comfortable, and among those the SOONEST wins.
+    //
+    // Ranking on the raw margin is what used to push the answer out to the far
+    // end of the horizon: demand is only what is BOOKED, so a day three weeks
+    // out looks emptier than tomorrow for the single reason that its bookings
+    // have not arrived yet. The desk and the outlook then gave different
+    // answers for the same car — the desk capped at a week and the outlook
+    // did not — while a fault sat open waiting for a day that was never
+    // genuinely better.
+    var COMFORT_SPARE = 2;
+    function comfort(tightest) { return Math.min(tightest, COMFORT_SPARE); }
+
     function rank(u, hours, days) {
       var out = [];
       days.forEach(function (day) {
@@ -73,10 +87,30 @@
       // Days this unit tips into short or tight rank after days it doesn't,
       // whatever their squares say — booking one asks for an acknowledgement.
       out.sort(function (a, b) {
-        return (tips(a.day, u) - tips(b.day, u)) || (a.extra - b.extra) || (b.tightest - a.tightest)
+        return (tips(a.day, u) - tips(b.day, u)) || (a.extra - b.extra)
+          || (comfort(b.tightest) - comfort(a.tightest))
           || (a.day.idx - b.day.idx) || (a.start - b.start);
       });
       return out;
+    }
+
+    // A day whose booked peak is still well short of what that weekday
+    // actually runs has not finished filling. Its empty squares are not a
+    // promise, and saying so is the honest half of recommending the soonest
+    // window rather than the emptiest one. typical_units is the same median
+    // the whole-day verdict reads, so this can never contradict the badge.
+    var FILLING_FROM_DAY = 3;      // today, tomorrow and the next are built enough
+    var FILLING_MIN_GAP = 2;       // one car short of typical is noise
+    function stillFilling(day) {
+      if (day.typical_units == null) return 0;
+      if (day.idx < FILLING_FROM_DAY) return 0;
+      var missing = day.typical_units - day.peak;
+      return missing >= FILLING_MIN_GAP ? missing : 0;
+    }
+    function fillingNote(day) {
+      if (!stillFilling(day)) return '';
+      return 'A ' + day.wdl + ' usually runs ' + day.typical_units + ' cars and ' + day.peak
+        + ' are booked so far, so expect this one to fill up.';
     }
     function tips(day, u) { return day.by_tier[u.tier].if_down.worsened ? 1 : 0; }
     function bestByDay(ranked) {
@@ -118,6 +152,12 @@
       if (sp === 1) return 'sp-1';
       return 'sp-2';
     }
+    // Every square counts cars SPARE, never cars busy. The colour already says
+    // spare (green) / none left (amber) / short (red), and a square that read
+    // "5" while the panel beside it said "10 still spare" made the eye invert
+    // the number before it meant anything. A deficit keeps its minus sign so
+    // "2 short" cannot be misread as two going free.
+    function cellLabel(sp) { return sp < 0 ? '−' + Math.abs(sp) : String(sp); }
     function cellHint(day, u, i) {
       var w = words(u);
       var trips = need(day, u.tier)[i], cap = have(day, u.tier);
@@ -169,6 +209,8 @@
       if (v.worsened && v.reasons && v.reasons.length) {
         line += ' Whole-day check: ' + v.reasons.join('; ') + ' — booking this will ask you to confirm.';
       }
+      var filling = fillingNote(r.day);
+      if (filling) line += ' ' + filling;
       return line;
     }
     function describe(r, u, hours) {
@@ -191,7 +233,8 @@
     return {
       P: P, SLOTS: SLOTS, unit: unit, words: words, fmtHour: fmtHour, need: need, have: have, spare: spare,
       unitDown: unitDown, startable: startable, cost: cost, rank: rank, bestByDay: bestByDay, verdict: verdict,
-      cellClass: cellClass, cellHint: cellHint, crunch: crunch, impactLine: impactLine, describe: describe,
+      cellClass: cellClass, cellLabel: cellLabel, cellHint: cellHint, crunch: crunch, impactLine: impactLine,
+      describe: describe, stillFilling: stillFilling, fillingNote: fillingNote,
       capLabel: capLabel, nextDay: nextDay
     };
   }
@@ -264,13 +307,13 @@
   }
 
   function cellsHTML(M, u, day, shown, hours, cls) {
-    var sp = M.spare(day, u.tier), nd = M.need(day, u.tier);
+    var sp = M.spare(day, u.tier);
     var html = '';
     for (var i = 0; i < M.SLOTS; i++) {
       var inShown = shown && shown.day.idx === day.idx && i >= shown.start && i < shown.start + hours;
       var off = !M.startable(day, Math.min(i, M.SLOTS - hours), hours) && !inShown;
       html += '<button type="button" class="fl-cell ' + cls + ' ' + M.cellClass(sp[i]) + (inShown ? ' shown' : '') + (off ? ' off' : '')
-        + '" data-day="' + day.idx + '" data-slot="' + i + '" title="' + esc(M.cellHint(day, u, i)) + '">' + nd[i] + '</button>';
+        + '" data-day="' + day.idx + '" data-slot="' + i + '" title="' + esc(M.cellHint(day, u, i)) + '">' + esc(M.cellLabel(sp[i])) + '</button>';
     }
     return html;
   }
@@ -306,8 +349,13 @@
       M.P.hours.forEach(function (h) { html += '<div class="fl-grid-head">' + esc(h) + '</div>'; });
       html += '</div>';
       days.forEach(function (day) {
-        html += '<div class="fl-grid-row"><div class="fl-grid-label">' + esc(day.wd + ' ' + day.short)
-          + (M.unitDown(u, day) ? '<small>#' + esc(u.number) + ' down</small>' : (day.is_today ? '<small>today</small>' : ''))
+        // The weekend rows were greyed and left unexplained on this grid while
+        // the outlook labelled them — the same fact, said on one screen only.
+        var note = M.unitDown(u, day) ? '#' + u.number + ' down'
+          : (day.shop_open === false ? 'shop closed' : (day.is_today ? 'today' : ''));
+        html += '<div class="fl-grid-row' + (day.shop_open === false ? ' closed' : '') + '"><div class="fl-grid-label">'
+          + esc(day.wd + ' ' + day.short)
+          + (note ? '<small>' + esc(note) + '</small>' : '')
           + '</div>' + cellsHTML(M, u, day, w.shown, hours, '') + '</div>';
       });
       elGrid.innerHTML = html;
@@ -344,8 +392,14 @@
           a += '<button type="button" class="fl-link-btn" id="fw-why">' + (state.showWhy ? 'Hide the reasoning' : 'Why this window?') + '</button>';
           if (state.showWhy) {
             var wd = M.words(u);
-            a += '<div class="fl-why">' + esc(M.crunch(w.rec.day) + ' ' + w.rec.day.wd + ' ' + w.rec.day.dom
-              + ' has the most room for a ' + wd.one + ' of the seven days, which is why it beats the other clear days. The full outlook goes 28 days out.') + '</div>';
+            var why = M.crunch(w.rec.day) + ' ' + w.rec.day.wd + ' ' + w.rec.day.dom
+              + ' is the soonest day with room to spare for a ' + wd.one
+              + ' right through the window, which is what puts it ahead of the other clear days —'
+              + ' a later day only looks emptier because its bookings have not arrived yet.';
+            var filling = M.fillingNote(w.rec.day);
+            if (filling) why += ' ' + filling;
+            why += ' The full outlook goes 28 days out.';
+            a += '<div class="fl-why">' + esc(why) + '</div>';
           }
         }
       }

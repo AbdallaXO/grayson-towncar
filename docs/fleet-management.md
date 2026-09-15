@@ -16,6 +16,12 @@ the report, and the fleet-manager role — shipped 2026-09-14. See
 Nav: **Fleet** is a top-level entry for every staff user. A profile flagged
 `is_fleet_manager` gets a fleet-only top bar and lands on the desk after login.
 
+All seven screens share one shell as of 2026-09-16: `_fleet_luxe_css.html` plus
+`_fleet_pills.html`. Vehicles, Report and the single-car page were moved off the
+older `_fleet_shell.html`/`_fleet_css.html` chrome (headers and tabs only — the
+tables and figures on them are untouched), and the inspection form, which
+carried no nav at all, gained the pills.
+
 ---
 
 ## The one-paragraph version
@@ -589,8 +595,30 @@ The axis is derived from the day's own data as DATETIMES, never `.hour`
 arithmetic — real days run 04:30–22:30 and a 23:44 pickup clears after midnight.
 It is deliberately NOT the 7a–5p shop axis, which would crop both ends silently.
 
-Capped at three days out (`DAY_CHOICES`), because that is as far as the board is
-genuinely built.
+**A week, in two row treatments** (2026-09-16). `DAY_CHOICES` is 7, and which
+treatment a day gets is decided by THAT DAY'S OWN coverage, never by how far
+away it is. A day somebody has started assigning gets the clock above. A day
+with no chauffeur on any trip gets `demand_only()` — its booked trip count and
+what that weekday typically runs — and **no car rows at all**, because with
+nothing assigned no statement about an individual unit is true. Measured
+2026-09-15: 97 / 87 / 62 / 0 / 0 / 0 / 0 percent assigned against 97, 108, 124,
+162, 256, 193 and 154 booked trips. Raising the cap without that split is what
+would have every unit reading "free all day" on a Saturday carrying 256 trips.
+
+`week_pulse()` gets all seven days' trip and holder counts in **two aggregate
+queries**, so the day control can state each day's coverage before it is
+clicked; the expensive per-car load only runs for a day that is built.
+
+Rows are ordered by **room, not by busyness** — `open`/`unknown` first, then
+working units by their longest USABLE window. The page exists to find a hole,
+and the busiest car is the one nobody can act on. The first and last job of a
+row always carry a time, printed outside the block when it is too narrow; below
+680px the axis is replaced by a per-car list, because twenty hours in 450px is
+unreadable rather than responsive.
+
+**`car_today()` / `car_range()`** answer the takedown confirmation on the desk:
+what one unit is carrying on each day a downtime would block, through the same
+estimator `build_day` uses. See [Taking a car off the road](#taking-a-car-off-the-road).
 
 ## Inspections
 
@@ -620,6 +648,31 @@ A unit in the shop all week is marked as such and is NOT counted as missed.
 
 Finding something files a `VehicleIssue` with source `fleet`. It never takes the
 car off the road — only the downtime ledger does that.
+
+**The form, rebuilt 2026-09-16** around how it is actually used: on a phone,
+one-handed, standing next to the car. The realistic answer is every item good
+and one exception, and the old form charged 17 deliberate taps on 56×29px
+targets for it, rendered the browser's default file input on every row (so the
+page read "No file chosen" seventeen times) and ran 3,989px on a 390px screen.
+Now: one **"All N good"** button, note and camera folded behind a `+` per item
+and opened automatically when an item is flagged, a real camera control that
+counts what was attached, the PLATE in the header, a live answered/flagged
+tally, 44px targets, and **Save and next car** (`next_due()`), since the round
+is a round. 3,143px, and one tap instead of seventeen.
+
+**Nothing is pre-ticked.** "All good" is a deliberate tap, never a default: a
+form that arrives already answered records a check nobody made, which is the
+same rule as everything else here. Blank still means not recorded.
+
+A reworded item keeps its key; a DIFFERENT QUESTION takes a new one. 2026-09-16
+retired `brakes` ("Brakes feel right on the test drive") for `brake_fluid` and
+`brake_life`, which are checks that can be made on the lot.
+
+**The round's grid leads with what was WALKED** — done and found first, with the
+finding rendered in full rather than truncated, because that is the week's
+output. The `DUE` stamp is gone (it was on 18 of 19 cards, which made it
+background), each card carries "last walked", and the five suggested cars are
+MARKED in the grid rather than reprinted above it.
 
 Two deviations from the Phase 3 audit, both on the founder's instruction
 (2026-09-15): per-item checklists and photos were on its "do not build" list, and
@@ -675,6 +728,51 @@ needs_ack` flow.
 
 Demand for a window is cached 15 minutes (`OUTLOOK_CACHE_SECONDS`); supply (the
 ledger) never is, so the page that edits it sees its own edit.
+
+**Ranking: comfortable, then SOONEST (2026-09-16).** Ordering on the raw margin
+at the tightest hour quietly preferred the far end of the horizon — demand is
+only what is BOOKED, so a day three weeks out looks empty for the single reason
+that its bookings have not arrived. The desk capped at seven days and the
+outlook did not, so the same unit got two different best days (#001: Wed 16 Sep
+on the desk, Thu 24 Sep on the outlook, which listed Wed 16 underneath as
+costing nothing). Now any window leaving `COMFORT_SPARE` (2) cars free at its
+tightest hour counts as equally comfortable, and among those the soonest wins.
+Tipping days still rank last. `fillingNote()` says when a far day is still
+filling, from `typical_units` — the same median `judge_day` reads.
+
+**One polarity.** Every grid square counts cars SPARE, never cars busy; a
+deficit keeps a minus sign. A square reading "5" beside a panel saying "10 still
+spare" made the eye invert the number before it meant anything. Closed weekend
+rows are labelled on the desk as they already were on the outlook.
+
+## Taking a car off the road
+
+The desk's inline confirmation (`fleet_desk.html`, `[data-confirm]`) asks the
+two questions it used to assume:
+
+1. **When is it back?** Quick choices plus a date, defaulting to tomorrow. It
+   used to hard-code tomorrow, so a unit booked solid on Wednesday came off
+   until Thursday with Wednesday never mentioned. The date is the first day
+   BACK — ledger rule 1 — so the car releases itself without anyone at a
+   keyboard.
+2. **What moves?** `fleet_car_today` → `fleet_day.car_range()` names the
+   chauffeur and counts this unit's trips on every blocked day ("#004 has 7
+   trips Wed 16 Sep and 5 trips Thu 17 Sep — 12 jobs move"). Both checks re-run
+   when the date changes. A job still RUNNING counts as affected; pulling a car
+   mid-trip is the case worth warning about. A blocked day with no assignments
+   reads "not assigned yet", never "no trips".
+
+The fleet-wide `check-window` line stays, below it. It answers a different
+question — what the whole fleet loses — and it is not the one being asked with a
+thumb over the button.
+
+Cost is bounded by how much of the range is built: a day with no chauffeur on
+this unit returns before loading any legs.
+
+**One name.** *Take off road* / *Take it off the road* / *Take out of service*
+were one action under three names across two screens. It is **Take off the
+road** everywhere now; the STATE a car is in is still "out of service" where
+dispatch already reads it that way.
 
 ## Fault episodes
 

@@ -54,6 +54,8 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date as _date, datetime, time, timedelta
 
+from django.utils import timezone
+
 from business.datefmt import strf
 from dispatching import car_share, fleet_capacity
 
@@ -75,9 +77,19 @@ FLIGHT_PAD_MINUTES = 60
 # car" means "dispatch has not got to it yet", not "this car is free".
 CONFIDENT_COVERAGE = 0.90
 
-# How far out the page offers to look. The board is genuinely built about three
-# days ahead; past that every row would read "not built yet".
-DAY_CHOICES = 3
+# How far out the page offers to look. A week, because a fleet manager plans a
+# week — but only the first few days of it are a BOARD. Measured 2026-09-15:
+# 97% of today's trips carried a chauffeur, 87% tomorrow, 62% the day after and
+# 0% for the four days beyond, against 162, 256, 193 and 154 booked trips.
+#
+# So the page runs two row treatments, and which one a day gets is decided by
+# that day's own coverage, never by how far away it is. A built day gets the
+# car-by-car clock. A day with no chauffeurs on it gets its DEMAND and nothing
+# else — its trips are real and worth planning around, but no statement about
+# any individual car would be true. Raising this number without that split is
+# what would have every unit reading "free all day" on a Saturday carrying 256
+# trips, which is the exact lie this page was built to stop telling.
+DAY_CHOICES = 7
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -167,6 +179,25 @@ def _fmt(value):
     if value is None:
         return ""
     return strf(value, "%-I:%M %p")
+
+
+def _venue(address):
+    """'Disney's Old Key West Resort' out of the full booked address.
+
+    Bookings store the whole postal string, and on a phone row that turns one
+    trip into four lines of ", Lake Buena Vista, FL, USA". The venue is the part
+    before the first comma, which is how these addresses are always written.
+    Kept for DISPLAY only — every link and every route still carries the full
+    address, because Google resolves that one accurately.
+    """
+    text = (address or "").strip()
+    if not text:
+        return ""
+    head = text.split(",")[0].strip()
+    # A house number on its own says nothing; keep the street with it.
+    if len(head) < 5 and "," in text:
+        head = ",".join(text.split(",")[:2]).strip()
+    return head or text
 
 
 def _span(minutes):
@@ -328,6 +359,9 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             "width": width,
             "pickup": slot.pickup_location,
             "dropoff": slot.dropoff_location,
+            # Venue-only, for the phone list. The tooltip keeps the full address.
+            "pickup_short": _venue(slot.pickup_location),
+            "dropoff_short": _venue(slot.dropoff_location),
             "customer": slot.customer_name,
             "trip_type": slot.trip_type,
             "status": slot.status,
@@ -339,7 +373,19 @@ def car_row(unit, day, holder_ids, drivers_by_id, schedules, axis_start, axis_en
             # with "11:18 A". Measured against the short label at 0.66rem inside
             # 12px of padding, ~8% of a typical axis is where it starts to fit.
             "show_label": width >= 8.0,
+            # Set below: the first and last block of a row always carry a time,
+            # printed OUTSIDE the block when it is too narrow to hold one.
+            "edge": "",
         })
+
+    # Without this most of a row is unlabelled marks, and reading when a car's
+    # day starts and ends means hovering. The two that anchor the row get their
+    # time whatever their width — outside the block if it will not fit, where
+    # there is nothing to collide with because it is the end of the row.
+    if jobs:
+        for job, side in ((jobs[0], "start"), (jobs[-1], "end")):
+            if not job["show_label"]:
+                job["edge"] = side
 
     gaps = gaps_between(entries, day)
     for gap in gaps:
@@ -422,8 +468,11 @@ def build_day(loaded):
         for unit in units
     ]
 
-    order = {"working": 0, "open": 1, "unknown": 2, "down": 3}
-    rows.sort(key=lambda r: (order.get(r["state"], 9), -r["trips"],
+    # Most room first. The page exists to find a hole big enough to put a car
+    # in, and the old order led with the busiest unit and buried the two cars
+    # standing still under seventeen rows nobody can act on.
+    order = {"open": 0, "unknown": 1, "working": 2, "down": 3}
+    rows.sort(key=lambda r: (order.get(r["state"], 9), -_room_minutes(r),
                              _natural(r["number"])))
 
     on_a_car = sum(r["trips"] for r in rows)
@@ -465,6 +514,17 @@ def _headline(built, confident, ratio, total, day):
     return f"{when} is built — {int(round(ratio * 100))}% of trips have a chauffeur."
 
 
+def _room_minutes(row):
+    """The longest genuinely USABLE hole in this car's day, in minutes.
+
+    Usable, not longest — deliberately the same reading the inspection round
+    takes. A three-hour gap that opens behind an airport arrival is not three
+    hours you can hold a car for, and sorting on the raw hole would put a car
+    with no real window above one that has one.
+    """
+    return max((gap["minutes"] for gap in (row.get("usable_windows") or [])), default=0)
+
+
 def _natural(vehicle_number):
     """'#2' before '#10'. Same sort the desk uses."""
     number = (vehicle_number or "").strip()
@@ -472,18 +532,295 @@ def _natural(vehicle_number):
     return (0, int(digits), number) if digits else (1, 0, number)
 
 
-def day_options(today):
-    """The Today / Tomorrow / +2 control. Capped at what dispatch actually builds."""
+def car_today(unit, day, *, now=None):
+    """This one car's day, for the "take it off the road" confirmation.
+
+    The desk used to ask only what the FLEET loses — "19 needed at 10:36 AM, 18
+    left" — and never what this car is in the middle of. A unit can be halfway
+    through seven trips with a named chauffeur on it, and the panel would say
+    "move the job", singular, without naming either.
+
+    Scoped to one unit and its own holders, but through the same estimator
+    ``build_day`` uses, so this sentence and that car's row on The day can never
+    disagree about when its last trip ends.
+
+    Returns ``{"line", "trips", "left", "drivers", "last_label", "free"}``.
+    """
+    from dispatching import scheduler
+    from drivers.models import DriverVehicleAssignment
+    from reservations.models import Leg
+
+    # Every datetime this module builds is NAIVE LOCAL — slot_datetimes combines
+    # a date with a clock time and the axis is drawn from those. Comparing one
+    # against an aware "now" raises, so the clock is normalised to match rather
+    # than the slots being made aware.
+    if now is None:
+        now = timezone.localtime()
+    if timezone.is_aware(now):
+        now = timezone.localtime(now).replace(tzinfo=None)
+    number = f"#{unit.vehicle_number}"
+
+    dva_rows = [
+        a for a in (DriverVehicleAssignment.objects
+                    .filter(date=day, vehicle=unit)
+                    .select_related("driver", "driver__profile", "vehicle"))
+        if a.driver and a.driver.is_active and a.driver.driver_type == "inhouse"
+    ]
+    drivers = {a.driver_id: a.driver for a in dva_rows}
+    names = [str(d).strip() for d in drivers.values()]
+    if not drivers:
+        return {"line": f"No chauffeur is on {number} today, so taking it off the "
+                        f"road now costs Dispatch nothing.",
+                "trips": 0, "left": 0, "drivers": [], "last_label": "", "free": True}
+
+    legs = list(
+        Leg.objects.filter(pickup_date=day, driver_id__in=list(drivers))
+        .exclude(reservation__status__in=("cancelled", "canceled"))
+        .exclude(status="cancelled")
+        .select_related("driver", "reservation", "reservation__customer",
+                        "reservation__vehicle", "vehicle", "flight_information")
+        .prefetch_related("legflight_set__flight", "legstop_set",
+                          "reservation__payments")
+        .order_by("pickup_time", "id")
+    )
+    who = _and_list(names)
+    if not legs:
+        return {"line": f"{who} {'have' if len(names) > 1 else 'has'} {number} today "
+                        f"but nothing is booked on it, so nothing moves.",
+                "trips": 0, "left": 0, "drivers": names, "last_label": "", "free": True}
+
+    preloaded_here = scheduler._timing_cache is None
+    if preloaded_here:
+        scheduler.preload_timing_cache()
+    try:
+        schedules = scheduler.build_driver_schedules(
+            legs, list(drivers.values()), day, dva_rows=dva_rows)
+    finally:
+        if preloaded_here:
+            scheduler.clear_timing_cache()
+
+    spans = []
+    for schedule in schedules.values():
+        for slot in schedule.slots:
+            spans.append(slot_datetimes(slot, day))
+    spans.sort()
+    if not spans:
+        return {"line": f"{who} {'have' if len(names) > 1 else 'has'} {number} today "
+                        f"but nothing is booked on it, so nothing moves.",
+                "trips": 0, "left": 0, "drivers": names, "last_label": "", "free": True}
+
+    last_end = max(end for _s, end in spans)
+    # "Left" is measured against the clock only when the day in question is
+    # today — a takedown booked for a future date moves all of it.
+    if day == now.date():
+        remaining = [pair for pair in spans if pair[1] > now]
+    else:
+        remaining = list(spans)
+    trips, left = len(spans), len(remaining)
+    last_label = _fmt(last_end)
+
+    if not left:
+        return {"line": f"{number} has finished for the day — {who} ran "
+                        f"{trips} trip{'s' if trips != 1 else ''}, the last ending "
+                        f"{last_label}. Nothing is left to move.",
+                "trips": trips, "left": 0, "drivers": names,
+                "last_label": last_label, "free": True}
+
+    plural = "s" if trips != 1 else ""
+    if left == trips:
+        lead = f"{number} still has all {trips} of {who}'s trip{plural}"
+    else:
+        lead = f"{number} has {left} of {who}'s {trips} trip{plural}"
+    moves = "that one" if left == 1 else f"all {left}"
+    return {
+        "line": (f"{lead} still to run, the last ending {last_label}. "
+                 f"Taking it off now moves {moves}."),
+        "trips": trips, "left": left, "drivers": names,
+        "last_label": last_label, "free": False,
+    }
+
+
+def car_range(unit, start, back, *, now=None, detail_days=7):
+    """Every day a takedown would block, and what this car is carrying on each.
+
+    ``back`` is the first day the car is usable AGAIN — the downtime ledger's
+    own rule — so the blocked days are ``start`` up to but not including it.
+
+    The confirmation used to assume "off now, back tomorrow" and look only at
+    today. A car booked solid on Wednesday would be taken off until Thursday
+    without Wednesday ever being mentioned, which is the whole of what makes
+    the decision reversible-by-surprise rather than informed.
+
+    Cost is bounded by how much of the range is actually BUILT: a day with no
+    chauffeur on this car returns before it loads any legs, and the board is
+    only assigned about three days out.
+    """
+    if back is None or back <= start:
+        back = start + timedelta(days=1)
+    span = (back - start).days
+
+    days, total_left, unbuilt = [], 0, []
+    for offset in range(min(span, detail_days)):
+        day = start + timedelta(days=offset)
+        row = car_today(unit, day, now=now)
+        label = "today" if day == _today_of(now) else strf(day, "%a %-d %b")
+        days.append({"date": day.isoformat(), "label": label,
+                     "trips": row["trips"], "left": row["left"],
+                     "line": row["line"], "free": row["free"]})
+        total_left += row["left"]
+        if not row["trips"] and not row["drivers"]:
+            unbuilt.append(label)
+
+    booked = [d for d in days if d["left"]]
+    if not booked:
+        head = f"#{unit.vehicle_number} has nothing of its own to move"
+        head += " on that day." if span == 1 else f" across those {span} days."
+    else:
+        parts = []
+        for d in booked:
+            word = "trip" if d["left"] == 1 else "trips"
+            parts.append(f"{d['left']} {word} {d['label']}")
+        head = (f"#{unit.vehicle_number} has {_and_list(parts)} — "
+                f"{total_left} job{'s' if total_left != 1 else ''} move.")
+
+    # Days nobody has assigned yet are NOT "no trips on this car" — the board
+    # simply has not reached them, and saying nothing here would read as a
+    # promise the page cannot make.
+    if unbuilt:
+        head += (f" {_and_list(unbuilt).capitalize()} "
+                 f"{'is' if len(unbuilt) == 1 else 'are'} not assigned yet, so "
+                 f"what this car picks up then is not known.")
+    if span > detail_days:
+        head += f" The window runs {span} days in all."
+
+    return {"line": head, "days": days, "total_left": total_left,
+            "span_days": span, "free": total_left == 0}
+
+
+def _today_of(now):
+    if now is None:
+        return timezone.localdate()
+    return now.date() if hasattr(now, "date") else now
+
+
+def _and_list(names):
+    if not names:
+        return "Nobody"
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def week_pulse(start, days=DAY_CHOICES):
+    """``{date: {"trips": n, "assigned": n, "holders": n}}`` for a whole week.
+
+    Two aggregate queries for the entire range — cheap enough to run on every
+    page load, which is the point: the week strip has to state each day's
+    coverage, and paying ``load_car_day`` seven times to print seven numbers
+    would put the whole board's cost on a control.
+
+    Same two exclusions as ``load_car_day``, so a day's trip count here and its
+    row count there can never disagree.
+    """
+    from django.db.models import Count, Q
+
+    from drivers.models import DriverVehicleAssignment
+    from reservations.models import Leg
+
+    end = start + timedelta(days=days - 1)
+    out = {start + timedelta(days=i): {"trips": 0, "assigned": 0, "holders": 0}
+           for i in range(days)}
+
+    legs = (Leg.objects
+            .filter(pickup_date__range=(start, end))
+            .exclude(reservation__status__in=("cancelled", "canceled"))
+            .exclude(status="cancelled")
+            .values("pickup_date")
+            .annotate(trips=Count("id"),
+                      assigned=Count("id", filter=Q(driver_id__isnull=False))))
+    for row in legs:
+        day = out.get(row["pickup_date"])
+        if day is not None:
+            day["trips"] = row["trips"]
+            day["assigned"] = row["assigned"]
+
+    holders = (DriverVehicleAssignment.objects
+               .filter(date__range=(start, end), vehicle__isnull=False,
+                       driver__is_active=True, driver__driver_type="inhouse")
+               .values("date")
+               .annotate(n=Count("id")))
+    for row in holders:
+        day = out.get(row["date"])
+        if day is not None:
+            day["holders"] = row["n"]
+    return out
+
+
+def is_built(pulse_row):
+    """Has dispatch started putting chauffeurs on this day?
+
+    The same reading ``build_day`` takes — somebody holds a car AND at least one
+    trip has a chauffeur — so the strip and the board never disagree about which
+    treatment a day gets.
+    """
+    return bool(pulse_row["holders"]) and pulse_row["assigned"] > 0
+
+
+def day_options(today, pulse=None):
+    """The week control: seven days, each carrying what is known about it.
+
+    Every option states its own coverage so the choice itself is honest — a day
+    four out reads "0% assigned · 256 trips" before it is opened, not after.
+    """
     labels = ["Today", "Tomorrow"]
+    pulse = pulse if pulse is not None else week_pulse(today)
     out = []
     for offset in range(DAY_CHOICES):
         value = today + timedelta(days=offset)
+        row = pulse.get(value) or {"trips": 0, "assigned": 0, "holders": 0}
+        built = is_built(row)
+        ratio = (row["assigned"] / row["trips"]) if row["trips"] else 1.0
         out.append({
             "date": value,
             "value": value.isoformat(),
             "label": labels[offset] if offset < len(labels) else strf(value, "%a %-d"),
+            "trips": row["trips"],
+            "assigned": row["assigned"],
+            "built": built,
+            "confident": built and ratio >= CONFIDENT_COVERAGE,
+            "coverage_pct": int(round(ratio * 100)) if row["trips"] else 0,
         })
     return out
+
+
+def demand_only(day, pulse_row, typical_units=None):
+    """What an unbuilt day can honestly say about itself.
+
+    No car rows: with no chauffeur on any trip there is nothing true to draw
+    against a unit. What IS real is the demand — those trips are booked — and
+    what that weekday normally takes to run, which is the pair a shop day gets
+    planned against.
+    """
+    when = strf(day, "%A %-d %B")
+    trips = pulse_row["trips"]
+    if not trips:
+        return {
+            "day": day, "trips": 0, "typical_units": typical_units,
+            "headline": f"Nothing booked for {when} yet.",
+            "detail": "Nothing to plan around on this day.",
+        }
+    detail = (f"{trips} trip{'s' if trips != 1 else ''} are on the books and none of them "
+              f"has a chauffeur yet, so no car on this date can be called free.")
+    if typical_units:
+        detail += (f" A {strf(day, '%A')} normally runs {typical_units} cars — "
+                   f"plan a shop day against that, not against an empty board.")
+    return {
+        "day": day,
+        "trips": trips,
+        "typical_units": typical_units,
+        "headline": f"Dispatch has not built {when} yet.",
+        "detail": detail,
+    }
 
 
 def parse_day(raw, today):

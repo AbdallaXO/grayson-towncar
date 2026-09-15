@@ -6,6 +6,7 @@
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
 {% include "dispatching/includes/_fleet_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
 <style>
   .fleet-table-wrap { overflow-x: auto; }
 
@@ -108,19 +109,20 @@
 <div class="container-fluid py-4 tap-wrap">
 
   {# The whole head IS this vehicle, so right-clicking it opens its route. #}
-  <div class="tap-page-head" data-fleet-vehicle-id="{{ vehicle.pk }}">
+  <div class="fl-head" data-fleet-vehicle-id="{{ vehicle.pk }}">
     <div>
-      <h1 class="tap-title">
-        #{{ vehicle.vehicle_number }}
-        <span class="tap-sub">{{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }}</span>
-      </h1>
-      <div class="tap-subtitle">
+      <div class="fl-eyebrow">Fleet</div>
+      <h1 class="fl-title">#{{ vehicle.vehicle_number }}</h1>
+      <div class="fl-date">
+        {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }} ·
         {% if vehicle.is_active %}Active{% else %}Inactive{% endif %}
         {% if vehicle.vehicle_type %} · {{ vehicle.vehicle_type.vehicle_type }}{% endif %}
         {% if in_shop %} · <strong>In shop</strong>{% endif %}
       </div>
     </div>
-    {% include "dispatching/includes/_fleet_shell.html" %}
+    <div class="fl-head-right">
+      {% include "dispatching/includes/_fleet_pills.html" %}
+    </div>
   </div>
 
   <div class="fleet-feed-line {{ feed.level }}">
@@ -209,7 +211,7 @@
           <h2 class="{% if oos_label %}oos-title{% endif %}"><i class="bi bi-cone-striped me-1"></i>Out of service</h2>
           <span>
             <button class="fleet-mini-btn" onclick="openIssue()"><i class="bi bi-flag"></i> Report a problem</button>
-            <button class="fleet-mini-btn {% if not oos_label %}primary{% endif %}" onclick="openDowntime()"><i class="bi bi-cone-striped"></i> Take out of service</button>
+            <button class="fleet-mini-btn {% if not oos_label %}primary{% endif %}" onclick="openDowntime()"><i class="bi bi-cone-striped"></i> Take off the road</button>
           </span>
         </div>
         {% if oos_label %}<div class="oos-body mb-2">{{ oos_label }}</div>{% endif %}
@@ -1076,7 +1078,7 @@
       ? "{% url 'fleet_update_downtime' 0 %}".replace('/0/', '/' + editingDowntime + '/')
       : URLS.downtime;
     post(url, payload).then(d => {
-      if (d.success) return done(editingDowntime ? 'Downtime updated' : 'Out of service — dispatch can see it');
+      if (d.success) return done(editingDowntime ? 'Downtime updated' : 'Off the road — dispatch can see it');
       if (d.needs_ack) {
         // Short on a day: say so, and let a person decide.
         renderCheck(document.getElementById('d_check'), {success: true, level: d.level, summary: d.summary, days: d.days});
@@ -1148,12 +1150,12 @@
 })();
 </script>
 
-{# ── Take out of service / edit a downtime ─────────────────────────────── #}
+{# ── Take off the road / edit a downtime ───────────────────────────────── #}
 <div class="modal fade" id="downtimeModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="downtimeTitle">Take out of service</h5>
+        <h5 class="modal-title" id="downtimeTitle">Take off the road</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">

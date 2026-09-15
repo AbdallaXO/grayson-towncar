@@ -503,7 +503,7 @@ def _collect_vehicle_fields(data):
     for key in ("out_of_service_from", "out_of_service_until", "out_of_service_reason"):
         if key in data:
             return None, ("Out of service is recorded as a downtime now — use "
-                          "'Take out of service' on the vehicle page.")
+                          "'Take off the road' on the vehicle page.")
 
     # ── Permits ──────────────────────────────────────────────────────────
     for key, label, _category in FleetVehicle.PERMITS:
@@ -926,6 +926,10 @@ def fleet_inspect_vehicle(request, pk):
         "week_end": fleet_inspection.week_end_for(day),
         "existing": existing,
         "sections": fleet_inspection.form_sections(existing),
+        "item_count": len(fleet_inspection.all_items()),
+        # The round is a round: finishing one car should hand over the next
+        # rather than making him walk back out to the grid every time.
+        "next_due": fleet_inspection.next_due(day, exclude_id=vehicle.id),
         "issue_severities": VehicleIssue.SEVERITY_CHOICES,
         "vehicle_type": fleet_capacity.type_label(fleet_capacity.unit_type(vehicle)),
         "last_known": last_known,
@@ -1016,6 +1020,13 @@ def _save_inspection(request, vehicle, day, existing):
         request,
         f"#{vehicle.vehicle_number} inspected." + (" Problem reported." if found else ""),
         extra_tags="success")
+
+    # "Save and next car" only goes on to a car that is genuinely still due —
+    # computed AFTER this save, so the one just walked can never come back round.
+    if request.POST.get("save_and_next"):
+        nxt = fleet_inspection.next_due(day, exclude_id=vehicle.id)
+        if nxt is not None:
+            return redirect("fleet_inspect_vehicle", pk=nxt.pk)
     return redirect("fleet_inspections")
 
 
@@ -1035,13 +1046,26 @@ def fleet_day(request):
     """
     today = timezone.localdate()
     day = fleet_day_builder.parse_day(request.GET.get("date"), today)
-    payload = fleet_day_builder.build_day(fleet_day_builder.load_car_day(day))
+    pulse = fleet_day_builder.week_pulse(today)
+    row = pulse.get(day) or {"trips": 0, "assigned": 0, "holders": 0}
+
+    # A day nobody has started assigning gets its demand and no car rows at all.
+    # Building the board for it would cost the full five-query load to draw
+    # nineteen empty strips, every one of which would read as a free car.
+    payload, demand = None, None
+    if fleet_day_builder.is_built(row):
+        payload = fleet_day_builder.build_day(fleet_day_builder.load_car_day(day))
+    else:
+        typical = fleet_capacity.typical_units_by_weekday(today)
+        demand = fleet_day_builder.demand_only(day, row, typical.get(day.weekday()))
+
     return render(request, "dispatching/fleet_day.html", {
         "fleet_page": "day",
         "day": day,
         "today": today,
         "payload": payload,
-        "day_options": fleet_day_builder.day_options(today),
+        "demand": demand,
+        "day_options": fleet_day_builder.day_options(today, pulse=pulse),
     })
 
 
@@ -1174,6 +1198,27 @@ def fleet_check_window(request, pk):
     unit = next((u for u in units if u.id == vehicle.id), vehicle)
     result = fleet_capacity.check_window(unit, starts_on, back, units, ignore_downtime_id=ignore)
     return JsonResponse({"success": True, **_check_payload(result)})
+
+
+@login_required(login_url="login")
+@staff_member_required
+def fleet_car_today(request, pk):
+    """JSON: what this one car is in the middle of, for the takedown panel.
+
+    Separate from ``fleet_check_window`` on purpose — that answers what the
+    FLEET loses across a range of dates, and this answers what THIS car is
+    carrying right now. They are two different questions and the confirmation
+    needs both, in that order: the car's own day first.
+    """
+    vehicle = get_object_or_404(FleetVehicle, pk=pk)
+    day = parse_date(request.GET.get("date") or "") or timezone.localdate()
+    # With a return date, every day the takedown would block; without one, just
+    # the day asked for. The ledger blocks up to but NOT including the return.
+    back = parse_date(request.GET.get("back") or "")
+    if back is not None:
+        return JsonResponse(
+            {"success": True, **fleet_day_builder.car_range(vehicle, day, back)})
+    return JsonResponse({"success": True, **fleet_day_builder.car_today(vehicle, day)})
 
 
 def _check_payload(result):

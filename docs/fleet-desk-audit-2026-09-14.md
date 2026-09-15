@@ -239,7 +239,18 @@ discipline; the tests.
 | **R5 weekly inspection round** | ✅ 2026-09-15 | `fleet_inspection.py` — "Inspections" |
 | R2 handled state | partial | queue has `handled`; no plan link |
 | R3 marginal farmed car-hours | ❌ | still a three-way verdict |
-| R6 close-and-log, R7 onboarding, R8, R10–R16 | ❌ | |
+| **Bug 5 far-out bias** | ✅ 2026-09-16 | comfortable-then-soonest; desk and outlook agree |
+| **R10 honesty on the horizon** (partial) | ✅ 2026-09-16 | "still filling" note; per-day coverage on The day's week control |
+| R6 close-and-log, R7 onboarding, R8, R11–R16 | ❌ | |
+
+Shipped 2026-09-16, from a browser walkthrough as `fleetmgr` rather than from
+this document: the takedown confirmation now asks for a return date and names
+what moves on every blocked day; **The day** runs a week in two row treatments;
+the walk-around form and the round were rebuilt; the shop-window ranking and
+grid polarity were fixed; the three legacy screens moved onto the shared shell
+and the takedown action got one name. Still open from that walkthrough: a permit
+held with **no expiry date** is skipped by every paperwork path and reports as
+valid — 15 Port Canaveral permits are in that state.
 
 Two deviations from this document, both on the founder's instruction (2026-09-15):
 

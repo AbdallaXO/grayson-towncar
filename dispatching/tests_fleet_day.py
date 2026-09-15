@@ -286,13 +286,133 @@ class PageTests(_DayFixture):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(resp.url.startswith(reverse("login")))
 
-    def test_the_page_offers_only_days_the_board_is_built_for(self):
+    def test_the_page_offers_a_whole_week(self):
         self.unit("1")
         resp = self.client.get(reverse("fleet_day"))
         options = resp.context["day_options"]
         self.assertEqual(len(options), fleet_day.DAY_CHOICES)
+        self.assertEqual(fleet_day.DAY_CHOICES, 7)
         self.assertEqual(options[0]["date"], TODAY)
         self.assertEqual(options[0]["label"], "Today")
+
+    def test_an_unbuilt_day_draws_demand_and_no_car_rows(self):
+        """The reason a week is safe to offer. A day nobody has assigned gets
+        its trip count and nothing that could be read as a free car."""
+        self.unit("1")
+        self.leg(DAY, hour=9)          # booked, but nobody is on it
+        resp = self.client.get(reverse("fleet_day"), {"date": DAY.isoformat()})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context["payload"])
+        demand = resp.context["demand"]
+        self.assertEqual(demand["trips"], 1)
+        self.assertIn("not built", demand["headline"].lower())
+        self.assertNotContains(resp, "free all day")
+
+    def test_a_built_day_still_draws_the_board(self):
+        unit = self.unit("1")
+        driver = self.driver("built_day_holder")
+        self.hold(unit, driver)
+        self.job(driver, 9)
+        resp = self.client.get(reverse("fleet_day"), {"date": DAY.isoformat()})
+        self.assertIsNone(resp.context["demand"])
+        self.assertIsNotNone(resp.context["payload"])
+
+
+@patch("dispatching.scheduler.estimate_job_end_time", _ninety_minutes)
+class CarTodayTests(_DayFixture):
+    """The sentence the takedown confirmation leads with.
+
+    The desk used to say only what the FLEET loses and never that this car is
+    halfway through a named chauffeur's day.
+    """
+
+    def _line(self, unit, day=DAY, now=None):
+        return fleet_day.car_today(unit, day, now=now)
+
+    def test_a_car_with_no_chauffeur_reads_as_costing_nothing(self):
+        unit = self.unit("1")
+        result = self._line(unit)
+        self.assertTrue(result["free"])
+        self.assertEqual(result["trips"], 0)
+        self.assertIn("no chauffeur", result["line"].lower())
+
+    def test_a_car_held_with_nothing_booked_moves_nothing(self):
+        unit = self.unit("1")
+        driver = self.driver("idle_holder")
+        self.hold(unit, driver)
+        result = self._line(unit)
+        self.assertTrue(result["free"])
+        self.assertIn("nothing is booked", result["line"].lower())
+
+    def test_it_names_the_chauffeur_and_counts_what_is_left(self):
+        unit = self.unit("1")
+        driver = self.driver("roberto")
+        self.hold(unit, driver)
+        for hour in (7, 9, 11, 14):
+            self.job(driver, hour)
+        # 8:45: the 7am job ended at 8:30, the other three have not started.
+        # A job still RUNNING counts as affected — pulling the car mid-trip is
+        # the case the panel most needs to warn about.
+        result = self._line(unit, now=datetime.combine(DAY, time(8, 45)))
+        self.assertFalse(result["free"])
+        self.assertEqual(result["trips"], 4)
+        self.assertEqual(result["left"], 3)
+        self.assertIn("Roberto", result["line"])
+        # No stray space before the possessive: a Driver with no surname
+        # str()s as "Roberto ", which printed "Roberto 's".
+        self.assertIn("3 of Roberto's 4 trips", result["line"])
+        self.assertNotIn(" 's", result["line"])
+        self.assertIn("3:30 PM", result["line"])       # 2pm + 90 minutes
+
+    def test_a_finished_day_says_nothing_is_left_to_move(self):
+        unit = self.unit("1")
+        driver = self.driver("done_for_today")
+        self.hold(unit, driver)
+        self.job(driver, 7)
+        result = self._line(unit, now=datetime.combine(DAY, time(23, 0)))
+        self.assertTrue(result["free"])
+        self.assertEqual(result["left"], 0)
+        self.assertIn("nothing is left to move", result["line"].lower())
+
+    def test_a_job_under_way_counts_as_affected(self):
+        unit = self.unit("1")
+        driver = self.driver("mid_trip")
+        self.hold(unit, driver)
+        self.job(driver, 7)
+        # 8:00 — the 7am job runs until 8:30, so it is still in the car.
+        result = self._line(unit, now=datetime.combine(DAY, time(8, 0)))
+        self.assertEqual(result["left"], 1)
+        self.assertFalse(result["free"])
+
+    def test_a_future_date_counts_the_whole_day_not_what_is_left_of_it(self):
+        """The clock only trims a takedown booked for TODAY."""
+        unit = self.unit("1")
+        driver = self.driver("future_holder")
+        self.hold(unit, driver)
+        self.job(driver, 7)
+        self.job(driver, 9)
+        result = self._line(unit, now=datetime.combine(TODAY, time(23, 0)))
+        self.assertEqual(result["left"], 2)
+
+    def test_an_aware_now_does_not_raise(self):
+        """slot_datetimes builds naive local datetimes; an aware clock compared
+        against one raises TypeError, which reached the endpoint as a 500."""
+        from django.utils import timezone as dj_timezone
+        unit = self.unit("1")
+        driver = self.driver("aware_now")
+        self.hold(unit, driver)
+        self.job(driver, 9)
+        result = fleet_day.car_today(unit, DAY, now=dj_timezone.now())
+        self.assertIn("#1", result["line"])
+
+    def test_the_endpoint_answers_json(self):
+        unit = self.unit("1")
+        resp = self.client.get(
+            reverse("fleet_car_today", args=[unit.pk]), {"date": DAY.isoformat()})
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["success"])
+        self.assertIn("line", body)
 
 
 class HelperTests(_FleetFixture):

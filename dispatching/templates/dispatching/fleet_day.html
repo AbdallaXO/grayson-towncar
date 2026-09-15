@@ -22,12 +22,31 @@
 
   .fd-controls { display: flex; align-items: center; justify-content: space-between;
                  gap: 16px; flex-wrap: wrap; margin-top: 26px; }
-  .fd-days { display: flex; gap: 4px; }
-  .fd-day { padding: 8px 15px; border-radius: 50px; border: 1px solid var(--fl-hair);
-            font-size: 0.76rem; font-weight: 600; background: #fff; color: var(--fl-ink); transition: var(--fl-t); }
+  .fd-days { display: flex; gap: 4px; flex-wrap: wrap; }
+  .fd-day { padding: 7px 14px; border-radius: 0.7rem; border: 1px solid var(--fl-hair);
+            font-size: 0.76rem; font-weight: 600; background: #fff; color: var(--fl-ink);
+            transition: var(--fl-t); text-align: left; }
   .fd-day:hover { border-color: var(--fl-gold); }
   .fd-day.active { background: var(--fl-ink); color: #fff; border-color: var(--fl-ink); }
   .fd-day.active:hover { color: #fff; }
+  /* Each day states its own coverage on the control, so choosing one is an
+     informed choice rather than a surprise after the click. */
+  .fd-day .cov { display: block; font-size: 0.62rem; font-weight: 500; letter-spacing: 0.02em;
+                 color: var(--fl-muted-light); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .fd-day.active .cov { color: rgba(255,255,255,0.68); }
+  .fd-day.unbuilt .cov { color: var(--fl-caution); }
+  .fd-day.active.unbuilt .cov { color: var(--fl-gold-light); }
+
+  /* ── A day with no chauffeurs on it: demand, and nothing about any car ── */
+  .fd-demand { margin-top: 18px; max-width: 680px; border: 1px solid var(--fl-hair);
+               border-radius: 1rem; background: var(--fl-cream); padding: 28px 32px; }
+  .fd-demand .big { font-family: var(--fl-serif); font-size: 2.4rem; font-weight: 600;
+                    line-height: 1; letter-spacing: -0.02em; }
+  .fd-demand .big small { font-family: var(--fl-sans); font-size: 0.9rem; font-weight: 500;
+                          color: var(--fl-muted); margin-left: 8px; letter-spacing: 0; }
+  .fd-demand .p { margin-top: 14px; font-size: 0.9rem; line-height: 1.6; max-width: 62ch; color: var(--fl-ink); }
+  .fd-demand .rule { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--fl-hair);
+                     font-size: 0.78rem; color: var(--fl-muted); max-width: 62ch; }
   .fd-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.72rem; color: var(--fl-muted); }
   .fd-legend .sw { width: 22px; height: 9px; border-radius: 2px; display: inline-block;
                    vertical-align: middle; margin-right: 6px; }
@@ -63,6 +82,13 @@
             color: var(--fl-good-deep); font-weight: 600; transition: var(--fl-t); z-index: 2;
             text-overflow: clip; }
   .fd-job:hover { border-color: var(--fl-gold); z-index: 6; }
+  /* The time for a block too narrow to hold one, printed just outside it. Only
+     ever the first or last block of a row, so it points away from the traffic. */
+  .fd-edge { position: absolute; top: 3px; height: 24px; line-height: 24px; z-index: 3;
+             font-size: 0.62rem; font-weight: 700; color: var(--fl-muted);
+             white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+  .fd-edge.start { transform: translateX(-100%); padding-right: 5px; }
+  .fd-edge.end { padding-left: 5px; }
   .fd-job.arrival { background: #E7EEF6; border-color: #C9D8E8; color: var(--fl-settled); }
   .fd-job.sanford { background: #E3F1F3; border-color: #BFDDE2; color: #1F5A63; }
   /* Plain gaps are drawn by NOT drawing anything. The dashed connectors that
@@ -82,11 +108,34 @@
              color: var(--fl-critical); letter-spacing: 0.05em; }
 
   .fd-foot { margin-top: 14px; font-size: 0.76rem; color: var(--fl-muted); }
+
+  /* The same jobs as a plain list, for the width where a timeline cannot work.
+     Hidden on a desktop; it is the whole board on a phone. */
+  .fd-list { display: none; padding: 2px 14px 12px; }
+  .fd-trip { display: flex; align-items: baseline; gap: 10px; padding: 6px 0;
+             border-top: 1px dotted var(--fl-hair); font-size: 0.78rem; }
+  .fd-trip:first-child { border-top: 0; }
+  .fd-trip .t { flex: 0 0 auto; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fd-trip .w { flex: 1 1 auto; min-width: 0; color: var(--fl-muted); overflow: hidden; text-overflow: ellipsis; }
+  .fd-trip.arrival .t { color: var(--fl-settled); }
+  .fd-trip.free { color: var(--fl-caution); font-weight: 600; }
+  .fd-trip.free .w { color: var(--fl-caution); }
+
   @media (max-width: 1000px) { .fd-tick.minor { display: none; } }
   @media (max-width: 800px) {
     .fd-axis { padding-left: 128px; }
     .fd-label { flex-basis: 128px; }
     .fd-tick { left: auto; }
+  }
+  @media (max-width: 680px) {
+    /* Twenty hours in 450px turns every trip into a 20px stub and clips the
+       labels to "1:2". A list says the same thing and can actually be read. */
+    /* The colour key describes the timeline, which is gone at this width. */
+    .fd-axis, .fd-track, .fd-legend { display: none; }
+    .fd-row { display: block; }
+    .fd-label { flex: 1 1 auto; border-right: 0; padding-bottom: 4px; }
+    .fd-who { white-space: normal; }
+    .fd-list { display: block; }
   }
 </style>
 {% endblock %}
@@ -111,24 +160,52 @@
   </div>
 
   {# ── How much of this day is real ──────────────────────────────────── #}
-  <div class="fd-note {% if not payload.built %}stop{% elif not payload.confident %}warn{% endif %}">
-    {{ payload.headline }}
+  <div class="fd-note {% if demand or not payload.built %}stop{% elif not payload.confident %}warn{% endif %}">
+    {% if demand %}{{ demand.headline }}{% else %}{{ payload.headline }}{% endif %}
   </div>
 
-  {# ── Date + legend ─────────────────────────────────────────────────── #}
+  {# ── The week + legend ─────────────────────────────────────────────── #}
   <div class="fd-controls">
     <div class="fd-days">
       {% for option in day_options %}
-        <a class="fd-day {% if option.date == day %}active{% endif %}"
-           href="?date={{ option.value }}">{{ option.label }}</a>
+        <a class="fd-day {% if option.date == day %}active{% endif %}{% if not option.built %} unbuilt{% endif %}"
+           href="?date={{ option.value }}">
+          {{ option.label }}
+          <span class="cov">
+            {% if not option.trips %}nothing booked
+            {% elif option.built %}{{ option.coverage_pct }}% assigned
+            {% else %}{{ option.trips }} trips · not built{% endif %}
+          </span>
+        </a>
       {% endfor %}
     </div>
+    {% if payload %}
     <div class="fd-legend">
       <span><span class="sw" style="background:#DCEAE2;border:1px solid #CFE2D8;"></span>On a trip</span>
       <span><span class="sw" style="background:#E7EEF6;border:1px solid #C9D8E8;"></span>Airport arrival</span>
       <span><span class="sw" style="background:rgba(201,162,39,0.10);border:1px solid #C9A227;"></span>Room for shop work</span>
     </div>
+    {% endif %}
   </div>
+
+  {% comment %}
+    An unbuilt day draws no car rows at all. Its trips are real and worth
+    planning against; which CAR is free that day is not knowable yet, and
+    nineteen empty strips would answer that question wrongly nineteen times.
+  {% endcomment %}
+  {% if demand %}
+  <div class="fd-demand">
+    <div class="big">{{ demand.trips }} <small>trip{{ demand.trips|pluralize }} booked</small></div>
+    <div class="p">{{ demand.detail }}</div>
+    <div class="rule">
+      Car-by-car times appear on this day as soon as dispatch starts assigning it —
+      usually two or three days ahead. Until then, the
+      <a href="{% url 'fleet_outlook' %}" style="text-decoration:underline;">Outlook</a>
+      is the screen that plans this far out: it works from the same booked trips
+      without claiming to know which unit runs them.
+    </div>
+  </div>
+  {% else %}
 
   {# ── The board ─────────────────────────────────────────────────────── #}
   <div class="fd-board">
@@ -176,13 +253,43 @@
             <div class="fd-job {% if job.trip_type == 'arrival' %}arrival{% endif %} {% if job.is_sanford %}sanford{% endif %}"
                  style="left:{{ job.left }}%;width:{{ job.width }}%;"
                  title="{{ job.start_label }} – {{ job.end_label }} · {{ job.customer }}&#10;{{ job.pickup }} → {{ job.dropoff }}&#10;{{ job.driver }}{% if job.flight_info %}&#10;{{ job.flight_info }}{% endif %}">{% if job.show_label %}{{ job.short_label }}{% endif %}</div>
+            {% if job.edge == 'start' %}
+              <span class="fd-edge start" style="left:{{ job.left }}%;">{{ job.short_label }}</span>
+            {% elif job.edge == 'end' %}
+              <span class="fd-edge end" style="left:calc({{ job.left }}% + {{ job.width }}%);">{{ job.short_label }}</span>
+            {% endif %}
           {% endfor %}
+        {% endif %}
+      </div>
+
+      {% comment %}
+        The same row as a list, for phone width. Hidden above 680px — see the
+        stylesheet: a twenty-hour axis in 450px is unreadable, not responsive.
+      {% endcomment %}
+      <div class="fd-list">
+        {% if row.state == 'down' or not row.jobs %}
+          <div class="fd-trip"><span class="w"><em>{{ row.note }}</em></span></div>
+        {% else %}
+          {% for job in row.jobs %}
+            <div class="fd-trip {% if job.trip_type == 'arrival' %}arrival{% endif %}">
+              <span class="t">{{ job.start_label }}</span>
+              <span class="w" title="{{ job.pickup }} → {{ job.dropoff }}">{{ job.pickup_short }} → {{ job.dropoff_short }}</span>
+            </div>
+          {% endfor %}
+          {% for gap in row.gaps %}{% if gap.usable %}
+            <div class="fd-trip free">
+              <span class="t">{{ gap.from_label }}</span>
+              <span class="w">{{ gap.span }} free — room for shop work</span>
+            </div>
+          {% endif %}{% endfor %}
         {% endif %}
       </div>
     </div>
     {% endfor %}
   </div>
+  {% endif %}
 
+  {% if payload %}
   <div class="fd-foot">
     {{ payload.working }} car{{ payload.working|pluralize }} working ·
     {{ payload.open_units }} sitting still ·
@@ -192,9 +299,10 @@
       farmed out, or not assigned yet.
     {% endif %}
     <br>
-    Trip end times are planning estimates, the same ones the shop-window finder uses.
-    An airport arrival's pickup time moves with the flight.
+    Cars with the most room come first. Trip end times are planning estimates, the same
+    ones the shop-window finder uses. An airport arrival's pickup time moves with the flight.
   </div>
+  {% endif %}
 
 </div>
 </div>

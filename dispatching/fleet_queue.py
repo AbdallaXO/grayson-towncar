@@ -282,7 +282,7 @@ def _row_for(v, *, today, now, downtimes, issues, faults, schedules, driver,
         secondary = {"label": f"Open {_unit(v)}", "kind": "link", "href": href}
     else:
         primary = {"label": "Find a window", "kind": "finder", "hours": HOURS_FOR[tag]}
-        secondary = {"label": "Take off road", "kind": "takeoff"}
+        secondary = {"label": "Take off the road", "kind": "takeoff"}
     return {
         **base, "tag": tag, "tone": TONE[tag], "handled": False,
         "age": first["age"],

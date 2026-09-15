@@ -37,13 +37,19 @@
   .fi-card .when { font-size: 0.71rem; color: var(--fl-muted); margin-top: 5px; }
   .fi-card .badge-line { margin-top: 8px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 
-  .fi-card.due { border-left: 3px solid var(--fl-gold); }
-  .fi-card.due .badge-line { color: var(--fl-caution); }
-  .fi-card.done { background: var(--fl-good-tint); border-color: var(--fl-good-border); opacity: 0.72; }
+  .fi-card .sub-line { margin-top: 6px; font-size: 0.68rem; color: var(--fl-muted-light); }
+  /* The finding, in full. A tile that clips the one sentence worth reading is
+     a tile that wasted the walk. */
+  .fi-card .found-line { margin-top: 8px; font-size: 0.78rem; font-weight: 600;
+    line-height: 1.35; color: var(--fl-caution); }
+  .fi-card.due { border-left: 3px solid var(--fl-hair); }
+  /* Only the cars on today's handful carry the gold edge, so the suggestion is
+     findable in the grid instead of being reprinted above it. */
+  .fi-card.due.on-list { border-left-color: var(--fl-gold); }
+  .fi-card .badge-line.on { color: var(--fl-caution); }
+  .fi-card.done { background: var(--fl-good-tint); border-color: var(--fl-good-border); }
   .fi-card.done .badge-line { color: var(--fl-good); }
-  .fi-card.done:hover { opacity: 1; }
   .fi-card.found { background: var(--fl-caution-tint); border-color: #E6D9AC; border-left: 3px solid var(--fl-caution); }
-  .fi-card.found .badge-line { color: var(--fl-caution); }
   .fi-card.shop { background: var(--fl-cream); border-style: dashed; color: var(--fl-muted); }
   .fi-card.shop .badge-line { color: var(--fl-muted-light); }
   .fi-card .idle { color: var(--fl-good-deep); font-weight: 600; }
@@ -100,9 +106,10 @@
     </div>
     <div class="fi-grid">
       {% for tile in week.suggested %}
-      <a class="fi-card due" href="{{ tile.href }}">
+      <a class="fi-card due on-list" href="{{ tile.href }}">
         <div class="num">#{{ tile.number }}<span class="vt">{{ tile.vehicle_type }}</span></div>
         <div class="when {% if tile.idle_today %}idle{% endif %}">{{ tile.today|default:"—" }}</div>
+        <div class="sub-line">{{ tile.last_seen_label }}</div>
         <div class="badge-line">Inspect</div>
       </a>
       {% endfor %}
@@ -117,9 +124,9 @@
 
   {# ── The whole fleet ───────────────────────────────────────────────── #}
   <div class="fi-section-head">
-    <h2>Every unit this week</h2>
+    <h2>The week so far</h2>
     <div class="meta">
-      {{ week.due_count }} still due{% if week.in_shop %} · {{ week.in_shop }} in the shop, not counted{% endif %}
+      {{ week.done_count }} walked · {{ week.due_count }} still due{% if week.in_shop %} · {{ week.in_shop }} in the shop, not counted{% endif %}
     </div>
   </div>
   <div class="fi-grid">
@@ -131,20 +138,30 @@
         <div class="badge-line">In the shop</div>
       </div>
     {% else %}
-      <a class="fi-card {{ tile.state }}" href="{{ tile.href }}">
+      <a class="fi-card {{ tile.state }}{% if tile.suggested %} on-list{% endif %}" href="{{ tile.href }}">
         <div class="num">#{{ tile.number }}<span class="vt">{{ tile.vehicle_type }}</span></div>
         {% if tile.inspection %}
           <div class="when">
             {{ tile.inspection.inspected_on|date:"D j M" }}{% if tile.inspection.inspected_by %} · {{ tile.inspection.inspected_by|title }}{% endif %}
           </div>
+          {% comment %}
+            The finding is the week's output — the one sentence on this page
+            worth reading. It wraps; it is never trimmed to fit a tile.
+          {% endcomment %}
           {% if tile.state == 'found' %}
-            <div class="badge-line">{{ tile.inspection.issue.title|default:"Found something"|truncatechars:34 }}</div>
+            <div class="found-line">{{ tile.inspection.issue.title|default:"Found something" }}</div>
           {% else %}
-            <div class="badge-line">Done</div>
+            <div class="badge-line">All good</div>
           {% endif %}
         {% else %}
+          {% comment %}
+            No "DUE" stamp: it was on eighteen of nineteen cards, which made it
+            the background rather than a signal. A plain card IS due — what the
+            card owes you instead is why this one and why now.
+          {% endcomment %}
           <div class="when {% if tile.idle_today %}idle{% endif %}">{{ tile.today|default:"—" }}</div>
-          <div class="badge-line">Due</div>
+          <div class="sub-line">{{ tile.last_seen_label }}</div>
+          {% if tile.suggested %}<div class="badge-line on">On today's list</div>{% endif %}
         {% endif %}
       </a>
     {% endif %}
@@ -154,7 +171,7 @@
   <div class="fi-foot">
     The round resets every Monday. A car in the shop for the whole week is not counted
     as missed. Finding something files a problem report — it never takes the car off
-    the road on its own; use <strong>Take off road</strong> on the desk for that.
+    the road on its own; use <strong>Take off the road</strong> on the desk for that.
   </div>
 
 </div>

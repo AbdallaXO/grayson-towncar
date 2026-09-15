@@ -269,6 +269,9 @@ def window_payload(start, days, units, *, today=None, now=None, use_cache=True,
             "idx": idx,
             "date": day.isoformat(),
             "wd": strf(day, "%a"),
+            # Spelled out for the sentence that says a day is still filling up:
+            # "A Wednesday usually runs 14 cars" reads; "A Wed" does not.
+            "wdl": strf(day, "%A"),
             "dom": strf(day, "%b %-d"),
             "short": strf(day, "%-d"),
             "is_today": day == today,

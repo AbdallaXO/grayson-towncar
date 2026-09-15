@@ -755,7 +755,9 @@ class PageTests(_FleetFixture):
         resp = self.client.get(reverse("fleet_detail", args=[v.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Transmission")
-        self.assertContains(resp, "Take out of service")
+        # One name for the action on every screen that offers it — the desk row,
+        # its confirmation and this page all said something different before.
+        self.assertContains(resp, "Take off the road")
         self.assertContains(resp, "Report a problem")
         self.assertNotContains(resp, "f_out_of_service_from")
 

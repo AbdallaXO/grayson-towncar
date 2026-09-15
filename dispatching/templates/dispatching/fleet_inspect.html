@@ -6,6 +6,12 @@
   items themselves live in dispatching/fleet_inspection.py, which is the one
   place to edit them.
 
+  Rebuilt 2026-09-16 around how it is actually used: on a phone, one-handed,
+  standing next to the car. The realistic answer is every item good and one
+  exception, so "All good" is one tap and the note and camera stay folded away
+  until an item is flagged. Nothing is pre-ticked — the system never records a
+  check that nobody made.
+
   A normal form post, not JSON: it carries files.
 {% endcomment %}
 
@@ -15,36 +21,81 @@
 {% include "dispatching/_travel_admin_css.html" %}
 {% include "dispatching/includes/_fleet_luxe_css.html" %}
 <style>
-  .fx-wrap { max-width: 860px; }
-  .fx-back { font-size: 0.76rem; color: var(--fl-muted); }
+  .fx-wrap { max-width: 780px; }
   .fx-done { margin-top: 20px; padding: 13px 17px; border-radius: 0.7rem; font-size: 0.84rem;
              background: var(--fl-good-tint); border: 1px solid var(--fl-good-border); color: var(--fl-good-deep); }
 
-  .fx-section { margin-top: 28px; }
+  /* ── The car you are standing at ─────────────────────────────────────
+     The plate is here because the unit number is painted nowhere a person
+     can read it from six feet away, and walking the wrong Suburban is the
+     one mistake this page can actually cause. */
+  .fx-ident { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin-top: 6px; }
+  .fx-plate { font-family: var(--fl-mono, ui-monospace, "SFMono-Regular", Menlo, monospace);
+              font-size: 0.92rem; font-weight: 700; letter-spacing: 0.08em;
+              padding: 3px 10px; border: 1.5px solid var(--fl-ink); border-radius: 0.3rem; }
+  .fx-ident .meta { font-size: 0.8rem; color: var(--fl-muted); }
+
+  /* ── Progress + the one-tap answer ───────────────────────────────── */
+  .fx-run { position: sticky; top: 0; z-index: 20; margin-top: 22px; padding: 12px 0;
+            background: #fff; border-bottom: 1px solid var(--fl-hair); }
+  .fx-run-in { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .fx-tally { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+  .fx-tally .muted { color: var(--fl-muted); font-weight: 500; }
+  .fx-allgood { margin-left: auto; padding: 11px 20px; min-height: 44px; border: 1px solid var(--fl-good);
+                border-radius: 50px; background: var(--fl-good-tint); color: var(--fl-good-deep);
+                font-size: 0.82rem; font-weight: 700; transition: var(--fl-t); }
+  .fx-allgood:hover { background: var(--fl-good); color: #fff; }
+  .fx-allgood[disabled] { opacity: 0.45; cursor: default; }
+
+  .fx-section { margin-top: 26px; }
   .fx-section > h2 { font-family: var(--fl-serif); font-size: 1.1rem; font-weight: 600;
                      padding-bottom: 10px; border-bottom: 1px solid var(--fl-hair); }
 
-  .fx-item { padding: 13px 0; border-bottom: 1px solid var(--fl-hair-softest); }
+  .fx-item { padding: 10px 0; border-bottom: 1px solid var(--fl-hair-softest); }
   .fx-item:last-child { border-bottom: 0; }
-  .fx-item-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .fx-label { font-size: 0.9rem; font-weight: 500; flex: 1 1 260px; }
-  .fx-states { display: flex; gap: 4px; flex: 0 0 auto; }
+  .fx-item-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .fx-label { font-size: 0.92rem; font-weight: 500; flex: 1 1 200px; }
+
+  /* 44px minimum, because this is tapped with a thumb in a car park. */
+  .fx-states { display: flex; gap: 6px; flex: 0 0 auto; }
   .fx-states input { position: absolute; opacity: 0; width: 0; height: 0; }
-  .fx-states label { padding: 6px 13px; border: 1px solid var(--fl-hair); border-radius: 50px;
-                     font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: var(--fl-t);
+  .fx-states label { display: inline-flex; align-items: center; justify-content: center;
+                     min-height: 44px; min-width: 62px; padding: 6px 14px;
+                     border: 1px solid var(--fl-hair); border-radius: 50px;
+                     font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: var(--fl-t);
                      background: #fff; color: var(--fl-muted); user-select: none; }
   .fx-states label:hover { border-color: var(--fl-gold); }
   .fx-states input:checked + label.ok { background: var(--fl-good); border-color: var(--fl-good); color: #fff; }
   .fx-states input:checked + label.flag { background: var(--fl-critical); border-color: var(--fl-critical); color: #fff; }
   .fx-states input:checked + label.na { background: var(--fl-muted); border-color: var(--fl-muted); color: #fff; }
   .fx-states input:focus-visible + label { outline: 2px solid var(--fl-gold); outline-offset: 2px; }
+  .fx-item.answered .fx-label { color: var(--fl-muted); }
+  .fx-item.flagged { background: var(--fl-critical-tint); border-radius: 0.5rem;
+                     padding-inline: 12px; margin-inline: -12px; }
 
+  /* ── Note and photo, folded away until something is wrong ────────── */
+  .fx-more { flex: 0 0 auto; width: 44px; min-height: 44px; border: 1px solid var(--fl-hair);
+             border-radius: 50px; background: #fff; color: var(--fl-muted-light);
+             font-size: 1.05rem; line-height: 1; font-weight: 600; transition: var(--fl-t); }
+  .fx-more:hover { border-color: var(--fl-gold); color: var(--fl-ink); }
+  .fx-more[aria-expanded="true"] { border-color: var(--fl-ink); color: var(--fl-ink); background: var(--fl-cream); }
   .fx-extra { margin-top: 9px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .fx-extra input[type=text] { flex: 1 1 280px; padding: 7px 11px; border: 1px solid var(--fl-hair);
-                               border-radius: 0.45rem; font-size: 0.8rem; font-family: var(--fl-sans); }
+  .fx-extra input[type=text] { flex: 1 1 260px; min-height: 44px; padding: 9px 12px;
+                               border: 1px solid var(--fl-hair); border-radius: 0.45rem;
+                               font-size: 0.85rem; font-family: var(--fl-sans); }
   .fx-extra input[type=text]:focus { outline: none; border-color: var(--fl-gold); }
-  .fx-photo { font-size: 0.7rem; color: var(--fl-muted); }
-  .fx-photo input { font-size: 0.7rem; max-width: 210px; }
+
+  /* The browser's own file input reads "No file chosen" on every row, which
+     looks like an error state seventeen times over. This is a plain button
+     that counts what was attached. */
+  .fx-cam input[type=file] { position: absolute; opacity: 0; width: 0; height: 0; }
+  .fx-cam label { display: inline-flex; align-items: center; gap: 7px; min-height: 44px;
+                  padding: 8px 16px; border: 1px solid var(--fl-hair); border-radius: 50px;
+                  font-size: 0.78rem; font-weight: 600; color: var(--fl-muted);
+                  background: #fff; cursor: pointer; transition: var(--fl-t); }
+  .fx-cam label:hover { border-color: var(--fl-gold); color: var(--fl-ink); }
+  .fx-cam input:focus-visible + label { outline: 2px solid var(--fl-gold); outline-offset: 2px; }
+  .fx-cam label.has { border-color: var(--fl-good); color: var(--fl-good-deep); background: var(--fl-good-tint); }
 
   .fx-panel { margin-top: 30px; border: 1px solid var(--fl-hair); border-radius: 1rem; padding: 22px 24px; background: var(--fl-cream); }
   .fx-panel h2 { font-family: var(--fl-serif); font-size: 1.1rem; font-weight: 600; }
@@ -52,18 +103,22 @@
   .fx-field label.cap { display: block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
                         letter-spacing: 0.08em; color: var(--fl-muted); margin-bottom: 5px; }
   .fx-field input[type=text], .fx-field input[type=number], .fx-field textarea, .fx-field select {
-      width: 100%; padding: 9px 12px; border: 1px solid var(--fl-hair); border-radius: 0.5rem;
-      font-size: 0.86rem; font-family: var(--fl-sans); background: #fff; }
+      width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--fl-hair);
+      border-radius: 0.5rem; font-size: 0.88rem; font-family: var(--fl-sans); background: #fff; }
   .fx-field textarea { min-height: 76px; resize: vertical; }
   .fx-check { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 0.86rem; }
-  .fx-check input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--fl-critical); }
+  .fx-check input { margin-top: 3px; width: 20px; height: 20px; accent-color: var(--fl-critical); }
   .fx-found { margin-top: 16px; padding: 16px; border-radius: 0.7rem;
               background: var(--fl-critical-tint); border: 1px solid var(--fl-critical-border); }
 
   .fx-actions { margin-top: 26px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .fx-save { padding: 13px 30px; border: 0; border-radius: 50px; background: var(--fl-ink); color: #fff;
-             font-weight: 600; font-size: 0.86rem; letter-spacing: 0.02em; transition: var(--fl-t); }
+  .fx-save { padding: 14px 30px; min-height: 48px; border: 0; border-radius: 50px; background: var(--fl-ink);
+             color: #fff; font-weight: 600; font-size: 0.88rem; letter-spacing: 0.02em; transition: var(--fl-t); }
   .fx-save:hover { background: var(--fl-gold); color: var(--fl-ink); }
+  .fx-next { padding: 14px 24px; min-height: 48px; border: 1px solid var(--fl-hair); border-radius: 50px;
+             background: #fff; font-weight: 600; font-size: 0.86rem; transition: var(--fl-t); }
+  .fx-next:hover { border-color: var(--fl-gold); }
+  .fx-next small { display: block; font-size: 0.66rem; font-weight: 500; color: var(--fl-muted); }
   .fx-hint { font-size: 0.74rem; color: var(--fl-muted); margin-top: 5px; }
   .fx-numbers { display: flex; gap: 18px; flex-wrap: wrap; }
   .fx-numbers .fx-field { flex: 1 1 220px; }
@@ -76,6 +131,14 @@
   .fx-forecast.late .lab { color: var(--fl-critical); }
   .fx-forecast.quiet { border-color: var(--fl-hair); background: #fff; color: var(--fl-muted); }
   .fx-forecast.quiet .lab { color: var(--fl-muted-light); }
+
+  @media (max-width: 560px) {
+    .fx-label { flex: 1 1 100%; }
+    .fx-states { width: 100%; }
+    .fx-states label { flex: 1 1 0; min-width: 0; }
+    .fx-more { width: 44px; }
+    .fx-allgood { margin-left: 0; width: 100%; }
+  }
 </style>
 {% endblock %}
 
@@ -90,13 +153,16 @@
     <div>
       <div class="fl-eyebrow">Inspection</div>
       <h1 class="fl-title">#{{ vehicle.vehicle_number }}</h1>
-      <div class="fl-date">
-        {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }} · {{ vehicle_type }} ·
-        week of {{ week_start|date:"F j" }}
+      <div class="fx-ident">
+        {% if vehicle.license_plate %}<span class="fx-plate">{{ vehicle.license_plate }}</span>{% endif %}
+        <span class="meta">
+          {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }} · {{ vehicle_type }} ·
+          week of {{ week_start|date:"F j" }}
+        </span>
       </div>
     </div>
     <div class="fl-head-right">
-      <a class="fx-back" href="{% url 'fleet_inspections' %}">← Back to the round</a>
+      {% include "dispatching/includes/_fleet_pills.html" %}
     </div>
   </div>
 
@@ -108,14 +174,30 @@
   </div>
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data" action="{% url 'fleet_inspect_vehicle' vehicle.pk %}">
+  <form method="post" enctype="multipart/form-data" action="{% url 'fleet_inspect_vehicle' vehicle.pk %}" id="fxForm">
     {% csrf_token %}
+
+    {% comment %}
+      Nothing is pre-ticked. "All good" is a deliberate tap, not a default —
+      a form that arrives already answered records a check nobody made, and
+      this subsystem's whole rule is that it says so when it does not know.
+    {% endcomment %}
+    <div class="fx-run">
+      <div class="fx-run-in">
+        <div class="fx-tally" id="fxTally">
+          <span id="fxCount">0</span> of {{ item_count }} answered
+          <span class="muted" id="fxFlagged"></span>
+        </div>
+        <button type="button" class="fx-allgood" id="fxAllGood">Mark the rest good</button>
+      </div>
+    </div>
 
     {% for section in sections %}
     <div class="fx-section">
       <h2>{{ section.title }}</h2>
       {% for item in section.items %}
-      <div class="fx-item">
+      <div class="fx-item{% if item.state %} answered{% endif %}{% if item.state == 'flag' %} flagged{% endif %}"
+           data-item="{{ item.key }}">
         <div class="fx-item-top">
           <div class="fx-label">{{ item.label }}</div>
           <div class="fx-states">
@@ -128,13 +210,27 @@
             <input type="radio" id="s_{{ item.key }}_na" name="state_{{ item.key }}" value="na"
                    {% if item.state == 'na' %}checked{% endif %}>
             <label class="na" for="s_{{ item.key }}_na">N/A</label>
+            {% comment %}
+              In the button row, not on a line of its own: seventeen "Add a note
+              or photo" links down the page cost half a phone screen and repeat
+              a thing almost nobody needs on a good item.
+            {% endcomment %}
+            <button type="button" class="fx-more" data-more="{{ item.key }}"
+                    title="Add a note or photo" aria-label="Add a note or photo for {{ item.label }}"
+                    aria-expanded="{% if item.note %}true{% else %}false{% endif %}"
+                    aria-controls="extra_{{ item.key }}">&plus;</button>
           </div>
         </div>
-        <div class="fx-extra">
+
+        <div class="fx-extra" id="extra_{{ item.key }}" {% if not item.note %}hidden{% endif %}>
           <input type="text" name="note_{{ item.key }}" value="{{ item.note }}"
-                 placeholder="Note (optional)" maxlength="500">
-          <span class="fx-photo">
-            <input type="file" name="photo_{{ item.key }}" accept="image/*" capture="environment" multiple>
+                 placeholder="What did you see?" maxlength="500">
+          <span class="fx-cam">
+            <input type="file" id="ph_{{ item.key }}" name="photo_{{ item.key }}"
+                   accept="image/*" capture="environment" multiple>
+            <label for="ph_{{ item.key }}" data-photo="{{ item.key }}">
+              <i class="bi bi-camera"></i> <span>Photo</span>
+            </label>
           </span>
         </div>
       </div>
@@ -212,13 +308,19 @@
         </div>
         <div class="fx-hint">
           This files a problem report for the car. It does <strong>not</strong> take it off
-          the road — if it must not go out, use <strong>Take off road</strong> on the desk.
+          the road — if it must not go out, use <strong>Take off the road</strong> on the desk.
         </div>
       </div>
     </div>
 
     <div class="fx-actions">
       <button type="submit" class="fx-save">Save inspection</button>
+      {% if next_due %}
+      <button type="submit" class="fx-next" name="save_and_next" value="1">
+        Save and next car
+        <small>#{{ next_due.vehicle_number }} · {{ next_due.year }} {{ next_due.make }} {{ next_due.model }}</small>
+      </button>
+      {% endif %}
       <span class="fx-hint">Items you leave blank are simply not recorded.</span>
     </div>
   </form>
@@ -228,17 +330,98 @@
 
 <script>
   (function () {
+    var form = document.getElementById('fxForm');
+    if (!form) return;
     var box = document.getElementById('found');
     var panel = document.getElementById('foundPanel');
-    function sync() { panel.hidden = !box.checked; }
-    box.addEventListener('change', sync);
-    // Ticking any item "Problem" is the same statement — offer the report.
-    document.querySelectorAll('input[value="flag"]').forEach(function (radio) {
-      radio.addEventListener('change', function () {
-        if (radio.checked && !box.checked) { box.checked = true; sync(); }
+    var elCount = document.getElementById('fxCount');
+    var elFlagged = document.getElementById('fxFlagged');
+    var allGood = document.getElementById('fxAllGood');
+    var items = Array.prototype.slice.call(form.querySelectorAll('.fx-item'));
+
+    function stateOf(item) {
+      var picked = item.querySelector('input[type=radio]:checked');
+      return picked ? picked.value : '';
+    }
+    function extraOf(item) {
+      return item.querySelector('.fx-extra');
+    }
+
+    function tally() {
+      var answered = 0, flagged = 0;
+      items.forEach(function (item) {
+        var s = stateOf(item);
+        if (s) answered += 1;
+        if (s === 'flag') flagged += 1;
+        item.classList.toggle('answered', !!s);
+        item.classList.toggle('flagged', s === 'flag');
       });
+      elCount.textContent = answered;
+      elFlagged.textContent = flagged
+        ? '· ' + flagged + (flagged === 1 ? ' problem' : ' problems')
+        : '';
+      var left = items.length - answered;
+      allGood.disabled = left === 0;
+      allGood.textContent = left === items.length
+        ? 'All ' + items.length + ' good'
+        : (left ? 'Mark the remaining ' + left + ' good' : 'Everything answered');
+      return { answered: answered, flagged: flagged };
+    }
+
+    // One tap for the ordinary case: everything the walk did not turn up.
+    // It never overwrites an answer already given, so a flagged item stays
+    // flagged if he taps it after finding something.
+    allGood.addEventListener('click', function () {
+      items.forEach(function (item) {
+        if (stateOf(item)) return;
+        var ok = item.querySelector('input[value="ok"]');
+        if (ok) ok.checked = true;
+      });
+      tally();
     });
-    sync();
+
+    form.addEventListener('change', function (e) {
+      var t = e.target;
+      if (t.type === 'radio') {
+        var item = t.closest('.fx-item');
+        // A problem needs the note and the camera in front of him, not behind
+        // a second tap — that is the one item on the page anybody will type on.
+        if (t.value === 'flag' && item) {
+          var extra = extraOf(item);
+          if (extra) extra.hidden = false;
+          var more = item.querySelector('.fx-more');
+          if (more) more.setAttribute('aria-expanded', 'true');
+          if (!box.checked) { box.checked = true; syncFound(); }
+        }
+        tally();
+        return;
+      }
+      if (t.type === 'file') {
+        var label = form.querySelector('[data-photo="' + t.name.slice('photo_'.length) + '"]');
+        if (label) {
+          var n = t.files ? t.files.length : 0;
+          label.classList.toggle('has', n > 0);
+          label.querySelector('span').textContent = n ? n + (n === 1 ? ' photo' : ' photos') : 'Photo';
+        }
+        return;
+      }
+      if (t === box) syncFound();
+    });
+
+    form.addEventListener('click', function (e) {
+      var more = e.target.closest('.fx-more');
+      if (!more) return;
+      var item = more.closest('.fx-item');
+      var extra = extraOf(item);
+      if (!extra) return;
+      extra.hidden = !extra.hidden;
+      more.setAttribute('aria-expanded', String(!extra.hidden));
+    });
+
+    function syncFound() { panel.hidden = !box.checked; }
+
+    syncFound();
+    tally();
   })();
 </script>
 {% endblock %}

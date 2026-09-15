@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
 <style>
   /* .tap-table-wrap is overflow:hidden, which clips a wide table instead of
      letting it scroll. Fleet rows carry more columns than the agency table. */
@@ -154,14 +155,17 @@
 {% include 'dispatching/dispatcher_navbar.html' %}
 <div class="container-fluid py-4 tap-wrap">
 
-  <div class="tap-page-head">
+  <div class="fl-head">
     <div>
-      <h1 class="tap-title">Vehicles</h1>
-      <div class="tap-subtitle">
+      <div class="fl-eyebrow">Fleet</div>
+      <h1 class="fl-title">Vehicles</h1>
+      <div class="fl-date">
         Every unit, its condition and paperwork. The desk says what to do first; this is the full table.
       </div>
     </div>
-    {% include "dispatching/includes/_fleet_shell.html" %}
+    <div class="fl-head-right">
+      {% include "dispatching/includes/_fleet_pills.html" %}
+    </div>
   </div>
 
   {# Feed health. The one line that would have caught a silent 25-day outage. #}

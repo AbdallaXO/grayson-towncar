@@ -101,6 +101,8 @@ urlpatterns = [
     # Downtime ledger: the demand check, then take down / edit / bring back.
     path("fleet/<int:pk>/check-window/", fleet_views.fleet_check_window,
          name="fleet_check_window"),
+    path("fleet/<int:pk>/today/", fleet_views.fleet_car_today,
+         name="fleet_car_today"),
     path("fleet/<int:pk>/downtime/", fleet_views.fleet_save_downtime,
          name="fleet_save_downtime"),
     path("fleet/downtime/<int:pk>/update/", fleet_views.fleet_update_downtime,

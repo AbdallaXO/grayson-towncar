@@ -131,8 +131,32 @@
           {% endif %}
           {% if r.secondary.kind == "takeoff" %}
           <div class="fl-confirm" data-confirm hidden>
-            <div class="l">Off the road from now, back on tomorrow's board.</div>
-            <div class="i" data-impact>Checking what dispatch loses today…</div>
+            <div class="l">Off the road from now — when is it back?</div>
+            {% comment %}
+              A takedown has to say when the car returns. It used to assume
+              "back tomorrow" and look only at today, so a unit booked solid on
+              Wednesday came off until Thursday with Wednesday never mentioned.
+              The return date is the FIRST DAY BACK, which is the ledger's own
+              rule, and both checks below re-run against whatever is chosen.
+            {% endcomment %}
+            <div class="back">
+              <span class="cap">Back on the road</span>
+              <div class="opts" data-back-opts>
+                <button type="button" class="opt" data-days="1">Tomorrow</button>
+                <button type="button" class="opt" data-days="2">In 2 days</button>
+                <button type="button" class="opt" data-days="3">In 3 days</button>
+                <button type="button" class="opt" data-days="7">Next week</button>
+              </div>
+              <input type="date" class="pick" data-back-date aria-label="First day back on the road">
+            </div>
+            {% comment %}
+              The car's OWN days come first. The fleet-wide check underneath is a
+              real number and worth keeping, but it is not the question being
+              asked with a thumb over this button — that one is "what am I about
+              to strand?", and it has a chauffeur's name in the answer.
+            {% endcomment %}
+            <div class="c" data-car>Checking what this car is carrying…</div>
+            <div class="i" data-impact>Checking what dispatch loses…</div>
             <div class="a">
               <button type="button" class="fl-btn-danger" data-takeoff-yes>Take it off the road</button>
               <button type="button" class="fl-btn-danger-ghost" data-takeoff-no>Keep it running</button>
@@ -299,7 +323,7 @@
     <div class="fl-win">
       <div class="fl-grid-wrap">
         <div id="fw-grid"></div>
-        <div class="fl-caption">Each square is one hour. The number is how many of your <strong id="fw-cap"></strong> are busy on a trip then — hover a square for the detail. Red means more trips than cars on the road, so the extra ones already go to affiliates.</div>
+        <div class="fl-caption">Each square is one hour. The number is how many of your <strong id="fw-cap"></strong> are still free that hour — hover a square for the detail. A minus number means more trips than cars on the road, so the extra ones already go to affiliates. Monday to Friday only: the yards are shut at the weekend.</div>
       </div>
       <div class="fl-answer" id="fw-answer"></div>
     </div>
@@ -322,6 +346,7 @@
   var URLS = {
     downtime: "{% url 'fleet_save_downtime' 0 %}",
     check: "{% url 'fleet_check_window' 0 %}",
+    today: "{% url 'fleet_car_today' 0 %}",
     close: "{% url 'fleet_close_downtime' 0 %}",
     remove: "{% url 'fleet_delete_downtime' 0 %}",
     outlook: "{% url 'fleet_outlook' %}",
@@ -373,24 +398,71 @@
     var yes = row.querySelector('[data-takeoff-yes]'), no = row.querySelector('[data-takeoff-no]');
     if (no) no.addEventListener('click', function () { row.querySelector('[data-confirm]').hidden = true; });
     if (yes) yes.addEventListener('click', function () { takeOff(row, unitId, unit, yes); });
+    var opts = row.querySelector('[data-back-opts]');
+    var pick = row.querySelector('[data-back-date]');
+    if (opts) opts.addEventListener('click', function (e) {
+      var b = e.target.closest('.opt');
+      if (!b || !pick) return;
+      pick.value = backDate(Number(b.getAttribute('data-days')));
+      refreshConfirm(row, unitId);
+    });
+    if (pick) pick.addEventListener('change', function () { refreshConfirm(row, unitId); });
   });
 
+  // The first day the car is usable again, N days from today. The ledger blocks
+  // up to but NOT including it, so "tomorrow" is a single day off the road.
+  function backDate(days) {
+    var d = new Date(TODAY + 'T12:00:00');
+    d.setDate(d.getDate() + Math.max(1, days));
+    return d.toISOString().slice(0, 10);
+  }
+  function backOf(row) {
+    var input = row.querySelector('[data-back-date]');
+    var value = input && input.value ? input.value : '';
+    return value > TODAY ? value : TOMORROW;
+  }
+  // Both checks re-run whenever the return date changes: what this CAR is
+  // carrying on every blocked day, then what the fleet loses across the range.
+  function refreshConfirm(row, unitId) {
+    var panel = row.querySelector('[data-confirm]');
+    if (!panel) return;
+    var impact = panel.querySelector('[data-impact]');
+    var car = panel.querySelector('[data-car]');
+    var back = backOf(row);
+    row.dataset.ack = '';
+    var yes = panel.querySelector('[data-takeoff-yes]');
+    if (yes) { yes.textContent = 'Take it off the road'; yes.classList.remove('ack'); }
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-back-opts] .opt'), function (b) {
+      b.classList.toggle('active', backDate(Number(b.getAttribute('data-days'))) === back);
+    });
+    impact.textContent = 'Checking what dispatch loses…';
+    car.textContent = 'Checking what this car is carrying…';
+    car.classList.remove('free', 'busy');
+    fetch(FW.url(URLS.check, unitId) + '?from=' + TODAY + '&back=' + back, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { impact.textContent = d.success ? d.summary : (d.error || 'Could not check those days.'); })
+      .catch(function () { impact.textContent = 'Could not check those days.'; });
+    fetch(FW.url(URLS.today, unitId) + '?date=' + TODAY + '&back=' + back, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) { car.textContent = 'Could not read the days for this car.'; return; }
+        car.textContent = d.line;
+        car.classList.add(d.free ? 'free' : 'busy');
+      })
+      .catch(function () { car.textContent = 'Could not read the days for this car.'; });
+  }
   function openConfirm(row, unitId) {
     var panel = row.querySelector('[data-confirm]');
     if (!panel) return;
     document.querySelectorAll('[data-confirm]').forEach(function (p) { p.hidden = true; });
     panel.hidden = false;
-    row.dataset.ack = '';
-    var impact = panel.querySelector('[data-impact]');
-    impact.textContent = 'Checking what dispatch loses today…';
-    fetch(FW.url(URLS.check, unitId) + '?from=' + TODAY + '&back=' + TOMORROW, { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) { impact.textContent = d.success ? d.summary : (d.error || 'Could not check the day.'); })
-      .catch(function () { impact.textContent = 'Could not check the day.'; });
+    var input = panel.querySelector('[data-back-date]');
+    if (input) { input.min = TOMORROW; if (!input.value) input.value = TOMORROW; }
+    refreshConfirm(row, unitId);
   }
   function takeOff(row, unitId, unit, btn) {
     var body = {
-      starts_on: TODAY, expected_back_on: TOMORROW,
+      starts_on: TODAY, expected_back_on: backOf(row),
       category: row.getAttribute('data-category') || 'repair',
       reason: row.getAttribute('data-reason') || 'Taken off the road from the desk',
       acknowledge: row.dataset.ack === '1'
@@ -398,7 +470,7 @@
     btn.disabled = true;
     FW.post(FW.url(URLS.downtime, unitId), body, CSRF).then(function (d) {
       btn.disabled = false;
-      if (d.success) return done(unit + ' is off the road');
+      if (d.success) return done(unit + ' is off the road until ' + backOf(row));
       if (d.needs_ack) {
         row.dataset.ack = '1';
         row.querySelector('[data-impact]').textContent = d.summary + ' Take it off anyway?';

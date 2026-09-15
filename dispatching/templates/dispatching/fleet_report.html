@@ -6,6 +6,7 @@
 {% block extra_css %}
 {% include "dispatching/_travel_admin_css.html" %}
 {% include "dispatching/includes/_fleet_css.html" %}
+{% include "dispatching/includes/_fleet_luxe_css.html" %}
 <style>
   .rep-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
   @media (max-width: 900px) { .rep-tiles { grid-template-columns: repeat(2, 1fr); } }
@@ -43,15 +44,18 @@
 {% include 'dispatching/dispatcher_navbar.html' %}
 <div class="container-fluid py-4 tap-wrap">
 
-  <div class="tap-page-head">
+  <div class="fl-head">
     <div>
-      <h1 class="tap-title">Fleet report</h1>
-      <div class="tap-subtitle">
+      <div class="fl-eyebrow">Fleet</div>
+      <h1 class="fl-title">Report</h1>
+      <div class="fl-date">
         {{ report.start|date:"M j" }} – {{ report.end|date:"M j, Y" }} · {{ report.window_days }} days · {{ report.units }} active units.
         Built from the downtime, service, issue and mileage records as they stand — correct a record and the report follows.
       </div>
     </div>
-    {% include "dispatching/includes/_fleet_shell.html" %}
+    <div class="fl-head-right">
+      {% include "dispatching/includes/_fleet_pills.html" %}
+    </div>
   </div>
 
   <div class="mb-3">

@@ -43,7 +43,7 @@ CHECKLIST = [
             {"key": "lights", "label": "Headlights, brake lights, indicators"},
             {"key": "tires", "label": "Tire tread and pressure, no damage"},
             {"key": "glass", "label": "Glass, mirrors and wipers"},
-            {"key": "clean_out", "label": "Washed, presentable for a guest"},
+            {"key": "clean_out", "label": "Clean exterior"},
         ],
     },
     {
@@ -62,7 +62,8 @@ CHECKLIST = [
         "items": [
             {"key": "oil", "label": "Oil level"},
             {"key": "coolant", "label": "Coolant and washer fluid"},
-            {"key": "brakes", "label": "Brakes feel right on the test drive"},
+            {"key": "brake_fluid", "label": "Brake fluid reservoir level"},
+            {"key": "brake_life", "label": "Brake life — pads and discs"},
             {"key": "dash", "label": "No warning lights on the dash"},
         ],
     },
@@ -82,6 +83,12 @@ CHECKLIST = [
 # and the spare/jack. Their keys are kept out of CHECKLIST but any inspection
 # already carrying them still renders, because results are stored by key and
 # item_labels() falls back to the key.
+#
+# Dropped 2026-09-16, same rule: `brakes` ("Brakes feel right on the test
+# drive"). A walk-around happens on the lot, so it became two things that can
+# actually be looked at there — the fluid reservoir and pad/disc life. Those
+# are DIFFERENT questions, so they took new keys rather than reusing `brakes`;
+# an old record's `brakes` answer is still stored and still reads back.
 
 # How many cars the manager aims to walk in a day. Nineteen active units across
 # five working days is four a day; five leaves room to fall a day behind and
@@ -252,6 +259,9 @@ def build_week(loaded, day_rows=None, last_seen=None):
             "idle_today": bool(today_row and today_row["state"] in ("open", "down")),
             "window_minutes": _window_minutes(today_row),
             "last_seen": last_seen.get(unit.id),
+            "last_seen_label": _last_seen_label(last_seen.get(unit.id), start),
+            # Set below, once the suggestion order is known.
+            "suggested": False,
             "href": f"/dispatching/fleet/inspections/{unit.id}/",
         }
         tiles.append(tile)
@@ -267,13 +277,23 @@ def build_week(loaded, day_rows=None, last_seen=None):
         _natural(t["number"]),
     ))
 
+    suggested = due[:DAILY_TARGET]
+    for tile in suggested:
+        # The same card appears in today's handful and in the week grid. Marking
+        # it there is what stops the grid reading as a second, contradictory list
+        # of the same five cars.
+        tile["suggested"] = True
+
     counted = [t for t in tiles if t["state"] != "shop"]
     done_count = sum(1 for t in counted if t["state"] in ("done", "found"))
     found_count = sum(1 for t in counted if t["state"] == "found")
     remaining = len(counted) - done_count
     days_left = max(1, 7 - day.weekday()) if day.weekday() < 7 else 1
 
-    tiles.sort(key=lambda t: ({"due": 0, "found": 1, "done": 2, "shop": 3}[t["state"]],
+    # What was walked comes FIRST: the grid is the week's record, and the week's
+    # output is the cars that were seen and what they turned up. What is still
+    # due is today's agenda, and that already has its own panel above.
+    tiles.sort(key=lambda t: ({"found": 0, "done": 1, "due": 2, "shop": 3}[t["state"]],
                               _natural(t["number"])))
 
     return {
@@ -281,7 +301,7 @@ def build_week(loaded, day_rows=None, last_seen=None):
         "week_start": start,
         "week_end": start + timedelta(days=6),
         "tiles": tiles,
-        "suggested": due[:DAILY_TARGET],
+        "suggested": suggested,
         "due_count": remaining,
         "done_count": done_count,
         "found_count": found_count,
@@ -295,6 +315,23 @@ def build_week(loaded, day_rows=None, last_seen=None):
 
 # A car nobody has ever inspected sorts ahead of one inspected long ago.
 _NEVER = date.min
+
+
+def _last_seen_label(last_week, this_week):
+    """'Last walked 3 weeks ago' — the fact the suggestion order is built on,
+    said on the card so the order stops looking arbitrary.
+
+    Weeks, not dates: the round's unit of accountability is the week, and a
+    record stamped with its Monday cannot honestly claim a day.
+    """
+    if last_week is None:
+        return "Never walked"
+    weeks = (this_week - last_week).days // 7
+    if weeks <= 0:
+        return "Walked this week"
+    if weeks == 1:
+        return "Last walked last week"
+    return f"Last walked {weeks} weeks ago"
 
 
 def _pace(remaining, days_left, day):
@@ -360,6 +397,36 @@ def _natural(vehicle_number):
     number = (vehicle_number or "").strip()
     digits = "".join(ch for ch in number if ch.isdigit())
     return (0, int(digits), number) if digits else (1, 0, number)
+
+
+def next_due(day, *, exclude_id=None):
+    """The next car still owed a walk this week, or None.
+
+    Ordered the way the round orders what is left — longest unseen, then unit
+    number — so "save and next" hands over the same car the grid would have
+    sent him to. Deliberately does NOT load the day's schedule to prefer idle
+    cars: that costs the whole board, and he is standing in the yard with the
+    next car in front of him, not choosing from a list.
+    """
+    from drivers.models import VehicleInspection
+
+    from dispatching import fleet_capacity
+
+    start = week_start_for(day)
+    units = [u for u in fleet_capacity.fleet_units()
+             if u.id != exclude_id and u.downtime_on(day) is None]
+    if not units:
+        return None
+    walked = set(
+        VehicleInspection.objects
+        .filter(week_start=start, vehicle_id__in=[u.id for u in units])
+        .values_list("vehicle_id", flat=True))
+    due = [u for u in units if u.id not in walked]
+    if not due:
+        return None
+    last_seen = last_seen_map(due)
+    due.sort(key=lambda u: (last_seen.get(u.id) or _NEVER, _natural(u.vehicle_number)))
+    return due[0]
 
 
 def existing_for(unit, day):

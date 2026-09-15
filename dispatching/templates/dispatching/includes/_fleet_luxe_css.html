@@ -122,7 +122,28 @@
   .fl-badge.settled { color: var(--fl-settled); background: #E9EEF4; }
   .fl-confirm { background: var(--fl-critical-tint); border-radius: 0.75rem; padding: 14px 16px; margin-top: 12px; }
   .fl-confirm .l { font-size: 0.84rem; font-weight: 600; color: var(--fl-critical); }
-  .fl-confirm .i { font-size: 0.82rem; color: var(--fl-muted); line-height: 1.55; margin-top: 5px; }
+  /* When is it back? A takedown with no return date is the ledger's rule 1
+     working blind — the car releases itself on that date whether or not
+     anyone is at a keyboard, so it has to be chosen, not assumed. */
+  .fl-confirm .back { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .fl-confirm .back .cap { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+                           text-transform: uppercase; color: var(--fl-critical); }
+  .fl-confirm .back .opts { display: flex; gap: 5px; flex-wrap: wrap; }
+  .fl-confirm .back .opt { padding: 6px 12px; min-height: 36px; border: 1px solid var(--fl-critical-border);
+                           border-radius: 50px; background: #fff; font-size: 0.72rem; font-weight: 600;
+                           color: var(--fl-muted); transition: var(--fl-t); }
+  .fl-confirm .back .opt:hover { border-color: var(--fl-critical); color: var(--fl-critical); }
+  .fl-confirm .back .opt.active { background: var(--fl-critical); border-color: var(--fl-critical); color: #fff; }
+  .fl-confirm .back .pick { min-height: 36px; padding: 5px 10px; border: 1px solid var(--fl-critical-border);
+                            border-radius: 0.45rem; background: #fff; font-size: 0.76rem;
+                            font-family: var(--fl-sans); color: var(--fl-ink); }
+
+  /* What this car is in the middle of — the lead fact, set above the
+     fleet-wide arithmetic and weighted so it is read first. */
+  .fl-confirm .c { font-size: 0.86rem; font-weight: 600; line-height: 1.5; margin-top: 8px;
+                   color: var(--fl-ink); padding-left: 10px; border-left: 2px solid var(--fl-critical); }
+  .fl-confirm .c.free { border-left-color: var(--fl-good); color: var(--fl-good-deep); }
+  .fl-confirm .i { font-size: 0.8rem; color: var(--fl-muted); line-height: 1.55; margin-top: 8px; }
   .fl-confirm .a { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .fl-btn-danger { border: 0; background: var(--fl-critical); color: #fff; font-size: 0.74rem; font-weight: 600; padding: 8px 16px; border-radius: 50px; transition: var(--fl-t); }
   .fl-btn-danger:hover { background: #8a2319; }
@@ -168,6 +189,10 @@
   .fl-grid-wrap { min-width: 0; overflow-x: auto; }
   .fl-grid-row { display: grid; grid-template-columns: 78px repeat(10, minmax(32px, 1fr)); gap: 4px; align-items: center; margin-bottom: 4px; min-width: 460px; }
   .fl-grid-row.head { margin-bottom: 6px; }
+  /* The shop is shut Sat/Sun. The row still shows its demand — Saturday being
+     the busiest day is worth seeing — but it must not read as time going spare. */
+  .fl-grid-row.closed .fl-cell { opacity: 0.4; }
+  .fl-grid-row.closed .fl-grid-label { color: var(--fl-muted-light); }
   .fl-grid-head { font-size: 0.66rem; color: var(--fl-muted-light); font-weight: 600; text-align: center; }
   .fl-grid-label { font-size: 0.74rem; font-weight: 600; color: var(--fl-ink); white-space: nowrap; }
   .fl-grid-label small { display: block; font-size: 0.62rem; color: var(--fl-muted-light); font-weight: 500; }
