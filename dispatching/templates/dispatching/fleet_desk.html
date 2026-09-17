@@ -126,6 +126,19 @@
               <span class="fl-badge {% if c.recurring or c.severity == 'Critical' %}critical{% else %}caution{% endif %}">{% if c.recurring %}Recurring{% else %}{{ c.severity }}{% endif %}</span>
               <span>Reported {{ c.since }}, seen on {{ c.seen }} poll{{ c.seen|pluralize }}. Full history on the car's page.</span>
             </div>
+            {% comment %}
+              Everything above the raw code is a plain-English note WE wrote, not
+              anything the vehicle said. Read cold it sounds like a diagnosis —
+              "it cannot pass emissions in this state" is a sentence somebody
+              books work against — and this is a demo build besides. Say so
+              where the note is actually read, not in a footer nobody reaches.
+            {% endcomment %}
+            <div class="p fl-code-caveat">
+              Written for this fleet in plain English — not a mechanic's diagnosis,
+              and this is a demo build, so a note here can be wrong. The code and
+              the car's own wording above it are what the vehicle actually
+              reported. Ring the shop before spending money on it.
+            </div>
           </div>
           {% endfor %}
           {% endif %}

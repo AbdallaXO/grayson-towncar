@@ -325,6 +325,13 @@
   .fl-code-detail .fl-verdict { flex: 0 0 auto; }
   .fl-verdict.good { background: var(--fl-good-tint); color: var(--fl-good); border-color: var(--fl-good-border); }
   .fl-code-note { color: var(--fl-caution) !important; font-weight: 500; }
+  /* The "we wrote this, it can be wrong" line under a fault explanation. Quiet
+     and separated by a rule: it has to be read before anyone books work against
+     the note, but it is not itself one of the facts about the car. */
+  .fl-code-caveat { margin-top: 10px !important; padding-top: 9px;
+                    border-top: 1px solid var(--fl-hair-soft);
+                    font-size: 0.7rem !important; color: var(--fl-muted-light) !important;
+                    line-height: 1.5; }
   .fl-code-raw { font-size: 0.72rem !important; color: var(--fl-muted-light) !important; }
   .fl-code-raw code { font-family: var(--fl-mono); font-size: 0.7rem; margin-right: 6px;
                       padding: 1px 5px; border-radius: 3px; background: var(--fl-hair-softest); }

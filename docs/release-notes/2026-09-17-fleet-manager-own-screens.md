@@ -24,6 +24,10 @@ title: The fleet screens are his own, and only offer cars he can actually get to
 >    marked in red, instead of dropping to the bottom.
 > 4. Hover any block on it and the trip details come up straight away. No more
 >    waiting a second for the little grey box.
+> 5. On the **Desk**, tap a fault code and the plain-English note underneath now
+>    says what it is: something we wrote, not a mechanic's diagnosis, on a system
+>    still being built. Ring the shop before spending money on the strength of
+>    one. The code itself and the car's own wording are unchanged.
 >
 > His working hours are set on his account, so if they ever change, both screens
 > follow.
@@ -63,6 +67,10 @@ pages.
   to. The count of cars only free after he leaves is printed underneath.
 - *"It skipped a 45-minute gap."* — deliberately. Twenty minutes of walking plus
   the round trip to HQ does not fit in forty-five.
+- *"Does that warning mean the codes are unreliable?"* — no. The code and the
+  car's own description come straight off the vehicle. It is the sentence we
+  wrote underneath, explaining what the code means for a car with guests in it,
+  that is ours and could be wrong.
 - *"His hours changed / someone else is covering."* — the hours are on the
   person's own account, not the company's, so a second fleet hand on an evening
   shift would correctly be offered the evening windows.
